@@ -4,8 +4,10 @@ import fcntl
 import hashlib
 import hmac
 import json
+import math
 import os
 from pathlib import Path
+import re
 import stat
 import uuid
 
@@ -16,6 +18,11 @@ from ..files import checked_path, private_create, private_directory, private_rea
 from .models import (MAX_METADATA_BYTES, PUBLISH_TOKEN, UPLOAD_ID, VERSION,
                      ReleaseSettings, validate_manifest, version_number)
 from .verifier import ApkVerifier, compare_verified
+
+
+MAX_BETA_SOURCE_RECOVERY_ENTRIES = 64
+_COMMIT_SHA = re.compile(r"[a-f0-9]{40}\Z")
+_APK_SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 
 
 def _json_read(path: Path) -> dict:
@@ -50,6 +57,55 @@ def _private_open(path: Path):
     return stream
 
 
+def _apk_content_matches(stream, manifest: dict) -> bool:
+    """Bound a content check to the already validated manifest size."""
+    try:
+        expected_size = manifest["sizeBytes"]
+        if os.fstat(stream.fileno()).st_size != expected_size:
+            return False
+        digest = hashlib.sha256()
+        size = 0
+        for chunk in iter(lambda: stream.read(65536), b""):
+            size += len(chunk)
+            if size > expected_size:
+                return False
+            digest.update(chunk)
+        if size != expected_size or not hmac.compare_digest(
+                digest.hexdigest(), manifest["apkSha256"]):
+            return False
+        stream.seek(0)
+        return True
+    except (KeyError, OSError, TypeError, ValueError):
+        return False
+
+
+def _valid_beta_receipt(receipt: object, manifest: dict) -> bool:
+    expected = {
+        "schemaVersion", "channel", "sourceRepository", "sourceWorkflow",
+        "sourceRunId", "sourceRunNumber", "releaseId", "releaseTag", "apkAssetId", "versionCode", "commit",
+        "apkSha256", "checkedAt",
+    }
+    checked_at = receipt.get("checkedAt") if isinstance(receipt, dict) else None
+    return bool(
+        isinstance(receipt, dict) and set(receipt) == expected and
+        receipt.get("schemaVersion") == 1 and receipt.get("channel") == "beta" and
+        receipt.get("sourceRepository") == "ersingundem/larenor" and
+        receipt.get("sourceWorkflow") == ".github/workflows/android-build.yml" and
+        type(receipt.get("sourceRunId")) is int and receipt["sourceRunId"] >= 1 and
+        type(receipt.get("sourceRunNumber")) is int and receipt["sourceRunNumber"] >= 1 and
+        receipt["versionCode"] == 100_000_000 + receipt["sourceRunNumber"] and
+        type(receipt.get("releaseId")) is int and receipt["releaseId"] >= 1 and
+        type(receipt.get("apkAssetId")) is int and receipt["apkAssetId"] >= 1 and
+        type(checked_at) in (int, float) and math.isfinite(checked_at) and checked_at > 0 and
+        isinstance(receipt.get("commit"), str) and _COMMIT_SHA.fullmatch(receipt["commit"]) and
+        isinstance(receipt.get("apkSha256"), str) and _APK_SHA256.fullmatch(receipt["apkSha256"]) and
+        receipt.get("releaseTag") == f"client-beta-v{manifest['versionCode']}" and
+        receipt.get("versionCode") == manifest["versionCode"] and
+        receipt.get("commit") == manifest["commit"] and
+        receipt.get("apkSha256") == manifest["apkSha256"]
+    )
+
+
 class ReleaseService:
     def __init__(self, settings: ReleaseSettings, *, verifier: ApkVerifier | None):
         self.settings = settings
@@ -57,8 +113,9 @@ class ReleaseService:
         self.root = settings.data_dir
         self.staging = self.root / "staging"
         self.versions = self.root / "versions"
+        self.beta_sources = self.root / "beta-sources"
         self.trash = self.root / "trash"
-        for directory in (self.root, self.staging, self.versions, self.trash):
+        for directory in (self.root, self.staging, self.versions, self.beta_sources, self.trash):
             private_directory(directory)
         self.lock_file = self.root / ".publish.lock"
         try:
@@ -66,6 +123,7 @@ class ReleaseService:
         except FileExistsError:
             private_read(self.lock_file, 0)
         self.index = self.root / "latest.json"
+        self.beta_index = self.root / "latest-beta.json"
         with self._locked():
             self._recover()
 
@@ -120,6 +178,60 @@ class ReleaseService:
                 result.append(version_number(int(path.name)))
         return sorted(result)
 
+    def _clean_beta_source_artifacts(self, published: list[int]) -> None:
+        """Remove only bounded, authenticated leftovers from interrupted writes.
+
+        The caller holds the process-shared release lock. The private directory
+        may contain current receipt copies, valid receipts orphaned by retention,
+        or the exact temporary names created by ``_json_write``. Anything else
+        makes startup fail before cleanup begins.
+        """
+        try:
+            entries = []
+            for path in self.beta_sources.iterdir():
+                entries.append(path)
+                if len(entries) > MAX_BETA_SOURCE_RECOVERY_ENTRIES:
+                    raise StartupError("invalid_release_storage")
+        except OSError:
+            raise StartupError("invalid_release_storage") from None
+
+        published_set = set(published)
+        cleanup = []
+        try:
+            for path in entries:
+                raw = private_read(path, MAX_METADATA_BYTES)
+                if path.name.startswith(".tmp."):
+                    if not UPLOAD_ID.fullmatch(path.name.removeprefix(".tmp.")):
+                        raise StartupError("invalid_release_storage")
+                    cleanup.append(path)
+                    continue
+                if not path.name.endswith(".json") or not VERSION.fullmatch(path.name[:-5]):
+                    raise StartupError("invalid_release_storage")
+                version = version_number(int(path.name[:-5]))
+                if version in published_set:
+                    continue
+                receipt = json.loads(raw)
+                if not isinstance(receipt, dict):
+                    raise StartupError("invalid_release_storage")
+                synthetic_manifest = {
+                    "versionCode": version,
+                    "commit": receipt.get("commit"),
+                    "apkSha256": receipt.get("apkSha256"),
+                }
+                if not _valid_beta_receipt(receipt, synthetic_manifest):
+                    raise StartupError("invalid_release_storage")
+                cleanup.append(path)
+        except (ApiError, OSError, UnicodeError, ValueError, StartupError):
+            raise StartupError("invalid_release_storage") from None
+
+        try:
+            for path in cleanup:
+                path.unlink()
+            if cleanup:
+                sync_directory(self.beta_sources)
+        except OSError:
+            raise StartupError("invalid_release_storage") from None
+
     def _recover(self) -> None:
         for abandoned in self.trash.iterdir():
             if UPLOAD_ID.fullmatch(abandoned.name):
@@ -143,31 +255,78 @@ class ReleaseService:
                     if error.code != "release_conflict":
                         raise
         published = self._published()
-        for version in published:
-            manifest = self._manifest(version)
-            with _private_open(self.versions / str(version) / "client.apk") as apk:
-                if os.fstat(apk.fileno()).st_size != manifest["sizeBytes"]:
-                    raise StartupError("invalid_release_storage")
-        previous = self._latest_version()
+        try:
+            previous = self._latest_version("stable")
+            beta = self._latest_version("beta")
+        except ApiError:
+            raise StartupError("invalid_release_storage") from None
         if previous is not None and previous not in published:
             raise StartupError("published_release_missing")
-        if published and (previous is None or max(published) > previous):
+        if beta is not None and beta not in published:
+            raise StartupError("published_release_missing")
+
+        beta_intents = {}
+        receipt_repairs = []
+        for version in published:
+            manifest = self._manifest(version)
+            try:
+                with _private_open(self.versions / str(version) / "client.apk") as apk:
+                    if not _apk_content_matches(apk, manifest):
+                        raise StartupError("invalid_release_storage")
+            except (ApiError, OSError, StartupError):
+                raise StartupError("invalid_release_storage") from None
+            intent_path = self.versions / str(version) / "beta-intent.json"
+            source_path = self.beta_sources / f"{version}.json"
+            intent = _json_read(intent_path) if intent_path.exists() else None
+            source = _json_read(source_path) if source_path.exists() else None
+            if intent is not None and not _valid_beta_receipt(intent, manifest):
+                raise StartupError("invalid_release_storage")
+            if source is not None and not _valid_beta_receipt(source, manifest):
+                raise StartupError("invalid_release_storage")
+            if intent is not None and source is not None and intent != source:
+                raise StartupError("invalid_release_storage")
+            receipt = intent or source
+            if receipt is not None:
+                # The copy inside the version directory crosses the atomic
+                # staging rename. Either external copy can therefore be
+                # reconstructed without guessing the release channel.
+                if intent is None:
+                    receipt_repairs.append((intent_path, receipt))
+                if source is None:
+                    receipt_repairs.append((source_path, receipt))
+                beta_intents[version] = receipt
+        if beta is not None:
+            if beta not in beta_intents:
+                raise StartupError("published_release_missing")
+        # All pointer, active receipt, manifest, and APK evidence is known-good
+        # before any orphan or interrupted temporary is unlinked.
+        self._clean_beta_source_artifacts(published)
+        for path, receipt in receipt_repairs:
+            _json_write(path, receipt)
+        if beta_intents and (beta is None or max(beta_intents) > beta):
+            _json_write(self.beta_index, {"versionCode": max(beta_intents)})
+        stable_candidates = [version for version in published
+                             if version not in beta_intents]
+        if stable_candidates and (previous is None or max(stable_candidates) > previous):
             # A verified directory may have committed before a process crash
             # prevented the latest-pointer update. It is safe to finish it.
-            _json_write(self.index, {"versionCode": max(published)})
+            _json_write(self.index, {"versionCode": max(stable_candidates)})
         self._retention()
 
-    def _latest_version(self) -> int | None:
-        if not self.index.exists():
+    def _latest_version(self, channel="stable") -> int | None:
+        target = self.index if channel == "stable" else self.beta_index if channel == "beta" else None
+        if target is None:
+            raise ApiError("invalid_request")
+        if not target.exists():
             return None
-        value = _json_read(self.index)
+        value = _json_read(target)
         if set(value) != {"versionCode"}:
             raise ApiError("server_unavailable", 503)
         return version_number(value["versionCode"])
 
-    def latest(self) -> dict | None:
+    def latest(self, channel="stable") -> dict | None:
         with self._locked():
-            version = self._latest_version()
+            version = self._latest_version(channel)
             return self._manifest(version) if version is not None else None
 
     def open_apk(self, version: int):
@@ -176,8 +335,11 @@ class ReleaseService:
             if not (self.versions / str(version)).exists():
                 raise ApiError("not_found", 404)
             manifest = self._manifest(version)
-            stream = _private_open(self.versions / str(version) / "client.apk")
-            if os.fstat(stream.fileno()).st_size != manifest["sizeBytes"]:
+            try:
+                stream = _private_open(self.versions / str(version) / "client.apk")
+            except (ApiError, OSError, StartupError):
+                raise ApiError("server_unavailable", 503) from None
+            if not _apk_content_matches(stream, manifest):
                 stream.close()
                 raise ApiError("server_unavailable", 503)
             # Open before releasing the lock. Retention can unlink an old APK
@@ -189,7 +351,8 @@ class ReleaseService:
         if directory.parent not in (self.staging, self.versions, self.trash):
             raise StartupError("invalid_release_cleanup")
         private_directory(directory)
-        allowed = {"request.json", "upload.json", "manifest.json", ".lock", "client.apk", "client.part"}
+        allowed = {"request.json", "upload.json", "manifest.json", "beta-intent.json",
+                   ".lock", "client.apk", "client.part"}
         for child in directory.iterdir():
             if (child.name not in allowed and not child.name.startswith(".tmp.")) or child.is_dir():
                 raise StartupError("unknown_release_storage_file")
@@ -261,6 +424,9 @@ class ReleaseService:
                 existing = self._manifest(version)
                 if existing["apkSha256"] != manifest["apkSha256"] or existing["sizeBytes"] != manifest["sizeBytes"]:
                     raise ApiError("release_conflict", 409)
+                latest = self._latest_version("stable")
+                if latest is None or version > latest:
+                    _json_write(self.index, {"versionCode": version})
                 return 200, {"state": "published", "release": existing}
             pending = self._pending()
             for directory, request in pending:
@@ -386,7 +552,105 @@ class ReleaseService:
                 self._retention()
                 return manifest
 
+    def ingest_beta(self, raw_manifest: object, receipt: object, writer) -> dict:
+        """Verify and atomically publish one already source-validated beta.
+
+        `writer` receives a fresh exclusive path and must perform one bounded
+        download. A failed or uncertain source never advances the beta pointer.
+        """
+        manifest = validate_manifest(raw_manifest)
+        if (not _valid_beta_receipt(receipt, manifest) or
+                manifest["certificateSha256"] != self.settings.signer_sha256 or
+                not callable(writer)):
+            raise ApiError("release_verification_failed", 422)
+        version = manifest["versionCode"]
+        with self._locked():
+            self._recover()
+            latest = self._latest_version("beta")
+            if latest is not None and version < latest:
+                raise ApiError("beta_source_stale", 503)
+            existing = self._manifest(version) if (self.versions / str(version)).exists() else None
+            if existing is not None:
+                identity = ("applicationId", "versionCode", "versionName", "certificateSha256",
+                            "apkSha256", "sizeBytes", "minSdk", "commit", "downloadPath")
+                if any(existing[key] != manifest[key] for key in identity):
+                    raise ApiError("release_conflict", 409)
+                _json_write(self.versions / str(version) / "beta-intent.json", receipt)
+                _json_write(self.beta_sources / f"{version}.json", receipt)
+                _json_write(self.beta_index, {"versionCode": version})
+                self._retention()
+                return existing
+            pending = self._pending()
+            retained = sum(self._manifest(item)["sizeBytes"] for item in self._published())
+            reserved = sum(item["manifest"]["sizeBytes"] for _, item in pending)
+            free = os.statvfs(self.root).f_bavail * os.statvfs(self.root).f_frsize
+            if (len(pending) >= self.settings.max_active or
+                    retained + reserved + manifest["sizeBytes"] > self.settings.max_apk_disk_bytes or
+                    free < manifest["sizeBytes"] + 16 * 1024 * 1024):
+                raise ApiError("release_capacity", 409)
+            identifier = str(uuid.uuid4())
+            directory = self.staging / identifier
+            private_directory(directory)
+            private_create(directory / ".lock", b"")
+            _json_write(directory / "request.json", {
+                "manifest": manifest,
+                "expiresAt": self.settings.clock() + self.settings.upload_ttl_seconds,
+            })
+        try:
+            with self._upload_lock(directory):
+                partial = directory / "client.part"
+                writer(partial)
+                with _private_open(partial) as stream:
+                    digest = hashlib.sha256()
+                    size = 0
+                    for chunk in iter(lambda: stream.read(65536), b""):
+                        size += len(chunk)
+                        if size > manifest["sizeBytes"]:
+                            raise ApiError("release_verification_failed", 422)
+                        digest.update(chunk)
+                if size != manifest["sizeBytes"] or digest.hexdigest() != manifest["apkSha256"]:
+                    raise ApiError("release_verification_failed", 422)
+                os.replace(partial, directory / "client.apk")
+                observed = self.verifier.verify(directory / "client.apk") if self.verifier is not None else None
+                if observed is None:
+                    raise ApiError("release_verifier_unavailable", 503)
+                compare_verified(manifest, observed, self.settings.signer_sha256)
+                with self._locked():
+                    latest = self._latest_version("beta")
+                    if latest is not None and version <= latest:
+                        current = self._manifest(latest)
+                        if (version == latest and current["apkSha256"] == manifest["apkSha256"] and
+                                current["commit"] == manifest["commit"]):
+                            self._remove_directory(directory)
+                            return current
+                        raise ApiError("beta_source_stale", 503)
+                    _json_write(directory / "manifest.json", manifest)
+                    _json_write(directory / "beta-intent.json", receipt)
+                    os.rename(directory, self.versions / str(version))
+                    sync_directory(self.staging)
+                    sync_directory(self.versions)
+                    _json_write(self.beta_sources / f"{version}.json", receipt)
+                    _json_write(self.beta_index, {"versionCode": version})
+                    self._retention()
+                    return manifest
+        except BaseException:
+            with self._locked():
+                if directory.exists():
+                    self._remove_directory(directory)
+            raise
+
     def _retention(self) -> None:
         versions = self._published()
-        for version in versions[:-self.settings.max_retained]:
+        protected = {value for value in (
+            self._latest_version("stable"), self._latest_version("beta")
+        ) if value is not None}
+        target = max(self.settings.max_retained, len(protected))
+        removable = [version for version in versions if version not in protected][
+            :max(0, len(versions) - target)
+        ]
+        for version in removable:
             self._remove_directory(self.versions / str(version))
+            source = self.beta_sources / f"{version}.json"
+            source.unlink(missing_ok=True)
+        if removable:
+            sync_directory(self.beta_sources)

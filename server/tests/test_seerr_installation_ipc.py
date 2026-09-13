@@ -9,16 +9,23 @@ import time
 import pytest
 
 from larenor_server.plugins.installation_ipc import (
+    InstallationIPCError,
     InstallationWorkerClient,
     InstallationWorkerServer,
+    _seerr_bootstrap_result,
 )
-from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
+from larenor_server.plugins.seerr_bootstrap_models import (
+    PrivateSeerrArrBinding,
+    PrivateSeerrBootstrap,
+)
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutionResult,
 )
 from test_media_host_preflight import stack
 from test_seerr_initial_admin import API_KEY, PASSWORD
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiringResult
+from larenor_server.plugins.seerr_initialization import SeerrInitializationResult
 
 
 def private():
@@ -26,6 +33,22 @@ def private():
         credential=PASSWORD,
         sourceBootstrapId="b" * 32,
         sourceBootstrapRevision=3,
+        arrBindings=tuple(
+            PrivateSeerrArrBinding(
+                serviceId=service,
+                configurationId=identifier * 32,
+                configurationRevision=3,
+                resourceRevision=4,
+                serviceRevision=3,
+                configurationDigest="c" * 64,
+                hostname="larenor-" + identifier * 32,
+                apiKey=identifier * 32,
+                rootPath="/media/movies" if service == "radarr" else "/media/tv",
+                profileId=4 if service == "radarr" else 5,
+                profileName="HD-1080p",
+            )
+            for service, identifier in (("radarr", "1"), ("sonarr", "2"))
+        ),
     )
 
 
@@ -38,7 +61,11 @@ def receipt():
             "admin_created",
             "api_key_verified",
             "session_destroyed",
+            "arr_wiring_verified",
+            "initialization_verified",
         ),
+        SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8)),
+        SeerrInitializationResult("verified", False, ("initialized_verified",)),
     )
 
 
@@ -134,6 +161,72 @@ def test_worker_failure_preserves_only_static_seerr_state():
     assert len(backend.calls) == 1 and PASSWORD not in repr(raised.value)
 
 
+def test_worker_authority_failure_preserves_verified_convergence_receipts():
+    wiring = SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8))
+    initialization = SeerrInitializationResult(
+        "verified", False, ("initialized_verified",)
+    )
+    failure = SeerrBootstrapExecutionError(
+        "seerr_bootstrap_authority_changed",
+        completed_steps=receipt().completed_steps,
+        uncertain_effect=True,
+        api_key=API_KEY,
+        arr_wiring=wiring,
+        initialization=initialization,
+    )
+    with running(Backend(failure)) as (_backend, client):
+        with pytest.raises(SeerrBootstrapExecutionError) as raised:
+            client.bootstrap_seerr(
+                "a" * 32,
+                stack(),
+                private(),
+                deadline=time.monotonic() + 0.4,
+                gate=lambda: True,
+            )
+
+    assert raised.value.completed_steps == receipt().completed_steps
+    assert raised.value.arr_wiring == wiring
+    assert raised.value.initialization == initialization
+    assert API_KEY not in repr(raised.value)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"completedSteps": list(receipt().completed_steps[:3])},
+        {"apiKey": None},
+        {
+            "completedSteps": list(receipt().completed_steps[:4]),
+            "arrInstanceIds": [7, 8],
+            "initialized": None,
+            "initializationChanged": None,
+        },
+        {
+            "completedSteps": list(receipt().completed_steps[:5]),
+            "arrInstanceIds": None,
+            "initialized": None,
+            "initializationChanged": None,
+        },
+        {"initialized": None, "initializationChanged": None},
+    ],
+)
+def test_failed_worker_receipts_require_exact_completed_step_coherence(changes):
+    value = {
+        "state": "failed",
+        "apiKey": API_KEY,
+        "completedSteps": list(receipt().completed_steps),
+        "errorCode": "seerr_bootstrap_authority_changed",
+        "uncertainEffect": True,
+        "causeCode": None,
+        "arrInstanceIds": [7, 8],
+        "initialized": True,
+        "initializationChanged": False,
+    } | changes
+
+    with pytest.raises(InstallationIPCError, match="^invalid_worker_result$"):
+        _seerr_bootstrap_result(value)
+
+
 def test_client_authority_loss_before_dispatch_never_reaches_worker():
     with running() as (backend, client):
         with pytest.raises(
@@ -165,6 +258,11 @@ def test_client_authority_loss_after_effect_is_uncertain():
                 gate=lambda: next(gates),
             )
     assert raised.value.uncertain_effect and len(backend.calls) == 1
+    assert raised.value.completed_steps == receipt().completed_steps
+    assert raised.value.api_key == API_KEY
+    assert raised.value.arr_wiring == receipt().arr_wiring
+    assert raised.value.initialization == receipt().initialization
+    assert API_KEY not in repr(raised.value)
 
 
 @pytest.mark.parametrize("result", [{"apiKey": API_KEY}, object()])

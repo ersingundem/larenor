@@ -87,6 +87,23 @@ class SecurityPolicyTest(unittest.TestCase):
                 workflow["concurrency"]["cancel-in-progress"] = value
                 self.assertTrue(validate_workflow(json.dumps(workflow)))
 
+    def test_yaml_release_concurrency_may_preserve_main_while_cancelling_pull_requests(self):
+        workflow = (ROOT / ".github/workflows/android-build.yml").read_text()
+        self.assertEqual(validate_workflow(workflow), [])
+        defects = [
+            workflow.replace(
+                "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+                "cancel-in-progress: ${{ github.event_name == 'push' }}",
+            ),
+            workflow.replace(
+                "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.event.pull_request.head.repo.full_name, github.head_ref) || github.run_id }}",
+                "group: ${{ github.workflow }}-${{ github.ref }}",
+            ),
+        ]
+        for changed in defects:
+            with self.subTest(changed=changed):
+                self.assertTrue(validate_workflow(changed))
+
     def test_json_invalid_or_duplicate_fields_are_rejected(self):
         for text in ('{"permissions":', '{"permissions":{},"permissions":{"contents":"read"}}'):
             with self.subTest(text=text):
@@ -111,10 +128,11 @@ class SecurityPolicyTest(unittest.TestCase):
                                            f"./.github/workflows/unchecked-{path}")
                 self.assertTrue(validate_signed_android_workflow(changed))
 
-    def test_server_publication_requires_its_own_fresh_main_and_https_guards(self):
+    def test_server_publication_requires_fresh_main_or_safe_core_pull_noop(self):
         workflow = (ROOT / ".github/workflows/android-build.yml").read_text()
         prefix, marker, publish = workflow.partition("      - name: Publish verified Client to the configured Larenor Server\n")
         for guard in ('if [ "$current_main" != "$GITHUB_SHA" ]',
+                      "Core will pull its verified beta carrier.", "exit 0",
                       "endpoint.scheme != 'https'", "unset GH_TOKEN",
                       "steps.signing.outputs.available == 'true'"):
             with self.subTest(guard=guard):

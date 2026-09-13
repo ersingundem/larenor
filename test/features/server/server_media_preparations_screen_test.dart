@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -85,10 +86,50 @@ void main() {
 
   Future<void> tap(WidgetTester tester, String key) async {
     final target = find.byKey(ValueKey(key));
+    for (var i = 0; target.evaluate().isEmpty && i < 30; i++) {
+      await tester.drag(
+        find.byType(ListView).first,
+        Offset(0, i < 10 ? 600 : -240),
+      );
+      await tester.pumpAndSettle();
+    }
     await tester.ensureVisible(target);
     await tester.pumpAndSettle();
     await tester.tap(target);
     await tester.pumpAndSettle();
+  }
+
+  Future<void> reveal(WidgetTester tester, Finder target) async {
+    for (var i = 0; target.evaluate().isEmpty && i < 30; i++) {
+      await tester.drag(
+        find.byType(ListView).first,
+        Offset(0, i < 10 ? 600 : -180),
+      );
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> focusWithKeyboard(WidgetTester tester, Finder target) async {
+    for (var index = 0; index < 40; index++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focused = FocusManager.instance.primaryFocus?.context;
+      if (focused != null &&
+          find
+              .descendant(
+                of: target,
+                matching: find.byElementPredicate(
+                  (element) => identical(element, focused),
+                ),
+              )
+              .evaluate()
+              .isNotEmpty) {
+        return;
+      }
+    }
+    fail('Target did not receive keyboard focus');
   }
 
   testWidgets(
@@ -108,6 +149,145 @@ void main() {
       await tap(tester, 'media-cancel-confirm');
       expect(f.records.single['state'], 'cancelled');
       expect(find.byKey(const ValueKey('media-cancel')), findsNothing);
+    },
+  );
+  testWidgets(
+    'tablet detail shows every verified Seerr convergence phase read-only',
+    (tester) async {
+      await mount(tester, width: 1280);
+      f.seerrRecords.add(seerrConvergenceJson(f.records.single));
+      await tap(tester, 'media-view-${f.records.single['id']}');
+      for (final label in [
+        'Request: Complete',
+        'Bootstrap: Complete',
+        'Connect Sonarr and Radarr: Complete',
+        'Initialize: Complete',
+        'Verified: Complete',
+      ]) {
+        final key =
+            ['request', 'bootstrap', 'arr_wiring', 'initialize', 'verified'][[
+              'Request: Complete',
+              'Bootstrap: Complete',
+              'Connect Sonarr and Radarr: Complete',
+              'Initialize: Complete',
+              'Verified: Complete',
+            ].indexOf(label)];
+        await reveal(tester, find.byKey(ValueKey('media-seerr-phase-$key')));
+        expect(
+          tester
+              .getSemantics(find.byKey(ValueKey('media-seerr-phase-$key')))
+              .label,
+          contains(label),
+        );
+      }
+      expect(f.mutations, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'compact Turkish 2x view exposes partial recovery and refreshes explicitly',
+    (tester) async {
+      await mount(tester, language: 'tr', scale: 2, width: 600);
+      f.seerrRecords.add(
+        seerrConvergenceJson(
+          f.records.single,
+          state: 'needs_attention',
+          phase: 'initialize',
+          initialized: false,
+          errorCode: 'seerr_bootstrap_initialization_failed',
+        ),
+      );
+      await tap(tester, 'media-view-${f.records.single['id']}');
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('media-seerr-phase-initialize')),
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('media-seerr-phase-initialize')),
+            )
+            .label,
+        contains('Başlatma: İlgilenmeniz gerekiyor'),
+      );
+      final pending = find.byKey(const ValueKey('media-seerr-phase-verified'));
+      await reveal(tester, pending);
+      final pendingIcon = tester.widget<Icon>(
+        find.descendant(of: pending, matching: find.byType(Icon)),
+      );
+      expect(
+        pendingIcon.color,
+        CupertinoColors.secondaryLabel.resolveFrom(tester.element(pending)),
+      );
+      expect(find.textContaining('otomatik tekrarlamaz'), findsOneWidget);
+      final recovery = find.byKey(const ValueKey('media-seerr-recover'));
+      await reveal(tester, recovery);
+      expect(tester.getSize(recovery).height, greaterThanOrEqualTo(48));
+      expect(
+        tester
+            .getSemantics(recovery)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, isNotNull);
+      final beforeSpace = f.calls.length;
+      await focusWithKeyboard(tester, recovery);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(f.calls.length, greaterThan(beforeSpace));
+      f.seerrRecords[0] = seerrConvergenceJson(f.records.single);
+      await tester.ensureVisible(recovery);
+      await focusWithKeyboard(tester, recovery);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('media-seerr-phase-verified')),
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('media-seerr-phase-verified')),
+            )
+            .label,
+        contains('Doğrulama: Tamamlandı'),
+      );
+      expect(f.mutations, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'cancelled convergence is terminal and has distinct accessible status',
+    (tester) async {
+      await mount(tester, width: 600, language: 'tr', scale: 2);
+      f.seerrRecords.add(
+        seerrConvergenceJson(
+          f.records.single,
+          state: 'cancelled',
+          phase: 'arr_wiring',
+          arrWired: false,
+          initialized: false,
+        ),
+      );
+      await tap(tester, 'media-view-${f.records.single['id']}');
+      final phase = find.byKey(const ValueKey('media-seerr-phase-arr_wiring'));
+      await reveal(tester, phase);
+
+      expect(tester.getSemantics(phase).label, contains('İptal edildi'));
+      expect(tester.getSemantics(phase).label, isNot(contains('Devam ediyor')));
+      expect(find.byKey(const ValueKey('media-seerr-recover')), findsNothing);
+      final icon = tester.widget<Icon>(
+        find.descendant(of: phase, matching: find.byType(Icon)),
+      );
+      expect(
+        icon.color,
+        CupertinoColors.systemRed.resolveFrom(tester.element(phase)),
+      );
+      expect(tester.takeException(), isNull);
     },
   );
   testWidgets(

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-10",
+  "updatedAt": "2026-09-11",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -1817,7 +1817,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi ağ ve altyapı adaptörleri",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.7"
       ],
@@ -1825,7 +1825,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/s08-9-infrastructure-acceptance-2026-09-11.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1837,9 +1838,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "758583bbdb3b89b45fd87a3fe9a249a492bb091e",
+          "state": "completed",
+          "result": "passed",
+          "label": "20 yeni çapraz adaptör kabul testi; 103 birleşik Proxmox/Keenetic Server testi geçti."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "78eeb40502937952c6497ef887f9e675580fd67b",
+          "state": "completed",
+          "result": "passed",
+          "label": "37 odaklı Flutter testi ve hedefli analiz; 600/1280, 2x metin, 48 dp, klavye ve ortak kanıt dili geçti."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "f8f2323983219a018422dcd6076d8e048fb20931",
+          "state": "completed",
+          "result": "passed",
+          "label": "3 odaklı Flutter regresyonu kayıtlı bağlantı/erişilebilir kanıt ayrımını, canlı child authority guardını ve permission-denied eşlemesini kapattı; son birleşik S08.9 Flutter kapısı 43 PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "a00dc041356ca268dbd879113a1abaabd74b6aee",
+          "state": "completed",
+          "result": "passed",
+          "label": "3 odaklı Flutter regresyonu API replacement ve geç preview iptalinin exact sahibi tarafından yürütülmesini doğruladı; komut etkisi oluşmadı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "c70417ab5be838efa6bd7b6cb8e8cf27c1df6ec4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact HTTP status/error-code tablosu 16 izinli çifti, yanlış status eşleşmelerini ve private hata fallbacklerini fail-closed doğruladı; son S08.9 Flutter kapısı 43 PASS."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "a052362 tabanındaki yerel yazılım matrisi 103 Server ve son inceleme düzeltmeleriyle 43 Flutter testinde geçti. S08.9 requiredEvidence yalnız test/review/ci; exact birleşik adayın bağımsız review ve GitHub CI kanıtı açık olduğundan awaiting_ci kalır. Gerçek Proxmox/Keenetic ve fiziksel Huawei/DeX kabulü MANUAL.SERVICES ve MANUAL.TABLET altında ayrı izlenir."
     },
     {
       "id": "S08.10",
@@ -5119,7 +5161,8 @@
       ],
       "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
       "acceptance": [
-        "S05 doğru kimlik/auth durumu ve merkezi adaptörler gerçek sürümlerde doğrulanır; üretim HA kontrolü ayrıca yetki verilmedikçe read-only kalır."
+        "S05 doğru kimlik/auth durumu ve merkezi adaptörler gerçek sürümlerde doğrulanır; üretim HA kontrolü ayrıca yetki verilmedikçe read-only kalır.",
+        "S08.9 merkezi yazılım kabulünden ayrı olarak gerçek Proxmox ve Keenetic okumaları Larenor Core üzerinden doğrulanır; yalnız ayrıca açık yetki verilirse zararsız komut kabulü yapılır."
       ],
       "requiredEvidence": [
         "manual",
@@ -5127,7 +5170,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli; S08.9 gerçek LAN ve servis kanıtı burada tutulur."
     },
     {
       "id": "MANUAL.MEDIA",
@@ -5173,7 +5216,8 @@
       ],
       "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
       "acceptance": [
-        "MatePad 11.5 S 2026/GMS’siz ve diğer tabletler, dokunmatik harici monitör, yön/klavye/fare, 2× yazı, kilit ekranı/ses/24 saat OEM güç ve Hot-plug ölçümü."
+        "MatePad 11.5 S 2026/GMS’siz ve diğer tabletler, dokunmatik harici monitör, yön/klavye/fare, 2× yazı, kilit ekranı/ses/24 saat OEM güç ve Hot-plug ölçümü.",
+        "S08.9 Proxmox/Keenetic ayrıntı, dashboard ve komut yüzeyleri Huawei MatePad ile Samsung DeX üzerinde 600/1280, 2x metin, klavye/TalkBack, PIN ve lifecycle davranışıyla doğrulanır."
       ],
       "requiredEvidence": [
         "manual",
@@ -5181,7 +5225,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+      "reason": "Yazılım/yayın kapılarından sonra uygun fiziksel tablet ve kullanıcı katılımı gerekli; S08.9 cihaz/DeX kanıtı burada tutulur."
     },
     {
       "id": "MANUAL.HEALTH",

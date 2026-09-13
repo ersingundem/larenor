@@ -289,6 +289,7 @@ class SeerrInitialAdmin:
         credential,
         jellyfin_hostname,
         limits=SeerrInitialAdminLimits(),
+        close_connection=True,
     ):
         if (
             username != "larenor-system"
@@ -298,6 +299,7 @@ class SeerrInitialAdmin:
             or type(jellyfin_hostname) is not str
             or _JELLYFIN_HOST.fullmatch(jellyfin_hostname) is None
             or type(limits) is not SeerrInitialAdminLimits
+            or type(close_connection) is not bool
             or any(
                 not callable(getattr(connection, name, None))
                 for name in ("sendall", "recv", "settimeout", "shutdown", "close")
@@ -405,7 +407,7 @@ class SeerrInitialAdmin:
                 "POST",
                 "/api/v1/auth/logout",
                 cookie=cookie,
-                final=True,
+                final=close_connection,
             )
             if status != 200 or _json(raw, protocol_code) != {"status": "ok"}:
                 raise SeerrInitialAdminError(protocol_code)
@@ -462,6 +464,10 @@ class SeerrInitialAdmin:
             ) from None
         finally:
             if scope is not None:
+                if not close_connection:
+                    scope.timer.cancel()
+                    with scope.lock:
+                        scope.socket = None
                 scope.finish()
 
     @staticmethod

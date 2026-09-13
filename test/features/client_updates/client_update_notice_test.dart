@@ -558,6 +558,17 @@ void main() {
     final h = NoticeHarness();
     await h.mount(tester, size: const Size(320, 650), scale: 2);
     expect(banner, findsOneWidget);
+    expect(find.text('Available version: 2.0'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('client-update-open'))).height,
+      greaterThanOrEqualTo(48),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('client-update-dismiss')))
+          .height,
+      greaterThanOrEqualTo(48),
+    );
     expect(tester.takeException(), isNull);
     await tester.tap(find.byKey(const ValueKey('client-update-dismiss')));
     await tester.pump();

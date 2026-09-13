@@ -170,8 +170,7 @@ class SeerrArrWiring:
             if len(raw) > 32768:
                 raise SeerrArrWiringError("invalid_seerr_arr_wiring")
         connection.settimeout(_remaining(deadline))
-        connection.sendall(
-            _request_bytes(
+        request = _request_bytes(
                 method,
                 path,
                 "seerr",
@@ -181,7 +180,13 @@ class SeerrArrWiring:
                     **({"Content-Type": "application/json"} if raw is not None else {}),
                 },
                 raw,
+            ).replace(
+                b"\r\nConnection: close\r\n",
+                b"\r\nConnection: keep-alive\r\n",
+                1,
             )
+        connection.sendall(
+            request
         )
         status, response_body, closed = _response(
             _StartupReader(connection, deadline),
@@ -244,7 +249,15 @@ class SeerrArrWiring:
         if not valid_profiles or not valid_roots or len(profile_matches) != 1 or len(root_matches) != 1:
             raise SeerrArrWiringError("seerr_arr_selection_changed")
 
-    def configure(self, connection, *, seerr_api_key, services, total_seconds=60.0):
+    def configure(
+        self,
+        connection,
+        *,
+        seerr_api_key,
+        services,
+        total_seconds=60.0,
+        close_connection=True,
+    ):
         if (
             not _is_generated_key(seerr_api_key)
             or type(services) is not tuple
@@ -254,6 +267,7 @@ class SeerrArrWiring:
             or type(total_seconds) not in (int, float)
             or not math.isfinite(total_seconds)
             or not 0 < total_seconds <= 120
+            or type(close_connection) is not bool
             or any(
                 not callable(getattr(connection, name, None))
                 for name in ("sendall", "recv", "settimeout", "shutdown", "close")
@@ -363,4 +377,8 @@ class SeerrArrWiring:
             ) from None
         finally:
             if scope is not None:
+                if not close_connection:
+                    scope.timer.cancel()
+                    with scope.lock:
+                        scope.socket = None
                 scope.finish()

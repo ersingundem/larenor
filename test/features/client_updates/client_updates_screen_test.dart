@@ -120,6 +120,15 @@ void main() {
       await mount(tester);
       expect(reads, 1);
       expect(find.text('A new Client version is available'), findsOneWidget);
+      expect(find.byKey(const ValueKey('updates-status-card')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('updates-installed-version')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('updates-available-version')),
+        findsOneWidget,
+      );
       expect(api.downloads, 0);
       expect(api.installs, 0);
       await press(tester, 'updates-download');
@@ -249,5 +258,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(api.downloads, 0);
+  });
+
+  testWidgets('update actions keep tablet tap targets at 2x text', (
+    tester,
+  ) async {
+    await mount(tester, size: const Size(600, 900), scale: 2);
+    final action = find.byKey(const ValueKey('updates-download'));
+    await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+    expect(tester.takeException(), isNull);
   });
 }

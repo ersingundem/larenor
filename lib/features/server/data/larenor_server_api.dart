@@ -420,6 +420,7 @@ class LarenorServerApi {
     try {
       final code = (jsonDecode(utf8.decode(bytes)) as Map)['error']['code'];
       if (status == 404 && code == 'not_found' ||
+          status == 408 && code == 'request_timeout' ||
           status == 409 &&
               {
                 'ha_binding_changed',
@@ -427,17 +428,32 @@ class LarenorServerApi {
                 'ha_command_conflict',
                 'ha_migration_changed',
                 'ha_migration_preview_invalid',
+                'proxmox_binding_changed',
+                'proxmox_preview_invalid',
+                'keenetic_binding_changed',
+                'keenetic_preview_invalid',
+                'keenetic_snapshot_changed',
               }.contains(code) ||
           status == 429 &&
               {
                 'ha_limit_reached',
                 'ha_migration_limit_reached',
+                'proxmox_limit_reached',
+                'keenetic_limit_reached',
               }.contains(code) ||
           status == 502 &&
               {
                 'ha_upstream_unauthorized',
                 'ha_upstream_unavailable',
                 'ha_projection_unsupported',
+                'proxmox_summary_unsupported',
+                'proxmox_upstream_unauthorized',
+                'proxmox_upstream_unavailable',
+                'keenetic_snapshot_unsupported',
+                'keenetic_upstream_unauthorized',
+                'keenetic_upstream_denied',
+                'keenetic_upstream_unavailable',
+                'keenetic_upstream_unsupported',
               }.contains(code)) {
         return code as String;
       }

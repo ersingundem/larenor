@@ -34,6 +34,8 @@ def test_normal_entrypoint_registers_authenticated_release_and_admin_routes(tmp_
     assert not again.state.publisher_credential_created
     assert token_file.read_bytes() == original
     assert not app.state.releases.settings.publisher_token
+    assert app.state.beta_releases.source.repository == "ersingundem/larenor"
+    assert app.state.beta_releases.poll_seconds == 900
 
 
 def test_existing_invalid_publisher_file_fails_without_replacing_it(tmp_path):
@@ -66,4 +68,19 @@ def test_publisher_credential_cannot_be_placed_inside_database_backups(tmp_path,
     monkeypatch.setenv("LARENOR_PUBLISHER_TOKEN_FILE", str(settings.data_dir / "publisher.token"))
     with pytest.raises(StartupError, match="publisher_credential_must_be_outside_data_directory"):
         create_configured_app(settings)
+    assert not settings.data_dir.exists()
+
+
+@pytest.mark.parametrize(("name", "value"), [
+    ("LARENOR_BETA_SOURCE_REPOSITORY", "private-owner/private-repository"),
+    ("LARENOR_BETA_POLL_SECONDS", "59"),
+    ("LARENOR_BETA_POLL_SECONDS", "not-a-number"),
+    ("LARENOR_BETA_MAX_AGE_SECONDS", "3599"),
+])
+def test_beta_source_configuration_is_all_or_nothing_and_secret_free(tmp_path, monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    settings = Settings(tmp_path.resolve() / "data", tmp_path.resolve() / "secrets/vault.key")
+    with pytest.raises(StartupError, match="^invalid_beta_source_settings$") as error:
+        create_configured_app(settings)
+    assert value not in str(error.value)
     assert not settings.data_dir.exists()

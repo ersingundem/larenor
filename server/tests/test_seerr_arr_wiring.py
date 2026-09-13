@@ -1,5 +1,8 @@
 """Bounded Seerr-to-Arr service wiring on one proved private stream."""
 
+import socket
+import threading
+
 import pytest
 
 from larenor_server.plugins.seerr_arr_wiring import (
@@ -18,6 +21,36 @@ RADARR = SeerrArrService(
 SONARR = SeerrArrService(
     "sonarr", "larenor-" + "2" * 32, 8989, "b" * 32, 5, "HD-1080p", "/media/tv"
 )
+
+
+def close_aware_connection(replies):
+    client, server = socket.socketpair()
+
+    def serve():
+        with server:
+            pending = b""
+            for reply in replies:
+                while b"\r\n\r\n" not in pending:
+                    pending += server.recv(65536)
+                head, pending = pending.split(b"\r\n\r\n", 1)
+                length = next(
+                    (
+                        int(line.split(b":", 1)[1])
+                        for line in head.split(b"\r\n")[1:]
+                        if line.lower().startswith(b"content-length:")
+                    ),
+                    0,
+                )
+                while len(pending) < length:
+                    pending += server.recv(65536)
+                pending = pending[length:]
+                server.sendall(reply)
+                if b"\r\nConnection: close\r\n" in b"\r\n" + head + b"\r\n":
+                    return
+
+    worker = threading.Thread(target=serve, daemon=True)
+    worker.start()
+    return client, worker
 
 
 def discovery(service):
@@ -86,6 +119,7 @@ def test_wires_radarr_and_sonarr_with_verified_profile_and_root_folder():
     ]
     for raw in connection.requests:
         assert b"X-Api-Key: " + API_KEY.encode("ascii") in raw
+        assert b"Connection: keep-alive" in raw
     _, test_body = request(connection.requests[1])
     assert test_body == {
         "hostname": RADARR.hostname,
@@ -108,6 +142,20 @@ def test_exact_existing_instances_are_idempotent_without_mutation():
     assert result.instance_ids == (7, 9)
     assert len(connection.requests) == 2
     assert all(request(raw)[0][0].startswith(b"GET ") for raw in connection.requests)
+
+
+def test_reuses_a_real_close_aware_http_stream_for_both_arr_readbacks():
+    connection, worker = close_aware_connection(
+        [response([configured(RADARR, 7)]), response([configured(SONARR, 9)])]
+    )
+
+    result = SeerrArrWiring().configure(
+        connection, seerr_api_key=API_KEY, services=(RADARR, SONARR)
+    )
+    worker.join(timeout=1)
+
+    assert result.instance_ids == (7, 9)
+    assert not worker.is_alive()
 
 
 @pytest.mark.parametrize(

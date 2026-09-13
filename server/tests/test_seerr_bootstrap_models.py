@@ -21,6 +21,7 @@ def test_private_model_carries_only_credential_and_source_receipt_identity():
         "credential": SECRET,
         "sourceBootstrapId": "a" * 32,
         "sourceBootstrapRevision": 3,
+        "arrBindings": (),
     }
     assert SECRET not in repr(value)
 

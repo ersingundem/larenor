@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
@@ -226,6 +227,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     final compatible = release != null && snapshot?.accepts(release) == true;
     final busy = _checking || update?.busy == true;
     final enabled = _active && _signedIn && !busy;
+    final progress = update?.transfer;
     final text = !_signedIn
         ? l10n.clientUpdatesAccountRequired
         : _checking
@@ -248,6 +250,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                   ? l10n.clientUpdatesCurrent
                   : l10n.clientUpdatesIncompatible,
           };
+    final statusText = _error == null ? text : _errorText(l10n, _error!);
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         leading: widget.onExit == null
@@ -264,6 +267,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               children: [
                 SettingsSection(
+                  header: Text(l10n.clientUpdatesStatus),
                   footer: Text(l10n.clientUpdatesSafety),
                   children: [
                     Padding(
@@ -271,48 +275,29 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(text, style: AppText.headline),
+                          _UpdateStatusCard(
+                            text: statusText,
+                            error: _error != null,
+                            busy: busy,
+                            ready: update?.staged != null,
                           ),
-                          if (snapshot?.supported == true) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              '${l10n.clientUpdatesInstalled}: ${snapshot!.versionName} (${snapshot.versionCode})',
-                            ),
-                          ],
-                          if (release != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              '${l10n.clientUpdatesNewVersion}: ${release.versionName} (${release.versionCode})',
-                            ),
-                            Text(
-                              '${(release.sizeBytes / 1048576).toStringAsFixed(1)} MB',
-                            ),
-                          ],
-                          if (busy) ...[
+                          if (snapshot?.supported == true ||
+                              release != null) ...[
                             const SizedBox(height: 16),
-                            const CupertinoActivityIndicator(),
-                          ],
-                          if (update?.transfer
-                              case final ClientUpdateProgress progress) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              '${(100 * progress.receivedBytes / progress.totalBytes).floor()}%',
+                            _VersionOverview(
+                              snapshot: snapshot,
+                              release: release,
                             ),
                           ],
-                          if (_error != null) ...[
+                          if (progress != null) ...[
+                            const SizedBox(height: 16),
+                            _TransferProgress(progress: progress),
+                          ] else if (busy) ...[
                             const SizedBox(height: 16),
                             Semantics(
                               liveRegion: true,
-                              child: Text(
-                                _errorText(l10n, _error!),
-                                style: TextStyle(
-                                  color: CupertinoColors.systemRed.resolveFrom(
-                                    context,
-                                  ),
-                                ),
-                              ),
+                              label: statusText,
+                              child: const CupertinoActivityIndicator(),
                             ),
                           ],
                         ],
@@ -322,6 +307,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                       l10n.clientUpdatesCheck,
                       'updates-check',
                       enabled ? _check : null,
+                      icon: CupertinoIcons.arrow_clockwise,
                     ),
                     if (compatible &&
                         update?.staged == null &&
@@ -330,6 +316,8 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                         l10n.clientUpdatesDownload,
                         'updates-download',
                         enabled ? () => _act((u) => u.download(release)) : null,
+                        icon: CupertinoIcons.arrow_down_circle_fill,
+                        primary: true,
                       ),
                     if (update?.staged != null)
                       _button(
@@ -340,6 +328,8 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                                 await u.install();
                               })
                             : null,
+                        icon: CupertinoIcons.device_phone_portrait,
+                        primary: true,
                       ),
                     if (update?.busy == true &&
                         {
@@ -354,6 +344,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                                 await update!.cancel();
                               }
                             : null,
+                        icon: CupertinoIcons.xmark_circle,
                       ),
                   ],
                 ),
@@ -369,6 +360,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                         enabled
                             ? () => _act((u) => u.openInstallPermission())
                             : null,
+                        icon: CupertinoIcons.lock_shield,
                       ),
                     ],
                   ),
@@ -390,15 +382,29 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     );
   }
 
-  Widget _button(String text, String key, Future<void> Function()? action) =>
-      SizedBox(
-        width: double.infinity,
-        child: CupertinoButton(
-          key: ValueKey(key),
-          onPressed: action,
-          child: Text(text, textAlign: TextAlign.center),
-        ),
-      );
+  Widget _button(
+    String text,
+    String key,
+    Future<void> Function()? action, {
+    required IconData icon,
+    bool primary = false,
+  }) => SizedBox(
+    width: double.infinity,
+    child: primary
+        ? CupertinoButton.filled(
+            key: ValueKey(key),
+            minimumSize: const Size.fromHeight(48),
+            borderRadius: BorderRadius.circular(12),
+            onPressed: action,
+            child: _ButtonLabel(icon: icon, text: text),
+          )
+        : CupertinoButton(
+            key: ValueKey(key),
+            minimumSize: const Size.fromHeight(48),
+            onPressed: action,
+            child: _ButtonLabel(icon: icon, text: text),
+          ),
+  );
 
   String _errorText(
     AppLocalizations l10n,
@@ -415,4 +421,241 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     ClientUpdateFailure.cancelled => l10n.clientUpdatesCancelled,
     _ => l10n.clientUpdatesNetworkError,
   };
+}
+
+class _UpdateStatusCard extends StatelessWidget {
+  const _UpdateStatusCard({
+    required this.text,
+    required this.error,
+    required this.busy,
+    required this.ready,
+  });
+
+  final String text;
+  final bool error, busy, ready;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = error
+        ? CupertinoColors.systemRed
+        : ready
+        ? CupertinoColors.systemGreen
+        : busy
+        ? CupertinoColors.systemBlue
+        : CupertinoColors.secondaryLabel;
+    final icon = error
+        ? CupertinoIcons.exclamationmark_circle_fill
+        : ready
+        ? CupertinoIcons.checkmark_circle_fill
+        : busy
+        ? CupertinoIcons.arrow_2_circlepath_circle_fill
+        : CupertinoIcons.info_circle_fill;
+    final resolved = color.resolveFrom(context);
+    return Semantics(
+      key: const ValueKey('updates-status-card'),
+      container: true,
+      liveRegion: true,
+      label: text,
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: resolved.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: resolved, size: 24),
+                const SizedBox(width: 12),
+                Expanded(child: Text(text, style: AppText.headline)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VersionOverview extends StatelessWidget {
+  const _VersionOverview({required this.snapshot, required this.release});
+
+  final InstalledClientSnapshot? snapshot;
+  final ClientRelease? release;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cards = <Widget>[
+      if (snapshot?.supported == true)
+        _VersionCard(
+          key: const ValueKey('updates-installed-version'),
+          label: l10n.clientUpdatesInstalled,
+          version: '${snapshot!.versionName} (${snapshot!.versionCode})',
+          icon: CupertinoIcons.device_phone_portrait,
+        ),
+      if (release != null)
+        _VersionCard(
+          key: const ValueKey('updates-available-version'),
+          label: l10n.clientUpdatesNewVersion,
+          version: '${release!.versionName} (${release!.versionCode})',
+          detail: '${(release!.sizeBytes / 1048576).toStringAsFixed(1)} MB',
+          icon: CupertinoIcons.cloud_download_fill,
+        ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final horizontal = constraints.maxWidth >= 520 && scale <= 1.3;
+        return Flex(
+          key: const ValueKey('updates-version-overview'),
+          direction: horizontal ? Axis.horizontal : Axis.vertical,
+          crossAxisAlignment: horizontal
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.stretch,
+          children: [
+            for (var index = 0; index < cards.length; index++) ...[
+              if (horizontal) Expanded(child: cards[index]) else cards[index],
+              if (index != cards.length - 1)
+                SizedBox(
+                  width: horizontal ? 12 : 0,
+                  height: horizontal ? 0 : 12,
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _VersionCard extends StatelessWidget {
+  const _VersionCard({
+    super.key,
+    required this.label,
+    required this.version,
+    required this.icon,
+    this.detail,
+  });
+
+  final String label, version;
+  final String? detail;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.mist.resolveFrom(context),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ExcludeSemantics(child: Icon(icon, size: 22)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppText.footnote.copyWith(
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(version, style: AppText.headline),
+                if (detail != null) ...[
+                  const SizedBox(height: 2),
+                  Text(detail!, style: AppText.footnote),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _TransferProgress extends StatelessWidget {
+  const _TransferProgress({required this.progress});
+  final ClientUpdateProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final value = (progress.receivedBytes / progress.totalBytes).clamp(
+      0.0,
+      1.0,
+    );
+    final percent = (value * 100).floor();
+    return Semantics(
+      key: const ValueKey('updates-transfer-progress'),
+      container: true,
+      liveRegion: true,
+      label: l10n.clientUpdatesProgress,
+      value: '$percent%',
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.clientUpdatesProgress,
+                    style: AppText.subhead,
+                  ),
+                ),
+                Text('$percent%', style: AppText.headline),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 8,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey5.resolveFrom(context),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FractionallySizedBox(
+                    widthFactor: value,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.activeBlue.resolveFrom(context),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ButtonLabel extends StatelessWidget {
+  const _ButtonLabel({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      ExcludeSemantics(child: Icon(icon, size: 20)),
+      const SizedBox(width: 8),
+      Flexible(child: Text(text, textAlign: TextAlign.center)),
+    ],
+  );
 }

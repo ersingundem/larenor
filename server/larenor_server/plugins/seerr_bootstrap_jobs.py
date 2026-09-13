@@ -29,11 +29,12 @@ from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionResult,
 )
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
+from .seerr_bootstrap_models import PrivateSeerrArrBinding
 from .stack_plan import verify_media_stack_plan
 
 
 MAX_BOOTSTRAPS = 256
-MAX_CIPHERTEXT = 2048
+MAX_CIPHERTEXT = 8192
 _BINDING = (
     "id",
     "sequence",
@@ -80,10 +81,20 @@ def _request(value):
 
 
 class SeerrBootstrapManagement:
-    def __init__(self, db, auth, settings, key, installations, jellyfin_bootstraps):
+    def __init__(
+        self,
+        db,
+        auth,
+        settings,
+        key,
+        installations,
+        jellyfin_bootstraps,
+        arr_configurations=None,
+    ):
         self.db, self.auth, self.settings = db, auth, settings
         self.installations = installations
         self.jellyfin_bootstraps = jellyfin_bootstraps
+        self.arr_configurations = arr_configurations
         self._cipher = AESGCM(key)
 
     def _assert_admin(self, connection, actor):
@@ -98,7 +109,7 @@ class SeerrBootstrapManagement:
         ).encode("ascii")
 
     @staticmethod
-    def _public(row):
+    def _public(row, payload=None):
         try:
             return SeerrBootstrapJob.model_validate(
                 {
@@ -113,6 +124,13 @@ class SeerrBootstrapManagement:
                     "phase": row["phase"],
                     "errorCode": row["error_code"],
                     "installAvailable": False,
+                    "convergencePhase": (
+                        payload.convergencePhase if payload is not None else "queued"
+                    ),
+                    "arrWired": bool(
+                        payload is not None and payload.arrInstanceIds is not None
+                    ),
+                    "initialized": bool(payload is not None and payload.initialized),
                     "createdAt": utc(row["created_at"]),
                     "updatedAt": utc(row["updated_at"]),
                 }
@@ -158,9 +176,7 @@ class SeerrBootstrapManagement:
                 or private.sourceBootstrapRevision != row["source_bootstrap_revision"]
             ):
                 raise ValueError()
-            self._public(row)
-            if (payload.apiKey is None) != (row["state"] != "succeeded"):
-                raise ValueError()
+            self._public(row, payload)
             return payload
         except (
             InvalidTag,
@@ -176,6 +192,8 @@ class SeerrBootstrapManagement:
     def _validate_row(self, connection, row):
         payload = self._decode(row)
         private = payload.private
+        if row["state"] == "succeeded" and payload.convergencePhase != "verified":
+            raise ApiError("seerr_bootstrap_storage_unavailable", 503)
         installation = connection.execute(
             "SELECT * FROM media_installations WHERE id=?", (row["installation_id"],)
         ).fetchone()
@@ -216,20 +234,40 @@ class SeerrBootstrapManagement:
                 )
             ):
                 raise ValueError()
+            if private.arrBindings:
+                self._validate_arr_bindings(connection, installation, private.arrBindings)
             return payload
         except (ApiError, ValidationError, ValueError, TypeError, AttributeError):
             raise ApiError("seerr_bootstrap_storage_unavailable", 503) from None
 
     def validate_storage(self):
         try:
-            with self.db.connection() as connection:
-                connection.execute("BEGIN")
+            with self.db.transaction() as connection:
                 rows = connection.execute(
                     "SELECT * FROM media_seerr_bootstraps LIMIT ?", (MAX_BOOTSTRAPS + 1,)
                 ).fetchall()
                 if len(rows) > MAX_BOOTSTRAPS:
                     raise ValueError()
                 for row in rows:
+                    payload = self._decode(row)
+                    if (
+                        row["state"] == "succeeded"
+                        and payload.convergencePhase == "bootstrap"
+                    ):
+                        changed = dict(row)
+                        changed.update(
+                            revision=row["revision"] + 1,
+                            state="needs_attention",
+                            error_code="seerr_bootstrap_interrupted",
+                            updated_at=max(
+                                row["updated_at"], int(self.settings.clock())
+                            ),
+                        )
+                        self._save(connection, changed, payload)
+                        row = connection.execute(
+                            "SELECT * FROM media_seerr_bootstraps WHERE id=?",
+                            (row["id"],),
+                        ).fetchone()
                     self._validate_row(connection, row)
         except (ApiError, ValueError, sqlite3.Error):
             raise StartupError("invalid_media_seerr_bootstraps_storage") from None
@@ -253,7 +291,7 @@ class SeerrBootstrapManagement:
                 ):
                     raise ApiError("seerr_bootstrap_conflict", 409)
                 self._validate_row(connection, previous)
-                return {"bootstrap": self._public(previous)}
+                return {"bootstrap": self._public(previous, self._decode(previous))}
             installation = connection.execute(
                 "SELECT * FROM media_installations WHERE id=?", (body.installationId,)
             ).fetchone()
@@ -358,7 +396,7 @@ class SeerrBootstrapManagement:
                 "SELECT * FROM media_seerr_bootstraps WHERE id=?", (row["id"],)
             ).fetchone()
             self._validate_row(connection, stored)
-            return {"bootstrap": self._public(stored)}
+            return {"bootstrap": self._public(stored, self._decode(stored))}
 
     def _find(self, connection, identifier):
         row = connection.execute(
@@ -374,7 +412,8 @@ class SeerrBootstrapManagement:
         with self.db.connection() as connection:
             connection.execute("BEGIN")
             self._assert_admin(connection, actor)
-            return {"bootstrap": self._public(self._find(connection, identifier))}
+            row = self._find(connection, identifier)
+            return {"bootstrap": self._public(row, self._decode(row))}
 
     def list(self, actor, *, before=None, limit=10):
         if (
@@ -395,7 +434,7 @@ class SeerrBootstrapManagement:
             for row in rows:
                 self._validate_row(connection, row)
             return {
-                "bootstraps": [self._public(row) for row in rows[:limit]],
+                "bootstraps": [self._public(row, self._decode(row)) for row in rows[:limit]],
                 "nextBefore": rows[limit - 1]["sequence"] if len(rows) > limit else None,
             }
 
@@ -426,7 +465,20 @@ class SeerrBootstrapManagement:
             (*[row[key] for key in _BINDING], nonce, ciphertext, row["id"]),
         )
 
-    def _transition(self, connection, row, payload, *, state, error=None, api_key=None):
+    def _transition(
+        self,
+        connection,
+        row,
+        payload,
+        *,
+        state,
+        error=None,
+        api_key=None,
+        convergence_phase=None,
+        arr_instance_ids=None,
+        initialized=None,
+        initialization_changed=None,
+    ):
         changed = dict(row)
         changed.update(
             revision=row["revision"] + 1,
@@ -435,9 +487,26 @@ class SeerrBootstrapManagement:
             error_code=error,
             updated_at=max(row["updated_at"], int(self.settings.clock())),
         )
-        value = payload.model_copy(update={"apiKey": api_key})
+        value = payload.model_copy(
+            update={
+                "apiKey": payload.apiKey if api_key is None else api_key,
+                "convergencePhase": convergence_phase
+                or ("bootstrap" if state == "running" else payload.convergencePhase),
+                "arrInstanceIds": (
+                    payload.arrInstanceIds
+                    if arr_instance_ids is None
+                    else tuple(arr_instance_ids)
+                ),
+                "initialized": payload.initialized if initialized is None else initialized,
+                "initializationChanged": (
+                    payload.initializationChanged
+                    if initialization_changed is None
+                    else initialization_changed
+                ),
+            }
+        )
         self._save(connection, changed, value)
-        return {"bootstrap": self._public(changed)}
+        return {"bootstrap": self._public(changed, value)}
 
     def _dispatch_authorized(self, connection, row):
         current = connection.execute(
@@ -456,6 +525,50 @@ class SeerrBootstrapManagement:
             and current["expires_at"] > self.settings.clock()
         )
 
+    def _current_arr_bindings(self, connection, installation):
+        if self.arr_configurations is None:
+            raise ValueError()
+        rows = connection.execute(
+            "SELECT * FROM media_arr_configurations WHERE preparation_id=? "
+            "AND service_id IN ('radarr','sonarr') ORDER BY service_id",
+            (installation["preparation_id"],),
+        ).fetchall()
+        if len(rows) != 2 or tuple(row["service_id"] for row in rows) != (
+            "radarr",
+            "sonarr",
+        ):
+            raise ValueError()
+        bindings = []
+        policy = {
+            "radarr": ("/media/movies", 4),
+            "sonarr": ("/media/tv", 5),
+        }
+        for row in rows:
+            payload = self.arr_configurations._validate_row(connection, row)
+            if row["state"] != "succeeded" or payload.receipt is None:
+                raise ValueError()
+            root, profile = policy[row["service_id"]]
+            bindings.append(
+                PrivateSeerrArrBinding(
+                    serviceId=row["service_id"],
+                    configurationId=row["id"],
+                    configurationRevision=row["revision"],
+                    resourceRevision=payload.receipt.revision,
+                    serviceRevision=row["revision"],
+                    configurationDigest=payload.receipt.configurationDigest,
+                    hostname="larenor-" + payload.receipt.resourceId,
+                    apiKey=payload.private.apiKey,
+                    rootPath=root,
+                    profileId=profile,
+                    profileName="HD-1080p",
+                )
+            )
+        return tuple(bindings)
+
+    def _validate_arr_bindings(self, connection, installation, bindings):
+        if self._current_arr_bindings(connection, installation) != tuple(bindings):
+            raise ValueError()
+
     def _execution_inputs(self, connection, row):
         payload = self._validate_row(connection, row)
         installation = connection.execute(
@@ -465,6 +578,19 @@ class SeerrBootstrapManagement:
         catalog = load_catalog()
         if catalog.digest != self.installations.preparations.plugins._catalog.digest:
             raise ValueError()
+        bindings = payload.private.arrBindings
+        if not bindings:
+            bindings = self._current_arr_bindings(connection, installation)
+            payload = payload.model_copy(
+                update={
+                    "private": payload.private.model_copy(
+                        update={"arrBindings": bindings}
+                    )
+                }
+            )
+            self._save(connection, row, payload)
+        else:
+            self._validate_arr_bindings(connection, installation, bindings)
         return payload, verify_media_stack_plan(installed.plan, catalog)
 
     def _gate_locked(self, connection, row):
@@ -565,11 +691,25 @@ class SeerrBootstrapManagement:
                     deadline=time.monotonic() + 60.0,
                     gate=lambda: self._gate(identifier),
                 )
-                if type(result) is not SeerrBootstrapExecutionResult:
+                if (
+                    type(result) is not SeerrBootstrapExecutionResult
+                    or result.arr_wiring is None
+                    or result.initialization is None
+                ):
                     raise SeerrBootstrapExecutionError(
                         "invalid_seerr_bootstrap_execution", uncertain_effect=True
                     )
             except SeerrBootstrapExecutionError as failure:
+                step_count = len(failure.completed_steps)
+                if (
+                    (failure.api_key is not None) != (step_count >= 4)
+                    or (failure.arr_wiring is not None) != (step_count >= 5)
+                    or (failure.initialization is not None) != (step_count == 6)
+                ):
+                    failure = SeerrBootstrapExecutionError(
+                        "invalid_seerr_bootstrap_execution",
+                        uncertain_effect=True,
+                    )
                 error = (
                     "invalid_seerr_bootstrap_result"
                     if failure.code == "invalid_seerr_bootstrap_execution"
@@ -589,12 +729,36 @@ class SeerrBootstrapManagement:
                 )
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)
+                    phase = (
+                        "verified"
+                        if "initialization_verified" in failure.completed_steps
+                        else "initialize"
+                        if "arr_wiring_verified" in failure.completed_steps
+                        else "arr_wiring"
+                        if "session_destroyed" in failure.completed_steps
+                        else "bootstrap"
+                    )
                     return self._transition(
                         connection,
                         row,
                         self._decode(row),
                         state=state,
                         error=error,
+                        api_key=failure.api_key,
+                        convergence_phase=phase,
+                        arr_instance_ids=(
+                            None
+                            if failure.arr_wiring is None
+                            else failure.arr_wiring.instance_ids
+                        ),
+                        initialized=(
+                            None if failure.initialization is None else True
+                        ),
+                        initialization_changed=(
+                            None
+                            if failure.initialization is None
+                            else failure.initialization.changed
+                        ),
                     )
             except (OSError, ValueError, TypeError, AttributeError, RuntimeError):
                 with self.db.transaction() as connection:
@@ -608,10 +772,27 @@ class SeerrBootstrapManagement:
                     )
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)
+                if not self._gate_locked(connection, row):
+                    return self._transition(
+                        connection,
+                        row,
+                        self._decode(row),
+                        state="needs_attention",
+                        error="seerr_bootstrap_authority_changed",
+                        api_key=result.api_key,
+                        convergence_phase="verified",
+                        arr_instance_ids=result.arr_wiring.instance_ids,
+                        initialized=True,
+                        initialization_changed=result.initialization.changed,
+                    )
                 return self._transition(
                     connection,
                     row,
                     self._decode(row),
                     state="succeeded",
                     api_key=result.api_key,
+                    convergence_phase="verified",
+                    arr_instance_ids=result.arr_wiring.instance_ids,
+                    initialized=True,
+                    initialization_changed=result.initialization.changed,
                 )

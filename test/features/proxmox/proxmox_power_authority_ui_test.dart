@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_controller.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_panel.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import 'proxmox_power_authority_test.dart' show FakeGateway, target;
 
@@ -14,8 +15,13 @@ Widget app(
 }) {
   return CupertinoApp(
     locale: locale,
-    supportedLocales: const [Locale('en'), Locale('tr')],
-    localizationsDelegates: GlobalCupertinoLocalizations.delegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+    ],
     home: MediaQuery(
       data: MediaQueryData(textScaler: TextScaler.linear(scale)),
       child: CupertinoPageScaffold(child: child),

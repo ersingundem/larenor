@@ -1,5 +1,8 @@
 """Bounded, authenticated completion of Seerr's first-run state."""
 
+import socket
+import threading
+
 import pytest
 
 from larenor_server.plugins.seerr_initialization import (
@@ -16,6 +19,25 @@ UNINITIALIZED = {
     "plexClientIdentifier": "6919275e-142a-48d8-be6b-93594cbd4626",
 }
 INITIALIZED = UNINITIALIZED | {"initialized": True}
+
+
+def close_aware_connection(replies):
+    client, server = socket.socketpair()
+
+    def serve():
+        with server:
+            pending = b""
+            for reply in replies:
+                while b"\r\n\r\n" not in pending:
+                    pending += server.recv(65536)
+                head, pending = pending.split(b"\r\n\r\n", 1)
+                server.sendall(reply)
+                if b"\r\nConnection: close\r\n" in b"\r\n" + head + b"\r\n":
+                    return
+
+    worker = threading.Thread(target=serve, daemon=True)
+    worker.start()
+    return client, worker
 
 
 def complete_initialization(connection, key, **options):
@@ -44,6 +66,7 @@ def test_initializes_once_and_requires_authenticated_readback():
     ]
     for raw in connection.requests:
         assert b"X-Api-Key: " + API_KEY.encode("ascii") in raw
+        assert b"Connection: keep-alive" in raw
         assert API_KEY not in repr(result)
 
 
@@ -56,6 +79,19 @@ def test_already_initialized_is_idempotent_without_mutation():
     assert result.changed is False
     assert result.completed_steps == ("initialized_verified",)
     assert len(connection.requests) == 1
+
+
+def test_reuses_a_real_close_aware_http_stream_through_final_readback():
+    connection, worker = close_aware_connection(
+        [response(UNINITIALIZED), response(INITIALIZED), response(INITIALIZED)]
+    )
+
+    result = complete_initialization(connection, API_KEY)
+    worker.join(timeout=1)
+
+    assert result.changed is True
+    assert result.completed_steps[-1] == "initialized_verified"
+    assert not worker.is_alive()
 
 
 @pytest.mark.parametrize(

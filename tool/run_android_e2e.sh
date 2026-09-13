@@ -36,6 +36,14 @@ e2e_finish() {
         awk '/[Oo]ut of memory|[Kk]illed process|oom-kill|segfault/ {lines[++count]=$0} END {start=count>20?count-19:1; for (i=start;i<=count;i++) print lines[i]}' || true
     } 2>&1 | tee -a build/e2e/android-e2e.log || true
   fi
+  if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+    # The pinned runner action calls `adb emu kill` without a deadline. A real
+    # API 35 run completed all 17 journeys, then that unbounded teardown held
+    # the job until its 25-minute step timeout. Stop this already-proven QEMU
+    # guest here with a hard deadline; the action's second cleanup then returns
+    # immediately because the transport is gone. Never touch local emulators.
+    timeout 20s adb -s "$e2e_serial" emu kill >/dev/null 2>&1 || true
+  fi
   return "$status"
 }
 trap e2e_finish EXIT

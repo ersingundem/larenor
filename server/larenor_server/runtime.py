@@ -8,7 +8,14 @@ from .app import create_app
 from .config import Settings
 from .errors import ApiError, StartupError
 from .files import checked_path, private_create, private_directory, private_read
-from .releases import JavaApkVerifier, ReleaseService, ReleaseSettings, build_release_router
+from .releases import (
+    BetaReleaseSynchronizer,
+    GitHubBetaSource,
+    JavaApkVerifier,
+    ReleaseService,
+    ReleaseSettings,
+    build_release_router,
+)
 from .releases.models import PUBLISH_TOKEN
 
 
@@ -22,6 +29,18 @@ def create_configured_app(settings: Settings):
     Publication has its own locally generated credential. Missing verifier
     binaries disable publication with an explicit error, never verification.
     """
+    try:
+        beta_poll = int(os.environ.get("LARENOR_BETA_POLL_SECONDS", "900"))
+        beta_max_age = int(os.environ.get("LARENOR_BETA_MAX_AGE_SECONDS", "1209600"))
+    except ValueError:
+        raise StartupError("invalid_beta_source_settings") from None
+    if not 60 <= beta_poll <= 3600:
+        raise StartupError("invalid_beta_source_settings")
+    beta_source = GitHubBetaSource(
+        clock=settings.clock,
+        repository=os.environ.get("LARENOR_BETA_SOURCE_REPOSITORY", "ersingundem/larenor"),
+        max_age_seconds=beta_max_age,
+    )
     publisher_file = Path(os.environ.get(
         "LARENOR_PUBLISHER_TOKEN_FILE", str(settings.key_file.parent / "publisher.token")))
     if not publisher_file.is_absolute():
@@ -56,8 +75,15 @@ def create_configured_app(settings: Settings):
                 classes=Path(os.environ.get("LARENOR_APKSIG_CLASSES", "/opt/larenor/verifier/classes")),
             ),
         )
-        app.include_router(build_release_router(releases), prefix="/api/v1")
+        beta_releases = BetaReleaseSynchronizer(
+            releases,
+            beta_source,
+            clock=settings.clock,
+            poll_seconds=beta_poll,
+        )
+        app.include_router(build_release_router(releases, beta=beta_releases), prefix="/api/v1")
         app.state.releases = releases
+        app.state.beta_releases = beta_releases
         app.state.publisher_credential_created = created
         app.state.publisher_credential_file = publisher_file
         return app

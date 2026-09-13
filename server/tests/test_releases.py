@@ -262,6 +262,19 @@ def test_tampered_file_before_finalize_rejected_and_cleaned(release_server):
     assert release_server[5].calls == 0
 
 
+def test_same_size_stable_apk_tamper_fails_recovery_and_open(release_server):
+    service = release_server[4]
+    published(release_server)
+    apk = service.versions / '20' / 'client.apk'
+    apk.write_bytes(b'x' * len(APK))
+    apk.chmod(0o600)
+
+    with pytest.raises(ApiError, match='server_unavailable'):
+        service.open_apk(20)
+    with pytest.raises(StartupError, match='invalid_release_storage'):
+        ReleaseService(service.settings, verifier=release_server[5])
+
+
 def test_private_credential_permissions_and_symlink_rejected(release_server, tmp_path):
     service = release_server[4]
     token = tmp_path.resolve() / 'publish-token'

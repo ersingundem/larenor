@@ -41,9 +41,16 @@ class GitHubStorageWorkflowTest(unittest.TestCase):
         self.assertEqual(len(apply_steps), 1)
         apply_index, apply = apply_steps[0]
         self.assertLess(test_index, apply_index)
+        apply_lines = apply['run'].splitlines()
         self.assertEqual(
-            apply['run'],
-            'python3 tool/github_storage_cleanup.py --apply --max-deletions 5')
+            apply_lines[0],
+            'python3 tool/github_storage_cleanup.py --apply --max-deletions 5 '
+            '--allow-blocked-noop > "$RUNNER_TEMP/storage-retention.json"')
+        self.assertEqual(
+            apply['run'].count('github_storage_cleanup.py --apply'), 1)
+        self.assertIn("if report.get('attentionRequired') is True:", apply['run'])
+        self.assertIn('No unverified artifact or OCI deletion was performed.',
+                      apply['run'])
         self.assertEqual(apply['env'], {'GH_TOKEN': '${{ github.token }}'})
         rendered = WORKFLOW.read_text()
         self.assertNotIn('packages: write', rendered)

@@ -16,9 +16,13 @@ Map<String, dynamic> mediaPreparationJson({bool cancelled = false}) =>
 class MediaPreparationsFixture extends PluginsFixture {
   MediaPreparationsFixture({super.role, super.mustChange});
   final records = <Map<String, dynamic>>[];
+  final seerrRecords = <Map<String, dynamic>>[];
   @override
   http.Response pluginResponse(http.Request request) {
     final path = request.url.path;
+    if (path.endsWith('/media/seerr-bootstraps')) {
+      return this.json({'bootstraps': seerrRecords, 'nextBefore': null});
+    }
     if (path.endsWith('/context')) {
       return this.json(mediaFixtureJson()['context']);
     }
@@ -61,6 +65,39 @@ class MediaPreparationsFixture extends PluginsFixture {
     }
     return super.pluginResponse(request);
   }
+}
+
+Map<String, dynamic> seerrConvergenceJson(
+  Map<String, dynamic> preparation, {
+  String state = 'succeeded',
+  String phase = 'verified',
+  bool arrWired = true,
+  bool initialized = true,
+  String? errorCode,
+}) {
+  final components =
+      (preparation['plan'] as Map<String, dynamic>)['components'] as List;
+  final seerr = components.cast<Map<String, dynamic>>().singleWhere(
+    (component) => component['serviceId'] == 'seerr',
+  );
+  return {
+    'id': '9' * 32,
+    'requestId': '8' * 32,
+    'installationId': seerr['installationId'],
+    'sourceBootstrapId': '7' * 32,
+    'sourceBootstrapRevision': 3,
+    'serviceId': 'seerr',
+    'revision': 3,
+    'state': state,
+    'phase': state == 'running' ? 'bootstrapping' : 'complete',
+    'errorCode': errorCode,
+    'installAvailable': false,
+    'convergencePhase': phase,
+    'arrWired': arrWired,
+    'initialized': initialized,
+    'createdAt': '2026-09-05T12:00:00.000Z',
+    'updatedAt': '2026-09-05T12:00:00.000Z',
+  };
 }
 
 /// Distinct synthetic records for history paging, based on the real HTTP

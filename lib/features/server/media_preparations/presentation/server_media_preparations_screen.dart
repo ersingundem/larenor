@@ -322,9 +322,145 @@ class _ServerMediaPreparationsScreenState
     bool allowed = true,
   }) => CupertinoButton(
     key: ValueKey(key),
+    minimumSize: const Size(48, 48),
     onPressed: _enabled && allowed ? _callback(action) : null,
     child: Text(label),
   );
+
+  Widget _seerrProgress(AppLocalizations l) {
+    final value = _media.seerrConvergence;
+    final failure = _media.seerrFailure;
+    if (failure != null) {
+      return _section(l.serverSeerrProgressTitle, [
+        Semantics(
+          liveRegion: true,
+          child: Text(l.serverSeerrProgressUnavailable),
+        ),
+        _button(
+          'media-seerr-recover',
+          l.serverSeerrRecover,
+          (current) => _media.refreshSelected(current: current),
+        ),
+      ]);
+    }
+    const phases = [
+      'request',
+      'bootstrap',
+      'arr_wiring',
+      'initialize',
+      'verified',
+    ];
+    final labels = [
+      l.serverSeerrPhaseRequest,
+      l.serverSeerrPhaseBootstrap,
+      l.serverSeerrPhaseArr,
+      l.serverSeerrPhaseInitialize,
+      l.serverSeerrPhaseVerified,
+    ];
+    final rank = switch (value?.phase) {
+      'bootstrap' => 1,
+      'arr_wiring' => 2,
+      'initialize' => 3,
+      'verified' => 4,
+      _ => 0,
+    };
+    final failed = value?.needsRecovery == true;
+    final cancelled = value?.cancelled == true;
+    String status(int index) {
+      if (value == null) {
+        return index == 0
+            ? l.serverSeerrProgressWaiting
+            : l.serverSeerrProgressPending;
+      }
+      final complete = switch (index) {
+        0 => true,
+        1 => rank >= 2,
+        2 => value.arrWired,
+        3 => value.initialized,
+        _ => value.state == 'succeeded',
+      };
+      if (cancelled && index == rank) {
+        return l.serverSeerrProgressCancelled;
+      }
+      if (failed && index == rank) return l.serverSeerrProgressNeedsAttention;
+      if (complete) return l.serverSeerrProgressComplete;
+      if (!cancelled && index == rank) return l.serverSeerrProgressWorking;
+      return l.serverSeerrProgressPending;
+    }
+
+    ({IconData icon, Color color}) visual(String status) {
+      if (status == l.serverSeerrProgressComplete) {
+        return (
+          icon: CupertinoIcons.check_mark_circled_solid,
+          color: CupertinoColors.systemGreen.resolveFrom(context),
+        );
+      }
+      if (status == l.serverSeerrProgressNeedsAttention ||
+          status == l.serverSeerrProgressCancelled) {
+        return (
+          icon: status == l.serverSeerrProgressCancelled
+              ? CupertinoIcons.xmark_circle_fill
+              : CupertinoIcons.exclamationmark_triangle_fill,
+          color: CupertinoColors.systemRed.resolveFrom(context),
+        );
+      }
+      return (
+        icon: CupertinoIcons.circle_fill,
+        color:
+            (status == l.serverSeerrProgressWorking
+                    ? CupertinoColors.systemBlue
+                    : CupertinoColors.secondaryLabel)
+                .resolveFrom(context),
+      );
+    }
+
+    return _section(l.serverSeerrProgressTitle, [
+      Text(l.serverSeerrProgressBody),
+      const SizedBox(height: 8),
+      for (var index = 0; index < phases.length; index++)
+        Builder(
+          builder: (context) {
+            final rowStatus = status(index);
+            final rowVisual = visual(rowStatus);
+            return Semantics(
+              key: ValueKey('media-seerr-phase-${phases[index]}'),
+              label: '${labels[index]}: $rowStatus',
+              liveRegion: (failed || cancelled) && index == rank,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Row(
+                  children: [
+                    Icon(rowVisual.icon, color: rowVisual.color, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(labels[index], style: AppText.subhead),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        rowStatus,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(color: rowVisual.color),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      if (failed) ...[
+        const SizedBox(height: 8),
+        Semantics(liveRegion: true, child: Text(l.serverSeerrProgressPartial)),
+        _button(
+          'media-seerr-recover',
+          l.serverSeerrRecover,
+          (current) => _media.refreshSelected(current: current),
+        ),
+      ],
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -577,6 +713,7 @@ class _ServerMediaPreparationsScreenState
         ],
       ),
     ]),
+    _seerrProgress(l),
     _section(l.serverMediaRequirements, [
       Text(l.serverMediaBlockers),
       Text(l.serverMediaResources),

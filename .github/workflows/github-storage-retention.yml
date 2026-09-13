@@ -40,7 +40,7 @@
           "env": {
             "GH_TOKEN": "${{ github.token }}"
           },
-          "run": "python3 tool/github_storage_cleanup.py --apply --max-deletions 5"
+          "run": "python3 tool/github_storage_cleanup.py --apply --max-deletions 5 --allow-blocked-noop > \"$RUNNER_TEMP/storage-retention.json\"\npython3 - <<'PY'\nimport json\nimport os\nfrom pathlib import Path\nreport = json.loads(Path(os.environ['RUNNER_TEMP'], 'storage-retention.json').read_text())\nif report.get('attentionRequired') is True:\n    artifacts = report.get('artifacts', {})\n    ghcr = report.get('ghcr', {})\n    reasons = [value.get('reason') for value in (artifacts, ghcr) if value.get('status') == 'blocked']\n    if any(not isinstance(value, str) or not value.replace('_', '').isalnum() for value in reasons):\n        raise SystemExit('Invalid bounded cleanup reason')\n    print('::warning::Storage retention safely performed no unverified deletion; attention: ' + ', '.join(reasons))\n    with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:\n        summary.write('Storage retention needs attention. No unverified artifact or OCI deletion was performed. Reasons: `' + '`, `'.join(reasons) + '`.\\n')\nPY"
         }
       ]
     }

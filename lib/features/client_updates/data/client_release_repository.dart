@@ -41,7 +41,7 @@ class ClientReleaseRepository {
         _check();
         final url = _base.replace(
           path: '${_base.path}/api/v1/client/releases/latest',
-          queryParameters: {'platform': 'android', 'channel': 'stable'},
+          queryParameters: {'platform': 'android', 'channel': 'beta'},
         );
         final request = http.Request('GET', url)
           ..headers['Authorization'] = 'Bearer $_token';

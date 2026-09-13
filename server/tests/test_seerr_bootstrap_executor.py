@@ -11,7 +11,10 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedWorkerJournal,
 )
-from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
+from larenor_server.plugins.seerr_bootstrap_models import (
+    PrivateSeerrArrBinding,
+    PrivateSeerrBootstrap,
+)
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutor,
@@ -24,6 +27,11 @@ from larenor_server.plugins.seerr_endpoint import SeerrEndpointError
 from larenor_server.plugins.seerr_initial_admin import (
     SeerrInitialAdmin,
     SeerrInitialAdminResult,
+)
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiring, SeerrArrWiringResult
+from larenor_server.plugins.seerr_initialization import (
+    SeerrInitialization,
+    SeerrInitializationResult,
 )
 from test_jellyfin_startup import Connection
 from test_managed_container_binding import (
@@ -47,6 +55,29 @@ def private():
         credential=PASSWORD,
         sourceBootstrapId="a" * 32,
         sourceBootstrapRevision=3,
+    )
+
+
+def bound_private():
+    return private().model_copy(
+        update={
+            "arrBindings": tuple(
+                PrivateSeerrArrBinding(
+                    serviceId=service,
+                    configurationId=identifier * 32,
+                    configurationRevision=3,
+                    resourceRevision=4,
+                    serviceRevision=3,
+                    configurationDigest="c" * 64,
+                    hostname="larenor-" + identifier * 32,
+                    apiKey=identifier * 32,
+                    rootPath="/media/movies" if service == "radarr" else "/media/tv",
+                    profileId=4 if service == "radarr" else 5,
+                    profileName="HD-1080p",
+                )
+                for service, identifier in (("radarr", "1"), ("sonarr", "2"))
+            )
+        }
     )
 
 
@@ -138,6 +169,147 @@ def test_reconciles_seerr_and_bootstraps_against_exact_jellyfin_peer(
         len([call for call in engine.calls if call == ("inspect", jellyfin.name)]) >= 2
     )
     assert PASSWORD not in repr(result) and API_KEY not in repr(result)
+
+
+def test_production_executor_wires_exact_bound_arr_services_before_success(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    calls = []
+
+    def configure(_self, connection, **values):
+        calls.append((connection, values))
+        return SeerrArrWiringResult("verified", ("radarr", "sonarr"), (8, 9))
+
+    monkeypatch.setattr(SeerrArrWiring, "configure", configure)
+    result = SeerrBootstrapExecutor(
+        operations,
+        lambda _stack, service="jellyfin": {
+            "seerr": seerr,
+            "jellyfin": jellyfin,
+        }[service],
+        SeerrInitialAdmin(),
+        SeerrArrWiring(),
+    ).execute(
+        JOB,
+        stack,
+        bound_private(),
+        deadline=time.monotonic() + 10,
+        gate=lambda: True,
+    )
+
+    assert result.completed_steps[-1] == "arr_wiring_verified"
+    assert result.arr_wiring.instance_ids == (8, 9)
+    services = calls[0][1]["services"]
+    assert [(item.service_id, item.profile_id, item.root_path) for item in services] == [
+        ("radarr", 4, "/media/movies"),
+        ("sonarr", 5, "/media/tv"),
+    ]
+    assert calls[0][1]["close_connection"] is False
+
+
+def test_convergence_reuses_one_proved_connection_through_authenticated_readback(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connection, _ = connected(monkeypatch, stack, seerr, observed)
+    seen = []
+
+    def configure(_self, selected, **_values):
+        seen.append(("arr", selected))
+        return SeerrArrWiringResult("verified", ("radarr", "sonarr"), (8, 9))
+
+    def initialize(_self, selected, **_values):
+        seen.append(("initialize", selected))
+        return SeerrInitializationResult("verified", False, ("initialized_verified",))
+
+    monkeypatch.setattr(SeerrArrWiring, "configure", configure)
+    monkeypatch.setattr(SeerrInitialization, "complete", initialize)
+    result = SeerrBootstrapExecutor(
+        operations,
+        lambda _stack, service="jellyfin": {
+            "seerr": seerr,
+            "jellyfin": jellyfin,
+        }[service],
+        SeerrInitialAdmin(),
+        SeerrArrWiring(),
+        SeerrInitialization(),
+    ).execute(
+        JOB,
+        stack,
+        bound_private(),
+        deadline=time.monotonic() + 10,
+        gate=lambda: True,
+    )
+
+    assert seen == [("arr", connection), ("initialize", connection)]
+    assert result.initialization.changed is False
+    assert result.completed_steps[-2:] == (
+        "arr_wiring_verified",
+        "initialization_verified",
+    )
+
+
+@pytest.mark.parametrize("reject_gate", [4, 5, 6])
+def test_authority_loss_preserves_completed_private_receipts(
+    prepared, monkeypatch, reject_gate
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    monkeypatch.setattr(
+        SeerrArrWiring,
+        "configure",
+        lambda *_args, **_kwargs: SeerrArrWiringResult(
+            "verified", ("radarr", "sonarr"), (8, 9)
+        ),
+    )
+    monkeypatch.setattr(
+        SeerrInitialization,
+        "complete",
+        lambda *_args, **_kwargs: SeerrInitializationResult(
+            "verified", False, ("initialized_verified",)
+        ),
+    )
+    calls = 0
+
+    def gate():
+        nonlocal calls
+        calls += 1
+        return calls != reject_gate
+
+    with pytest.raises(SeerrBootstrapExecutionError) as raised:
+        SeerrBootstrapExecutor(
+            operations,
+            lambda _stack, service="jellyfin": {
+                "seerr": seerr,
+                "jellyfin": jellyfin,
+            }[service],
+            SeerrInitialAdmin(),
+            SeerrArrWiring(),
+            SeerrInitialization(),
+        ).execute(
+            JOB,
+            stack,
+            bound_private(),
+            deadline=time.monotonic() + 10,
+            gate=gate,
+        )
+
+    assert raised.value.code == "seerr_bootstrap_authority_changed"
+    assert raised.value.api_key == API_KEY
+    if reject_gate == 4:
+        assert raised.value.completed_steps[-1] == "session_destroyed"
+        assert raised.value.arr_wiring is None
+        assert raised.value.initialization is None
+    elif reject_gate == 5:
+        assert raised.value.arr_wiring.instance_ids == (8, 9)
+        assert raised.value.completed_steps[-1] == "arr_wiring_verified"
+        assert raised.value.initialization is None
+    else:
+        assert raised.value.arr_wiring.instance_ids == (8, 9)
+        assert raised.value.completed_steps[-1] == "initialization_verified"
+        assert raised.value.initialization.changed is False
 
 
 def test_jellyfin_drift_after_connect_blocks_credentials(prepared, monkeypatch):

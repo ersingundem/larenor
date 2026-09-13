@@ -9,6 +9,8 @@ from larenor_server.plugins.seerr_bootstrap_executor import (
 )
 from test_seerr_bootstrap_jobs import BASE, ready_stack, request
 from test_seerr_initial_admin import API_KEY
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiringResult
+from larenor_server.plugins.seerr_initialization import SeerrInitializationResult
 
 
 STEPS = (
@@ -16,13 +18,23 @@ STEPS = (
     "admin_created",
     "api_key_verified",
     "session_destroyed",
+    "arr_wiring_verified",
+    "initialization_verified",
 )
 
 
 class Backend:
     def __init__(self, result=None):
         self.calls = []
-        self.result = result or SeerrBootstrapExecutionResult("verified", API_KEY, STEPS)
+        self.result = result or SeerrBootstrapExecutionResult(
+            "verified",
+            API_KEY,
+            STEPS,
+            SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8)),
+            SeerrInitializationResult("verified", True, (
+                "uninitialized_verified", "initialize_sent", "initialized_verified"
+            )),
+        )
 
     def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
         self.calls.append((job, plan, private, deadline, gate))
@@ -43,19 +55,24 @@ def queued(server, backend=None):
 
 
 def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server):
-    app, _client, _, _ = server
-    _, record, backend = queued(server)
+    app, _client, settings, _ = server
+    pair, record, backend = queued(server)
     terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
     assert terminal == record | {
         "revision": 3,
         "state": "succeeded",
         "phase": "complete",
+        "convergencePhase": "verified",
+        "arrWired": True,
+        "initialized": True,
     }
     assert len(backend.calls) == 1
     job, plan, private, _deadline, _gate = backend.calls[0]
     assert job == record["id"]
     assert plan.templateId == "media"
     assert private.sourceBootstrapId == record["sourceBootstrapId"]
+    assert tuple(item.serviceId for item in private.arrBindings) == ("radarr", "sonarr")
+    assert all(item.configurationRevision == 3 for item in private.arrBindings)
     stored = app.state.core.seerr_bootstraps.private_payload(record["id"])
     assert stored.api_key == API_KEY
     assert API_KEY not in repr(stored) + repr(terminal)
@@ -64,6 +81,57 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
             "SELECT ciphertext FROM media_seerr_bootstraps WHERE id=?", (record["id"],)
         ).fetchone()[0]
     assert API_KEY.encode() not in ciphertext
+    assert app.state.core.seerr_bootstraps.tick() is None
+    from fastapi.testclient import TestClient
+    from larenor_server.app import create_app
+
+    restarted = create_app(settings)
+    with TestClient(restarted) as reopened:
+        assert reopened.get(
+            BASE + "/" + record["id"], headers=auth(pair)
+        ).json()["bootstrap"] == terminal
+        assert restarted.state.core.seerr_bootstraps.tick() is None
+
+
+def test_arr_revision_drift_fails_closed_before_private_worker_dispatch(server):
+    app, _client, _, _ = server
+    _, _record, backend = queued(server)
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE media_arr_configurations SET revision=revision+1 "
+            "WHERE service_id='radarr'"
+        )
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "seerr_bootstrap_authority_changed"
+    assert backend.calls == []
+
+
+def test_final_transaction_rechecks_authority_before_persisting_success(server):
+    app, _client, _, _ = server
+    pair, record, backend = queued(server)
+    original = backend.bootstrap_seerr
+
+    def revoke_after_effect(*args, **kwargs):
+        result = original(*args, **kwargs)
+        with app.state.core.db.transaction() as connection:
+            family_id = connection.execute(
+                "SELECT family_id FROM media_seerr_bootstraps WHERE id=?",
+                (record["id"],),
+            ).fetchone()[0]
+            connection.execute(
+                "UPDATE session_families SET revoked_at=? WHERE id=?",
+                (int(time.time()), family_id),
+            )
+        return result
+
+    backend.bootstrap_seerr = revoke_after_effect
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "seerr_bootstrap_authority_changed"
+    assert terminal["convergencePhase"] == "verified"
+    assert terminal["arrWired"] is True and terminal["initialized"] is True
     assert app.state.core.seerr_bootstraps.tick() is None
 
 
@@ -94,6 +162,58 @@ def test_uncertain_worker_failure_needs_attention_and_is_not_retried(server):
     assert len(backend.calls) == 1
     assert app.state.core.seerr_bootstraps.tick() is None
     assert "seerr_initial_admin_protocol" not in repr(terminal)
+
+
+def test_incoherent_worker_failure_becomes_controlled_terminal_state(server):
+    failure = SeerrBootstrapExecutionError(
+        "seerr_bootstrap_authority_changed",
+        completed_steps=STEPS,
+        uncertain_effect=True,
+    )
+    app, _client, _, _ = server
+    _, _, backend = queued(server, Backend(failure))
+
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "invalid_seerr_bootstrap_result"
+    assert terminal["convergencePhase"] == "bootstrap"
+    assert terminal["arrWired"] is False and terminal["initialized"] is False
+    assert len(backend.calls) == 1
+    assert app.state.core.seerr_bootstraps.tick() is None
+
+
+def test_initialization_uncertainty_persists_partial_arr_phase_across_restart(server):
+    wiring = SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8))
+    failure = SeerrBootstrapExecutionError(
+        "seerr_bootstrap_initialization_failed",
+        completed_steps=STEPS[:-1],
+        uncertain_effect=True,
+        cause_code="seerr_initialization_protocol",
+        api_key=API_KEY,
+        arr_wiring=wiring,
+    )
+    app, client, settings, _ = server
+    pair, record, backend = queued(server, Backend(failure))
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+    assert terminal == record | {
+        "revision": 3,
+        "state": "needs_attention",
+        "phase": "complete",
+        "errorCode": "seerr_bootstrap_initialization_failed",
+        "convergencePhase": "initialize",
+        "arrWired": True,
+    }
+    assert terminal["initialized"] is False and len(backend.calls) == 1
+    assert API_KEY not in repr(terminal) + failure.__repr__()
+
+    from fastapi.testclient import TestClient
+    from larenor_server.app import create_app
+
+    with TestClient(create_app(settings)) as reopened:
+        restored = reopened.get(BASE + "/" + record["id"], headers=auth(pair))
+        assert restored.status_code == 200
+        assert restored.json()["bootstrap"] == terminal
 
 
 def test_running_job_after_restart_becomes_needs_attention_without_dispatch(server):
