@@ -89,7 +89,7 @@ jobs:
       # AOSP image: these tests do not depend on a Google account or GMS.
       - name: Run actual app journeys on API 35
         if: steps.android_scope.outputs.run == 'true'
-        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         timeout-minutes: 25
         with:
           api-level: 35
