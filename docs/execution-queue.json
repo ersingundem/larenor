@@ -1817,7 +1817,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi ağ ve altyapı adaptörleri",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.7"
       ],
@@ -1842,7 +1842,7 @@
         {
           "kind": "test",
           "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
-          "commit": "758583bbdb3b89b45fd87a3fe9a249a492bb091e",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
           "state": "completed",
           "result": "passed",
           "label": "20 yeni çapraz adaptör kabul testi; 103 birleşik Proxmox/Keenetic Server testi geçti."
@@ -1850,7 +1850,7 @@
         {
           "kind": "test",
           "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
-          "commit": "78eeb40502937952c6497ef887f9e675580fd67b",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
           "state": "completed",
           "result": "passed",
           "label": "37 odaklı Flutter testi ve hedefli analiz; 600/1280, 2x metin, 48 dp, klavye ve ortak kanıt dili geçti."
@@ -1858,7 +1858,7 @@
         {
           "kind": "test",
           "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
-          "commit": "f8f2323983219a018422dcd6076d8e048fb20931",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
           "state": "completed",
           "result": "passed",
           "label": "3 odaklı Flutter regresyonu kayıtlı bağlantı/erişilebilir kanıt ayrımını, canlı child authority guardını ve permission-denied eşlemesini kapattı; son birleşik S08.9 Flutter kapısı 43 PASS."
@@ -1866,7 +1866,7 @@
         {
           "kind": "test",
           "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
-          "commit": "a00dc041356ca268dbd879113a1abaabd74b6aee",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
           "state": "completed",
           "result": "passed",
           "label": "3 odaklı Flutter regresyonu API replacement ve geç preview iptalinin exact sahibi tarafından yürütülmesini doğruladı; komut etkisi oluşmadı."
@@ -1874,14 +1874,30 @@
         {
           "kind": "test",
           "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
-          "commit": "c70417ab5be838efa6bd7b6cb8e8cf27c1df6ec4",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
           "state": "completed",
           "result": "passed",
           "label": "Exact HTTP status/error-code tablosu 16 izinli çifti, yanlış status eşleşmelerini ve private hata fallbacklerini fail-closed doğruladı; son S08.9 Flutter kapısı 43 PASS."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız Server, retained-state, HTTP sözleşmesi ve tablet arayüz incelemelerinde bulunan bütün P1/P2 açıkları düzeltildi; exact birleşik adayda açık blocker kalmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34746636418",
+          "commit": "addead6732383d7b61356b56dd18e9738c762f67",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main merge commitinde Android Build; statik analiz, dört Flutter shardı, üç Server shardı, debug/release APK imza doğrulaması ve 17 API35 E2E dahil geçti. Server Container 34746636414 ve Security 34746636323 aynı committe geçti."
         }
       ],
-      "completionCommit": null,
-      "reason": "a052362 tabanındaki yerel yazılım matrisi 103 Server ve son inceleme düzeltmeleriyle 43 Flutter testinde geçti. S08.9 requiredEvidence yalnız test/review/ci; exact birleşik adayın bağımsız review ve GitHub CI kanıtı açık olduğundan awaiting_ci kalır. Gerçek Proxmox/Keenetic ve fiziksel Huawei/DeX kabulü MANUAL.SERVICES ve MANUAL.TABLET altında ayrı izlenir."
+      "completionCommit": "addead6732383d7b61356b56dd18e9738c762f67",
+      "reason": "PR136 ana dala alındı. Exact merge commitinde Android Build, Server Container ve Security geçti; bağımsız incelemedeki tüm P1/P2 bulguları kapandı. S08.9 test/review/ci yazılım kanıtı tamamlandı. Gerçek Proxmox/Keenetic ve fiziksel Huawei/DeX kabulü MANUAL.SERVICES ve MANUAL.TABLET altında ayrı izlenir."
     },
     {
       "id": "S08.10",

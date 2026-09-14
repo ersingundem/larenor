@@ -102,12 +102,14 @@ class CheckCommitProgressTest(unittest.TestCase):
             self._git(repo, 'init', '-q')
             self._git(repo, 'config', 'user.name', 'Larenor Test')
             self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+            queue = Path(directory) / 'queue.json'
+            queue.write_text((ROOT / 'docs/execution-queue.json').read_text())
+            expected = check_commit_progress.expected_progress(queue)
             base = self._commit(repo, 'base', 'base')
             head = self._commit(
                 repo, 'feature', self._message(
-                    'private commit subject', 14, 125, 0, 63))
-            queue = Path(directory) / 'queue.json'
-            queue.write_text((ROOT / 'docs/execution-queue.json').read_text())
+                    'private commit subject', *expected.queue,
+                    *expected.feature))
             summary = Path(directory) / 'summary.md'
 
             status = check_commit_progress.main([
@@ -117,7 +119,13 @@ class CheckCommitProgressTest(unittest.TestCase):
 
             self.assertEqual(status, 0)
             written = summary.read_text()
-            self.assertIn(f'| `{head[:7]}` | 14/125 (11.2%) | 0/63 (0.0%) |', written)
+            self.assertIn(
+                f'| `{head[:7]}` | '
+                f'{expected.queue[0]}/{expected.queue[1]} '
+                f'({expected.queue[0] * 100 / expected.queue[1]:.1f}%) | '
+                f'{expected.feature[0]}/{expected.feature[1]} '
+                f'({expected.feature[0] * 100 / expected.feature[1]:.1f}%) |',
+                written)
             self.assertNotIn('private commit subject', written)
 
     @staticmethod
