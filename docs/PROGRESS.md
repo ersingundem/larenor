@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 11 Eylül 2026 — `a052362` ana dalı üzerinde Seerr yakınsaması, S08.9 altyapı kabulü ve imzalı beta/Core güncellemesini birleştiren `d3a22ea8` adayı yerelde hazır. Adayın bağımsız son incelemesi sürüyor; bu exact head için uzak CI henüz yok.**
+**Son güncelleme: 14 Eylül 2026 — PR136, Seerr yakınsaması, S08.9 altyapı kabulü ve imzalı beta/Core güncellemesini `addead67` ile ana dala aldı. Exact main Android, Server Container ve Security kapıları geçti; Client beta `100000520` yayımlandı.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  15/125 iş (%12; eşit ağırlıklı sayaç)
 S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,17 +17,16 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `4021391` / APK140.** Aynı kaynakta
-5.438 Flutter ve 4.065 Server testi geçti; Android emülatöründe 17/17 E2E
-başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
-`core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
-sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
-`app-signed-release-apk-140` artefakt arşivi 57.127.889 bayt ve süresi dolmamış
-durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
-geçti; Server 4.065 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
-[Android CI140](https://github.com/ersingundem/larenor/actions/runs/34304624138) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34304624214) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34304624024).
+**Son tam doğrulanmış CI Client paketi: `addead67` / beta `100000520`.**
+[PR136](https://github.com/ersingundem/larenor/pull/136) üzerindeki zorunlu
+kontroller geçtikten sonra aynı merge commitinde Android analiz/test, üç Server
+shardı, debug APK, 17/17 API35 E2E ve imzalı release APK doğrulaması tamamlandı.
+İmzalı ve içerik-bağlı Client beta
+`client-beta-v100000520` olarak yayımlandı. Aynı commitin Server Container ve
+Security iş akışları da geçti.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/34746636418) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34746636414) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34746636323).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -128,7 +127,7 @@ PR/CI kabulü açık olduğundan sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
 olarak korunuyor. S08.9 Keenetic/Proxmox ve S08.10 bounded transfer pilotları
 bir sonraki toplu paket için paralel yürütülüyor.
 
-### S08.9 merkezi altyapı kabul adayı — CI bekliyor
+### S08.9 merkezi altyapı kabulü — tamamlandı
 
 Sabit `a052362` tabanında Proxmox ve Keenetic için ortak kabul matrisi eklendi.
 Eski binding veya komut önizlemesi endpoint/credential, kaynak, ACL, binding,
@@ -145,13 +144,15 @@ child authority/lifecycle düşüşünde istek başlatmama, API değişiminde pr
 sahipliğini koruma, permission-denied eşlemesi ve exact HTTP hata sözleşmesini
 kapattı. Son S08.9 odaklı kapısı **43 Flutter testiyle** geçti. 600/1280
 genişlik, 2× metin, 48 dp ve klavye akışları doğrulandı; hedefli analiz temiz.
-Direct credential/cache fallback eklenmedi. S08.9 için kalan yazılım kanıtı
-bağımsız inceleme ve exact-head CI'dır. Gerçek LAN/servis kabulü
-`MANUAL.SERVICES`, fiziksel Huawei/DeX kabulü `MANUAL.TABLET` altında ayrı
-izlenir. Bu nedenle `S08.9` **CI bekliyor** ve sayaçlar değişmedi.
+Direct credential/cache fallback eklenmedi. Bağımsız incelemede bulunan bütün
+P1/P2 açıkları kapandı; PR136 ve exact `addead67` main Android, Server Container
+ve Security kapıları geçti. S08.9'un test/review/ci yazılım kabulü tamamlandı.
+Gerçek LAN/servis kabulü `MANUAL.SERVICES`, fiziksel Huawei/DeX kabulü
+`MANUAL.TABLET` altında ayrı izlenir. Kuyruk sayacı **15/125 (%12,0)** oldu;
+seçili özellik sayacı **0/63** kaldı.
 [Kabul taslağı ve açık kanıtlar](s08-9-infrastructure-acceptance-2026-09-11.md).
 
-### Birleşik Seerr + S08.9 + imzalı beta/Core adayı
+### Tamamlanan Seerr + S08.9 + imzalı beta/Core birleşimi
 
 Exact yerel aday `d3a22ea8`; ana dal tabanı `a052362`'dir. Seerr zinciri
 `ada25a16`, `21c70dc4`, `e6debec2` ve inceleme düzeltmesi `f57dc316` ile aynı
@@ -166,10 +167,11 @@ testi** geçti. Sonraki dar düzeltme tekrarları Seerr için **82 Server / 26
 Flutter**, beta/Core yayın ve bütünlük sınırı için **92 Server / 18 araç testi**
 olarak geçti. Son receipt-coherence düzeltmesi `d3a22ea8` üzerinde ilgili
 **90 Server / 26 Flutter** kapısını geçti. Bu sayılar aynı adayın yerel
-kanıtıdır; GitHub CI yerine geçmez. Bağımsız son inceleme sürüyor ve exact
-`d3a22ea8` için CI sonucu yok. S08.9
-`awaiting_ci`, S06.5 ise daha geniş medya/native kabulü nedeniyle açık kalır;
-ilerleme sayaçları **14/125 (%11,2)** ve **0/63 (%0,0)** olarak korunur.
+kanıtıydı. Son CI politika düzeltmesi `bb8263a8` ile tamamlandı; PR136 bütün
+zorunlu kontroller geçince `addead67` olarak ana dala alındı. Main Android E2E
+kapanış düzeltmesiyle 17/17 testi takılmadan bitirdi ve imzalı beta
+`100000520` yayımlandı. S08.9 `done` oldu; S06.5 daha geniş medya/native kabulü
+nedeniyle açık kalır. İlerleme **15/125 (%12,0)** ve **0/63 (%0,0)**'dır.
 
 ### Hazırlanan dördüncü toplu kilometre taşı
 

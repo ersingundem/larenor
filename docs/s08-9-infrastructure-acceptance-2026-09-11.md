@@ -2,11 +2,14 @@
 
 ## Status
 
-S08.9 is **awaiting CI and independent review**. The local software acceptance
+S08.9 is **accepted on main**. The local software acceptance
 matrix below passed on `codex/s08-9-infrastructure-acceptance`, based on fixed
-commit `a0523620384476a1e7f91359ea05f2d718b461ee`. This draft does not increase
-the queue or feature counters and does not claim physical-device or real-LAN
-acceptance.
+commit `a0523620384476a1e7f91359ea05f2d718b461ee`. This acceptance increases the
+queue counter by one, keeps the feature counter unchanged, and does not claim
+physical-device or real-LAN acceptance.
+Independent review closed all P1/P2 findings, PR #136 passed the exact-head
+required checks, and merge commit `addead6732383d7b61356b56dd18e9738c762f67`
+passed Android, Server Container and Security workflows on `main`.
 
 ## Exact local slices
 
@@ -82,12 +85,18 @@ git diff --check
 - Proxmox high-risk confirmation and Keenetic second confirmation remain
   unchanged. Loading, failure and unknown states cannot trigger a command.
 
-## S08.9 software evidence still required
+## S08.9 software acceptance evidence
 
-1. An independent security and retained-state review on the exact candidate
-   commit.
-2. Required GitHub Server, Android/Flutter, security and queue checks on that
-   same commit.
+1. Independent security and retained-state review on the exact candidate
+   found no remaining blocker, P1 or P2 after the recorded fixes.
+2. [PR #136](https://github.com/ersingundem/larenor/pull/136) passed all
+   required checks and merged as
+   `addead6732383d7b61356b56dd18e9738c762f67`.
+3. Main [Android Build](https://github.com/ersingundem/larenor/actions/runs/34746636418),
+   [Server Container](https://github.com/ersingundem/larenor/actions/runs/34746636414)
+   and [Security](https://github.com/ersingundem/larenor/actions/runs/34746636323)
+   workflows passed on that merge commit. Android E2E completed normally and
+   the signed beta release was published and verified.
 
 S08.9's declared `requiredEvidence` is limited to `test`, `review` and `ci`.
 Read-only real Proxmox/Keenetic observations and any explicitly authorized
@@ -97,6 +106,6 @@ TalkBack, lifecycle retirement and PIN-gated command entry are tracked by
 `MANUAL.TABLET`; neither manual track is silently counted as S08.9 software
 evidence.
 
-Until the automated CI and review evidence are attached to the exact commit,
-`S08.9` remains `awaiting_ci`, `completionCommit` remains null, and progress
-remains **14/125 (11.2%)** and **0/63 (0.0%)**.
+S08.9 is therefore `done` with completion commit
+`addead6732383d7b61356b56dd18e9738c762f67`. Queue progress is **15/125
+(12.0%)**; selected-feature acceptance remains **0/63 (0.0%)**.
