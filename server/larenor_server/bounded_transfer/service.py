@@ -211,6 +211,16 @@ class BoundedTransferService:
         )
         if cancelled():
             raise ApiError("transfer_cancelled", 408)
+        # The registry hides ungranted records as 404. Resolve the packaged
+        # provider only after that decision, so size, presence and service
+        # revision cannot reveal a hidden record or invoke its provider.
+        self.registry.authorize(
+            actor, core_id, home_id, resource_id, "read",
+            expected_user_revision=body.expectedUserRevision,
+            expected_revision=body.expectedRevision,
+            expected_acl_revision=body.expectedAclRevision,
+            cancelled=False,
+        )
         descriptor = self._descriptor(resource_id)
         if descriptor.service_revision != body.expectedServiceRevision:
             raise ApiError("revision_conflict", 409)
@@ -220,7 +230,7 @@ class BoundedTransferService:
             raise ApiError("payload_too_large", 413)
         self._revalidate(
             actor, (core_id, home_id), resource_id, body, descriptor,
-            cancelled=False, consume_rate_limit=True)
+            cancelled=False)
         self._reserve(actor.id, length)
         trace = secrets.token_hex(16)
         metadata = TransferMetadata(
