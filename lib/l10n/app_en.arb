@@ -2691,6 +2691,7 @@
   "coreHaActivityVerifyCheckpoint": "Verify saved checkpoint",
   "coreHaActivityOffline": "Core activity could not be reached. Refresh to try again.",
   "coreHaActivityRetainedOffline": "Showing retained activity because Core is offline.",
+  "coreHaActivityIntegrityStale": "This history and its previous integrity proof are retained only. Refresh from Core before trusting or saving a checkpoint.",
   "coreHaActivityFailed": "Activity could not be read. Refresh to try again.",
   "coreHaActivityIntegrityForbidden": "This account cannot verify history integrity.",
   "coreHaActivityCheckpointConflict": "The saved checkpoint does not match this history chain.",

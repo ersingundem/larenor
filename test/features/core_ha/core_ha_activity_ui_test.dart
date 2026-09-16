@@ -291,6 +291,56 @@ void main() {
     },
   );
 
+  testWidgets(
+    'offline admin refresh cannot present or pin a retained integrity proof as current',
+    (tester) async {
+      final harness = HaUiHarness();
+      await openBindingActivity(tester, harness);
+      expect(keyed('core-ha-integrity-verified'), findsOneWidget);
+      expect(keyed('core-ha-checkpoint-pin'), findsOneWidget);
+      harness.historyStatus = 503;
+      await scrollToTop(tester);
+      await press(tester, 'core-ha-activity-refresh');
+      expect(keyed('core-ha-activity-entry-${'9' * 32}'), findsOneWidget);
+      expect(keyed('core-ha-activity-stale'), findsOneWidget);
+      expect(keyed('core-ha-integrity-stale'), findsOneWidget);
+      expect(keyed('core-ha-integrity-verified'), findsNothing);
+      expect(keyed('core-ha-checkpoint-pin'), findsNothing);
+      expect(keyed('core-ha-checkpoint-verify'), findsOneWidget);
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.descendant(
+                of: keyed('core-ha-checkpoint-verify'),
+                matching: find.byType(CupertinoButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(harness.adapterRequests.every((r) => r.method == 'GET'), isTrue);
+    },
+  );
+
+  testWidgets(
+    'successful explicit reconnect read restores current integrity authority',
+    (tester) async {
+      final harness = HaUiHarness();
+      await openBindingActivity(tester, harness);
+      harness.historyStatus = 503;
+      await scrollToTop(tester);
+      await press(tester, 'core-ha-activity-refresh');
+      expect(keyed('core-ha-integrity-stale'), findsOneWidget);
+      harness.historyStatus = 200;
+      await press(tester, 'core-ha-activity-refresh');
+      expect(keyed('core-ha-integrity-stale'), findsNothing);
+      expect(keyed('core-ha-integrity-verified'), findsOneWidget);
+      expect(keyed('core-ha-checkpoint-pin'), findsOneWidget);
+      expect(harness.historyReads, 3);
+      expect(harness.adapterRequests.every((r) => r.method == 'GET'), isTrue);
+    },
+  );
+
   testWidgets('backgrounded pending history cannot publish late success', (
     tester,
   ) async {

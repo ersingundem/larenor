@@ -393,6 +393,8 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
           l.coreHaCheckpointPinRequired,
           key: const ValueKey('core-ha-checkpoint-pin-required'),
         ),
+      if (c.stale)
+        _message('core-ha-integrity-stale', l.coreHaActivityIntegrityStale),
       if (c.checkpointProtected && c.checkpointLoaded) ...[
         if (c.trustedCheckpoint == null)
           Text(
@@ -409,7 +411,7 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
             c.trustedCheckpoint!.pinnedAt.toIso8601String(),
           ),
           _line(l.coreHaActivitySequence, '${c.trustedCheckpoint!.sequence}'),
-          if (c.trustedCompared)
+          if (c.trustedCompared && !c.stale)
             Text(
               l.coreHaCheckpointAutoMatched,
               key: const ValueKey('core-ha-checkpoint-auto-matched'),
@@ -432,7 +434,7 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
           'core-ha-checkpoint-storage-error',
           l.coreHaCheckpointStorageFailed,
         ),
-      if (proof != null) ...[
+      if (proof != null && !c.stale) ...[
         Text(
           l.coreHaActivityIntegrityVerified,
           key: const ValueKey('core-ha-integrity-verified'),
