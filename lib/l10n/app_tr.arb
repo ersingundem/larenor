@@ -2363,6 +2363,7 @@
   "coreHaActivityVerifyCheckpoint": "Kayıtlı kontrol noktasını doğrula",
   "coreHaActivityOffline": "Core etkinliğine ulaşılamadı. Yenilemek için tekrar deneyin.",
   "coreHaActivityRetainedOffline": "Core çevrimdışı olduğu için saklanan etkinlik gösteriliyor.",
+  "coreHaActivityIntegrityStale": "Bu geçmiş ve önceki bütünlük kanıtı yalnız saklanan bilgidir. Kontrol noktasına güvenmeden veya kaydetmeden önce Core üzerinden yenileyin.",
   "coreHaActivityFailed": "Etkinlik okunamadı. Yenilemek için tekrar deneyin.",
   "coreHaActivityIntegrityForbidden": "Bu hesap geçmiş bütünlüğünü doğrulayamaz.",
   "coreHaActivityCheckpointConflict": "Kayıtlı kontrol noktası bu geçmiş zinciriyle eşleşmiyor.",

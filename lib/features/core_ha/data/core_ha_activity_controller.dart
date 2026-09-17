@@ -101,7 +101,7 @@ class CoreHaActivityController extends ChangeNotifier {
       !truncated &&
       nextBefore != null &&
       entries.length < CoreHaHistoryPage.maximumVisibleEntries;
-  bool get canVerifyCheckpoint => verifyIntegrity && fresh && !busy;
+  bool get canVerifyCheckpoint => verifyIntegrity && fresh && !busy && !stale;
   bool get canPinCheckpoint =>
       checkpointProtected &&
       checkpointLoaded &&
@@ -110,6 +110,7 @@ class CoreHaActivityController extends ChangeNotifier {
       !verification!.comparedCheckpoint &&
       checkpointAlarm == null &&
       checkpointFailure == null &&
+      !stale &&
       fresh &&
       !busy;
   bool get canRotateCheckpoint =>
@@ -120,6 +121,7 @@ class CoreHaActivityController extends ChangeNotifier {
       verification!.checkpoint != trustedCheckpoint!.checkpoint &&
       checkpointAlarm == null &&
       checkpointFailure == null &&
+      !stale &&
       fresh &&
       !busy;
 
