@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import hashlib
 import math
 import re
-import secrets
 import struct
 import threading
 from typing import Protocol
@@ -123,6 +122,7 @@ class BoundedTransferService:
     def python_arguments(values: dict) -> dict:
         body = TransferRequest.model_validate(values)
         return {
+            "request_id": body.requestId,
             "expected_user_revision": body.expectedUserRevision,
             "expected_revision": body.expectedRevision,
             "expected_acl_revision": body.expectedAclRevision,
@@ -199,10 +199,12 @@ class BoundedTransferService:
                 self._active_by_actor[actor_id] = count - 1
 
     def open(self, actor, core_id: str, home_id: str, resource_id: str, *,
+             request_id: str,
              expected_user_revision: int, expected_revision: int,
              expected_acl_revision: int, expected_service_revision: int,
              deadline_ms: int, cancelled: Callable[[], bool]) -> OpenTransfer:
         body = TransferRequest(
+            requestId=request_id,
             expectedUserRevision=expected_user_revision,
             expectedRevision=expected_revision,
             expectedAclRevision=expected_acl_revision,
@@ -232,7 +234,10 @@ class BoundedTransferService:
             actor, (core_id, home_id), resource_id, body, descriptor,
             cancelled=False)
         self._reserve(actor.id, length)
-        trace = secrets.token_hex(16)
+        # The caller-generated opaque request id is also the wire trace id, so
+        # the accepted stream and its eventual result cannot be confused with
+        # a different operation. It carries no user or resource information.
+        trace = body.requestId
         metadata = TransferMetadata(
             trace_id=trace,
             content_length=length,

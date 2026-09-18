@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -39,7 +40,9 @@ final class CoreBoundedDownloadApi {
     required this.endpoint,
     http.Client? client,
     this.timeout = const Duration(seconds: 8),
-  }) : _client = ServerBoundClient(baseUrl: endpoint.baseUrl, inner: client);
+    String Function()? requestId,
+  }) : _client = ServerBoundClient(baseUrl: endpoint.baseUrl, inner: client),
+       _requestId = requestId ?? _randomId;
 
   static const maxBlobBytes = 256 * 1024;
   static const frameHeaderBytes = 49;
@@ -47,9 +50,18 @@ final class CoreBoundedDownloadApi {
   static const wireType = 'application/vnd.larenor.blob-stream.v1';
   final ServerEndpoint endpoint;
   final ServerBoundClient _client;
+  final String Function() _requestId;
   final Duration timeout;
   final _pending = <Completer<void>>{};
   bool _closed = false;
+
+  static String _randomId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
 
   Future<CoreBoundedBlob> download({
     required String token,
@@ -58,7 +70,9 @@ final class CoreBoundedDownloadApi {
     required int expectedServiceRevision,
   }) async {
     if (_closed) throw const CoreBoundedDownloadException('cancelled');
+    final requestId = _requestId();
     if (target.kind != HomeResourceKind.resource ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
         expectedUserRevision < 1 ||
         expectedUserRevision > 9223372036854775807 ||
         expectedServiceRevision < 1 ||
@@ -86,6 +100,7 @@ final class CoreBoundedDownloadApi {
         ..['content-type'] = 'application/json';
       request.bodyBytes = utf8.encode(
         jsonEncode({
+          'requestId': requestId,
           'expectedUserRevision': expectedUserRevision,
           'expectedRevision': target.revision,
           'expectedAclRevision': target.aclRevision,
@@ -109,7 +124,7 @@ final class CoreBoundedDownloadApi {
           _ => response.statusCode >= 500 ? 'server_error' : 'failed',
         });
       }
-      final metadata = _metadata(response, expectedServiceRevision);
+      final metadata = _metadata(response, expectedServiceRevision, requestId);
       final wire = BytesBuilder(copy: false);
       await for (final chunk in response.stream.timeout(timeout)) {
         if (_closed || abort.isCompleted) {
@@ -149,7 +164,11 @@ final class CoreBoundedDownloadApi {
     }
   }
 
-  _Metadata _metadata(http.StreamedResponse response, int expectedRevision) {
+  _Metadata _metadata(
+    http.StreamedResponse response,
+    int expectedRevision,
+    String expectedTrace,
+  ) {
     int integer(String name, {required int maximum}) {
       final raw = response.headers[name];
       final value = int.tryParse(raw ?? '');
@@ -180,6 +199,7 @@ final class CoreBoundedDownloadApi {
         response.contentLength != framedLength ||
         trace == null ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(trace) ||
+        trace != expectedTrace ||
         digest == null ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
         blobType == null ||

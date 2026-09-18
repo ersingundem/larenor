@@ -30,6 +30,7 @@ async def download(core_id: Identity, home_id: Identity, record_id: Identity,
     disconnected = False
     opened = core.bounded_transfers.open(
         actor, core_id, home_id, record_id,
+        request_id=body.requestId,
         expected_user_revision=body.expectedUserRevision,
         expected_revision=body.expectedRevision,
         expected_acl_revision=body.expectedAclRevision,
