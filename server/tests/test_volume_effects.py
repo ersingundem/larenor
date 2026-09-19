@@ -45,7 +45,7 @@ def begun(tmp_path, source):
 
 
 @contextmanager
-def engine_server(reply, *, platform='amd64', version_hook=None, request_timeout=2):
+def engine_server(reply, *, platform='amd64', version_hook=None, request_timeout=5):
     """Read every request body and bound/reap the owned local server thread."""
     with tempfile.TemporaryDirectory(prefix='lvc-', dir='/private/tmp' if sys.platform == 'darwin' else '/tmp') as directory:
         path = Path(directory) / 'engine.sock'
@@ -92,6 +92,11 @@ def engine_server(reply, *, platform='amd64', version_hook=None, request_timeout
                             return
                         raise
                     with connection:
+                        # Keep the synthetic peer's read budget above the
+                        # production client's two-second idle budget. Equal
+                        # deadlines race under sharded CI load and can make the
+                        # fixture close after GET /version before the guarded
+                        # POST is scheduled, even though the client is correct.
                         connection.settimeout(request_timeout)
                         try:
                             first = read(connection)
