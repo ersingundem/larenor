@@ -5,12 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
+Identity = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 
 
 class TransferRequest(BaseModel):
     """One explicit, non-resumable download request."""
 
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    requestId: Identity
     expectedUserRevision: Revision
     expectedRevision: Revision
     expectedAclRevision: Revision

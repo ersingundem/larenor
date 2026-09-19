@@ -74,6 +74,7 @@ void main() {
         expect(request.headers.value('range'), isNull);
         expect(request.headers.value('if-range'), isNull);
         expect(jsonDecode(await utf8.decoder.bind(request).join()), {
+          'requestId': trace,
           'expectedUserRevision': 7,
           'expectedRevision': 1,
           'expectedAclRevision': 2,
@@ -107,6 +108,7 @@ void main() {
         endpoint: fixture.endpoint,
         client: http.Client(),
         timeout: const Duration(seconds: 5),
+        requestId: () => trace,
       );
       addTearDown(api.close);
 
@@ -168,7 +170,14 @@ void main() {
     );
   }
 
-  for (final mode in ['sequence', 'late', 'digest', 'truncated', 'oversize']) {
+  for (final mode in [
+    'sequence',
+    'late',
+    'digest',
+    'truncated',
+    'oversize',
+    'trace',
+  ]) {
     test('rejects $mode stream before exposing bytes', () async {
       final payload = utf8.encode('fixture');
       final trace = '2' * 32;
@@ -211,7 +220,10 @@ void main() {
         await request.response.close();
       });
       addTearDown(() => fixture.server.close(force: true));
-      final api = CoreBoundedDownloadApi(endpoint: fixture.endpoint);
+      final api = CoreBoundedDownloadApi(
+        endpoint: fixture.endpoint,
+        requestId: () => mode == 'trace' ? '3' * 32 : trace,
+      );
       addTearDown(api.close);
       await expectLater(
         api.download(

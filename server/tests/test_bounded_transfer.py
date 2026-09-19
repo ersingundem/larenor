@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import hashlib
 import struct
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,6 +48,7 @@ def user_revision(app, user_id):
 
 def request_body(app, admin, record, *, service_revision=1, deadline_ms=5_000):
     return {
+        "requestId": uuid.uuid4().hex,
         "expectedUserRevision": user_revision(app, admin["user"]["id"]),
         "expectedRevision": record["revision"],
         "expectedAclRevision": record["aclRevision"],
@@ -82,7 +84,8 @@ def test_explicit_post_stream_has_exact_secret_free_metadata_and_monotonic_frame
         path = (f"/api/v1/home-resources/{record['ref']['coreId']}/"
                 f"{record['ref']['homeId']}/{record['ref']['id']}/blob")
 
-        response = client.post(path, headers=auth(admin), json=request_body(app, admin, record))
+        body = request_body(app, admin, record)
+        response = client.post(path, headers=auth(admin), json=body)
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/vnd.larenor.blob-stream.v1"
@@ -91,6 +94,7 @@ def test_explicit_post_stream_has_exact_secret_free_metadata_and_monotonic_frame
         assert response.headers["x-larenor-blob-sha256"] == hashlib.sha256(payload).hexdigest()
         assert response.headers["x-larenor-service-revision"] == "1"
         trace = response.headers["x-larenor-trace-id"]
+        assert trace == body["requestId"]
         assert len(trace) == 32 and trace.isascii() and trace.isalnum()
         assert not any(secret in str(dict(response.headers)) for secret in (admin["accessToken"], admin["refreshToken"]))
         frames = decode(response.content)
