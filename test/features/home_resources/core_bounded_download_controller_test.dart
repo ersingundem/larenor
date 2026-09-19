@@ -106,6 +106,7 @@ void main() {
         harness.home(tester),
         (endpoint) => CoreBoundedDownloadApi(
           endpoint: endpoint,
+          requestId: () => 'c' * 32,
           client: MockClient((request) async {
             requests++;
             expect(request.method, 'POST');
@@ -169,6 +170,7 @@ void main() {
       harness.home(tester),
       (endpoint) => CoreBoundedDownloadApi(
         endpoint: endpoint,
+        requestId: () => 'c' * 32,
         client: MockClient((_) async {
           requests++;
           return _response(validDigest: false);
@@ -209,6 +211,7 @@ void main() {
       harness.home(tester),
       (endpoint) => CoreBoundedDownloadApi(
         endpoint: endpoint,
+        requestId: () => 'c' * 32,
         client: MockClient((_) async {
           requests++;
           return _response();
@@ -250,8 +253,11 @@ void main() {
       var saves = 0;
       final controller = CoreBoundedDownloadController(
         harness.home(tester),
-        (endpoint) =>
-            CoreBoundedDownloadApi(endpoint: endpoint, client: pending),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          requestId: () => 'c' * 32,
+          client: pending,
+        ),
         CoreBoundedDownloadFileAccess(
           save: (_, _, _) async {
             saves++;
@@ -292,8 +298,11 @@ void main() {
       var saves = 0;
       final controller = CoreBoundedDownloadController(
         harness.home(tester),
-        (endpoint) =>
-            CoreBoundedDownloadApi(endpoint: endpoint, client: pending),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          requestId: () => 'c' * 32,
+          client: pending,
+        ),
         CoreBoundedDownloadFileAccess(
           save: (_, _, _) async {
             saves++;
@@ -332,8 +341,11 @@ void main() {
       var saves = 0;
       final controller = CoreBoundedDownloadController(
         harness.home(tester),
-        (endpoint) =>
-            CoreBoundedDownloadApi(endpoint: endpoint, client: pending),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          requestId: () => 'c' * 32,
+          client: pending,
+        ),
         CoreBoundedDownloadFileAccess(
           save: (_, _, _) async {
             saves++;
