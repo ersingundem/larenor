@@ -91,7 +91,11 @@ def test_wire_shape_rejection_has_no_transport(begun, mutation):
 @pytest.mark.parametrize('status', [200, 202, 204, 301, 401, 404, 409, 500])
 def test_only_201_is_an_ack_and_never_retried(begun, status):
     _, _, intent = begun
-    with engine_server(response(body(intent.binding), status=status)) as (endpoint, calls):
+    # This case expects a second request. Give its synthetic peer a budget
+    # above the production client's two-second idle deadline so sharded runner
+    # scheduling cannot close the fixture after GET /version but before POST.
+    with engine_server(response(body(intent.binding), status=status),
+                       request_timeout=5) as (endpoint, calls):
         with pytest.raises(VolumeEffectError):
             creator(endpoint).create(intent, before_dispatch=lambda: True)
     assert len(calls) == 2 and sum(line.startswith('POST ') for line, _ in calls) == 1
