@@ -57,6 +57,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             "bootstrapAuthenticated": True,
             "restartCount": 1,
             "restartTokenPersistent": True,
+            "playerReadbackVerified": True,
             "installAvailable": False,
         }
 
@@ -80,6 +81,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             value | {"privateToken": "never-public"},
             value | {"installAvailable": True},
             value | {"restartTokenPersistent": False},
+            value | {"playerReadbackVerified": False},
             value | {"acceptanceSourceHashes": {}},
         ):
             with self.assertRaises(target.MusicAssistantManagedCIError):
@@ -121,6 +123,22 @@ class MusicAssistantManagedCITest(unittest.TestCase):
         self.assertEqual([call[3] for call in runtime.calls], ["auth/me", "info"])
         self.assertTrue(all(call[2] == "private-native-token" for call in runtime.calls))
         self.assertNotIn("private-native-token", repr(readback))
+
+    @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")
+    def test_authenticated_player_readback_accepts_bounded_empty_native_state(self):
+        class Runtime:
+            def read(self, authority, *, deadline):
+                self.authority = authority
+                self.deadline = deadline
+                from larenor_server.plugins.music_playback_models import MusicPlaybackReadback
+                return MusicPlaybackReadback(players=[])
+
+        runtime = Runtime()
+        target._authenticated_player_readback(
+            runtime, "a" * 32, "private-native-token",
+            deadline=target.time.monotonic() + 1)
+        self.assertEqual(runtime.authority.installationId, "a" * 32)
+        self.assertEqual(runtime.authority.token, "private-native-token")
 
     def test_verify_rejects_duplicate_json_keys_without_echoing_values(self):
         with tempfile.TemporaryDirectory() as root:

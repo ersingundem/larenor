@@ -1,6 +1,7 @@
 """Secret-free provider onboarding intents over Music Assistant setup flows."""
 
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -212,6 +213,63 @@ class FailingProviderWorker:
     def execute_music_provider_setup(self, _action, *, deadline, gate):
         assert gate() is True
         raise RuntimeError('private detail that must not escape')
+
+
+def test_restarted_core_dispatches_persisted_initial_discovery_without_exposing_token(server):
+    _app, _client, settings, _ = server
+    pair, setup = create_setup(server)
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='action_required', providerDomain='spotify',
+        discovery=external('spotify')))
+    restarted_app = create_app(settings)
+    restarted_app.state.core.music_provider_setups.backend = worker
+
+    with TestClient(restarted_app) as restarted:
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            current = restarted.get(
+                BASE + '/' + setup['id'], headers=auth(pair)).json()['setup']
+            if current['state'] == 'action_required':
+                break
+            time.sleep(.02)
+        assert current['state'] == 'action_required'
+        assert current['nextAction'] == 'continue_in_larenor'
+        assert restarted.app.state.music_provider_setup_dispatcher is not None
+
+    assert len(worker.calls) == 1
+    assert worker.calls[0].command == 'start'
+    assert worker.calls[0].providerDomain == 'spotify'
+    assert 'private-mass-token' not in repr(worker.calls[0])
+    encoded = json.dumps(current)
+    assert FLOW not in encoded and 'private-state' not in encoded
+
+
+def test_initial_discovery_failure_is_retained_and_explicit_retry_is_revision_bound(server):
+    app, client, _, _ = server
+    pair, setup = create_setup(server)
+    app.state.core.music_provider_setups.backend = FailingProviderWorker()
+
+    failed = app.state.core.music_provider_setups.tick()['setup']
+    assert failed['state'] == 'needs_attention'
+    assert failed['nextAction'] == 'retry'
+    assert app.state.core.music_provider_setups.tick() is None
+
+    stale = client.post(
+        BASE + '/' + setup['id'] + '/retry', headers=auth(pair),
+        json={'expectedRevision': setup['revision']})
+    assert stale.status_code == 409
+    retried = client.post(
+        BASE + '/' + setup['id'] + '/retry', headers=auth(pair),
+        json={'expectedRevision': failed['revision']})
+    assert retried.status_code == 200
+    assert retried.json()['setup']['state'] == 'queued'
+
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='action_required', providerDomain='spotify',
+        discovery=external('spotify')))
+    app.state.core.music_provider_setups.backend = worker
+    completed = app.state.core.music_provider_setups.tick()['setup']
+    assert completed['state'] == 'action_required'
 
 
 def test_validated_form_submission_crosses_private_worker_and_finishes_only_after_readback(server):
