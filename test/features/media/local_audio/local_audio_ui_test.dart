@@ -244,6 +244,15 @@ void main() {
         )
         .onPressed!;
     h.interaction.setActive(false);
+    await _frames(tester);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('local-audio-start')),
+          )
+          .onPressed,
+      isNull,
+    );
     h.interaction.setActive(true);
     await _frames(tester);
     stale();

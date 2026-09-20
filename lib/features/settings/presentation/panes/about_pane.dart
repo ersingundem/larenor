@@ -11,6 +11,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/larenor_brand.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../auth/providers/auth_providers.dart';
+import '../../../auth/data/ha_connection_config.dart';
+import '../../../health/data/health_configuration.dart';
 import '../../../legal/presentation/legal_screen.dart';
 import 'settings_nav_row.dart';
 
@@ -33,21 +35,66 @@ class _AboutPaneState extends ConsumerState<AboutPane> {
       interaction?.active != false &&
       interaction?.epoch == epoch;
 
+  bool _accountCurrent(
+    AppInteractionController? interaction,
+    int? epoch,
+    ConnectionConfig accountAuthority,
+    HaConnectionConfig? accountConfig,
+  ) {
+    if (!_current(interaction, epoch)) return false;
+    final state = ref.read(connectionConfigProvider);
+    return identical(
+          accountAuthority,
+          ref.read(connectionConfigProvider.notifier),
+        ) &&
+        !state.isLoading &&
+        !state.hasError &&
+        sameHealthConfiguration(accountConfig, state.value);
+  }
+
+  bool _signedOutCurrent(
+    AppInteractionController? interaction,
+    int? epoch,
+    ConnectionConfig accountAuthority,
+  ) {
+    if (!_current(interaction, epoch)) return false;
+    final state = ref.read(connectionConfigProvider);
+    return identical(
+          accountAuthority,
+          ref.read(connectionConfigProvider.notifier),
+        ) &&
+        !state.isLoading &&
+        !state.hasError &&
+        state.value == null;
+  }
+
   Future<void> _signOut(
     AppInteractionController? interaction,
     int? epoch,
+    ConnectionConfig accountAuthority,
+    HaConnectionConfig? accountConfig,
   ) async {
-    if (_signingOut || !_current(interaction, epoch)) return;
+    if (_signingOut ||
+        !_accountCurrent(interaction, epoch, accountAuthority, accountConfig)) {
+      return;
+    }
     setState(() {
       _signingOut = true;
       _signOutError = null;
     });
     try {
-      await ref.read(connectionConfigProvider.notifier).signOut();
+      await accountAuthority.signOut();
       if (!mounted) return;
-      if (_current(interaction, epoch)) context.go('/');
+      if (_signedOutCurrent(interaction, epoch, accountAuthority)) {
+        context.go('/');
+      }
     } catch (_) {
-      if (_current(interaction, epoch)) {
+      if (_accountCurrent(
+        interaction,
+        epoch,
+        accountAuthority,
+        accountConfig,
+      )) {
         setState(
           () => _signOutError = AppLocalizations.of(context).commonError,
         );
@@ -61,7 +108,10 @@ class _AboutPaneState extends ConsumerState<AboutPane> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // Keep the auto-dispose notifier alive through a pending credential clear.
-    ref.watch(connectionConfigProvider);
+    final accountState = ref.watch(connectionConfigProvider);
+    final accountConfig = accountState.value;
+    final accountReady = !accountState.isLoading && !accountState.hasError;
+    final accountAuthority = ref.watch(connectionConfigProvider.notifier);
     final interaction = AppInteractionScope.maybeOf(context);
     final interactionEpoch = interaction?.epoch;
 
@@ -127,9 +177,14 @@ class _AboutPaneState extends ConsumerState<AboutPane> {
                   color: CupertinoColors.systemRed.resolveFrom(context),
                 ),
               ),
-              onTap: _signingOut
+              onTap: _signingOut || !accountReady
                   ? null
-                  : () => _signOut(interaction, interactionEpoch),
+                  : () => _signOut(
+                      interaction,
+                      interactionEpoch,
+                      accountAuthority,
+                      accountConfig,
+                    ),
             ),
             if (_signOutError != null)
               Semantics(

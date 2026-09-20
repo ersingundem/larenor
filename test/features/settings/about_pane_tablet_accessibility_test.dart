@@ -16,12 +16,17 @@ import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _Connection extends ConnectionConfig {
+  _Connection({this.initial});
+
+  final HaConnectionConfig? initial;
   var signOuts = 0;
   Completer<void>? gate;
   Object? error;
 
   @override
-  Future<HaConnectionConfig?> build() async => null;
+  Future<HaConnectionConfig?> build() async => initial;
+
+  void replace(HaConnectionConfig config) => state = AsyncData(config);
 
   @override
   Future<void> signOut() async {
@@ -176,6 +181,72 @@ void main() {
       expect(connection.signOuts, 1);
     },
   );
+
+  testWidgets('captured sign out cannot cross account authority', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    final connection = _Connection(
+      initial: const HaConnectionConfig(
+        baseUrl: 'https://old.example',
+        token: 'old-test-token',
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: '/about',
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const Text('Home route')),
+        GoRoute(path: '/about', builder: (_, _) => const AboutPane()),
+      ],
+    );
+    addTearDown(interaction.dispose);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [connectionConfigProvider.overrideWith(() => connection)],
+        child: CupertinoApp.router(
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (_, child) =>
+              AppInteractionScope(controller: interaction, child: child!),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('about-sign-out-action')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('about-sign-out-action')),
+        )
+        .onPressed!;
+    connection.replace(
+      const HaConnectionConfig(
+        baseUrl: 'https://new.example',
+        token: 'new-test-token',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    stale();
+    await tester.pump();
+
+    expect(connection.signOuts, 0);
+    expect(find.byType(AboutPane), findsOneWidget);
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('about-sign-out-action')),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    expect(connection.signOuts, 1);
+    expect(find.text('Home route'), findsOneWidget);
+  });
 
   testWidgets('failed sign out stays on route and announces a safe error', (
     tester,

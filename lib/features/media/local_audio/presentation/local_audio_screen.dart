@@ -227,7 +227,11 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         action();
       }
     };
-    final active = _foreground && TickerMode.valuesOf(context).enabled;
+    final active =
+        _foreground &&
+        interaction?.active != false &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
     ref.listen(localAudioBridgeProvider, (previous, next) {
       if (previous != null && !identical(previous, next)) {
         setState(() {
