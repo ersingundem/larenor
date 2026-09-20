@@ -161,13 +161,13 @@ Future<void> _mount(
 }
 
 Future<void> _unlock(WidgetTester tester) async {
-  await tester.enterText(find.byKey(const ValueKey('wellbeing-pin')), '1234');
-  final unlock = find
-      .descendant(
-        of: find.byType(WellbeingGate),
-        matching: find.byType(CupertinoButton),
-      )
-      .last;
+  final pin = find.byKey(const ValueKey('wellbeing-pin'));
+  await tester.enterText(pin, '1234');
+  final l10n = AppLocalizations.of(tester.element(pin));
+  final unlock = find.widgetWithText(
+    CupertinoButton,
+    l10n.settingsGateUnlockButton,
+  );
   await tester.ensureVisible(unlock);
   await tester.tap(unlock);
   await tester.pumpAndSettle();
@@ -221,7 +221,10 @@ void main() {
             await tester.ensureVisible(action);
             await tester.pumpAndSettle();
             expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
-            final node = tester.getSemantics(action);
+            final l10n = AppLocalizations.of(tester.element(action));
+            final semanticAction = find.bySemanticsLabel(l10n.wellbeingRead);
+            expect(semanticAction, findsOneWidget);
+            final node = tester.getSemantics(semanticAction);
             expect(node.flagsCollection.isButton, isTrue);
             final text = find.descendant(
               of: action,

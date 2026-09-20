@@ -170,6 +170,16 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
     }
   }
 
+  void _refresh(WellbeingAccessSession access, WellbeingController controller) {
+    if (!_canAct ||
+        !identical(access, ref.read(wellbeingAccessProvider)) ||
+        !access.isCurrent() ||
+        !identical(controller, _controller)) {
+      return;
+    }
+    controller.refresh();
+  }
+
   Future<void> _changeDisclosure(
     WellbeingDisclosurePolicy policy, {
     String? entityId,
@@ -365,7 +375,8 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
       _metrics = Set.of(settings.nativeMetrics);
     }
     _controller = ref.watch(wellbeingControllerProvider);
-    _controller?.setVisible(_active);
+    final controller = _controller;
+    controller?.setVisible(_active);
     final reading = ref.watch(wellbeingProvider);
     final snapshot = !_active || reading.isLoading || reading.hasError
         ? null
@@ -387,6 +398,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
         leading: CupertinoNavigationBarBackButton(onPressed: widget.onExit),
         middle: Text(l10n.wellbeingTitle),
         trailing: CupertinoButton(
+          minimumSize: const Size(48, 48),
           padding: EdgeInsets.zero,
           onPressed: widget.onLock,
           child: Semantics(
@@ -439,9 +451,13 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                           child: CupertinoActivityIndicator(),
                         ),
                       if (stored.hasError || disclosure.hasError) ...[
-                        _WellbeingText(l10n.wellbeingSettingsUnavailable),
+                        _WellbeingText(
+                          l10n.wellbeingSettingsUnavailable,
+                          liveRegion: true,
+                        ),
                         CupertinoButton(
                           key: const Key('wellbeing-reload'),
+                          minimumSize: const Size.fromHeight(48),
                           onPressed: _canAct && !busy
                               ? () => _reloadSettings(access!)
                               : null,
@@ -449,8 +465,12 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                         ),
                       ],
                       if (reading.hasError || snapshot?.failure != null)
-                        _WellbeingText(l10n.wellbeingReadFailed),
-                      if (_error != null) _WellbeingText(_error!),
+                        _WellbeingText(
+                          l10n.wellbeingReadFailed,
+                          liveRegion: true,
+                        ),
+                      if (_error != null)
+                        _WellbeingText(_error!, liveRegion: true),
                       if (showSources && disclosure.isLoading)
                         _WellbeingText(l10n.wellbeingReadFailed),
                       if (showSources &&
@@ -466,6 +486,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                             if (disclosure.requireValue.reviewRequired) ...[
                               _WellbeingText(l10n.wellbeingPrivacyReviewHint),
                               CupertinoButton(
+                                minimumSize: const Size.fromHeight(48),
                                 onPressed: ready
                                     ? () => _changeDisclosure(
                                         disclosure.requireValue,
@@ -482,6 +503,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                                   children: [
                                     Text(id),
                                     CupertinoButton(
+                                      minimumSize: const Size.fromHeight(48),
                                       onPressed: ready
                                           ? () => _changeDisclosure(
                                               disclosure.requireValue,
@@ -532,19 +554,23 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                             horizontal: 20,
                             vertical: 8,
                           ),
-                          child: CupertinoTextField(
-                            key: const ValueKey('wellbeing-profile'),
-                            controller: _profile,
-                            enabled: ready && settings.enabled,
-                            maxLength: 80,
-                            placeholder: l10n.wellbeingProfile,
-                            padding: const EdgeInsets.all(14),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: CupertinoTextField(
+                              key: const ValueKey('wellbeing-profile'),
+                              controller: _profile,
+                              enabled: ready && settings.enabled,
+                              maxLength: 80,
+                              placeholder: l10n.wellbeingProfile,
+                              padding: const EdgeInsets.all(14),
+                            ),
                           ),
                         ),
                         SettingsSection(
                           header: Text(l10n.wellbeingSources),
                           children: [
                             CupertinoButton(
+                              minimumSize: const Size.fromHeight(48),
                               onPressed: ready
                                   ? () => _controller?.probe()
                                   : null,
@@ -609,6 +635,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                                   ),
                                 ),
                               CupertinoButton(
+                                minimumSize: const Size.fromHeight(48),
                                 onPressed: ready
                                     ? () {
                                         if (!validWellbeingLabel(
@@ -633,6 +660,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                                 child: Text(l10n.wellbeingSaveTypes),
                               ),
                               CupertinoButton(
+                                minimumSize: const Size.fromHeight(48),
                                 onPressed:
                                     ready &&
                                         nativeAvailable &&
@@ -645,6 +673,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                                 child: Text(l10n.wellbeingGrant),
                               ),
                               CupertinoButton(
+                                minimumSize: const Size.fromHeight(48),
                                 onPressed: ready && nativeAvailable
                                     ? _permissionSettings
                                     : null,
@@ -657,6 +686,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                             footer: Text(l10n.wellbeingScaleHint),
                             children: [
                               CupertinoButton(
+                                minimumSize: const Size.fromHeight(48),
                                 onPressed: ready
                                     ? () {
                                         setState(
@@ -683,6 +713,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                                         style: AppText.footnote,
                                       ),
                                       CupertinoButton(
+                                        minimumSize: const Size.fromHeight(48),
                                         padding: EdgeInsets.zero,
                                         onPressed: ready
                                             ? () => _remove(binding, settings)
@@ -709,6 +740,7 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: CupertinoButton(
+                          minimumSize: const Size.fromHeight(48),
                           alignment: Alignment.centerLeft,
                           onPressed: ready ? () => _bind(candidate) : null,
                           child: Column(
@@ -739,26 +771,32 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                   ),
                 if (!showSources && settings?.enabled == true) ...[
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: CupertinoButton.filled(
-                        onPressed:
-                            ready &&
-                                (settings.nativeMetrics.isNotEmpty ||
-                                    settings.bindings.isNotEmpty)
-                            ? () => _controller?.refresh()
-                            : null,
-                        child: Text(l10n.wellbeingRead),
-                      ),
+                    child: SettingsSection(
+                      header: Text(l10n.wellbeingRecent),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: CupertinoButton.filled(
+                              key: const ValueKey('wellbeing-read-action'),
+                              minimumSize: const Size.fromHeight(48),
+                              onPressed:
+                                  ready &&
+                                      controller != null &&
+                                      (settings.nativeMetrics.isNotEmpty ||
+                                          settings.bindings.isNotEmpty)
+                                  ? () => _refresh(access!, controller)
+                                  : null,
+                              child: Text(l10n.wellbeingRead),
+                            ),
+                          ),
+                        ),
+                        if (snapshot?.results.isEmpty != false)
+                          _WellbeingText(l10n.wellbeingNoRead),
+                      ],
                     ),
                   ),
-                  SliverToBoxAdapter(
-                    child: _WellbeingText(l10n.wellbeingRecent),
-                  ),
-                  if (snapshot?.results.isEmpty != false)
-                    SliverToBoxAdapter(
-                      child: _WellbeingText(l10n.wellbeingNoRead),
-                    ),
                   for (final result
                       in snapshot?.results ?? <WellbeingReadResult>[]) ...[
                     SliverToBoxAdapter(
@@ -809,14 +847,18 @@ void _closeDialog<T>(BuildContext context, T? value) {
 }
 
 class _WellbeingText extends StatelessWidget {
-  const _WellbeingText(this.text);
+  const _WellbeingText(this.text, {this.liveRegion = false});
   final String text;
+  final bool liveRegion;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-    child: SizedBox(
-      width: double.infinity,
-      child: Text(text, style: AppText.subhead),
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: liveRegion,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: Text(text, style: AppText.subhead),
+      ),
     ),
   );
 }

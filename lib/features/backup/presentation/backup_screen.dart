@@ -326,7 +326,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _export() async {
-    if (!mounted || !_interactive || _busy) return;
+    if (!mounted || !_current() || _busy) return;
     final l10n = AppLocalizations.of(context);
     final passphrase = _passphrase.text;
     if (_selection.isEmpty) {
@@ -381,7 +381,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _chooseFile() async {
-    if (!mounted || !_interactive || _busy) return;
+    if (!mounted || !_current() || _busy) return;
     final l10n = AppLocalizations.of(context);
     final files = ref.read(backupFileAccessProvider);
     setState(() {
@@ -407,7 +407,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _decrypt() async {
-    if (!mounted || !_interactive || _busy || _file == null) return;
+    if (!mounted || !_current() || _busy || _file == null) return;
     final l10n = AppLocalizations.of(context);
     final passphrase = _restorePassphrase.text;
     if (passphrase.runes.length < 12) {
@@ -701,13 +701,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: CupertinoButton.filled(
         key: ValueKey(key),
+        minimumSize: const Size.fromHeight(48),
         onPressed: _busy || onPressed == null
             ? null
             : () {
                 if (mounted &&
                     generation == _generation &&
                     _interactive &&
-                    (key != 'backup-apply' || _current())) {
+                    _current()) {
                   onPressed();
                 }
               },
@@ -962,20 +963,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
                             child: Center(child: CupertinoActivityIndicator()),
                           ),
                         if (_message != null)
-                          Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              _message!,
-                              key: const ValueKey('backup-message'),
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _isError
-                                    ? CupertinoColors.systemRed.resolveFrom(
-                                        context,
-                                      )
-                                    : CupertinoColors.label.resolveFrom(
-                                        context,
-                                      ),
+                          Semantics(
+                            liveRegion: true,
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                _message!,
+                                key: const ValueKey('backup-message'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: _isError
+                                      ? CupertinoColors.systemRed.resolveFrom(
+                                          context,
+                                        )
+                                      : CupertinoColors.label.resolveFrom(
+                                          context,
+                                        ),
+                                ),
                               ),
                             ),
                           ),
