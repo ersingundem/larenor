@@ -168,6 +168,10 @@ void main() {
         tester.getSemantics(trust).label,
         allOf(
           contains('Transfer receipt verified'),
+          contains('Request: registered'),
+          contains('Service: reachable'),
+          contains('Provider: accepted'),
+          contains('Device result: saved'),
           contains('tablet trust fixture'.length.toString()),
         ),
       );
@@ -191,6 +195,52 @@ void main() {
       semantics.dispose();
     }
   });
+
+  testWidgets(
+    'provider acceptance is not presented as device success after SAF cancel',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async => _transferResponse(request)),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) async => null,
+      );
+      try {
+        await harness.mount(tester, width: 600);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        await flush(tester);
+
+        final trust = find.byKey(
+          ValueKey('core-resource-transfer-trust-$id'),
+        );
+        expect(trust, findsOneWidget);
+        expect(
+          tester.getSemantics(trust).label,
+          allOf(
+            contains('Transfer incomplete'),
+            contains('Request: registered'),
+            contains('Service: reachable'),
+            contains('Provider: accepted'),
+            contains('Device result: not saved'),
+            isNot(contains('Transfer receipt verified')),
+          ),
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 
   testWidgets(
     'background retires a verified receipt before a late SAF result',

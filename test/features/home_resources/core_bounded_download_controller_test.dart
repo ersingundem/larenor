@@ -239,6 +239,10 @@ void main() {
       );
 
       expect(controller.phase, CoreBoundedDownloadPhase.saved);
+      expect(controller.intentRegistered, isTrue);
+      expect(controller.serviceReachable, isTrue);
+      expect(controller.providerAccepted, isTrue);
+      expect(controller.deviceResultObserved, isTrue);
       expect(controller.receiptTrusted, isTrue);
       expect(controller.receipt?.state, CoreBoundedTransferState.completed);
       expect(controller.receipt?.serviceRevision, 4);
@@ -305,6 +309,10 @@ void main() {
       ),
     );
     expect(controller.phase, CoreBoundedDownloadPhase.failed);
+    expect(controller.intentRegistered, isTrue);
+    expect(controller.serviceReachable, isTrue);
+    expect(controller.providerAccepted, isFalse);
+    expect(controller.deviceResultObserved, isFalse);
     expect((requests, saves), (2, 0));
   });
 
@@ -348,6 +356,10 @@ void main() {
     );
 
     expect(controller.phase, CoreBoundedDownloadPhase.cancelled);
+    expect(controller.intentRegistered, isTrue);
+    expect(controller.serviceReachable, isTrue);
+    expect(controller.providerAccepted, isTrue);
+    expect(controller.deviceResultObserved, isFalse);
     expect((requests, saves), (3, 1));
   });
 
@@ -429,6 +441,10 @@ void main() {
       );
       await tester.pump();
       expect(pending.sent.isCompleted, isTrue);
+      expect(controller.intentRegistered, isTrue);
+      expect(controller.serviceReachable, isFalse);
+      expect(controller.providerAccepted, isFalse);
+      expect(controller.deviceResultObserved, isFalse);
       controller.setVisible(false);
       pending.release.complete();
       await tester.runAsync(() => future);
