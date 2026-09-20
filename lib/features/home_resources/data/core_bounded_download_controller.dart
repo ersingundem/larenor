@@ -223,11 +223,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   }) async {
     final original = _ready;
     if (original == null || !canUpload(target, userRevision)) return;
+    final operation = ++epoch;
     final generation = home.account.generation;
-    uploadTargetId = target.id;
-    uploadPhase = CoreBoundedUploadPhase.choosingSource;
-    _emit();
-    bool stillCurrent() {
+    final homeEpoch = home.interaction.epoch;
+    bool safeGuard() {
       try {
         return isCurrent();
       } catch (_) {
@@ -235,20 +234,36 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
       }
     }
 
+    bool current() =>
+        !_disposed &&
+        epoch == operation &&
+        _ready != null &&
+        home.interaction.epoch == homeEpoch &&
+        home.account.isCurrent(generation) &&
+        identical(home.account.session, original) &&
+        safeGuard();
+    _clearDownloadEvidence();
+    _clearHistoryEvidence();
+    _clearUploadEvidence();
+    busy = true;
+    uploadTargetId = target.id;
+    uploadPhase = CoreBoundedUploadPhase.choosingSource;
+    _boundSession = original;
+    _boundTarget = target;
+    _boundUserRevision = userRevision;
+    _emit();
+    var handedOff = false;
     try {
       final source = await uploadFiles.pick();
-      if (_disposed ||
-          !home.account.isCurrent(generation) ||
-          !identical(home.account.session, original) ||
-          _ready == null ||
-          !stillCurrent()) {
-        return;
-      }
+      if (!current()) return;
       if (source == null) {
         uploadPhase = CoreBoundedUploadPhase.cancelled;
-        _emit();
         return;
       }
+      // upload() executes synchronously through its new epoch/busy claim before
+      // its first await, leaving no interleaving point between the two phases.
+      busy = false;
+      handedOff = true;
       await upload(
         target,
         source: source,
@@ -256,12 +271,15 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         isCurrent: isCurrent,
       );
     } catch (_) {
-      if (!_disposed &&
-          home.account.isCurrent(generation) &&
-          identical(home.account.session, original) &&
-          _ready != null &&
-          stillCurrent()) {
+      if (current()) {
         uploadPhase = CoreBoundedUploadPhase.failed;
+      }
+    } finally {
+      if (!handedOff && !_disposed && epoch == operation) {
+        if (!safeGuard()) {
+          uploadPhase = CoreBoundedUploadPhase.cancelled;
+        }
+        busy = false;
         _emit();
       }
     }

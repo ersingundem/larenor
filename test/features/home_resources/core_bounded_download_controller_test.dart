@@ -785,6 +785,104 @@ void main() {
   );
 
   testWidgets(
+    'picker is single-flight and blocks download and history until handoff',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _writablePage();
+      final target = page.entries.firstWhere(
+        (entry) => entry.kind == HomeResourceKind.resource,
+      );
+      final bytes = Uint8List.fromList(utf8.encode('one picker result'));
+      late Completer<CoreBoundedPickedFile?> choice;
+      var picks = 0, requests = 0;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          requestId: () => '8' * 32,
+          client: MockClient((request) async {
+            requests++;
+            if (request.url.path.endsWith('/descriptor')) {
+              return http.Response(
+                '{"error":{"code":"not_found"}}',
+                404,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'blob': {
+                  'requestId': '8' * 32,
+                  'resourceId': target.id,
+                  'serviceRevision': 1,
+                  'contentLength': bytes.length,
+                  'sha256': sha256.convert(bytes).toString(),
+                  'contentType': 'application/pdf',
+                  'createdAt': 10.0,
+                  'updatedAt': 10.0,
+                },
+              }),
+              201,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+        () => harness.now,
+        () => true,
+        CoreBoundedUploadFileAccess(
+          pick: () {
+            picks++;
+            return choice.future;
+          },
+        ),
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      await tester.runAsync(() async {
+        choice = Completer<CoreBoundedPickedFile?>();
+        final first = controller.chooseAndUpload(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        );
+        await Future<void>.delayed(Duration.zero);
+        await controller.chooseAndUpload(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        );
+        await controller.download(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        );
+        await controller.loadHistory(target, isCurrent: () => true);
+
+        expect(controller.busy, isTrue);
+        expect(controller.uploadPhase, CoreBoundedUploadPhase.choosingSource);
+        expect((picks, requests), (1, 0));
+        choice.complete(
+          CoreBoundedPickedFile(
+            name: 'single.pdf',
+            declaredLength: bytes.length,
+            chunks: Stream.value(bytes),
+          ),
+        );
+        await first;
+      });
+
+      expect((picks, requests), (1, 2));
+      expect(controller.uploadPhase, CoreBoundedUploadPhase.uploaded);
+      expect(controller.busy, isFalse);
+    },
+  );
+
+  testWidgets(
     'a new target operation retires evidence bound to the previous resource',
     (tester) async {
       final harness = ResourceHarness();

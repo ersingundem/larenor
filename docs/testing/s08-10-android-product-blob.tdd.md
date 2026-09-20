@@ -13,7 +13,7 @@ error body is placed in UI state or diagnostics.
 | Stage | Command | Result | Guarantee |
 | --- | --- | --- | --- |
 | RED | `flutter test test/features/home_resources/core_bounded_product_blob_test.dart` | Expected compile failure: descriptor, upload and bounded picker types did not exist. | The test names the missing public Client behavior before implementation. |
-| GREEN | `flutter test --coverage test/features/home_resources/bounded_download_test.dart test/features/home_resources/core_bounded_product_blob_test.dart test/features/home_resources/core_bounded_download_controller_test.dart test/features/home_resources/home_resources_tablet_test.dart` | 49 passed. | Closed descriptor/upload parsing, exact authority headers, revision-driven download, receipt verification, picker bounds, lifecycle retirement and tablet UI pass together. |
+| GREEN | `flutter test --coverage test/features/home_resources/bounded_download_test.dart test/features/home_resources/core_bounded_product_blob_test.dart test/features/home_resources/core_bounded_download_controller_test.dart test/features/home_resources/home_resources_tablet_test.dart` | 50 passed. | Closed descriptor/upload parsing, exact authority headers, revision-driven download, receipt verification, picker bounds, single-flight lifecycle retirement and tablet UI pass together. |
 | Coverage | The GREEN command's `coverage/lcov.info` | API 93.5%, picker 80.6%, controller 86.3% line coverage. | New non-UI production boundaries meet the slice coverage floor. |
 | Tablet | Same GREEN command | EN/TR, 600/1200 logical pixels, 2x text, at least 48 px action target and semantics status passed. | The upload journey remains usable on compact tablets and desktop-width Android windows. |
 
