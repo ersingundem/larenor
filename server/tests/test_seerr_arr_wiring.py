@@ -19,7 +19,7 @@ RADARR = SeerrArrService(
     "radarr", "larenor-" + "1" * 32, 7878, ARR_KEY, 4, "HD-1080p", "/data/movies"
 )
 SONARR = SeerrArrService(
-    "sonarr", "larenor-" + "2" * 32, 8989, "b" * 32, 5, "HD-1080p", "/data/shows"
+    "sonarr", "larenor-" + "2" * 32, 8989, "b" * 32, 4, "HD-1080p", "/data/shows"
 )
 
 

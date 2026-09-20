@@ -9,6 +9,9 @@ from .models import Digest
 from ..models import StrictModel
 
 
+PINNED_ARR_HD_1080P_PROFILE_ID = 4
+
+
 class PrivateSeerrArrBinding(StrictModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
@@ -59,7 +62,10 @@ class PrivateSeerrBootstrap(StrictModel):
             "sonarr",
         ):
             raise ValueError("invalid_seerr_arr_bindings")
-        expected = {"radarr": ("/data/movies", 4), "sonarr": ("/data/shows", 5)}
+        expected = {
+            "radarr": ("/data/movies", PINNED_ARR_HD_1080P_PROFILE_ID),
+            "sonarr": ("/data/shows", PINNED_ARR_HD_1080P_PROFILE_ID),
+        }
         if any(
             (item.rootPath, item.profileId) != expected[item.serviceId]
             or item.profileName != "HD-1080p"

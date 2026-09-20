@@ -626,6 +626,7 @@ def _converge_seerr(
         SeerrBootstrapExecutor,
     )
     from larenor_server.plugins.seerr_bootstrap_models import (
+        PINNED_ARR_HD_1080P_PROFILE_ID,
         PrivateSeerrArrBinding,
         PrivateSeerrBootstrap,
     )
@@ -684,7 +685,7 @@ def _converge_seerr(
                 hostname=peer.binding.name,
                 apiKey=peer.api_key,
                 rootPath="/data/movies" if peer.service_id == "radarr" else "/data/shows",
-                profileId=4 if peer.service_id == "radarr" else 5,
+                profileId=PINNED_ARR_HD_1080P_PROFILE_ID,
                 profileName="HD-1080p",
             )
             for peer in arr_peers
@@ -765,7 +766,7 @@ def _converge_seerr(
                 peer.binding.name,
                 7878 if peer.service_id == "radarr" else 8989,
                 peer.api_key,
-                4 if peer.service_id == "radarr" else 5,
+                PINNED_ARR_HD_1080P_PROFILE_ID,
                 "HD-1080p",
                 "/data/movies" if peer.service_id == "radarr" else "/data/shows",
             )
