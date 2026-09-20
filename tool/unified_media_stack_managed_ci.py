@@ -70,6 +70,9 @@ _CODES = {
     "unified_restart_runtime_failed",
     "unified_core_runtime_unready",
     "unified_dns_runtime_failed",
+    "unified_dns_resolver_unavailable",
+    "unified_dns_core_alias_failed",
+    "unified_dns_peer_alias_failed",
 }
 
 
@@ -726,20 +729,31 @@ class DockerDriver:
             })
         return values
 
-    def _verify_dns(self, name, *, timeout=30, interval=2):
+    def _dns_probe(self, name):
         code = "import socket,sys; assert socket.gethostbyname(sys.argv[1])"
+        status, _ = _command(
+            ["/usr/bin/docker", "exec", package.CORE_NAME,
+             "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
+            environment=self._environment, timeout=10, output=False,
+            allow_failure=True,
+        )
+        return status == 0
+
+    def _await_dns(self, name, failure_code, *, timeout, interval):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            status, _ = _command(
-                ["/usr/bin/docker", "exec", package.CORE_NAME,
-                 "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
-                environment=self._environment, timeout=10, output=False,
-                allow_failure=True,
-            )
-            if status == 0:
+            if self._dns_probe(name):
                 return
             time.sleep(interval)
-        raise ManagedStackCIError("unified_dns_runtime_failed")
+        raise ManagedStackCIError(failure_code)
+
+    def _verify_dns(self, name, *, timeout=30, interval=2):
+        if not self._dns_probe("localhost"):
+            raise ManagedStackCIError("unified_dns_resolver_unavailable")
+        self._await_dns(package.CORE_NAME, "unified_dns_core_alias_failed",
+                        timeout=timeout, interval=interval)
+        self._await_dns(name, "unified_dns_peer_alias_failed",
+                        timeout=timeout, interval=interval)
 
     def _await_core_runtime(self, *, timeout=180, interval=2):
         """Wait for the package's public Core health check without reading logs."""

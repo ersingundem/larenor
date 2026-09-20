@@ -283,18 +283,31 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_core_runtime_unready"):
                     driver._await_core_runtime()
 
-            with patch.object(target, "_command", side_effect=[(1, b""), (0, b"")]), patch.object(
-                    target.time, "monotonic", side_effect=[0, 0, 1]), patch.object(
+            # Resolver, self alias, then peer alias. The peer may appear one
+            # bounded poll later during container startup.
+            with patch.object(target, "_command", side_effect=[
+                    (0, b""), (0, b""), (1, b""), (0, b"")]), patch.object(
+                    target.time, "monotonic", side_effect=[0, 0, 0, 0, 1]), patch.object(
                     target.time, "sleep") as sleep:
                 driver._verify_dns("larenor-jellyfin", timeout=5, interval=1)
             sleep.assert_called_once_with(1)
 
-            with patch.object(target, "_command", return_value=(1, b"")), patch.object(
-                    target.time, "monotonic", side_effect=[0, 0, 1]), patch.object(
-                    target.time, "sleep"):
-                with self.assertRaisesRegex(target.ManagedStackCIError,
-                                            "unified_dns_runtime_failed"):
-                    driver._verify_dns("larenor-jellyfin", timeout=1, interval=1)
+            for responses, code in (
+                ([(1, b"")], "unified_dns_resolver_unavailable"),
+                ([(0, b""), (1, b"")], "unified_dns_core_alias_failed"),
+                ([(0, b""), (0, b""), (1, b"")], "unified_dns_peer_alias_failed"),
+            ):
+                monotonic = {
+                    "unified_dns_resolver_unavailable": [],
+                    "unified_dns_core_alias_failed": [0, 0, 1],
+                    "unified_dns_peer_alias_failed": [0, 0, 0, 0, 1],
+                }[code]
+                with self.subTest(code=code), patch.object(
+                        target, "_command", side_effect=responses), patch.object(
+                        target.time, "monotonic", side_effect=monotonic), patch.object(
+                        target.time, "sleep"):
+                    with self.assertRaisesRegex(target.ManagedStackCIError, code):
+                        driver._verify_dns("larenor-jellyfin", timeout=1, interval=1)
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:

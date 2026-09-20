@@ -234,3 +234,12 @@ ağında explicit tek alias olarak bildirir. Rendered Compose doğrulaması exac
 alias kümesini mutation öncesi denetler; başka, eksik veya ek alias fail-closed
 olur. Runtime yine Core içinden gerçek resolver sorgusunu geçirerek `dns:
 verified` makbuzu üretmek zorundadır; yalnız inspect metadata'sı başarı sayılmaz.
+
+Explicit alias kaydı ARM koşusunda da peer resolver zaman aşımını tek başına
+çözmedi; aynı koşunun kalan mimarisi kaynak tüketmemesi için iptal edildi. Yeni
+bounded kanıt resolver yürütmesini önce `localhost`, sonra Core'un kendi exact
+ağ alias'ı ve son olarak hedef peer alias'ı olarak ayırır. Her katman yalnız
+sabit allowlist hata kodu yayınlar; hostname, resolver dosyası, IP, log veya
+container çıktısı açığa çıkmaz. Bu değişiklik başarı ölçütünü gevşetmez: hem
+Core self alias'ı hem her peer alias'ı gerçek Core runtime içinden çözülmeden
+receipt `dns: verified` olamaz.
