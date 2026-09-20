@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,6 +134,7 @@ void main() {
       testWidgets('retained status fits $locale tablet/DeX $width at 2x', (
         tester,
       ) async {
+        final semantics = tester.ensureSemantics();
         final fixture = MusicRetainedFixture();
         SharedPreferences.setMockInitialValues({});
         FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
@@ -161,16 +165,141 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(find.textContaining('Spotify'), findsOneWidget);
+        final installationId = 'a' * 32;
+        for (final key in [
+          'music-retained-overview-heading',
+          'music-retained-installation-heading-$installationId',
+          'music-retained-installation-state-$installationId',
+          'music-retained-bootstrap-heading-$installationId',
+          'music-retained-providers-heading-$installationId',
+        ]) {
+          expect(
+            tester
+                .getSemantics(find.byKey(ValueKey(key)))
+                .flagsCollection
+                .isHeader,
+            isTrue,
+            reason: '$key must remain a TalkBack heading',
+          );
+        }
         final refresh = find.byKey(const ValueKey('music-retained-refresh'));
         await tester.ensureVisible(refresh);
         expect(refresh.hitTestable(), findsOneWidget);
         final size = tester.getSize(refresh);
         expect(size.width, greaterThanOrEqualTo(48));
         expect(size.height, greaterThanOrEqualTo(48));
+        final l = AppLocalizations.of(tester.element(refresh));
+        final refreshSemantics = tester.getSemantics(
+          find.text(l.serverMusicRetainedRefresh),
+        );
+        expect(refreshSemantics.flagsCollection.isHeader, isFalse);
+        expect(refreshSemantics.flagsCollection.isButton, isTrue);
+        expect(
+          refreshSemantics.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+          isTrue,
+        );
+        final manage = find.byKey(
+          ValueKey('music-provider-command-${'d' * 32}'),
+        );
+        await tester.ensureVisible(manage);
+        await tester.pumpAndSettle();
+        final manageSemantics = tester.getSemantics(
+          find.text(l.serverMusicProviderCommandTitle),
+        );
+        expect(manageSemantics.flagsCollection.isHeader, isFalse);
+        expect(manageSemantics.flagsCollection.isButton, isTrue);
+        expect(
+          manageSemantics.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+          isTrue,
+        );
         expect(find.byType(CupertinoTextField), findsNothing);
         expect(fixture.mutations, isEmpty);
+        semantics.dispose();
         fixture.account.dispose();
       });
     }
+  }
+
+  for (final locale in ['en', 'tr']) {
+    testWidgets(
+      'keyboard keeps refresh and provider actions distinct $locale 2x',
+      (tester) async {
+        final fixture = MusicRetainedFixture();
+        SharedPreferences.setMockInitialValues({});
+        FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
+        await fixture.account.initialize();
+        addTearDown(fixture.account.dispose);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(600, 1000);
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              serverAccountControllerProvider.overrideWithValue(
+                fixture.account,
+              ),
+            ],
+            child: CupertinoApp(
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!,
+              ),
+              home: const ServerMusicRetainedScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        int retainedReads() => fixture.calls
+            .where(
+              (request) =>
+                  request.method == 'GET' &&
+                  request.url.path.endsWith('/music-assistant/retained'),
+            )
+            .length;
+        expect(retainedReads(), 1);
+        final refresh = find.byKey(const ValueKey('music-retained-refresh'));
+        Focus.of(
+          tester.element(
+            find.descendant(of: refresh, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(retainedReads(), 2, reason: 'Enter refreshes exactly once');
+        expect(
+          find.byType(ServerMusicProviderCommandsScreen),
+          findsNothing,
+          reason: 'refresh cannot open provider controls',
+        );
+
+        final manage = find.byKey(
+          ValueKey('music-provider-command-${'d' * 32}'),
+        );
+        await tester.ensureVisible(manage);
+        await tester.pumpAndSettle();
+        Focus.of(
+          tester.element(
+            find.descendant(of: manage, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.byType(ServerMusicProviderCommandsScreen), findsOneWidget);
+        expect(
+          retainedReads(),
+          2,
+          reason: 'provider navigation cannot refresh',
+        );
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }
