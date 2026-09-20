@@ -29,6 +29,7 @@ from .music_playback_models import (
     MusicPlaybackReadback, MusicPlaybackWorkerResult,
     PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
 )
+from .media_flow_models import MediaFlowObservation, validate_media_key
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
@@ -685,7 +686,7 @@ class InstallationWorkerClient:
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
-                  music_playback=None, music_bootstrap=None):
+                  music_playback=None, music_bootstrap=None, media_flow=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -728,6 +729,8 @@ class InstallationWorkerClient:
             elif music_bootstrap is not None:
                 request['private'] = music_bootstrap.model_dump(
                     mode='json', warnings=False)
+            elif media_flow is not None:
+                request['mediaKey'] = media_flow
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -813,6 +816,29 @@ class InstallationWorkerClient:
         return self._music_playback_exchange(
             'music_players_read', authority, MusicPlaybackReadback,
             deadline, gate)
+
+    def read_media_flow(self, media_key, *, deadline, gate):
+        now = time.monotonic()
+        try:
+            selected = validate_media_key(media_key)
+        except (ValueError, TypeError):
+            raise InstallationIPCError('invalid_request') from None
+        if (type(deadline) not in (int, float) or type(deadline) is bool
+                or not math.isfinite(deadline)
+                or not now < deadline <= now + 5 or not callable(gate)):
+            raise InstallationIPCError('invalid_request')
+        try:
+            if gate() is not True:
+                raise ValueError()
+            result = MediaFlowObservation.model_validate(
+                self._exchange('media_flow_read', media_flow=selected))
+            if gate() is not True:
+                raise ValueError()
+            return result
+        except InstallationIPCError:
+            raise
+        except Exception:
+            raise InstallationIPCError('invalid_worker_result') from None
 
     def execute_music_playback(self, action, *, deadline, gate):
         return self._music_playback_exchange(
@@ -1236,6 +1262,25 @@ class InstallationWorkerServer(PreflightWorkerServer):
                             if operation == 'music_players_read'
                             else MusicPlaybackWorkerResult)
                 if time.monotonic() >= deadline or type(result) is not expected:
+                    raise ValueError()
+                return result.model_dump(mode='json', warnings=False)
+            except Exception:
+                raise PreflightIPCError('invalid_request') from None
+        if operation == 'media_flow_read':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'mediaKey'}
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                media_key = validate_media_key(request['mediaKey'])
+                timed = getattr(
+                    self.backend, 'read_media_flow_with_deadline', None)
+                result = (timed(media_key, deadline) if callable(timed)
+                          else self.backend.read_media_flow(
+                              media_key, deadline=deadline,
+                              gate=lambda: time.monotonic() < deadline))
+                if (time.monotonic() >= deadline
+                        or type(result) is not MediaFlowObservation):
                     raise ValueError()
                 return result.model_dump(mode='json', warnings=False)
             except Exception:

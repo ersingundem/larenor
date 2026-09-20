@@ -51,6 +51,7 @@ from .plugins.music_playback_api import router as music_playback_router
 from .plugins.music_retained_status_api import router as music_retained_status_router
 from .plugins.media_recovery_status_api import router as media_recovery_status_router
 from .plugins.media_archive_core_api import router as media_archive_health_router
+from .plugins.media_flow_api import router as media_flow_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
@@ -290,6 +291,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(music_provider_command_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
     app.include_router(media_archive_health_router, prefix="/api/v1")
+    app.include_router(media_flow_router, prefix="/api/v1")
     app.include_router(proxmox_power_router, prefix="/api/v1")
     app.include_router(keenetic_command_router, prefix="/api/v1")
     for extension in routers:
