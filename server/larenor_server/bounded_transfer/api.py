@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Request
 from starlette.responses import StreamingResponse
 
 from ..auth import Principal
@@ -20,17 +20,39 @@ router = APIRouter(tags=["Bounded resource transfer"], responses={
 PATH = "/home-resources/{core_id}/{home_id}/{record_id}/blob"
 
 
+def _closed_read(request: Request, *, history: bool) -> int:
+    if len(request.headers.getlist("authorization")) != 1:
+        raise ApiError("invalid_request", 400)
+    pairs = list(request.query_params.multi_items())
+    if not history:
+        if pairs:
+            raise ApiError("invalid_request", 400)
+        return 50
+    if not pairs:
+        return 50
+    if len(pairs) != 1 or pairs[0][0] != "limit":
+        raise ApiError("invalid_request", 400)
+    raw = pairs[0][1]
+    if not raw.isascii() or not raw.isdecimal() or raw.startswith("0"):
+        raise ApiError("invalid_request", 400)
+    limit = int(raw)
+    if not 1 <= limit <= 50 or str(limit) != raw:
+        raise ApiError("invalid_request", 400)
+    return limit
+
+
 @router.get(PATH + "/transfers/{request_id}", response_model=TransferReceiptResponse)
 def receipt(core_id: Identity, home_id: Identity, record_id: Identity,
-            request_id: Identity, actor: Ready, core: Core):
+            request_id: Identity, request: Request, actor: Ready, core: Core):
+    _closed_read(request, history=False)
     return core.bounded_transfers.receipt(
         actor, core_id, home_id, record_id, request_id)
 
 
 @router.get(PATH + "/transfers", response_model=TransferHistoryResponse)
 def history(core_id: Identity, home_id: Identity, record_id: Identity,
-            actor: Ready, core: Core,
-            limit: Annotated[int, Query(ge=1, le=50)] = 50):
+            request: Request, actor: Ready, core: Core):
+    limit = _closed_read(request, history=True)
     return core.bounded_transfers.history(
         actor, core_id, home_id, record_id, limit)
 

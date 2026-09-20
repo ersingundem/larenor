@@ -236,7 +236,8 @@ class BoundedTransferService:
             expected_acl_revision=body.expectedAclRevision,
             cancelled=False,
         )
-        self.receipts.reject_existing(actor, body.requestId)
+        self.receipts.reject_existing(
+            actor, core_id, home_id, resource_id, body)
         descriptor = self._descriptor(resource_id)
         if descriptor.service_revision != body.expectedServiceRevision:
             raise ApiError("revision_conflict", 409)
