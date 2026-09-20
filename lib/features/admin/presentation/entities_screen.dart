@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,61 +52,70 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
     final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entityRegistryProvider);
 
-    return AppPageScaffold(
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(l10n.settingsEntities),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => ref.invalidate(entityRegistryProvider),
-              child: const Icon(CupertinoIcons.refresh),
+    return ServiceRootScaffold(
+      title: l10n.settingsEntities,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('entities-controls-header'),
+              header: true,
+              child: Text(l10n.settingsEntities),
             ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: CupertinoSearchTextField(
+                  key: const ValueKey('entities-search'),
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('entities-refresh-action'),
+                title: Text(l10n.commonRefresh),
+                onTap: () => ref.invalidate(entityRegistryProvider),
+              ),
+            ],
           ),
-          entitiesAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CupertinoActivityIndicator()),
-            ),
-            error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
-            ),
-            data: (entities) {
-              final filtered = _query.isEmpty
-                  ? entities
-                  : entities
-                        .where(
-                          (e) =>
-                              e.displayName.toLowerCase().contains(
-                                _query.toLowerCase(),
-                              ) ||
-                              e.entityId.toLowerCase().contains(
-                                _query.toLowerCase(),
-                              ),
-                        )
-                        .toList();
+        ),
+        entitiesAsync.when(
+          loading: () =>
+              const SliverFilledMessage(child: CupertinoActivityIndicator()),
+          error: (error, _) => SliverFilledMessage(
+            child: Text(l10n.adminLoadError(error.toString())),
+          ),
+          data: (entities) {
+            final filtered = _query.isEmpty
+                ? entities
+                : entities
+                      .where(
+                        (e) =>
+                            e.displayName.toLowerCase().contains(
+                              _query.toLowerCase(),
+                            ) ||
+                            e.entityId.toLowerCase().contains(
+                              _query.toLowerCase(),
+                            ),
+                      )
+                      .toList();
 
-              return SliverSafeArea(
-                top: false,
-                sliver: SliverMainAxisGroup(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: CupertinoSearchTextField(
-                          onChanged: (value) => setState(() => _query = value),
-                        ),
-                      ),
-                    ),
-                    SliverList.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final entity = filtered[index];
-                        final disabled = entity.disabledBy != null;
-                        final domain = entity.entityId.split('.').first;
-                        return CupertinoListTile(
+            return SliverSafeArea(
+              top: false,
+              sliver: SliverToBoxAdapter(
+                child: SettingsSection(
+                  header: Text('${filtered.length}'),
+                  children: [
+                    for (final entity in filtered)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoListTile(
+                          key: ValueKey('entity-${entity.entityId}'),
                           leading: IconBadge(
                             icon: CupertinoIcons.list_bullet,
-                            color: categoryColorForDomain(context, domain),
+                            color: categoryColorForDomain(
+                              context,
+                              entity.entityId.split('.').first,
+                            ),
                           ),
                           title: Text(entity.displayName),
                           subtitle: Text(entity.entityId),
@@ -115,22 +126,21 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
                             ),
                           ),
                           trailing: CupertinoSwitch(
-                            value: !disabled,
+                            value: entity.disabledBy == null,
                             onChanged: _pending.contains(entity.entityId)
                                 ? null
                                 : (enabled) =>
                                       _setEnabled(entity.entityId, enabled),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
                   ],
                 ),
-              );
-            },
-          ),
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
