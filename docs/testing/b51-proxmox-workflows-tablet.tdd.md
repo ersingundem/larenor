@@ -20,7 +20,7 @@ mutation and polling authority remains the source of truth.
 
 ## TDD evidence
 
-RED commit `02ee437f` added the EN/TR matrix at 600 and 1200 logical pixels
+RED commit `403d3b32` added the EN/TR matrix at 600 and 1200 logical pixels
 with 200% text. All eight node and guest cases failed because the routes did
 not use `AppSurface` or expose the required named actions; the four task cases
 passed and became the preservation baseline.
