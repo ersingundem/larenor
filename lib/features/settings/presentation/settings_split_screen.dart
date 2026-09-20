@@ -57,11 +57,37 @@ class SettingsSplitScreen extends StatefulWidget {
 
 class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
   SettingsCategory _selected = SettingsCategory.connection;
+  late GlobalKey<NavigatorState> _detailNavigatorKey;
+  late _DetailNavigatorObserver _detailNavigatorObserver;
+  bool _detailCanPop = false;
+  int _detailGeneration = 0;
 
   /// Rebuilt whenever the selection changes so the detail pane's nested
   /// navigator resets to that category's root — picking a new category
   /// shouldn't leave you inside the previous one's sub-screen.
-  Key _detailKey = UniqueKey();
+  @override
+  void initState() {
+    super.initState();
+    _resetDetailNavigator();
+  }
+
+  void _resetDetailNavigator() {
+    final generation = ++_detailGeneration;
+    _detailCanPop = false;
+    _detailNavigatorKey = GlobalKey<NavigatorState>();
+    _detailNavigatorObserver = _DetailNavigatorObserver(
+      () => _scheduleDetailPopState(generation),
+    );
+  }
+
+  void _scheduleDetailPopState(int generation) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _detailGeneration) return;
+      final canPop = _detailNavigatorKey.currentState?.canPop() ?? false;
+      if (canPop == _detailCanPop) return;
+      setState(() => _detailCanPop = canPop);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +111,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
               selected: _selected,
               onSelect: (category) => setState(() {
                 _selected = category;
-                _detailKey = UniqueKey();
+                _resetDetailNavigator();
               }),
             ),
           ),
@@ -96,17 +122,23 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
           Expanded(
             // Confine the nested route's semantic barrier to the detail pane;
             // the independently interactive category list stays accessible.
-            child: Semantics(
-              container: true,
-              child: Navigator(
-                key: _detailKey,
-                onGenerateRoute: (settings) => CupertinoPageRoute<void>(
-                  settings: settings,
-                  builder: (_) => paneFor(
-                    _selected,
-                    runFileDialog: widget.runFileDialog,
-                    backupGateCurrent: widget.backupGateCurrent,
-                    remoteGateCurrent: widget.remoteGateCurrent,
+            child: NavigatorPopHandler<void>(
+              enabled: _detailCanPop,
+              onPopWithResult: (_) =>
+                  _detailNavigatorKey.currentState?.maybePop(),
+              child: Semantics(
+                container: true,
+                child: Navigator(
+                  key: _detailNavigatorKey,
+                  observers: [_detailNavigatorObserver],
+                  onGenerateRoute: (settings) => CupertinoPageRoute<void>(
+                    settings: settings,
+                    builder: (_) => paneFor(
+                      _selected,
+                      runFileDialog: widget.runFileDialog,
+                      backupGateCurrent: widget.backupGateCurrent,
+                      remoteGateCurrent: widget.remoteGateCurrent,
+                    ),
                   ),
                 ),
               ),
@@ -132,6 +164,32 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
         ),
       ),
     );
+  }
+}
+
+class _DetailNavigatorObserver extends NavigatorObserver {
+  _DetailNavigatorObserver(this.onChanged);
+
+  final VoidCallback onChanged;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    onChanged();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    onChanged();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    onChanged();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    onChanged();
   }
 }
 

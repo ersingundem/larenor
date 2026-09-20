@@ -6,6 +6,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
 import 'settings_nav_row.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
 
 class SecurityPane extends ConsumerWidget {
@@ -15,16 +16,30 @@ class SecurityPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final pin = ref.watch(pinLockProvider).value;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool current() =>
+        context.mounted &&
+        interaction?.active != false &&
+        interaction?.epoch == epoch &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
 
     return SettingsPaneScaffold(
       title: l10n.settingsCategorySecurity,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('security-settings-header'),
+            header: true,
+            child: Text(l10n.settingsCategorySecurity),
+          ),
           footer: Text(
             pin == null ? l10n.settingsNoPinFooter : l10n.settingsPinSetFooter,
           ),
           children: [
-            CupertinoListTile(
+            SettingsActionTile(
+              buttonKey: const ValueKey('security-pin-action'),
               leading: const IconBadge(
                 icon: CupertinoIcons.lock_fill,
                 color: CupertinoColors.systemRed,
@@ -32,16 +47,25 @@ class SecurityPane extends ConsumerWidget {
               title: Text(
                 pin == null ? l10n.settingsSetPin : l10n.settingsChangePin,
               ),
-              onTap: () => _showSetPinDialog(context, ref),
+              onTap: current()
+                  ? () {
+                      if (current()) _showSetPinDialog(context, ref);
+                    }
+                  : null,
             ),
             if (pin != null)
-              CupertinoListTile(
+              SettingsActionTile(
+                buttonKey: const ValueKey('security-remove-pin-action'),
                 leading: const IconBadge(
                   icon: CupertinoIcons.lock_open_fill,
                   color: CupertinoColors.systemGrey,
                 ),
                 title: Text(l10n.settingsRemovePin),
-                onTap: () => _clearPin(context, ref),
+                onTap: current()
+                    ? () {
+                        if (current()) _clearPin(context, ref);
+                      }
+                    : null,
               ),
           ],
         ),

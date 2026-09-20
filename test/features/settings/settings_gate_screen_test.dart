@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/kiosk/presentation/kiosk_screen.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
@@ -154,6 +155,40 @@ void main() {
       expect(find.text('Open settings'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'wide settings sends system back to the detail pane before exiting',
+    (tester) async {
+      await showGate(
+        tester,
+        initialPin: null,
+        pushGate: true,
+        size: const Size(1200, 900),
+      );
+      await tester.tap(find.text('Display & Brightness').first);
+      await tester.pumpAndSettle();
+      final kiosk = find.text('Managed kiosk');
+      await tester.scrollUntilVisible(
+        kiosk,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(kiosk);
+      await tester.pumpAndSettle();
+      expect(find.byType(KioskScreen), findsOneWidget);
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(KioskScreen), findsNothing);
+      expect(find.text('Keep screen on'), findsOneWidget);
+      expect(find.text('Open settings'), findsNothing);
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('Open settings'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 

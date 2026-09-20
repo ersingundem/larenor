@@ -171,12 +171,18 @@ class IntegrationsPane extends ConsumerWidget {
       title: l10n.settingsCategoryIntegrations,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('integrations-settings-header'),
+            header: true,
+            child: Text(l10n.settingsCategoryIntegrations),
+          ),
           footer: Text(l10n.settingsIntegrationsFooter),
           children: [
             // The unified hub leads, since it's the way into most of what
             // the rows below expose; those stay for the per-service tasks
             // that have no place in a browse-and-play layout.
             SettingsNavRow(
+              key: const ValueKey('integrations-media-hub-action'),
               icon: CupertinoIcons.play_rectangle,
               color: CupertinoColors.systemRed,
               title: l10n.mediaHubTitle,
