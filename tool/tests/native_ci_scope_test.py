@@ -16,6 +16,7 @@ WORKFLOWS = {
     "jellyfin-managed-characterization.yml": "characterize",
     "qbittorrent-managed-characterization.yml": "qbittorrent-characterize",
     "arr-managed-characterization.yml": "arr-characterize",
+    "seerr-managed-characterization.yml": "seerr-characterize",
 }
 
 
@@ -29,6 +30,7 @@ class NativeCiScopeTest(unittest.TestCase):
             "tool/jellyfin_storage_smoke.py",
             "tool/qbittorrent_managed_ci.py",
             "tool/arr_managed_ci.py",
+            "tool/seerr_managed_ci.py",
             "tool/volume_bootstrap_helper.py",
             "tool/media_resource_smoke.py",
         ):

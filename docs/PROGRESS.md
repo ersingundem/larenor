@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 14 Eylül 2026 — PR136, Seerr yakınsaması, S08.9 altyapı kabulü ve imzalı beta/Core güncellemesini `addead67` ile ana dala aldı. Exact main Android, Server Container ve Security kapıları geçti; Client beta `100000520` yayımlandı.**
+**Son güncelleme: 20 Eylül 2026 — `d7730045` exact main üzerinde Android, dört parçalı Server Container ve Security kapıları geçti; Client beta `100000541` yayımlandı. S08.10 olay/transfer, Seerr native kabulü ve ortak medya erişilebilirliği sıradaki toplu adayda yerel olarak hazırlanıyor; CI kabul edilene kadar sayaç değişmedi.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  15/125 iş (%12; eşit ağırlıklı sayaç)
@@ -17,19 +17,42 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `addead67` / beta `100000520`.**
-[PR136](https://github.com/ersingundem/larenor/pull/136) üzerindeki zorunlu
-kontroller geçtikten sonra aynı merge commitinde Android analiz/test, üç Server
-shardı, debug APK, 17/17 API35 E2E ve imzalı release APK doğrulaması tamamlandı.
-İmzalı ve içerik-bağlı Client beta
-`client-beta-v100000520` olarak yayımlandı. Aynı commitin Server Container ve
-Security iş akışları da geçti.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/34746636418) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34746636414) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34746636323).
+**Son tam doğrulanmış CI Client paketi: `d7730045` / beta `100000541`.**
+[PR147](https://github.com/ersingundem/larenor/pull/147) Server testlerini dört
+dengeli parçaya ayırdı. Aynı exact main commitinde Android analiz/test, API35
+E2E, imzalı release APK, dört Server shardı ve Security geçti; içerik-bağlı
+`client-beta-v100000541` yayımlandı.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/35492243586) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/35492243631) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/35492243512).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
+
+### Beşinci toplu aday — olay, transfer, Seerr ve ortak medya eylemi
+
+- Home Assistant komut geçmişi artık append zincirindeki `pending → final`
+  snapshot'larını kaynak ve aktör yetkisine özel zincir/cursor ile sıralıyor.
+  Başka kullanıcı veya kaynağın global sıra konumu görünmüyor; restartta okuma
+  provider çağrısı veya komut replay'i yapmıyor.
+- Bounded indirme başlangıç, tamamlanma ve kesilme makbuzları HMAC doğrulamalı
+  kalıcı depoya yazılıyor. Restart yarım işi `interrupted` yapıyor; aynı işlem
+  kimliği provider açılmadan replay/çatışma olarak ayrılıyor. Salt okunur tekil
+  ve sınırlı geçmiş API'leri Swagger sözleşmesine eklendi.
+- Seerr 3.4.1 için amd64/arm64 native workflow; sahiplikli `/app/config`, özel
+  ağ, sabit create/start, `initialized=false` public readback, kaynak sınırları
+  ve restart sonrası aynı taze durum kanıtını üretiyor. `installAvailable=false`
+  korunuyor.
+- Media ana ekranındaki arama eylemi EN/TR ekran okuyucu adı, görünür klavye
+  odağı ve Tab+Enter akışıyla 600/1280 genişlik ve 2× metin matrisine alındı.
+
+Yerel kanıt: komut geçmişi paketi **71**, bounded transfer ve ilişkili Core
+paketleri **174**, Seerr/native araç paketleri **53 + 295**, medya widget paketi
+**8/8** geçti; security policy, compileall, gitleaks ve hedefli analiz temiz.
+Exact PR/main CI, Seerr gerçek native makbuzları, ürün transfer sağlayıcısı,
+upload/media protokolü, Client olay cursor/checkpoint bağlama ve fiziksel SAF
+açık olduğundan S06.5, S08.10 ve B5.1 kapanmadı; sayaçlar **15/125 (%12,0)** ve
+**0/63 (%0,0)** kaldı.
 
 ### F62 RDP — bounded Client yazılım dilimi
 

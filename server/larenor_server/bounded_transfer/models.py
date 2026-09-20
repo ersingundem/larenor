@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,6 +18,29 @@ class TransferRequest(BaseModel):
     expectedAclRevision: Revision
     expectedServiceRevision: Revision
     deadlineMs: Annotated[int, Field(ge=1, le=15_000)] = 5_000
+
+
+class TransferReceipt(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    requestId: Identity
+    traceId: Identity
+    state: Literal["accepted", "completed", "interrupted"]
+    contentLength: Annotated[int, Field(ge=0, le=256 * 1024)]
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    contentType: Annotated[str, Field(min_length=1, max_length=128)]
+    serviceRevision: Revision
+    createdAt: float
+    updatedAt: float
+
+
+class TransferReceiptResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    receipt: TransferReceipt
+
+
+class TransferHistoryResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    receipts: list[TransferReceipt] = Field(max_length=50)
 
 
 @dataclass(frozen=True)

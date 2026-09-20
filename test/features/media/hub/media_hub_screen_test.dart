@@ -13,6 +13,7 @@ import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_library_index.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
 import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
+import 'package:larenor/features/media/hub/presentation/media_search_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_title_detail_screen.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_client.dart';
@@ -38,32 +39,96 @@ const show = MediaTitle(
   jellyfinSeriesId: 'show',
 );
 
-Widget app(Widget child, {JellyfinClient? client, double scale = 1}) =>
-    ProviderScope(
-      overrides: [
-        jellyfinClientProvider.overrideWith((ref) => client),
-        mediaLibraryIndexProvider.overrideWith(
-          (ref) async => MediaLibraryIndex.empty,
-        ),
-        mediaHubRowsProvider.overrideWith(
-          (ref) async => const [
-            MediaRowData(id: MediaRowId.recentlyAdded, titles: [film, show]),
-          ],
-        ),
+Widget app(
+  Widget child, {
+  JellyfinClient? client,
+  double scale = 1,
+  String language = 'en',
+}) => ProviderScope(
+  overrides: [
+    jellyfinClientProvider.overrideWith((ref) => client),
+    mediaLibraryIndexProvider.overrideWith(
+      (ref) async => MediaLibraryIndex.empty,
+    ),
+    mediaHubRowsProvider.overrideWith(
+      (ref) async => const [
+        MediaRowData(id: MediaRowId.recentlyAdded, titles: [film, show]),
       ],
-      child: CupertinoApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
-        ),
-        home: child,
-      ),
-    );
+    ),
+  ],
+  child: CupertinoApp(
+    locale: Locale(language),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(scale)),
+      child: child!,
+    ),
+    home: child,
+  ),
+);
+
+Future<void> tabToMediaSearch(WidgetTester tester) async {
+  for (var i = 0; i < 12; i++) {
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused?.findAncestorWidgetOfExactType<CupertinoButton>()?.key ==
+        const ValueKey('media-search')) {
+      return;
+    }
+  }
+  fail('Media search action is not reachable with Tab.');
+}
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      testWidgets(
+        'media search matches shared tablet action contract $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            tester.view.physicalSize = Size(width, 900);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            await tester.pumpWidget(
+              app(const MediaHubScreen(), scale: 2, language: language),
+            );
+            await tester.pumpAndSettle();
+
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(MediaHubScreen)),
+            );
+            final search = find
+                .ancestor(
+                  of: find.byIcon(CupertinoIcons.search),
+                  matching: find.byType(CupertinoButton),
+                )
+                .first;
+            final node = tester.getSemantics(search);
+            expect(node.label, l10n.commonSearch);
+            expect(node.flagsCollection.isButton, isTrue);
+            expect(node.rect.width, greaterThanOrEqualTo(48));
+            // Cupertino's sliver navigation bar is 44pt tall by contract;
+            // keep the action at the platform minimum while giving it the
+            // shared 48pt horizontal target used by tablet controls.
+            expect(node.rect.height, greaterThanOrEqualTo(44));
+
+            await tabToMediaSearch(tester);
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(find.byType(MediaSearchScreen), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   testWidgets('film and TV filters change the featured title and rows', (
     tester,
   ) async {

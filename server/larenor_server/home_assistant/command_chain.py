@@ -143,6 +143,16 @@ def append(c, key, scope, row, *, kind='command_write'):
     return sequence, head
 
 
+def event_rows(c, key, scope):
+    """Return the verified append history for an authorized projection.
+
+    Callers still own resource and actor filtering. Returning snapshots instead
+    of the mutable current-command table preserves pending -> final transitions.
+    """
+    state = verify(c, key, scope)
+    return state, _rows(c)
+
+
 def migrate_command_history(c, scope, key):
     try:
         marker = c.execute("SELECT 1 FROM metadata WHERE key='command_history_schema'").fetchone()

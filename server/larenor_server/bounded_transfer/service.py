@@ -9,6 +9,7 @@ from typing import Protocol
 
 from ..errors import ApiError
 from .models import BlobDescriptor, TransferLimits, TransferRequest
+from .receipts import TransferReceipts
 
 
 FRAME = struct.Struct(">4s32sQBI")
@@ -80,7 +81,7 @@ class _Frames(Iterator[bytes]):
                 return frame
             frame = self._encode(True, b"")
             self._sequence += 1
-            self.close()
+            self.close(completed=True)
             return frame
         except BaseException:
             self.close()
@@ -91,10 +92,14 @@ class _Frames(Iterator[bytes]):
             MAGIC, self._metadata.trace_id.encode("ascii"), self._sequence,
             int(final), len(payload)) + payload
 
-    def close(self) -> None:
+    def close(self, *, completed=False) -> None:
         if not self._closed:
             self._closed = True
-            self._service._release(self._actor.id)
+            try:
+                self._service.receipts.finish(
+                    self._body.requestId, "completed" if completed else "interrupted")
+            finally:
+                self._service._release(self._actor.id)
 
 
 @dataclass
@@ -107,12 +112,14 @@ class OpenTransfer:
 
 
 class BoundedTransferService:
-    def __init__(self, registry, settings, provider: BlobProvider | None = None,
+    def __init__(self, registry, settings, key, provider: BlobProvider | None = None,
                  limits: TransferLimits | None = None):
         self.registry = registry
         self.clock = settings.clock
         self.provider = provider or EmptyBlobProvider()
         self.limits = limits or TransferLimits()
+        self.receipts = TransferReceipts(registry.db, settings, key)
+        self.receipts.validate_and_recover()
         self._lock = threading.Lock()
         self._active = 0
         self._active_by_actor: dict[str, int] = {}
@@ -187,7 +194,7 @@ class BoundedTransferService:
                 if value[0] >= window - 1
             }
 
-    def _release(self, actor_id: str) -> None:
+    def _release(self, actor_id: str, *, refund_bytes=0) -> None:
         with self._lock:
             count = self._active_by_actor.get(actor_id, 0)
             if count < 1 or self._active < 1:
@@ -197,6 +204,12 @@ class BoundedTransferService:
                 self._active_by_actor.pop(actor_id, None)
             else:
                 self._active_by_actor[actor_id] = count - 1
+            if refund_bytes:
+                window = int(self.clock() // self.limits.quota_window_seconds)
+                saved_window, used = self._actor_quota.get(actor_id, (window, 0))
+                if saved_window == window:
+                    self._actor_quota[actor_id] = (
+                        window, max(0, used - refund_bytes))
 
     def open(self, actor, core_id: str, home_id: str, resource_id: str, *,
              request_id: str,
@@ -223,6 +236,8 @@ class BoundedTransferService:
             expected_acl_revision=body.expectedAclRevision,
             cancelled=False,
         )
+        self.receipts.reject_existing(
+            actor, core_id, home_id, resource_id, body)
         descriptor = self._descriptor(resource_id)
         if descriptor.service_revision != body.expectedServiceRevision:
             raise ApiError("revision_conflict", 409)
@@ -234,6 +249,11 @@ class BoundedTransferService:
             actor, (core_id, home_id), resource_id, body, descriptor,
             cancelled=False)
         self._reserve(actor.id, length)
+        try:
+            self.receipts.accept(actor, core_id, home_id, resource_id, body, descriptor)
+        except BaseException:
+            self._release(actor.id, refund_bytes=length)
+            raise
         # The caller-generated opaque request id is also the wire trace id, so
         # the accepted stream and its eventual result cannot be confused with
         # a different operation. It carries no user or resource information.
@@ -250,3 +270,11 @@ class BoundedTransferService:
             self, actor, (core_id, home_id), resource_id, body, descriptor,
             metadata, self.clock() + deadline_ms / 1000, cancelled)
         return OpenTransfer(metadata, frames)
+
+    def receipt(self, actor, core_id, home_id, resource_id, request_id):
+        self.registry.get(actor, core_id, home_id, resource_id)
+        return self.receipts.one(actor, resource_id, request_id)
+
+    def history(self, actor, core_id, home_id, resource_id, limit):
+        self.registry.get(actor, core_id, home_id, resource_id)
+        return self.receipts.history(actor, resource_id, limit)
