@@ -43,9 +43,10 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   bool _current(int epoch, {bool ownRoute = false}) =>
       sessionCurrent(epoch) &&
-      TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent == true ||
           (ownRoute && _ownedRoute?.isCurrent == true));
+  bool _visible(int epoch) =>
+      _current(epoch) && TickerMode.valuesOf(context).enabled;
   bool _same(ScreenProgram original, int epoch) {
     if (!_current(epoch)) return false;
     final reading = ref.read(screenProgramProvider);
@@ -57,9 +58,13 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
   Future<void> _save(
     ScreenProgram next,
     ScreenProgram original,
-    int epoch,
-  ) async {
-    if (_saving || !_same(original, epoch)) return;
+    int epoch, {
+    bool requireVisible = true,
+  }) async {
+    bool authorized() =>
+        _same(original, epoch) &&
+        (!requireVisible || TickerMode.valuesOf(context).enabled);
+    if (_saving || !authorized()) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -67,7 +72,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
     try {
       await ref
           .read(screenProgramProvider.notifier)
-          .save(next, isCurrent: () => _same(original, epoch));
+          .save(next, isCurrent: authorized);
     } catch (_) {
       if (_current(epoch)) {
         setState(
@@ -81,7 +86,12 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   Future<void> _edit(ScreenProgram program, [ScreenProgramRule? rule]) async {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch) || _ownedRoute != null) return;
+    if (_saving ||
+        !_visible(epoch) ||
+        !_same(program, epoch) ||
+        _ownedRoute != null) {
+      return;
+    }
     if (rule == null && program.rules.length >= ScreenProgram.maxRules) return;
     final route = CupertinoPageRoute<ScreenProgramRule>(
       builder: (_) => _ScreenRuleEditor(
@@ -111,12 +121,18 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       ScreenProgram(enabled: program.enabled, rules: rules),
       program,
       epoch,
+      requireVisible: false,
     );
   }
 
   Future<void> _remove(ScreenProgram program, ScreenProgramRule rule) async {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch) || _ownedRoute != null) return;
+    if (_saving ||
+        !_visible(epoch) ||
+        !_same(program, epoch) ||
+        _ownedRoute != null) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     final route = CupertinoDialogRoute<bool>(
       context: context,
@@ -149,6 +165,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       ),
       program,
       epoch,
+      requireVisible: false,
     );
   }
 
@@ -163,7 +180,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   void _move(ScreenProgram program, int index, int offset) {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch)) return;
+    if (_saving || !_visible(epoch) || !_same(program, epoch)) return;
     final next = index + offset;
     if (next < 0 || next >= program.rules.length) return;
     final rules = List<ScreenProgramRule>.of(program.rules);
@@ -183,7 +200,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
         ? null
         : reading.value;
     final epoch = sessionGeneration;
-    final enabled = _current(epoch) && !_saving;
+    final enabled = _visible(epoch) && !_saving;
     return SettingsPaneScaffold(
       title: l10n.screenProgramTitle,
       children: [
@@ -412,7 +429,10 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
   }
 
   bool get _ready =>
-      sessionCurrent(sessionGeneration) && !_expired && widget.sourceCurrent();
+      sessionCurrent(sessionGeneration) &&
+      TickerMode.valuesOf(context).enabled &&
+      !_expired &&
+      widget.sourceCurrent();
   @override
   void dispose() {
     _name.dispose();
