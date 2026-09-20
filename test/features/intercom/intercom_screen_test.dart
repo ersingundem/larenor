@@ -25,6 +25,7 @@ import 'package:larenor/features/intercom/presentation/intercom_screen.dart';
 import 'package:larenor/features/intercom/presentation/intercom_settings_screen.dart';
 import 'package:larenor/features/intercom/providers/intercom_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -149,6 +150,73 @@ void main() {
     await tester.pumpAndSettle();
     return requests;
   }
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('intercom home is tablet ready $language $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await mount(
+            tester,
+            size: Size(width, 1100),
+            scale: 2,
+            locale: Locale(language),
+          );
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+          final release = find.byKey(
+            const ValueKey('intercom-release-entrance'),
+          );
+          await tester.ensureVisible(release);
+          await tester.pumpAndSettle();
+          expect(tester.getSize(release).height, greaterThanOrEqualTo(48));
+          final node = tester.getSemantics(release);
+          expect(node.flagsCollection.isButton, isTrue);
+          final text = find.descendant(
+            of: release,
+            matching: find.byType(Text),
+          );
+          Focus.of(tester.element(text)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
+
+  testWidgets('captured intercom retry expires with interaction authority', (
+    tester,
+  ) async {
+    var reads = 0;
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await mount(
+      tester,
+      interaction: interaction,
+      stationValues: () {
+        reads++;
+        throw StateError('private fixture detail');
+      },
+    );
+    final retry = find.byKey(const ValueKey('intercom-root-retry'));
+    final old = tester.widget<CupertinoButton>(retry).onPressed!;
+    expect(reads, 1);
+    interaction.setActive(false);
+    await tester.pump();
+    interaction.setActive(true);
+    await tester.pump();
+    old();
+    await tester.pumpAndSettle();
+    expect(reads, 1);
+  });
 
   testWidgets(
     'door request needs a named confirmation and cancellation sends nothing',
