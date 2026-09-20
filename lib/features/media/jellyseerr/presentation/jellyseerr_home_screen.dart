@@ -16,6 +16,8 @@ import 'jellyseerr_status_label.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/theme/spacing.dart';
 
 class JellyseerrHomeScreen extends ConsumerWidget {
@@ -232,29 +234,45 @@ class _JellyseerrSearchScreenState
     final queryGeneration = _queryGeneration;
     final ready = _current(generation);
     final results = ready ? _results : null;
+    final l10n = AppLocalizations.of(context);
 
     return ServiceRootScaffold(
       title: 'Jellyseerr',
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => Navigator.of(context).push(
-          CupertinoPageRoute(builder: (_) => const JellyseerrRequestsScreen()),
-        ),
-        child: const Icon(CupertinoIcons.list_bullet),
-      ),
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(Gap.md),
-            child: CupertinoSearchTextField(
-              placeholder: AppLocalizations.of(context)
-                  .jellyseerrSearchPlaceholder,
-              enabled: ready,
-              onSubmitted: _search,
-              onChanged: (value) {
-                if (value.trim().isEmpty) _search(value);
-              },
+          child: SettingsSection(
+            header: Semantics(
+              container: true,
+              header: true,
+              child: Text(l10n.mediaSearchTitle),
             ),
+            footer: Text(l10n.mediaSearchPrompt),
+            children: [
+              Padding(
+                padding: Insets.tile,
+                child: SizedBox(
+                  height: Gap.huge,
+                  child: CupertinoSearchTextField(
+                    placeholder: l10n.jellyseerrSearchPlaceholder,
+                    enabled: ready,
+                    onSubmitted: _search,
+                    onChanged: (value) {
+                      if (value.trim().isEmpty) _search(value);
+                    },
+                  ),
+                ),
+              ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('jellyseerr-requests-action'),
+                leading: const Icon(CupertinoIcons.list_bullet),
+                title: Text(l10n.jellyseerrMyRequestsTitle),
+                onTap: () => Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (_) => const JellyseerrRequestsScreen(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         if (sessionExpired || _message != null)
@@ -353,6 +371,7 @@ class _ResultTile extends ConsumerWidget {
           ? const CupertinoActivityIndicator()
           : CupertinoButton(
               padding: EdgeInsets.zero,
+              minimumSize: const Size(48, 48),
               onPressed: enabled ? onRequest : null,
               child: Text(AppLocalizations.of(context).jellyseerrRequestButton),
             ),

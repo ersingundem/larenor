@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/media/jellyseerr/data/jellyseerr_config.dart';
 import 'package:larenor/features/media/jellyseerr/presentation/jellyseerr_home_screen.dart';
+import 'package:larenor/features/media/jellyseerr/presentation/jellyseerr_requests_screen.dart';
 import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _FailingConnection extends JellyseerrConnection {
   _FailingConnection(this.onRead);
@@ -19,6 +21,14 @@ class _FailingConnection extends JellyseerrConnection {
     onRead();
     throw StateError('private upstream diagnostic');
   }
+}
+
+class _ConnectedConnection extends JellyseerrConnection {
+  @override
+  Future<JellyseerrConfig?> build() async => const JellyseerrConfig(
+    baseUrl: 'https://jellyseerr.fixture.invalid',
+    apiKey: 'fixture-key',
+  );
 }
 
 Future<void> _tabToRetry(WidgetTester tester) async {
@@ -95,5 +105,74 @@ void main() {
         semantics.dispose();
       }
     });
+  }
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets('${locale.languageCode} Jellyseerr hierarchy fits '
+          '${width.toInt()}px at 2x text', (tester) async {
+        final semantics = tester.ensureSemantics();
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        try {
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                jellyseerrConnectionProvider.overrideWith(
+                  _ConnectedConnection.new,
+                ),
+                jellyseerrClientProvider.overrideWith((_) => null),
+                jellyseerrMyRequestsProvider.overrideWith((_) async => []),
+              ],
+              child: CupertinoApp(
+                theme: larenorTheme(),
+                locale: locale,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(2)),
+                  child: child!,
+                ),
+                home: const JellyseerrHomeScreen(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final l10n = await AppLocalizations.delegate.load(locale);
+
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsOneWidget);
+          final heading = find.text(l10n.mediaSearchTitle);
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          final search = find.byType(CupertinoSearchTextField);
+          expect(tester.getRect(search).height, greaterThanOrEqualTo(48));
+          final requestsAction = find.byKey(
+            const ValueKey('jellyseerr-requests-action'),
+          );
+          expect(
+            tester.getRect(requestsAction).height,
+            greaterThanOrEqualTo(48),
+          );
+          final requestsNode = tester.getSemantics(requestsAction);
+          expect(requestsNode.label, contains(l10n.jellyseerrMyRequestsTitle));
+          expect(requestsNode.flagsCollection.isButton, isTrue);
+
+          Focus.of(tester.element(find.text(l10n.jellyseerrMyRequestsTitle)))
+              .requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(JellyseerrRequestsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
   }
 }
