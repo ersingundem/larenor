@@ -7,19 +7,19 @@ feature counters.
 
 ## Exact composition
 
-The acceptance branch is rebased on exact main `b38c8ab9` and replays these
+The acceptance branch is rebased on exact main `048179da` and replays these
 independently developed slices before the final RED/GREEN slice:
 
 | Slice | Exact head | Local composition commit |
 | --- | --- | --- |
-| Android transfer state, SAF preflight, and media upload protocol | `7c0e7f50` | `4104d2ff` |
-| Shared bounded-transfer contract | `54a1fea7` | `afda1a96` |
-| HA Client event checkpoint | `03921638` | `dacbb09c` |
-| Server transfer event chain | `acc0a426` | `a875648d` |
+| Android transfer state, SAF preflight, and media upload protocol | `7c0e7f50` | `5f581cf9` |
+| Shared bounded-transfer contract | `54a1fea7` | `8fc19580` |
+| HA Client event checkpoint | `03921638` | `d35e357b` |
+| Server transfer event chain | `acc0a426` | `0b1333c0` |
 
-`867ddc2c` is the rebased RED commit for the missing transfer-event consumer and
+`fc677dd2` is the rebased RED commit for the missing transfer-event consumer and
 secure checkpoint. The tests failed on the intentionally absent API, persistence,
-and controller symbols. `5cda918f` is the rebased GREEN implementation commit.
+and controller symbols. `5b816553` is the rebased GREEN implementation commit.
 
 ## Final three integration criteria
 
@@ -67,12 +67,12 @@ The integration pass found and closed two Client trust gaps before publication:
 The focused checkpoint suite covers both regressions together with scope,
 rollback, chain replacement, lifecycle retirement, restart cursor reuse, and
 failed-proof trust clearing. All three tests pass and targeted static analysis
-is clean. The rebased authority fixes end at `b3178dc1`. Queue and selected-feature
+is clean. The rebased authority fixes end at `74f15b16`. Queue and selected-feature
 counters remain unchanged until the closing sequence below completes.
 
 ## Required closing sequence
 
-S08.10 remains `pending`, with counters fixed at `15/125` and `0/63`, until all
+S08.10 remains `pending`, with counters fixed at `16/125` and `0/63`, until all
 of the following are true:
 
 1. the prerequisite slice heads are reviewed and merged;
