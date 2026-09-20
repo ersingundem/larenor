@@ -66,6 +66,7 @@ from .home_resources.service import HomeResourceRegistry
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider, BoundedTransferService
 from .bounded_transfer.schema import migrate as migrate_bounded_transfers
+from .bounded_transfer.events import migrate as migrate_bounded_transfer_events
 from .bounded_transfer.blob_schema import migrate as migrate_bounded_blobs
 from .bounded_transfer.product_store import CompositeBlobProvider, ProductBlobStore
 from .home_people.schema import migrate_home_people
@@ -196,6 +197,7 @@ class CoreServices:
                 self.context = migrate_context(connection, key)
                 migrate_home_resources(connection, self.context, key)
                 migrate_bounded_transfers(connection)
+                migrate_bounded_transfer_events(connection, key)
                 migrate_bounded_blobs(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
