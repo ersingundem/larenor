@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/inventory/domain/inventory_models.dart';
-import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 const core = '11111111111111111111111111111111';
@@ -68,44 +67,61 @@ Map<String, Object?> historyResponse({int revision = 3}) => {
 };
 
 void main() {
-  test('strict QR and closed response models bind exact scope and revision', () {
-    final value = 'larenor:inventory:v1:$core:$home:$itemId';
-    final qr = InventoryQr.parse(value);
-    expect(qr.context, context);
-    expect(qr.itemId, itemId);
-    expect(qr.canonical, value);
-    for (final invalid in ['broken', '$value:extra', value.toUpperCase()]) {
-      expect(() => InventoryQr.parse(invalid), throwsA(isA<FormatException>()));
-    }
+  test(
+    'strict QR and closed response models bind exact scope and revision',
+    () {
+      final value = 'larenor:inventory:v1:$core:$home:$itemId';
+      final qr = InventoryQr.parse(value);
+      expect(qr.context, context);
+      expect(qr.itemId, itemId);
+      expect(qr.canonical, value);
+      for (final invalid in ['broken', '$value:extra', value.toUpperCase()]) {
+        expect(
+          () => InventoryQr.parse(invalid),
+          throwsA(isA<FormatException>()),
+        );
+      }
 
-    final item = InventoryItem.fromResponse(itemResponse(), expected: context);
-    final grants = InventoryGrants.fromResponse(
-      grantsResponse(), expectedItem: item,
-    );
-    final history = InventoryHistory.fromResponse(
-      historyResponse(), expectedItem: item,
-    );
-    expect(item.links.documentIds, [documentId]);
-    expect(grants.subjectIds, ['77777777777777777777777777777777']);
-    expect(history.entries.map((entry) => entry.action), ['create', 'update']);
+      final item = InventoryItem.fromResponse(
+        itemResponse(),
+        expected: context,
+      );
+      final grants = InventoryGrants.fromResponse(
+        grantsResponse(),
+        expectedItem: item,
+      );
+      final history = InventoryHistory.fromResponse(
+        historyResponse(),
+        expectedItem: item,
+      );
+      expect(item.links.documentIds, [documentId]);
+      expect(grants.subjectIds, ['77777777777777777777777777777777']);
+      expect(history.entries.map((entry) => entry.action), [
+        InventoryAuditAction.create,
+        InventoryAuditAction.update,
+      ]);
 
-    expect(
-      () => InventoryItem.fromResponse(
-        {...itemResponse(), 'extra': true}, expected: context,
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-    expect(
-      () => InventoryGrants.fromResponse(
-        grantsResponse(revision: 2), expectedItem: item,
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-    expect(
-      () => InventoryHistory.fromResponse(
-        historyResponse(revision: 2), expectedItem: item,
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-  });
+      expect(
+        () => InventoryItem.fromResponse({
+          ...itemResponse(),
+          'extra': true,
+        }, expected: context),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(
+        () => InventoryGrants.fromResponse(
+          grantsResponse(revision: 2),
+          expectedItem: item,
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(
+        () => InventoryHistory.fromResponse(
+          historyResponse(revision: 2),
+          expectedItem: item,
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+    },
+  );
 }
