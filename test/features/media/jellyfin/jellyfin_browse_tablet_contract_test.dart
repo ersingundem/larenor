@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_library_screen.dart';
@@ -18,11 +19,31 @@ const _folder = JellyfinItem(
   type: 'Folder',
 );
 
+class _Connection extends JellyfinConnection {
+  @override
+  Future<JellyfinConfig?> build() async => const JellyfinConfig(
+    baseUrl: 'https://jellyfin.test',
+    userId: '11111111111111111111111111111111',
+    accessToken: 'first-account-token',
+    deviceId: 'tablet',
+  );
+
+  void replace() => state = const AsyncData(
+    JellyfinConfig(
+      baseUrl: 'https://jellyfin.test',
+      userId: '22222222222222222222222222222222',
+      accessToken: 'replacement-account-token',
+      deviceId: 'tablet',
+    ),
+  );
+}
+
 Future<void> _mount(
   WidgetTester tester, {
   required double width,
   required String language,
   Object? libraryError,
+  _Connection? connection,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -30,6 +51,8 @@ Future<void> _mount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (connection != null)
+          jellyfinConnectionProvider.overrideWith(() => connection),
         jellyfinClientProvider.overrideWith((ref) => null),
         jellyfinLibraryItemsProvider('library').overrideWith((ref) async {
           if (libraryError != null) throw libraryError;
@@ -70,6 +93,39 @@ Future<void> _tabToPoster(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'retained item action cannot open after Jellyfin account change',
+    (tester) async {
+      final connection = _Connection();
+      await _mount(tester, width: 600, language: 'en', connection: connection);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JellyfinLibraryScreen)),
+      );
+      final subscription = container.listen(
+        jellyfinConnectionProvider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await container.read(jellyfinConnectionProvider.future);
+      await _tabToPoster(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final action = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('jellyfin-item-primary-action')),
+          )
+          .onPressed!;
+
+      connection.replace();
+      await tester.pumpAndSettle();
+      action();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JellyfinItemDetailScreen), findsOneWidget);
+      expect(find.byType(JellyfinLibraryScreen), findsNothing);
+    },
+  );
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('Jellyfin browse drill-down uses the shared tablet surface '
