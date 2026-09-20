@@ -106,6 +106,18 @@ _WORKFLOW_PATTERNS = {
         "server/tests/test_music_*",
         "server/tests/test_plugin_catalog.py",
     ),
+    "unified-media-stack-managed.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/unified-media-stack-managed.yml",
+        "server/Dockerfile",
+        "server/Dockerfile.dockerignore",
+        "deploy/larenor-server/unified.compose.yaml",
+        "deploy/larenor-server/unified_package.py",
+        "deploy/larenor-server/deployment_bundle.py",
+        "deploy/larenor-server/.env.example",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/unified_media_stack_managed_ci.py",
+        "tool/tests/unified_media_stack_*",
+    ),
 }
 _WORKFLOW_REF = re.compile(
     r"^ersingundem/larenor/\.github/workflows/([^/@\s]+)@[^\s]+$"
