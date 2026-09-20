@@ -9,6 +9,7 @@ import '../../server/domain/server_models.dart';
 import '../domain/home_resource_models.dart';
 import 'core_bounded_download_api.dart';
 import 'core_bounded_download_file_access.dart';
+import 'core_bounded_upload_file_access.dart';
 
 typedef CoreBoundedDownloadApiFactory = CoreBoundedDownloadApi Function(
   ServerEndpoint endpoint,
@@ -44,6 +45,18 @@ enum CoreBoundedHistoryPhase {
   failed,
 }
 
+enum CoreBoundedUploadPhase {
+  idle,
+  choosingSource,
+  uploading,
+  uploaded,
+  cancelled,
+  unauthorized,
+  forbidden,
+  changed,
+  failed,
+}
+
 /// One visible, user-started operation. Account/home/lifecycle changes close
 /// the transport and invalidate every late callback before SAF publication.
 final class CoreBoundedDownloadController extends ChangeNotifier {
@@ -52,8 +65,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     this.apiFactory,
     this.files,
     this.clock,
-    this.windowCurrent,
-  ) {
+    this.windowCurrent, [
+    CoreBoundedUploadFileAccess? uploadFiles,
+  ]) : uploadFiles = uploadFiles ?? CoreBoundedUploadFileAccess() {
     home.addListener(_changed);
     home.account.addListener(_changed);
   }
@@ -61,13 +75,17 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   final HomeSessionController home;
   final CoreBoundedDownloadApiFactory apiFactory;
   final CoreBoundedDownloadFileAccess files;
+  final CoreBoundedUploadFileAccess uploadFiles;
   final DateTime Function() clock;
   final bool Function() windowCurrent;
   CoreBoundedDownloadPhase phase = CoreBoundedDownloadPhase.idle;
   CoreBoundedHistoryPhase historyPhase = CoreBoundedHistoryPhase.idle;
+  CoreBoundedUploadPhase uploadPhase = CoreBoundedUploadPhase.idle;
   List<CoreBoundedTransferReceipt> history = const [];
   String? targetId, traceId;
   String? historyTargetId;
+  String? uploadTargetId, uploadRequestId;
+  CoreBoundedBlobDescriptor? descriptor;
   CoreBoundedTransferReceipt? receipt;
   bool receiptTrusted = false;
   int epoch = 0;
@@ -113,6 +131,16 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
       historyPhase != CoreBoundedHistoryPhase.loading &&
       _ready?.context == target.context &&
       target.kind == HomeResourceKind.resource;
+
+  bool canUpload(HomeResourceRecord target, int? userRevision) =>
+      !busy &&
+      historyPhase != CoreBoundedHistoryPhase.loading &&
+      _ready?.context == target.context &&
+      target.kind == HomeResourceKind.resource &&
+      target.canWrite &&
+      userRevision != null &&
+      userRevision >= 1 &&
+      userRevision <= 9223372036854775807;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -164,6 +192,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     _boundUserRevision = null;
     _clearDownloadEvidence();
     _clearHistoryEvidence();
+    _clearUploadEvidence();
   }
 
   void _clearDownloadEvidence() {
@@ -178,6 +207,192 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     historyPhase = CoreBoundedHistoryPhase.idle;
     history = const [];
     historyTargetId = null;
+  }
+
+  void _clearUploadEvidence() {
+    uploadPhase = CoreBoundedUploadPhase.idle;
+    uploadTargetId = null;
+    uploadRequestId = null;
+    descriptor = null;
+  }
+
+  Future<void> chooseAndUpload(
+    HomeResourceRecord target, {
+    required int userRevision,
+    required bool Function() isCurrent,
+  }) async {
+    final original = _ready;
+    if (original == null || !canUpload(target, userRevision)) return;
+    final operation = ++epoch;
+    final generation = home.account.generation;
+    final homeEpoch = home.interaction.epoch;
+    bool safeGuard() {
+      try {
+        return isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    bool current() =>
+        !_disposed &&
+        epoch == operation &&
+        _ready != null &&
+        home.interaction.epoch == homeEpoch &&
+        home.account.isCurrent(generation) &&
+        identical(home.account.session, original) &&
+        safeGuard();
+    _clearDownloadEvidence();
+    _clearHistoryEvidence();
+    _clearUploadEvidence();
+    busy = true;
+    uploadTargetId = target.id;
+    uploadPhase = CoreBoundedUploadPhase.choosingSource;
+    _boundSession = original;
+    _boundTarget = target;
+    _boundUserRevision = userRevision;
+    _emit();
+    var handedOff = false;
+    try {
+      final source = await uploadFiles.pick();
+      if (!current()) return;
+      if (source == null) {
+        uploadPhase = CoreBoundedUploadPhase.cancelled;
+        return;
+      }
+      // upload() executes synchronously through its new epoch/busy claim before
+      // its first await, leaving no interleaving point between the two phases.
+      busy = false;
+      final next = upload(
+        target,
+        source: source,
+        userRevision: userRevision,
+        isCurrent: isCurrent,
+      );
+      handedOff = epoch != operation && busy;
+      if (!handedOff) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      await next;
+    } catch (_) {
+      if (current()) {
+        uploadPhase = CoreBoundedUploadPhase.failed;
+      }
+    } finally {
+      if (!handedOff && !_disposed && epoch == operation) {
+        if (!safeGuard()) {
+          uploadPhase = CoreBoundedUploadPhase.cancelled;
+        }
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> upload(
+    HomeResourceRecord target, {
+    required CoreBoundedUploadSource source,
+    required int userRevision,
+    required bool Function() isCurrent,
+  }) async {
+    final original = _ready;
+    if (original == null || !canUpload(target, userRevision)) return;
+    final operation = ++epoch;
+    final generation = home.account.generation;
+    final homeEpoch = home.interaction.epoch;
+    bool safeGuard() {
+      try {
+        return isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    bool current() =>
+        !_disposed &&
+        epoch == operation &&
+        _ready != null &&
+        home.interaction.epoch == homeEpoch &&
+        home.account.isCurrent(generation) &&
+        identical(home.account.session, original) &&
+        safeGuard();
+    _clearDownloadEvidence();
+    _clearHistoryEvidence();
+    busy = true;
+    uploadTargetId = target.id;
+    uploadRequestId = null;
+    descriptor = null;
+    uploadPhase = CoreBoundedUploadPhase.uploading;
+    _boundSession = original;
+    _boundTarget = target;
+    _boundUserRevision = userRevision;
+    _emit();
+    CoreBoundedDownloadApi? transport;
+    try {
+      CoreBoundedBlobUploadResult? result;
+      await home.account.withSession((_, session) async {
+        if (!current() ||
+            session.context != target.context ||
+            session.user.id != original.user.id ||
+            session.endpoint.baseUrl != original.endpoint.baseUrl) {
+          throw const LarenorServerException('cancelled');
+        }
+        transport = apiFactory(session.endpoint);
+        _transport = transport;
+        var serviceRevision = 0;
+        try {
+          serviceRevision = (await transport!.descriptor(
+            token: session.accessToken,
+            target: target,
+          )).serviceRevision;
+        } on CoreBoundedDownloadException catch (error) {
+          if (error.code != 'not_found') rethrow;
+        }
+        if (!current()) {
+          throw const CoreBoundedDownloadException('cancelled');
+        }
+        result = await transport!.upload(
+          token: session.accessToken,
+          target: target,
+          expectedUserRevision: userRevision,
+          expectedServiceRevision: serviceRevision,
+          source: source,
+        );
+      });
+      if (!current() || result == null) return;
+      descriptor = result!.descriptor;
+      uploadRequestId = result!.requestId;
+      uploadPhase = CoreBoundedUploadPhase.uploaded;
+    } catch (error) {
+      if (current()) {
+        descriptor = null;
+        uploadRequestId = null;
+        final code = switch (error) {
+          CoreBoundedDownloadException e => e.code,
+          LarenorServerException e => e.code,
+          _ => 'failed',
+        };
+        uploadPhase = switch (code) {
+          'cancelled' => CoreBoundedUploadPhase.cancelled,
+          'unauthorized' => CoreBoundedUploadPhase.unauthorized,
+          'forbidden' => CoreBoundedUploadPhase.forbidden,
+          'revision_conflict' => CoreBoundedUploadPhase.changed,
+          _ => CoreBoundedUploadPhase.failed,
+        };
+      }
+    } finally {
+      if (identical(_transport, transport)) _transport = null;
+      transport?.close();
+      if (!_disposed && epoch == operation) {
+        if (!safeGuard()) {
+          uploadPhase = CoreBoundedUploadPhase.cancelled;
+          descriptor = null;
+          uploadRequestId = null;
+        }
+        busy = false;
+        _emit();
+      }
+    }
   }
 
   Future<void> loadHistory(
@@ -206,6 +421,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         identical(home.account.session, original) &&
         safeGuard();
     _clearDownloadEvidence();
+    _clearUploadEvidence();
     historyPhase = CoreBoundedHistoryPhase.loading;
     history = const [];
     historyTargetId = target.id;
@@ -288,6 +504,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         identical(home.account.session, original) &&
         safeGuard();
     _clearHistoryEvidence();
+    _clearUploadEvidence();
     busy = true;
     phase = CoreBoundedDownloadPhase.downloading;
     targetId = target.id;
@@ -312,14 +529,22 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         transport = apiFactory(session.endpoint);
         _transport = transport;
         try {
+          final currentDescriptor = await transport!.descriptor(
+            token: session.accessToken,
+            target: target,
+          );
+          if (!current()) {
+            throw const CoreBoundedDownloadException('cancelled');
+          }
           final candidate = await transport!.download(
             token: session.accessToken,
             target: target,
             expectedUserRevision: userRevision,
-            // The synthetic v1 pilot provider starts at revision one. Product
-            // provider discovery remains outside this bounded slice.
-            expectedServiceRevision: 1,
+            expectedServiceRevision: currentDescriptor.serviceRevision,
           );
+          if (!currentDescriptor.authenticatesBlob(candidate)) {
+            throw const CoreBoundedDownloadException('invalid_response');
+          }
           if (!current()) {
             throw const CoreBoundedDownloadException('cancelled');
           }

@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_upload_file_access.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/trust_evidence_card.dart';
 
@@ -74,6 +75,23 @@ http.Response _transferResponse(http.Request request) {
     'updatedAt': 11.0,
   };
   if (request.method == 'GET') {
+    if (request.url.path.endsWith('/descriptor')) {
+      return http.Response(
+        jsonEncode({
+          'blob': {
+            'resourceId': '3' * 32,
+            'serviceRevision': 1,
+            'contentLength': payload.length,
+            'sha256': digest,
+            'contentType': 'application/octet-stream',
+            'createdAt': 10.0,
+            'updatedAt': 11.0,
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
     return http.Response(
       jsonEncode(
         request.url.path.endsWith(trace)
@@ -284,7 +302,7 @@ void main() {
             () => Future<void>.delayed(const Duration(milliseconds: 10)),
           );
         }
-        expect((transferRequests, saveRequests), (2, 1));
+        expect((transferRequests, saveRequests), (3, 1));
 
         await harness.account.signOut();
         harness.userId = '8' * 32;
@@ -305,7 +323,7 @@ void main() {
         );
         expect(
           (transferRequests, saveRequests),
-          (2, 1),
+          (3, 1),
           reason: 'an account switch never replays the old transfer',
         );
       } finally {
@@ -313,6 +331,105 @@ void main() {
       }
     },
   );
+
+  for (final locale in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('writable blob upload is accessible at $locale $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final fixture = contract();
+        final writable = jsonDecode(jsonEncode(fixture['memberList'])) as Map;
+        final rawTarget = (writable['entries'] as List).cast<Map>().firstWhere(
+          (entry) => (entry['ref'] as Map)['id'] == '3' * 32,
+        );
+        (rawTarget['permissions'] as Map)['write'] = true;
+        final targetId = (rawTarget['ref'] as Map)['id'] as String;
+        final payload = Uint8List.fromList(utf8.encode('tablet attachment'));
+        final digest = sha256.convert(payload).toString();
+        final harness = ResourceHarness()..response = writable;
+        harness.boundedUploadFileAccess = CoreBoundedUploadFileAccess(
+          pick: () async => CoreBoundedPickedFile(
+            name: 'warranty.pdf',
+            declaredLength: payload.length,
+            chunks: Stream.value(payload),
+          ),
+        );
+        harness.boundedDownloadApiFactory = (endpoint) =>
+            CoreBoundedDownloadApi(
+              endpoint: endpoint,
+              requestId: () => '8' * 32,
+              client: MockClient((request) async {
+                if (request.url.path.endsWith('/descriptor')) {
+                  return http.Response(
+                    '{"error":{"code":"not_found"}}',
+                    404,
+                    headers: {'content-type': 'application/json'},
+                  );
+                }
+                return http.Response(
+                  jsonEncode({
+                    'blob': {
+                      'requestId': '8' * 32,
+                      'resourceId': targetId,
+                      'serviceRevision': 1,
+                      'contentLength': payload.length,
+                      'sha256': digest,
+                      'contentType': 'application/pdf',
+                      'createdAt': 10.0,
+                      'updatedAt': 10.0,
+                    },
+                  }),
+                  201,
+                  headers: {'content-type': 'application/json'},
+                );
+              }),
+            );
+        try {
+          await harness.mount(tester, locale: locale, width: width, scale: 2);
+          await harness.signIn();
+          await flush(tester);
+          final refresh = find.byKey(const ValueKey('home-resources-refresh'));
+          await tester.scrollUntilVisible(
+            refresh,
+            400,
+            scrollable: find.byType(Scrollable).first,
+            maxScrolls: 20,
+          );
+          await tester.pump();
+          await tester.tap(refresh);
+          await flush(tester);
+          final upload = find.byKey(ValueKey('core-resource-upload-$targetId'));
+          await tester.scrollUntilVisible(
+            upload,
+            400,
+            scrollable: find.byType(Scrollable).first,
+            maxScrolls: 20,
+          );
+          await tester.pump();
+          expect(tester.getSize(upload).height, greaterThanOrEqualTo(48));
+          await tester.tap(upload);
+          final completed = locale == 'tr' ? 'revizyon 1' : 'revision 1';
+          for (var attempt = 0; attempt < 30; attempt++) {
+            await tester.pump(const Duration(milliseconds: 10));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+            if (find.textContaining(completed).evaluate().isNotEmpty) break;
+          }
+          await flush(tester);
+          final status = find.byKey(
+            ValueKey('core-resource-upload-status-$targetId'),
+          );
+          expect(status, findsOneWidget);
+          expect(tester.getSemantics(status).label, contains(completed));
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {

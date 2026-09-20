@@ -25,6 +25,7 @@ import 'package:larenor/features/home_resources/data/home_resources_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_controller.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_upload_file_access.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
@@ -47,6 +48,7 @@ class ResourceHarness {
   final PinLockStore? pinStore;
   CoreBoundedDownloadApiFactory? boundedDownloadApiFactory;
   CoreBoundedDownloadFileAccess? boundedDownloadFileAccess;
+  CoreBoundedUploadFileAccess? boundedUploadFileAccess;
   final fixture = contract();
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -206,6 +208,10 @@ class ResourceHarness {
                 if (boundedDownloadFileAccess != null)
                   coreBoundedDownloadFileAccessProvider.overrideWithValue(
                     boundedDownloadFileAccess!,
+                  ),
+                if (boundedUploadFileAccess != null)
+                  coreBoundedUploadFileAccessProvider.overrideWithValue(
+                    boundedUploadFileAccess!,
                   ),
                 connectionConfigProvider.overrideWith(() => BlockHa(this)),
                 haRestClientFactoryProvider.overrideWithValue((_, _) {

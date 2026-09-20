@@ -34,6 +34,140 @@ final class CoreBoundedBlob {
   String toString() => 'CoreBoundedBlob';
 }
 
+/// A picker result whose bytes are already bounded and detached from any path.
+final class CoreBoundedUploadSource {
+  factory CoreBoundedUploadSource({
+    required String filename,
+    required String contentType,
+    required Uint8List bytes,
+  }) {
+    if (filename.isEmpty ||
+        filename.length > 255 ||
+        filename.contains(RegExp(r'[/\\\x00-\x1f\x7f]')) ||
+        bytes.isEmpty ||
+        bytes.length > CoreBoundedDownloadApi.maxBlobBytes ||
+        !_contentType.hasMatch(contentType) ||
+        contentType.contains(RegExp(r'[\r\n]'))) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    return CoreBoundedUploadSource._(
+      filename,
+      contentType,
+      Uint8List.fromList(bytes).asUnmodifiableView(),
+    );
+  }
+
+  const CoreBoundedUploadSource._(this.filename, this.contentType, this.bytes);
+  static final _contentType = RegExp(r'^[A-Za-z0-9!#$&^_.+\-/;= ]{1,128}$');
+  final String filename, contentType;
+  final Uint8List bytes;
+  @override
+  String toString() => 'CoreBoundedUploadSource';
+}
+
+final class CoreBoundedBlobDescriptor {
+  const CoreBoundedBlobDescriptor._({
+    required this.resourceId,
+    required this.serviceRevision,
+    required this.contentLength,
+    required this.sha256,
+    required this.contentType,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory CoreBoundedBlobDescriptor.fromJson(
+    Object? raw, {
+    required String expectedResourceId,
+  }) {
+    const keys = {
+      'resourceId',
+      'serviceRevision',
+      'contentLength',
+      'sha256',
+      'contentType',
+      'createdAt',
+      'updatedAt',
+    };
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        !keys.every(raw.containsKey)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final resourceId = raw['resourceId'];
+    final revision = raw['serviceRevision'];
+    final length = raw['contentLength'];
+    final digest = raw['sha256'];
+    final contentType = raw['contentType'];
+    final created = raw['createdAt'];
+    final updated = raw['updatedAt'];
+    final createdSeconds = created is num ? created.toDouble() : double.nan;
+    final updatedSeconds = updated is num ? updated.toDouble() : double.nan;
+    if (resourceId != expectedResourceId ||
+        resourceId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(resourceId) ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 9223372036854775807 ||
+        length is! int ||
+        length < 1 ||
+        length > CoreBoundedDownloadApi.maxBlobBytes ||
+        digest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+        contentType is! String ||
+        !CoreBoundedUploadSource._contentType.hasMatch(contentType) ||
+        contentType.contains(RegExp(r'[\r\n]')) ||
+        !createdSeconds.isFinite ||
+        !updatedSeconds.isFinite ||
+        createdSeconds < 0 ||
+        updatedSeconds < createdSeconds ||
+        updatedSeconds > 8640000000000) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedBlobDescriptor._(
+      resourceId: resourceId,
+      serviceRevision: revision,
+      contentLength: length,
+      sha256: digest,
+      contentType: contentType,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        (createdSeconds * 1000).round(),
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (updatedSeconds * 1000).round(),
+      ),
+    );
+  }
+
+  final String resourceId, sha256, contentType;
+  final int serviceRevision, contentLength;
+  final DateTime createdAt, updatedAt;
+
+  bool authenticates(String digest, int length) =>
+      sha256 == digest && contentLength == length;
+
+  bool authenticatesBlob(CoreBoundedBlob blob) =>
+      serviceRevision == blob.serviceRevision &&
+      contentLength == blob.bytes.length &&
+      sha256 == blob.sha256 &&
+      contentType == blob.contentType;
+
+  @override
+  String toString() => 'CoreBoundedBlobDescriptor';
+}
+
+final class CoreBoundedBlobUploadResult {
+  const CoreBoundedBlobUploadResult._(
+    this.requestId,
+    this.descriptor,
+    this.sourceDigest,
+  );
+  final String requestId, sourceDigest;
+  final CoreBoundedBlobDescriptor descriptor;
+  @override
+  String toString() => 'CoreBoundedBlobUploadResult';
+}
+
 enum CoreBoundedTransferState { accepted, completed, interrupted }
 
 /// Public, content-free proof retained by Core for one bounded transfer.
@@ -171,6 +305,7 @@ final class CoreBoundedDownloadApi {
   static String _statusCode(int statusCode) => switch (statusCode) {
     401 => 'unauthorized',
     403 => 'forbidden',
+    404 => 'not_found',
     408 => 'timeout',
     409 => 'revision_conflict',
     413 => 'payload_too_large',
@@ -288,6 +423,9 @@ final class CoreBoundedDownloadApi {
   String _transferPath(HomeResourceRecord target) =>
       '/home-resources/${target.context.coreId}/${target.context.homeId}/${target.id}/blob/transfers';
 
+  String _blobPath(HomeResourceRecord target) =>
+      '/home-resources/${target.context.coreId}/${target.context.homeId}/${target.id}/blob';
+
   Future<Object?> _readJson({
     required String token,
     required String path,
@@ -387,6 +525,142 @@ final class CoreBoundedDownloadApi {
       throw const CoreBoundedDownloadException('invalid_response');
     }
     return value;
+  }
+
+  Future<CoreBoundedBlobDescriptor> descriptor({
+    required String token,
+    required HomeResourceRecord target,
+  }) async {
+    _target(target);
+    final raw = await _readJson(
+      token: token,
+      path: '${_blobPath(target)}/descriptor',
+    );
+    if (raw is! Map || raw.length != 1 || !raw.containsKey('blob')) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedBlobDescriptor.fromJson(
+      raw['blob'],
+      expectedResourceId: target.id,
+    );
+  }
+
+  Future<CoreBoundedBlobUploadResult> upload({
+    required String token,
+    required HomeResourceRecord target,
+    required int expectedUserRevision,
+    required int expectedServiceRevision,
+    required CoreBoundedUploadSource source,
+  }) async {
+    if (_closed) throw const CoreBoundedDownloadException('cancelled');
+    _target(target);
+    final requestId = _requestId();
+    if (!target.canWrite ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        expectedUserRevision < 1 ||
+        expectedUserRevision > 9223372036854775807 ||
+        expectedServiceRevision < 0 ||
+        expectedServiceRevision >= 9223372036854775807 ||
+        timeout <= Duration.zero ||
+        timeout > const Duration(seconds: 15)) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    final digest = sha256.convert(source.bytes).toString();
+    final abort = Completer<void>();
+    _pending.add(abort);
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    try {
+      final request = http.AbortableRequest(
+        'PUT',
+        endpoint.api('${_blobPath(target)}/uploads/$requestId'),
+        abortTrigger: abort.future,
+      );
+      request.headers
+        ..['authorization'] = 'Bearer $token'
+        ..['accept'] = 'application/json'
+        ..['content-type'] = source.contentType
+        ..['x-larenor-upload-request-id'] = requestId
+        ..['x-larenor-content-sha256'] = digest
+        ..['x-larenor-expected-user-revision'] = '$expectedUserRevision'
+        ..['x-larenor-expected-resource-revision'] = '${target.revision}'
+        ..['x-larenor-expected-acl-revision'] = '${target.aclRevision}'
+        ..['x-larenor-expected-service-revision'] = '$expectedServiceRevision';
+      request.bodyBytes = source.bytes;
+      final response = await _client.send(request).timeout(timeout);
+      if (_closed || abort.isCompleted) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        await response.stream.listen((_) {}).cancel();
+        throw CoreBoundedDownloadException(_statusCode(response.statusCode));
+      }
+      final raw = await _json(response, abort);
+      if (raw is! Map || raw.length != 1 || !raw.containsKey('blob')) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      final blob = raw['blob'];
+      if (blob is! Map || blob['requestId'] != requestId) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      final descriptorJson = Map<Object?, Object?>.from(blob)
+        ..remove('requestId');
+      final descriptor = CoreBoundedBlobDescriptor.fromJson(
+        descriptorJson,
+        expectedResourceId: target.id,
+      );
+      if (descriptor.serviceRevision != expectedServiceRevision + 1 ||
+          descriptor.contentLength != source.bytes.length ||
+          descriptor.sha256 != digest ||
+          descriptor.contentType != source.contentType) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      return CoreBoundedBlobUploadResult._(requestId, descriptor, digest);
+    } on CoreBoundedDownloadException {
+      rethrow;
+    } on TimeoutException {
+      throw const CoreBoundedDownloadException('timeout');
+    } on http.RequestAbortedException {
+      throw CoreBoundedDownloadException(_closed ? 'cancelled' : 'timeout');
+    } catch (_) {
+      throw CoreBoundedDownloadException(
+        _closed
+            ? 'cancelled'
+            : abort.isCompleted
+            ? 'timeout'
+            : 'connection_failed',
+      );
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      _pending.remove(abort);
+    }
+  }
+
+  Future<Object?> _json(
+    http.StreamedResponse response,
+    Completer<void> abort,
+  ) async {
+    if (response.headers['content-type']?.split(';').first.trim() !=
+        'application/json') {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response.stream.timeout(timeout)) {
+      if (_closed || abort.isCompleted) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      if (bytes.length + chunk.length > 64 * 1024) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      bytes.add(chunk);
+    }
+    try {
+      return decodeServerJson(utf8.decode(bytes.takeBytes()));
+    } on FormatException {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
   }
 
   Future<List<CoreBoundedTransferReceipt>> history({

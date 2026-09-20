@@ -2319,6 +2319,21 @@
   "coreResourceDownloadForbidden": "This account no longer has download access.",
   "coreResourceDownloadChanged": "The resource changed. Refresh before downloading again.",
   "coreResourceDownloadFailed": "The file could not be verified or saved.",
+  "coreResourceUpload": "Attach or replace file",
+  "coreResourceUploadChoosing": "Choose a file up to 256 KiB.",
+  "coreResourceUploading": "Uploading and verifying…",
+  "coreResourceUploadComplete": "Verified file stored · {bytes} bytes · revision {revision}.",
+  "@coreResourceUploadComplete": {
+    "placeholders": {
+      "bytes": {"type": "int"},
+      "revision": {"type": "int"}
+    }
+  },
+  "coreResourceUploadCancelled": "File selection cancelled.",
+  "coreResourceUploadSessionLost": "Sign in again before uploading.",
+  "coreResourceUploadForbidden": "This account no longer has upload access.",
+  "coreResourceUploadChanged": "The resource or stored file changed. Refresh before trying again.",
+  "coreResourceUploadFailed": "The file could not be read, verified, or stored.",
   "coreResourceTransferHistory": "View transfer history",
   "coreResourceTransferHistoryLoading": "Loading verified transfer history…",
   "coreResourceTransferHistoryEmpty": "No transfer receipts yet.",

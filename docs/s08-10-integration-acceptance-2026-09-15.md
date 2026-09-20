@@ -11,7 +11,7 @@ mevcut kabul sınırını ve sonraki parçaların kanıtını ayırır; yeni `do
 | --- | --- | --- |
 | HA komut sonucu | Kaynak kapsamlı, şifreli/idempotent komut makbuzu; `pending`, `accepted`, `rejected`, `unknown`, ayrı provider kabulü ve gözlenen sonuç. Aynı `requestId` yeniden yazılmaz. | Son durum tek başına olay sırasını veya fiziksel etkiyi kanıtlamaz. |
 | HA geçmişi | Kaynak ve aktör yetkisiyle sayfalı `/history`; `pending → final` yazımlarını koruyan, yetkili görünüme özel zincir kimliği ve ileri sıra cursor'ı sunan `/history/events`; admin için ayrı HMAC zinciri/checkpoint doğrulaması. Client'da aynı ev bağlamına bağlı etkinlik ekranı. | Client'ın yeni olay cursor'ını ve zincir değişimini kalıcı güven durumu ile birleştirmesi; yenileme başarısızken eski doğrulamanın yeni kanıt sayılmaması. |
-| Sınırlı transfer | Ayrı `POST /blob` indirme akışı ve Core'da şifreli ürün blob sağlayıcısı; kaynak/user/ACL/service revision, 32 hex işlem kimliği, uzunluk, SHA-256 ve media type kapalı sözleşmedir. `PUT .../uploads/{requestId}` write yetkisini byte okumadan önce ve atomik kayıt anında denetler; değişim revision artırır, replay/çatışma ayrılır. | Android descriptor/upload/ayar akışı, medya-özel protokoller, Client makbuz/geçmiş birleşimi ve fiziksel SAF. |
+| Sınırlı transfer | Ayrı `POST /blob` indirme akışı ve Core'da şifreli ürün blob sağlayıcısı; kaynak/user/ACL/service revision, 32 hex işlem kimliği, uzunluk, SHA-256 ve media type kapalı sözleşmedir. `PUT .../uploads/{requestId}` write yetkisini byte okumadan önce ve atomik kayıt anında denetler; Android güncel descriptor ile indirme ve write-yetkili bounded picker/upload akışını tüketir. | Medya-özel protokoller, kalan Client makbuz/olay checkpoint birleşimi ve fiziksel SAF. |
 
 Client artık her kullanıcı başlatmalı indirme için kriptografik rastgele 128 bit
 `requestId` üretir. Core bu kimliği doğrulayıp aynı değeri akış trace'i olarak
@@ -33,8 +33,9 @@ transfer makbuzu açık olduğundan S08.10 henüz kapanmaz.
 Core ürün sağlayıcısı Home resource `write` yetkisine bağlı, 256 KiB sınırında
 ve AES-GCM ile şifreli belge/medya nesnesi saklar. İstek kimliği ile upload
 makbuzu kalıcıdır; restart, değiştirilmiş SQLite satırı, eski revision, yetki
-kaybı ve saat geri gidişi kapalı testlerle doğrulanır. Android henüz descriptor
-ve upload sözleşmesini tüketmediğinden bu Server dilimi S08.10'u kapatmaz.
+kaybı ve saat geri gidişi kapalı testlerle doğrulanır. Android descriptor ve
+upload sözleşmesini tüketir; gerçek cihaz SAF/LAN ile medya-özel protokoller
+henüz kapanmadığından S08.10 kapanmaz.
 Range/resume ve otomatik retry ayrıca tasarlanmadan açılmaz.
 [Pilotun sınırları](BOUNDED_TRANSFER_PILOT.md).
 

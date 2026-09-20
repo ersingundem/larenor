@@ -18,6 +18,7 @@ import '../data/home_resources_controller.dart';
 import '../data/core_bounded_download_api.dart';
 import '../data/core_bounded_download_controller.dart';
 import '../data/core_bounded_download_file_access.dart';
+import '../data/core_bounded_upload_file_access.dart';
 import '../domain/home_resource_models.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 
@@ -54,6 +55,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       ref.read(coreBoundedDownloadFileAccessProvider),
       ref.read(homeResourcesClockProvider),
       _current,
+      ref.read(coreBoundedUploadFileAccessProvider),
     );
     _controller.addListener(_resourceAuthorityChanged);
   }
@@ -103,6 +105,33 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       state: TrustEvidenceState.actionRequired,
       title: l10n.coreTransferTrustUnverified,
       body: '${l10n.coreTransferTrustUnverifiedBody} $phaseLabel',
+    );
+  }
+
+  Widget _uploadStatus(HomeResourceRecord entry, AppLocalizations l10n) {
+    final descriptor = _download.descriptor;
+    final label = switch (_download.uploadPhase) {
+      CoreBoundedUploadPhase.choosingSource => l10n.coreResourceUploadChoosing,
+      CoreBoundedUploadPhase.uploading => l10n.coreResourceUploading,
+      CoreBoundedUploadPhase.uploaded when descriptor != null =>
+        l10n.coreResourceUploadComplete(
+          descriptor.contentLength,
+          descriptor.serviceRevision,
+        ),
+      CoreBoundedUploadPhase.cancelled => l10n.coreResourceUploadCancelled,
+      CoreBoundedUploadPhase.unauthorized => l10n.coreResourceUploadSessionLost,
+      CoreBoundedUploadPhase.forbidden => l10n.coreResourceUploadForbidden,
+      CoreBoundedUploadPhase.changed => l10n.coreResourceUploadChanged,
+      CoreBoundedUploadPhase.failed ||
+      CoreBoundedUploadPhase.uploaded => l10n.coreResourceUploadFailed,
+      CoreBoundedUploadPhase.idle => '',
+    };
+    return Semantics(
+      liveRegion: _download.uploadPhase != CoreBoundedUploadPhase.cancelled,
+      child: Text(
+        label,
+        key: ValueKey('core-resource-upload-status-${entry.id}'),
+      ),
     );
   }
 
@@ -384,6 +413,20 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                               isCurrent: current,
                             ),
                           ),
+                          if (entry.canWrite)
+                            button(
+                              'core-resource-upload-${entry.id}',
+                              '${l10n.coreResourceUpload}: ${entry.label}',
+                              _download.canUpload(
+                                entry,
+                                _controller.userRevision,
+                              ),
+                              () => _download.chooseAndUpload(
+                                entry,
+                                userRevision: _controller.userRevision!,
+                                isCurrent: _current,
+                              ),
+                            ),
                           button(
                             'core-resource-transfer-history-${entry.id}',
                             '${l10n.coreResourceTransferHistory}: ${entry.label}',
@@ -396,6 +439,10 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                           if (_download.targetId == entry.id &&
                               _download.phase != CoreBoundedDownloadPhase.idle)
                             _transferTrust(entry, l10n),
+                          if (_download.uploadTargetId == entry.id &&
+                              _download.uploadPhase !=
+                                  CoreBoundedUploadPhase.idle)
+                            _uploadStatus(entry, l10n),
                           if (_download.historyTargetId == entry.id)
                             Semantics(
                               liveRegion:

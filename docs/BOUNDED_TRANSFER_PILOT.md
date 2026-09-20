@@ -77,15 +77,19 @@ frames, cancellation, and other verification failures with fixed localized
 English and Turkish messages. Buttons retain a 48 logical-pixel target and
 keyboard/TalkBack semantics at 2x text scale on compact tablets and DeX widths.
 
-The v1 Client pilot still requests provider revision `1`. It can consume a first
-uploaded product object through the existing verified download/SAF path. Reading
-the descriptor, selecting a local source, uploading, and following replacement
-revisions in the tablet UI remain the next Client slice.
+The Client reads the authorized product descriptor before each download and
+binds the stream to its current digest, media type, length, and service revision.
+A write-authorized resource row can select a local file without requesting a
+filesystem path, buffer at most 256 KiB, map a closed document/image/audio/video
+extension set, and issue one raw upload with exact account/resource/ACL/service
+revisions. First writes use revision `0`; replacements use the descriptor's
+current revision. Account, home, authority, lifecycle, or window changes retire
+the picker/request result before it can update UI trust.
 
 ## Deliberately open work
 
-S08.10 still requires the Android upload/settings flow, media-specific transfer
-protocols, Client receipt/history integration on main, and physical SAF
+S08.10 still requires media-specific transfer protocols, the remaining Client
+receipt/event checkpoint integration, exact-main CI, and physical SAF
 acceptance. Range and resume remain unsupported until they receive a separate
 authority, integrity, quota, and recovery design. This pilot makes no physical
 device or live-LAN acceptance claim.
