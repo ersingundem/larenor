@@ -292,14 +292,20 @@ void main() {
         await http.runWithClient(
           () async {
             await mount(tester, c, interaction, child: child);
-            final old = tester
-                .widgetList<CupertinoButton>(find.byType(CupertinoButton))
-                .firstWhere(
-                  (b) =>
-                      b.child is Icon &&
-                      (b.child as Icon).icon == CupertinoIcons.refresh,
-                )
-                .onPressed!;
+            CupertinoButton refreshButton() => child is KeeneticDevicesScreen
+                ? tester.widget<CupertinoButton>(
+                    find.byKey(const ValueKey('keenetic-devices-refresh')),
+                  )
+                : tester
+                      .widgetList<CupertinoButton>(find.byType(CupertinoButton))
+                      .firstWhere(
+                        (button) =>
+                            button.child is Icon &&
+                            (button.child as Icon).icon ==
+                                CupertinoIcons.refresh,
+                      );
+
+            final old = refreshButton().onPressed!;
             interaction.setActive(false);
             await settle(tester);
             interaction.setActive(true);
@@ -308,14 +314,7 @@ void main() {
             old();
             await settle(tester);
             expect(requests, before);
-            final fresh = tester
-                .widgetList<CupertinoButton>(find.byType(CupertinoButton))
-                .firstWhere(
-                  (b) =>
-                      b.child is Icon &&
-                      (b.child as Icon).icon == CupertinoIcons.refresh,
-                )
-                .onPressed!;
+            final fresh = refreshButton().onPressed!;
             fresh();
             await settle(tester);
             expect(requests, greaterThan(before));

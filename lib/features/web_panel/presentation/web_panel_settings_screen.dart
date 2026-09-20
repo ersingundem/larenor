@@ -1,10 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../dashboard/domain/dashboard_website_url.dart';
 import '../../dashboard/domain/tile_config.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
@@ -178,6 +181,13 @@ class _WebPanelSettingsState
     super.dispose();
   }
 
+  Widget _bounded(Widget child) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 780),
+      child: child,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     watchDashboardAccount();
@@ -195,57 +205,95 @@ class _WebPanelSettingsState
     final l10n = AppLocalizations.of(context);
     final generation = interactionGeneration;
     final android = defaultTargetPlatform == TargetPlatform.android;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.webPanelSettings),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 780),
-            child: _expired
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(l10n.dashboardWidgetPickerExpired),
+    return ServiceRootScaffold(
+      title: l10n.webPanelSettings,
+      slivers: [
+        if (_expired)
+          SliverFilledMessage(child: Text(l10n.dashboardWidgetPickerExpired))
+        else
+          SliverSafeArea(
+            top: false,
+            sliver: SliverList.list(
+              children: [
+                _bounded(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Text(l10n.webPanelSessionHint),
+                  ),
+                ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    header: Semantics(
+                      key: const ValueKey('web-settings-content-header'),
+                      header: true,
+                      child: Text(l10n.webPanelSettings),
                     ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(20),
                     children: [
-                      Text(l10n.webPanelSessionHint),
-                      const SizedBox(height: 20),
-                      Text(l10n.webPanelStartUrl),
-                      const SizedBox(height: 8),
-                      CupertinoTextField(
-                        key: const ValueKey('web-settings-url'),
-                        controller: _url,
-                        keyboardType: TextInputType.url,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        maxLength: 4096,
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(l10n.webPanelStartUrl),
+                            const SizedBox(height: 8),
+                            Semantics(
+                              label: l10n.webPanelStartUrl,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: CupertinoTextField(
+                                  key: const ValueKey('web-settings-url'),
+                                  controller: _url,
+                                  keyboardType: TextInputType.url,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  maxLength: 4096,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(l10n.webPanelTitle),
+                            const SizedBox(height: 8),
+                            Semantics(
+                              label: l10n.webPanelTitle,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: CupertinoTextField(
+                                  key: const ValueKey('web-settings-title'),
+                                  controller: _title,
+                                  placeholder: l10n.webPanelTitle,
+                                  maxLength: 512,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      Text(l10n.webPanelTitle),
-                      const SizedBox(height: 8),
-                      CupertinoTextField(
-                        key: const ValueKey('web-settings-title'),
-                        controller: _title,
-                        maxLength: 512,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        l10n.webPanelOrigins,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(l10n.webPanelOriginHint),
+                    ],
+                  ),
+                ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    header: Text(l10n.webPanelOrigins),
+                    footer: Text(l10n.webPanelOriginHint),
+                    children: [
                       for (final origin in _origins)
                         Row(
                           children: [
-                            Expanded(child: Text(origin)),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text(origin),
+                              ),
+                            ),
                             CupertinoButton(
                               key: ValueKey('web-origin-remove-$origin'),
+                              minimumSize: const Size(48, 48),
                               onPressed: dashboardAction(
                                 () => setState(() => _origins.remove(origin)),
                               ),
@@ -253,80 +301,154 @@ class _WebPanelSettingsState
                             ),
                           ],
                         ),
-                      const SizedBox(height: 12),
-                      CupertinoTextField(
-                        key: const ValueKey('web-settings-origin'),
-                        controller: _origin,
-                        keyboardType: TextInputType.url,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        placeholder: 'https://login.example.com',
-                        maxLength: 4096,
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Semantics(
+                          label: l10n.webPanelOrigins,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: CupertinoTextField(
+                              key: const ValueKey('web-settings-origin'),
+                              controller: _origin,
+                              keyboardType: TextInputType.url,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              placeholder: 'https://login.example.com',
+                              maxLength: 4096,
+                            ),
+                          ),
+                        ),
                       ),
-                      CupertinoButton(
-                        onPressed: () => _addOrigin(generation),
-                        child: Text(l10n.webPanelOriginAdd),
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('web-settings-add-origin'),
+                        title: Text(l10n.webPanelOriginAdd),
+                        onTap: () => _addOrigin(generation),
                       ),
-                      const SizedBox(height: 16),
-                      MergeSemantics(
+                    ],
+                  ),
+                ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    header: Text(l10n.webPanelZoom),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             Expanded(child: Text(l10n.webPanelZoom)),
-                            CupertinoSwitch(
-                              key: const ValueKey('web-settings-zoom'),
-                              value: _zoom,
-                              onChanged: (value) {
-                                if (_valid(generation)) {
-                                  setState(() => _zoom = value);
-                                }
+                            FocusableActionDetector(
+                              shortcuts: const {
+                                SingleActivator(LogicalKeyboardKey.enter):
+                                    ActivateIntent(),
+                                SingleActivator(LogicalKeyboardKey.space):
+                                    ActivateIntent(),
                               },
+                              actions: {
+                                ActivateIntent: CallbackAction<ActivateIntent>(
+                                  onInvoke: (_) {
+                                    if (_valid(generation)) {
+                                      setState(() => _zoom = !_zoom);
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              },
+                              child: Semantics(
+                                key: const ValueKey('web-settings-zoom'),
+                                container: true,
+                                label: l10n.webPanelZoom,
+                                toggled: _zoom,
+                                onTap: () {
+                                  if (_valid(generation)) {
+                                    setState(() => _zoom = !_zoom);
+                                  }
+                                },
+                                child: SizedBox(
+                                  width: 60,
+                                  height: 48,
+                                  child: Center(
+                                    child: ExcludeSemantics(
+                                      child: CupertinoSwitch(
+                                        value: _zoom,
+                                        onChanged: (value) {
+                                          if (_valid(generation)) {
+                                            setState(() => _zoom = value);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Text('${l10n.webPanelTextSize}: $_textZoom%'),
-                      if (android)
-                        CupertinoSlider(
-                          key: const ValueKey('web-settings-text-zoom'),
-                          min: 75,
-                          max: 200,
-                          divisions: 5,
-                          value: _textZoom.toDouble(),
-                          onChanged: (value) {
-                            if (_valid(generation)) {
-                              setState(() => _textZoom = value.round());
-                            }
-                          },
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(l10n.webPanelTextSizeUnsupported),
-                        ),
-                      if (_error != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: CupertinoColors.systemRed.resolveFrom(
-                                context,
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('${l10n.webPanelTextSize}: $_textZoom%'),
+                            if (android)
+                              SizedBox(
+                                height: 48,
+                                child: CupertinoSlider(
+                                  key: const ValueKey('web-settings-text-zoom'),
+                                  min: 75,
+                                  max: 200,
+                                  divisions: 5,
+                                  value: _textZoom.toDouble(),
+                                  onChanged: (value) {
+                                    if (_valid(generation)) {
+                                      setState(() => _textZoom = value.round());
+                                    }
+                                  },
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(l10n.webPanelTextSizeUnsupported),
                               ),
-                            ),
-                          ),
+                          ],
                         ),
-                      const SizedBox(height: 20),
-                      CupertinoButton.filled(
-                        key: const ValueKey('web-settings-save'),
-                        onPressed: () => _save(generation),
-                        child: Text(l10n.commonSave),
                       ),
                     ],
                   ),
+                ),
+                if (_error != null)
+                  _bounded(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: CupertinoColors.systemRed.resolveFrom(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('web-settings-save'),
+                        title: Text(l10n.commonSave),
+                        onTap: () => _save(generation),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
