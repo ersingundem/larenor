@@ -7,7 +7,7 @@ from cryptography.exceptions import InvalidTag
 from ..errors import ApiError
 from ..services.transport import ServiceTransport, ProbeTransportError
 from . import storage
-from .models import Event, Policy, Update
+from .models import Event, HistoryResponse, Policy, Update
 
 
 class ComponentEgress:
@@ -55,8 +55,18 @@ class ComponentEgress:
                 (parsed.scheme, parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80)))
 
     def _event(self, c, state, actor, policy, correlation, reason):
-        event = Event(actorId=actor.id, serviceId=policy.serviceId, correlationId=correlation,
-                      policyRevision=policy.revision, reason=reason, timestamp=float(self.services.settings.clock()))
+        command, result = {
+            'policy_replaced': ('replace_egress_policy', 'accepted'),
+            'grant_missing': ('verify_service', 'denied'),
+            'dispatch_authorized': ('verify_service', 'authorized'),
+            'probe_completed': ('verify_service', 'verified'),
+            'probe_unconfirmed': ('verify_service', 'unconfirmed'),
+        }[reason]
+        event = Event(actorId=actor.id, serviceId=policy.serviceId,
+                      serviceRevision=policy.serviceRevision,
+                      correlationId=correlation, policyRevision=policy.revision,
+                      reason=reason, command=command, result=result,
+                      timestamp=float(self.services.settings.clock()))
         state.events = [*state.events[-255:], event]
         storage.save(c, self.key, self.scope, state)
         c.execute('INSERT INTO service_audit(event,action,status,timestamp,actor_id,target_id) VALUES(?,?,?,?,?,?)',
@@ -67,11 +77,24 @@ class ComponentEgress:
 
     @staticmethod
     def _response(state, policy):
-        return {'policy': policy.model_dump(), 'audit': [e.model_dump() for e in state.events if e.serviceId == policy.serviceId][-20:]}
+        return {'schemaVersion': 2, 'policy': policy.model_dump(),
+                'audit': [e.model_dump() for e in state.events
+                          if e.serviceId == policy.serviceId][-20:]}
 
     def read(self, actor, service_id):
         with self._tx(actor) as (c, state):
             return self._response(state, self._policy(state, self._connection(c, service_id)))
+
+    def history(self, actor, service_id):
+        with self._tx(actor) as (c, state):
+            connection = self._connection(c, service_id)
+            entries = [event for event in state.events
+                       if event.serviceId == connection.id][-20:]
+            return HistoryResponse(
+                service={'id': connection.id, 'revision': connection.revision},
+                entries=entries,
+                verified=True,
+            ).model_dump(mode='json')
 
     def update(self, actor, service_id, body):
         body = Update.model_validate(body)
