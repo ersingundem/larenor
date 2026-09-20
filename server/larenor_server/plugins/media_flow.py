@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from ..errors import ApiError
 from .media_flow_models import (
     MediaFlowAuthorityRequest,
+    MediaFlowDeliveryStatus,
     MEDIA_FLOW_PROVIDER_ORDER,
     MediaFlowObservation,
     MediaFlowReadRequest,
@@ -128,10 +129,149 @@ class MediaFlowManagement:
         payload = f"{media_key}\0{revision}\0{digest}".encode("ascii")
         return hmac.new(self._key, payload, hashlib.sha256).digest()
 
+    def _delivery_tag(self, media_key, operation_id, request_receipt_id,
+                      attempt):
+        payload = (
+            f"delivery\0{media_key}\0{operation_id}\0"
+            f"{request_receipt_id}\0{attempt}"
+        ).encode("ascii")
+        return hmac.new(self._key, payload, hashlib.sha256).digest()
+
+    def _file_tag(self, media_key, item_media_key, digest):
+        payload = (
+            f"file\0{media_key}\0{item_media_key}\0{digest}"
+        ).encode("ascii")
+        return hmac.new(self._key, payload, hashlib.sha256).digest()
+
+    @staticmethod
+    def _file_digest(proof):
+        encoded = json.dumps(
+            proof.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _delivery_for(self, media_key, observation):
+        delivery = observation.delivery
+        qbit = self._matching_items(media_key, observation.qbittorrent.items)
+        arr_source = (
+            observation.radarr
+            if media_key.startswith("movie:")
+            else observation.sonarr
+        )
+        arr = self._matching_items(media_key, arr_source.items)
+        jellyfin = self._matching_items(media_key, observation.jellyfin.items)
+        completed = {
+            item.mediaKey for item in qbit
+            if item.mediaKey is not None
+            and item.importedConfirmed
+            and item.state in {"complete", "seeding"}
+        }
+        imported = {item.mediaKey for item in arr if item.state == "available"}
+        playable = {
+            item.mediaKey for item in jellyfin if item.integrity == "playable"
+        }
+        if completed & imported & playable and delivery is None:
+            raise ApiError("media_flow_effect_uncertain", 409)
+        if delivery is None:
+            return None
+        if delivery.mediaKey != media_key:
+            raise ApiError("media_flow_authority_changed", 409)
+        if delivery.effectState != "verified":
+            raise ApiError("media_flow_effect_uncertain", 409)
+        return delivery
+
+    def _accept_delivery(self, connection, media_key, delivery):
+        if delivery is None:
+            return
+        row = connection.execute(
+            "SELECT operation_id,request_receipt_id,latest_attempt,"
+            "integrity_tag FROM media_flow_delivery_journal WHERE media_key=?",
+            (media_key,),
+        ).fetchone()
+        if row is not None:
+            expected = self._delivery_tag(
+                media_key,
+                row["operation_id"],
+                row["request_receipt_id"],
+                row["latest_attempt"],
+            )
+            if not hmac.compare_digest(expected, row["integrity_tag"]):
+                raise ApiError("media_flow_storage_unavailable", 503)
+            if (
+                delivery.operationId != row["operation_id"]
+                or delivery.requestReceiptId != row["request_receipt_id"]
+            ):
+                raise ApiError("media_flow_authority_changed", 409)
+            if delivery.retryAttempt < row["latest_attempt"]:
+                raise ApiError("media_flow_snapshot_replayed", 409)
+
+        retained = connection.execute(
+            "SELECT item_media_key,identity_digest,integrity_tag "
+            "FROM media_flow_file_journal WHERE flow_media_key=?",
+            (media_key,),
+        ).fetchall()
+        retained_by_key = {item["item_media_key"]: item for item in retained}
+        current_keys = {item.mediaKey for item in delivery.files}
+        if not set(retained_by_key).issubset(current_keys):
+            raise ApiError("media_flow_authority_changed", 409)
+        for item_key, retained_item in retained_by_key.items():
+            expected = self._file_tag(
+                media_key, item_key, retained_item["identity_digest"]
+            )
+            if not hmac.compare_digest(
+                expected, retained_item["integrity_tag"]
+            ):
+                raise ApiError("media_flow_storage_unavailable", 503)
+
+        for proof in delivery.files:
+            digest = self._file_digest(proof)
+            retained_item = retained_by_key.get(proof.mediaKey)
+            if (
+                retained_item is not None
+                and retained_item["identity_digest"] != digest
+            ):
+                raise ApiError("media_flow_authority_changed", 409)
+            if retained_item is None:
+                connection.execute(
+                    "INSERT INTO media_flow_file_journal("
+                    "flow_media_key,item_media_key,identity_digest,integrity_tag) "
+                    "VALUES(?,?,?,?)",
+                    (
+                        media_key,
+                        proof.mediaKey,
+                        digest,
+                        self._file_tag(media_key, proof.mediaKey, digest),
+                    ),
+                )
+
+        tag = self._delivery_tag(
+            media_key,
+            delivery.operationId,
+            delivery.requestReceiptId,
+            delivery.retryAttempt,
+        )
+        connection.execute(
+            "INSERT INTO media_flow_delivery_journal("
+            "media_key,operation_id,request_receipt_id,latest_attempt,"
+            "integrity_tag) VALUES(?,?,?,?,?) ON CONFLICT(media_key) DO "
+            "UPDATE SET latest_attempt=excluded.latest_attempt,"
+            "integrity_tag=excluded.integrity_tag",
+            (
+                media_key,
+                delivery.operationId,
+                delivery.requestReceiptId,
+                delivery.retryAttempt,
+                tag,
+            ),
+        )
+
     def _accept_high_water(self, media_key, observation):
         revision = observation.flowRevision
         digest = self._snapshot_digest(observation)
         tag = self._high_water_tag(media_key, revision, digest)
+        delivery = self._delivery_for(media_key, observation)
         try:
             with self.db.transaction() as connection:
                 row = connection.execute(
@@ -151,7 +291,9 @@ class MediaFlowManagement:
                     ):
                         raise ApiError("media_flow_snapshot_replayed", 409)
                     if revision == row["flow_revision"]:
+                        self._accept_delivery(connection, media_key, delivery)
                         return
+                self._accept_delivery(connection, media_key, delivery)
                 connection.execute(
                     "INSERT INTO media_flow_high_water("
                     "media_key,flow_revision,snapshot_digest,integrity_tag) "
@@ -354,6 +496,14 @@ class MediaFlowManagement:
             ),
             cls._stage("playable", playable_state, "jellyfin", observation),
         ]
+        delivery = (
+            MediaFlowDeliveryStatus(
+                retryAttempt=observation.delivery.retryAttempt,
+                fileCount=len(observation.delivery.files),
+            )
+            if observation.delivery is not None and observation.delivery.files
+            else None
+        )
         if playable_state == "complete":
             state = "playable"
         elif playable_state == "partial" or any(item.incomplete for item in seasons):
@@ -375,4 +525,5 @@ class MediaFlowManagement:
             stages=stages,
             sources=sources,
             seasons=seasons,
+            delivery=delivery,
         )

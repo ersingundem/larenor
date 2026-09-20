@@ -278,6 +278,16 @@ def test_hardlink_inode_and_canonical_mapping_prove_one_secret_free_file_chain(
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ))
 
+    server[0].state.core.media_flow.provider = Provider([
+        observation(revision=5, delivery=False)])
+    unproved = server[1].post(
+        BASE + "/authority",
+        headers=auth(pair),
+        json={"requestId": "e" * 32, "mediaKey": "movie:tmdb:603"},
+    )
+    assert unproved.status_code == 409
+    assert unproved.json()["error"]["code"] == "media_flow_effect_uncertain"
+
 
 @pytest.mark.parametrize("field,value", [
     ("containerPath", "/data/downloads/../private/movie.mkv"),
@@ -298,6 +308,20 @@ def test_container_host_mapping_resolves_only_the_relative_canonical_suffix():
     evidence = MediaFlowPathEvidence.model_validate(raw)
     assert evidence.resolved_host_path() == (
         "/srv/larenor/media/downloads/movies/The.Matrix.mkv")
+
+    same_target = delivery_evidence()["files"][0]
+    same_target["paths"][0] = {
+        **same_target["paths"][1],
+        "provider": "qbittorrent",
+    }
+    with pytest.raises(ValueError):
+        MediaFlowObservation.model_validate({
+            **observation().model_dump(mode="python"),
+            "delivery": {
+                **delivery_evidence(),
+                "files": [same_target],
+            },
+        })
 
 
 def test_interrupted_retry_is_idempotent_and_uncertain_effect_fails_closed(
@@ -340,30 +364,78 @@ def test_interrupted_retry_is_idempotent_and_uncertain_effect_fails_closed(
     assert accepted["flowRevision"] == 6
 
 
-def test_retry_rejects_duplicate_or_rebound_request_import_and_playback(
-        server):
+@pytest.mark.parametrize("rebound", [
+    "request", "torrent", "import", "playback", "inode",
+])
+def test_retry_rejects_rebound_request_import_playback_or_file_identity(
+        server, rebound):
     pair = ready(server)
     first = authority(
         server, pair, "movie:tmdb:603", Provider([observation()]))
     assert read(server, pair, first).status_code == 200
 
-    rebound = observation(revision=5, attempt=2).model_dump(mode="python")
-    rebound["delivery"]["requestReceiptId"] = "5" * 32
-    changed_provider = Provider([MediaFlowObservation.model_validate(rebound)])
+    changed = observation(revision=5, attempt=2).model_dump(mode="python")
+    if rebound == "request":
+        changed["delivery"]["requestReceiptId"] = "5" * 32
+    elif rebound == "torrent":
+        changed["delivery"]["files"][0]["torrentId"] = "b" * 40
+        changed["qbittorrent"]["items"][0]["torrentId"] = "b" * 40
+    elif rebound == "import":
+        changed["delivery"]["files"][0]["importReceiptId"] = "5" * 32
+    elif rebound == "playback":
+        changed["delivery"]["files"][0]["playbackItemId"] = "5" * 32
+        changed["jellyfin"]["items"][0]["itemId"] = "5" * 32
+    else:
+        for path in changed["delivery"]["files"][0]["paths"]:
+            path["inode"] = 9002
+    changed_provider = Provider([MediaFlowObservation.model_validate(changed)])
     server[0].state.core.media_flow.provider = changed_provider
-    changed = server[1].post(
+    response = server[1].post(
         BASE + "/authority",
         headers=auth(pair),
         json={"requestId": "e" * 32, "mediaKey": "movie:tmdb:603"},
     )
-    assert changed.status_code == 409
-    assert changed.json()["error"]["code"] == "media_flow_authority_changed"
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "media_flow_authority_changed"
+
+
+def test_retry_rejects_duplicate_season_request_import_and_playback():
 
     duplicate = observation(revision=5, attempt=2).model_dump(mode="python")
     duplicate["delivery"]["files"].append(
         duplicate["delivery"]["files"][0])
     with pytest.raises(ValueError):
         MediaFlowObservation.model_validate(duplicate)
+
+    duplicate_season = observation(series=True).model_dump(mode="python")
+    duplicate_season["seerr"]["requests"][0]["requestedSeasons"] = [1, 1]
+    with pytest.raises(ValueError):
+        MediaFlowObservation.model_validate(duplicate_season)
+
+
+@pytest.mark.parametrize("tamper", [
+    "UPDATE media_flow_delivery_journal SET integrity_tag=zeroblob(32)",
+    "UPDATE media_flow_file_journal SET integrity_tag=zeroblob(32)",
+])
+def test_retry_journal_tamper_fails_closed_without_private_evidence(
+        server, tamper):
+    pair = ready(server)
+    current = authority(
+        server, pair, "movie:tmdb:603", Provider([observation()]))
+    assert read(server, pair, current).status_code == 200
+    with server[0].state.core.db.transaction() as connection:
+        connection.execute(tamper)
+    server[0].state.core.media_flow.provider = Provider([
+        observation(revision=5, attempt=2)])
+    response = server[1].post(
+        BASE + "/authority",
+        headers=auth(pair),
+        json={"requestId": "e" * 32, "mediaKey": "movie:tmdb:603"},
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == (
+        "media_flow_storage_unavailable")
+    assert "/srv/larenor" not in response.text
 
 
 def authority(server, pair, media_key, provider):
