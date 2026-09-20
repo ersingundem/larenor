@@ -80,6 +80,14 @@ class NativeCiScopeTest(unittest.TestCase):
                 self.assertEqual(checkout["with"]["fetch-depth"], 0)
                 decide = next(step for step in scope["steps"] if step.get("id") == "scope")
                 self.assertIn("tool/native_ci_scope.py", decide["run"])
+                self.assertIn(
+                    'git show "$PR_BASE_SHA:tool/native_ci_scope.py"',
+                    decide["run"],
+                )
+                self.assertIn(
+                    'python3 "$RUNNER_TEMP/native_ci_scope.py"',
+                    decide["run"],
+                )
                 self.assertEqual(
                     scope["env"]["PR_BASE_SHA"],
                     "${{ github.event.pull_request.base.sha }}",

@@ -44,7 +44,7 @@
         {
           "name": "Decide whether native evidence changed",
           "id": "scope",
-          "run": "python3 tool/native_ci_scope.py --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\""
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  pull_request)\n    git show \"$PR_BASE_SHA:tool/native_ci_scope.py\" > \"$RUNNER_TEMP/native_ci_scope.py\"\n    python3 \"$RUNNER_TEMP/native_ci_scope.py\" --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\"\n    ;;\n  workflow_dispatch)\n    python3 tool/native_ci_scope.py --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\"\n    ;;\n  *) exit 1;;\nesac"
         }
       ]
     },
