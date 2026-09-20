@@ -13,7 +13,7 @@ secret, home server, or production credential is used.
 
 | Criterion | Automated evidence |
 | --- | --- |
-| Pinned encrypted terminal | A fresh Ed25519 host key and passphrase-encrypted Ed25519 client key perform a real SSH handshake. The Dart engine accepts only the exact runtime `ssh-ed25519` SHA-256 pin, opens an `xterm-256color` PTY, preserves `İstanbul` as UTF-8, and observes the requested 101 by 37 terminal size. |
+| Pinned encrypted terminal | A fresh Ed25519 host key and passphrase-encrypted Ed25519 client key perform a real SSH handshake. The Dart engine accepts only the exact runtime `ssh-ed25519` SHA-256 pin, opens an `xterm-256color` PTY, preserves `İstanbul` as UTF-8, and observes the requested 101 by 37 terminal size. The same check runs the terminal tablet surface at EN/TR, 600/1280 pixels and 2x text with 48 dp keyboard-reachable trust controls plus native focus retirement for DeX. |
 | Bounded SFTP ownership | The production transport lists at most two entries and reports truncation, downloads a known file, uploads with exclusive-create semantics, round-trips its bytes, rejects an over-limit write before transfer, and aborts a one MiB read when ownership retires. Closing the owner waits for the SSH/SFTP connection to finish. |
 | Fail-closed tunnel and replay boundary | A deliberately wrong host pin fails after one socket attempt. A real loopback-only SSH tunnel reaches only the fixture HTTP endpoint; an authority callback that throws retires the listener and accepted socket, and close completion waits for both listener and server closure before the port refuses connections. Password authentication rechecks current ownership before returning the credential. Existing focused session, SFTP, tunnel, jump-host, and MFA tests prove peer loss, late completion, cancellation, separate hop pins/credentials, one-shot challenges, and zero automatic command retry. |
 
@@ -27,10 +27,11 @@ callbacks as terminal without reconnecting.
 
 Local protocol verification used a disposable OpenSSH 10.3p1 loopback server:
 all three native tests passed against the production engines. The portable
-focused gate also passed 27 controller tests, with the three native tests
-explicitly skipped when fixture variables are absent. The workflow policy has
-three passing checks and rejects floating actions, a floating OpenSSH package,
-public binds, password/root login, unbounded sessions, or repository secrets.
+focused gate also covers the controller and tablet panel suites, with the three
+native tests explicitly skipped when fixture variables are absent. The workflow
+policy has three passing checks and rejects floating actions, a floating OpenSSH
+package, public binds, password/root login, unbounded sessions, or repository
+secrets.
 
 The authoritative Ubuntu OpenSSH 9.6p1 result must come from the new
 `F63 SSH native acceptance` GitHub check on the exact PR head. Until that check

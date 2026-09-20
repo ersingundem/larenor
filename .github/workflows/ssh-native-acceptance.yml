@@ -133,8 +133,11 @@ jobs:
           flutter test --reporter expanded --timeout 60s \
             test/features/remote_access/ssh/ssh_native_fixture_test.dart \
             test/features/remote_access/ssh/ssh_session_controller_test.dart \
+            test/features/remote_access/ssh/ssh_terminal_panel_test.dart \
             test/features/remote_access/ssh/sftp_controller_test.dart \
-            test/features/remote_access/ssh/ssh_tunnel_controller_test.dart
+            test/features/remote_access/ssh/sftp_browser_panel_test.dart \
+            test/features/remote_access/ssh/ssh_tunnel_controller_test.dart \
+            test/features/remote_access/ssh/ssh_tunnel_panel_test.dart
       - name: Analyze native acceptance boundary
         run: |
           flutter analyze \

@@ -39,6 +39,9 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         self.assertIn("MaxSessions 4", self.raw)
         self.assertIn("MaxStartups 4:30:4", self.raw)
         self.assertIn("ssh_native_fixture_test.dart", self.raw)
+        self.assertIn("ssh_terminal_panel_test.dart", self.raw)
+        self.assertIn("sftp_browser_panel_test.dart", self.raw)
+        self.assertIn("ssh_tunnel_panel_test.dart", self.raw)
         self.assertNotRegex(self.raw, r"\$\{\{\s*secrets\.")
         self.assertNotIn("0.0.0.0", self.raw)
 
