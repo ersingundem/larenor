@@ -194,14 +194,17 @@ void main() {
 
       final requestId = '9' * 32;
       await press(tester, 'core-ha-activity-explain-$requestId');
-      expect(find.text('Larenor rule'), findsWidgets);
-      expect(find.text('Explicit stored rule execution'), findsWidgets);
-      expect(find.text('3' * 32), findsOneWidget);
-      expect(find.text('4'), findsOneWidget);
-      expect(find.text('f' * 32), findsOneWidget);
-      expect(find.text('2' * 32), findsOneWidget);
-      expect(find.text('Turn on'), findsWidgets);
-      expect(find.text('Accepted'), findsWidgets);
+      final entry = keyed('core-ha-activity-entry-$requestId');
+      Finder inEntry(String value) =>
+          find.descendant(of: entry, matching: find.text(value));
+      expect(inEntry('Larenor rule'), findsOneWidget);
+      expect(inEntry('Explicit stored rule execution'), findsOneWidget);
+      expect(inEntry('3' * 32), findsOneWidget);
+      expect(inEntry('4'), findsOneWidget);
+      expect(inEntry('f' * 32), findsOneWidget);
+      expect(inEntry('2' * 32), findsOneWidget);
+      expect(inEntry('Turn on'), findsOneWidget);
+      expect(inEntry('Accepted'), findsWidgets);
       expect(
         find.text(
           'This actor explicitly ran the stored rule. The trace links the '
@@ -234,7 +237,7 @@ void main() {
         (
           locale: 'en',
           width: 600.0,
-          explain: 'Reason and trace',
+          explain: 'Why and trace',
           copy: 'Copy transaction trace',
         ),
         (
@@ -244,6 +247,8 @@ void main() {
           copy: 'İşlem izini kopyala',
         ),
       ]) {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
         final harness = HaUiHarness()..role = 'member';
         useRuleAttribution(harness);
         await openSnapshotActivity(

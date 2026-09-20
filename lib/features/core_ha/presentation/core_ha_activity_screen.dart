@@ -122,12 +122,15 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
   String _source(CoreHaAttributionSource value, AppLocalizations l) =>
       switch (value) {
         CoreHaAttributionSource.coreApi => l.coreHaActivitySourceCore,
+        CoreHaAttributionSource.coreRule => l.coreHaActivitySourceRule,
         CoreHaAttributionSource.unknown => l.commonUnknown,
       };
   String _reason(CoreHaAttributionReason value, AppLocalizations l) =>
       switch (value) {
         CoreHaAttributionReason.explicitCommand =>
           l.coreHaActivityReasonExplicit,
+        CoreHaAttributionReason.explicitRuleExecution =>
+          l.coreHaActivityReasonExplicitRule,
         CoreHaAttributionReason.unknown => l.commonUnknown,
       };
   String _result(CoreHaDispatchState value, AppLocalizations l) =>
@@ -139,10 +142,19 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
       };
 
   String _explanation(CoreHaHistoryEntry entry, AppLocalizations l) =>
-      entry.attribution.source == CoreHaAttributionSource.coreApi &&
-          entry.attribution.reason == CoreHaAttributionReason.explicitCommand
-      ? l.coreHaActivityExplanationExplicit
-      : l.coreHaActivityExplanationUnknown;
+      switch ((entry.attribution.source, entry.attribution.reason)) {
+        (
+          CoreHaAttributionSource.coreApi,
+          CoreHaAttributionReason.explicitCommand,
+        ) =>
+          l.coreHaActivityExplanationExplicit,
+        (
+          CoreHaAttributionSource.coreRule,
+          CoreHaAttributionReason.explicitRuleExecution,
+        ) =>
+          l.coreHaActivityExplanationRule,
+        _ => l.coreHaActivityExplanationUnknown,
+      };
 
   Widget _message(String key, String text) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -444,6 +456,13 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
                       l.coreHaActivityTrace,
                       entry.attribution.correlationId,
                     ),
+                    if (entry.attribution.ruleId case final ruleId?) ...[
+                      _line(l.coreHaActivityRule, ruleId),
+                      _line(
+                        l.coreHaActivityRuleRevision,
+                        '${entry.attribution.ruleRevision}',
+                      ),
+                    ],
                     _line(
                       l.coreHaActivityService,
                       serviceId ?? l.coreHaActivityServiceNotRecorded,
