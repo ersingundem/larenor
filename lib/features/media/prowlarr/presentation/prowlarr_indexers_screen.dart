@@ -7,6 +7,8 @@ import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/theme/spacing.dart';
 
 class ProwlarrIndexersScreen extends ConsumerWidget {
@@ -57,67 +59,104 @@ class _IndexersList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final indexersAsync = ref.watch(prowlarrIndexersProvider);
     final client = ref.watch(prowlarrClientProvider);
+    final l10n = AppLocalizations.of(context);
 
     return ServiceRootScaffold(
       title: 'Prowlarr',
-      leading: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => ref.invalidate(prowlarrIndexersProvider),
-        child: const Icon(CupertinoIcons.refresh),
-      ),
-      slivers: indexersAsync.when(
-        loading: () => const [
-          SliverFilledMessage(child: CupertinoActivityIndicator()),
-        ],
-        error: (error, _) => [
-          SliverFilledMessage(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('prowlarr-indexers-section-title'),
+              container: true,
+              header: true,
+              child: const Text('Prowlarr'),
             ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('prowlarr-indexers-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: () => ref.invalidate(prowlarrIndexersProvider),
+              ),
+            ],
           ),
-        ],
-        data: (indexers) {
-          if (indexers.isEmpty) {
+        ),
+        ...indexersAsync.when(
+          loading: () => const [
+            SliverFilledMessage(child: CupertinoActivityIndicator()),
+          ],
+          error: (error, _) => [
+            SliverFilledMessage(
+              child: Text(l10n.adminLoadError(error.toString())),
+            ),
+          ],
+          data: (indexers) {
+            if (indexers.isEmpty) {
+              return [
+                SliverFilledMessage(
+                  child: Text(l10n.prowlarrNoIndexersConfigured),
+                ),
+              ];
+            }
             return [
-              SliverFilledMessage(
-                child: Text(
-                  AppLocalizations.of(context).prowlarrNoIndexersConfigured,
+              SliverPadding(
+                padding: Insets.page,
+                sliver: SliverList.builder(
+                  itemCount: indexers.length,
+                  itemBuilder: (context, index) {
+                    final indexer = indexers[index];
+                    final toggle = client == null
+                        ? null
+                        : (bool value) async {
+                            await client.setIndexerEnabled(indexer, value);
+                            ref.invalidate(prowlarrIndexersProvider);
+                          };
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: Gap.sm),
+                      child: SettingsSection(
+                        margin: EdgeInsets.zero,
+                        children: [
+                          CupertinoListTile(
+                            title: Text(indexer.name),
+                            subtitle: Text(
+                              '${indexer.protocol} · priority ${indexer.priority}',
+                            ),
+                            trailing: Semantics(
+                              key: ValueKey(
+                                'prowlarr-indexer-${indexer.id}-toggle',
+                              ),
+                              container: true,
+                              label: indexer.name,
+                              toggled: indexer.enabled,
+                              enabled: toggle != null,
+                              onTap: toggle == null
+                                  ? null
+                                  : () => toggle(!indexer.enabled),
+                              child: SizedBox(
+                                width: 60,
+                                height: 48,
+                                child: Center(
+                                  child: ExcludeSemantics(
+                                    child: CupertinoSwitch(
+                                      value: indexer.enabled,
+                                      onChanged: toggle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ];
-          }
-          return [
-            SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: Gap.sm),
-                CupertinoListSection.insetGrouped(
-                  children: [
-                    for (final indexer in indexers)
-                      CupertinoListTile(
-                        title: Text(indexer.name),
-                        subtitle: Text(
-                          '${indexer.protocol} · priority ${indexer.priority}',
-                        ),
-                        trailing: CupertinoSwitch(
-                          value: indexer.enabled,
-                          onChanged: client == null
-                              ? null
-                              : (value) async {
-                                  await client.setIndexerEnabled(
-                                    indexer,
-                                    value,
-                                  );
-                                  ref.invalidate(prowlarrIndexersProvider);
-                                },
-                        ),
-                      ),
-                  ],
-                ),
-              ]),
-            ),
-          ];
-        },
-      ),
+          },
+        ),
+      ],
     );
   }
 }
