@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../health/data/integration_health.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_session_guard.dart';
 
@@ -14,8 +19,10 @@ class KeeneticPortForwardingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     if (!ref.watch(directHomeAccessProvider).isCurrent) {
-      return CupertinoPageScaffold(
-        child: Center(child: Text(l10n.commonNotConnected)),
+      return ServiceRouteStatusScaffold(
+        title: 'Keenetic',
+        label: l10n.commonNotConnected,
+        statusKey: const ValueKey('keenetic-ports-unavailable'),
       );
     }
     final connectionAsync = ref.watch(keeneticConnectionProvider);
@@ -24,16 +31,23 @@ class KeeneticPortForwardingScreen extends ConsumerWidget {
       skipLoadingOnRefresh: false,
       skipLoadingOnReload: false,
       skipError: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => ServiceRouteStatusScaffold(
+        title: l10n.keeneticPortForwarding,
+        label: l10n.commonLoading,
+        statusKey: const ValueKey('keenetic-ports-loading'),
+        loading: true,
       ),
-      error: (error, _) => CupertinoPageScaffold(
-        child: Center(child: Text(l10n.healthReadError)),
+      error: (error, _) => ServiceRouteStatusScaffold(
+        title: l10n.keeneticPortForwarding,
+        label: l10n.healthReadError,
+        statusKey: const ValueKey('keenetic-ports-error'),
       ),
       data: (config) {
         if (config == null) {
-          return CupertinoPageScaffold(
-            child: Center(child: Text(l10n.commonNotConnected)),
+          return ServiceRouteStatusScaffold(
+            title: l10n.keeneticPortForwarding,
+            label: l10n.navigationUnconfigured,
+            statusKey: const ValueKey('keenetic-ports-unconfigured'),
           );
         }
         return const _RulesList();
@@ -54,69 +68,104 @@ class _RulesListState extends KeeneticSessionState<_RulesList> {
     watchKeeneticSession();
     final generation = sessionGeneration;
     if (!keeneticAvailable) {
-      return CupertinoPageScaffold(
-        child: Center(
-          child: Text(AppLocalizations.of(context).commonNotConnected),
-        ),
+      final l10n = AppLocalizations.of(context);
+      return ServiceRouteStatusScaffold(
+        title: l10n.keeneticPortForwarding,
+        label: l10n.commonNotConnected,
+        statusKey: const ValueKey('keenetic-ports-unavailable'),
       );
     }
     final rulesAsync = ref.watch(keeneticPortForwardingProvider);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(AppLocalizations.of(context).keeneticPortForwarding),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            if (!keeneticCurrent(generation)) return;
-            if (ref.read(keeneticClientProvider).hasError) {
-              ref.invalidate(keeneticClientProvider);
-            }
-            ref.invalidate(keeneticPortForwardingProvider);
-          },
-          child: const Icon(CupertinoIcons.refresh),
-        ),
+    final l10n = AppLocalizations.of(context);
+    void refresh() {
+      if (!keeneticCurrent(generation)) return;
+      if (ref.read(keeneticClientProvider).hasError) {
+        ref.invalidate(keeneticClientProvider);
+      }
+      ref.invalidate(keeneticPortForwardingProvider);
+    }
+
+    return rulesAsync.when(
+      loading: () => ServiceRouteStatusScaffold(
+        title: l10n.keeneticPortForwarding,
+        label: l10n.commonLoading,
+        statusKey: const ValueKey('keenetic-ports-loading'),
+        loading: true,
       ),
-      child: SafeArea(
-        child: rulesAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) =>
-              Center(child: Text(AppLocalizations.of(context).healthReadError)),
-          data: (rules) {
-            if (rules.isEmpty) {
-              return Center(
-                child: Text(
-                  AppLocalizations.of(context).keeneticNoForwardingRules,
+      error: (error, _) => ServiceRouteStatusScaffold(
+        title: l10n.keeneticPortForwarding,
+        label: l10n.healthReadError,
+        statusKey: const ValueKey('keenetic-ports-error'),
+        actionLabel: l10n.commonRetry,
+        actionKey: const ValueKey('keenetic-ports-refresh'),
+        onAction: refresh,
+      ),
+      data: (rules) {
+        if (rules.isEmpty) {
+          return ServiceRouteStatusScaffold(
+            title: l10n.keeneticPortForwarding,
+            label: l10n.keeneticNoForwardingRules,
+            statusKey: const ValueKey('keenetic-ports-empty'),
+            actionLabel: l10n.commonRefresh,
+            actionKey: const ValueKey('keenetic-ports-refresh'),
+            onAction: refresh,
+          );
+        }
+        return ServiceRootScaffold(
+          title: l10n.keeneticPortForwarding,
+          trailing: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: refresh,
+              child: Icon(
+                CupertinoIcons.refresh,
+                semanticLabel: l10n.commonRefresh,
+              ),
+            ),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: SettingsSection(
+                header: Semantics(
+                  key: const ValueKey('keenetic-ports-heading'),
+                  container: true,
+                  header: true,
+                  child: Text(l10n.keeneticPortForwarding),
                 ),
-              );
-            }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
-                SettingsSection(
-                  footer: Text(
-                    AppLocalizations.of(context).keeneticReadOnlyHint,
+                footer: Text(l10n.keeneticReadOnlyHint),
+                children: [
+                  const CupertinoListTile(
+                    title: IntegrationHealthStatus(
+                      id: IntegrationId.keenetic,
+                      configured: true,
+                    ),
                   ),
-                  children: [
-                    for (final rule in rules)
-                      CupertinoListTile(
-                        leading: const Icon(
-                          CupertinoIcons.arrow_right_arrow_left,
-                        ),
-                        title: Text(rule.label),
-                        subtitle: rule.destination != null
-                            ? Text(
-                                '${rule.protocol.toUpperCase()}${rule.portRange == null ? '' : ' ${rule.portRange}'} → ${rule.destination}',
-                              )
-                            : null,
+                  SettingsActionTile(
+                    buttonKey: const ValueKey('keenetic-ports-refresh'),
+                    leading: const Icon(CupertinoIcons.refresh),
+                    title: Text(l10n.commonRefresh),
+                    onTap: refresh,
+                  ),
+                  for (final rule in rules)
+                    CupertinoListTile(
+                      leading: const Icon(
+                        CupertinoIcons.arrow_right_arrow_left,
                       ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+                      title: Text(rule.label),
+                      subtitle: rule.destination != null
+                          ? Text(
+                              '${rule.protocol.toUpperCase()}${rule.portRange == null ? '' : ' ${rule.portRange}'} → ${rule.destination}',
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
