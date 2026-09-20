@@ -508,32 +508,52 @@ void main() {
     },
   );
 
-  testWidgets(
-    'hidden power callback cannot open OS settings and missing OEM action is visible',
-    (tester) async {
-      final h = _Harness();
-      await h.mount(tester, power: true);
-      final l10n = h.labels(tester);
-      final open = tester
-          .widget<CupertinoButton>(
-            find.widgetWithText(CupertinoButton, l10n.localAudioOpenBattery),
-          )
-          .onPressed!;
-      h.visible.value = false;
-      await _frames(tester);
-      open();
-      await _frames(tester);
-      expect(h.bridge.batteryOpens, 0);
-      h.visible.value = true;
-      h.bridge.settingsAvailable = false;
-      await _frames(tester);
-      open();
-      await _frames(tester);
-      expect(h.bridge.batteryOpens, 1);
-      expect(find.text(l10n.localAudioSettingsUnavailable), findsOneWidget);
-      await h.unmount(tester);
-    },
-  );
+  for (final authorityLoss in ['background', 'offstage']) {
+    testWidgets(
+      '$authorityLoss retires captured power callback after visibility returns',
+      (tester) async {
+        final h = _Harness();
+        await h.mount(tester, power: true);
+        final l10n = h.labels(tester);
+        final open = tester
+            .widget<CupertinoButton>(
+              find.widgetWithText(CupertinoButton, l10n.localAudioOpenBattery),
+            )
+            .onPressed!;
+        if (authorityLoss == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+        } else {
+          h.visible.value = false;
+        }
+        await _frames(tester);
+        if (authorityLoss == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        } else {
+          h.visible.value = true;
+        }
+        h.bridge.settingsAvailable = false;
+        await _frames(tester);
+        open();
+        await _frames(tester);
+        expect(h.bridge.batteryOpens, 0);
+
+        final currentOpen = tester
+            .widget<CupertinoButton>(
+              find.widgetWithText(CupertinoButton, l10n.localAudioOpenBattery),
+            )
+            .onPressed!;
+        currentOpen();
+        await _frames(tester);
+        expect(h.bridge.batteryOpens, 1);
+        expect(find.text(l10n.localAudioSettingsUnavailable), findsOneWidget);
+        await h.unmount(tester);
+      },
+    );
+  }
 
   for (final device in [
     (name: 'phone', size: const Size(320, 1100), scale: 2.0),
