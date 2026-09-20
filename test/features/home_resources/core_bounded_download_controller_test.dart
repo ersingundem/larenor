@@ -442,69 +442,115 @@ void main() {
     },
   );
 
+  testWidgets('failed cancel and readback discard partial evidence', (
+    tester,
+  ) async {
+    final harness = ResourceHarness();
+    await harness.mount(tester);
+    await harness.signIn();
+    await flush(tester);
+    final page = _page(), target = page.entries.last;
+    final client = _CancelableResumeClient(deleteSucceeds: false);
+    final requestIds = <String>[
+      _CancelableResumeClient.firstId,
+      _CancelableResumeClient.secondId,
+    ].iterator;
+    final controller = CoreBoundedDownloadController(
+      harness.home(tester),
+      (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        client: client,
+        requestId: () {
+          requestIds.moveNext();
+          return requestIds.current;
+        },
+      ),
+      CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+      () => harness.now,
+      () => true,
+    );
+    addTearDown(controller.dispose);
+    controller.setVisible(true);
+
+    await tester.runAsync(
+      () => controller.download(
+        target,
+        userRevision: page.userRevision,
+        isCurrent: () => true,
+      ),
+    );
+    expect(controller.canResume(target, page.userRevision), isTrue);
+    await tester.runAsync(() async {
+      final resuming = controller.resume(
+        target,
+        userRevision: page.userRevision,
+        isCurrent: () => true,
+      );
+      for (var attempt = 0; attempt < 20 && !controller.canCancel; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(controller.canCancel, isTrue);
+      await controller.cancel(isCurrent: () => true);
+      await resuming;
+    });
+    expect(controller.canResume(target, page.userRevision), isFalse);
+    expect(controller.receiptTrusted, isFalse);
+
+    controller.retainAuthority(page.entries, page.userRevision + 1);
+    expect(controller.phase, CoreBoundedDownloadPhase.idle);
+    expect(controller.canResume(target, page.userRevision), isFalse);
+    controller.setVisible(false);
+    expect(controller.phase, CoreBoundedDownloadPhase.idle);
+  });
+
   testWidgets(
-    'failed cancel and readback discard partial evidence; revision retirement clears verified partial',
+    'verified partial is memory-only across lifecycle and revision retirement',
     (tester) async {
       final harness = ResourceHarness();
       await harness.mount(tester);
       await harness.signIn();
       await flush(tester);
       final page = _page(), target = page.entries.last;
-      final client = _CancelableResumeClient(deleteSucceeds: false);
-      final requestIds = <String>[
-        _CancelableResumeClient.firstId,
-        _CancelableResumeClient.secondId,
-      ].iterator;
-      final controller = CoreBoundedDownloadController(
-        harness.home(tester),
-        (endpoint) => CoreBoundedDownloadApi(
-          endpoint: endpoint,
-          client: client,
-          requestId: () {
-            requestIds.moveNext();
-            return requestIds.current;
-          },
-        ),
-        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
-        () => harness.now,
-        () => true,
-      );
-      addTearDown(controller.dispose);
-      controller.setVisible(true);
 
-      await tester.runAsync(
-        () => controller.download(
-          target,
-          userRevision: page.userRevision,
-          isCurrent: () => true,
-        ),
-      );
-      expect(controller.canResume(target, page.userRevision), isTrue);
-      await tester.runAsync(() async {
-        final resuming = controller.resume(
-          target,
-          userRevision: page.userRevision,
-          isCurrent: () => true,
+      Future<CoreBoundedDownloadController> interruptedController() async {
+        final client = _CancelableResumeClient();
+        final controller = CoreBoundedDownloadController(
+          harness.home(tester),
+          (endpoint) => CoreBoundedDownloadApi(
+            endpoint: endpoint,
+            client: client,
+            requestId: () => _CancelableResumeClient.firstId,
+          ),
+          CoreBoundedDownloadFileAccess(
+            save: (_, _, _) async => throw StateError('SAF must not run'),
+          ),
+          () => harness.now,
+          () => true,
         );
-        for (
-          var attempt = 0;
-          attempt < 20 && !controller.canCancel;
-          attempt++
-        ) {
-          await Future<void>.delayed(const Duration(milliseconds: 5));
-        }
-        expect(controller.canCancel, isTrue);
-        await controller.cancel(isCurrent: () => true);
-        await resuming;
-      });
-      expect(controller.canResume(target, page.userRevision), isFalse);
-      expect(controller.receiptTrusted, isFalse);
+        controller.setVisible(true);
+        await tester.runAsync(
+          () => controller.download(
+            target,
+            userRevision: page.userRevision,
+            isCurrent: () => true,
+          ),
+        );
+        expect(controller.phase, CoreBoundedDownloadPhase.interrupted);
+        expect(controller.canResume(target, page.userRevision), isTrue);
+        return controller;
+      }
 
-      controller.retainAuthority(page.entries, page.userRevision + 1);
-      expect(controller.phase, CoreBoundedDownloadPhase.idle);
-      expect(controller.canResume(target, page.userRevision), isFalse);
-      controller.setVisible(false);
-      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+      final lifecycle = await interruptedController();
+      lifecycle.setVisible(false);
+      expect(lifecycle.phase, CoreBoundedDownloadPhase.idle);
+      expect(lifecycle.canResume(target, page.userRevision), isFalse);
+      lifecycle.dispose();
+
+      final revision = await interruptedController();
+      revision.retainAuthority(page.entries, page.userRevision + 1);
+      expect(revision.phase, CoreBoundedDownloadPhase.idle);
+      expect(revision.canResume(target, page.userRevision), isFalse);
+      revision.dispose();
     },
   );
 
