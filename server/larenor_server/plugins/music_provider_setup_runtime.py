@@ -48,7 +48,7 @@ class MusicProviderSetupRuntime:
             raw = response.read(65537)
             if response.status != 200 or len(raw) > 65536:
                 raise ValueError()
-            # Music Assistant 2.10.2 POST /api returns the command result
+            # Music Assistant 2.10.4 POST /api returns the command result
             # directly; only its WebSocket transport adds result envelopes.
             parsed = json.loads(raw)
             self._check(deadline, cancelled)

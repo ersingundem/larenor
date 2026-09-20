@@ -56,6 +56,7 @@ class MusicAssistantManagedWorkflowPolicyTest(unittest.TestCase):
         self.assertIn("test_music_provider_setups.py", steps[contract]["run"])
         self.assertIn("test_music_provider_worker_runtime.py", steps[contract]["run"])
         self.assertIn("test_music_playback_runtime.py", steps[contract]["run"])
+        self.assertIn("test_plugin_catalog.py", steps[contract]["run"])
         script = steps[native]["run"]
         self.assertIn("sudo --non-interactive env -i", script)
         self.assertIn("-m tool.music_assistant_managed_ci --run-ephemeral-ci", script)

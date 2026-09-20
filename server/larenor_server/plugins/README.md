@@ -67,7 +67,7 @@ release or LinuxServer recipe revision, not an inferred build attestation.
 | Sonarr | `4.0.19.2979` / `4.0.19.2979-ls323` | [LinuxServer recipe](https://github.com/linuxserver/docker-sonarr/tree/4.0.19.2979-ls323), [upstream GPL 3](https://github.com/Sonarr/Sonarr/blob/v4.0.19.2979/LICENSE.md) |
 | Radarr | `6.3.0.10514` / `6.3.0.10514-ls314` | [LinuxServer recipe](https://github.com/linuxserver/docker-radarr/tree/6.3.0.10514-ls314), [upstream GPL 3](https://github.com/Radarr/Radarr/blob/v6.3.0.10514/LICENSE) |
 | qBittorrent | `5.2.3` / `5.2.3_v2.0.14-ls474` | [LinuxServer recipe](https://github.com/linuxserver/docker-qbittorrent/tree/5.2.3_v2.0.14-ls474), [upstream source/binary license and OpenSSL exception](https://github.com/qbittorrent/qBittorrent/blob/release-5.2.3/COPYING) |
-| Music Assistant | `2.10.2` / `2.10.2` | [Official installation](https://www.music-assistant.io/installation/), [Apache 2](https://github.com/music-assistant/server/blob/2.10.2/LICENSE) |
+| Music Assistant | `2.10.4` / `2.10.4` | [Official installation](https://www.music-assistant.io/installation/), [Apache 2](https://github.com/music-assistant/server/blob/2.10.4/LICENSE) |
 
 The catalog records upstream and distribution licenses separately. LinuxServer
 recipe/image license metadata is `GPL-3.0-only`; this does not replace the
@@ -101,7 +101,7 @@ All plans drop all capabilities and require no-new-privileges. Five use UID/GID
 1000; LinuxServer's [documented non-root mode](https://docs.linuxserver.io/misc/non-root/)
 also needs an executable `/run` tmpfs owned by that UID/GID. MA preserves the
 existing package's root UID, host networking, and only `NET_BIND_SERVICE` for
-[AirPlay PTP UDP 319/320](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md).
+[AirPlay PTP UDP 319/320](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/airplay/README.md).
 Its 8095 web and 8097 stream listeners are requirements, not Docker published
 ports; additional receiver ports can be dynamic. Host networking, playback,
 HomePod synchronization, and physical-device behavior remain unverified.
@@ -119,7 +119,7 @@ image build or container execution was involved in that packaging check.
 
 ## Integration research at the selected versions
 
-Music Assistant's [2.10.2 README](https://github.com/music-assistant/server/blob/2.10.2/README.md)
+Music Assistant's [2.10.4 README](https://github.com/music-assistant/server/blob/2.10.4/README.md)
 supports its Home Assistant app and Docker image. It explicitly does not ship a
 plain PyPI server package: Python 3.14+, FFmpeg, native libraries and receiver
 binaries are required. Its pinned Python dependencies also conflict with the
@@ -129,10 +129,10 @@ installation; embedding its Python object inside the API process is not an
 upstream-supported runtime contract. This is an architecture recommendation
 from source review, not a verified implementation.
 
-The [2.10.2 web controller](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/controllers/webserver/controller.py)
+The [2.10.4 web controller](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/controllers/webserver/controller.py)
 has `POST /setup` for a first internal administrator, `GET /info`, a configurable
 web bind address, and its `/api` command interface. The
-[auth manager](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/controllers/webserver/auth.py)
+[auth manager](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/controllers/webserver/auth.py)
 can generate integration tokens through `auth/token/create`; these expire after
 one year and do not renew on use. Larenor must privately generate, store and
 rotate engine credentials, expose only allowlisted actions, and enforce current
@@ -140,7 +140,7 @@ Larenor role/session scope. It must not give a shared engine
 administrator token to the Client or implement an unrestricted command proxy.
 
 The first worker-only adapter now implements that initial session boundary for
-the pinned `2.10.2` / API schema `65` engine. It creates only the fixed
+the pinned `2.10.4` / API schema `65` engine. It creates only the fixed
 `larenor-core` administrator at `/setup`, exchanges the short setup token for a
 named long-lived token, proves the administrator and exact engine identity,
 completes onboarding, revokes the short token and proves the same identity
@@ -175,7 +175,7 @@ and user-selected external indexers/providers where accounts are necessary.
 The existing six records must not be presented as a complete ready-to-use
 download pipeline. Dependency notices, modified-file notices and any applicable
 source obligations remain separate release work when binaries are redistributed.
-MA's own [Apache 2 license](https://github.com/music-assistant/server/blob/2.10.2/LICENSE)
+MA's own [Apache 2 license](https://github.com/music-assistant/server/blob/2.10.4/LICENSE)
 permits redistribution subject to retaining the license and applicable notices,
 and identifying modifications; it does not grant trademark rights or replace
 the licenses of bundled FFmpeg/native/provider components. Keep upstream brand

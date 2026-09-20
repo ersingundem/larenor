@@ -166,7 +166,7 @@ class PluginManifest(FrozenModel):
     licenseUrl: HttpsUrl
     distributionLicense: Text
     documentationUrls: tuple[HttpsUrl, ...] = Field(min_length=1, max_length=5)
-    verifiedAt: Literal["2026-09-05"]
+    verifiedAt: Literal["2026-09-05", "2026-09-20"]
     repository: Annotated[str, Field(pattern=r"^ghcr\.io/[a-z0-9-]+/[a-z0-9-]+$")]
     tag: Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$")]
     indexDigest: ImageDigest

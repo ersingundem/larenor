@@ -37,34 +37,34 @@ rejected as an upstream capability change. Product installation remains
 
 ## Reviewed upstream contracts
 
-The contract was reviewed on 2026-09-10 against Music Assistant 2.10.2 docs and
-the current `dev` provider sources:
+The contract was re-reviewed on 2026-09-20 against Music Assistant 2.10.4 and
+its pinned provider setup sources; API schema remains `65`:
 
 - [Provider setup-flow API](https://developers.music-assistant.io/setup-flows/):
   credentials and OAuth/pairing belong to server-driven setup sessions;
   `config/providers/setup {provider_domain}` starts a flow, flow steps expire,
   and collected `setup_data` is encrypted and never serialized over the API.
 - [Spotify provider](https://www.music-assistant.io/music-providers/spotify/)
-  and its [manifest](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/spotify/manifest.json):
+  and its [manifest](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/spotify/manifest.json):
   domain `spotify`, stable, multi-instance. Setup begins with OAuth and then
   requires a separate playback backend choice and approval. Soloist additionally
   requires explicit terms, an API key, and in-app pairing.
-- [Spotify setup source](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/spotify/setup_flow.py):
+- [Spotify setup source](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/spotify/setup_flow.py):
   the initial step is `authenticate` at `accounts.spotify.com`; refresh tokens,
   playback credentials, and Soloist data remain Music Assistant setup data.
 - [Apple Music provider](https://www.music-assistant.io/music-providers/apple-music/)
-  and its [manifest](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/apple_music/manifest.json):
+  and its [manifest](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/apple_music/manifest.json):
   domain `apple_music`, stable, multi-instance. Normal authentication is a
   MusicKit browser step served from Music Assistant's own origin; an optional
   secure manual user token exists and reauthentication is expected.
-- [Apple Music setup source](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/apple_music/setup_flow.py):
+- [Apple Music setup source](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/apple_music/setup_flow.py):
   the first form is `app_token` only if the bundled app token is rejected;
   otherwise it is `user` with an optional secure `music_user_manual_token`.
 - [YouTube Music provider](https://www.music-assistant.io/music-providers/youtube-music/)
-  and its [manifest](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/ytmusic/manifest.json):
+  and its [manifest](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/ytmusic/manifest.json):
   domain `ytmusic`, beta, multi-instance. It has no official third-party login
   API and requires a login cookie plus a compatible PO Token service.
-- [YouTube Music setup source](https://github.com/music-assistant/server/blob/dev/music_assistant/providers/ytmusic/setup_flow.py):
+- [YouTube Music setup source](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/ytmusic/setup_flow.py):
   the initial `user` form contains `username`, secure `cookie`, and
   `po_token_server_url` exactly.
 

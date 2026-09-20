@@ -5,10 +5,10 @@
     "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "catalog": {
-    "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+    "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
     "entries": [
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
         "manifest": {
           "manifestVersion": 1,
@@ -149,7 +149,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
         "manifest": {
           "manifestVersion": 1,
@@ -278,7 +278,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
         "manifest": {
           "manifestVersion": 1,
@@ -437,7 +437,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
         "manifest": {
           "manifestVersion": 1,
@@ -596,7 +596,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
         "manifest": {
           "manifestVersion": 1,
@@ -792,8 +792,8 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-        "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+        "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
         "manifest": {
           "manifestVersion": 1,
           "configSchemaVersion": 1,
@@ -802,32 +802,32 @@
           "integrationRole": "internal_engine",
           "distributionId": "upstream",
           "displayName": "Music Assistant",
-          "version": "2.10.2",
+          "version": "2.10.4",
           "upstreamRepository": "https://github.com/music-assistant/server",
           "sourceRepository": "https://github.com/music-assistant/server",
-          "sourceRevision": "243c4561c1744501a3087101127c339f4269831b",
-          "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.2",
+          "sourceRevision": "e30a4974ba951f38e21bea8d502af3b903df992c",
+          "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.4",
           "license": "Apache-2.0",
-          "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.2/LICENSE",
+          "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.4/LICENSE",
           "distributionLicense": "Apache-2.0",
           "documentationUrls": [
             "https://www.music-assistant.io/installation/",
-            "https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md"
+            "https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/airplay/README.md"
           ],
-          "verifiedAt": "2026-09-05",
+          "verifiedAt": "2026-09-20",
           "repository": "ghcr.io/music-assistant/server",
-          "tag": "2.10.2",
-          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+          "tag": "2.10.4",
+          "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
           "images": [
             {
               "platform": "linux/amd64",
-              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-              "configDigest": "sha256:503297b9b9657a8e8dd92265bf3c4b3577fbb0fb319aae763506503e3838b970"
+              "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+              "configDigest": "sha256:f8e25836cee73c7277f29a0dca804fbaa05f832a71616d15d50e337b04d4d0c8"
             },
             {
               "platform": "linux/arm64",
-              "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
-              "configDigest": "sha256:26406623b9d7e23d6703ee3e2312a8590d4200f681dc7e9e02adad569a443984"
+              "digest": "sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f",
+              "configDigest": "sha256:acda9683af54d5dc2432c5ef68f17dd58dab7ca6e60786afe649d25e784ba66e"
             }
           ],
           "installable": false,
@@ -952,7 +952,7 @@
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
-    "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+    "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
     "platform": "linux/amd64",
     "settings": {
       "instanceName": "larenor",
@@ -982,8 +982,8 @@
         "libraryRootId": "library",
         "musicRootId": null
       },
-      "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-      "planHash": "50ca2d0c1df0c912d9375da1711d96e63682ec1308513ee6323e4c210b3a09a8",
+      "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+      "planHash": "2708ba98e058d947ad214ae9b5d5bba5d1b9300dc7efd80e5bbbaffa3c03954a",
       "installAvailable": false,
       "bootstrapExposure": "unverified",
       "blockers": [
@@ -1009,9 +1009,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-qbittorrent",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-            "planHash": "48391dc528c7d91c9c52909c614a58f47b82353a6c581096d8e9eebb483eead3",
+            "planHash": "3c394423d1a81d4885518e205e73a9c953a5cb571eccac9a42602a3e847217c3",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1197,9 +1197,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-sonarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-            "planHash": "0d37c8ef675de68a03242e99cb4a65fb1bd39aa7087d4b7345f8e3e59e6b8c3e",
+            "planHash": "27ef9bb115b373b21bdb3b90077a9109e01e83ea681fa0abb734bee69935f862",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1351,9 +1351,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-radarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-            "planHash": "0b4f5c51501b9d8970ca73277a047e35d93c2c35ffea6a858b113d28c03441bc",
+            "planHash": "1d88ba92bc8216935c96b237a62d40f8f30d00fd103c9899cd80f56f266eb948",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1505,9 +1505,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-jellyfin",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-            "planHash": "016e31bf379e7ca313223c055fb78e9606df0828a323953de37e948451e56015",
+            "planHash": "c5c1d88c3ba6b9bd86fffff47dd387002395774166fa8457d05c6ca0b6106521",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1650,9 +1650,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-seerr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-            "planHash": "573ce1bb5e55c7a1f8b24e7883740beb5fd3fd3e6e8bf5ca15e7bc4a9279fd2b",
+            "planHash": "fa64b8141e40ac4ccf65344397d8c8771b8061f2012de74120549581446ada37",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1779,9 +1779,9 @@
             "integrationRole": "internal_engine",
             "distributionId": "upstream",
             "instanceName": "larenor-music-assistant",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-            "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-            "planHash": "f9f2400610a3b19a461e116516375ca81e4282f8c8b3827d572ece62fcf7c9f6",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+            "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+            "planHash": "c52a61a161ca56116a43c4a529c59d66ccb4122a9e053aca64ae0aedd3f56658",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -1803,11 +1803,11 @@
             ],
             "image": {
               "repository": "ghcr.io/music-assistant/server",
-              "tag": "2.10.2",
+              "tag": "2.10.4",
               "platform": "linux/amd64",
-              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-              "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-              "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+              "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+              "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+              "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4"
             },
             "security": {
               "user": "0:0",
@@ -1938,8 +1938,8 @@
         "libraryRootId": "library",
         "musicRootId": null
       },
-      "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-      "planHash": "50ca2d0c1df0c912d9375da1711d96e63682ec1308513ee6323e4c210b3a09a8",
+      "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+      "planHash": "2708ba98e058d947ad214ae9b5d5bba5d1b9300dc7efd80e5bbbaffa3c03954a",
       "installAvailable": false,
       "bootstrapExposure": "unverified",
       "blockers": [
@@ -1965,9 +1965,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-qbittorrent",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-            "planHash": "48391dc528c7d91c9c52909c614a58f47b82353a6c581096d8e9eebb483eead3",
+            "planHash": "3c394423d1a81d4885518e205e73a9c953a5cb571eccac9a42602a3e847217c3",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2153,9 +2153,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-sonarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-            "planHash": "0d37c8ef675de68a03242e99cb4a65fb1bd39aa7087d4b7345f8e3e59e6b8c3e",
+            "planHash": "27ef9bb115b373b21bdb3b90077a9109e01e83ea681fa0abb734bee69935f862",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2307,9 +2307,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-radarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-            "planHash": "0b4f5c51501b9d8970ca73277a047e35d93c2c35ffea6a858b113d28c03441bc",
+            "planHash": "1d88ba92bc8216935c96b237a62d40f8f30d00fd103c9899cd80f56f266eb948",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2461,9 +2461,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-jellyfin",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-            "planHash": "016e31bf379e7ca313223c055fb78e9606df0828a323953de37e948451e56015",
+            "planHash": "c5c1d88c3ba6b9bd86fffff47dd387002395774166fa8457d05c6ca0b6106521",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2606,9 +2606,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-seerr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-            "planHash": "573ce1bb5e55c7a1f8b24e7883740beb5fd3fd3e6e8bf5ca15e7bc4a9279fd2b",
+            "planHash": "fa64b8141e40ac4ccf65344397d8c8771b8061f2012de74120549581446ada37",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2735,9 +2735,9 @@
             "integrationRole": "internal_engine",
             "distributionId": "upstream",
             "instanceName": "larenor-music-assistant",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-            "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-            "planHash": "f9f2400610a3b19a461e116516375ca81e4282f8c8b3827d572ece62fcf7c9f6",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+            "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+            "planHash": "c52a61a161ca56116a43c4a529c59d66ccb4122a9e053aca64ae0aedd3f56658",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -2759,11 +2759,11 @@
             ],
             "image": {
               "repository": "ghcr.io/music-assistant/server",
-              "tag": "2.10.2",
+              "tag": "2.10.4",
               "platform": "linux/amd64",
-              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-              "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-              "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+              "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+              "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+              "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4"
             },
             "security": {
               "user": "0:0",
@@ -2896,8 +2896,8 @@
             "libraryRootId": "library",
             "musicRootId": null
           },
-          "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-          "planHash": "50ca2d0c1df0c912d9375da1711d96e63682ec1308513ee6323e4c210b3a09a8",
+          "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+          "planHash": "2708ba98e058d947ad214ae9b5d5bba5d1b9300dc7efd80e5bbbaffa3c03954a",
           "installAvailable": false,
           "bootstrapExposure": "unverified",
           "blockers": [
@@ -2923,9 +2923,9 @@
                 "integrationRole": "managed_service",
                 "distributionId": "linuxserver",
                 "instanceName": "larenor-qbittorrent",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
                 "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-                "planHash": "48391dc528c7d91c9c52909c614a58f47b82353a6c581096d8e9eebb483eead3",
+                "planHash": "3c394423d1a81d4885518e205e73a9c953a5cb571eccac9a42602a3e847217c3",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3111,9 +3111,9 @@
                 "integrationRole": "managed_service",
                 "distributionId": "linuxserver",
                 "instanceName": "larenor-sonarr",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
                 "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-                "planHash": "0d37c8ef675de68a03242e99cb4a65fb1bd39aa7087d4b7345f8e3e59e6b8c3e",
+                "planHash": "27ef9bb115b373b21bdb3b90077a9109e01e83ea681fa0abb734bee69935f862",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3265,9 +3265,9 @@
                 "integrationRole": "managed_service",
                 "distributionId": "linuxserver",
                 "instanceName": "larenor-radarr",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
                 "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-                "planHash": "0b4f5c51501b9d8970ca73277a047e35d93c2c35ffea6a858b113d28c03441bc",
+                "planHash": "1d88ba92bc8216935c96b237a62d40f8f30d00fd103c9899cd80f56f266eb948",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3419,9 +3419,9 @@
                 "integrationRole": "managed_service",
                 "distributionId": "upstream",
                 "instanceName": "larenor-jellyfin",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
                 "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-                "planHash": "016e31bf379e7ca313223c055fb78e9606df0828a323953de37e948451e56015",
+                "planHash": "c5c1d88c3ba6b9bd86fffff47dd387002395774166fa8457d05c6ca0b6106521",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3564,9 +3564,9 @@
                 "integrationRole": "managed_service",
                 "distributionId": "upstream",
                 "instanceName": "larenor-seerr",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
                 "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-                "planHash": "573ce1bb5e55c7a1f8b24e7883740beb5fd3fd3e6e8bf5ca15e7bc4a9279fd2b",
+                "planHash": "fa64b8141e40ac4ccf65344397d8c8771b8061f2012de74120549581446ada37",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3693,9 +3693,9 @@
                 "integrationRole": "internal_engine",
                 "distributionId": "upstream",
                 "instanceName": "larenor-music-assistant",
-                "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-                "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-                "planHash": "f9f2400610a3b19a461e116516375ca81e4282f8c8b3827d572ece62fcf7c9f6",
+                "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+                "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+                "planHash": "c52a61a161ca56116a43c4a529c59d66ccb4122a9e053aca64ae0aedd3f56658",
                 "installable": false,
                 "blockers": [
                   "worker_unverified",
@@ -3717,11 +3717,11 @@
                 ],
                 "image": {
                   "repository": "ghcr.io/music-assistant/server",
-                  "tag": "2.10.2",
+                  "tag": "2.10.4",
                   "platform": "linux/amd64",
-                  "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-                  "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-                  "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+                  "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+                  "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+                  "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4"
                 },
                 "security": {
                   "user": "0:0",
@@ -3855,8 +3855,8 @@
         "libraryRootId": "library",
         "musicRootId": null
       },
-      "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-      "planHash": "b7a1f30a0f93f140c5b727736b30de530e4c0a344fdc89f9527390b40efe6d2e",
+      "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+      "planHash": "272f080e03bbfc125620d285015851b3817e05491ce46ebc00cfa7f5ccdea689",
       "installAvailable": false,
       "bootstrapExposure": "unverified",
       "blockers": [
@@ -3882,9 +3882,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-qbittorrent",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-            "planHash": "48391dc528c7d91c9c52909c614a58f47b82353a6c581096d8e9eebb483eead3",
+            "planHash": "3c394423d1a81d4885518e205e73a9c953a5cb571eccac9a42602a3e847217c3",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4070,9 +4070,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-sonarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-            "planHash": "0d37c8ef675de68a03242e99cb4a65fb1bd39aa7087d4b7345f8e3e59e6b8c3e",
+            "planHash": "27ef9bb115b373b21bdb3b90077a9109e01e83ea681fa0abb734bee69935f862",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4224,9 +4224,9 @@
             "integrationRole": "managed_service",
             "distributionId": "linuxserver",
             "instanceName": "larenor-radarr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-            "planHash": "0b4f5c51501b9d8970ca73277a047e35d93c2c35ffea6a858b113d28c03441bc",
+            "planHash": "1d88ba92bc8216935c96b237a62d40f8f30d00fd103c9899cd80f56f266eb948",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4378,9 +4378,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-jellyfin",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-            "planHash": "016e31bf379e7ca313223c055fb78e9606df0828a323953de37e948451e56015",
+            "planHash": "c5c1d88c3ba6b9bd86fffff47dd387002395774166fa8457d05c6ca0b6106521",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4523,9 +4523,9 @@
             "integrationRole": "managed_service",
             "distributionId": "upstream",
             "instanceName": "larenor-seerr",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
             "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-            "planHash": "573ce1bb5e55c7a1f8b24e7883740beb5fd3fd3e6e8bf5ca15e7bc4a9279fd2b",
+            "planHash": "fa64b8141e40ac4ccf65344397d8c8771b8061f2012de74120549581446ada37",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4652,9 +4652,9 @@
             "integrationRole": "internal_engine",
             "distributionId": "upstream",
             "instanceName": "larenor-music-assistant",
-            "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-            "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-            "planHash": "f9f2400610a3b19a461e116516375ca81e4282f8c8b3827d572ece62fcf7c9f6",
+            "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+            "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+            "planHash": "c52a61a161ca56116a43c4a529c59d66ccb4122a9e053aca64ae0aedd3f56658",
             "installable": false,
             "blockers": [
               "worker_unverified",
@@ -4676,11 +4676,11 @@
             ],
             "image": {
               "repository": "ghcr.io/music-assistant/server",
-              "tag": "2.10.2",
+              "tag": "2.10.4",
               "platform": "linux/amd64",
-              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-              "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-              "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+              "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+              "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+              "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4"
             },
             "security": {
               "user": "0:0",

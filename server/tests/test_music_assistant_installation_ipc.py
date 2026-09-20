@@ -40,7 +40,7 @@ class Backend:
             raise self.failure
         return AuthenticatedMusicAssistantReadback(
             token='private-long-token', serverId='mass-fixture',
-            serverVersion='2.10.2', schemaVersion=65)
+            serverVersion='2.10.4', schemaVersion=65)
 
 
 def roundtrip(backend, callback):
@@ -67,7 +67,7 @@ def test_private_bootstrap_roundtrip_returns_only_strict_readback():
 
     assert result == AuthenticatedMusicAssistantReadback(
         token='private-long-token', serverId='mass-fixture',
-        serverVersion='2.10.2', schemaVersion=65)
+        serverVersion='2.10.4', schemaVersion=65)
     assert backend.seen == ('a' * 32, 'larenor-core', 'S' * 48)
     assert 'private-long-token' not in repr(result)
     assert 'S' * 48 not in repr(private())

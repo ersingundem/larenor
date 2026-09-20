@@ -48,7 +48,7 @@ class MusicPlaybackRuntime:
             raw = response.read(262145)
             if response.status != 200 or len(raw) > 262144:
                 raise ValueError()
-            # Music Assistant 2.10.2 POST /api returns the serialized command
+            # Music Assistant 2.10.4 POST /api returns the serialized command
             # result directly. Result envelopes belong to its WebSocket
             # transport and accepting only that shape makes every native HTTP
             # read fail after a successful bootstrap.

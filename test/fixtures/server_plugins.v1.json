@@ -1,9 +1,9 @@
 {
   "catalog": {
-    "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+    "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
     "entries": [
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
         "manifest": {
           "manifestVersion": 1,
@@ -144,7 +144,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
         "manifest": {
           "manifestVersion": 1,
@@ -273,7 +273,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
         "manifest": {
           "manifestVersion": 1,
@@ -432,7 +432,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
         "manifest": {
           "manifestVersion": 1,
@@ -591,7 +591,7 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
         "manifest": {
           "manifestVersion": 1,
@@ -787,8 +787,8 @@
         }
       },
       {
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-        "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+        "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
         "manifest": {
           "manifestVersion": 1,
           "configSchemaVersion": 1,
@@ -797,32 +797,32 @@
           "integrationRole": "internal_engine",
           "distributionId": "upstream",
           "displayName": "Music Assistant",
-          "version": "2.10.2",
+          "version": "2.10.4",
           "upstreamRepository": "https://github.com/music-assistant/server",
           "sourceRepository": "https://github.com/music-assistant/server",
-          "sourceRevision": "243c4561c1744501a3087101127c339f4269831b",
-          "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.2",
+          "sourceRevision": "e30a4974ba951f38e21bea8d502af3b903df992c",
+          "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.4",
           "license": "Apache-2.0",
-          "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.2/LICENSE",
+          "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.4/LICENSE",
           "distributionLicense": "Apache-2.0",
           "documentationUrls": [
             "https://www.music-assistant.io/installation/",
-            "https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md"
+            "https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/airplay/README.md"
           ],
-          "verifiedAt": "2026-09-05",
+          "verifiedAt": "2026-09-20",
           "repository": "ghcr.io/music-assistant/server",
-          "tag": "2.10.2",
-          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+          "tag": "2.10.4",
+          "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
           "images": [
             {
               "platform": "linux/amd64",
-              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-              "configDigest": "sha256:503297b9b9657a8e8dd92265bf3c4b3577fbb0fb319aae763506503e3838b970"
+              "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+              "configDigest": "sha256:f8e25836cee73c7277f29a0dca804fbaa05f832a71616d15d50e337b04d4d0c8"
             },
             {
               "platform": "linux/arm64",
-              "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
-              "configDigest": "sha256:26406623b9d7e23d6703ee3e2312a8590d4200f681dc7e9e02adad569a443984"
+              "digest": "sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f",
+              "configDigest": "sha256:acda9683af54d5dc2432c5ef68f17dd58dab7ca6e60786afe649d25e784ba66e"
             }
           ],
           "installable": false,
@@ -955,9 +955,9 @@
         "integrationRole": "managed_service",
         "distributionId": "upstream",
         "instanceName": "jellyfin",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-        "planHash": "d3aee1f4e9a1a7d512f725a57d66aeda1cf80a8bae535109cea35431c73e8bc0",
+        "planHash": "7eff696f4a635fbbe4924642aaeb0227187205c72babad2a57bf3e56c5ce8bf8",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1076,9 +1076,9 @@
         "integrationRole": "managed_service",
         "distributionId": "upstream",
         "instanceName": "jellyfin",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-        "planHash": "affbf7b9fbfbf42dec18c8b48417f7e9b5c19de2079ddf9124a9627817c6ea5a",
+        "planHash": "b3eff9b4652dc12dab5885cd6bcc229b4bb4645b6ad4b70752689e927f7fb446",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1196,9 +1196,9 @@
         "integrationRole": "managed_service",
         "distributionId": "upstream",
         "instanceName": "seerr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-        "planHash": "cfa24c3e1b31557842f8964b93263875db40162d02a5e3432e496b019e8ecbb1",
+        "planHash": "342b41584f239a5be10cf20efd04f7526a4a8f72367f4337bb37087b546ffe7f",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1307,9 +1307,9 @@
         "integrationRole": "managed_service",
         "distributionId": "upstream",
         "instanceName": "seerr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
-        "planHash": "fabac64bccb20728a9ea5f1676c0c6afe3451b94567894a9e95852e75d375043",
+        "planHash": "f529047da1852f9b4904b97ffece6a703a5d2311c2ca8f3c62eebc3a9562b963",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1419,9 +1419,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "sonarr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-        "planHash": "00a7776434d46a4cc5790f807e07ab87dbe4cb8bc9e9dc7d2657faba71539d45",
+        "planHash": "96e9ec1968e4f7b18f455a6864c75fb9de50be4592760bc6c250a24176b2a5a8",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1556,9 +1556,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "sonarr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
-        "planHash": "3d79058bf2f7ca38f3330fb01ce495af15ee9400332ef1603fa2795bc52b82ec",
+        "planHash": "e382ea6c417d62d25e90478a407b3ac094de668dc16e515507bd719cfd5c5776",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1693,9 +1693,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "radarr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-        "planHash": "de352c2b199ff8d26642c7c167a76a2a1b1e9b12d68fe911759ea101ef07fac4",
+        "planHash": "bf65375826cc5f72a10eddf9adbad77f85f06a16460f3f1e933c50f663cbe996",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1830,9 +1830,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "radarr",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
-        "planHash": "a2a84c3bc821ea84c197db92b86aa3d6582123411adb18ed83b5ff47ea5d38c8",
+        "planHash": "78cc15936c1db02b7b42ffd3a3ae735abeee5852701816164bb3248ff6718e16",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -1968,9 +1968,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "qbittorrent",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-        "planHash": "46e36a80b35372c270d5b08f49c7a358fd006f7fab01728bdec55379bcf15760",
+        "planHash": "e347203ddeb242dce5b8ad6d0c550a4590aa2e8c5c8a26cea63a22891b50679f",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -2140,9 +2140,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "qbittorrent",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-        "planHash": "f6ba8a27bc3fcb475d4a42a70a6189bf100a36c9f3ff74df3ef4ab0fbd813538",
+        "planHash": "f7a2086f44ccead21478789d774b2de466fd16f364a7d444f2e8a45e170080ee",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -2310,9 +2310,9 @@
         "integrationRole": "internal_engine",
         "distributionId": "upstream",
         "instanceName": "music-assistant",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-        "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-        "planHash": "4bdc30c712da3ed02d16247e25086f1698b2b2de0502026031d1017aa5128540",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+        "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+        "planHash": "df8976a1bdcb08de979ede34ac28d9f3061ef518f31beebd2802d59ac63d2bf4",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -2334,11 +2334,11 @@
         ],
         "image": {
           "repository": "ghcr.io/music-assistant/server",
-          "tag": "2.10.2",
+          "tag": "2.10.4",
           "platform": "linux/amd64",
-          "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-          "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+          "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+          "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+          "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4"
         },
         "security": {
           "user": "0:0",
@@ -2437,9 +2437,9 @@
         "integrationRole": "internal_engine",
         "distributionId": "upstream",
         "instanceName": "music-assistant",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
-        "manifestDigest": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
-        "planHash": "cea55583e5905920d48795b759642897e0db8ff2a6da14e5fcc232a4204b6a86",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
+        "manifestDigest": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
+        "planHash": "0a2ddc56580cef7855a1e5f2d18b5833396dc41feac8da2541e7f343fdf4d2d3",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -2461,11 +2461,11 @@
         ],
         "image": {
           "repository": "ghcr.io/music-assistant/server",
-          "tag": "2.10.2",
+          "tag": "2.10.4",
           "platform": "linux/arm64",
-          "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
-          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
-          "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7"
+          "digest": "sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f",
+          "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+          "reference": "ghcr.io/music-assistant/server:2.10.4@sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f"
         },
         "security": {
           "user": "0:0",
@@ -2565,9 +2565,9 @@
         "integrationRole": "managed_service",
         "distributionId": "upstream",
         "instanceName": "living-room",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
-        "planHash": "e2e734e019e63f4429dfbb7b6e8893e7b695f0a3decac06c657d12e4701f0b4d",
+        "planHash": "adeab310d259305a6cdc955214086b9d37e72624b2f048bc46280c703220dc7c",
         "installable": false,
         "blockers": [
           "worker_unverified",
@@ -2694,9 +2694,9 @@
         "integrationRole": "managed_service",
         "distributionId": "linuxserver",
         "instanceName": "downloads",
-        "catalogDigest": "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d",
+        "catalogDigest": "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d",
         "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-        "planHash": "b15fa495b720db77eb7ed87de385173226c6c68c87f755ea803703c515ea9cb7",
+        "planHash": "ddf31a1e8148d38217df929574ab3b19aef00c89d803a10acaff0ae0029b608d",
         "installable": false,
         "blockers": [
           "worker_unverified",

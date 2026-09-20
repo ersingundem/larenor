@@ -27,7 +27,7 @@ class Backend:
         return AuthenticatedMusicAssistantReadback(
             token=TOKEN,
             serverId="mass-managed-fixture",
-            serverVersion="2.10.2",
+            serverVersion="2.10.4",
             schemaVersion=65,
         )
 
@@ -128,7 +128,7 @@ def test_tick_records_core_readback_once_without_public_secret(server):
         headers=auth(pair),
     )
     assert readiness.status_code == 200
-    assert readiness.json()["readiness"]["serverVersion"] == "2.10.2"
+    assert readiness.json()["readiness"]["serverVersion"] == "2.10.4"
     assert TOKEN not in readiness.text
     with app.state.core.db.connection() as connection:
         assert TOKEN not in "\n".join(connection.iterdump())

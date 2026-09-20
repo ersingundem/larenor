@@ -773,32 +773,32 @@
       "serviceId": "music_assistant",
       "distributionId": "upstream",
       "displayName": "Music Assistant",
-      "version": "2.10.2",
+      "version": "2.10.4",
       "upstreamRepository": "https://github.com/music-assistant/server",
       "sourceRepository": "https://github.com/music-assistant/server",
-      "sourceRevision": "243c4561c1744501a3087101127c339f4269831b",
-      "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.2",
+      "sourceRevision": "e30a4974ba951f38e21bea8d502af3b903df992c",
+      "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.4",
       "license": "Apache-2.0",
-      "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.2/LICENSE",
+      "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.4/LICENSE",
       "distributionLicense": "Apache-2.0",
       "documentationUrls": [
         "https://www.music-assistant.io/installation/",
-        "https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md"
+        "https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/airplay/README.md"
       ],
-      "verifiedAt": "2026-09-05",
+      "verifiedAt": "2026-09-20",
       "repository": "ghcr.io/music-assistant/server",
-      "tag": "2.10.2",
-      "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+      "tag": "2.10.4",
+      "indexDigest": "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
       "images": [
         {
           "platform": "linux/amd64",
-          "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
-          "configDigest": "sha256:503297b9b9657a8e8dd92265bf3c4b3577fbb0fb319aae763506503e3838b970"
+          "digest": "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+          "configDigest": "sha256:f8e25836cee73c7277f29a0dca804fbaa05f832a71616d15d50e337b04d4d0c8"
         },
         {
           "platform": "linux/arm64",
-          "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
-          "configDigest": "sha256:26406623b9d7e23d6703ee3e2312a8590d4200f681dc7e9e02adad569a443984"
+          "digest": "sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f",
+          "configDigest": "sha256:acda9683af54d5dc2432c5ef68f17dd58dab7ca6e60786afe649d25e784ba66e"
         }
       ],
       "installable": false,

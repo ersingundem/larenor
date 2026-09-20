@@ -325,7 +325,7 @@ def test_runtime_owns_music_assistant_first_run_inside_authority_gates():
     calls = []
     expected = AuthenticatedMusicAssistantReadback(
         token='private-long-token', serverId='mass-fixture',
-        serverVersion='2.10.2', schemaVersion=65)
+        serverVersion='2.10.4', schemaVersion=65)
 
     class Bootstrap:
         def create(self, **kwargs):

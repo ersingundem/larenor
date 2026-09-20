@@ -54,7 +54,7 @@ Map<String, dynamic> retainedJson() => {
       'bootstrapReceipt': {
         'revision': 2,
         'state': 'ready',
-        'serverVersion': '2.10.2',
+        'serverVersion': '2.10.4',
         'schemaVersion': 27,
         'homeAssistant': {'serviceId': 'b' * 32, 'serviceRevision': 8},
         'jellyfin': {'serviceId': 'c' * 32, 'serviceRevision': 5},

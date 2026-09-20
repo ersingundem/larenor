@@ -20,7 +20,7 @@ from .music_assistant_core_models import AuthenticatedMusicAssistantReadback
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _CREDENTIAL = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
-# Music Assistant 2.10.2 issues HS256 JWTs for both setup and long-lived
+# Music Assistant 2.10.4 issues HS256 JWTs for both setup and long-lived
 # credentials. Keep the accepted wire shape bounded without decoding or
 # exposing any private claim bytes.
 _TOKEN = re.compile(
@@ -34,7 +34,7 @@ _INFO_FIELDS = frozenset({
     'external_url', 'has_remote_access', 'homeassistant_addon',
     'onboard_done', 'status',
 })
-_EXPECTED_VERSION = '2.10.2'
+_EXPECTED_VERSION = '2.10.4'
 _EXPECTED_SCHEMA = 65
 
 
@@ -138,7 +138,7 @@ class MusicAssistantBootstrapRuntime:
             'command': command,
             'args': args,
         }, token, deadline, cancelled, gate)
-        # The 2.10.2 HTTP JSON-RPC adapter serializes the command result
+        # The 2.10.4 HTTP JSON-RPC adapter serializes the command result
         # directly. Message envelopes are used by its WebSocket transport, not
         # by POST /api. Each caller below applies the exact result validator for
         # its command before another effect is allowed.

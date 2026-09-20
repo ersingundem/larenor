@@ -92,7 +92,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
         class Readback:
             token = "private-native-token"
             serverId = "mass-native"
-            serverVersion = "2.10.2"
+            serverVersion = "2.10.4"
             schemaVersion = 65
 
             def __repr__(self):
@@ -112,7 +112,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
                     return {"username": "larenor-core", "role": "admin"}
                 return {
                     "server_id": "mass-native",
-                    "server_version": "2.10.2",
+                    "server_version": "2.10.4",
                     "schema_version": 65,
                     "onboard_done": True,
                 }
