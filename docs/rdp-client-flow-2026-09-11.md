@@ -39,10 +39,12 @@ store, controller, certificate/NLA flow and tablet surface are exercised by
 synthetic fixtures; this is the integration boundary for a reviewed Android
 FreeRDP/JNI package.
 
-F62 is not accepted by this slice. Still required: packaged native FreeRDP
-build provenance and ABI hardening; real Windows TLS/NLA and RD Gateway
-handshake; decoded frame rendering; Turkish IME/dead-key and remote shortcut
-matrix; clipboard consent with Android lifecycle; external-display/multi-
-monitor negotiation; loss/reconnect soak; TalkBack and physical Huawei tablet
-and Samsung DeX keyboard/mouse acceptance. Audio, RemoteApp, H.264/GFX, UDP,
-file, microphone, smart-card, USB and printer redirection remain unavailable.
+The later [FreeRDP native engine gate](f62-freerdp-native-engine-acceptance-2026-09-20.md)
+pins build provenance and ABIs and adds bounded native lifecycle/frame/input/
+channel contracts. F62 is still not accepted. Required next are the concrete
+receipted-AAR product runtime, real Windows TLS/NLA and RD Gateway handshake,
+decoded Client rendering, Turkish IME/dead-key and remote shortcut matrix,
+clipboard consent with Android lifecycle, external-display/multi-monitor
+negotiation, loss/reconnect soak, TalkBack, Huawei tablet and Samsung DeX
+keyboard/mouse acceptance. Audio, RemoteApp, H.264/GFX, UDP, file, microphone,
+smart-card, USB and printer redirection remain unavailable.

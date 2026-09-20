@@ -141,6 +141,8 @@ class RdpFreeRdpBackend(private val runtime: RdpJniRuntime?) : RdpNativeBackend 
             } else RdpNativeCapabilities.parse(candidate.capabilities()).takeIf {
                     it.engineRevision == RdpFreeRdpPackage.ENGINE_REVISION
                 }
+        } catch (_: LinkageError) {
+            null
         } catch (_: Exception) {
             null
         }
@@ -162,6 +164,8 @@ class RdpFreeRdpBackend(private val runtime: RdpJniRuntime?) : RdpNativeBackend 
         val proxy = RdpJniListenerProxy()
         val operation = try {
             candidate.create(negotiated, proxy)
+        } catch (_: LinkageError) {
+            failRdp("engineUnavailable")
         } catch (_: Exception) {
             failRdp("connectionFailed")
         }
@@ -208,7 +212,11 @@ class RdpFreeRdpSession internal constructor(
     }
 
     override fun onSecurity(evidence: RdpJniSecurity) {
-        if (terminal || phase != RdpJniPhase.CONNECTING) return
+        if (terminal) return
+        if (phase != RdpJniPhase.CONNECTING) {
+            terminate(RdpJniPhase.FAILED, "staleSession")
+            return
+        }
         when {
             evidence.tlsProtocol !in setOf("TLSv1.2", "TLSv1.3") ->
                 terminate(RdpJniPhase.FAILED, "tlsRequired")
@@ -250,7 +258,13 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "staleSession")
             return false
         }
-        val accepted = runCatching { operation.acknowledgeFrame(sequence) }.getOrDefault(false)
+        val accepted = try {
+            operation.acknowledgeFrame(sequence)
+        } catch (_: LinkageError) {
+            false
+        } catch (_: Exception) {
+            false
+        }
         frame.close()
         pendingFrame = null
         if (!accepted) {
@@ -319,7 +333,13 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "displayUnavailable")
             return false
         }
-        val accepted = runCatching { operation.resize(sequence, display) }.getOrDefault(false)
+        val accepted = try {
+            operation.resize(sequence, display)
+        } catch (_: LinkageError) {
+            false
+        } catch (_: Exception) {
+            false
+        }
         if (!accepted) {
             terminate(RdpJniPhase.FAILED, "busy")
             return false
@@ -336,6 +356,8 @@ class RdpFreeRdpSession internal constructor(
         }
         val accepted = try {
             operation.input(sequence, event)
+        } catch (_: LinkageError) {
+            false
         } catch (_: Exception) {
             false
         } finally {
@@ -350,7 +372,8 @@ class RdpFreeRdpSession internal constructor(
     }
 
     private fun readyForInput(sequence: Long) =
-        !terminal && phase == RdpJniPhase.ACTIVE && sequence == lastInputSequence + 1
+        !terminal && phase in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
+            sequence == lastInputSequence + 1
 
     override fun onDisconnected() {
         if (!terminal) terminate(RdpJniPhase.FAILED, "connectionFailed")
@@ -367,8 +390,8 @@ class RdpFreeRdpSession internal constructor(
         phase = next
         pendingFrame?.close()
         pendingFrame = null
-        runCatching { operation.detach() }
-        runCatching { operation.close() }
+        try { operation.detach() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
+        try { operation.close() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
     }
 
     companion object {

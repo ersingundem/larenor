@@ -102,9 +102,13 @@ Core ve Proxmox'tan bağımsız kişisel RDP profilleri; hedef/gateway ayrımı,
 Windows domain, şifreli kimlik bilgisi ve sertifika pini, açık bağlantı/yeniden
 bağlantı, tablet/DeX pointer-klavye-resize yüzeyi olarak hazırlandı. Üretim
 varsayılanı native motor yokken bağlantı denemez. Gerçek Windows/RD Gateway,
-FreeRDP/JNI ve fiziksel Huawei tablet/DeX kabulü açık olduğundan F62 kabulü ve
-**14/125 · 0/63** sayaçları değişmedi. Ayrıntı:
-[bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md).
+somut ürün `RdpJniRuntime` bağlantısı ve fiziksel Huawei tablet/DeX kabulü açık
+olduğundan F62 kabulü ve **17/125 · 0/63** sayaçları değişmedi. FreeRDP 3.31.1
+kaynak/araç zinciri/ABI kilidi, GitHub-hosted AAR+ELF digest makbuzu, TLS/NLA/
+pin yaşam döngüsü, doğrudan framebuffer backpressure ve varsayılan kapalı kanal
+sözleşmesi ayrı yazılım kapısı olarak hazırlandı. Ayrıntı:
+[bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md) ve
+[FreeRDP native motor kapısı](f62-freerdp-native-engine-acceptance-2026-09-20.md).
 ### Bağımsız F61 VNC Client temeli — yerel dal
 
 `codex/vnc-client-foundation-main` dalında REMOTE.COMMON VNC profili için RFB 3.8,

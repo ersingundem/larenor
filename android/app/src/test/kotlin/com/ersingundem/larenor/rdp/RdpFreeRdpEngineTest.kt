@@ -41,6 +41,8 @@ class RdpFreeRdpEngineTest {
         fixture.operation.frame(first)
         assertEquals(RdpJniPhase.AWAITING_FRAME_ACK, session.phase)
         assertEquals(1L, session.pendingFrame?.sequence)
+        assertTrue(session.pointer(1, .5, .5, 0))
+        assertEquals(RdpJniPhase.AWAITING_FRAME_ACK, session.phase)
 
         val rejected = frame(2, 1280, 800, 180)
         fixture.operation.frame(rejected)
