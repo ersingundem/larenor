@@ -2637,6 +2637,8 @@
   "remoteAccessConflict": "Profiles changed while this view was open. Reload before editing.",
   "remoteAccessLimit": "You can save up to 32 personal targets.",
   "remoteAccessCopyFailed": "The address could not be copied.",
+  "remoteAccessPersonalProfile": "Personal profile on this tablet",
+  "remoteAccessPersonalSessionPolicy": "Only the selected protocol is available. Sensitive sessions end when the account, PIN, app activity or route changes.",
   "@remoteAccessDeleteConfirm": {
     "placeholders": {
       "name": {

@@ -2316,6 +2316,8 @@
   "remoteAccessConflict": "Bu görünüm açıkken profiller değişti. Düzenlemeden önce yeniden yükleyin.",
   "remoteAccessLimit": "En fazla 32 kişisel hedef kaydedebilirsiniz.",
   "remoteAccessCopyFailed": "Adres kopyalanamadı",
+  "remoteAccessPersonalProfile": "Bu tabletteki kişisel profil",
+  "remoteAccessPersonalSessionPolicy": "Yalnız seçilen protokol kullanılabilir. Hesap, PIN, uygulama etkinliği veya rota değişince hassas oturum kapanır.",
   "sshTitle": "SSH terminali",
   "sshHint": "Açık satır gönderme eylemi sunan en fazla dört düz metin PTY sekmesi. SFTP ve yalnızca yerel tüneller ayrı kullanılabilir. Otomatik yeniden bağlantı veya komut tekrarı yapılmaz.",
   "sshReady": "Bağlı değil",
