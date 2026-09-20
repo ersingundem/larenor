@@ -59,7 +59,7 @@ def rpc(step, result):
 
 def valid_responses():
     user = {'user_id': USER_ID, 'username': USERNAME, 'role': 'admin'}
-    info = {'server_id': 'mass-fixture', 'server_version': '2.10.2',
+    info = {'server_id': 'mass-fixture', 'server_version': '2.10.4',
             'schema_version': 65, 'onboard_done': False}
     return [
         Response({'success': True, 'token': SHORT_TOKEN, 'user': user}),
@@ -85,7 +85,7 @@ def test_creates_internal_admin_long_token_and_verified_readback_once():
 
     assert result.token == LONG_TOKEN
     assert result.serverId == 'mass-fixture'
-    assert result.serverVersion == '2.10.2'
+    assert result.serverVersion == '2.10.4'
     assert result.schemaVersion == 65
     assert [(call[0], call[1]) for call in calls] == [
         ('POST', '/setup'), ('POST', '/api'), ('POST', '/api'),
@@ -145,9 +145,9 @@ def test_rejects_non_jwt_setup_credentials_without_echoing_them(token):
 @pytest.mark.parametrize('changed', [
     {'server_id': 'mass-fixture', 'server_version': '2.7.11',
      'schema_version': 65, 'onboard_done': False},
-    {'server_id': 'mass-fixture', 'server_version': '2.10.2',
+    {'server_id': 'mass-fixture', 'server_version': '2.10.4',
      'schema_version': 64, 'onboard_done': False},
-    {'server_id': 'other', 'server_version': '2.10.2',
+    {'server_id': 'other', 'server_version': '2.10.4',
      'schema_version': 65, 'onboard_done': True},
 ])
 def test_rejects_vulnerable_wrong_schema_or_changed_post_bootstrap_identity(changed):

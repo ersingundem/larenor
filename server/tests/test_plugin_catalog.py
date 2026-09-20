@@ -64,8 +64,18 @@ def test_qbittorrent_ports_and_environment_change_together():
 
 
 def test_music_assistant_preserves_verified_host_network_and_ptp_profile():
-    result = plan(entry("music_assistant"), {"musicRootId": "music"}, "linux/arm64")
-    assert result.image.indexDigest == "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690"
+    component = entry("music_assistant")
+    assert component.manifest.version == "2.10.4"
+    assert component.manifest.sourceRevision == "e30a4974ba951f38e21bea8d502af3b903df992c"
+    assert {(image.platform, image.digest, image.configDigest)
+            for image in component.manifest.images} == {
+        ("linux/amd64", "sha256:91ccad135b453d86b2fa5792133d4f80f6a4c09976a8b923be36fdf36e49e2a4",
+         "sha256:f8e25836cee73c7277f29a0dca804fbaa05f832a71616d15d50e337b04d4d0c8"),
+        ("linux/arm64", "sha256:8689c5dade199d9be41cf49b680068a69c84d74e1d8a73c70e3e8baa9e7e056f",
+         "sha256:acda9683af54d5dc2432c5ef68f17dd58dab7ca6e60786afe649d25e784ba66e"),
+    }
+    result = plan(component, {"musicRootId": "music"}, "linux/arm64")
+    assert result.image.indexDigest == "sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de"
     assert result.network.mode == "host" and result.ports == ()
     assert {(p.protocol, p.port) for p in result.network.listeners} >= {("tcp", 8095), ("tcp", 8097), ("udp", 319), ("udp", 320)}
     assert result.network.dynamicReceiverPorts is True

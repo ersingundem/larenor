@@ -16,14 +16,14 @@ from .models import (
 )
 
 
-CATALOG_DIGEST = "bf2dbb724df3abcd0ac5f7033933a1dbec106135a32a4c0dcb30f7623419299d"
+CATALOG_DIGEST = "866582f64ce3532d6280e062e1f2255ce691b9dd64fb2833d018250aef67345d"
 _MANIFEST_DIGESTS = {
     "jellyfin": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
     "seerr": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
     "sonarr": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
     "radarr": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
     "qbittorrent": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
-    "music_assistant": "070cd2dae3e7155c8aa2e9e2796fa2c806bcabe41826007a9403a4f0f5880eb3",
+    "music_assistant": "9dd77745e0da8461f0f63f693f9a4666a3ef3c6a1c4a8e154821f694fd72752a",
 }
 _MAX_CATALOG_BYTES = 262144
 

@@ -28,6 +28,8 @@ _ACCEPTANCE_SOURCE_FILES = (
     "tool/tests/music_assistant_managed_workflow_test.py",
     "server/larenor_server/app.py",
     "server/larenor_server/core.py",
+    "server/larenor_server/plugins/catalog.py",
+    "server/larenor_server/plugins/models.py",
     "server/larenor_server/plugins/packagedcatalog.json",
     "server/larenor_server/plugins/managed_container.py",
     "server/larenor_server/plugins/installation_execution.py",
@@ -53,6 +55,7 @@ _ACCEPTANCE_SOURCE_FILES = (
     "server/tests/test_music_provider_setups.py",
     "server/tests/test_music_provider_worker_runtime.py",
     "server/tests/test_music_playback_runtime.py",
+    "server/tests/test_plugin_catalog.py",
 )
 _DIAGNOSTIC_PHASES = {
     "resource_prepare": "music_assistant_resource_prepare_failed",

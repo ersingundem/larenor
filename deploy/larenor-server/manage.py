@@ -29,9 +29,9 @@ import uuid
 
 HERE = Path(__file__).resolve().parent
 NAME = "larenor-server"
-VERSION = "2.10.2"
-IMAGE = ("ghcr.io/music-assistant/server:2.10.2@sha256:"
-         "09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690")
+VERSION = "2.10.4"
+IMAGE = ("ghcr.io/music-assistant/server:2.10.4@sha256:"
+         "37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de")
 DATA = Path("/var/lib/larenor-server/data")
 BACKUPS = Path("/var/backups/larenor-server")
 MAX_RESPONSE = 64 * 1024

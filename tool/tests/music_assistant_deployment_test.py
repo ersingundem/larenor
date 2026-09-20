@@ -101,7 +101,7 @@ class DeploymentConfigTest(unittest.TestCase):
         self.assertEqual(list(config["services"]), ["larenor-server"])
         service = config["services"]["larenor-server"]
         self.assertEqual(service["image"], deployment.IMAGE)
-        self.assertRegex(service["image"], r":2\.10\.2@sha256:[a-f0-9]{64}$")
+        self.assertRegex(service["image"], r":2\.10\.4@sha256:[a-f0-9]{64}$")
         self.assertEqual(service["container_name"], "larenor-server")
         self.assertEqual(service["network_mode"], "host")
         self.assertEqual(service["user"], "0:0")
@@ -160,7 +160,7 @@ class DeploymentConfigTest(unittest.TestCase):
 
 
 class ProbeTest(unittest.TestCase):
-    INFO = {"server_id": "private-instance-id", "server_version": "2.10.2", "schema_version": 28,
+    INFO = {"server_id": "private-instance-id", "server_version": "2.10.4", "schema_version": 28,
             "internal_url": "http://private-host", "unexpected_secret": "never-print"}
 
     def test_actual_http_request_does_not_follow_redirect_or_send_credentials(self):

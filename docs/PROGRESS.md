@@ -209,7 +209,7 @@ nedeniyle açık kalır. İlerleme **15/125 (%12,0)** ve **0/63 (%0,0)**'dır.
 - Her PR commitinin kuyruk ve seçili özellik yüzdesi GitHub Actions özetinde
   commit hash'iyle ayrı satırda gösteriliyor. Bu kayıt öncesindeki **30/30 commit**
   `14/125 (%11,2)` ve `0/63 (%0,0)` trailerlarıyla doğrulandı.
-- Music Assistant 2.10.2 ilk kurulumunda Core iç yöneticiyi oluşturuyor, kısa
+- Music Assistant 2.10.4 ilk kurulumunda Core iç yöneticiyi oluşturuyor, kısa
   kurulum anahtarını uzun ömürlü entegrasyon anahtarıyla değiştiriyor,
   onboarding'i tamamlıyor ve aynı sunucu kimliğini tekrar okuyor. Sırlar yalnız
   UID-korumalı Unix IPC ve retained worker içinde kalıyor.

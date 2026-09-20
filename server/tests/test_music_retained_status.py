@@ -37,7 +37,7 @@ def _ready(server):
         installation_id, installation_revision,
         AuthenticatedMusicAssistantReadback(
             token='private-mass-token', serverId='mass-fixture',
-            serverVersion='2.10.2', schemaVersion=27))
+            serverVersion='2.10.4', schemaVersion=27))
     return pair, installation_id, installation_revision, ha, jellyfin
 
 
@@ -66,7 +66,7 @@ def test_retained_inventory_projects_exact_ready_bootstrap_as_partial_without_pr
         'state': 'partial',
         'errorCode': 'provider_not_ready',
         'bootstrapReceipt': {
-            'revision': 1, 'state': 'ready', 'serverVersion': '2.10.2',
+            'revision': 1, 'state': 'ready', 'serverVersion': '2.10.4',
             'schemaVersion': 27,
             'homeAssistant': {
                 'serviceId': ha['id'], 'serviceRevision': ha['revision']},

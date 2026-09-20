@@ -10,10 +10,10 @@ Android uygulama **Larenor Client** adını kullanır. Bu dilimde açılan müzi
 
 ## Sabit sürüm ve paket
 
-5 Eylül 2026'da resmi GitHub release API'sindeki son kararlı sürüm **2.10.2**, yayın zamanı **4 Eylül 2026 08:40:43 UTC** olarak doğrulandı. İmaj etiketi yanında GHCR manifest özeti de sabitlendi; Linux `amd64` ve `arm64` platformları manifestte mevcut. [2.10.2 sürümü](https://github.com/music-assistant/server/releases/tag/2.10.2), [resmi paket](https://github.com/music-assistant/server/pkgs/container/server).
+20 Eylül 2026'da resmi GitHub release API'sindeki son kararlı sürüm **2.10.4**, yayın zamanı **18 Eylül 2026 09:21:54 UTC** olarak doğrulandı. İmaj etiketi yanında GHCR manifest özeti de sabitlendi; Linux `amd64` ve `arm64` platformları manifestte mevcut. [2.10.4 sürümü](https://github.com/music-assistant/server/releases/tag/2.10.4), [resmi paket](https://github.com/music-assistant/server/pkgs/container/server).
 
 ```text
-ghcr.io/music-assistant/server:2.10.2@sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690
+ghcr.io/music-assistant/server:2.10.4@sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de
 ```
 
 | Dosya | İşlev |
@@ -53,7 +53,7 @@ Aşağıdaki komutlar **gelecekte seçilen Linux VM veya CasaOS hostunda**, dosy
 
 **CasaOS zaten Docker yönetiyorsa Docker'ı bu belge üzerinden yeniden kurmayın veya daemon ayarlarını değiştirmeyin.** Önce mevcut `docker compose version` sonucunu ve Custom Install desteğini kontrol edin. Aynı servisi hem CLI hem CasaOS ile ikinci kez oluşturmamak için tek yönetim yolu seçin.
 
-Paket konteyner içinde `0:0` kullanır; ayrıcalıklı mod açmaz. Resmi imajın giriş noktası ve kalıcı dizini korunur. Hostta veri dizini root sahibi ve `0700` olmalı; parent dizinler de güvenilir olmalıdır. Docker yönetebilen hesapların host üzerinde root düzeyinde etkisi vardır; yalnız dosya izinleri Docker yöneticisinden gizlilik sağlamaz. [Resmi imaj tanımı](https://github.com/music-assistant/server/blob/2.10.2/Dockerfile), [Docker yetki modeli](https://docs.docker.com/engine/install/linux-postinstall/).
+Paket konteyner içinde `0:0` kullanır; ayrıcalıklı mod açmaz. Resmi imajın giriş noktası ve kalıcı dizini korunur. Hostta veri dizini root sahibi ve `0700` olmalı; parent dizinler de güvenilir olmalıdır. Docker yönetebilen hesapların host üzerinde root düzeyinde etkisi vardır; yalnız dosya izinleri Docker yöneticisinden gizlilik sağlamaz. [Resmi imaj tanımı](https://github.com/music-assistant/server/blob/2.10.4/Dockerfile), [Docker yetki modeli](https://docs.docker.com/engine/install/linux-postinstall/).
 
 Repo kökünden, yeni kurulum için:
 
@@ -82,7 +82,7 @@ sudo python3 /opt/larenor-server/manage.py verify-runtime
 
 `verify-runtime`, imaj+digest, gerçek konteyner kimliği, host ağ, root kullanıcı, `/data` bağı, kapatılmış yetenekler ve log sınırlarını Docker'dan küçük bir şablonla okur. Environment, erişim tokenı veya container log dökümü yapmaz. `privileged`, aşağıdaki tek izin dışındaki capability'ler, cihaz bağı, Docker socket, `SYS_ADMIN` ve `unconfined` bu profile dahil değildir. JSON logları dosya başına `10m`, en fazla `3` dosya olarak döner; MA'nın veri dizinindeki diğer dosyalarının büyümesini ayrıca izleyin. [Docker log rotation](https://docs.docker.com/engine/logging/drivers/json-file/).
 
-Music Assistant 2.10.2 AirPlay sağlayıcısı, ortak PTP saat servisi için UDP **319/320** portlarına bağlanır. `cap_drop: ALL` tek başına bu işlevi bozacağından yalnız **`NET_BIND_SERVICE`** geri verilir; `SYS_ADMIN`, `NET_ADMIN` veya `NET_RAW` eklenmez. Aynı hostta bu portları kullanan başka servis varsa HomePod/AirPlay 2 senkronizasyonu etkilenebilir; bu iki UDP portu preflight'ın TCP kontrolünde ölçülmez. Mevcut servisi durdurmadan çakışmayı inceleyin. Bu karar sabitlenen sürümün uygulama belgesine dayanır. [MA 2.10.2 AirPlay PTP gereksinimi](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md).
+Music Assistant 2.10.4 AirPlay sağlayıcısı, ortak PTP saat servisi için UDP **319/320** portlarına bağlanır. `cap_drop: ALL` tek başına bu işlevi bozacağından yalnız **`NET_BIND_SERVICE`** geri verilir; `SYS_ADMIN`, `NET_ADMIN` veya `NET_RAW` eklenmez. Aynı hostta bu portları kullanan başka servis varsa HomePod/AirPlay 2 senkronizasyonu etkilenebilir; bu iki UDP portu preflight'ın TCP kontrolünde ölçülmez. Mevcut servisi durdurmadan çakışmayı inceleyin. Bu karar sabitlenen sürümün uygulama belgesine dayanır. [MA 2.10.4 AirPlay PTP gereksinimi](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/providers/airplay/README.md).
 
 ### CasaOS Custom Install
 
@@ -118,7 +118,7 @@ Tarayıcıdan `http://SUNUCU_IP:8095` adresi açılır. Standalone ilk açılı�
 python3 /opt/larenor-server/manage.py probe --url http://SUNUCU_IP:8095
 ```
 
-Bu komut yalnız `GET /info` yapar; token/çerez kabul etmez, sistem proxy'sini kullanmaz, redirect izlemez, TLS doğrulamasını kapatmaz. Yanıt en fazla 64 KiB, socket bekleme süresi 5 saniyedir; gövde okurken süre bütçesi de kontrol edilir. DNS çözüm süresi OS'ye bağlıdır. `401`, `403`, redirect, timeout, bozuk/HTML yanıtı ve sürüm uyuşmazlığı ayrı sonuçlardır. `server_reachable`, login veya playback başarısı değildir. Bu sürümün `/info` yolu public server-info döndürür. [HTTP handler](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/controllers/webserver/controller.py), [server-info alanları](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/mass.py).
+Bu komut yalnız `GET /info` yapar; token/çerez kabul etmez, sistem proxy'sini kullanmaz, redirect izlemez, TLS doğrulamasını kapatmaz. Yanıt en fazla 64 KiB, socket bekleme süresi 5 saniyedir; gövde okurken süre bütçesi de kontrol edilir. DNS çözüm süresi OS'ye bağlıdır. `401`, `403`, redirect, timeout, bozuk/HTML yanıtı ve sürüm uyuşmazlığı ayrı sonuçlardır. `server_reachable`, login veya playback başarısı değildir. Bu sürümün `/info` yolu public server-info döndürür. [HTTP handler](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/controllers/webserver/controller.py), [server-info alanları](https://github.com/music-assistant/server/blob/2.10.4/music_assistant/mass.py).
 
 | Kaynak / hedef | Manuel kurulum sınırı |
 | --- | --- |
