@@ -5,6 +5,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/ws_client.dart';
@@ -171,141 +173,164 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
       title: haToolTitle(tool, l10n),
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if ({
-                  HaTool.history,
-                  HaTool.logbook,
-                  HaTool.calendars,
-                }.contains(tool)) ...[
-                  HaTextInput(
-                    label: l10n.haEntityIds,
-                    controller: _entity,
-                    readOnly: _busy,
-                  ),
-                  HaTextInput(
-                    label: l10n.haStart,
-                    controller: _start,
-                    readOnly: _busy,
-                  ),
-                  HaTextInput(
-                    label: l10n.haEnd,
-                    controller: _end,
-                    readOnly: _busy,
-                  ),
-                ],
-                if (tool == HaTool.events ||
-                    (tool == HaTool.api && _protocol == 'WebSocket')) ...[
-                  CupertinoListTile(
-                    title: Text(l10n.haLive),
-                    trailing: CupertinoSwitch(
-                      value: _live,
-                      onChanged: _busy
-                          ? null
-                          : (value) => setState(() => _live = value),
-                    ),
-                  ),
-                  if (tool == HaTool.events && _live)
-                    HaTextInput(
-                      label: l10n.haEventType,
-                      controller: _eventType,
-                    ),
-                ],
-                if (tool == HaTool.templates)
-                  HaTextInput(
-                    label: l10n.haTemplate,
-                    controller: _template,
-                    lines: 6,
-                    readOnly: _busy,
-                  ),
-                if (tool == HaTool.api) ...[
-                  HaHint(l10n.haApiHint),
-                  CupertinoSlidingSegmentedControl<String>(
-                    groupValue: _protocol,
-                    children: const {
-                      'REST': Text('REST'),
-                      'WebSocket': Text('WebSocket'),
-                    },
-                    onValueChanged: (v) {
-                      if (_busy) return;
-                      setState(() {
-                        _protocol = v!;
-                        _body.text = _protocol == 'REST'
-                            ? '{}'
-                            : '{"type":"get_config"}';
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  if (_protocol == 'REST') ...[
-                    Wrap(
-                      spacing: 6,
-                      children: [
-                        for (final method in [
-                          'GET',
-                          'POST',
-                          'PUT',
-                          'PATCH',
-                          'DELETE',
-                        ])
-                          CupertinoButton(
-                            sizeStyle: CupertinoButtonSize.small,
-                            color: _method == method
-                                ? CupertinoTheme.of(context).primaryColor
-                                : null,
-                            onPressed: _busy
-                                ? null
-                                : () => setState(() => _method = method),
-                            child: Text(
-                              method,
-                              style: TextStyle(
+          child: SettingsSection(
+            header: Semantics(
+              container: true,
+              header: true,
+              child: Text(
+                l10n.haRequest,
+                key: const ValueKey('ha-request-heading'),
+              ),
+            ),
+            children: [
+              Padding(
+                padding: Insets.tile,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if ({
+                      HaTool.history,
+                      HaTool.logbook,
+                      HaTool.calendars,
+                    }.contains(tool)) ...[
+                      HaTextInput(
+                        label: l10n.haEntityIds,
+                        controller: _entity,
+                        readOnly: _busy,
+                      ),
+                      HaTextInput(
+                        label: l10n.haStart,
+                        controller: _start,
+                        readOnly: _busy,
+                      ),
+                      HaTextInput(
+                        label: l10n.haEnd,
+                        controller: _end,
+                        readOnly: _busy,
+                      ),
+                    ],
+                    if (tool == HaTool.events ||
+                        (tool == HaTool.api && _protocol == 'WebSocket')) ...[
+                      CupertinoListTile(
+                        title: Text(l10n.haLive),
+                        trailing: CupertinoSwitch(
+                          value: _live,
+                          onChanged: _busy
+                              ? null
+                              : (value) => setState(() => _live = value),
+                        ),
+                      ),
+                      if (tool == HaTool.events && _live)
+                        HaTextInput(
+                          label: l10n.haEventType,
+                          controller: _eventType,
+                        ),
+                    ],
+                    if (tool == HaTool.templates)
+                      HaTextInput(
+                        label: l10n.haTemplate,
+                        controller: _template,
+                        lines: 6,
+                        readOnly: _busy,
+                      ),
+                    if (tool == HaTool.api) ...[
+                      HaHint(l10n.haApiHint),
+                      ConstrainedBox(
+                        key: const ValueKey('ha-protocol-control'),
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoSlidingSegmentedControl<String>(
+                          groupValue: _protocol,
+                          children: const {
+                            'REST': Text('REST'),
+                            'WebSocket': Text('WebSocket'),
+                          },
+                          onValueChanged: (v) {
+                            if (_busy) return;
+                            setState(() {
+                              _protocol = v!;
+                              _body.text = _protocol == 'REST'
+                                  ? '{}'
+                                  : '{"type":"get_config"}';
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (_protocol == 'REST') ...[
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            for (final method in [
+                              'GET',
+                              'POST',
+                              'PUT',
+                              'PATCH',
+                              'DELETE',
+                            ])
+                              CupertinoButton(
+                                sizeStyle: CupertinoButtonSize.small,
+                                minimumSize: const Size(48, 48),
                                 color: _method == method
-                                    ? CupertinoColors.white
+                                    ? CupertinoTheme.of(context).primaryColor
                                     : null,
+                                onPressed: _busy
+                                    ? null
+                                    : () => setState(() => _method = method),
+                                child: Text(
+                                  method,
+                                  style: TextStyle(
+                                    color: _method == method
+                                        ? CupertinoColors.white
+                                        : null,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                          ],
+                        ),
+                        HaTextInput(
+                          label: l10n.haEndpoint,
+                          controller: _endpoint,
+                          readOnly: _busy,
+                        ),
                       ],
-                    ),
-                    HaTextInput(
-                      label: l10n.haEndpoint,
-                      controller: _endpoint,
-                      readOnly: _busy,
+                      if (_protocol == 'WebSocket' || _method != 'GET')
+                        HaTextInput(
+                          label: l10n.haBody,
+                          controller: _body,
+                          lines: 6,
+                          readOnly: _busy,
+                        ),
+                      if (_protocol == 'REST') HaHint(l10n.haStateHint),
+                    ],
+                    if (_subscription != null)
+                      CupertinoButton(
+                        key: const ValueKey('ha-stop-listening'),
+                        minimumSize: const Size(48, 48),
+                        onPressed: () async {
+                          await _stopStream();
+                          if (mounted) setState(() {});
+                        },
+                        child: Text(l10n.haStopListening),
+                      ),
+                    CupertinoButton.filled(
+                      key: const ValueKey('ha-primary-action'),
+                      minimumSize: const Size(48, 48),
+                      onPressed: _busy ? null : _run,
+                      child: _busy
+                          ? const CupertinoActivityIndicator()
+                          : Text(tool == HaTool.api ? l10n.haRun : l10n.haRead),
                     ),
                   ],
-                  if (_protocol == 'WebSocket' || _method != 'GET')
-                    HaTextInput(
-                      label: l10n.haBody,
-                      controller: _body,
-                      lines: 6,
-                      readOnly: _busy,
-                    ),
-                  if (_protocol == 'REST') HaHint(l10n.haStateHint),
-                ],
-                if (_subscription != null)
-                  CupertinoButton(
-                    onPressed: () async {
-                      await _stopStream();
-                      if (mounted) setState(() {});
-                    },
-                    child: Text(l10n.haStopListening),
-                  ),
-                CupertinoButton.filled(
-                  onPressed: _busy ? null : _run,
-                  child: _busy
-                      ? const CupertinoActivityIndicator()
-                      : Text(tool == HaTool.api ? l10n.haRun : l10n.haRead),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         if (_result != null)
           SliverToBoxAdapter(
-            child: HaResult(value: _result, isError: _error),
+            child: SettingsSection(
+              children: [HaResult(value: _result, isError: _error)],
+            ),
           ),
       ],
     );

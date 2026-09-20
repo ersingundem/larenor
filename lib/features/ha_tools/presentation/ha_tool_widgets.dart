@@ -43,17 +43,20 @@ class HaTextInput extends StatelessWidget {
         const SizedBox(height: 8),
         Semantics(
           label: label,
-          child: CupertinoTextField(
-            controller: controller,
-            minLines: lines,
-            maxLines: lines + 5,
-            readOnly: readOnly,
-            autocorrect: false,
-            enableSuggestions: false,
-            keyboardType: lines > 1
-                ? TextInputType.multiline
-                : TextInputType.text,
-            padding: const EdgeInsets.all(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: CupertinoTextField(
+              controller: controller,
+              minLines: lines,
+              maxLines: lines + 5,
+              readOnly: readOnly,
+              autocorrect: false,
+              enableSuggestions: false,
+              keyboardType: lines > 1
+                  ? TextInputType.multiline
+                  : TextInputType.text,
+              padding: const EdgeInsets.all(12),
+            ),
           ),
         ),
       ],
@@ -75,14 +78,19 @@ class HaResult extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            isError
-                ? AppLocalizations.of(context).commonError
-                : AppLocalizations.of(context).haResult,
-            style: AppText.headline.copyWith(
-              color: isError
-                  ? CupertinoColors.systemRed.resolveFrom(context)
-                  : null,
+          Semantics(
+            container: true,
+            header: true,
+            child: Text(
+              isError
+                  ? AppLocalizations.of(context).commonError
+                  : AppLocalizations.of(context).haResult,
+              key: const ValueKey('ha-result-heading'),
+              style: AppText.headline.copyWith(
+                color: isError
+                    ? CupertinoColors.systemRed.resolveFrom(context)
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 12),
