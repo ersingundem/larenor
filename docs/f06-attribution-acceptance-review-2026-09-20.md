@@ -6,8 +6,8 @@
 
 Bu belge `docs/execution-queue.json` içindeki F06 kapsamını ve kabul metnini,
 uygulama ile testlerden bağımsız olarak yeniden eşler. Kod PR'ı kuyruk kaydını
-`done` yapmaz, kanıt alanını doldurmaz ve sayaç artırmaz. Exact PR CI ile tek
-Client → izole Core/servis yolculuğu tamamlanmadan kapanış commit'i atılamaz.
+`done` yapmaz, kanıt alanını doldurmaz ve sayaç artırmaz. Exact PR CI aynı
+head'i doğrulamadan kapanış commit'i atılamaz.
 
 ## Exact üç kabul ölçütü
 
@@ -17,14 +17,15 @@ Client → izole Core/servis yolculuğu tamamlanmadan kapanış commit'i atılam
    altında kalıcı geçmişe yazılır. Android açıklaması bu alanları birlikte
    gösterir. Doğrudan komut veya `unknown/unknown` kayıtları kural diye
    gösterilemez; yakın olay ya da saatten neden üretilmez.
-2. **Sürümlü, yetkili ve sınırlandırılmış uçtan uca sözleşme — PR kapanışında
-   doğrulanacak.** Server'ın gerçek FastAPI yönlendirmesi, izole HA adaptörü ve
+2. **Sürümlü, yetkili ve sınırlandırılmış uçtan uca sözleşme — yerel PASS.**
+   Server'ın gerçek FastAPI yönlendirmesi, izole HA adaptörü ve
    kalıcı deposu; yönetici yetkisi, restart, legacy kayıt, bozuk şifreli durum
    ve kapalı alan sözleşmelerinde yerel olarak geçti. Client ayrıca sürümlü ve
    sınırlı history API'sini, bozuk attribution/cursor yanıtlarını, iptal edilen
-   bağlamı ve geç cevabı kapalı ele alıyor. Bu iki tarafın tek gerçek Client →
-   izole Core/servis yolculuğunda birleştirildiği CI kanıtı henüz yoktur; ayrı
-   Server ve widget testleri bunun yerine kabul edilmez.
+   bağlamı ve geç cevabı kapalı ele alıyor. Loopback-only izole Core HTTP
+   endpointi gerçek `IOClient`, oturum, ev kapsamı ve activity controller
+   üzerinden rule/direct/unknown geçmişini okur; offline retain edilen kaydı
+   stale yapar ve geç cevap otorite değişiminden sonra yayınlanmaz.
 3. **Exact kaynak incelemesi ve CI — bekliyor.** Kod, sözleşme, EN/TR tablet
    klavye/TalkBack yüzeyi ve gizli veri sınırı bağımsız diff incelemesinden
    geçmeli; aynı PR head'inde Android analiz/test/E2E, Server testleri ve
@@ -34,6 +35,8 @@ Client → izole Core/servis yolculuğu tamamlanmadan kapanış commit'i atılam
 ## Yerel kanıt
 
 - Rule Server testi: `server/tests/test_f06_rule_attribution.py`, **3/3 PASS**.
+- RED `95843e2a` eksik rule fixture ve lifecycle kapılarını gösterdi; GREEN
+  `29b7a216` ile loopback Core HTTP entegrasyon paketi **8/8 PASS** verdi.
 - Rule Client modeli ve sunumu:
   `core_ha_activity_models_test.dart` + `core_ha_activity_ui_test.dart`,
   **26/26 PASS**.
@@ -47,5 +50,5 @@ Client → izole Core/servis yolculuğu tamamlanmadan kapanış commit'i atılam
 
 `F06.status` değeri `pending`, `evidence` boş ve `completionCommit` null kalır.
 Kuyruk sayacı mevcut main değeri olan **16/125 (%12,8)**, seçili özellik sayacı
-**0/63** olarak korunur. Exact PR CI ve birleşik Client → izole Core yolculuğu
-kanıtlandıktan sonra ayrı kapanış incelemesi F06'yı kabul edebilir.
+**0/63** olarak korunur. Exact PR CI kanıtlandıktan sonra ayrı kapanış
+incelemesi F06'yı kabul edebilir.
