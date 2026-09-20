@@ -89,11 +89,22 @@ class _IntercomSettingsScreenState extends ConsumerState<IntercomSettingsScreen>
     final stations = ref.watch(doorStationsProvider);
     final config = ref.watch(connectionConfigProvider);
     final generation = _generation;
+    DoorStation? currentStation(DoorStation captured) {
+      final current = ref.read(doorStationsProvider);
+      if (current.isLoading || current.hasError) return null;
+      for (final station in current.value ?? const <DoorStation>[]) {
+        if (station == captured) return station;
+      }
+      return null;
+    }
+
     void edit([DoorStation? station]) {
       if (!_current(generation)) return;
+      final current = station == null ? null : currentStation(station);
+      if (station != null && current == null) return;
       Navigator.of(context).push(
         CupertinoPageRoute<void>(
-          builder: (_) => _StationEditor(initial: station),
+          builder: (_) => _StationEditor(initial: current),
         ),
       );
     }

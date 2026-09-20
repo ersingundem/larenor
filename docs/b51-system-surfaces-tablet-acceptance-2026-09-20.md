@@ -11,6 +11,8 @@ feature progress remains **0/63**.
   least 48 dp and native Enter activation.
 - EN/TR widget matrices cover 600 and 1200 logical pixel widths at 200% text;
   compact and wide DeX resize coverage remains scrollable without overflow.
+- Ambient switches expose named 60 by 48 dp toggle targets and support native
+  Enter/Space activation without merging unrelated hint text into the action.
 
 ## Acceptance 2 — authority survives no stale callback
 
@@ -22,6 +24,9 @@ feature progress remains **0/63**.
   value only while the same authority is current.
 - Ambient retry and preview, intercom retry/add/edit, and window refresh/save
   all fail closed when the owning route is no longer current.
+- A retained intercom row cannot open a station removed or changed by the
+  latest provider snapshot; a resumed window screen rebuilds fresh actions
+  while callbacks captured before backgrounding remain retired.
 
 ## Acceptance 3 — state is accessible and truthful
 
@@ -35,6 +40,8 @@ feature progress remains **0/63**.
 
 - `flutter test test/features/ambient/ambient_ui_test.dart test/features/intercom/intercom_screen_test.dart test/features/settings/window_panel_screen_test.dart`
 - `flutter test test/features/settings/window_profile_test.dart`
+- The combined focused run passes **55/55** tests, including the new toggle,
+  stale station and lifecycle-return regressions.
 - Targeted `flutter analyze` for the four production and four test files.
 - `tool/check_commit_progress.py`, `tool/execution_queue.py`, `git diff --check`,
   `gitleaks`, and merge-tree checks against current open pull request heads.

@@ -237,18 +237,46 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(AmbientSettingsScreen)),
       );
-      final labels = [
-        l10n.ambientPhotosEnabled,
-        l10n.ambientClock,
-        l10n.ambientWeather,
-        l10n.ambientShift,
+      final controls = <(Key, String)>[
+        (const ValueKey('ambient-toggle-photos'), l10n.ambientPhotosEnabled),
+        (const ValueKey('ambient-toggle-clock'), l10n.ambientClock),
+        (const ValueKey('ambient-toggle-weather'), l10n.ambientWeather),
+        (const ValueKey('ambient-toggle-shift'), l10n.ambientShift),
       ];
-      for (var i = 0; i < labels.length; i++) {
-        final control = find.byType(CupertinoSwitch).at(i);
+      for (final (key, label) in controls) {
+        final control = find.byKey(key);
         await tester.ensureVisible(control);
         await _frames(tester);
-        expect(tester.getSemantics(control).label, contains(labels[i]));
+        expect(tester.getSize(control), const Size(60, 48));
+        expect(tester.getSemantics(control).label, contains(label));
       }
+      final clock = find.byKey(const ValueKey('ambient-toggle-clock'));
+      expect(
+        tester
+            .widget<CupertinoSwitch>(
+              find.descendant(
+                of: clock,
+                matching: find.byType(CupertinoSwitch),
+              ),
+            )
+            .value,
+        isTrue,
+      );
+      Focus.of(tester.element(clock)).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _frames(tester);
+      expect(
+        tester
+            .widget<CupertinoSwitch>(
+              find.descendant(
+                of: clock,
+                matching: find.byType(CupertinoSwitch),
+              ),
+            )
+            .value,
+        isFalse,
+      );
       await tester.pumpWidget(const SizedBox());
     } finally {
       semantics.dispose();

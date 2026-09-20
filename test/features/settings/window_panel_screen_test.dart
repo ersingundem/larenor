@@ -142,6 +142,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('fresh profile action works after lifecycle return', (
+    tester,
+  ) async {
+    final store = _Store();
+    await _mount(tester, store, const WindowPolicySnapshot(supported: true));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    final fresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('window-profile-panel')),
+        )
+        .onPressed!;
+    fresh();
+    await tester.pumpAndSettle();
+
+    expect(store.writes, 1);
+    expect(store.value, WindowProfile.panel.name);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
@@ -243,6 +244,7 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
     final generation = _generation;
 
     Widget toggle(
+      Key key,
       String title,
       bool selected,
       ValueChanged<bool> action, {
@@ -252,17 +254,46 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MergeSemantics(
-            child: Row(
-              children: [
-                Expanded(child: Text(title)),
-                const SizedBox(width: 12),
-                CupertinoSwitch(
-                  value: selected,
-                  onChanged: available ? action : null,
+          Row(
+            children: [
+              Expanded(child: Text(title)),
+              const SizedBox(width: 12),
+              FocusableActionDetector(
+                enabled: available,
+                shortcuts: const {
+                  SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+                  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+                },
+                actions: {
+                  ActivateIntent: CallbackAction<ActivateIntent>(
+                    onInvoke: (_) {
+                      if (available) action(!selected);
+                      return null;
+                    },
+                  ),
+                },
+                child: Semantics(
+                  key: key,
+                  container: true,
+                  label: title,
+                  toggled: selected,
+                  enabled: available,
+                  onTap: available ? () => action(!selected) : null,
+                  child: SizedBox(
+                    width: 60,
+                    height: 48,
+                    child: Center(
+                      child: ExcludeSemantics(
+                        child: CupertinoSwitch(
+                          value: selected,
+                          onChanged: available ? action : null,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           if (hint != null) ...[
             const SizedBox(height: 8),
@@ -350,21 +381,25 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
             footer: Text(l10n.ambientSharedHint),
             children: [
               toggle(
+                const ValueKey('ambient-toggle-photos'),
                 l10n.ambientPhotosEnabled,
                 value.photosEnabled,
                 (v) => _save(generation, value.copyWith(photosEnabled: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-clock'),
                 l10n.ambientClock,
                 value.showClock,
                 (v) => _save(generation, value.copyWith(showClock: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-weather'),
                 l10n.ambientWeather,
                 value.showWeather,
                 (v) => _save(generation, value.copyWith(showWeather: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-shift'),
                 l10n.ambientShift,
                 value.pixelShift,
                 (v) => _save(generation, value.copyWith(pixelShift: v)),

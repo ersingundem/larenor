@@ -73,8 +73,11 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final foreground = state == AppLifecycleState.resumed;
-    if (_foreground && !foreground) _expireInteraction();
-    _foreground = foreground;
+    if (_foreground == foreground || !mounted) return;
+    setState(() {
+      if (_foreground && !foreground) _expireInteraction();
+      _foreground = foreground;
+    });
   }
 
   @override

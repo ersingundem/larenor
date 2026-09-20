@@ -73,6 +73,7 @@ void main() {
     Locale locale = const Locale('tr'),
     AppInteractionController? interaction,
     HomeSessionController? home,
+    List<DoorStation> Function()? stationValues,
   }) async {
     final scope = interaction ?? AppInteractionController();
     if (interaction == null) addTearDown(scope.dispose);
@@ -116,7 +117,9 @@ void main() {
           haRestClientProvider.overrideWithValue(rest),
           haWebSocketClientProvider.overrideWithValue(socket),
           healthMonitorProvider.overrideWithValue(monitor),
-          if (!setup)
+          if (stationValues != null)
+            doorStationsProvider.overrideWith((ref) async => stationValues())
+          else if (!setup)
             doorStationsProvider.overrideWith((ref) async => [_station]),
           haActionsProvider.overrideWith(
             (ref) async => const [
@@ -346,6 +349,28 @@ void main() {
     await tester.pump();
     old();
     await tester.pumpAndSettle();
+    expect(find.byType(CupertinoTextField), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('removed station rejects retained edit callback', (tester) async {
+    var stations = const [_station];
+    await mount(tester, setup: true, stationValues: () => stations);
+    final old = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('intercom-station-entrance')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(IntercomSettingsScreen)),
+    );
+    stations = const [];
+    container.invalidate(doorStationsProvider);
+    await tester.pumpAndSettle();
+
+    old();
+    await tester.pumpAndSettle();
+
     expect(find.byType(CupertinoTextField), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
