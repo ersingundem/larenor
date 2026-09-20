@@ -176,6 +176,9 @@ class _ServerMusicRetainedScreenState
     ServerMusicRetainedInstallation item,
   ) => SettingsSection(
     header: Semantics(
+      key: ValueKey(
+        'music-retained-installation-heading-${item.installationId}',
+      ),
       header: true,
       child: Text(l.serverMusicRetainedInstallation),
     ),
@@ -186,6 +189,10 @@ class _ServerMusicRetainedScreenState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Semantics(
+              key: ValueKey(
+                'music-retained-installation-state-${item.installationId}',
+              ),
+              header: true,
               liveRegion: true,
               child: Text(_state(l, item.state), style: AppText.headline),
             ),
@@ -200,6 +207,9 @@ class _ServerMusicRetainedScreenState
             if (item.bootstrap case final receipt?) ...[
               const SizedBox(height: 16),
               Semantics(
+                key: ValueKey(
+                  'music-retained-bootstrap-heading-${item.installationId}',
+                ),
                 header: true,
                 child: Text(
                   l.serverMusicRetainedBootstrap,
@@ -224,6 +234,9 @@ class _ServerMusicRetainedScreenState
             ],
             const SizedBox(height: 16),
             Semantics(
+              key: ValueKey(
+                'music-retained-providers-heading-${item.installationId}',
+              ),
               header: true,
               child: Text(
                 l.serverMusicRetainedProviders,
@@ -339,6 +352,10 @@ class _ServerMusicRetainedScreenState
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Semantics(
+                          key: const ValueKey(
+                            'music-retained-overview-heading',
+                          ),
+                          header: true,
                           liveRegion: true,
                           child: Text(
                             _state(l, overview.state),
