@@ -14,7 +14,10 @@ class BackupFileAccess {
       allowedExtensions: const ['larenor-vault'],
     );
     if (file == null) return null;
-    if (await file.length() > maxFileBytes) throw const BackupFileTooLarge();
+    final length = await file.length();
+    if (length == null || length > maxFileBytes) {
+      throw const BackupFileTooLarge();
+    }
     final bytes = BytesBuilder(copy: false);
     await for (final chunk in file.readAsByteStream()) {
       if (bytes.length + chunk.length > maxFileBytes) {

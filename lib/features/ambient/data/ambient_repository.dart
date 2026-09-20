@@ -305,7 +305,8 @@ class AmbientFileAccess {
       allowedExtensions: const ['jpg', 'jpeg', 'png'],
     );
     if (file == null) return null;
-    if (await file.length() > AmbientRepository.maxSourceBytes) {
+    final length = await file.length();
+    if (length == null || length > AmbientRepository.maxSourceBytes) {
       throw const AmbientException(limit: true);
     }
     return AmbientRepository.boundedBytes(

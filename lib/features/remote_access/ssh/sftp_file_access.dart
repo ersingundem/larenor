@@ -18,9 +18,13 @@ class SftpFileAccess {
   static Future<SftpUpload?> _pick() async {
     final file = await FilePicker.pickFile(type: FileType.any);
     if (file == null) return null;
+    final declaredLength = await file.length();
+    if (declaredLength == null) {
+      throw const SftpFailure('file_access_failed');
+    }
     return collectUpload(
       name: file.name,
-      declaredLength: await file.length(),
+      declaredLength: declaredLength,
       chunks: file.readAsByteStream(),
     );
   }

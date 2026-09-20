@@ -32,9 +32,13 @@ final class CoreBoundedUploadFileAccess {
   static Future<CoreBoundedPickedFile?> _platformPick() async {
     final file = await FilePicker.pickFile(type: FileType.any);
     if (file == null) return null;
+    final declaredLength = await file.length();
+    if (declaredLength == null) {
+      throw const CoreBoundedDownloadException('file_access_failed');
+    }
     return CoreBoundedPickedFile(
       name: file.name,
-      declaredLength: await file.length(),
+      declaredLength: declaredLength,
       chunks: file.readAsByteStream(),
     );
   }
