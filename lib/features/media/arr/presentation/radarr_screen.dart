@@ -10,6 +10,7 @@ import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
 import 'widgets/arr_dashboard_body.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 
 class RadarrScreen extends ConsumerWidget {
   const RadarrScreen({super.key});
@@ -21,8 +22,11 @@ class RadarrScreen extends ConsumerWidget {
     return connectionAsync.when(
       skipLoadingOnReload: false,
       skipLoadingOnRefresh: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => ServiceRouteStatusScaffold(
+        title: 'Radarr',
+        label: AppLocalizations.of(context).commonLoading,
+        statusKey: const ValueKey('radarr-home-status'),
+        loading: true,
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
@@ -43,10 +47,13 @@ class RadarrScreen extends ConsumerWidget {
             ),
           );
         }
-        return CupertinoPageScaffold(
-          child: Center(
-            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-          ),
+        return ServiceRouteStatusScaffold(
+          title: 'Radarr',
+          label: AppLocalizations.of(context).mediaErrorUnreachable,
+          statusKey: const ValueKey('radarr-home-status'),
+          actionLabel: AppLocalizations.of(context).commonRetry,
+          actionKey: const ValueKey('radarr-home-retry'),
+          onAction: () => ref.invalidate(radarrConnectionProvider),
         );
       },
       data: (config) {
