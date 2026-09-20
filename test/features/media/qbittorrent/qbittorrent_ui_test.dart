@@ -15,6 +15,7 @@ import 'package:larenor/features/media/qbittorrent/presentation/qbittorrent_torr
 import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
@@ -256,6 +257,10 @@ void main() {
         expect(find.textContaining('private-backend-body'), findsNothing);
         expect(find.text('No torrents'), findsNothing);
         expect(find.text('No active torrents'), findsNothing);
+        if (!tile) {
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+        }
       },
     );
   }
@@ -640,6 +645,14 @@ void main() {
               ),
             ),
           );
+
+          tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 900);
+          await tester.pumpAndSettle();
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          expect(find.byKey(const ValueKey('torrent-refresh')), findsOneWidget);
+          expect(find.byKey(const ValueKey('torrent-add')), findsOneWidget);
+          expect(find.byKey(const ValueKey('torrent-row-0')), findsOneWidget);
+          expect(tester.takeException(), isNull);
 
           Focus.of(tester.element(find.text('Family video'))).requestFocus();
           await tester.pump();

@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
-import 'app_page_scaffold.dart';
+import '../theme/spacing.dart';
+import 'service_root_scaffold.dart';
+import 'settings_action_tile.dart';
+import 'settings_section.dart';
 
 /// Shared full-page state for a service route before its primary content is
 /// available. It keeps connection failures private, announces state changes,
@@ -29,40 +32,39 @@ class ServiceRouteStatusScaffold extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
-  Widget build(BuildContext context) => AppPageScaffold(
-    navigationBar: CupertinoNavigationBar(middle: Text(title)),
-    child: SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => ServiceRootScaffold(
+    title: title,
+    slivers: [
+      SliverToBoxAdapter(
+        child: SettingsSection(
           children: [
             Semantics(
               key: statusKey,
               label: label,
               liveRegion: true,
               excludeSemantics: true,
-              child: loading
-                  ? const CupertinoActivityIndicator()
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(label, textAlign: TextAlign.center),
-                    ),
-            ),
-            if (onAction != null) ...[
-              const SizedBox(height: 12),
-              Semantics(
-                label: actionLabel,
-                child: CupertinoButton(
-                  key: actionKey,
-                  minimumSize: const Size(48, 48),
-                  onPressed: onAction,
-                  child: ExcludeSemantics(child: Text(actionLabel!)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: Gap.huge),
+                child: Padding(
+                  padding: Insets.tile,
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: loading
+                        ? const CupertinoActivityIndicator()
+                        : Text(label),
+                  ),
                 ),
               ),
-            ],
+            ),
+            if (onAction != null)
+              SettingsActionTile(
+                buttonKey: actionKey,
+                title: Text(actionLabel!),
+                onTap: onAction,
+              ),
           ],
         ),
       ),
-    ),
+    ],
   );
 }

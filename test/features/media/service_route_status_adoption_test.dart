@@ -16,6 +16,8 @@ import 'package:larenor/features/media/prowlarr/presentation/prowlarr_indexers_s
 import 'package:larenor/features/media/prowlarr/providers/prowlarr_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _FailingBazarrConnection extends BazarrConnection {
   _FailingBazarrConnection(this.onRead);
@@ -83,7 +85,9 @@ void _expectStatus(
 }) {
   final l10n = AppLocalizations.of(tester.element(find.byType(AppSurface)));
   expect(find.byType(AppSurface), findsOneWidget);
-  expect(find.text(service), findsOneWidget);
+  expect(find.byType(ServiceRootScaffold), findsOneWidget);
+  expect(find.byType(SettingsSection), findsOneWidget);
+  expect(find.text(service), findsWidgets);
   expect(find.text(l10n.mediaErrorUnreachable), findsOneWidget);
   expect(find.textContaining(privateDiagnostic), findsNothing);
   final status = tester.getSemantics(find.byKey(ValueKey(statusKey)));
@@ -96,7 +100,7 @@ void _expectStatus(
 }
 
 void main() {
-  for (final width in [600.0, 1280.0]) {
+  for (final width in [600.0, 1200.0]) {
     testWidgets('Bazarr and Prowlarr adopt shared private service state '
         '$width 2x', (tester) async {
       final semantics = tester.ensureSemantics();

@@ -20,6 +20,7 @@ void main() {
           final semantics = tester.ensureSemantics();
           final harness = ScopeHarness(HomeSource.verifiedCore);
           try {
+            await harness.signIn();
             await harness.mount(
               tester,
               locale: language,
@@ -33,6 +34,11 @@ void main() {
             expect(find.byType(ServiceRootScaffold), findsOneWidget);
             expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
             expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(2));
+            final inventory = find.byKey(
+              const ValueKey('core-home-inventory-action'),
+            );
+            expect(inventory, findsOneWidget);
+            expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -58,6 +64,18 @@ void main() {
             expect(actionNode.flagsCollection.isButton, isTrue);
             expect(actionNode.rect.width, greaterThanOrEqualTo(48));
             expect(actionNode.rect.height, greaterThanOrEqualTo(48));
+
+            tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 1000);
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const ValueKey('core-home-source-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-inventory-action')),
+              findsOneWidget,
+            );
+            expect(tester.takeException(), isNull);
 
             final label = find.descendant(
               of: action,

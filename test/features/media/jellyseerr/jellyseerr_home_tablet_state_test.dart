@@ -9,6 +9,7 @@ import 'package:larenor/features/media/jellyseerr/presentation/jellyseerr_reques
 import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _FailingConnection extends JellyseerrConnection {
@@ -120,7 +121,7 @@ void main() {
     expect(find.byType(JellyseerrRequestsScreen), findsNothing);
   });
 
-  for (final width in [600.0, 1280.0]) {
+  for (final width in [600.0, 1200.0]) {
     testWidgets('Jellyseerr failure uses shared live tablet state and retry '
         '$width 2x', (tester) async {
       final semantics = tester.ensureSemantics();
@@ -156,6 +157,8 @@ void main() {
         );
 
         expect(find.byType(AppSurface), findsOneWidget);
+        expect(find.byType(ServiceRootScaffold), findsOneWidget);
+        expect(find.byType(SettingsSection), findsOneWidget);
         expect(find.text(l10n.mediaErrorUnreachable), findsOneWidget);
         expect(
           find.textContaining('private upstream diagnostic'),
@@ -172,6 +175,18 @@ void main() {
         expect(retryNode.label, l10n.commonRetry);
         expect(retryNode.flagsCollection.isButton, isTrue);
         expect(retryNode.rect.height, greaterThanOrEqualTo(48));
+
+        tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 900);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('jellyseerr-home-status')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('jellyseerr-home-retry')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
 
         await _tabToRetry(tester);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -238,6 +253,15 @@ void main() {
           final requestsNode = tester.getSemantics(requestsAction);
           expect(requestsNode.label, contains(l10n.jellyseerrMyRequestsTitle));
           expect(requestsNode.flagsCollection.isButton, isTrue);
+
+          tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 900);
+          await tester.pumpAndSettle();
+          expect(find.byType(SettingsSection), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('jellyseerr-requests-action')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
 
           Focus.of(tester.element(find.text(l10n.jellyseerrMyRequestsTitle)))
               .requestFocus();
