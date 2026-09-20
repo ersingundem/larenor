@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,21 +54,26 @@ class AboutPane extends ConsumerWidget {
           ),
         ),
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('about-actions-header'),
+            container: true,
+            header: true,
+            child: Text(l10n.settingsCategoryAbout),
+          ),
           children: [
-            CupertinoListTile(
+            SettingsActionTile(
+              buttonKey: const ValueKey('about-legal-action'),
               title: Text(l10n.legalTitle),
-              trailing: const CupertinoListTileChevron(),
               onTap: () => Navigator.of(context).push(
                 CupertinoPageRoute<void>(builder: (_) => const LegalScreen()),
               ),
             ),
-            CupertinoListTile(
-              title: Center(
-                child: Text(
-                  l10n.commonSignOut,
-                  style: TextStyle(
-                    color: CupertinoColors.systemRed.resolveFrom(context),
-                  ),
+            SettingsActionTile(
+              buttonKey: const ValueKey('about-sign-out-action'),
+              title: Text(
+                l10n.commonSignOut,
+                style: TextStyle(
+                  color: CupertinoColors.systemRed.resolveFrom(context),
                 ),
               ),
               onTap: () async {
