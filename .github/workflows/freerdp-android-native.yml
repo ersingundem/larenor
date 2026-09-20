@@ -1,0 +1,94 @@
+{
+  "name": "FreeRDP Android Native Package",
+  "on": {
+    "workflow_dispatch": {},
+    "pull_request": {
+      "branches": ["main"],
+      "paths": [
+        ".github/workflows/freerdp-android-native.yml",
+        "android/freerdp-native.lock.json",
+        "android/freerdp-certificate-pem.patch",
+        "android/app/build.gradle.kts",
+        "android/app/src/freerdp/**",
+        "android/app/src/main/kotlin/com/ersingundem/larenor/rdp/**",
+        "android/app/src/test/kotlin/com/ersingundem/larenor/rdp/**",
+        "lib/features/remote_access/rdp/**",
+        "test/features/remote_access/rdp/**",
+        "tool/freerdp_android_package.py",
+        "tool/tests/freerdp_android_package_test.py"
+      ]
+    }
+  },
+  "permissions": {"contents": "read"},
+  "concurrency": {
+    "group": "freerdp-android-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "package": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {"abi": ["arm64-v8a", "x86_64"]}
+      },
+      "env": {
+        "ABI": "${{ matrix.abi }}",
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}"
+      },
+      "steps": [
+        {
+          "name": "Require reviewed GitHub-hosted execution",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch) test \"$GITHUB_REF\" = refs/heads/main; test -z \"$PR_HEAD_REPOSITORY\";;\n  pull_request) test \"$GITHUB_BASE_REF\" = main; test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"; case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted\n"
+        },
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"ref": "${{ github.sha }}", "persist-credentials": false}
+        },
+        {
+          "uses": "actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6",
+          "with": {"distribution": "temurin", "java-version": "17"}
+        },
+        {
+          "uses": "android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd",
+          "with": {"packages": "platform-tools platforms;android-37.0 build-tools;37.0.0 ndk;29.0.13113456 cmake;4.1.2"}
+        },
+        {
+          "name": "Verify immutable source and reviewed JNI surface",
+          "run": "set -euo pipefail\npython3 tool/freerdp_android_package.py verify-lock\narchive=\"$RUNNER_TEMP/freerdp-3.31.1.tar.gz\"\ncurl --fail --location --proto '=https' --tlsv1.2 --retry 3 --output \"$archive\" https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz\npython3 tool/freerdp_android_package.py verify-source \"$archive\"\nmkdir \"$RUNNER_TEMP/freerdp-source\"\ntar --extract --gzip --file \"$archive\" --directory \"$RUNNER_TEMP/freerdp-source\" --strip-components=1 --no-same-owner\n"
+        },
+        {
+          "name": "Apply reviewed SPKI evidence patch and minimal library manifest",
+          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
+        },
+        {
+          "name": "Build one exact native ABI with optional channels default-off",
+          "env": {"GRADLE_USER_HOME": "${{ runner.temp }}/freerdp-gradle"},
+          "run": "set -euo pipefail\nstudio=\"$RUNNER_TEMP/freerdp-source/client/Android/Studio\"\ncat > \"$studio/release.properties\" <<EOF\nCOMPILE_API=37\nTARGET_API=37\nMIN_API=29\nTOOLS_VERSION=37.0.0\nNDK_VERSION=29.0.13113456\nCMAKE_VERSION=4.1.2\nBUILD_UNIVERSAL=true\nSPLIT_ENABLED=false\nABI_FILTERS=$ABI\nSPLIT_ARCHITECTURES=$ABI\nVERSION_NAME=3.31.1\nVERSION_CODE=3031001\nCMAKE_ARGUMENTS=-DWITH_FFMPEG=OFF;-DWITH_OPENH264=OFF;-DWITH_OPUS=OFF;-DWITH_WEBP=OFF;-DWITH_JPEG=OFF;-DWITH_PNG=OFF;-DWITH_CJSON=ON;-DWITH_OPENSSL=ON\nEOF\ncd \"$studio\"\n./gradlew --no-daemon --stacktrace :freeRDPCore:assembleRelease\n"
+        },
+        {
+          "name": "Create exact package receipt",
+          "run": "set -euo pipefail\naar=\"$RUNNER_TEMP/freerdp-source/client/Android/Studio/freeRDPCore/build/outputs/aar/freeRDPCore-release.aar\"\nout=\"$RUNNER_TEMP/freerdp-${ABI}-receipt.json\"\npython3 tool/freerdp_android_package.py receipt \"$aar\" --abi \"$ABI\" --output \"$out\"\nmkdir \"$RUNNER_TEMP/freerdp-package\"\ncp \"$aar\" \"$RUNNER_TEMP/freerdp-package/freeRDPCore-${ABI}.aar\"\ncp \"$out\" \"$RUNNER_TEMP/freerdp-package/receipt.json\"\n"
+        },
+        {
+          "uses": "subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2",
+          "with": {"flutter-version": "3.47.2", "channel": "stable", "cache": true}
+        },
+        {
+          "name": "Compile the receipted runtime into a real Larenor APK",
+          "env": {"GRADLE_USER_HOME": "${{ runner.temp }}/larenor-gradle"},
+          "run": "set -euo pipefail\nmkdir -p android/app/freerdp\ncp \"$RUNNER_TEMP/freerdp-package/freeRDPCore-${ABI}.aar\" android/app/freerdp/freeRDPCore.aar\ncp \"$RUNNER_TEMP/freerdp-package/receipt.json\" android/app/freerdp/receipt.json\nflutter pub get\ndart run build_runner build --delete-conflicting-outputs\nif test \"$ABI\" = arm64-v8a; then target=android-arm64; else target=android-x64; fi\nflutter build apk --debug --target-platform \"$target\"\npython3 tool/freerdp_android_package.py verify-apk build/app/outputs/flutter-apk/app-debug.apk android/app/freerdp/receipt.json\n"
+        },
+        {
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "freerdp-3.31.1-${{ github.sha }}-${{ matrix.abi }}",
+            "path": "${{ runner.temp }}/freerdp-package/",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}

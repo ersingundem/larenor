@@ -6,6 +6,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val freeRdpAar = file("freerdp/freeRDPCore.aar")
+val freeRdpReceipt = file("freerdp/receipt.json")
+if (freeRdpAar.exists() != freeRdpReceipt.exists()) {
+    throw GradleException("FreeRDP AAR and receipt must be installed together")
+}
+val hasFreeRdp = freeRdpAar.isFile && freeRdpReceipt.isFile
+val verifyFreeRdpPackage by tasks.registering(Exec::class) {
+    onlyIf { hasFreeRdp }
+    workingDir(rootProject.projectDir.parentFile)
+    commandLine(
+        "python3", "tool/freerdp_android_package.py", "verify-install",
+        freeRdpAar.absolutePath, freeRdpReceipt.absolutePath,
+    )
+}
+
 val releaseKeys = Properties()
 val releaseKeysFile = rootProject.file("key.properties")
 if (releaseKeysFile.exists()) {
@@ -25,6 +40,7 @@ tasks.configureEach {
     // AGP's host-test resource package consumes Flutter's merged assets too.
     // Declare the producer so Gradle 9 validates the real dependency graph.
     if (name == "packageDebugUnitTestForUnitTest") dependsOn("copyFlutterAssetsDebug")
+    if (name == "preBuild") dependsOn(verifyFreeRdpPackage)
 }
 
 android {
@@ -49,7 +65,7 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // Health Connect's stable client declares minSdk 26. The wellbeing
         // feature checks API 28 and real provider availability separately.
-        minSdk = 26
+        minSdk = if (hasFreeRdp) 29 else 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -75,6 +91,10 @@ android {
             signingConfig = signingConfigs.findByName("release")
         }
     }
+
+    if (hasFreeRdp) {
+        sourceSets.getByName("main").java.srcDir("src/freerdp/kotlin")
+    }
 }
 
 kotlin {
@@ -88,15 +108,27 @@ flutter {
 }
 
 dependencies {
+    if (hasFreeRdp) {
+        implementation(files(freeRdpAar))
+        implementation("androidx.appcompat:appcompat:1.8.0")
+        implementation("androidx.core:core:1.19.0")
+        implementation("androidx.preference:preference:1.2.1")
+        implementation("androidx.recyclerview:recyclerview:1.4.0")
+        implementation("androidx.lifecycle:lifecycle-viewmodel:2.11.0")
+        implementation("androidx.lifecycle:lifecycle-livedata:2.11.0")
+        implementation("androidx.room:room-runtime:2.8.5")
+        implementation("net.zetetic:sqlcipher-android:4.19.0@aar")
+        implementation("androidx.sqlite:sqlite:2.7.0")
+    }
     implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
     // Official stable AndroidX release; keep all Media3 modules in lockstep.
-    val media3Version = "1.11.0"
+    val media3Version = "1.11.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
 }
