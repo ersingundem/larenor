@@ -2946,5 +2946,15 @@
   "localNotificationsRead": "Okundu",
   "localNotificationsUnread": "Okunmadı",
   "localNotificationsMarkRead": "Okundu olarak işaretle",
-  "localNotificationsOpen": "Hedefi aç"
+  "localNotificationsOpen": "Hedefi aç",
+  "localNotificationsAndroidTitle": "Android teslimi",
+  "localNotificationsAndroidUnsupported": "Sistem bildirimleri bu cihazda kullanılamıyor.",
+  "localNotificationsAndroidNotRequested": "İzin henüz istenmedi. Larenor yalnızca Etkinleştir’i seçtiğinizde sorar.",
+  "localNotificationsAndroidDenied": "Bildirim izni reddedildi. Uygulama içi kutu kullanılabilir.",
+  "localNotificationsAndroidChannelDisabled": "Larenor uyarıları Android ayarlarında kapalı.",
+  "localNotificationsAndroidGranted": "Android bildirimleri etkin.",
+  "localNotificationsAndroidForegroundOnly": "Core sorgulaması şu anda Larenor etkinken çalışır. Güç durumu yalnız tanıdır; muafiyet varsayılmaz.",
+  "localNotificationsAndroidEnable": "Android bildirimlerini etkinleştir",
+  "localNotificationsAndroidSettings": "Bildirim ayarlarını aç",
+  "localNotificationsAndroidPower": "Güç ayarlarını aç"
 }

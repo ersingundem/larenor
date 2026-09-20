@@ -3274,5 +3274,15 @@
   "localNotificationsRead": "Read",
   "localNotificationsUnread": "Unread",
   "localNotificationsMarkRead": "Mark as read",
-  "localNotificationsOpen": "Open destination"
+  "localNotificationsOpen": "Open destination",
+  "localNotificationsAndroidTitle": "Android delivery",
+  "localNotificationsAndroidUnsupported": "System notifications are unavailable on this device.",
+  "localNotificationsAndroidNotRequested": "Permission has not been requested. Larenor will ask only after you choose Enable.",
+  "localNotificationsAndroidDenied": "Notification permission was denied. The in-app inbox remains available.",
+  "localNotificationsAndroidChannelDisabled": "Larenor alerts are disabled in Android settings.",
+  "localNotificationsAndroidGranted": "Android notifications are enabled.",
+  "localNotificationsAndroidForegroundOnly": "Core polling currently runs while Larenor is active. Power status is diagnostic and no exemption is assumed.",
+  "localNotificationsAndroidEnable": "Enable Android notifications",
+  "localNotificationsAndroidSettings": "Open notification settings",
+  "localNotificationsAndroidPower": "Open power settings"
 }
