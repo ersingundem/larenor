@@ -15,8 +15,14 @@ from larenor_server.plugins.music_assistant_bootstrap_runtime import (
 INSTALLATION = 'a' * 32
 USERNAME = 'larenor-core'
 PASSWORD = 'S' * 48
-SHORT_TOKEN = 'short-private-token'
-LONG_TOKEN = 'long-private-token'
+
+
+def jwt_fixture(header: str, payload: str, signature: str) -> str:
+    return '.'.join((header * 20, payload * 24, signature * 43))
+
+
+SHORT_TOKEN = jwt_fixture('h', 's', 's')
+LONG_TOKEN = jwt_fixture('h', 'l', 'l')
 USER_ID = 'user-fixture'
 
 
@@ -97,6 +103,28 @@ def test_creates_internal_admin_long_token_and_verified_readback_once():
     assert PASSWORD not in repr(result)
     assert SHORT_TOKEN not in repr(result)
     assert LONG_TOKEN not in repr(result)
+
+
+@pytest.mark.parametrize('token', [
+    'opaque-private-token',
+    'a.b.short',
+    'a' * 513 + '.payload.' + 's' * 43,
+    'header.' + 'p' * 1537 + '.' + 's' * 43,
+    'header.payload.' + 's' * 42,
+    'header.payload.' + 's' * 44,
+])
+def test_rejects_non_jwt_setup_credentials_without_echoing_them(token):
+    responses = valid_responses()
+    responses[0] = Response({
+        'success': True, 'token': token,
+        'user': {'user_id': USER_ID, 'username': USERNAME, 'role': 'admin'},
+    })
+    with pytest.raises(MusicAssistantBootstrapRuntimeError) as raised:
+        runtime(responses, []).create(
+            installation_id=INSTALLATION, username=USERNAME,
+            credential=PASSWORD, deadline=time.monotonic() + 2)
+    assert str(raised.value) == 'music_assistant_bootstrap_uncertain'
+    assert token not in str(raised.value) + repr(raised.value)
 
 
 @pytest.mark.parametrize('changed', [
