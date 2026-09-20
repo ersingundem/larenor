@@ -180,11 +180,11 @@ class _HaToolScreenState extends DashboardEditState<HaToolScreen> {
           _result = [..._messages];
         });
       },
-      onError: (Object error) {
+      onError: (Object _) {
         if (_wsCurrent(generation, ws)) {
           setState(() {
             _error = true;
-            _result = '$error';
+            _result = AppLocalizations.of(context).actionFailed;
           });
         }
       },
@@ -283,11 +283,29 @@ class _HaToolScreenState extends DashboardEditState<HaToolScreen> {
                         (tool == HaTool.api && _protocol == 'WebSocket')) ...[
                       CupertinoListTile(
                         title: Text(l10n.haLive),
-                        trailing: CupertinoSwitch(
-                          value: _live,
-                          onChanged: _busy || !canInteract
-                              ? null
-                              : (value) => setState(() => _live = value),
+                        trailing: Semantics(
+                          label: l10n.haLive,
+                          button: true,
+                          toggled: _live,
+                          enabled: !_busy && canInteract,
+                          child: ExcludeSemantics(
+                            child: CupertinoButton(
+                              key: const ValueKey('ha-live-toggle'),
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(60, 48),
+                              onPressed: _busy || !canInteract
+                                  ? null
+                                  : () {
+                                      final generation = interactionGeneration;
+                                      if (!_valid(generation)) return;
+                                      setState(() => _live = !_live);
+                                    },
+                              child: CupertinoSwitch(
+                                value: _live,
+                                onChanged: null,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       if (tool == HaTool.events && _live)
@@ -534,7 +552,9 @@ class _HaToolScreenState extends DashboardEditState<HaToolScreen> {
             }
             if (!_restCurrent(generation, client)) return;
             final ws = ref.read(haWebSocketClientProvider);
-            if (ws == null) throw StateError(l10n.haDisconnected);
+            if (ws == null) {
+              throw HaApiException(l10n.haDisconnected, code: 'not_connected');
+            }
             if (_live) {
               await _startStream(body, generation, ws);
               if (!_wsCurrent(generation, ws)) return;
@@ -551,13 +571,26 @@ class _HaToolScreenState extends DashboardEditState<HaToolScreen> {
       if (_restCurrent(generation, client)) {
         setState(() {
           _error = true;
-          _result = error is HaApiException && error.statusCode == 404
-              ? l10n.haEndpointUnavailable
-              : '$error';
+          _result = _safeFailureLabel(l10n, error);
         });
       }
     } finally {
       if (_restCurrent(generation, client)) setState(() => _busy = false);
     }
   }
+}
+
+String _safeFailureLabel(AppLocalizations l10n, Object error) {
+  if (error is HaApiException) {
+    if (error.statusCode == 404) return l10n.haEndpointUnavailable;
+    if (error.code == 'not_connected') return l10n.haDisconnected;
+  }
+  if (error is FormatException) {
+    final message = error.message.toString();
+    if (message == l10n.haInvalidDate || message == l10n.adminInvalidValue) {
+      return message;
+    }
+    return l10n.adminInvalidValue;
+  }
+  return l10n.actionFailed;
 }

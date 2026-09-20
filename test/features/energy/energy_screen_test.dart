@@ -662,4 +662,30 @@ void main() {
       await harness.unmount(tester);
     },
   );
+
+  testWidgets(
+    'retained energy callbacks cannot mutate state after visibility authority changes',
+    (tester) async {
+      final harness = _Harness(realReader: true);
+      await harness.mount(tester);
+      final controller = harness.container.read(energyControllerProvider)!;
+      final oldAction = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('energy-range-last7Days')),
+          )
+          .onPressed!;
+      harness.visible.value = false;
+      await frames(tester);
+      harness.visible.value = true;
+      await frames(tester);
+      oldAction();
+      await frames(tester);
+      expect(controller.range, EnergyRange.today);
+      await tester.tap(find.byKey(const ValueKey('energy-range-last7Days')));
+      await frames(tester);
+      expect(controller.range, EnergyRange.last7Days);
+      expect(tester.takeException(), isNull);
+      await harness.unmount(tester);
+    },
+  );
 }

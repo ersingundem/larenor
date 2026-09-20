@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -124,6 +125,84 @@ void main() {
     expect(find.textContaining('Enter valid ISO'), findsOneWidget);
   });
 
+  testWidgets(
+    'transport failures hide backend details and announce a safe error',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final client = HaRestClient(
+        baseUrl: 'http://ha.test',
+        token: 'test',
+        httpClient: MockClient((request) async {
+          throw StateError(
+            'Bearer private-token at http://internal.home/api/config',
+          );
+        }),
+      );
+      addTearDown(client.dispose);
+      try {
+        await tester.pumpWidget(app(HaTool.server, client));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(CupertinoButton, 'Read'));
+        await tester.pumpAndSettle();
+        expect(find.text('The request could not be completed'), findsOneWidget);
+        expect(find.textContaining('private-token'), findsNothing);
+        expect(find.textContaining('internal.home'), findsNothing);
+        expect(
+          tester
+              .getSemantics(find.byKey(const ValueKey('ha-result-live-region')))
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        '${locale.languageCode} live subscription is a 48dp keyboard and TalkBack toggle at ${width.toInt()}px',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final client = HaRestClient(
+            baseUrl: 'http://ha.test',
+            token: 'test',
+            httpClient: MockClient((request) async => http.Response('[]', 200)),
+          );
+          addTearDown(client.dispose);
+          tester.view.physicalSize = Size(width, 1100);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          try {
+            await tester.pumpWidget(
+              app(HaTool.events, client, locale: locale, textScale: 2),
+            );
+            await tester.pumpAndSettle();
+            final l10n = await AppLocalizations.delegate.load(locale);
+            final toggle = find.byKey(const ValueKey('ha-live-toggle'));
+            expect(tester.getRect(toggle).height, greaterThanOrEqualTo(48));
+            final node = tester.getSemantics(toggle);
+            expect(node.label, l10n.haLive);
+            expect(node.flagsCollection.isToggled, ui.Tristate.isFalse);
+            await tabTo(tester, const ValueKey('ha-live-toggle'));
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pump();
+            expect(
+              tester.getSemantics(toggle).flagsCollection.isToggled,
+              ui.Tristate.isTrue,
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   testWidgets('console cannot send credentials to another server', (
     tester,
   ) async {
@@ -147,7 +226,7 @@ void main() {
     await tester.tap(find.widgetWithText(CupertinoButton, 'Run'));
     await tester.pumpAndSettle();
     expect(requests, 0);
-    expect(find.textContaining('relative Home Assistant'), findsOneWidget);
+    expect(find.textContaining('valid value'), findsOneWidget);
   });
 
   for (final invalidation in ['account', 'background', 'route']) {

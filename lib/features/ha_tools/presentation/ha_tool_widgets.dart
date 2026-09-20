@@ -75,30 +75,35 @@ class HaResult extends StatelessWidget {
         : const JsonEncoder.withIndent('  ').convert(value);
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            container: true,
-            header: true,
-            child: Text(
-              isError
-                  ? AppLocalizations.of(context).commonError
-                  : AppLocalizations.of(context).haResult,
-              key: const ValueKey('ha-result-heading'),
-              style: AppText.headline.copyWith(
-                color: isError
-                    ? CupertinoColors.systemRed.resolveFrom(context)
-                    : null,
+      child: Semantics(
+        key: const ValueKey('ha-result-live-region'),
+        container: true,
+        liveRegion: isError,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              container: true,
+              header: true,
+              child: Text(
+                isError
+                    ? AppLocalizations.of(context).commonError
+                    : AppLocalizations.of(context).haResult,
+                key: const ValueKey('ha-result-heading'),
+                style: AppText.headline.copyWith(
+                  color: isError
+                      ? CupertinoColors.systemRed.resolveFrom(context)
+                      : null,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SelectableText(
-            text,
-            style: AppText.footnote.copyWith(fontFamily: 'monospace'),
-          ),
-        ],
+            const SizedBox(height: 12),
+            SelectableText(
+              text,
+              style: AppText.footnote.copyWith(fontFamily: 'monospace'),
+            ),
+          ],
+        ),
       ),
     );
   }

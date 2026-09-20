@@ -10,6 +10,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/integration_health_status.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../health/data/integration_health.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../domain/energy_models.dart';
@@ -25,40 +26,40 @@ class EnergyMaintenanceScreen extends ConsumerStatefulWidget {
 }
 
 class _EnergyMaintenanceScreenState
-    extends ConsumerState<EnergyMaintenanceScreen> {
+    extends DashboardEditState<EnergyMaintenanceScreen> {
   MaintenanceScope _scope = MaintenanceScope.selected;
   final _expanded = <String>{};
-  bool _foreground = true;
-  late final AppLifecycleListener _lifecycle;
+  bool? _wasVisible, _wasCurrent;
+
   @override
-  void initState() {
-    super.initState();
-    final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) {
-        if (mounted) {
-          setState(() => _foreground = state == AppLifecycleState.resumed);
-        }
-      },
-    );
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    final current = ModalRoute.isCurrentOf(context) ?? true;
+    if ((_wasVisible == true && !visible) ||
+        (_wasCurrent == true && !current)) {
+      interactionGeneration++;
+    }
+    _wasVisible = visible;
+    _wasCurrent = current;
   }
 
   @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
+  void invalidateDashboardInteraction() {
+    _expanded.clear();
   }
 
   @override
   Widget build(BuildContext context) {
+    watchDashboardAccount();
     final l10n = AppLocalizations.of(context);
     final connection = ref.watch(connectionConfigProvider);
     final configured =
         !connection.isLoading &&
         !connection.hasError &&
         connection.value != null;
-    final active = _foreground && TickerMode.valuesOf(context).enabled;
+    final generation = interactionGeneration;
+    final active = interactionCurrent(generation);
     // Keeping the inert controller preserves the selected range. Releasing the
     // stream's demand stops its timer and invalidates any in-flight response.
     final controller = configured ? ref.watch(energyControllerProvider) : null;
@@ -72,11 +73,6 @@ class _EnergyMaintenanceScreenState
     final maintenance = active && configured
         ? ref.watch(maintenanceProvider(_scope))
         : null;
-    ref.listen(connectionConfigProvider, (previous, next) {
-      if (next.isLoading || next.hasError || previous?.value != next.value) {
-        _expanded.clear();
-      }
-    });
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(l10n.energyTitle)),
       child: SafeArea(
@@ -115,6 +111,17 @@ class _EnergyMaintenanceScreenState
                                       onPressed: !active || controller == null
                                           ? null
                                           : () {
+                                              if (!interactionCurrent(
+                                                    generation,
+                                                  ) ||
+                                                  !identical(
+                                                    ref.read(
+                                                      energyControllerProvider,
+                                                    ),
+                                                    controller,
+                                                  )) {
+                                                return;
+                                              }
                                               controller.setRange(range);
                                               setState(_expanded.clear);
                                             },
@@ -195,6 +202,9 @@ class _EnergyMaintenanceScreenState
                                       state?.isRefreshing == true
                                   ? null
                                   : () {
+                                      if (!interactionCurrent(generation)) {
+                                        return;
+                                      }
                                       if (connection.hasError) {
                                         ref.invalidate(
                                           connectionConfigProvider,
@@ -221,11 +231,14 @@ class _EnergyMaintenanceScreenState
                       return _MeterCard(
                         meter: meter,
                         expanded: _expanded.contains(meter.definition.key),
-                        onToggle: () => setState(() {
-                          if (!_expanded.add(meter.definition.key)) {
-                            _expanded.remove(meter.definition.key);
-                          }
-                        }),
+                        onToggle: () {
+                          if (!interactionCurrent(generation)) return;
+                          setState(() {
+                            if (!_expanded.add(meter.definition.key)) {
+                              _expanded.remove(meter.definition.key);
+                            }
+                          });
+                        },
                       );
                     },
                   ),
@@ -266,7 +279,12 @@ class _EnergyMaintenanceScreenState
                                             .resolveFrom(context),
                                   onPressed: !active || !configured
                                       ? null
-                                      : () => setState(() => _scope = scope),
+                                      : () {
+                                          if (!interactionCurrent(generation)) {
+                                            return;
+                                          }
+                                          setState(() => _scope = scope);
+                                        },
                                   child: Text(
                                     scope == MaintenanceScope.selected
                                         ? l10n.maintenanceSelected
@@ -310,10 +328,13 @@ class _EnergyMaintenanceScreenState
                         child: CupertinoButton(
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(48, 48),
-                          onPressed: () => context.push(
-                            Uri(pathSegments: ['', 'entities', item.entityId])
-                                .toString(),
-                          ),
+                          onPressed: () {
+                            if (!interactionCurrent(generation)) return;
+                            context.push(
+                              Uri(pathSegments: ['', 'entities', item.entityId])
+                                  .toString(),
+                            );
+                          },
                           child: Row(
                             children: [
                               Icon(
