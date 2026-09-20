@@ -24,6 +24,17 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   String _query = '';
   String _domain = 'all';
 
+  void _openRoutine(HaEntity entity) {
+    final current = ref.read(entitiesProvider);
+    if (current.isLoading ||
+        current.hasError ||
+        !identical(current.value?[entity.entityId], entity) ||
+        (entity.domain != 'scene' && entity.domain != 'script')) {
+      return;
+    }
+    context.push('/entities/${Uri.encodeComponent(entity.entityId)}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -62,19 +73,38 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    CupertinoSearchTextField(
-                      key: const ValueKey('routines-search'),
-                      placeholder: l10n.navigationSearch,
-                      onChanged: (value) => setState(() => _query = value),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: CupertinoSearchTextField(
+                        key: const ValueKey('routines-search'),
+                        placeholder: l10n.navigationSearch,
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     CupertinoSlidingSegmentedControl<String>(
                       key: const ValueKey('routines-filter'),
                       groupValue: _domain,
                       children: {
-                        'all': Text(l10n.homeCategoryAll),
-                        'scene': Text(l10n.navigationSearchScene),
-                        'script': Text(l10n.navigationSearchScript),
+                        'all': SizedBox(
+                          key: const ValueKey('routines-filter-all'),
+                          height: 48,
+                          child: Center(child: Text(l10n.homeCategoryAll)),
+                        ),
+                        'scene': SizedBox(
+                          key: const ValueKey('routines-filter-scene'),
+                          height: 48,
+                          child: Center(
+                            child: Text(l10n.navigationSearchScene),
+                          ),
+                        ),
+                        'script': SizedBox(
+                          key: const ValueKey('routines-filter-script'),
+                          height: 48,
+                          child: Center(
+                            child: Text(l10n.navigationSearchScript),
+                          ),
+                        ),
                       },
                       onValueChanged: (value) {
                         if (value != null) setState(() => _domain = value);
@@ -103,6 +133,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               children: [
                 Text(l10n.commonError),
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   onPressed: () => ref.invalidate(entitiesProvider),
                   child: Text(l10n.commonRetry),
                 ),
@@ -147,9 +178,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                         ? l10n.navigationSearchScene
                         : l10n.navigationSearchScript,
                   ),
-                  onTap: () => context.push(
-                    '/entities/${Uri.encodeComponent(entity.entityId)}',
-                  ),
+                  onTap: () => _openRoutine(entity),
                 );
               },
             ),

@@ -32,8 +32,22 @@ class _CoreKeeneticWidgetPickerScreenState
   @override
   void invalidateDashboardInteraction() => _expired = true;
 
+  bool _targetCurrent(HomeResourceRecord target) {
+    final resources = ref.read(coreKeeneticDashboardResourcesProvider);
+    if (resources.isLoading || resources.hasError) return false;
+    return resources.value?.any(
+          (current) =>
+              current.context == target.context &&
+              current.id == target.id &&
+              current.kind == target.kind &&
+              current.revision == target.revision &&
+              current.aclRevision == target.aclRevision,
+        ) ==
+        true;
+  }
+
   Future<void> _select(HomeResourceRecord target) async {
-    if (_expired || _busy || _returned) return;
+    if (_expired || _busy || _returned || !_targetCurrent(target)) return;
     final generation = interactionGeneration;
     setState(() {
       _busy = true;
@@ -48,7 +62,12 @@ class _CoreKeeneticWidgetPickerScreenState
                 type: widget.tileType,
               )).future,
             );
-      if (!interactionCurrent(generation) || _expired || _returned) return;
+      if (!interactionCurrent(generation) ||
+          _expired ||
+          _returned ||
+          !_targetCurrent(target)) {
+        return;
+      }
       _returned = true;
       if (mounted && ModalRoute.of(context)?.isCurrent == true) {
         Navigator.pop(context, tile);

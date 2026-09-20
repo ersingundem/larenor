@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/health/data/health_monitor.dart';
+import 'package:larenor/features/health/data/integration_health.dart';
 import 'package:larenor/features/health/providers/health_providers.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/media/arr/providers/lidarr_providers.dart';
@@ -128,7 +130,12 @@ Future<GoRouter> _show(
           service: AppService.values.byName(state.pathParameters['service']!),
         ),
       ),
-      GoRoute(path: '/search', builder: (context, state) => const SizedBox()),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const CupertinoPageScaffold(
+          child: Center(child: Text('Global search result')),
+        ),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -171,15 +178,20 @@ void main() {
   testWidgets(
     'lists enabled or saved services without starting any remote client',
     (tester) async {
+      final now = DateTime.utc(2026, 9, 20, 12);
+      final monitor = HealthMonitor(now: () => now);
       final container = ProviderContainer(
         overrides: [
           enabledServicesProvider.overrideWith(
             () => _Enabled({AppService.keenetic}),
           ),
           proxmoxConnectionProvider.overrideWith(_Proxmox.new),
+          healthMonitorProvider.overrideWithValue(monitor),
+          healthClockProvider.overrideWith((ref) => Stream.value(now)),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(monitor.dispose);
       await _show(tester, container);
       expect(find.byKey(const ValueKey('system-proxmox')), findsOneWidget);
       expect(find.byKey(const ValueKey('system-keenetic')), findsOneWidget);
@@ -206,6 +218,29 @@ void main() {
         container.exists(keeneticClientProvider),
       ], everyElement(isFalse));
       expect(find.textContaining('server.invalid'), findsNothing);
+      final reachableSession = monitor.bind(
+        IntegrationId.proxmox,
+        configured: true,
+        configurationIdentity: savedProxmox,
+      );
+      reachableSession.contact();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Server responded; data not yet verified'),
+        findsOneWidget,
+      );
+      expect(monitor.read(IntegrationId.proxmox).lastContact, isNotNull);
+      monitor
+          .bind(
+            IntegrationId.proxmox,
+            configured: true,
+            configurationIdentity: savedProxmox,
+          )
+          .readSucceeded();
+      await tester.pumpAndSettle();
+      expect(monitor.read(IntegrationId.proxmox).lastSuccessfulRead, isNotNull);
+      expect(find.text('Data read successfully'), findsOneWidget);
+      expect(container.exists(proxmoxClientProvider), isFalse);
       await _close(tester, container);
     },
   );
@@ -389,7 +424,7 @@ void main() {
             ],
           );
           addTearDown(container.dispose);
-          await _show(
+          final router = await _show(
             tester,
             container,
             size: size,
@@ -409,6 +444,30 @@ void main() {
                 .isHeader,
             isTrue,
           );
+
+          final search = find.byKey(const ValueKey('global-search'));
+          expect(
+            tester.widget<CupertinoButton>(search).minimumSize,
+            const Size(48, 48),
+          );
+          expect(tester.getRect(search).width, greaterThanOrEqualTo(48));
+          final searchSemantics = tester.getSemantics(search);
+          expect(searchSemantics.flagsCollection.isButton, isTrue);
+          expect(searchSemantics.label, isNotEmpty);
+          Focus.of(
+            tester.element(
+              find.descendant(
+                of: search,
+                matching: find.byIcon(CupertinoIcons.search),
+              ),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.text('Global search result'), findsOneWidget);
+          router.pop();
+          await tester.pumpAndSettle();
 
           final service = find.byKey(const ValueKey('system-proxmox'));
           await tester.ensureVisible(service);

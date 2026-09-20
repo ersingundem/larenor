@@ -255,10 +255,15 @@ class _ConnectionMessage extends StatelessWidget {
         children: [
           Text(message, textAlign: TextAlign.center),
           if (onRetry != null)
-            CupertinoButton(onPressed: onRetry, child: Text(l10n.commonRetry)),
+            CupertinoButton(
+              minimumSize: const Size(48, 48),
+              onPressed: onRetry,
+              child: Text(l10n.commonRetry),
+            ),
           if (showConfigure)
             CupertinoButton(
               key: const ValueKey('system-configure'),
+              minimumSize: const Size(48, 48),
               onPressed: () => context.push('/settings'),
               child: Text(l10n.navigationConfigure),
             ),

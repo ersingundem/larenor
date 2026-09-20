@@ -197,6 +197,24 @@ void main() {
     expect(find.byKey(const ValueKey('routine-scene.evening')), findsNothing);
   });
 
+  testWidgets('a retained routine callback cannot open a removed entity', (
+    tester,
+  ) async {
+    final entities = _Entities();
+    await _show(tester, entities);
+    final action = tester
+        .widget<SettingsActionTile>(find.byType(SettingsActionTile).first)
+        .onTap!;
+
+    entities.replace([]);
+    await tester.pumpAndSettle();
+    action();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review scene.evening'), findsNothing);
+    expect(entities.toggles, 0);
+  });
+
   testWidgets(
     'loading does not claim routines are absent and errors have a safe retry',
     (tester) async {
@@ -311,6 +329,32 @@ void main() {
                 .isHeader,
             isTrue,
           );
+          final search = find.byKey(const ValueKey('routines-search'));
+          expect(tester.getRect(search).height, greaterThanOrEqualTo(48));
+          final searchSemantics = tester.getSemantics(search);
+          expect(searchSemantics.flagsCollection.isTextField, isTrue);
+          expect(
+            '${searchSemantics.label} ${searchSemantics.hint}'.trim(),
+            isNotEmpty,
+          );
+          for (final key in const [
+            ValueKey('routines-filter-all'),
+            ValueKey('routines-filter-scene'),
+            ValueKey('routines-filter-script'),
+          ]) {
+            expect(
+              tester.getRect(find.byKey(key)).height,
+              greaterThanOrEqualTo(48),
+            );
+            expect(
+              tester.getSemantics(find.byKey(key)).flagsCollection.isButton,
+              isTrue,
+            );
+          }
+          await tester.tap(find.byKey(const ValueKey('routines-filter-all')));
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+          await tester.pumpAndSettle();
+          expect(find.text('Film gecesi'), findsNothing);
 
           final routine = find.byKey(const ValueKey('routine-scene.evening'));
           await tester.ensureVisible(routine);
