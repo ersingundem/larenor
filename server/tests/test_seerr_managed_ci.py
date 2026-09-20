@@ -151,4 +151,3 @@ def test_receipt_verification_never_starts_daemon(tmp_path, monkeypatch, capsys)
     )
     assert module.main(["--verify-receipt", str(path)]) == 0
     assert capsys.readouterr().out == "seerr_characterization_receipt_verified\n"
-
