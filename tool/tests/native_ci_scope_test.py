@@ -66,20 +66,42 @@ class NativeCiScopeTest(unittest.TestCase):
             (True, "diff-unavailable"),
         )
 
-    def test_required_matrix_jobs_keep_names_and_gate_every_expensive_step(self):
+    def test_required_matrix_jobs_are_gated_before_reserving_matrix_runners(self):
         for filename, job_name in WORKFLOWS.items():
             with self.subTest(workflow=filename):
                 value = json.loads((ROOT / ".github/workflows" / filename).read_text())
+                scope = value["jobs"]["native-scope"]
                 job = value["jobs"][job_name]
-                steps = job["steps"]
-                checkout = next(step for step in steps if step.get("uses", "").startswith("actions/checkout@"))
+                checkout = next(
+                    step
+                    for step in scope["steps"]
+                    if step.get("uses", "").startswith("actions/checkout@")
+                )
                 self.assertEqual(checkout["with"]["fetch-depth"], 0)
-                scope_index = next(index for index, step in enumerate(steps) if step.get("id") == "scope")
-                self.assertIn("tool/native_ci_scope.py", steps[scope_index]["run"])
-                self.assertEqual(job["env"]["PR_BASE_SHA"], "${{ github.event.pull_request.base.sha }}")
-                self.assertEqual(job["env"]["PR_HEAD_SHA"], "${{ github.event.pull_request.head.sha }}")
-                for step in steps[scope_index + 1 :]:
-                    self.assertEqual(step.get("if"), "steps.scope.outputs.run == 'true'")
+                decide = next(step for step in scope["steps"] if step.get("id") == "scope")
+                self.assertIn("tool/native_ci_scope.py", decide["run"])
+                self.assertEqual(
+                    scope["env"]["PR_BASE_SHA"],
+                    "${{ github.event.pull_request.base.sha }}",
+                )
+                self.assertEqual(
+                    scope["env"]["PR_HEAD_SHA"],
+                    "${{ github.event.pull_request.head.sha }}",
+                )
+                self.assertEqual(scope["outputs"]["run"], "${{ steps.scope.outputs.run }}")
+                self.assertEqual(job["needs"], "native-scope")
+                self.assertNotIn("if", job)
+                self.assertEqual(
+                    job["runs-on"],
+                    "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
+                )
+                self.assertFalse(any(step.get("id") == "scope" for step in job["steps"]))
+                self.assertNotIn("if", job["steps"][0])
+                for step in job["steps"][1:]:
+                    self.assertEqual(
+                        step.get("if"),
+                        "needs.native-scope.outputs.run == 'true'",
+                    )
 
 
 if __name__ == "__main__":
