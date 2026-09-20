@@ -33,7 +33,7 @@ class SettingsNavRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = this.service;
-    final interaction = AppInteractionScope.maybeRead(context);
+    final interaction = AppInteractionScope.maybeOf(context);
     final epoch = interaction?.epoch;
     bool current() =>
         context.mounted &&
