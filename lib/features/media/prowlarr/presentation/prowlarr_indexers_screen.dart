@@ -3,10 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/direct_home_access.dart';
+import '../../../health/data/integration_health.dart';
+import '../../hub/presentation/media_session_state.dart';
+import '../data/models/prowlarr_indexer.dart';
+import '../data/prowlarr_client.dart';
 import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/theme/spacing.dart';
 
 class ProwlarrIndexersScreen extends ConsumerWidget {
@@ -50,74 +56,193 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
   }
 }
 
-class _IndexersList extends ConsumerWidget {
+class _IndexersList extends ConsumerStatefulWidget {
   const _IndexersList();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_IndexersList> createState() => _IndexersListState();
+}
+
+class _IndexersListState extends MediaSessionState<_IndexersList> {
+  final _pending = <int, Object>{};
+  String? _error;
+
+  bool _current(int generation, ProwlarrClient client, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(prowlarrClientProvider), client) &&
+      identical(ref.read(prowlarrIndexersProvider), reading);
+
+  Future<void> _toggle(
+    ProwlarrIndexer indexer,
+    bool value,
+    ProwlarrClient client,
+    Object reading,
+    int generation,
+  ) async {
+    if (_pending.containsKey(indexer.id) ||
+        !_current(generation, client, reading)) {
+      return;
+    }
+    final lease = Object();
+    setState(() {
+      _pending[indexer.id] = lease;
+      _error = null;
+    });
+    try {
+      await client.setIndexerEnabled(indexer, value);
+      if (_current(generation, client, reading)) {
+        ref.invalidate(prowlarrIndexersProvider);
+      }
+    } catch (_) {
+      if (_current(generation, client, reading)) {
+        setState(() => _error = AppLocalizations.of(context).actionFailed);
+      }
+    } finally {
+      if (mounted && identical(_pending[indexer.id], lease)) {
+        setState(() => _pending.remove(indexer.id));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccount(IntegrationId.prowlarr, prowlarrConnectionProvider);
     final indexersAsync = ref.watch(prowlarrIndexersProvider);
     final client = ref.watch(prowlarrClientProvider);
+    ref.listen(prowlarrClientProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          sessionGeneration++;
+          _pending.clear();
+          _error = null;
+        });
+      }
+    });
+    final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
 
     return ServiceRootScaffold(
       title: 'Prowlarr',
-      leading: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => ref.invalidate(prowlarrIndexersProvider),
-        child: const Icon(CupertinoIcons.refresh),
-      ),
-      slivers: indexersAsync.when(
-        loading: () => const [
-          SliverFilledMessage(child: CupertinoActivityIndicator()),
-        ],
-        error: (error, _) => [
-          SliverFilledMessage(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('prowlarr-indexers-section-title'),
+              container: true,
+              header: true,
+              child: const Text('Prowlarr'),
             ),
+            children: [
+              if (_error != null)
+                Semantics(
+                  key: const ValueKey('prowlarr-indexers-write-error'),
+                  container: true,
+                  liveRegion: true,
+                  child: Padding(padding: Insets.tile, child: Text(_error!)),
+                ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('prowlarr-indexers-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap:
+                    client != null &&
+                        _current(generation, client, indexersAsync)
+                    ? () {
+                        if (_current(generation, client, indexersAsync)) {
+                          ref.invalidate(prowlarrIndexersProvider);
+                        }
+                      }
+                    : null,
+              ),
+            ],
           ),
-        ],
-        data: (indexers) {
-          if (indexers.isEmpty) {
+        ),
+        ...indexersAsync.when(
+          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: false,
+          loading: () => const [
+            SliverFilledMessage(child: CupertinoActivityIndicator()),
+          ],
+          error: (error, _) => [
+            SliverFilledMessage(
+              child: Text(l10n.adminLoadError(l10n.actionFailed)),
+            ),
+          ],
+          data: (indexers) {
+            if (indexers.isEmpty) {
+              return [
+                SliverFilledMessage(
+                  child: Text(l10n.prowlarrNoIndexersConfigured),
+                ),
+              ];
+            }
             return [
-              SliverFilledMessage(
-                child: Text(
-                  AppLocalizations.of(context).prowlarrNoIndexersConfigured,
+              SliverPadding(
+                padding: Insets.page,
+                sliver: SliverList.builder(
+                  itemCount: indexers.length,
+                  itemBuilder: (context, index) {
+                    final indexer = indexers[index];
+                    final toggle =
+                        client == null || _pending.containsKey(indexer.id)
+                        ? null
+                        : (bool value) => _toggle(
+                            indexer,
+                            value,
+                            client,
+                            indexersAsync,
+                            generation,
+                          );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: Gap.sm),
+                      child: SettingsSection(
+                        margin: EdgeInsets.zero,
+                        children: [
+                          CupertinoListTile(
+                            title: Text(indexer.name),
+                            subtitle: Text(
+                              l10n.prowlarrIndexerSubtitle(
+                                indexer.protocol,
+                                indexer.priority,
+                              ),
+                            ),
+                            trailing: Semantics(
+                              key: ValueKey(
+                                'prowlarr-indexer-${indexer.id}-toggle',
+                              ),
+                              container: true,
+                              label: indexer.name,
+                              toggled: indexer.enabled,
+                              enabled: toggle != null,
+                              onTap: toggle == null
+                                  ? null
+                                  : () => toggle(!indexer.enabled),
+                              child: SizedBox(
+                                width: 60,
+                                height: 48,
+                                child: Center(
+                                  child: ExcludeSemantics(
+                                    child: CupertinoSwitch(
+                                      value: indexer.enabled,
+                                      onChanged: toggle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ];
-          }
-          return [
-            SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: Gap.sm),
-                CupertinoListSection.insetGrouped(
-                  children: [
-                    for (final indexer in indexers)
-                      CupertinoListTile(
-                        title: Text(indexer.name),
-                        subtitle: Text(
-                          '${indexer.protocol} · priority ${indexer.priority}',
-                        ),
-                        trailing: CupertinoSwitch(
-                          value: indexer.enabled,
-                          onChanged: client == null
-                              ? null
-                              : (value) async {
-                                  await client.setIndexerEnabled(
-                                    indexer,
-                                    value,
-                                  );
-                                  ref.invalidate(prowlarrIndexersProvider);
-                                },
-                        ),
-                      ),
-                  ],
-                ),
-              ]),
-            ),
-          ];
-        },
-      ),
+          },
+        ),
+      ],
     );
   }
 }

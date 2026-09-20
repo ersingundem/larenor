@@ -2,45 +2,91 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_status_label.dart';
 
-class JellyseerrRequestsScreen extends ConsumerWidget {
+class JellyseerrRequestsScreen extends ConsumerStatefulWidget {
   const JellyseerrRequestsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JellyseerrRequestsScreen> createState() =>
+      _JellyseerrRequestsScreenState();
+}
+
+class _JellyseerrRequestsScreenState
+    extends MediaSessionState<JellyseerrRequestsScreen> {
+  bool _current(int generation, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(jellyseerrMyRequestsProvider), reading);
+
+  @override
+  Widget build(BuildContext context) {
     final requestsAsync = ref.watch(jellyseerrMyRequestsProvider);
     final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
+    final active =
+        !requestsAsync.isLoading &&
+        !requestsAsync.hasError &&
+        requestsAsync.hasValue &&
+        _current(generation, requestsAsync);
 
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.jellyseerrMyRequestsTitle),
-        trailing: Semantics(
-          label: l10n.commonRefresh,
-          child: CupertinoButton(
-            key: const ValueKey('jellyseerr-requests-refresh'),
-            padding: EdgeInsets.zero,
-            minimumSize: const Size.square(48),
-            onPressed: () => ref.invalidate(jellyseerrMyRequestsProvider),
-            child: const ExcludeSemantics(child: Icon(CupertinoIcons.refresh)),
+    return ServiceRootScaffold(
+      title: l10n.jellyseerrMyRequestsTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('jellyseerr-requests-section-title'),
+              container: true,
+              header: true,
+              child: Text(l10n.jellyseerrMyRequestsTitle),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('jellyseerr-requests-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: active
+                    ? () {
+                        if (_current(generation, requestsAsync)) {
+                          ref.invalidate(jellyseerrMyRequestsProvider);
+                        }
+                      }
+                    : null,
+              ),
+            ],
           ),
         ),
-      ),
-      child: SafeArea(
-        child: requestsAsync.when(
-          loading: () =>
-              _RequestsStatus(label: l10n.commonLoading, loading: true),
-          error: (_, _) => _RequestsStatus(label: l10n.mediaErrorUnreachable),
+        ...requestsAsync.when(
+          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: false,
+          loading: () => [
+            SliverFilledMessage(
+              child: _RequestsStatus(label: l10n.commonLoading, loading: true),
+            ),
+          ],
+          error: (_, _) => [
+            SliverFilledMessage(
+              child: _RequestsStatus(label: l10n.mediaErrorUnreachable),
+            ),
+          ],
           data: (requests) {
             if (requests.isEmpty) {
-              return _RequestsStatus(label: l10n.jellyseerrNoRequestsYet);
+              return [
+                SliverFilledMessage(
+                  child: _RequestsStatus(label: l10n.jellyseerrNoRequestsYet),
+                ),
+              ];
             }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
-                CupertinoListSection.insetGrouped(
+            return [
+              SliverToBoxAdapter(
+                child: SettingsSection(
                   children: [
                     for (final request in requests)
                       CupertinoListTile(
@@ -56,11 +102,11 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
                       ),
                   ],
                 ),
-              ],
-            );
+              ),
+            ];
           },
         ),
-      ),
+      ],
     );
   }
 }
