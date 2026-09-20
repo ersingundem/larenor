@@ -186,6 +186,11 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             target._closed_exit_diagnostic(engine, "a" * 64),
             "music_assistant_container_readonly_root",
         )
+        engine.value = b"PermissionError: [Errno 13] Permission denied: '/data/settings'"
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_data_permission_denied",
+        )
         engine.value = b"unrecognized private upstream output"
         self.assertEqual(
             target._closed_exit_diagnostic(engine, "a" * 64),
