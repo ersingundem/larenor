@@ -7,6 +7,7 @@ import 'package:larenor/features/cooking_assistant/domain/ingredient_deduction.d
 final class _Gateway implements IngredientDeductionGateway {
   int commits = 0;
   bool delay = false;
+  bool loseAcknowledgement = false;
   final Completer<IngredientDeductionReceipt> pending = Completer();
   IngredientDeductionReceipt? retained;
 
@@ -16,12 +17,14 @@ final class _Gateway implements IngredientDeductionGateway {
   ) async {
     commits++;
     if (delay) return pending.future;
-    return retained ??= IngredientDeductionReceipt(
+    final value = retained ??= IngredientDeductionReceipt(
       idempotencyKey: preview.idempotencyKey,
       accountId: preview.accountId,
       pantryRevision: preview.expectedPantryRevision + 1,
       applied: preview.items,
     );
+    if (loseAcknowledgement) throw StateError('lost_ack');
+    return value;
   }
 
   @override
@@ -112,4 +115,20 @@ void main() {
       expect(gateway.commits, 1);
     },
   );
+
+  test('lost acknowledgement reconciles without command replay', () async {
+    final gateway = _Gateway()..loseAcknowledgement = true;
+    final controller = IngredientDeductionController(
+      gateway: gateway,
+      preview: IngredientDeductionPreview.fromDraft(draft()),
+      isCurrent: () => true,
+    );
+    expect(await controller.confirm(), isFalse);
+    expect(controller.failure, IngredientDeductionFailure.uncertain);
+    expect(await controller.confirm(), isFalse);
+    expect(gateway.commits, 1);
+    expect(await controller.reconcile(), isTrue);
+    expect(gateway.commits, 1);
+    expect(controller.receipt?.pantryRevision, 13);
+  });
 }
