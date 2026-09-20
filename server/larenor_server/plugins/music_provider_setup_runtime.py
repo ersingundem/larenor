@@ -78,19 +78,50 @@ class MusicProviderSetupRuntime:
             if kind in {'external', 'form'}:
                 flow_id = value['flow_id']
                 entries = []
-                for raw in value.get('data_schema', []):
-                    if type(raw) is not dict:
+                raw_entries = value.get('entries')
+                if (type(raw_entries) is not list
+                        or len(raw_entries) > 64):
+                    raise ValueError()
+                for raw in raw_entries:
+                    if (type(raw) is not dict
+                            or type(raw.get('key')) is not str
+                            or type(raw.get('type')) is not str
+                            or type(raw.get('required')) is not bool):
+                        raise ValueError()
+                    if raw['type'] in {
+                            'alert', 'divider', 'icon', 'image', 'label', 'url'}:
+                        if raw['required']:
+                            raise ValueError()
+                        continue
+                    if raw['type'] not in {'boolean', 'secure_string', 'string'}:
                         raise ValueError()
                     entries.append(ProviderSetupEntry(
                         key=raw['key'], type=raw['type'],
                         required=raw.get('required', False)))
+                external_url = value.get('url')
+                if kind == 'external':
+                    if type(external_url) is not str or entries:
+                        raise ValueError()
+                elif external_url is not None or not entries:
+                    raise ValueError()
+                expires = value.get('expires_at')
+                if expires is None:
+                    expires_at = now + 900
+                elif (type(expires) not in (int, float)
+                      or not math.isfinite(expires)
+                      or not now < expires <= now + 3600):
+                    raise ValueError()
+                else:
+                    expires_at = int(expires)
+                    if expires_at <= now:
+                        raise ValueError()
                 return ProviderSetupWorkerResult(
                     state='action_required', providerDomain=action.providerDomain,
                     discovery=ProviderSetupDiscovery(
                         providerDomain=action.providerDomain, flowId=flow_id,
                         stepId=value['step_id'], kind=kind,
-                        externalUrl=value.get('external_url'),
-                        expiresAt=now + 900, entries=entries))
+                        externalUrl=external_url,
+                        expiresAt=expires_at, entries=entries))
             if kind != 'finish':
                 raise ValueError()
             result = value['result']
