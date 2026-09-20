@@ -152,6 +152,21 @@ void main() {
         ),
       );
       expect(saved, 1);
+
+      final changed = jsonDecode(jsonEncode(fixture['memberList'])) as Map;
+      changed['userRevision'] = 8;
+      changed['snapshot'] = 'f' * 64;
+      harness.response = changed;
+      final refresh = find.byKey(const ValueKey('home-resources-refresh'));
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await flush(tester);
+
+      expect(
+        find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+        findsNothing,
+        reason: 'old receipt trust cannot survive a newer ACL snapshot',
+      );
     } finally {
       semantics.dispose();
     }

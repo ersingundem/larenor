@@ -186,6 +186,10 @@ void main() {
         3,
         reason: 'a room is never a binary download authority',
       );
+      controller.retainAuthority(page.entries, page.userRevision + 1);
+      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+      expect(controller.receiptTrusted, isFalse);
+      expect(controller.receipt, isNull);
     },
   );
 

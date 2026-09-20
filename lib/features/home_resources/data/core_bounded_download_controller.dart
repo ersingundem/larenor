@@ -106,7 +106,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
 
   void _changed() {
     if (_disposed) return;
-    if (_ready == null || (busy && !identical(_ready, _boundSession))) {
+    final boundSession = _boundSession;
+    if (_ready == null ||
+        (boundSession != null && !identical(_ready, boundSession))) {
       _retire();
     }
     _emit();
@@ -114,7 +116,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
 
   void retainAuthority(List<HomeResourceRecord> entries, int? userRevision) {
     final target = _boundTarget;
-    if (!busy || target == null) return;
+    if (target == null) return;
     final retained =
         userRevision == _boundUserRevision &&
         entries.any(
