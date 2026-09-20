@@ -307,6 +307,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
         children: [
           CupertinoButton(
             key: ValueKey('screen-rule-${rule.id}'),
+            minimumSize: const Size(48, 48),
             padding: EdgeInsets.zero,
             onPressed: enabled ? () => _edit(program, rule) : null,
             child: Align(
@@ -333,6 +334,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
             children: [
               CupertinoButton(
                 key: ValueKey('screen-rule-up-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled && index > 0
                     ? () => _move(program, index, -1)
                     : null,
@@ -343,6 +345,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
               ),
               CupertinoButton(
                 key: ValueKey('screen-rule-down-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled && index < program.rules.length - 1
                     ? () => _move(program, index, 1)
                     : null,
@@ -353,6 +356,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
               ),
               CupertinoButton(
                 key: ValueKey('screen-rule-delete-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled ? () => _remove(program, rule) : null,
                 child: Icon(
                   CupertinoIcons.delete,
@@ -459,6 +463,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
             mainAxisSize: MainAxisSize.min,
             children: [
               CupertinoButton(
+                minimumSize: const Size(48, 48),
                 onPressed: () {
                   if (_ready &&
                       epoch == sessionGeneration &&
@@ -565,6 +570,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                           button: true,
                           child: CupertinoButton(
                             key: ValueKey('screen-rule-day-$day'),
+                            minimumSize: const Size(48, 48),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             color: _days.contains(day)
                                 ? CupertinoColors.activeBlue
@@ -606,6 +612,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                   if (!allDay) ...[
                     CupertinoButton(
                       key: const ValueKey('screen-rule-start'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready ? () => _pickTime(true) : null,
                       child: Text(
                         '${l10n.settingsNightStarts}: ${_time(_start)}',
@@ -613,6 +620,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                     ),
                     CupertinoButton(
                       key: const ValueKey('screen-rule-end'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready ? () => _pickTime(false) : null,
                       child: Text('${l10n.settingsNightEnds}: ${_time(_end)}'),
                     ),
@@ -622,6 +630,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                   for (final mode in ScreenAwakeMode.values)
                     CupertinoButton(
                       key: ValueKey('screen-rule-mode-${mode.name}'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready
                           ? () => setState(() => _awakeMode = mode)
                           : null,
