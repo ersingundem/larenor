@@ -36,6 +36,11 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
 
     def test_source_digest_toolchain_and_disabled_defaults_are_policy_gated(self):
         steps = self.workflow["jobs"]["package"]["steps"]
+        flutter = next(
+            step for step in steps
+            if step.get("uses", "").startswith("subosito/flutter-action@")
+        )
+        self.assertEqual(flutter["with"]["flutter-version"], "3.47.2")
         verify = next(step["run"] for step in steps if "verify-source" in step.get("run", ""))
         build = next(step["run"] for step in steps if "assembleRelease" in step.get("run", ""))
         receipt = next(step["run"] for step in steps if " receipt " in step.get("run", ""))
