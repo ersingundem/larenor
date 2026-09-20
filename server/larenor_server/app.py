@@ -41,6 +41,9 @@ from .plugins.seerr_bootstrap_job_api import router as seerr_bootstraps_router
 from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurations_router
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
+from .plugins.music_assistant_bootstrap_job_api import (
+    router as music_assistant_bootstraps_router,
+)
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
 from .plugins.music_provider_command_api import router as music_provider_command_router
 from .plugins.music_playback_api import router as music_playback_router
@@ -104,12 +107,17 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         seerr = application.state.core.seerr_bootstraps
         seerr_task = asyncio.create_task(dispatch(
             seerr, "seerr_bootstrap_dispatch_unavailable")) if seerr.backend is not None else None
+        music_assistant = application.state.core.music_assistant_bootstraps
+        music_assistant_task = asyncio.create_task(dispatch(
+            music_assistant, "music_assistant_bootstrap_dispatch_unavailable"
+        )) if music_assistant.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
         application.state.qbittorrent_configuration_dispatcher = qbittorrent_task
         application.state.arr_configuration_dispatcher = arr_task
         application.state.seerr_bootstrap_dispatcher = seerr_task
+        application.state.music_assistant_bootstrap_dispatcher = music_assistant_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -136,6 +144,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await arr_task
             if seerr_task is not None:
                 await seerr_task
+            if music_assistant_task is not None:
+                await music_assistant_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -155,6 +165,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.qbittorrent_configuration_dispatcher = None
     app.state.arr_configuration_dispatcher = None
     app.state.seerr_bootstrap_dispatcher = None
+    app.state.music_assistant_bootstrap_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -260,6 +271,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(arr_configurations_router, prefix="/api/v1")
     app.include_router(music_retained_status_router, prefix="/api/v1")
     app.include_router(music_assistant_core_router, prefix="/api/v1")
+    app.include_router(music_assistant_bootstraps_router, prefix="/api/v1")
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_provider_command_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
