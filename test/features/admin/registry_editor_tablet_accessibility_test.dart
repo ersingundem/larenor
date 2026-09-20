@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -138,6 +140,31 @@ void main() {
         }
         final save = find.byKey(const ValueKey('registry-editor-save'));
         expect(tester.getSemantics(save).flagsCollection.isButton, isTrue);
+        final enabled = find.byKey(const ValueKey('registry-editor-enabled'));
+        final l10n = AppLocalizations.of(tester.element(enabled));
+        expect(tester.getSemantics(enabled).label, l10n.adminEnabled);
+        expect(
+          tester.getSemantics(enabled).flagsCollection.isToggled,
+          ui.Tristate.isTrue,
+        );
+        final enabledFocus = find.byKey(
+          const ValueKey('registry-editor-enabled-focus'),
+        );
+        Focus.of(
+          tester.element(
+            find.descendant(
+              of: enabledFocus,
+              matching: find.byType(CupertinoListTile),
+            ),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(
+          tester.getSemantics(enabled).flagsCollection.isToggled,
+          ui.Tristate.isFalse,
+        );
         expect(
           tester.getSize(find.byType(ListView)).width,
           lessThanOrEqualTo(1000),

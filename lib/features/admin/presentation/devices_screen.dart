@@ -50,17 +50,26 @@ class _DevicesScreenState extends MediaSessionState<DevicesScreen> {
 
     return ServiceRootScaffold(
       title: l10n.settingsDevices,
-      leading: CupertinoButton(
-        minimumSize: const Size(48, 48),
-        padding: EdgeInsets.zero,
-        onPressed: active
-            ? () {
-                if (!_current(generation, client)) return;
-                ref.invalidate(devicesProvider);
-                ref.invalidate(areasProvider);
-              }
-            : null,
-        child: const Icon(CupertinoIcons.refresh),
+      leading: Semantics(
+        key: const ValueKey('devices-refresh'),
+        container: true,
+        button: true,
+        enabled: active,
+        label: l10n.commonRefresh,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            onPressed: active
+                ? () {
+                    if (!_current(generation, client)) return;
+                    ref.invalidate(devicesProvider);
+                    ref.invalidate(areasProvider);
+                  }
+                : null,
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+        ),
       ),
       slivers: [
         devicesAsync.when(
@@ -86,14 +95,18 @@ class _DevicesScreenState extends MediaSessionState<DevicesScreen> {
                 delegate: SliverChildListDelegate([
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: CupertinoSearchTextField(
-                      onChanged: active
-                          ? (value) {
-                              if (_current(generation, client)) {
-                                setState(() => _query = value.toLowerCase());
+                    child: ConstrainedBox(
+                      key: const ValueKey('devices-search'),
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: CupertinoSearchTextField(
+                        onChanged: active
+                            ? (value) {
+                                if (_current(generation, client)) {
+                                  setState(() => _query = value.toLowerCase());
+                                }
                               }
-                            }
-                          : null,
+                            : null,
+                      ),
                     ),
                   ),
                   SettingsSection(

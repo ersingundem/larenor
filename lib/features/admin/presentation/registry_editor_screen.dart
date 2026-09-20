@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
@@ -75,6 +76,16 @@ class _RegistryEditorScreenState
     _icon.dispose();
     _entityId.dispose();
     super.dispose();
+  }
+
+  void _toggleEnabled() {
+    if (_saving || !_current()) return;
+    setState(() => _enabled = !_enabled);
+  }
+
+  void _toggleHidden() {
+    if (_saving || !_current()) return;
+    setState(() => _hidden = !_hidden);
   }
 
   Future<void> _save() async {
@@ -202,6 +213,7 @@ class _RegistryEditorScreenState
         .where((item) => item.areaId == _area)
         .firstOrNull
         ?.name;
+    final editable = !_saving && _current();
     return PopScope(
       canPop: !_saving,
       child: AppPageScaffold(
@@ -294,29 +306,77 @@ class _RegistryEditorScreenState
                                 },
                         ),
                       ),
-                      ConstrainedBox(
+                      Semantics(
                         key: const ValueKey('registry-editor-enabled'),
-                        constraints: const BoxConstraints(minHeight: 48),
-                        child: CupertinoListTile(
-                          title: Text(l10n.adminEnabled),
-                          trailing: CupertinoSwitch(
-                            value: _enabled,
-                            onChanged: _saving || !_current()
-                                ? null
-                                : (value) => setState(() => _enabled = value),
+                        container: true,
+                        button: true,
+                        enabled: editable,
+                        toggled: _enabled,
+                        label: l10n.adminEnabled,
+                        child: CallbackShortcuts(
+                          bindings: {
+                            const SingleActivator(LogicalKeyboardKey.enter):
+                                _toggleEnabled,
+                            const SingleActivator(LogicalKeyboardKey.space):
+                                _toggleEnabled,
+                          },
+                          child: Focus(
+                            key: const ValueKey(
+                              'registry-editor-enabled-focus',
+                            ),
+                            canRequestFocus: editable,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 48),
+                              child: ExcludeSemantics(
+                                child: CupertinoListTile(
+                                  title: Text(l10n.adminEnabled),
+                                  onTap: editable ? _toggleEnabled : null,
+                                  trailing: IgnorePointer(
+                                    child: CupertinoSwitch(
+                                      value: _enabled,
+                                      onChanged: editable ? (_) {} : null,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                       if (widget.entity != null)
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 48),
-                          child: CupertinoListTile(
-                            title: Text(l10n.adminHidden),
-                            trailing: CupertinoSwitch(
-                              value: _hidden,
-                              onChanged: _saving || !_current()
-                                  ? null
-                                  : (value) => setState(() => _hidden = value),
+                        Semantics(
+                          key: const ValueKey('registry-editor-hidden'),
+                          container: true,
+                          button: true,
+                          enabled: editable,
+                          toggled: _hidden,
+                          label: l10n.adminHidden,
+                          child: CallbackShortcuts(
+                            bindings: {
+                              const SingleActivator(LogicalKeyboardKey.enter):
+                                  _toggleHidden,
+                              const SingleActivator(LogicalKeyboardKey.space):
+                                  _toggleHidden,
+                            },
+                            child: Focus(
+                              canRequestFocus: editable,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: ExcludeSemantics(
+                                  child: CupertinoListTile(
+                                    title: Text(l10n.adminHidden),
+                                    onTap: editable ? _toggleHidden : null,
+                                    trailing: IgnorePointer(
+                                      child: CupertinoSwitch(
+                                        value: _hidden,
+                                        onChanged: editable ? (_) {} : null,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),

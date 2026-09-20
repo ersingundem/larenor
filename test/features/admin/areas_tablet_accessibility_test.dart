@@ -100,6 +100,16 @@ void main() {
         expect(find.byType(ServiceRootScaffold), findsOneWidget);
         expect(find.byType(SettingsSection), findsOneWidget);
         expect(find.byType(SettingsActionTile), findsOneWidget);
+        final add = find.byKey(const ValueKey('areas-add'));
+        final refresh = find.byKey(const ValueKey('areas-refresh'));
+        expect(
+          tester.getSemantics(add).label,
+          AppLocalizations.of(tester.element(add)).adminAddArea,
+        );
+        expect(
+          tester.getSemantics(refresh).label,
+          AppLocalizations.of(tester.element(refresh)).commonRefresh,
+        );
         expect(
           tester
               .getSemantics(find.byKey(const ValueKey('areas-list-header')))

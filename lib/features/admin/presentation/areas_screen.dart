@@ -38,23 +38,41 @@ class _AreasScreenState extends MediaSessionState<AreasScreen> {
 
     return ServiceRootScaffold(
       title: l10n.settingsAreas,
-      trailing: CupertinoButton(
-        minimumSize: const Size(48, 48),
-        padding: EdgeInsets.zero,
-        onPressed: active ? () => _edit(generation, client) : null,
-        child: const Icon(CupertinoIcons.add),
+      trailing: Semantics(
+        key: const ValueKey('areas-add'),
+        container: true,
+        button: true,
+        enabled: active,
+        label: l10n.adminAddArea,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            onPressed: active ? () => _edit(generation, client) : null,
+            child: const Icon(CupertinoIcons.add),
+          ),
+        ),
       ),
-      leading: CupertinoButton(
-        minimumSize: const Size(48, 48),
-        padding: EdgeInsets.zero,
-        onPressed: active
-            ? () {
-                if (_current(generation, client)) {
-                  ref.invalidate(areasProvider);
-                }
-              }
-            : null,
-        child: const Icon(CupertinoIcons.refresh),
+      leading: Semantics(
+        key: const ValueKey('areas-refresh'),
+        container: true,
+        button: true,
+        enabled: active,
+        label: l10n.commonRefresh,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            onPressed: active
+                ? () {
+                    if (_current(generation, client)) {
+                      ref.invalidate(areasProvider);
+                    }
+                  }
+                : null,
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+        ),
       ),
       slivers: [
         areasAsync.when(

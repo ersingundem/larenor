@@ -119,6 +119,13 @@ void main() {
         expect(find.byType(ServiceRootScaffold), findsOneWidget);
         expect(find.byType(SettingsSection), findsOneWidget);
         expect(find.byType(SettingsActionTile), findsOneWidget);
+        final refresh = find.byKey(const ValueKey('devices-refresh'));
+        final search = find.byKey(const ValueKey('devices-search'));
+        expect(tester.getRect(search).height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getSemantics(refresh).label,
+          AppLocalizations.of(tester.element(refresh)).commonRefresh,
+        );
         expect(
           tester
               .getSemantics(find.byKey(const ValueKey('devices-list-header')))
