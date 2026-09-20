@@ -92,6 +92,19 @@ Future<void> openBindingActivity(
   await press(tester, 'core-ha-activity-open');
 }
 
+void useRuleAttribution(HaUiHarness harness) {
+  final entries =
+      harness.history['complete']['response']['entries'] as List<dynamic>;
+  final first = entries.first as Map<String, dynamic>;
+  final attribution = first['attribution'] as Map<String, dynamic>;
+  attribution
+    ..['source'] = 'core_rule'
+    ..['reason'] = 'explicit_rule_execution'
+    ..['ruleId'] = '3' * 32
+    ..['ruleRevision'] = 4
+    ..['executionId'] = attribution['correlationId'];
+}
+
 void main() {
   testWidgets(
     'member activity exposes attribution and no admin integrity call',
@@ -171,6 +184,114 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'rule explanation binds actor rule service command and result to one trace',
+    (tester) async {
+      final harness = HaUiHarness()..role = 'member';
+      useRuleAttribution(harness);
+      await openSnapshotActivity(tester, harness);
+
+      final requestId = '9' * 32;
+      await press(tester, 'core-ha-activity-explain-$requestId');
+      expect(find.text('Larenor rule'), findsWidgets);
+      expect(find.text('Explicit stored rule execution'), findsWidgets);
+      expect(find.text('3' * 32), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+      expect(find.text('f' * 32), findsOneWidget);
+      expect(find.text('2' * 32), findsOneWidget);
+      expect(find.text('Turn on'), findsWidgets);
+      expect(find.text('Accepted'), findsWidgets);
+      expect(
+        find.text(
+          'This actor explicitly ran the stored rule. The trace links the '
+          'rule, service, command and result; it does not infer a trigger '
+          'from nearby events or time.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('rule trace remains keyboard and TalkBack usable in EN/TR', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    String? clipboard;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboard = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    try {
+      for (final variant in [
+        (
+          locale: 'en',
+          width: 600.0,
+          explain: 'Reason and trace',
+          copy: 'Copy transaction trace',
+        ),
+        (
+          locale: 'tr',
+          width: 1280.0,
+          explain: 'Neden ve işlem izi',
+          copy: 'İşlem izini kopyala',
+        ),
+      ]) {
+        final harness = HaUiHarness()..role = 'member';
+        useRuleAttribution(harness);
+        await openSnapshotActivity(
+          tester,
+          harness,
+          locale: variant.locale,
+          width: variant.width,
+          scale: 2,
+        );
+        final requestId = '9' * 32;
+        final explain = keyed('core-ha-activity-explain-$requestId');
+        await reveal(tester, explain);
+        expect(tester.getRect(explain).height, greaterThanOrEqualTo(48));
+        final explainText = find.descendant(
+          of: explain,
+          matching: find.text(variant.explain),
+        );
+        Focus.of(tester.element(explainText)).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+
+        final copy = keyed('core-ha-activity-copy-$requestId');
+        await reveal(tester, copy);
+        expect(tester.getRect(copy).height, greaterThanOrEqualTo(48));
+        final copyText = find.descendant(
+          of: copy,
+          matching: find.text(variant.copy),
+        );
+        Focus.of(tester.element(copyText)).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+
+        expect(clipboard, requestId);
+        expect(
+          tester
+              .getSemantics(keyed('core-ha-activity-copy-status-$requestId'))
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    } finally {
+      semantics.dispose();
+    }
+  });
 
   testWidgets('Turkish 2x tablet keyboard opens details and copies the trace', (
     tester,

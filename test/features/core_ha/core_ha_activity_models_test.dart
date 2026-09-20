@@ -83,6 +83,58 @@ void main() {
     expect(page.nextBefore, isNull);
   });
 
+  test('rule attribution is exact and rejects mixed or incomplete origins', () {
+    final response = jsonDecode(
+      jsonEncode(historyContract()['complete']['response']),
+    ) as Map<String, dynamic>;
+    final attribution =
+        ((response['entries'] as List).first['attribution']
+            as Map<String, dynamic>);
+    attribution
+      ..['source'] = 'core_rule'
+      ..['reason'] = 'explicit_rule_execution'
+      ..['ruleId'] = '3' * 32
+      ..['ruleRevision'] = 4
+      ..['executionId'] = attribution['correlationId'];
+    final entry = CoreHaHistoryPage.fromJson(
+      response,
+      target: historyTarget(),
+    ).entries.first;
+    expect(entry.attribution.source, CoreHaAttributionSource.coreRule);
+    expect(
+      entry.attribution.reason,
+      CoreHaAttributionReason.explicitRuleExecution,
+    );
+    expect(entry.attribution.ruleId, '3' * 32);
+    expect(entry.attribution.ruleRevision, 4);
+    expect(entry.attribution.executionId, entry.receipt.requestId);
+
+    for (final mutate in <void Function(Map<String, dynamic>)>[
+      (value) => value.remove('ruleId'),
+      (value) => value['executionId'] = '4' * 32,
+      (value) {
+        value
+          ..['source'] = 'core_api'
+          ..['reason'] = 'explicit_command_request';
+      },
+      (value) {
+        value
+          ..['source'] = 'unknown'
+          ..['reason'] = 'unknown';
+      },
+    ]) {
+      final damaged = jsonDecode(jsonEncode(response)) as Map<String, dynamic>;
+      mutate(
+        ((damaged['entries'] as List).first['attribution']
+            as Map<String, dynamic>),
+      );
+      expect(
+        () => CoreHaHistoryPage.fromJson(damaged, target: historyTarget()),
+        failure(),
+      );
+    }
+  });
+
   test('event page binds a verified forward cursor to its resource', () {
     final page = CoreHaEventHistoryPage.fromJson(
       eventHistoryJson(nextAfter: 2),
