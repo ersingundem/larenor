@@ -88,14 +88,16 @@ def create_bytes(
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
 
-def cancel_bytes(*, command_id: str, reservation_id: str, revision: int) -> bytes:
+def cancel_bytes(
+    *, command_id: str, reservation_id: str, revision: int, account_id: str = "ada"
+) -> bytes:
     return json.dumps(
         {
             "action": "cancel",
             "commandId": command_id,
             "coreId": "core-a",
             "homeId": "home-a",
-            "accountId": "ada",
+            "accountId": account_id,
             "coreRevision": 3,
             "homeRevision": 5,
             "accountRevision": 9,
@@ -162,6 +164,32 @@ def test_timezone_recurrence_dst_and_capacity_overlap_are_deterministic(tmp_path
             authority=authority(calendar_revision=9, capacity=2),
         )
 
+    capacity_store = store(tmp_path / "capacity.sqlite3")
+    capacity_store.create(
+        actor("ada"),
+        command_bytes=create_bytes(
+            command_id="capacity-1", local_start="2026-11-01T10:00:00"
+        ),
+        authority=authority(capacity=3),
+    )
+    capacity_store.create(
+        actor("ada"),
+        command_bytes=create_bytes(
+            command_id="capacity-2", local_start="2026-11-01T10:00:00",
+            expected_calendar_revision=8,
+        ),
+        authority=authority(calendar_revision=8, capacity=3),
+    )
+    with pytest.raises(ApiError, match="reservation_overlap"):
+        capacity_store.create(
+            actor("ada"),
+            command_bytes=create_bytes(
+                command_id="capacity-3", local_start="2026-11-01T10:00:00",
+                expected_calendar_revision=9, units=2,
+            ),
+            authority=authority(calendar_revision=9, capacity=3),
+        )
+
 
 def test_exact_authority_idempotency_conflict_cancel_and_audit(tmp_path):
     path = tmp_path / "core.sqlite3"
@@ -175,7 +203,7 @@ def test_exact_authority_idempotency_conflict_cancel_and_audit(tmp_path):
         reservations.create(
             actor("ada"),
             command_bytes=semantically_equal_different_bytes,
-            authority=authority(calendar_revision=8),
+            authority=authority(),
         )
     with pytest.raises(ApiError, match="authority_changed"):
         reservations.create(
@@ -188,17 +216,35 @@ def test_exact_authority_idempotency_conflict_cancel_and_audit(tmp_path):
             authority=authority(calendar_revision=8),
         )
 
+    denied_cancel = cancel_bytes(
+        command_id="cancel-denied",
+        reservation_id=first.reservation.id,
+        revision=8,
+        account_id="baran",
+    )
+    baran_authority = ReservationAuthority(
+        **{**authority(calendar_revision=8).__dict__, "account_id": "baran"}
+    )
+    with pytest.raises(ApiError, match="forbidden"):
+        reservations.cancel(
+            actor("baran"), command_bytes=denied_cancel, authority=baran_authority
+        )
+
     cancel = cancel_bytes(
         command_id="cancel-1",
         reservation_id=first.reservation.id,
         revision=8,
+        account_id="admin",
+    )
+    admin_authority = ReservationAuthority(
+        **{**authority(calendar_revision=8).__dict__, "account_id": "admin"}
     )
     cancelled = reservations.cancel(
-        actor("ada"), command_bytes=cancel, authority=authority(calendar_revision=8)
+        actor("admin", "admin"), command_bytes=cancel, authority=admin_authority
     )
     assert cancelled.calendar_revision == 9
     assert reservations.cancel(
-        actor("ada"), command_bytes=cancel, authority=authority(calendar_revision=8)
+        actor("admin", "admin"), command_bytes=cancel, authority=admin_authority
     ) == cancelled
 
     with Database(path).transaction() as connection:
@@ -258,7 +304,10 @@ def test_encrypted_role_scoped_bounded_availability_and_export(tmp_path):
     )
     with pytest.raises(ApiError, match="forbidden"):
         reservations.availability(
-            actor("mallory"), authority=authority(calendar_revision=8),
+            actor("mallory"),
+            authority=ReservationAuthority(
+                **{**authority(calendar_revision=8).__dict__, "account_id": "mallory"}
+            ),
             start_utc="2026-12-01T00:00:00Z",
             end_utc="2026-12-31T00:00:00Z",
             limit=16,
