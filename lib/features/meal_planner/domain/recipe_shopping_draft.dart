@@ -21,6 +21,27 @@ final class RecipeIngredient {
   final RecipeIngredientUnit unit;
   final String name;
 
+  factory RecipeIngredient.structured({
+    required int quantityMillis,
+    required RecipeIngredientUnit unit,
+    required String name,
+  }) {
+    final safeName = name.trim();
+    if (quantityMillis < 1 ||
+        quantityMillis > 10000000 ||
+        safeName.isEmpty ||
+        safeName.length > 120 ||
+        safeName != name ||
+        safeName.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const RecipeShoppingException('invalid_ingredient');
+    }
+    return RecipeIngredient._(
+      quantityMillis: quantityMillis,
+      unit: unit,
+      name: safeName,
+    );
+  }
+
   static RecipeIngredient parse(String source) {
     if (source.length > 160 || source.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
       throw const RecipeShoppingException('invalid_ingredient');
@@ -114,12 +135,6 @@ final class RecipeShoppingDraft {
     required String targetServingsText,
     required String ingredientLines,
   }) {
-    final safeTitle = title.trim();
-    if (safeTitle.isEmpty ||
-        safeTitle.length > 100 ||
-        safeTitle.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
-      throw const RecipeShoppingException('invalid_title');
-    }
     final base = int.tryParse(baseServingsText.trim());
     final target = int.tryParse(targetServingsText.trim());
     if (base == null ||
@@ -141,11 +156,40 @@ final class RecipeShoppingDraft {
     if (lines.isEmpty || lines.length > 32) {
       throw const RecipeShoppingException('too_many_ingredients');
     }
-    return RecipeShoppingDraft._(
-      title: safeTitle,
+    return RecipeShoppingDraft.structured(
+      title: title.trim(),
       baseServings: base,
       targetServings: target,
-      ingredients: List.unmodifiable(lines.map(RecipeIngredient.parse)),
+      ingredients: lines.map(RecipeIngredient.parse).toList(growable: false),
+    );
+  }
+
+  factory RecipeShoppingDraft.structured({
+    required String title,
+    required int baseServings,
+    required int targetServings,
+    required List<RecipeIngredient> ingredients,
+  }) {
+    if (title.isEmpty ||
+        title.length > 100 ||
+        title != title.trim() ||
+        title.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const RecipeShoppingException('invalid_title');
+    }
+    if (baseServings < 1 ||
+        targetServings < 1 ||
+        baseServings > 24 ||
+        targetServings > 24) {
+      throw const RecipeShoppingException('invalid_servings');
+    }
+    if (ingredients.isEmpty || ingredients.length > 32) {
+      throw const RecipeShoppingException('too_many_ingredients');
+    }
+    return RecipeShoppingDraft._(
+      title: title,
+      baseServings: baseServings,
+      targetServings: targetServings,
+      ingredients: List.unmodifiable(ingredients),
     );
   }
 

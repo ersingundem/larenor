@@ -283,4 +283,91 @@ void main() {
     await expectLater(result, throwsA(isA<TodayException>()));
     expect(api.serviceCalls, isEmpty);
   });
+
+  test(
+    'stable F31 marker makes an already verified add a no-write replay',
+    () async {
+      const key =
+          'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+      api.items['todo.shopping'] = {
+        'items': [
+          {
+            ...todoItem(uid: 'recipe-item', summary: '200 g Mercimek'),
+            'description': 'Larenor F31 v1 $key',
+          },
+        ],
+      };
+      await actions.addTodoBound(
+        list,
+        '200 g Mercimek',
+        current: () => true,
+        idempotencyKey: key,
+      );
+      expect(api.serviceCalls, isEmpty);
+      expect(receipts.receipts.single.status, ActionStatus.confirmed);
+    },
+  );
+
+  test(
+    'accepted F31 add persists its marker and retry sends no duplicate',
+    () async {
+      const key =
+          'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd';
+      api.onService = (_, service, data, _) async {
+        expect(service, 'add_item');
+        expect(data, {
+          'item': '200 g Mercimek',
+          'description': 'Larenor F31 v1 $key',
+        });
+        api.items['todo.shopping'] = {
+          'items': [
+            todoItem(),
+            {
+              ...todoItem(uid: 'recipe-item', summary: '200 g Mercimek'),
+              'description': 'Larenor F31 v1 $key',
+            },
+          ],
+        };
+      };
+      for (var attempt = 0; attempt < 2; attempt++) {
+        await actions.addTodoBound(
+          list,
+          '200 g Mercimek',
+          current: () => true,
+          idempotencyKey: key,
+        );
+      }
+      expect(api.serviceCalls, hasLength(1));
+      expect(receipts.receipts, hasLength(2));
+      expect(
+        receipts.receipts.every(
+          (value) => value.status == ActionStatus.confirmed,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('changed summary with the same F31 marker fails before write', () async {
+    const key =
+        'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    api.items['todo.shopping'] = {
+      'items': [
+        {
+          ...todoItem(uid: 'recipe-item', summary: 'Wrong'),
+          'description': 'Larenor F31 v1 $key',
+        },
+      ],
+    };
+    await expectLater(
+      actions.addTodoBound(
+        list,
+        '200 g Mercimek',
+        current: () => true,
+        idempotencyKey: key,
+      ),
+      throwsA(isA<ActionExecutionException>()),
+    );
+    expect(api.serviceCalls, isEmpty);
+  });
 }

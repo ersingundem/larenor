@@ -1,9 +1,14 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
 import '../../server/domain/server_models.dart';
 import '../../today/data/today_actions.dart';
 import '../../today/domain/today_models.dart';
 import '../domain/recipe_shopping_draft.dart';
+import '../domain/weekly_meal_plan.dart';
 
 enum RecipeShoppingAuthorityKind { core, deviceLocal }
 
@@ -200,6 +205,38 @@ final class RecipeShoppingReceipt {
 }
 
 final class RecipeShoppingHandoff {
+  Future<RecipeShoppingReceipt> addPlanEntry({
+    required WeeklyMealPlan plan,
+    required String entryId,
+    required String locale,
+    required TodayTodoList list,
+    required TodayActions actions,
+    required RecipeShoppingAuthorityLease authority,
+    required RecipeShoppingAuthoritySource authoritySource,
+    required bool Function() visible,
+  }) {
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(entryId)) {
+      throw const RecipeShoppingException('invalid_plan_entry');
+    }
+    MealPlanEntry? entry;
+    for (final value in plan.entries) {
+      if (value.id == entryId) entry = value;
+    }
+    if (entry == null) {
+      throw const RecipeShoppingException('invalid_plan_entry');
+    }
+    return add(
+      draft: plan.recipeFor(entry).shoppingDraft(entry.servings),
+      locale: locale,
+      list: list,
+      actions: actions,
+      authority: authority,
+      authoritySource: authoritySource,
+      visible: visible,
+      handoffId: entry.id,
+    );
+  }
+
   Future<RecipeShoppingReceipt> add({
     required RecipeShoppingDraft draft,
     required String locale,
@@ -208,6 +245,7 @@ final class RecipeShoppingHandoff {
     required RecipeShoppingAuthorityLease authority,
     required RecipeShoppingAuthoritySource authoritySource,
     required bool Function() visible,
+    String? handoffId,
   }) async {
     if (!list.available ||
         !list.canAdd ||
@@ -216,13 +254,31 @@ final class RecipeShoppingHandoff {
       throw const RecipeShoppingException('list_unavailable');
     }
     final summaries = draft.shoppingSummaries(locale);
+    if (handoffId != null && !RegExp(r'^[0-9a-f]{32}$').hasMatch(handoffId)) {
+      throw const RecipeShoppingException('invalid_handoff');
+    }
     var completed = 0;
-    for (final summary in summaries) {
+    for (var index = 0; index < summaries.length; index++) {
+      final summary = summaries[index];
       _check(authority, authoritySource, visible, completed);
       await actions.addTodoBound(
         list,
         summary,
         current: () => visible() && authority.isCurrent(authoritySource),
+        idempotencyKey: handoffId == null
+            ? null
+            : sha256
+                  .convert(
+                    utf8.encode(
+                      jsonEncode([
+                        'larenor-f31-shopping-v1',
+                        handoffId,
+                        list.entityId,
+                        index,
+                      ]),
+                    ),
+                  )
+                  .toString(),
       );
       completed++;
       _check(authority, authoritySource, visible, completed);
