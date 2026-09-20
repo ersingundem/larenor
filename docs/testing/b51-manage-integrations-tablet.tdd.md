@@ -13,7 +13,8 @@ destination routes. The final whole-product visual pass remains a separate
 - A tablet user can distinguish opening a service from enabling or disabling
   it, using touch, a keyboard, or an accessibility service.
 - A user never sees a false disabled state while saved choices are loading.
-- A failed read can be retried without exposing private storage details.
+- A failed read can be retried without exposing private storage details, while
+  service destinations remain available for credential recovery.
 - A pending or failed write retains one named control, rejects a duplicate
   action, and leaves the prior durable choice visible.
 - Every listed service opens its real screen from the shared settings design.
@@ -24,6 +25,7 @@ destination routes. The final whole-product visual pass remains a separate
 | --- | --- | --- |
 | RED | `flutter test test/features/settings/manage_integrations_tablet_accessibility_test.dart` | 7 intended failures: missing named controls and missing loading/error states |
 | GREEN | same focused test | 11/11 passed after the screen and write-state changes |
+| CI regression RED | Android Build shard 0 | 14 credential-recovery journeys exposed that a saved-choice read error blocked service navigation |
 | Related regression | `flutter test test/features/settings test/shared/widgets/settings_action_tile_test.dart test/features/health/integration_health_status_test.dart` | 191/191 passed |
 | Static analysis | `flutter analyze` on the four changed Dart targets | no issues |
 
@@ -32,7 +34,7 @@ destination routes. The final whole-product visual pass remains a separate
 | Guarantee | Test type | Evidence |
 | --- | --- | --- |
 | EN/TR at 600/1280 px and 200% text has no overflow; open and switch controls are separate, named, keyboard reachable, and at least 48 px high | Widget | `manage_integrations_tablet_accessibility_test.dart` |
-| Loading and read failure never render an invented off state; retry recovers and raw errors stay private | Widget/integration | same test |
+| Loading and read failure never render an invented off state; retry recovers, raw errors stay private, and service destinations remain reachable | Widget/integration | same test plus `media_credential_recovery_test.dart` |
 | Enter opens the real Jellyfin route without changing visibility | Widget/integration | same test |
 | All eleven service buttons push real destination routes | Widget/integration | same test |
 | Pending writes keep a stable disabled switch, expose progress, and reject duplicate writes | Widget | same test |

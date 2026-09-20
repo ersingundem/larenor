@@ -191,6 +191,16 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('private storage'), findsNothing);
     expect(find.byType(CupertinoSwitch), findsNothing);
+    expect(
+      find.byKey(const ValueKey('integration-open-jellyfin')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('integration-open-jellyfin')));
+    await tester.pumpAndSettle();
+    expect(find.byType(JellyfinHomeScreen), findsOneWidget);
+    Navigator.of(tester.element(find.byType(JellyfinHomeScreen))).pop();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(CupertinoButton, 'Retry'));
     await tester.pumpAndSettle();

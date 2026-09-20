@@ -75,7 +75,12 @@ class _ManageIntegrationsScreenState
                   constraints: const BoxConstraints(maxWidth: 1000),
                   child: switch (reading) {
                     AsyncData(:final value) => _serviceSections(value),
-                    AsyncError() => _loadFailure(),
+                    AsyncError() => Column(
+                      children: [
+                        _loadFailure(),
+                        _serviceSections(const {}, choicesAvailable: false),
+                      ],
+                    ),
                     _ => _loading(),
                   },
                 ),
@@ -133,7 +138,10 @@ class _ManageIntegrationsScreenState
     );
   }
 
-  Widget _serviceSections(Set<AppService> enabled) {
+  Widget _serviceSections(
+    Set<AppService> enabled, {
+    bool choicesAvailable = true,
+  }) {
     final l10n = AppLocalizations.of(context);
     final saving = _saving;
     void toggle(AppService service, bool value) => _toggle(service, value);
@@ -164,7 +172,8 @@ class _ManageIntegrationsScreenState
               title: 'Jellyfin',
               enabled: enabled.contains(AppService.jellyfin),
               busy: saving == AppService.jellyfin,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.jellyfin, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -178,7 +187,8 @@ class _ManageIntegrationsScreenState
               title: 'Jellyseerr',
               enabled: enabled.contains(AppService.jellyseerr),
               busy: saving == AppService.jellyseerr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.jellyseerr, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -194,7 +204,8 @@ class _ManageIntegrationsScreenState
               title: 'Sonarr',
               enabled: enabled.contains(AppService.sonarr),
               busy: saving == AppService.sonarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.sonarr, v)
                   : null,
               onTap: () => Navigator.of(
@@ -208,7 +219,8 @@ class _ManageIntegrationsScreenState
               title: 'Radarr',
               enabled: enabled.contains(AppService.radarr),
               busy: saving == AppService.radarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.radarr, v)
                   : null,
               onTap: () => Navigator.of(
@@ -222,7 +234,8 @@ class _ManageIntegrationsScreenState
               title: 'Lidarr',
               enabled: enabled.contains(AppService.lidarr),
               busy: saving == AppService.lidarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.lidarr, v)
                   : null,
               onTap: () => Navigator.of(
@@ -236,7 +249,8 @@ class _ManageIntegrationsScreenState
               title: 'Readarr',
               enabled: enabled.contains(AppService.readarr),
               busy: saving == AppService.readarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.readarr, v)
                   : null,
               onTap: () => Navigator.of(
@@ -250,7 +264,8 @@ class _ManageIntegrationsScreenState
               title: 'Bazarr',
               enabled: enabled.contains(AppService.bazarr),
               busy: saving == AppService.bazarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.bazarr, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -264,7 +279,8 @@ class _ManageIntegrationsScreenState
               title: 'Prowlarr',
               enabled: enabled.contains(AppService.prowlarr),
               busy: saving == AppService.prowlarr,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.prowlarr, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -280,7 +296,8 @@ class _ManageIntegrationsScreenState
               title: 'qBittorrent',
               enabled: enabled.contains(AppService.qbittorrent),
               busy: saving == AppService.qbittorrent,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.qbittorrent, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -301,7 +318,8 @@ class _ManageIntegrationsScreenState
               title: 'Proxmox',
               enabled: enabled.contains(AppService.proxmox),
               busy: saving == AppService.proxmox,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.proxmox, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -315,7 +333,8 @@ class _ManageIntegrationsScreenState
               title: 'Keenetic',
               enabled: enabled.contains(AppService.keenetic),
               busy: saving == AppService.keenetic,
-              onToggle: saving == null
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
                   ? (v) => toggle(AppService.keenetic, v)
                   : null,
               onTap: () => Navigator.of(context).push(
@@ -340,6 +359,7 @@ class _ServiceRow extends StatelessWidget {
     required this.onTap,
     required this.service,
     this.busy = false,
+    this.toggleVisible = true,
   });
 
   final IconData icon;
@@ -349,6 +369,7 @@ class _ServiceRow extends StatelessWidget {
   final ValueChanged<bool>? onToggle;
   final VoidCallback onTap;
   final bool busy;
+  final bool toggleVisible;
 
   /// When a real vendored logo exists for this service, that logo is shown
   /// via [BrandIcon] instead of the generic [icon]/[color] pair.
@@ -365,6 +386,7 @@ class _ServiceRow extends StatelessWidget {
       additionalInfo: SavedServiceHealthStatus(service: service),
       enabled: enabled,
       busy: busy,
+      toggleVisible: toggleVisible,
       openKey: ValueKey('integration-open-${service.name}'),
       toggleKey: ValueKey('integration-toggle-${service.name}'),
       onOpen: onTap,

@@ -18,6 +18,7 @@ class SettingsServiceTile extends StatelessWidget {
     this.openKey,
     this.toggleKey,
     this.busy = false,
+    this.toggleVisible = true,
   });
 
   final String title;
@@ -29,6 +30,7 @@ class SettingsServiceTile extends StatelessWidget {
   final Key? openKey;
   final Key? toggleKey;
   final bool busy;
+  final bool toggleVisible;
 
   @override
   Widget build(BuildContext context) {
@@ -46,38 +48,39 @@ class SettingsServiceTile extends StatelessWidget {
               onTap: onOpen,
             ),
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: 12),
-            child: Semantics(
-              key: toggleKey,
-              container: true,
-              label: title,
-              toggled: enabled,
-              enabled: onToggle != null && !busy,
-              onTap: onToggle == null || busy
-                  ? null
-                  : () => onToggle!(!enabled),
-              child: SizedBox(
-                width: 60,
-                height: 48,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ExcludeSemantics(
-                      child: Opacity(
-                        opacity: busy ? .28 : 1,
-                        child: CupertinoSwitch(
-                          value: enabled,
-                          onChanged: busy ? null : onToggle,
+          if (toggleVisible)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: Semantics(
+                key: toggleKey,
+                container: true,
+                label: title,
+                toggled: enabled,
+                enabled: onToggle != null && !busy,
+                onTap: onToggle == null || busy
+                    ? null
+                    : () => onToggle!(!enabled),
+                child: SizedBox(
+                  width: 60,
+                  height: 48,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ExcludeSemantics(
+                        child: Opacity(
+                          opacity: busy ? .28 : 1,
+                          child: CupertinoSwitch(
+                            value: enabled,
+                            onChanged: busy ? null : onToggle,
+                          ),
                         ),
                       ),
-                    ),
-                    if (busy) const CupertinoActivityIndicator(),
-                  ],
+                      if (busy) const CupertinoActivityIndicator(),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
