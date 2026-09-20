@@ -2,13 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 
-import '../../../shared/widgets/app_page_scaffold.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/admin_providers.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_section.dart';
+import 'admin_session_state.dart';
 
 /// Raw JSON editor for an automation's trigger/condition/action config.
 /// Used for both editing an existing automation (pass [automationId]) and
@@ -30,7 +31,7 @@ class AutomationEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _AutomationEditorScreenState
-    extends ConsumerState<AutomationEditorScreen> {
+    extends AdminSessionState<AutomationEditorScreen> {
   static const _encoder = JsonEncoder.withIndent('  ');
 
   late final TextEditingController _controller;
@@ -60,35 +61,45 @@ class _AutomationEditorScreenState
       );
       _loading = false;
     } else {
-      _loadExisting();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && adminAuthorityCurrent) {
+          _loadExisting(adminActionGeneration);
+        }
+      });
     }
   }
 
-  Future<void> _loadExisting() async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+  Future<void> _loadExisting(int generation) async {
+    final client = adminClient;
+    if (client == null || !adminActionCurrent(generation)) return;
     try {
       final config = await client.getAutomationConfig(_editingId);
-      if (!mounted) return;
+      if (!mounted || !adminActionCurrent(generation)) return;
       _controller.text = _encoder.convert(config);
     } catch (e) {
-      if (mounted) {
-        _error = AppLocalizations.of(context).adminLoadError(e.toString());
+      if (adminActionCurrent(generation)) {
+        setState(
+          () =>
+              _error = AppLocalizations.of(context)
+                  .adminLoadError(e.toString()),
+        );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (adminActionCurrent(generation)) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  Future<void> _save() async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+  Future<void> _save(int generation) async {
+    final client = adminClient;
+    if (client == null || !adminActionCurrent(generation)) return;
 
     final Map<String, dynamic> parsed;
     try {
       parsed = jsonDecode(_controller.text) as Map<String, dynamic>;
     } catch (e) {
-      if (!mounted) return;
+      if (!adminActionCurrent(generation)) return;
       setState(
         () =>
             _error = AppLocalizations.of(context)
@@ -104,55 +115,72 @@ class _AutomationEditorScreenState
     try {
       parsed['id'] = _editingId;
       await client.saveAutomationConfig(_editingId, parsed);
-      if (!mounted) return;
+      if (!mounted || !adminActionCurrent(generation)) return;
       ref.invalidate(automationsProvider);
-      if (mounted) Navigator.of(context).pop();
+      Navigator.of(context).pop();
     } catch (e) {
-      if (!mounted) return;
+      if (!adminActionCurrent(generation)) return;
       setState(
         () =>
             _error = AppLocalizations.of(context)
                 .automationEditorSaveError(e.toString()),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (adminActionCurrent(generation)) {
+        setState(() => _saving = false);
+      }
     }
   }
 
-  Future<void> _delete() async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+  Future<void> _delete(int generation) async {
+    final client = adminClient;
+    if (client == null || !adminActionCurrent(generation)) return;
 
-    final confirmed = await showCupertinoDialog<bool>(
+    var confirmed = false;
+    final route = CupertinoDialogRoute<void>(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: Text(AppLocalizations.of(context).automationEditorDeleteTitle),
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(
+          AppLocalizations.of(dialogContext).automationEditorDeleteTitle,
+        ),
         content: Text(
-          AppLocalizations.of(context).automationEditorDeleteMessage,
+          AppLocalizations.of(dialogContext).automationEditorDeleteMessage,
         ),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(AppLocalizations.of(context).commonCancel),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(AppLocalizations.of(dialogContext).commonCancel),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(AppLocalizations.of(context).commonDelete),
+            onPressed: () {
+              if (dialogContext.mounted &&
+                  ModalRoute.of(dialogContext)?.isCurrent == true &&
+                  adminAuthorityCurrent) {
+                confirmed = true;
+              }
+              if (dialogContext.mounted &&
+                  ModalRoute.of(dialogContext)?.isCurrent == true) {
+                Navigator.pop(dialogContext);
+              }
+            },
+            child: Text(AppLocalizations.of(dialogContext).commonDelete),
           ),
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    await Navigator.of(context).push(route);
+    await route.completed;
+    if (!confirmed || !adminAuthorityCurrent) return;
 
     setState(() => _saving = true);
     try {
       await client.deleteAutomationConfig(_editingId);
-      if (!mounted) return;
+      if (!mounted || !adminAuthorityCurrent) return;
       ref.invalidate(automationsProvider);
-      if (mounted) Navigator.of(context).pop();
+      Navigator.of(context).pop();
     } catch (e) {
-      if (!mounted) return;
+      if (!adminAuthorityCurrent) return;
       setState(() {
         _error = AppLocalizations.of(context)
             .automationEditorDeleteError(e.toString());
@@ -169,76 +197,128 @@ class _AutomationEditorScreenState
 
   @override
   Widget build(BuildContext context) {
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
-          _isNew
-              ? AppLocalizations.of(context).automationEditorNewTitle
-              : AppLocalizations.of(context).automationEditorEditTitle,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!_isNew)
-              CupertinoButton(
+    watchAdminSession();
+    final l10n = AppLocalizations.of(context);
+    final title = _isNew
+        ? l10n.automationEditorNewTitle
+        : l10n.automationEditorEditTitle;
+    final generation = adminActionGeneration;
+    final actionsEnabled =
+        !_saving && !_loading && adminActionCurrent(generation);
+    final editorHeight = (MediaQuery.sizeOf(context).height - 240).clamp(
+      320.0,
+      840.0,
+    );
+    return ServiceRootScaffold(
+      title: title,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!_isNew)
+            Semantics(
+              key: const ValueKey('automation-delete-action'),
+              button: true,
+              enabled: actionsEnabled,
+              label: l10n.commonDelete,
+              child: CupertinoButton(
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
-                onPressed: _saving || _loading ? null : _delete,
+                onPressed: actionsEnabled ? () => _delete(generation) : null,
                 child: Icon(
                   CupertinoIcons.delete,
                   color: CupertinoColors.destructiveRed.resolveFrom(context),
                 ),
               ),
-            CupertinoButton(
+            ),
+          Semantics(
+            key: const ValueKey('automation-save-action'),
+            button: true,
+            enabled: actionsEnabled,
+            label: l10n.commonSave,
+            child: CupertinoButton(
+              minimumSize: const Size(48, 48),
               padding: EdgeInsets.zero,
-              onPressed: _saving || _loading ? null : _save,
+              onPressed: actionsEnabled ? () => _save(generation) : null,
               child: _saving
                   ? const CupertinoActivityIndicator()
-                  : Text(AppLocalizations.of(context).commonSave),
+                  : Text(l10n.commonSave),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      child: SafeArea(
-        child: _loading
-            ? const Center(child: CupertinoActivityIndicator())
-            : Column(
-                children: [
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(
-                          color: CupertinoColors.systemRed.resolveFrom(context),
-                        ),
-                      ),
-                    ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: CupertinoTextField(
-                        controller: _controller,
-                        maxLines: null,
-                        expands: true,
-                        textAlignVertical: TextAlignVertical.top,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: AppText.footnote.fontSize,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: CupertinoColors.separator.resolveFrom(
-                              context,
-                            ),
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+      slivers: [
+        if (!adminAuthorityCurrent)
+          SliverFilledMessage(
+            child: Semantics(
+              liveRegion: true,
+              child: Text(l10n.adminEditorSessionChanged),
+            ),
+          )
+        else if (_loading)
+          const SliverFilledMessage(child: CupertinoActivityIndicator())
+        else ...[
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 20, 0),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error!,
+                    key: const ValueKey('automation-error-message'),
+                    style: TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
                     ),
                   ),
-                ],
+                ),
               ),
-      ),
+            ),
+          SliverSafeArea(
+            top: false,
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 16),
+                SettingsSection(
+                  header: Semantics(
+                    key: const ValueKey('automation-json-header'),
+                    header: true,
+                    child: Text(title),
+                  ),
+                  children: [
+                    SizedBox(
+                      height: editorHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: CupertinoTextField(
+                          key: const ValueKey('automation-json-editor'),
+                          controller: _controller,
+                          readOnly: !actionsEnabled,
+                          maxLines: null,
+                          expands: true,
+                          keyboardType: TextInputType.multiline,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: AppText.footnote.fontSize,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: CupertinoColors.separator.resolveFrom(
+                                context,
+                              ),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
