@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,6 +113,65 @@ void main() {
     });
   }
 
+  testWidgets(
+    'library refresh hides retained account data and expires its old callback',
+    (tester) async {
+      Completer<List<JellyfinItem>>? reload;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            jellyfinConnectionProvider.overrideWith(_ConnectedConnection.new),
+            jellyfinClientProvider.overrideWith((_) => null),
+            jellyfinResumeItemsProvider.overrideWith((_) async => const []),
+            jellyfinLatestItemsProvider.overrideWith((_) async => const []),
+            jellyfinLibrariesProvider.overrideWith((_) async {
+              if (reload != null) return reload.future;
+              return const [
+                JellyfinItem(
+                  id: 'private-old-library',
+                  name: 'Private old library',
+                  type: 'CollectionFolder',
+                ),
+              ];
+            }),
+          ],
+          child: const CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: JellyfinHomeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final action = find.byKey(
+        const ValueKey('jellyfin-library-private-old-library'),
+      );
+      final old = tester.widget<CupertinoButton>(action).onPressed!;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JellyfinHomeScreen)),
+      );
+      reload = Completer<List<JellyfinItem>>();
+      container.invalidate(jellyfinLibrariesProvider);
+      await tester.pump();
+
+      expect(find.text('Private old library'), findsNothing);
+      old();
+      await tester.pump();
+      expect(find.byType(JellyfinLibraryScreen), findsNothing);
+
+      reload.complete(const [
+        JellyfinItem(
+          id: 'current-library',
+          name: 'Current library',
+          type: 'CollectionFolder',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Current library'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} Jellyfin hierarchy fits '
@@ -220,10 +281,12 @@ void main() {
           await tester.scrollUntilVisible(
             accountAction,
             300,
-            scrollable: find.descendant(
-              of: find.byType(CustomScrollView),
-              matching: find.byType(Scrollable),
-            ).first,
+            scrollable: find
+                .descendant(
+                  of: find.byType(CustomScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
             maxScrolls: 10,
           );
           expect(

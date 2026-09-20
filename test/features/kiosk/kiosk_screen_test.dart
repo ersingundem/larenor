@@ -271,6 +271,27 @@ void main() {
     },
   );
   testWidgets(
+    'controller replacement expires callbacks rendered by the old authority',
+    (t) async {
+      final api = _Api();
+      await _mount(t, api, _Pin());
+      final old = t
+          .widget<CupertinoButton>(find.byKey(const ValueKey('kiosk-enter')))
+          .onPressed!;
+      final container = ProviderScope.containerOf(
+        t.element(find.byType(KioskScreen)),
+      );
+      container.invalidate(kioskControllerProvider);
+      await t.pumpAndSettle();
+      old();
+      await t.pumpAndSettle();
+      expect(api.proposals, 0);
+      expect(api.writes, 0);
+      expect(find.byKey(const ValueKey('kiosk-pin')), findsNothing);
+      expect(t.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'idle closes PIN dialog and old confirmation remains invalid after wake',
     (t) async {
       final api = _Api(), active = AppInteractionController();

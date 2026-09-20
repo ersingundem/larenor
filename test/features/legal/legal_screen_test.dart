@@ -147,4 +147,33 @@ void main() {
     expect(navigator.canPop(), isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('document callback rendered before background is expired', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: LegalScreen(),
+      ),
+    );
+    await tester.pump();
+    final row = find.byKey(const ValueKey('legal-document-LICENSE'));
+    final old = tester.widget<CupertinoButton>(row).onPressed!;
+    final navigator = Navigator.of(tester.element(row));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    old();
+    await tester.pump();
+
+    expect(navigator.canPop(), isFalse);
+    expect(tester.takeException(), isNull);
+  });
 }

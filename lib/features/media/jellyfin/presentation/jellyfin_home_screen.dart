@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/direct_home_access.dart';
+import '../../../health/data/health_configuration.dart';
+import '../../hub/presentation/media_session_state.dart';
+import '../data/jellyfin_config.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_connect_screen.dart';
@@ -51,23 +56,42 @@ class JellyfinHomeScreen extends ConsumerWidget {
             ),
       data: (config) {
         if (config == null) return const JellyfinConnectScreen();
-        return _JellyfinBrowseScaffold(ref: ref);
+        return _JellyfinBrowseScaffold(config: config);
       },
     );
   }
 }
 
-class _JellyfinBrowseScaffold extends ConsumerWidget {
-  const _JellyfinBrowseScaffold({required this.ref});
+class _JellyfinBrowseScaffold extends ConsumerStatefulWidget {
+  const _JellyfinBrowseScaffold({required this.config});
 
-  final WidgetRef ref;
+  final JellyfinConfig config;
 
   @override
-  Widget build(BuildContext context, WidgetRef _) {
+  ConsumerState<_JellyfinBrowseScaffold> createState() =>
+      _JellyfinBrowseScaffoldState();
+}
+
+class _JellyfinBrowseScaffoldState
+    extends MediaSessionState<_JellyfinBrowseScaffold> {
+  bool _current(int generation) {
+    final current = ref.read(jellyfinConnectionProvider);
+    return sessionCurrent(generation) &&
+        ModalRoute.of(context)?.isCurrent != false &&
+        TickerMode.valuesOf(context).enabled &&
+        !current.isLoading &&
+        !current.hasError &&
+        sameHealthConfiguration(current.value, widget.config);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccounts(jellyfinOnly: true);
     final resumeAsync = ref.watch(jellyfinResumeItemsProvider);
     final latestAsync = ref.watch(jellyfinLatestItemsProvider);
     final librariesAsync = ref.watch(jellyfinLibrariesProvider);
     final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
 
     return ServiceRootScaffold(
       title: 'Jellyfin',
@@ -77,15 +101,72 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
             _PosterRow(
               title: l10n.jellyfinContinueWatching,
               itemsAsync: resumeAsync,
+              onOpen: (item) {
+                if (!_current(generation) ||
+                    !identical(
+                      ref.read(jellyfinResumeItemsProvider),
+                      resumeAsync,
+                    )) {
+                  return;
+                }
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (_) => JellyfinItemDetailScreen(item: item),
+                  ),
+                );
+              },
             ),
             _PosterRow(
               title: l10n.jellyfinRecentlyAdded,
               itemsAsync: latestAsync,
+              onOpen: (item) {
+                if (!_current(generation) ||
+                    !identical(
+                      ref.read(jellyfinLatestItemsProvider),
+                      latestAsync,
+                    )) {
+                  return;
+                }
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (_) => JellyfinItemDetailScreen(item: item),
+                  ),
+                );
+              },
             ),
-            _LibrarySection(librariesAsync: librariesAsync),
+            _LibrarySection(
+              librariesAsync: librariesAsync,
+              onOpen: (library) {
+                if (!_current(generation) ||
+                    !identical(
+                      ref.read(jellyfinLibrariesProvider),
+                      librariesAsync,
+                    )) {
+                  return;
+                }
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (_) => JellyfinLibraryScreen(
+                      parentId: library.id,
+                      title: library.name,
+                    ),
+                  ),
+                );
+              },
+            ),
             _AccountSection(
-              onSignOut: () =>
-                  ref.read(jellyfinConnectionProvider.notifier).signOut(),
+              onSettings: () {
+                if (_current(generation)) {
+                  context.push('/settings');
+                }
+              },
+              onSignOut: () {
+                if (_current(generation)) {
+                  unawaited(
+                    ref.read(jellyfinConnectionProvider.notifier).signOut(),
+                  );
+                }
+              },
             ),
           ]),
         ),
@@ -95,8 +176,9 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
 }
 
 class _AccountSection extends StatelessWidget {
-  const _AccountSection({required this.onSignOut});
+  const _AccountSection({required this.onSettings, required this.onSignOut});
 
+  final VoidCallback onSettings;
   final VoidCallback onSignOut;
 
   @override
@@ -115,7 +197,7 @@ class _AccountSection extends StatelessWidget {
           title: Text(
             operational ? l10n.settingsScreenTitle : l10n.commonSignOut,
           ),
-          onTap: operational ? () => context.push('/settings') : onSignOut,
+          onTap: operational ? onSettings : onSignOut,
         ),
       ],
     );
@@ -123,9 +205,10 @@ class _AccountSection extends StatelessWidget {
 }
 
 class _LibrarySection extends StatelessWidget {
-  const _LibrarySection({required this.librariesAsync});
+  const _LibrarySection({required this.librariesAsync, required this.onOpen});
 
   final AsyncValue<List<JellyfinItem>> librariesAsync;
+  final ValueChanged<JellyfinItem> onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +220,8 @@ class _LibrarySection extends StatelessWidget {
         child: Text(l10n.jellyfinLibrariesHeader),
       ),
       children: librariesAsync.when(
+        skipLoadingOnReload: false,
+        skipLoadingOnRefresh: false,
         loading: () => const [
           Padding(
             padding: Insets.tile,
@@ -159,14 +244,7 @@ class _LibrarySection extends StatelessWidget {
                     buttonKey: ValueKey('jellyfin-library-${library.id}'),
                     leading: const Icon(CupertinoIcons.square_stack),
                     title: Text(library.name),
-                    onTap: () => Navigator.of(context).push(
-                      CupertinoPageRoute(
-                        builder: (_) => JellyfinLibraryScreen(
-                          parentId: library.id,
-                          title: library.name,
-                        ),
-                      ),
-                    ),
+                    onTap: () => onOpen(library),
                   ),
               ],
       ),
@@ -175,20 +253,26 @@ class _LibrarySection extends StatelessWidget {
 }
 
 class _PosterRow extends StatelessWidget {
-  const _PosterRow({required this.title, required this.itemsAsync});
+  const _PosterRow({
+    required this.title,
+    required this.itemsAsync,
+    required this.onOpen,
+  });
 
   final String title;
   final AsyncValue<List<JellyfinItem>> itemsAsync;
+  final ValueChanged<JellyfinItem> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final items = itemsAsync.value ?? const [];
-    if (itemsAsync.isLoading && items.isEmpty) {
+    if (itemsAsync.isLoading) {
       return const SizedBox(
         height: 60,
         child: Center(child: CupertinoActivityIndicator()),
       );
     }
+    if (itemsAsync.hasError) return const SizedBox.shrink();
+    final items = itemsAsync.value ?? const [];
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -207,11 +291,7 @@ class _PosterRow extends StatelessWidget {
               return JellyfinPoster(
                 key: ValueKey('jellyfin-poster-${item.id}'),
                 item: item,
-                onTap: () => Navigator.of(context).push(
-                  CupertinoPageRoute(
-                    builder: (_) => JellyfinItemDetailScreen(item: item),
-                  ),
-                ),
+                onTap: () => onOpen(item),
               );
             },
           ),

@@ -33,8 +33,44 @@ class _LegalScreenState extends State<LegalScreen> {
   late final Future<List<LicenseEntry>> _packages = LicenseRegistry.licenses
       .toList();
   bool _copied = false;
+  bool _foreground = true, _ticker = true;
+  int _generation = 0;
+  late final AppLifecycleListener _lifecycle;
 
-  void _open(String title, Future<String> Function() load) {
+  @override
+  void initState() {
+    super.initState();
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        final foreground = state == AppLifecycleState.resumed;
+        if (!mounted || foreground == _foreground) return;
+        setState(() {
+          if (_foreground && !foreground) _generation++;
+          _foreground = foreground;
+        });
+      },
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ticker = TickerMode.valuesOf(context).enabled;
+    if (_ticker && !ticker) _generation++;
+    _ticker = ticker;
+  }
+
+  bool _current(int generation) =>
+      mounted &&
+      generation == _generation &&
+      _foreground &&
+      _ticker &&
+      ModalRoute.of(context)?.isCurrent != false;
+
+  void _open(int generation, String title, Future<String> Function() load) {
+    if (!_current(generation)) return;
     Navigator.of(context).push(
       CupertinoPageRoute<void>(
         builder: (_) => _LicenseDocument(title: title, load: load),
@@ -45,6 +81,7 @@ class _LegalScreenState extends State<LegalScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final generation = _generation;
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(l10n.legalTitle)),
       child: SafeArea(
@@ -79,10 +116,13 @@ class _LegalScreenState extends State<LegalScreen> {
                             alignment: AlignmentDirectional.centerStart,
                             padding: EdgeInsets.zero,
                             onPressed: () async {
+                              if (!_current(generation)) return;
                               await Clipboard.setData(
                                 const ClipboardData(text: larenorSourceUrl),
                               );
-                              if (mounted) setState(() => _copied = true);
+                              if (_current(generation)) {
+                                setState(() => _copied = true);
+                              }
                             },
                             child: Text(
                               _copied ? l10n.legalCopied : l10n.legalCopySource,
@@ -98,7 +138,11 @@ class _LegalScreenState extends State<LegalScreen> {
                     for (final (title, asset) in _bundled)
                       _row(
                         title,
-                        () => _open(title, () => rootBundle.loadString(asset)),
+                        () => _open(
+                          generation,
+                          title,
+                          () => rootBundle.loadString(asset),
+                        ),
                         buttonKey: ValueKey('legal-document-$asset'),
                       ),
                   ],
@@ -127,6 +171,7 @@ class _LegalScreenState extends State<LegalScreen> {
                           _row(
                             entry.packages.join(', '),
                             () => _open(
+                              generation,
                               entry.packages.join(', '),
                               () async => entry.paragraphs
                                   .map((p) => p.text)
@@ -151,6 +196,13 @@ class _LegalScreenState extends State<LegalScreen> {
         title: Text(title),
         onTap: onTap,
       );
+
+  @override
+  void dispose() {
+    _generation++;
+    _lifecycle.dispose();
+    super.dispose();
+  }
 }
 
 class _LicenseDocument extends StatefulWidget {
