@@ -228,7 +228,7 @@ class RdpFreeRdpSession internal constructor(
             return
         }
         when {
-            evidence.minimumTlsProtocol != "TLSv1.2" ->
+            evidence.minimumTlsProtocol !in setOf("TLSv1.2", "TLSv1.3") ->
                 terminate(RdpJniPhase.FAILED, "tlsRequired")
             evidence.certificateFingerprint != request.certificateFingerprint ->
                 terminate(RdpJniPhase.FAILED, "certificatePinningRequired")
