@@ -227,6 +227,42 @@ void main() {
     expect(toggle().onChanged, isNotNull);
   });
 
+  testWidgets('failed indexer write announces only localized safe copy', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final client = ProwlarrClient(
+      config: _config,
+      httpClient: MockClient(
+        (_) async => http.Response('private upstream detail', 500),
+      ),
+    );
+    addTearDown(client.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prowlarrConnectionProvider.overrideWith(_Connection.new),
+          prowlarrClientProvider.overrideWith((_) => client),
+          prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
+        ],
+        child: _tabletApp(const Locale('tr')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch)).onChanged!(
+      false,
+    );
+    await tester.pumpAndSettle();
+
+    final error = find.byKey(const ValueKey('prowlarr-indexers-write-error'));
+    expect(error, findsOneWidget);
+    expect(tester.getSemantics(error).flagsCollection.isLiveRegion, isTrue);
+    expect(find.textContaining('private upstream detail'), findsNothing);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} indexer hierarchy fits '

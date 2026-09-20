@@ -136,7 +136,12 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
             ),
             children: [
               if (_error != null)
-                Padding(padding: Insets.tile, child: Text(_error!)),
+                Semantics(
+                  key: const ValueKey('prowlarr-indexers-write-error'),
+                  container: true,
+                  liveRegion: true,
+                  child: Padding(padding: Insets.tile, child: Text(_error!)),
+                ),
               SettingsActionTile(
                 buttonKey: const ValueKey('prowlarr-indexers-refresh'),
                 leading: const Icon(CupertinoIcons.refresh),
