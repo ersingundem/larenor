@@ -141,6 +141,7 @@
   "keeneticTileWifiUp": "{total} Wi-Fi ağından {up} tanesi aktif",
   "prowlarrTileNoIndexers": "İndeksleyici yok",
   "prowlarrTileEnabledCount": "{total} indeksleyiciden {enabled} tanesi etkin",
+  "prowlarrIndexerSubtitle": "{protocol} · öncelik {priority}",
   "proxmoxTileNoNodes": "Düğüm yok",
   "proxmoxTileNodeStats": "{name} · CPU %{cpu} · RAM %{ram}",
   "qbittorrentTileNoActive": "Aktif torrent yok",

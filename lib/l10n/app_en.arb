@@ -213,6 +213,17 @@
       }
     }
   },
+  "prowlarrIndexerSubtitle": "{protocol} · priority {priority}",
+  "@prowlarrIndexerSubtitle": {
+    "placeholders": {
+      "protocol": {
+        "type": "String"
+      },
+      "priority": {
+        "type": "int"
+      }
+    }
+  },
   "proxmoxTileNoNodes": "No nodes",
   "proxmoxTileNodeStats": "{name} · CPU {cpu}% · RAM {ram}%",
   "@proxmoxTileNodeStats": {

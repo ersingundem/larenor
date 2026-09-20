@@ -186,7 +186,10 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
                           CupertinoListTile(
                             title: Text(indexer.name),
                             subtitle: Text(
-                              '${indexer.protocol} · priority ${indexer.priority}',
+                              l10n.prowlarrIndexerSubtitle(
+                                indexer.protocol,
+                                indexer.priority,
+                              ),
                             ),
                             trailing: Semantics(
                               key: ValueKey(

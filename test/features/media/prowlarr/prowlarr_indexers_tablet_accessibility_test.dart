@@ -195,6 +195,10 @@ void main() {
           expect(toggleNode.flagsCollection.isToggled, ui.Tristate.isTrue);
           expect(toggleNode.rect.width, greaterThanOrEqualTo(48));
           expect(toggleNode.rect.height, greaterThanOrEqualTo(48));
+          expect(
+            find.text(l10n.prowlarrIndexerSubtitle('torrent', 25)),
+            findsOneWidget,
+          );
 
           final refreshLabel = find.descendant(
             of: refresh,
