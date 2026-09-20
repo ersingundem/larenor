@@ -43,6 +43,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   bool _current(int epoch, {bool ownRoute = false}) =>
       sessionCurrent(epoch) &&
+      TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent == true ||
           (ownRoute && _ownedRoute?.isCurrent == true));
   bool _same(ScreenProgram original, int epoch) {
