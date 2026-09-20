@@ -1,6 +1,6 @@
 # B5.1 Proxmox tablet surface acceptance
 
-**Rebased base:** `9ab8cd3212430e3f0e88e4caeccc54a643bc16ca`
+**Rebased base:** `bae12c01dd3eb3e9d3a618623fab84f0e8878ef0`
 **Progress boundary:** 17/125 queue items, 0/63 selected features. This UI
 hardening does not close a feature or replace physical device acceptance.
 
