@@ -98,7 +98,12 @@ class _TodayWidgetSettingsScreenState
                 : ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
-                      Text(l10n.todayTitle, style: AppText.title2),
+                      Semantics(
+                        key: const ValueKey('today-widget-title'),
+                        container: true,
+                        header: true,
+                        child: Text(l10n.todayTitle, style: AppText.title2),
+                      ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -130,7 +135,12 @@ class _TodayWidgetSettingsScreenState
                         ],
                       ),
                       const SizedBox(height: 20),
-                      Text(l10n.commonSearch, style: AppText.headline),
+                      Semantics(
+                        key: const ValueKey('today-widget-search-title'),
+                        container: true,
+                        header: true,
+                        child: Text(l10n.commonSearch, style: AppText.headline),
+                      ),
                       const SizedBox(height: 8),
                       CupertinoSearchTextField(
                         key: const ValueKey('today-widget-query'),
