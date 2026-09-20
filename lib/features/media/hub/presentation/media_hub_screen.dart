@@ -68,14 +68,22 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
             largeTitle: Text(l10n.mediaHubTitle),
             trailing: widget.embedded
                 ? const AppShellActions()
-                : CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.of(context).push(
-                      CupertinoPageRoute(
-                        builder: (_) => const MediaSearchScreen(),
+                : Semantics(
+                    label: l10n.commonSearch,
+                    child: CupertinoButton(
+                      key: const ValueKey('media-search'),
+                      minimumSize: const Size(48, 48),
+                      padding: EdgeInsets.zero,
+                      focusColor: CupertinoTheme.of(context).primaryColor,
+                      onPressed: () => Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => const MediaSearchScreen(),
+                        ),
+                      ),
+                      child: const ExcludeSemantics(
+                        child: Icon(CupertinoIcons.search),
                       ),
                     ),
-                    child: const Icon(CupertinoIcons.search),
                   ),
           ),
           CupertinoSliverRefreshControl(onRefresh: () => _refresh(ref)),

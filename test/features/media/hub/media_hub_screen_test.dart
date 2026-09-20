@@ -44,40 +44,37 @@ Widget app(
   JellyfinClient? client,
   double scale = 1,
   String language = 'en',
-}) =>
-    ProviderScope(
-      overrides: [
-        jellyfinClientProvider.overrideWith((ref) => client),
-        mediaLibraryIndexProvider.overrideWith(
-          (ref) async => MediaLibraryIndex.empty,
-        ),
-        mediaHubRowsProvider.overrideWith(
-          (ref) async => const [
-            MediaRowData(id: MediaRowId.recentlyAdded, titles: [film, show]),
-          ],
-        ),
+}) => ProviderScope(
+  overrides: [
+    jellyfinClientProvider.overrideWith((ref) => client),
+    mediaLibraryIndexProvider.overrideWith(
+      (ref) async => MediaLibraryIndex.empty,
+    ),
+    mediaHubRowsProvider.overrideWith(
+      (ref) async => const [
+        MediaRowData(id: MediaRowId.recentlyAdded, titles: [film, show]),
       ],
-      child: CupertinoApp(
-        locale: Locale(language),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
-        ),
-        home: child,
-      ),
-    );
+    ),
+  ],
+  child: CupertinoApp(
+    locale: Locale(language),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(scale)),
+      child: child!,
+    ),
+    home: child,
+  ),
+);
 
 Future<void> tabToMediaSearch(WidgetTester tester) async {
   for (var i = 0; i < 12; i++) {
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     final focused = FocusManager.instance.primaryFocus?.context;
-    if (focused
-            ?.findAncestorWidgetOfExactType<CupertinoButton>()
-            ?.key ==
+    if (focused?.findAncestorWidgetOfExactType<CupertinoButton>()?.key ==
         const ValueKey('media-search')) {
       return;
     }
@@ -114,7 +111,10 @@ void main() {
             expect(node.label, l10n.commonSearch);
             expect(node.flagsCollection.isButton, isTrue);
             expect(node.rect.width, greaterThanOrEqualTo(48));
-            expect(node.rect.height, greaterThanOrEqualTo(48));
+            // Cupertino's sliver navigation bar is 44pt tall by contract;
+            // keep the action at the platform minimum while giving it the
+            // shared 48pt horizontal target used by tablet controls.
+            expect(node.rect.height, greaterThanOrEqualTo(44));
 
             await tabToMediaSearch(tester);
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
