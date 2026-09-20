@@ -7,6 +7,18 @@ import '../../domain/server_models.dart';
 import '../domain/server_tablet_fleet_models.dart';
 import 'server_tablet_fleet_api.dart';
 
+final class _PendingTabletIssue {
+  const _PendingTabletIssue({
+    required this.tabletId,
+    required this.tabletRevision,
+    required this.command,
+    required this.requestKey,
+  });
+  final String tabletId, requestKey;
+  final int tabletRevision;
+  final TabletCommandKind command;
+}
+
 /// Route-owned administrator authority. A hidden route, changed account,
 /// changed Core/home or uncertain mutation retires every pending callback.
 class ServerTabletFleetController extends ChangeNotifier {
@@ -31,6 +43,7 @@ class ServerTabletFleetController extends ChangeNotifier {
   String? announcement;
   List<ManagedTablet> tablets = const [];
   Map<String, ManagedTabletCommand> latestCommands = const {};
+  _PendingTabletIssue? _uncertainIssue;
 
   static String _randomRequestKey() {
     final random = Random.secure();
@@ -65,6 +78,7 @@ class ServerTabletFleetController extends ChangeNotifier {
     announcement = null;
     tablets = const [];
     latestCommands = const {};
+    _uncertainIssue = null;
     _emit();
   }
 
@@ -74,7 +88,34 @@ class ServerTabletFleetController extends ChangeNotifier {
   Future<void> load({required bool Function() current}) =>
       _run(current, (api, valid) async {
         final value = await api.list();
-        if (valid()) tablets = value;
+        if (!valid()) return;
+        tablets = value;
+        final pending = _uncertainIssue;
+        if (pending == null) return;
+        final matches = value
+            .where(
+              (item) =>
+                  item.id == pending.tabletId &&
+                  item.revision == pending.tabletRevision &&
+                  item.state == TabletFleetState.active &&
+                  item.supports(pending.command),
+            )
+            .toList();
+        if (matches.length != 1) {
+          throw const LarenorServerException('tablet_device_changed');
+        }
+        final receipt = await api.issueVerified(
+          matches.single,
+          pending.command,
+          requestKey: pending.requestKey,
+        );
+        if (!valid() || !identical(_uncertainIssue, pending)) return;
+        latestCommands = Map.unmodifiable({
+          ...latestCommands,
+          pending.tabletId: receipt,
+        });
+        _uncertainIssue = null;
+        announcement = 'command_verified';
       });
 
   Future<void> advanceProfile(
@@ -102,21 +143,29 @@ class ServerTabletFleetController extends ChangeNotifier {
     TabletCommandKind command, {
     required bool Function() current,
   }) async {
-    if (!tablet.supports(command)) return;
+    if (!tablet.supports(command) || _uncertainIssue != null) return;
     final epoch = _epoch;
+    final pending = _PendingTabletIssue(
+      tabletId: tablet.id,
+      tabletRevision: tablet.revision,
+      command: command,
+      requestKey: _requestKey(),
+    );
     await _run(
       current,
       (api, valid) async {
+        _uncertainIssue = pending;
         final receipt = await api.issueVerified(
           tablet,
           command,
-          requestKey: _requestKey(),
+          requestKey: pending.requestKey,
         );
-        if (!valid()) return;
+        if (!valid() || !identical(_uncertainIssue, pending)) return;
         latestCommands = Map.unmodifiable({
           ...latestCommands,
           tablet.id: receipt,
         });
+        _uncertainIssue = null;
         announcement = 'command_verified';
       },
       mutation: true,

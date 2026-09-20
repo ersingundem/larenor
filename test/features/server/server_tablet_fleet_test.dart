@@ -338,6 +338,19 @@ void main() {
     expect(controller.needsRefresh, isTrue);
     expect(controller.latestCommands, isEmpty);
     expect(controller.tablets, isEmpty);
+    fixture.respond = fixture.response;
+    await controller.load(current: () => true);
+    expect(controller.failure, isNull);
+    expect(controller.needsRefresh, isFalse);
+    expect(controller.latestCommands.values.single.id, commandId);
+    final keys = fixture.calls
+        .where((call) => call.url.path.endsWith('/commands'))
+        .map(
+          (call) =>
+              (jsonDecode(call.body) as Map<String, dynamic>)['requestKey'],
+        )
+        .toSet();
+    expect(keys, {'client:22222222222222222222222222222222'});
     controller.dispose();
     fixture.account.dispose();
   });
