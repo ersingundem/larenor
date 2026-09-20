@@ -126,6 +126,8 @@ MESSAGES = {
     'music_player_capability_unavailable': 'The Music Assistant player does not advertise this capability.',
     'music_playback_command_conflict': 'This request conflicts with a saved playback command.',
     'music_playback_command_limit_reached': 'The playback command journal is full.',
+    'music_provider_changed': 'The Music Assistant provider changed. Refresh the music manager first.',
+    'music_catalog_worker_unavailable': 'The private Music Assistant catalog worker is unavailable.',
     'keenetic_snapshot_changed': 'The Keenetic detail snapshot changed. Refresh it from the first page.',
     'keenetic_command_changed': 'The selected Keenetic target or authority changed. Review it again.',
     'keenetic_confirmation_invalid': 'Create a new Keenetic command preview.',

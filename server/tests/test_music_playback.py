@@ -5,6 +5,7 @@ import pytest
 from conftest import auth
 from larenor_server.plugins.music_playback_models import (
     MusicPlaybackReadback, MusicPlaybackWorkerResult, VerifiedMusicPlayer,
+    VerifiedMusicQueue,
 )
 from larenor_server.plugins.music_provider_setup_models import (
     ProviderSetupWorkerResult,
@@ -21,9 +22,15 @@ def player(identifier='homepod-living', *, group=(), volume=34):
         targetKind='homepod' if not group else 'airplay_group',
         available=True, enabled=True, playbackState='paused',
         volumeLevel=volume, muted=False, groupMembers=list(group),
-        queueId=identifier,
-        capabilities=['play', 'pause', 'stop', 'next_previous',
+        queueId=identifier, positionSeconds=12,
+        capabilities=['play', 'pause', 'seek', 'stop', 'next_previous',
                       'volume_set', 'volume_mute', 'queue'])
+
+
+def queue(*, count=1, current='spotify://track/current', position=12):
+    return VerifiedMusicQueue(
+        queueId='homepod-living', active=count > 0, itemCount=count,
+        currentItemUri=current, positionSeconds=position)
 
 
 def provider_ready(server):
@@ -53,17 +60,35 @@ def provider_ready(server):
 class PlaybackWorker:
     def __init__(self, players):
         self.players = players
+        self.queues = [queue()]
         self.calls = []
 
     def read_music_players(self, _private, *, deadline, gate):
         assert gate() is True
-        return MusicPlaybackReadback(players=self.players)
+        return MusicPlaybackReadback(players=self.players, queues=self.queues)
 
     def execute_music_playback(self, action, *, deadline, gate):
         assert gate() is True
         self.calls.append(action)
+        request = action.request
+        target = self.players[0]
+        if request.operation == 'play':
+            target = target.model_copy(update={'playbackState': 'playing'})
+        if request.operation == 'pause':
+            target = target.model_copy(update={'playbackState': 'paused'})
+        if request.operation == 'seek':
+            target = target.model_copy(
+                update={'positionSeconds': request.positionSeconds})
+        observed_queue = None
+        if request.operation == 'queue_add':
+            observed_queue = queue(count=2)
+        if request.operation == 'queue_replace':
+            observed_queue = queue(
+                count=len(request.mediaUris), current=request.mediaUris[0])
+        if request.operation == 'queue_clear':
+            observed_queue = queue(count=0, current=None, position=0)
         return MusicPlaybackWorkerResult(
-            state='succeeded', target=self.players[0])
+            state='succeeded', target=target, queue=observed_queue)
 
 
 def discovered(server, players=None):
@@ -98,7 +123,8 @@ def test_authenticated_player_readback_exposes_exact_airplay_homepod_capabilitie
 
 
 @pytest.mark.parametrize(('operation', 'changes'), [
-    ('play', {}), ('pause', {}), ('stop', {}), ('next', {}), ('previous', {}),
+    ('play', {}), ('pause', {}), ('seek', {'positionSeconds': 48}),
+    ('stop', {}), ('next', {}), ('previous', {}),
     ('volume', {'volumeLevel': 55}), ('mute', {'muted': True}),
     ('queue_add', {'mediaUris': ['spotify://track/fixture']}),
     ('queue_replace', {'mediaUris': ['library://playlist/fixture']}),

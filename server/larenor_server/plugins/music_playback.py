@@ -11,16 +11,18 @@ from pydantic import ValidationError
 from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .music_playback_models import (
+    MusicCatalogWorkerResult, MusicManagerProvider, MusicManagerState,
     MusicPlaybackCommandRequest, MusicPlaybackReadback, MusicPlaybackState,
     MusicPlaybackWorkerResult, PrivateMusicPlaybackAction,
-    PrivateMusicPlaybackAuthority, RefreshMusicPlaybackRequest,
+    PrivateMusicPlaybackAuthority, PrivateMusicCatalogAction,
+    RefreshMusicPlaybackRequest, SearchMusicCatalogRequest,
     _StoredMusicPlayback, _StoredPlaybackCommand,
 )
 
 
 MAX_CIPHERTEXT = 262144
 _OP_CAPABILITY = {
-    'play': 'play', 'pause': 'pause', 'stop': 'stop',
+    'play': 'play', 'pause': 'pause', 'seek': 'seek', 'stop': 'stop',
     'next': 'next_previous', 'previous': 'next_previous',
     'volume': 'volume_set', 'mute': 'volume_mute',
     'queue_add': 'queue', 'queue_replace': 'queue', 'queue_clear': 'queue',
@@ -107,6 +109,26 @@ class MusicPlaybackManagement:
         return PrivateMusicPlaybackAuthority(
             installationId=installation_id, token=token)
 
+    def _provider_bindings(self, connection, installation_id,
+                           installation_revision):
+        bindings = []
+        for row in connection.execute(
+                'SELECT * FROM music_provider_setups WHERE installation_id=? '
+                'ORDER BY id', (installation_id,)).fetchall():
+            stored = self.providers._decode(row)
+            if (row['installation_revision'] != installation_revision
+                    or stored.status != 'ready'
+                    or stored.providerInstanceId is None):
+                continue
+            bindings.append(MusicManagerProvider(
+                setupId=row['id'], revision=row['revision'],
+                providerDomain=stored.request.providerDomain,
+                providerInstanceId=stored.providerInstanceId,
+                catalogAvailable=True))
+        if not bindings:
+            raise ApiError('music_provider_not_ready', 409)
+        return bindings
+
     @staticmethod
     def _player(stored, player_id):
         return next((item for item in stored.players
@@ -120,6 +142,49 @@ class MusicPlaybackManagement:
             'players': [item.model_dump() for item in stored.players],
             'installAvailable': False, 'updatedAt': utc(row['updated_at']),
         }).model_dump()
+
+    def _manager_public(self, row, stored):
+        return MusicManagerState.model_validate({
+            'installationId': row['installation_id'],
+            'installationRevision': row['installation_revision'],
+            'coreRevision': row['core_revision'], 'revision': row['revision'],
+            'providers': [item.model_dump()
+                          for item in stored.providerBindings],
+            'queues': [item.model_dump() for item in stored.queues],
+            'receivers': [item.model_dump() for item in stored.players],
+            'installAvailable': False, 'updatedAt': utc(row['updated_at']),
+        }).model_dump()
+
+    @staticmethod
+    def _effect_verified(request, result):
+        target = result.target
+        if request.operation == 'play':
+            return target.playbackState == 'playing'
+        if request.operation == 'pause':
+            return target.playbackState == 'paused'
+        if request.operation == 'seek':
+            return ((target.positionSeconds is not None
+                     and abs(target.positionSeconds
+                             - request.positionSeconds) <= 2)
+                    or (result.queue is not None
+                        and result.queue.queueId == request.expectedQueueId
+                        and abs(result.queue.positionSeconds
+                                - request.positionSeconds) <= 2))
+        if request.operation == 'queue_add':
+            return (result.queue is not None
+                    and result.queue.queueId == request.expectedQueueId
+                    and result.queue.itemCount > 0)
+        if request.operation == 'queue_replace':
+            return (result.queue is not None
+                    and result.queue.queueId == request.expectedQueueId
+                    and result.queue.itemCount == len(request.mediaUris)
+                    and result.queue.currentItemUri in request.mediaUris)
+        if request.operation == 'queue_clear':
+            return (result.queue is not None
+                    and result.queue.queueId == request.expectedQueueId
+                    and result.queue.itemCount == 0
+                    and result.queue.currentItemUri is None)
+        return True
 
     def validate_storage(self):
         try:
@@ -141,6 +206,9 @@ class MusicPlaybackManagement:
             authority = self._authority(
                 connection, body.installationId,
                 body.expectedInstallationRevision, body.expectedCoreRevision)
+            bindings = self._provider_bindings(
+                connection, body.installationId,
+                body.expectedInstallationRevision)
             previous = connection.execute(
                 'SELECT * FROM music_playback WHERE installation_id=?',
                 (body.installationId,)).fetchone()
@@ -156,6 +224,10 @@ class MusicPlaybackManagement:
                         connection, body.installationId,
                         body.expectedInstallationRevision,
                         body.expectedCoreRevision)
+                    if self._provider_bindings(
+                            connection, body.installationId,
+                            body.expectedInstallationRevision) != bindings:
+                        return False
                     current = connection.execute(
                         'SELECT revision FROM music_playback WHERE installation_id=?',
                         (body.installationId,)).fetchone()
@@ -175,6 +247,10 @@ class MusicPlaybackManagement:
             self._authority(connection, body.installationId,
                             body.expectedInstallationRevision,
                             body.expectedCoreRevision)
+            if self._provider_bindings(
+                    connection, body.installationId,
+                    body.expectedInstallationRevision) != bindings:
+                raise ApiError('music_provider_changed', 409)
             current = connection.execute(
                 'SELECT * FROM music_playback WHERE installation_id=?',
                 (body.installationId,)).fetchone()
@@ -187,9 +263,13 @@ class MusicPlaybackManagement:
                    'revision': previous_revision + 1,
                    'created_at': now if current is None else current['created_at'],
                    'updated_at': now}
-            commands = [] if current is None else self._decode(current).commands
+            previous_stored = None if current is None else self._decode(current)
+            commands = ([] if previous_stored is None
+                        or previous_stored.providerBindings != bindings
+                        else previous_stored.commands)
             stored = _StoredMusicPlayback(
-                players=readback.players, commands=commands)
+                players=readback.players, queues=readback.queues,
+                providerBindings=bindings, commands=commands)
             self._save(connection, row, stored)
             saved = connection.execute(
                 'SELECT * FROM music_playback WHERE installation_id=?',
@@ -208,7 +288,100 @@ class MusicPlaybackManagement:
                 raise ApiError('not_found', 404)
             self._authority(connection, installation_id,
                             row['installation_revision'], row['core_revision'])
-            return {'playback': self._public(row, self._decode(row))}
+            stored = self._decode(row)
+            if self._provider_bindings(
+                    connection, installation_id,
+                    row['installation_revision']) != stored.providerBindings:
+                raise ApiError('music_provider_changed', 409)
+            return {'playback': self._public(row, stored)}
+
+    def manager(self, actor, installation_id):
+        self._identity(installation_id)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self._assert_user(connection, actor)
+            row = connection.execute(
+                'SELECT * FROM music_playback WHERE installation_id=?',
+                (installation_id,)).fetchone()
+            if row is None:
+                raise ApiError('not_found', 404)
+            self._authority(connection, installation_id,
+                            row['installation_revision'], row['core_revision'])
+            stored = self._decode(row)
+            if self._provider_bindings(
+                    connection, installation_id,
+                    row['installation_revision']) != stored.providerBindings:
+                raise ApiError('music_provider_changed', 409)
+            return {'manager': self._manager_public(row, stored)}
+
+    def search(self, actor, body):
+        if type(body) is not SearchMusicCatalogRequest:
+            raise ApiError('invalid_request')
+        if self.backend is None:
+            raise ApiError('music_catalog_worker_unavailable', 503)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self._assert_user(connection, actor)
+            authority = self._authority(
+                connection, body.installationId,
+                body.expectedInstallationRevision, body.expectedCoreRevision)
+            row = connection.execute(
+                'SELECT * FROM music_playback WHERE installation_id=?',
+                (body.installationId,)).fetchone()
+            if row is None:
+                raise ApiError('music_player_readback_required', 409)
+            stored = self._decode(row)
+            bindings = self._provider_bindings(
+                connection, body.installationId,
+                body.expectedInstallationRevision)
+            if (row['revision'] != body.expectedManagerRevision
+                    or bindings != stored.providerBindings):
+                raise ApiError('music_provider_changed', 409)
+            expected = next((item for item in bindings
+                             if item.setupId == body.providerSetupId), None)
+            if (expected is None
+                    or expected.revision != body.expectedProviderRevision
+                    or expected.providerDomain != body.providerDomain
+                    or expected.providerInstanceId != body.providerInstanceId):
+                raise ApiError('music_provider_changed', 409)
+        deadline = time.monotonic() + 5
+
+        def gate():
+            if time.monotonic() >= deadline:
+                return False
+            try:
+                with self.db.connection() as connection:
+                    self._authority(
+                        connection, body.installationId,
+                        body.expectedInstallationRevision,
+                        body.expectedCoreRevision)
+                    current = connection.execute(
+                        'SELECT * FROM music_playback WHERE installation_id=?',
+                        (body.installationId,)).fetchone()
+                    return (current is not None
+                            and current['revision'] == body.expectedManagerRevision
+                            and self._provider_bindings(
+                                connection, body.installationId,
+                                body.expectedInstallationRevision) == bindings)
+            except ApiError:
+                return False
+
+        try:
+            result = self.backend.search_music_catalog(
+                PrivateMusicCatalogAction(request=body, token=authority.token),
+                deadline=deadline, gate=gate)
+            if type(result) is not MusicCatalogWorkerResult or gate() is not True:
+                raise ValueError()
+            if any(item.providerInstanceId != body.providerInstanceId
+                   for item in result.items):
+                raise ValueError()
+        except Exception:
+            raise ApiError('music_catalog_worker_unavailable', 503) from None
+        return {'catalog': {
+            'requestId': body.requestId,
+            'managerRevision': body.expectedManagerRevision,
+            'items': [item.model_dump() for item in result.items],
+        }}
 
     @staticmethod
     def _receipt(command):
@@ -238,6 +411,11 @@ class MusicPlaybackManagement:
             if row is None:
                 raise ApiError('music_player_readback_required', 409)
             stored = self._decode(row)
+            bindings = self._provider_bindings(
+                connection, body.installationId,
+                body.expectedInstallationRevision)
+            if bindings != stored.providerBindings:
+                raise ApiError('music_provider_changed', 409)
             for command in stored.commands:
                 if command.request.requestId != body.requestId:
                     continue
@@ -284,6 +462,9 @@ class MusicPlaybackManagement:
                     current_stored = self._decode(current)
                     player = self._player(current_stored, body.targetId)
                     return (current['revision'] == changed['revision']
+                            and self._provider_bindings(
+                                connection, body.installationId,
+                                body.expectedInstallationRevision) == bindings
                             and player is not None
                             and player.groupMembers == body.expectedGroupMembers
                             and player.provider == body.expectedProvider
@@ -302,6 +483,7 @@ class MusicPlaybackManagement:
                     or result.target.provider != body.expectedProvider
                     or result.target.targetKind != body.expectedTargetKind
                     or result.target.queueId != body.expectedQueueId
+                    or not self._effect_verified(body, result)
                     or gate() is not True):
                 raise ValueError()
         except Exception:
@@ -311,6 +493,10 @@ class MusicPlaybackManagement:
             self._authority(connection, body.installationId,
                             body.expectedInstallationRevision,
                             body.expectedCoreRevision)
+            if self._provider_bindings(
+                    connection, body.installationId,
+                    body.expectedInstallationRevision) != bindings:
+                raise ApiError('music_provider_changed', 409)
             current = connection.execute(
                 'SELECT * FROM music_playback WHERE installation_id=?',
                 (body.installationId,)).fetchone()
@@ -319,6 +505,13 @@ class MusicPlaybackManagement:
             current_stored = self._decode(current)
             players = [result.target if item.playerId == body.targetId else item
                        for item in current_stored.players]
+            queues = [result.queue if (result.queue is not None
+                                       and item.queueId == result.queue.queueId)
+                      else item for item in current_stored.queues]
+            if (result.queue is not None
+                    and all(item.queueId != result.queue.queueId
+                            for item in current_stored.queues)):
+                queues.append(result.queue)
             final_revision = current['revision'] + 1
             commands = [
                 command.model_copy(update={
@@ -329,6 +522,8 @@ class MusicPlaybackManagement:
             final_row.update(revision=final_revision,
                              updated_at=max(current['updated_at'],
                                             int(self.settings.clock())))
-            final = _StoredMusicPlayback(players=players, commands=commands)
+            final = _StoredMusicPlayback(
+                players=players, queues=queues, providerBindings=bindings,
+                commands=commands)
             self._save(connection, final_row, final)
             return self._receipt(commands[-1])
