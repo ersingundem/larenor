@@ -12,6 +12,7 @@ import 'widgets/jellyfin_poster.dart';
 import '../../../../shared/widgets/section_header.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/operational_service_scope.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 
 class JellyfinHomeScreen extends ConsumerWidget {
   const JellyfinHomeScreen({super.key});
@@ -23,8 +24,9 @@ class JellyfinHomeScreen extends ConsumerWidget {
     return connectionAsync.when(
       skipLoadingOnReload: false,
       skipLoadingOnRefresh: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => _JellyfinRouteStatus(
+        label: AppLocalizations.of(context).commonLoading,
+        loading: true,
       ),
       error: (error, _) =>
           error is DirectHomeAccessException &&
@@ -33,15 +35,67 @@ class JellyfinHomeScreen extends ConsumerWidget {
                 'write_unconfirmed',
               }.contains(error.code)
           ? const JellyfinConnectScreen()
-          : CupertinoPageScaffold(
-              child: Center(
-                child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-              ),
+          : _JellyfinRouteStatus(
+              label: AppLocalizations.of(context).mediaErrorUnreachable,
+              onRetry: () => ref.invalidate(jellyfinConnectionProvider),
             ),
       data: (config) {
         if (config == null) return const JellyfinConnectScreen();
         return _JellyfinBrowseScaffold(ref: ref);
       },
+    );
+  }
+}
+
+class _JellyfinRouteStatus extends StatelessWidget {
+  const _JellyfinRouteStatus({
+    required this.label,
+    this.loading = false,
+    this.onRetry,
+  });
+
+  final String label;
+  final bool loading;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AppPageScaffold(
+      navigationBar: const CupertinoNavigationBar(middle: Text('Jellyfin')),
+      child: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                key: const ValueKey('jellyfin-home-status'),
+                label: label,
+                liveRegion: true,
+                excludeSemantics: true,
+                child: loading
+                    ? const CupertinoActivityIndicator()
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(label, textAlign: TextAlign.center),
+                      ),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  label: l10n.commonRetry,
+                  child: CupertinoButton(
+                    key: const ValueKey('jellyfin-home-retry'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: onRetry,
+                    child: ExcludeSemantics(child: Text(l10n.commonRetry)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
