@@ -83,6 +83,14 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
 
+  bool _capturedActionCurrent(
+    AppInteractionController? interaction,
+    int? epoch,
+  ) =>
+      _canAct &&
+      identical(interaction, AppInteractionScope.maybeRead(context)) &&
+      interaction?.epoch == epoch;
+
   Future<void> _run(
     Future<void> Function(LocalAudioBridge) action, {
     String? expectedSourceId,
@@ -163,6 +171,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final bridge = ref.read(localAudioBridgeProvider);
     final previousSource = ref.read(localAudioProvider).value?.sourceId;
     final interaction = AppInteractionScope.maybeRead(context);
+    final interactionEpoch = interaction?.epoch;
     setState(() {
       _artworkBusy = true;
       _error = null;
@@ -171,7 +180,8 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         mounted &&
         token == _artworkGeneration &&
         identical(bridge, ref.read(localAudioBridgeProvider)) &&
-        identical(interaction, AppInteractionScope.maybeRead(context));
+        identical(interaction, AppInteractionScope.maybeRead(context)) &&
+        interaction?.epoch == interactionEpoch;
     try {
       final bytes = await ref.read(localAudioArtworkFileAccessProvider).pick();
       if (bytes == null || !ownerCurrent()) return;
@@ -179,13 +189,8 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
       // a draft; returning never starts playback or revives a command ticket.
       await WidgetsBinding.instance.endOfFrame;
       if (!ownerCurrent() || !_canAct) return;
-      final epoch = interaction?.epoch;
       final generation = _generation;
-      bool current() =>
-          ownerCurrent() &&
-          _canAct &&
-          epoch == interaction?.epoch &&
-          generation == _generation;
+      bool current() => ownerCurrent() && _canAct && generation == _generation;
       final state = await bridge.snapshot();
       if (!current() || state.sourceId != previousSource) return;
       setState(() => _draftArtwork = null);
@@ -211,6 +216,11 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final interaction = AppInteractionScope.maybeOf(context);
+    final interactionEpoch = interaction?.epoch;
+    VoidCallback guarded(VoidCallback action) => () {
+      if (_capturedActionCurrent(interaction, interactionEpoch)) action();
+    };
     final active = _foreground && TickerMode.valuesOf(context).enabled;
     ref.listen(localAudioBridgeProvider, (previous, next) {
       if (previous != null && !identical(previous, next)) {
@@ -308,20 +318,36 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                     min: 0,
                                     max: duration,
                                     onChanged: ready && state.canSeek
-                                        ? (value) => setState(
-                                            () => _seekSeconds = value,
-                                          )
+                                        ? (value) {
+                                            if (_capturedActionCurrent(
+                                              interaction,
+                                              interactionEpoch,
+                                            )) {
+                                              setState(
+                                                () => _seekSeconds = value,
+                                              );
+                                            }
+                                          }
                                         : null,
                                     onChangeEnd: ready && state.canSeek
-                                        ? (value) => _run(
-                                            (bridge) => bridge.seek(
-                                              Duration(
-                                                milliseconds: value.round(),
-                                              ),
-                                              expectedSourceId: state.sourceId,
-                                            ),
-                                            expectedSourceId: state.sourceId,
-                                          )
+                                        ? (value) {
+                                            if (_capturedActionCurrent(
+                                              interaction,
+                                              interactionEpoch,
+                                            )) {
+                                              _run(
+                                                (bridge) => bridge.seek(
+                                                  Duration(
+                                                    milliseconds: value.round(),
+                                                  ),
+                                                  expectedSourceId:
+                                                      state.sourceId,
+                                                ),
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              );
+                                            }
+                                          }
                                         : null,
                                   ),
                                 ),
@@ -334,11 +360,14 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                 if (state.canPause)
                                   CupertinoButton(
                                     onPressed: ready
-                                        ? () => _run(
-                                            (bridge) => bridge.pause(
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.pause(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
                                               expectedSourceId: state.sourceId,
                                             ),
-                                            expectedSourceId: state.sourceId,
                                           )
                                         : null,
                                     child: Text(l10n.localAudioPause),
@@ -346,11 +375,14 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                 if (state.canPlay && !state.isPlaying)
                                   CupertinoButton(
                                     onPressed: ready
-                                        ? () => _run(
-                                            (bridge) => bridge.resume(
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.resume(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
                                               expectedSourceId: state.sourceId,
                                             ),
-                                            expectedSourceId: state.sourceId,
                                           )
                                         : null,
                                     child: Text(l10n.localAudioResume),
@@ -358,11 +390,14 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                 if (state.canStop)
                                   CupertinoButton(
                                     onPressed: ready
-                                        ? () => _run(
-                                            (bridge) => bridge.stop(
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.stop(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
                                               expectedSourceId: state.sourceId,
                                             ),
-                                            expectedSourceId: state.sourceId,
                                           )
                                         : null,
                                     child: Text(l10n.localAudioStop),
@@ -428,7 +463,10 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                       ? CupertinoColors.white
                                       : null,
                                   onPressed: ready
-                                      ? () => setState(() => _mime = entry.key)
+                                      ? guarded(
+                                          () =>
+                                              setState(() => _mime = entry.key),
+                                        )
                                       : null,
                                   child: Text(entry.value),
                                 ),
@@ -466,7 +504,9 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                 key: const ValueKey(
                                   'local-audio-artwork-choose',
                                 ),
-                                onPressed: canSelect ? _chooseArtwork : null,
+                                onPressed: canSelect
+                                    ? guarded(_chooseArtwork)
+                                    : null,
                                 child: Text(l10n.localAudioArtworkChoose),
                               ),
                               if (_draftArtwork != null)
@@ -475,13 +515,11 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                     'local-audio-artwork-remove',
                                   ),
                                   onPressed: canSelect
-                                      ? () {
-                                          if (_canAct) {
-                                            setState(
-                                              () => _draftArtwork = null,
-                                            );
-                                          }
-                                        }
+                                      ? guarded(
+                                          () => setState(
+                                            () => _draftArtwork = null,
+                                          ),
+                                        )
                                       : null,
                                   child: Text(l10n.localAudioArtworkRemove),
                                 ),
@@ -505,16 +543,19 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                               ? const CupertinoActivityIndicator()
                               : const Icon(CupertinoIcons.play_fill),
                           title: Text(l10n.localAudioTitle),
-                          onTap: canSelect ? _play : null,
+                          onTap: canSelect ? guarded(_play) : null,
                         ),
                         SettingsActionTile(
                           leading: const Icon(CupertinoIcons.battery_100),
                           title: Text(l10n.localAudioPowerTitle),
                           onTap: !active || _busy
                               ? null
-                              : () => Navigator.of(context).push(
-                                  CupertinoPageRoute<void>(
-                                    builder: (_) => const PlaybackPowerScreen(),
+                              : guarded(
+                                  () => Navigator.of(context).push(
+                                    CupertinoPageRoute<void>(
+                                      builder: (_) =>
+                                          const PlaybackPowerScreen(),
+                                    ),
                                   ),
                                 ),
                         ),

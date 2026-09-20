@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/local_audio/presentation/local_audio_screen.dart';
 import 'package:larenor/features/media/local_audio/presentation/playback_power_screen.dart';
 import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
@@ -22,6 +23,7 @@ Future<void> _frames(WidgetTester tester) async {
 
 class _Harness {
   final bridge = FakeLocalAudioBridge();
+  final interaction = AppInteractionController();
   final visible = ValueNotifier(true);
   late ProviderContainer container;
   Future<void> mount(
@@ -37,6 +39,7 @@ class _Harness {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     addTearDown(visible.dispose);
+    addTearDown(interaction.dispose);
     addTearDown(bridge.events.close);
     container = ProviderContainer(
       overrides: [localAudioBridgeProvider.overrideWithValue(bridge)],
@@ -52,27 +55,30 @@ class _Harness {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: CupertinoApp(
-          locale: Locale(language),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: pushed
-              ? Builder(
-                  builder: (context) => CupertinoPageScaffold(
-                    child: CupertinoButton(
-                      child: const Text('Open audio'),
-                      onPressed: () => Navigator.of(context).push(
-                        CupertinoPageRoute<void>(builder: (_) => screen()),
+        child: AppInteractionScope(
+          controller: interaction,
+          child: CupertinoApp(
+            locale: Locale(language),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: pushed
+                ? Builder(
+                    builder: (context) => CupertinoPageScaffold(
+                      child: CupertinoButton(
+                        child: const Text('Open audio'),
+                        onPressed: () => Navigator.of(context).push(
+                          CupertinoPageRoute<void>(builder: (_) => screen()),
+                        ),
                       ),
                     ),
-                  ),
-                )
-              : screen(),
+                  )
+                : screen(),
+          ),
         ),
       ),
     );
@@ -225,6 +231,33 @@ void main() {
       await h.unmount(tester);
     },
   );
+
+  testWidgets('captured play callback expires with interaction authority', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    await h.source(tester);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!;
+    h.interaction.setActive(false);
+    h.interaction.setActive(true);
+    await _frames(tester);
+    stale();
+    await _frames(tester);
+    expect(h.bridge.plays, isEmpty);
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(h.bridge.plays, hasLength(1));
+    await h.unmount(tester);
+  });
 
   for (final invalid in [
     'https://radio.example/live?token=secret',

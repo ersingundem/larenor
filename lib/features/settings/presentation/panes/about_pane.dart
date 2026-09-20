@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 
@@ -13,12 +14,46 @@ import '../../../auth/providers/auth_providers.dart';
 import '../../../legal/presentation/legal_screen.dart';
 import 'settings_nav_row.dart';
 
-class AboutPane extends ConsumerWidget {
+class AboutPane extends ConsumerStatefulWidget {
   const AboutPane({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AboutPane> createState() => _AboutPaneState();
+}
+
+class _AboutPaneState extends ConsumerState<AboutPane> {
+  bool _signingOut = false;
+
+  bool _current(AppInteractionController? interaction, int? epoch) =>
+      mounted &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      TickerMode.valuesOf(context).enabled &&
+      identical(interaction, AppInteractionScope.maybeRead(context)) &&
+      interaction?.active != false &&
+      interaction?.epoch == epoch;
+
+  Future<void> _signOut(
+    AppInteractionController? interaction,
+    int? epoch,
+  ) async {
+    if (_signingOut || !_current(interaction, epoch)) return;
+    setState(() => _signingOut = true);
+    try {
+      await ref.read(connectionConfigProvider.notifier).signOut();
+      if (!mounted) return;
+      if (_current(interaction, epoch)) context.go('/');
+    } finally {
+      if (mounted) setState(() => _signingOut = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Keep the auto-dispose notifier alive through a pending credential clear.
+    ref.watch(connectionConfigProvider);
+    final interaction = AppInteractionScope.maybeOf(context);
+    final interactionEpoch = interaction?.epoch;
 
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryAbout,
@@ -64,9 +99,15 @@ class AboutPane extends ConsumerWidget {
             SettingsActionTile(
               buttonKey: const ValueKey('about-legal-action'),
               title: Text(l10n.legalTitle),
-              onTap: () => Navigator.of(context).push(
-                CupertinoPageRoute<void>(builder: (_) => const LegalScreen()),
-              ),
+              onTap: () {
+                if (_current(interaction, interactionEpoch)) {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute<void>(
+                      builder: (_) => const LegalScreen(),
+                    ),
+                  );
+                }
+              },
             ),
             SettingsActionTile(
               buttonKey: const ValueKey('about-sign-out-action'),
@@ -76,10 +117,9 @@ class AboutPane extends ConsumerWidget {
                   color: CupertinoColors.systemRed.resolveFrom(context),
                 ),
               ),
-              onTap: () async {
-                await ref.read(connectionConfigProvider.notifier).signOut();
-                if (context.mounted) context.go('/');
-              },
+              onTap: _signingOut
+                  ? null
+                  : () => _signOut(interaction, interactionEpoch),
             ),
           ],
         ),

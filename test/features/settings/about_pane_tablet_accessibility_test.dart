@@ -1,13 +1,34 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/auth/data/ha_connection_config.dart';
+import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/legal/presentation/legal_screen.dart';
 import 'package:larenor/features/settings/presentation/panes/about_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
+
+class _Connection extends ConnectionConfig {
+  var signOuts = 0;
+  Completer<void>? gate;
+
+  @override
+  Future<HaConnectionConfig?> build() async => null;
+
+  @override
+  Future<void> signOut() async {
+    signOuts++;
+    await gate?.future;
+    state = const AsyncData(null);
+  }
+}
 
 Future<void> _mount(
   WidgetTester tester, {
@@ -83,4 +104,74 @@ void main() {
       );
     }
   }
+
+  testWidgets(
+    'sign out rejects expired callbacks and runs once for current authority',
+    (tester) async {
+      final interaction = AppInteractionController();
+      final connection = _Connection();
+      final router = GoRouter(
+        initialLocation: '/about',
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const Text('Home route')),
+          GoRoute(path: '/about', builder: (_, _) => const AboutPane()),
+        ],
+      );
+      addTearDown(interaction.dispose);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [connectionConfigProvider.overrideWith(() => connection)],
+          child: CupertinoApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (_, child) =>
+                AppInteractionScope(controller: interaction, child: child!),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('about-sign-out-action')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final stale = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('about-sign-out-action')),
+          )
+          .onPressed!;
+      final staleLegal = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('about-legal-action')),
+          )
+          .onPressed!;
+      interaction.setActive(false);
+      interaction.setActive(true);
+      await tester.pump();
+      stale();
+      staleLegal();
+      await tester.pump();
+      expect(connection.signOuts, 0);
+      expect(find.byType(LegalScreen), findsNothing);
+
+      connection.gate = Completer<void>();
+      final current = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('about-sign-out-action')),
+          )
+          .onPressed!;
+      current();
+      current();
+      await tester.pump();
+      expect(connection.signOuts, 1);
+      connection.gate!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Home route'), findsOneWidget);
+      stale();
+      await tester.pump();
+      expect(connection.signOuts, 1);
+    },
+  );
 }
