@@ -260,6 +260,50 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  for (final language in ['en', 'tr']) {
+    testWidgets(
+      '$language tablet 2x keeps preparation headings separate from actions',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await mount(tester, language: language, scale: 2);
+          final screen = find.byType(ServerMediaPreparationsScreen);
+          final l = AppLocalizations.of(tester.element(screen));
+
+          expect(
+            tester.getSemantics(find.text(l.serverMediaHistory)),
+            isSemantics(
+              label: l.serverMediaHistory,
+              isHeader: true,
+              isButton: false,
+            ),
+          );
+          final refresh = tester.getSemantics(find.text(l.commonRefresh));
+          expect(refresh.flagsCollection.isHeader, isFalse);
+          expect(refresh.flagsCollection.isButton, isTrue);
+          expect(
+            refresh.getSemanticsData().hasAction(SemanticsAction.tap),
+            isTrue,
+          );
+
+          await tap(tester, 'media-view-${f.records.single['id']}');
+          for (final title in [
+            l.serverMediaRequirements,
+            l.serverMediaPlannedComponents,
+          ]) {
+            await reveal(tester, find.text(title));
+            expect(
+              tester.getSemantics(find.text(title)),
+              isSemantics(label: title, isHeader: true, isButton: false),
+            );
+          }
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
+  }
   testWidgets(
     'cancelled convergence is terminal and has distinct accessible status',
     (tester) async {
