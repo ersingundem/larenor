@@ -39,15 +39,28 @@ const _tile = TileConfig(
 );
 
 class _Connection extends QbittorrentConnection {
+  _Connection([this.failBuild = false]);
+
+  int builds = 0;
+  bool failBuild;
+
   @override
-  Future<QbittorrentConfig?> build() async => _config;
-  void change() => state = const AsyncData(
-    QbittorrentConfig(
-      baseUrl: 'http://other.invalid',
-      username: 'another',
-      password: 'another',
-    ),
-  );
+  Future<QbittorrentConfig?> build() async {
+    builds++;
+    if (failBuild) throw StateError('private connection failure');
+    return _config;
+  }
+
+  void change() {
+    failBuild = false;
+    state = const AsyncData(
+      QbittorrentConfig(
+        baseUrl: 'http://other.invalid',
+        username: 'another',
+        password: 'another',
+      ),
+    );
+  }
 }
 
 class _Files extends TorrentFileAccess {
@@ -58,7 +71,10 @@ class _Files extends TorrentFileAccess {
 }
 
 class _Harness {
-  final connection = _Connection();
+  _Harness({bool connectionFails = false})
+    : connection = _Connection(connectionFails);
+
+  final _Connection connection;
   final mutations = <http.Request>[];
   List<TorrentInfo> items = [_torrent];
   bool readFails = false;
@@ -112,7 +128,11 @@ class _Harness {
         torrentFileAccessProvider.overrideWithValue(files),
       ],
     );
-    await container.read(qbittorrentConnectionProvider.future);
+    try {
+      await container.read(qbittorrentConnectionProvider.future);
+    } catch (_) {
+      if (!connection.failBuild) rethrow;
+    }
     addTearDown(() {
       container.dispose();
       client.dispose();
@@ -181,6 +201,28 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'captured retry cannot invalidate replacement qBittorrent account',
+    (tester) async {
+      final harness = _Harness(connectionFails: true);
+      await harness.mount(tester);
+      expect(harness.connection.builds, 1);
+      final retry = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('qbittorrent-torrents-retry')),
+          )
+          .onPressed!;
+
+      harness.connection.change();
+      await tester.pumpAndSettle();
+      retry();
+      await tester.pumpAndSettle();
+
+      expect(harness.connection.builds, 1);
+      expect(harness.mutations, isEmpty);
+    },
+  );
+
   testWidgets('5000 torrents build lazily and unknown progress is never zero', (
     tester,
   ) async {
