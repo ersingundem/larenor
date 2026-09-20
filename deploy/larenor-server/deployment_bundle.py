@@ -126,6 +126,7 @@ class DeploymentBundlePlanner:
                 or len(root.encode("utf-8")) > 256
                 or not TIMEZONE_RE.fullmatch(values["LARENOR_TIMEZONE"])
                 or not LOCALE_RE.fullmatch(values["LARENOR_LOCALE"])
+                or not re.fullmatch(r"[1-9][0-9]{3,4}", values["LARENOR_CORE_PORT"])
                 or not 1024 <= port <= 65535):
             raise BundleError("bundle_settings_invalid")
         return dict(values), port
@@ -179,6 +180,16 @@ class DeploymentBundlePlanner:
         root_path = PurePosixPath(root)
         backup_target = str(root_path.parent / (root_path.name + "-backups"))
         rollback_target = str(root_path.parent / (root_path.name + "-rollback"))
+        structural = {root}
+        for item in tuple(owned):
+            parent = PurePosixPath(item["path"]).parent
+            while str(parent).startswith(root + "/"):
+                structural.add(str(parent))
+                parent = parent.parent
+        structural.difference_update(item["path"] for item in owned)
+        owned.extend({"path": path, "ownerUid": 10001,
+                      "requiredMiB": 0, "private": True}
+                     for path in sorted(structural))
         owned.extend([
             {"path": backup_target, "ownerUid": 10001,
              "requiredMiB": recovery_budget, "private": True},

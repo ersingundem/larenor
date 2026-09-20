@@ -63,6 +63,15 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             "service": "larenor-core", "hostPort": 18098, "containerPort": 8098,
         })
         self.assertRegex(manifest["settingsSchemaDigest"], r"^[a-f0-9]{64}$")
+        self.assertIn({"path": SETTINGS["LARENOR_DATA_ROOT"], "ownerUid": 10001,
+                       "requiredMiB": 0, "private": True}, manifest["ownedPaths"])
+        self.assertIn({"path": SETTINGS["LARENOR_DATA_ROOT"] + "/components",
+                       "ownerUid": 10001, "requiredMiB": 0, "private": True},
+                      manifest["ownedPaths"])
+        self.assertFalse(manifest["backupTarget"].startswith(
+            SETTINGS["LARENOR_DATA_ROOT"] + "/"))
+        self.assertFalse(manifest["rollbackTarget"].startswith(
+            SETTINGS["LARENOR_DATA_ROOT"] + "/"))
         self.assertEqual(tuple(item["serviceId"] for item in manifest["components"]), COMPONENTS)
         self.assertTrue(all("@sha256:" in item["image"] for item in manifest["components"]))
         for key in ("dockerCompose", "casaOsCompose"):
@@ -123,6 +132,10 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         invalid = dict(SETTINGS, LARENOR_API_TOKEN="private")
         with self.assertRaisesRegex(bundle.BundleError, "bundle_settings_invalid"):
             self.planner.plan(REVISION, invalid)
+        for port in (" 18098", "+18098", "018098", "18098 "):
+            with self.subTest(port=port):
+                with self.assertRaisesRegex(bundle.BundleError, "bundle_settings_invalid"):
+                    self.planner.plan(REVISION, dict(SETTINGS, LARENOR_CORE_PORT=port))
 
     def test_install_and_upgrade_preview_fail_closed_without_daemon_mutation(self):
         value = self.plan()
@@ -139,11 +152,15 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             self.assertEqual(set(host.calls[1:]), {item["path"] for item in manifest["ownedPaths"]})
             self.assertNotRegex(json.dumps(preview).lower(), r"docker|subprocess|daemon|token|password")
 
-        first = manifest["ownedPaths"][0]["path"]
+        first = next(item["path"] for item in manifest["ownedPaths"]
+                     if item["requiredMiB"] > 0)
+        root = SETTINGS["LARENOR_DATA_ROOT"]
         for architecture, change, code in (
             ("s390x", None, "architecture_unsupported"),
             (["amd64"], None, "architecture_unsupported"),
-            ("amd64", (first, {"kind": "symlink"}), "owned_path_invalid"),
+            ("amd64", (root, {"kind": "symlink"}), "owned_path_invalid"),
+            ("amd64", (root + "/components", {"kind": "symlink"}),
+             "owned_path_invalid"),
             ("amd64", (first, {"availableMiB": 0}), "storage_capacity_insufficient"),
         ):
             with self.subTest(code=code):
@@ -156,6 +173,10 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         normalized = self.planner.preflight(
             value, "install", HostFacts(manifest, architecture="x86_64"))
         self.assertEqual(normalized["architecture"], "amd64")
+        changed = copy.deepcopy(value)
+        changed["deploymentManifest"]["manifestDigest"] = "f" * 64
+        with self.assertRaisesRegex(bundle.BundleError, "bundle_invalid"):
+            self.planner.preflight(changed, "upgrade", HostFacts(manifest))
         source = TARGET.read_text()
         for forbidden_import in ("import subprocess", "import socket", "import docker"):
             self.assertNotIn(forbidden_import, source)

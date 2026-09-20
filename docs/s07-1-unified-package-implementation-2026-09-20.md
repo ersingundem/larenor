@@ -149,6 +149,34 @@ da yetersiz kapasite `ready=false` üretir. Bu salt okunur sonuç ayrıca bir ap
 yetkisi veya mutation değildir. Gerçek GitHub-hosted iki mimari sonucu ve B1
 bağımlılığı açık olduğundan S07.1 `pending` kalır.
 
+### Bundle saldırgan incelemesi
+
+Dar inceleme iki P2 sınırını kapattı:
+
+- Data root'un yalnız bind leaf'lerini incelemek, root veya `components/core`
+  gibi ara dizin symlink'lerini kaçırabiliyordu. Manifest artık data root ile
+  bütün owned ara dizinleri ayrı private gereksinimler olarak üretir
+  (`deployment_bundle.py:168-199`); preflight her birinin final bileşenini
+  `directory`, exact owner ve kapalı izin olarak doğrular
+  (`deployment_bundle.py:318-352`). Root ve ara symlink RED regresyonları
+  `unified_media_stack_bundle_test.py:155-170` içindedir.
+- Core portu önce `int()` ile normalize edildiği için baş/son boşluk, `+` ve
+  leading-zero biçimleri farklı ayar metinleriyle aynı portu üretebiliyordu.
+  Ayar sınırı artık yalnız canonical decimal metni ve 1024-65535 aralığını
+  kabul eder (`deployment_bundle.py:114-132`); RED örnekleri
+  `unified_media_stack_bundle_test.py:135-138` ile sabittir.
+
+CasaOS ve generic Compose ayrışması bütün bundle'ın canonical yeniden üretimiyle
+reddedilir (`deployment_bundle.py:287-298`). Backup ve rollback hedefleri data
+root'un sibling'idir ve owned preflight'a dahildir (`deployment_bundle.py:178-218`).
+Python'ın sınırsız tamsayıları ile bounded canonical belge birlikte disk
+toplamasında taşmayı önler; negatif veya type-confused host değerleri fail-closed
+olur. Non-Core `ports` ve Music Assistant dışındaki host-network tanımları
+üretilmeden reddedilir (`deployment_bundle.py:146-166`). Compose/CasaOS digest'leri
+manifestte, manifest dahil bütün çıktı da bundle digest'inde bağlıdır; değiştirilmiş
+manifest ve public port regresyonları `unified_media_stack_bundle_test.py:105-115`
+ve `:176-179` tarafından reddedilir.
+
 Ek denetimde CasaOS/Proxmox için Linux bind/bridge/host-network sözleşmesinin
 Compose kaynağında taşınabilir kaldığı; public receipt'te host path, environment,
 URL, log, raw container kimliği veya authority bulunmadığı; symlink/owner/mode ve

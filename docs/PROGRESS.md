@@ -93,6 +93,9 @@ servisin exact digest'i ve Music Assistant discovery istisnası korunur.
 Secret-free `.env.example` yalnız data root, timezone, locale ve Core portunu
 açar. Install/upgrade preflight owned path, mimari, disk ile backup/rollback
 hedeflerini salt okunur ve fail-closed raporlar; hiçbir daemon mutation yapmaz.
+Dar saldırgan inceleme data root/ara dizin symlink boşluğunu ve canonical olmayan
+port metnini RED testlerle kapattı; Compose/CasaOS/digest ve public-port sınırları
+ayrıca değişiklik regresyonlarıyla doğrulandı.
 Gerçek iki mimari CI kanıtı gelmeden S07.1 ve sayaçlar değişmez.
 Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
 
