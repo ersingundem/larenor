@@ -1,6 +1,19 @@
 import json
+import os
+from pathlib import Path
+import tempfile
+import time
 
 from conftest import auth, ready
+from fastapi.testclient import TestClient
+import pytest
+from larenor_server.app import create_app
+from larenor_server.config import Settings
+from larenor_server.plugins.installation_ipc import (
+    InstallationIPCError,
+    InstallationWorkerClient,
+    InstallationWorkerServer,
+)
 from larenor_server.plugins.media_archive_health_models import (
     ArrArchiveSnapshot,
     JellyfinArchiveSnapshot,
@@ -365,3 +378,121 @@ def test_default_provider_and_untrusted_request_fields_never_claim_a_flow(server
     assert invalid.status_code == 400
     assert "private-value" not in invalid.text
     assert server[0].state.core.media_flow.provider.calls == []
+
+
+class WorkerFlowBackend:
+    def __init__(self, values):
+        self.values = list(values)
+        self.calls = []
+
+    def read_media_flow(self, media_key, *, deadline, gate):
+        assert gate() is True
+        self.calls.append(media_key)
+        return self.values.pop(0) if len(self.values) > 1 else self.values[0]
+
+
+def test_worker_flow_contract_rejects_cancelled_or_secret_bearing_results():
+    base = "/private/tmp" if Path("/private/tmp").is_dir() else "/tmp"
+    secret = "private-worker-token"
+    backend = WorkerFlowBackend([
+        {**observation().model_dump(mode="json"), "token": secret}
+    ])
+    with tempfile.TemporaryDirectory(prefix="mfw-", dir=base) as root:
+        worker_path = Path(root) / "installation.sock"
+        worker = InstallationWorkerServer(
+            worker_path,
+            backend,
+            allowed_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+            timeout=1,
+        )
+        worker.start()
+        try:
+            client = InstallationWorkerClient(
+                worker_path,
+                owner_uid=os.getuid(),
+                peer_uid=lambda _connection: os.getuid(),
+                timeout=1,
+            )
+            with pytest.raises(InstallationIPCError) as cancelled:
+                client.read_media_flow(
+                    "movie:tmdb:603",
+                    deadline=time.monotonic() + 1,
+                    gate=lambda: False,
+                )
+            assert backend.calls == []
+            with pytest.raises(InstallationIPCError) as invalid:
+                client.read_media_flow(
+                    "movie:tmdb:603",
+                    deadline=time.monotonic() + 1,
+                    gate=lambda: True,
+                )
+            assert backend.calls == ["movie:tmdb:603"]
+            assert secret not in repr(cancelled.value)
+            assert secret not in repr(invalid.value)
+        finally:
+            worker.close()
+
+
+def test_configured_core_worker_is_the_default_media_flow_provider(
+        tmp_path, monkeypatch):
+    base = "/private/tmp" if Path("/private/tmp").is_dir() else "/tmp"
+    with tempfile.TemporaryDirectory(prefix="mfw-", dir=base) as root:
+        worker_path = Path(root) / "installation.sock"
+        backend = WorkerFlowBackend([observation()])
+        worker = InstallationWorkerServer(
+            worker_path,
+            backend,
+            allowed_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+            timeout=1,
+        )
+        worker.start()
+        try:
+            monkeypatch.setattr(
+                "larenor_server.core.InstallationWorkerClient",
+                lambda path, *, owner_uid: InstallationWorkerClient(
+                    path,
+                    owner_uid=owner_uid,
+                    peer_uid=lambda _connection: os.getuid(),
+                    timeout=1,
+                ),
+            )
+            settings = Settings(
+                tmp_path / "data",
+                tmp_path / "secrets/vault.key",
+                clock=lambda: NOW,
+                login_ip_limit=100,
+                login_account_limit=100,
+                login_global_limit=100,
+                installation_worker_socket=worker_path,
+                installation_worker_uid=os.getuid(),
+            )
+            app = create_app(settings)
+            with TestClient(app) as client:
+                pair = ready((app, client, settings, None))
+                first = client.post(
+                    BASE + "/authority",
+                    headers=auth(pair),
+                    json={"requestId": "e" * 32,
+                          "mediaKey": "movie:tmdb:603"},
+                )
+                assert first.status_code == 200, first.text
+                projected = client.post(
+                    BASE + "/read",
+                    headers=auth(pair),
+                    json={
+                        "requestId": "f" * 32,
+                        "mediaKey": first.json()["mediaKey"],
+                        "expectedFlowRevision": first.json()["flowRevision"],
+                        "expectedSources": first.json()["sources"],
+                    },
+                )
+                assert projected.status_code == 200, projected.text
+                assert projected.json()["flow"]["state"] == "playable"
+                assert app.state.core.media_flow.provider.backend is \
+                    app.state.core.media_installations.backend
+                assert backend.calls == ["movie:tmdb:603"] * 4
+                assert "token" not in projected.text.lower()
+        finally:
+            worker.close()

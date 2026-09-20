@@ -50,7 +50,7 @@ from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
 from .plugins.media_recovery_status import MediaRecoveryStatusManagement
 from .plugins.media_archive_core import MediaArchiveHealthManagement
-from .plugins.media_flow import MediaFlowManagement
+from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
 from .plugins.media_flow_schema import migrate_media_flow
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
@@ -371,8 +371,14 @@ class CoreServices:
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db, self.auth, settings, self.media_installations,
                 self._media_archive_binding_reader, self._media_archive_worker)
+            media_flow_provider = (
+                MediaFlowWorkerProvider(installation_backend)
+                if callable(getattr(
+                    installation_backend, "read_media_flow", None)) else None
+            )
             self.media_flow = MediaFlowManagement(
-                self.db, self.auth, settings, key)
+                self.db, self.auth, settings, key,
+                media_flow_provider)
             self.keenetic_command_journal = KeeneticCommandJournal(
                 self.db, self.auth, settings, key, self.context
             )

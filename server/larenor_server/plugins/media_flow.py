@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import re
+import time
 
 from pydantic import ValidationError
 
@@ -25,6 +26,34 @@ _EPISODE_KEY = re.compile(
     r"episode:tvdb:(?P<show>[1-9][0-9]{0,11}):"
     r"(?P<season>[0-9]{1,4}):(?P<episode>[0-9]{1,5})\Z"
 )
+
+
+class MediaFlowWorkerProvider:
+    """Read one current projection through Core's existing private worker."""
+
+    def __init__(self, backend, *, timeout=5):
+        if (
+            not callable(getattr(backend, "read_media_flow", None))
+            or type(timeout) not in (int, float)
+            or type(timeout) is bool
+            or not 0 < timeout <= 5
+        ):
+            raise ValueError("invalid_media_flow_provider")
+        self.backend = backend
+        self.timeout = timeout
+
+    def current(self, media_key):
+        deadline = time.monotonic() + self.timeout
+
+        def gate():
+            return time.monotonic() < deadline
+
+        return self.backend.read_media_flow(
+            media_key, deadline=deadline, gate=gate
+        )
+
+    def __repr__(self):
+        return "MediaFlowWorkerProvider(<private>)"
 
 
 class MediaFlowManagement:

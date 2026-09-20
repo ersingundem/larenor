@@ -155,6 +155,12 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'installed'
 
+    def read_media_flow(self, media_key, *, deadline, gate):
+        self.calls.append((
+            'read_media_flow', media_key, threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'observed'
+
 
 class Security:
     def __init__(self):
@@ -253,6 +259,21 @@ def test_music_assistant_bootstrap_keeps_private_input_in_retained_worker(monkey
     assert backend.calls[0][:4] == (
         'bootstrap_music_assistant', 'a' * 32, 'larenor-core', 'S' * 48)
     assert backend.calls[0][4] == threading.get_native_id()
+    assert lease.pair.checks == 5
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_media_flow_read_keeps_the_retained_worker_authority(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    guarded.open(deadline)
+
+    assert guarded.read_media_flow_with_deadline(
+        'movie:tmdb:603', deadline) == 'observed'
+    assert backend.calls == [(
+        'read_media_flow', 'movie:tmdb:603', threading.get_native_id())]
     assert lease.pair.checks == 5
 
     guarded.close()
