@@ -11,11 +11,11 @@ void main() {
       final manager = ServerMusicManager.fromJson(musicManagerJson());
 
       expect(manager.providers.single.domain, 'spotify');
-    expect(manager.receivers.map((item) => item.kind), [
-      'homepod',
-      'cast',
-      'airplay',
-    ]);
+      expect(manager.receivers.map((item) => item.kind), [
+        'homepod',
+        'cast',
+        'airplay',
+      ]);
       expect(manager.queueFor(manager.receivers.first)?.itemCount, 1);
       expect(
         manager.receivers.first.supports(ServerMusicOperation.queueAdd),
@@ -50,5 +50,18 @@ void main() {
         throwsA(isA<LarenorServerException>()),
       );
     }
+  });
+
+  test('catalog accepts the Core radio media type with exact instance id', () {
+    final item = ServerMusicCatalogItem.fromJson({
+      'uri': 'spotify://radio/result',
+      'name': 'Result radio',
+      'mediaType': 'radio',
+      'providerInstanceId': 'spotify--fixture',
+      'artists': <String>[],
+    });
+
+    expect(item.mediaType, 'radio');
+    expect(item.providerInstanceId, 'spotify--fixture');
   });
 }

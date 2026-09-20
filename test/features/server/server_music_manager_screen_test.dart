@@ -141,6 +141,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Result track'), findsOneWidget);
+    final l = AppLocalizations.of(tester.element(field));
+    expect(find.text(l.musicRadio), findsOneWidget);
     final item = find.byKey(
       const ValueKey('music-manager-item-spotify://track/result'),
     );

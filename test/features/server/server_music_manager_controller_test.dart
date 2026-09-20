@@ -98,7 +98,8 @@ void main() {
 
       await controller.search(' Result ', current: () => true);
 
-      expect(controller.catalog?.items.single.name, 'Result track');
+      expect(controller.catalog?.items.first.name, 'Result track');
+      expect(controller.catalog?.items.last.mediaType, 'radio');
       final request = fixture.calls.lastWhere(
         (item) => item.url.path.endsWith('/manager/catalog/search'),
       );
@@ -106,6 +107,15 @@ void main() {
       expect(body['expectedManagerRevision'], 6);
       expect(body['expectedProviderRevision'], 3);
       expect(body['query'], 'Result');
+      expect(body['mediaTypes'], [
+        'artist',
+        'album',
+        'track',
+        'playlist',
+        'radio',
+        'audiobook',
+        'podcast',
+      ]);
       expect(jsonEncode(body).toLowerCase(), isNot(contains('token')));
       expect(jsonEncode(body).toLowerCase(), isNot(contains('password')));
     },
@@ -228,5 +238,22 @@ void main() {
       ),
       hasLength(1),
     );
+  });
+
+  test('session change clears manager authority and verified state', () async {
+    final fixture = MusicManagerFixture();
+    final controller = await ready(fixture);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    await fixture.account.signOut();
+
+    expect(controller.stored, false);
+    expect(controller.reachable, false);
+    expect(controller.verified, false);
+    expect(controller.manager, isNull);
+    expect(controller.catalog, isNull);
   });
 }

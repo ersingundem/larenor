@@ -21,3 +21,14 @@ claim real Spotify, Apple Music or YouTube Music playback, HomePod/AirPlay/Cast
 discovery, network pairing, synchronized groups, Huawei MatePad, DeX, physical
 keyboard or TalkBack device acceptance. Those gates must use the matching S07.3
 Core branch and real receivers before this item can advance the progress count.
+
+## Core contract cross-check
+
+The rebased client was checked against `codex/s073-music-core-api` at
+`3b3bca6e`. Paths and strict envelopes match the Core manager, refresh,
+catalog-search and command routes. Requests carry the exact installation,
+Core, manager/player, provider setup, provider instance, target and queue
+authority fields. The catalog request names all seven Core media types,
+including `radio`; response items must return the selected provider instance.
+Command success still requires the matching receipt revision and a subsequent
+manager readback with the expected receiver or queue effect.

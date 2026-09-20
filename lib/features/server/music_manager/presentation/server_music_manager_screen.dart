@@ -152,6 +152,16 @@ class _ServerMusicManagerScreenState
     _ => l.serverMusicManagerOther,
   };
 
+  String _mediaType(AppLocalizations l, String type) => switch (type) {
+    'artist' => l.musicArtist,
+    'album' => l.musicAlbum,
+    'track' => l.musicTrack,
+    'playlist' => l.musicPlaylist,
+    'radio' => l.musicRadio,
+    'audiobook' => l.musicAudiobook,
+    _ => l.musicPodcast,
+  };
+
   Widget _bounded(Widget child) => Align(
     alignment: Alignment.topCenter,
     child: ConstrainedBox(
@@ -365,8 +375,9 @@ class _ServerMusicManagerScreenState
                 title: Text(item.name),
                 additionalInfo: Text(
                   item.artists.isEmpty
-                      ? item.mediaType
-                      : item.artists.join(', '),
+                      ? _mediaType(l, item.mediaType)
+                      : '${_mediaType(l, item.mediaType)} · '
+                            '${item.artists.join(', ')}',
                 ),
                 selected: _controller.selectedMediaUri == item.uri,
                 onTap: _active && _controller.verified && !_controller.busy

@@ -130,6 +130,13 @@ class MusicManagerFixture extends AdminFixture {
               'providerInstanceId': 'spotify--fixture',
               'artists': ['Artist'],
             },
+            {
+              'uri': 'spotify://radio/result',
+              'name': 'Result radio',
+              'mediaType': 'radio',
+              'providerInstanceId': 'spotify--fixture',
+              'artists': <String>[],
+            },
           ],
         },
       });
