@@ -33,6 +33,17 @@ enum CoreBoundedDownloadPhase {
   failed,
 }
 
+enum CoreBoundedHistoryPhase {
+  idle,
+  loading,
+  ready,
+  cancelled,
+  unauthorized,
+  forbidden,
+  changed,
+  failed,
+}
+
 /// One visible, user-started operation. Account/home/lifecycle changes close
 /// the transport and invalidate every late callback before SAF publication.
 final class CoreBoundedDownloadController extends ChangeNotifier {
@@ -53,7 +64,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   final DateTime Function() clock;
   final bool Function() windowCurrent;
   CoreBoundedDownloadPhase phase = CoreBoundedDownloadPhase.idle;
+  CoreBoundedHistoryPhase historyPhase = CoreBoundedHistoryPhase.idle;
+  List<CoreBoundedTransferReceipt> history = const [];
   String? targetId, traceId;
+  String? historyTargetId;
   CoreBoundedTransferReceipt? receipt;
   bool receiptTrusted = false;
   int epoch = 0;
@@ -87,11 +101,18 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
 
   bool canDownload(HomeResourceRecord target, int? userRevision) =>
       !busy &&
+      historyPhase != CoreBoundedHistoryPhase.loading &&
       _ready?.context == target.context &&
       target.kind == HomeResourceKind.resource &&
       userRevision != null &&
       userRevision >= 1 &&
       userRevision <= 9223372036854775807;
+
+  bool canLoadHistory(HomeResourceRecord target) =>
+      !busy &&
+      historyPhase != CoreBoundedHistoryPhase.loading &&
+      _ready?.context == target.context &&
+      target.kind == HomeResourceKind.resource;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -118,7 +139,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     final target = _boundTarget;
     if (target == null) return;
     final retained =
-        userRevision == _boundUserRevision &&
+        (_boundUserRevision == null || userRevision == _boundUserRevision) &&
         entries.any(
           (entry) =>
               entry.context == target.context &&
@@ -138,14 +159,106 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     _transport?.close();
     _transport = null;
     busy = false;
+    _boundSession = null;
+    _boundTarget = null;
+    _boundUserRevision = null;
+    _clearDownloadEvidence();
+    _clearHistoryEvidence();
+  }
+
+  void _clearDownloadEvidence() {
     targetId = null;
     traceId = null;
     receipt = null;
     receiptTrusted = false;
-    _boundSession = null;
-    _boundTarget = null;
-    _boundUserRevision = null;
     phase = CoreBoundedDownloadPhase.idle;
+  }
+
+  void _clearHistoryEvidence() {
+    historyPhase = CoreBoundedHistoryPhase.idle;
+    history = const [];
+    historyTargetId = null;
+  }
+
+  Future<void> loadHistory(
+    HomeResourceRecord target, {
+    required bool Function() isCurrent,
+  }) async {
+    final original = _ready;
+    if (original == null || !canLoadHistory(target)) return;
+    final operation = ++epoch;
+    final generation = home.account.generation;
+    final homeEpoch = home.interaction.epoch;
+    bool safeGuard() {
+      try {
+        return isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    bool current() =>
+        !_disposed &&
+        epoch == operation &&
+        _ready != null &&
+        home.interaction.epoch == homeEpoch &&
+        home.account.isCurrent(generation) &&
+        identical(home.account.session, original) &&
+        safeGuard();
+    _clearDownloadEvidence();
+    historyPhase = CoreBoundedHistoryPhase.loading;
+    history = const [];
+    historyTargetId = target.id;
+    _boundSession = original;
+    _boundTarget = target;
+    _boundUserRevision = null;
+    _emit();
+    CoreBoundedDownloadApi? transport;
+    try {
+      List<CoreBoundedTransferReceipt>? loaded;
+      await home.account.withSession((_, session) async {
+        if (!current() ||
+            session.context != target.context ||
+            session.user.id != original.user.id ||
+            session.endpoint.baseUrl != original.endpoint.baseUrl) {
+          throw const LarenorServerException('cancelled');
+        }
+        transport = apiFactory(session.endpoint);
+        _transport = transport;
+        loaded = await transport!.history(
+          token: session.accessToken,
+          target: target,
+        );
+      });
+      if (!current() || loaded == null) return;
+      history = List.unmodifiable(loaded!);
+      historyPhase = CoreBoundedHistoryPhase.ready;
+    } catch (error) {
+      if (current()) {
+        final code = switch (error) {
+          CoreBoundedDownloadException e => e.code,
+          LarenorServerException e => e.code,
+          _ => 'failed',
+        };
+        historyPhase = switch (code) {
+          'cancelled' => CoreBoundedHistoryPhase.cancelled,
+          'unauthorized' => CoreBoundedHistoryPhase.unauthorized,
+          'forbidden' => CoreBoundedHistoryPhase.forbidden,
+          'revision_conflict' => CoreBoundedHistoryPhase.changed,
+          _ => CoreBoundedHistoryPhase.failed,
+        };
+      }
+    } finally {
+      if (identical(_transport, transport)) _transport = null;
+      transport?.close();
+      if (!_disposed && epoch == operation) {
+        if (!safeGuard()) {
+          historyPhase = CoreBoundedHistoryPhase.cancelled;
+          history = const [];
+        }
+        _emit();
+      }
+    }
   }
 
   Future<void> download(
@@ -174,6 +287,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         home.account.isCurrent(generation) &&
         identical(home.account.session, original) &&
         safeGuard();
+    _clearHistoryEvidence();
     busy = true;
     phase = CoreBoundedDownloadPhase.downloading;
     targetId = target.id;
@@ -184,6 +298,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     receipt = null;
     receiptTrusted = false;
     _emit();
+    CoreBoundedDownloadApi? transport;
     try {
       CoreBoundedBlob? blob;
       CoreBoundedTransferReceipt? verifiedReceipt;
@@ -194,9 +309,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
             session.endpoint.baseUrl != original.endpoint.baseUrl) {
           throw const LarenorServerException('cancelled');
         }
-        _transport = apiFactory(session.endpoint);
+        transport = apiFactory(session.endpoint);
+        _transport = transport;
         try {
-          final candidate = await _transport!.download(
+          final candidate = await transport!.download(
             token: session.accessToken,
             target: target,
             expectedUserRevision: userRevision,
@@ -207,7 +323,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           if (!current()) {
             throw const CoreBoundedDownloadException('cancelled');
           }
-          verifiedReceipt = await _transport!.verifyCompleted(
+          verifiedReceipt = await transport!.verifyCompleted(
             token: session.accessToken,
             target: target,
             blob: candidate,
@@ -253,8 +369,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         };
       }
     } finally {
-      _transport?.close();
-      _transport = null;
+      if (identical(_transport, transport)) _transport = null;
+      transport?.close();
       if (!_disposed && epoch == operation) {
         if (!safeGuard()) {
           phase = CoreBoundedDownloadPhase.cancelled;

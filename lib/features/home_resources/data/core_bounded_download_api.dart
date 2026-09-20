@@ -36,6 +36,7 @@ final class CoreBoundedBlob {
 
 enum CoreBoundedTransferState { accepted, completed, interrupted }
 
+/// Public, content-free proof retained by Core for one bounded transfer.
 final class CoreBoundedTransferReceipt {
   const CoreBoundedTransferReceipt._({
     required this.requestId,
@@ -47,12 +48,8 @@ final class CoreBoundedTransferReceipt {
     required this.serviceRevision,
     required this.createdAt,
     required this.updatedAt,
+    required this._createdSeconds,
   });
-
-  final String requestId, traceId, sha256, contentType;
-  final CoreBoundedTransferState state;
-  final int contentLength, serviceRevision;
-  final double createdAt, updatedAt;
 
   factory CoreBoundedTransferReceipt.fromJson(Object? raw) {
     const keys = {
@@ -73,10 +70,10 @@ final class CoreBoundedTransferReceipt {
     }
     final requestId = raw['requestId'];
     final traceId = raw['traceId'];
-    final length = raw['contentLength'];
-    final digest = raw['sha256'];
-    final type = raw['contentType'];
-    final revision = raw['serviceRevision'];
+    final sha256 = raw['sha256'];
+    final contentType = raw['contentType'];
+    final contentLength = raw['contentLength'];
+    final serviceRevision = raw['serviceRevision'];
     final created = raw['createdAt'];
     final updated = raw['updatedAt'];
     final state = switch (raw['state']) {
@@ -85,55 +82,59 @@ final class CoreBoundedTransferReceipt {
       'interrupted' => CoreBoundedTransferState.interrupted,
       _ => null,
     };
+    final createdSeconds = created is num ? created.toDouble() : double.nan;
+    final updatedSeconds = updated is num ? updated.toDouble() : double.nan;
     if (requestId is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
         traceId is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(traceId) ||
         traceId != requestId ||
-        length is! int ||
-        length < 0 ||
-        length > CoreBoundedDownloadApi.maxBlobBytes ||
-        digest is! String ||
-        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
-        type is! String ||
-        type.isEmpty ||
-        type.length > 128 ||
-        !RegExp(r'^[A-Za-z0-9!#$&^_.+\-/;= ]{1,128}$').hasMatch(type) ||
-        revision is! int ||
-        revision < 1 ||
-        revision > 9223372036854775807 ||
-        created is! double ||
-        !created.isFinite ||
-        created < 0 ||
-        updated is! double ||
-        !updated.isFinite ||
-        updated < created ||
-        state == null) {
+        state == null ||
+        contentLength is! int ||
+        contentLength < 0 ||
+        contentLength > CoreBoundedDownloadApi.maxBlobBytes ||
+        sha256 is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256) ||
+        contentType is! String ||
+        contentType.isEmpty ||
+        contentType.length > 128 ||
+        !RegExp(r'^[A-Za-z0-9!#$&^_.+\-/;= ]{1,128}$').hasMatch(contentType) ||
+        serviceRevision is! int ||
+        serviceRevision < 1 ||
+        serviceRevision > 9223372036854775807 ||
+        !createdSeconds.isFinite ||
+        !updatedSeconds.isFinite ||
+        createdSeconds < 0 ||
+        updatedSeconds < createdSeconds ||
+        updatedSeconds > 8640000000000) {
       throw const CoreBoundedDownloadException('invalid_response');
     }
     return CoreBoundedTransferReceipt._(
       requestId: requestId,
       traceId: traceId,
       state: state,
-      contentLength: length,
-      sha256: digest,
-      contentType: type,
-      serviceRevision: revision,
-      createdAt: created,
-      updatedAt: updated,
+      contentLength: contentLength,
+      sha256: sha256,
+      contentType: contentType,
+      serviceRevision: serviceRevision,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        (createdSeconds * 1000).round(),
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (updatedSeconds * 1000).round(),
+      ),
+      createdSeconds: createdSeconds,
     );
   }
 
-  bool sameAs(CoreBoundedTransferReceipt other) =>
-      requestId == other.requestId &&
-      traceId == other.traceId &&
-      state == other.state &&
-      contentLength == other.contentLength &&
-      sha256 == other.sha256 &&
-      contentType == other.contentType &&
-      serviceRevision == other.serviceRevision &&
-      createdAt == other.createdAt &&
-      updatedAt == other.updatedAt;
+  final String requestId, traceId, sha256, contentType;
+  final CoreBoundedTransferState state;
+  final int contentLength, serviceRevision;
+  final DateTime createdAt, updatedAt;
+  final double _createdSeconds;
+
+  @override
+  String toString() => 'CoreBoundedTransferReceipt';
 
   bool authenticates(CoreBoundedBlob blob) =>
       state == CoreBoundedTransferState.completed &&
@@ -166,6 +167,16 @@ final class CoreBoundedDownloadApi {
   final Duration timeout;
   final _pending = <Completer<void>>{};
   bool _closed = false;
+
+  static String _statusCode(int statusCode) => switch (statusCode) {
+    401 => 'unauthorized',
+    403 => 'forbidden',
+    408 => 'timeout',
+    409 => 'revision_conflict',
+    413 => 'payload_too_large',
+    429 => 'rate_limited',
+    _ => statusCode >= 500 ? 'server_error' : 'failed',
+  };
 
   static String _randomId() {
     final random = Random.secure();
@@ -226,15 +237,7 @@ final class CoreBoundedDownloadApi {
       }
       if (response.statusCode != 200) {
         await response.stream.listen((_) {}).cancel();
-        throw CoreBoundedDownloadException(switch (response.statusCode) {
-          401 => 'unauthorized',
-          403 => 'forbidden',
-          408 => 'timeout',
-          409 => 'revision_conflict',
-          413 => 'payload_too_large',
-          429 => 'rate_limited',
-          _ => response.statusCode >= 500 ? 'server_error' : 'failed',
-        });
+        throw CoreBoundedDownloadException(_statusCode(response.statusCode));
       }
       final metadata = _metadata(response, expectedServiceRevision, requestId);
       final wire = BytesBuilder(copy: false);
@@ -389,7 +392,7 @@ final class CoreBoundedDownloadApi {
   Future<List<CoreBoundedTransferReceipt>> history({
     required String token,
     required HomeResourceRecord target,
-    int limit = 50,
+    int limit = 20,
   }) async {
     _target(target);
     if (limit < 1 || limit > 50) {
@@ -404,6 +407,7 @@ final class CoreBoundedDownloadApi {
         raw.length != 1 ||
         !raw.containsKey('receipts') ||
         raw['receipts'] is! List ||
+        (raw['receipts'] as List).length > limit ||
         (raw['receipts'] as List).length > 50) {
       throw const CoreBoundedDownloadException('invalid_response');
     }
@@ -418,7 +422,7 @@ final class CoreBoundedDownloadApi {
       }
       if (index == 0) continue;
       final previous = values[index - 1];
-      final order = previous.createdAt.compareTo(value.createdAt);
+      final order = previous._createdSeconds.compareTo(value._createdSeconds);
       if (order < 0 ||
           order == 0 && previous.requestId.compareTo(value.requestId) <= 0) {
         throw const CoreBoundedDownloadException('invalid_response');
@@ -437,13 +441,7 @@ final class CoreBoundedDownloadApi {
       target: target,
       requestId: blob.requestId,
     );
-    final retained = await history(token: token, target: target);
-    final matches = retained.where(
-      (value) => value.requestId == blob.requestId,
-    );
-    if (!exact.authenticates(blob) ||
-        matches.length != 1 ||
-        !matches.single.sameAs(exact)) {
+    if (!exact.authenticates(blob)) {
       throw const CoreBoundedDownloadException('invalid_response');
     }
     return exact;

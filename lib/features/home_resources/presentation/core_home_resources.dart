@@ -15,6 +15,7 @@ import '../../keenetic/core/presentation/core_keenetic_screen.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
+import '../data/core_bounded_download_api.dart';
 import '../data/core_bounded_download_controller.dart';
 import '../data/core_bounded_download_file_access.dart';
 import '../domain/home_resource_models.dart';
@@ -383,9 +384,102 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                               isCurrent: current,
                             ),
                           ),
+                          button(
+                            'core-resource-transfer-history-${entry.id}',
+                            '${l10n.coreResourceTransferHistory}: ${entry.label}',
+                            _download.canLoadHistory(entry),
+                            () => _download.loadHistory(
+                              entry,
+                              isCurrent: current,
+                            ),
+                          ),
                           if (_download.targetId == entry.id &&
                               _download.phase != CoreBoundedDownloadPhase.idle)
                             _transferTrust(entry, l10n),
+                          if (_download.historyTargetId == entry.id)
+                            Semantics(
+                              liveRegion:
+                                  _download.historyPhase ==
+                                      CoreBoundedHistoryPhase.loading ||
+                                  _download.historyPhase ==
+                                      CoreBoundedHistoryPhase.failed,
+                              child: switch (_download.historyPhase) {
+                                CoreBoundedHistoryPhase.loading => Text(
+                                  l10n.coreResourceTransferHistoryLoading,
+                                  key: ValueKey(
+                                    'core-resource-transfer-history-loading-${entry.id}',
+                                  ),
+                                ),
+                                CoreBoundedHistoryPhase.ready
+                                    when _download.history.isEmpty =>
+                                  Text(
+                                    l10n.coreResourceTransferHistoryEmpty,
+                                    key: ValueKey(
+                                      'core-resource-transfer-history-empty-${entry.id}',
+                                    ),
+                                  ),
+                                CoreBoundedHistoryPhase.ready => Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (final receipt in _download.history)
+                                      Padding(
+                                        key: ValueKey(
+                                          'core-resource-transfer-receipt-${receipt.requestId}',
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        child: Semantics(
+                                          container: true,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                switch (receipt.state) {
+                                                  CoreBoundedTransferState
+                                                      .accepted =>
+                                                    l10n.coreResourceTransferAccepted,
+                                                  CoreBoundedTransferState
+                                                      .completed =>
+                                                    l10n.coreResourceTransferCompleted,
+                                                  CoreBoundedTransferState
+                                                      .interrupted =>
+                                                    l10n.coreResourceTransferInterrupted,
+                                                },
+                                                style:
+                                                    CupertinoTheme.of(context)
+                                                        .textTheme
+                                                        .textStyle
+                                                        .copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                '${receipt.contentLength} B · ${receipt.contentType}',
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                CoreBoundedHistoryPhase.idle =>
+                                  const SizedBox.shrink(),
+                                CoreBoundedHistoryPhase.cancelled ||
+                                CoreBoundedHistoryPhase.unauthorized ||
+                                CoreBoundedHistoryPhase.forbidden ||
+                                CoreBoundedHistoryPhase.changed ||
+                                CoreBoundedHistoryPhase.failed => Text(
+                                  l10n.coreResourceTransferHistoryFailed,
+                                  key: ValueKey(
+                                    'core-resource-transfer-history-error-${entry.id}',
+                                  ),
+                                ),
+                              },
+                            ),
                         ],
                       ],
                     ),

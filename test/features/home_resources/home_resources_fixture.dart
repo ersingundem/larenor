@@ -22,6 +22,7 @@ import 'package:larenor/features/client_updates/data/client_update_api.dart';
 import 'package:larenor/features/client_updates/providers/client_update_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/home_resources/data/home_resources_api.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_controller.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
@@ -64,6 +65,21 @@ class ResourceHarness {
   Object? Function(http.Request)? resourceResponse;
   String userId = '9' * 32;
   late Object? response = fixture['memberList'];
+  Object? transferHistoryResponse = {
+    'receipts': [
+      {
+        'requestId': 'c' * 32,
+        'traceId': 'c' * 32,
+        'state': 'completed',
+        'contentLength': 16,
+        'sha256': 'd' * 64,
+        'contentType': 'text/plain',
+        'serviceRevision': 1,
+        'createdAt': 1789911000.0,
+        'updatedAt': 1789911001.0,
+      },
+    ],
+  };
   late Object? contextResponse = fixture['context'];
   Completer<http.Response>? pending;
   Completer<http.Response>? pendingContext;
@@ -94,6 +110,11 @@ class ResourceHarness {
     if (request.url.path.endsWith('/auth/me')) return json({'user': user});
     if (request.url.path.endsWith('/context')) {
       return pendingContext?.future ?? json(contextResponse);
+    }
+    if (request.url.path.endsWith('/blob/transfers')) {
+      resourceReads++;
+      requests.add(request);
+      return json(transferHistoryResponse);
     }
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
@@ -175,10 +196,13 @@ class ResourceHarness {
                   ),
                 ),
                 homeResourcesClockProvider.overrideWithValue(() => now),
-                if (boundedDownloadApiFactory != null)
-                  coreBoundedDownloadApiFactoryProvider.overrideWithValue(
-                    boundedDownloadApiFactory!,
-                  ),
+                coreBoundedDownloadApiFactoryProvider.overrideWithValue(
+                  boundedDownloadApiFactory ??
+                      (endpoint) => CoreBoundedDownloadApi(
+                        endpoint: endpoint,
+                        client: TrackedClient(handle, () => closed++),
+                      ),
+                ),
                 if (boundedDownloadFileAccess != null)
                   coreBoundedDownloadFileAccessProvider.overrideWithValue(
                     boundedDownloadFileAccess!,
