@@ -28,15 +28,25 @@ abstract class SshTunnelEngine {
 }
 
 class DartSshTunnelEngine implements SshTunnelEngine {
-  DartSshTunnelEngine({Future<SSHSocket> Function(String, int)? connectSocket})
-    : _connectSocket =
-          connectSocket ??
-          ((host, port) => SSHSocket.connect(
-            host,
-            port,
-            timeout: const Duration(seconds: 10),
-          ));
+  DartSshTunnelEngine({
+    Future<SSHSocket> Function(String, int)? connectSocket,
+    Future<ServerSocket> Function(int port)? bindServer,
+  }) : _connectSocket =
+           connectSocket ??
+           ((host, port) => SSHSocket.connect(
+             host,
+             port,
+             timeout: const Duration(seconds: 10),
+           )),
+       _bindServer =
+           bindServer ??
+           ((port) => ServerSocket.bind(
+             InternetAddress.loopbackIPv4,
+             port,
+             shared: false,
+           ));
   final Future<SSHSocket> Function(String, int) _connectSocket;
+  final Future<ServerSocket> Function(int port) _bindServer;
   SSHSocket? _socket;
   SSHClient? _client;
   SshKeyParseTask? _parse;
@@ -62,6 +72,7 @@ class DartSshTunnelEngine implements SshTunnelEngine {
   }) async {
     if (_used) throw const SshFailure('closed');
     _used = true;
+    ServerSocket? pendingServer;
     try {
       _check(isCurrent);
       List<SSHKeyPair>? identities;
@@ -101,16 +112,15 @@ class DartSshTunnelEngine implements SshTunnelEngine {
         },
         onPasswordRequest: credential.kind != SshCredentialKind.password
             ? null
-            : () => trusted ? credential.secret : null,
+            : () {
+                _check(isCurrent);
+                return trusted ? credential.secret : null;
+              },
       );
       _client = client;
       await client.authenticated;
       _check(isCurrent);
-      final server = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
-        tunnel.localPort,
-        shared: false,
-      );
+      final server = pendingServer = await _bindServer(tunnel.localPort);
       _check(isCurrent);
       final handle = _LocalTunnelHandle(
         server,
@@ -120,8 +130,12 @@ class DartSshTunnelEngine implements SshTunnelEngine {
         closeOwner: close,
       );
       _handle = handle;
+      pendingServer = null;
       return handle;
     } catch (error) {
+      if (pendingServer case final server?) {
+        await server.close().catchError((Object _) => server);
+      }
       final safe =
           _verificationFailure ??
           (error is SshFailure
@@ -173,6 +187,15 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   late final StreamSubscription<Socket> _subscription;
   bool _closed = false;
 
+  bool _current() {
+    if (_closed) return false;
+    try {
+      return _isCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   String get localAddress => SshTunnelProfile.loopbackAddress;
   @override
@@ -181,9 +204,10 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   Future<void> get done => _completion.future;
 
   Future<void> _accept(Socket socket) async {
-    if (_closed || !_isCurrent() || _connections.length >= maxConnections) {
+    final current = _current();
+    if (!current || _connections.length >= maxConnections) {
       socket.destroy();
-      if (!_isCurrent()) closeOwner();
+      if (!current) closeOwner();
       return;
     }
     try {
@@ -193,16 +217,22 @@ class _LocalTunnelHandle implements SshTunnelHandle {
         localHost: SshTunnelProfile.loopbackAddress,
         localPort: socket.port,
       );
-      if (_closed || !_isCurrent()) {
+      if (!_current()) {
         socket.destroy();
         remote.destroy();
         closeOwner();
         return;
       }
       late final _TunnelConnection connection;
-      connection = _TunnelConnection(socket, remote, () {
-        _connections.remove(connection);
-      });
+      connection = _TunnelConnection(
+        socket,
+        remote,
+        () {
+          _connections.remove(connection);
+        },
+        isCurrent: _current,
+        retireOwner: closeOwner,
+      );
       _connections.add(connection);
     } catch (_) {
       socket.destroy();
@@ -212,13 +242,17 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   void _closeOwned() {
     if (_closed) return;
     _closed = true;
-    unawaited(_subscription.cancel());
-    unawaited(_server.close());
+    final listenerClosed = _subscription.cancel();
+    final serverClosed = _server.close().then<void>((_) {});
     for (final connection in _connections.toList()) {
       connection.close();
     }
     _connections.clear();
-    if (!_completion.isCompleted) _completion.complete();
+    unawaited(
+      Future.wait<void>([listenerClosed, serverClosed]).whenComplete(() {
+        if (!_completion.isCompleted) _completion.complete();
+      }),
+    );
   }
 
   @override
@@ -226,15 +260,21 @@ class _LocalTunnelHandle implements SshTunnelHandle {
 }
 
 class _TunnelConnection {
-  _TunnelConnection(this.local, this.remote, this.onClose) {
+  _TunnelConnection(
+    this.local,
+    this.remote,
+    this.onClose, {
+    required this.isCurrent,
+    required this.retireOwner,
+  }) {
     localSub = local.listen(
-      remote.sink.add,
+      (bytes) => _forward(bytes, remote.sink.add),
       onDone: close,
       onError: (_) => close(),
       cancelOnError: true,
     );
     remoteSub = remote.stream.listen(
-      local.add,
+      (bytes) => _forward(bytes, local.add),
       onDone: close,
       onError: (_) => close(),
       cancelOnError: true,
@@ -243,9 +283,20 @@ class _TunnelConnection {
   final Socket local;
   final SSHForwardChannel remote;
   final void Function() onClose;
+  final bool Function() isCurrent;
+  final void Function() retireOwner;
   late final StreamSubscription<List<int>> localSub;
   late final StreamSubscription<List<int>> remoteSub;
   bool closed = false;
+
+  void _forward(List<int> bytes, void Function(List<int>) send) {
+    if (!isCurrent()) {
+      retireOwner();
+      return;
+    }
+    send(bytes);
+  }
+
   void close() {
     if (closed) return;
     closed = true;

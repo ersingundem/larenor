@@ -1,0 +1,193 @@
+name: F63 SSH native acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ssh-native-acceptance.yml"
+      - "lib/features/remote_access/ssh/**"
+      - "test/features/remote_access/ssh/**"
+      - "tool/tests/ssh_native_workflow_test.py"
+      - "android/app/src/main/AndroidManifest.xml"
+      - "pubspec.lock"
+      - "pubspec.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssh-native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ssh-native-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENSSH_PACKAGE: "1:9.6p1-3ubuntu13.19"
+      LARENOR_SSH_KEY_PASSPHRASE: "ssh-native-fixture-passphrase"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter gen-l10n
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Start isolated pinned OpenSSH fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends "openssh-server=$OPENSSH_PACKAGE"
+          actual="$(dpkg-query --show --showformat='${Version}' openssh-server)"
+          test "$actual" = "$OPENSSH_PACKAGE"
+
+          fixture="$RUNNER_TEMP/larenor-ssh-native"
+          install -d -m 0700 "$fixture" "$fixture/http"
+          printf 'Larenor tunnel fixture\n' > "$fixture/http/index.html"
+
+          ssh-keygen -q -t ed25519 -N '' -f "$fixture/host-key"
+          ssh-keygen -q -t ed25519 -N "$LARENOR_SSH_KEY_PASSPHRASE" -f "$fixture/client-key"
+          chmod 0600 "$fixture/host-key" "$fixture/client-key"
+
+          fixture_user="larenor-fixture"
+          sudo useradd --create-home --shell /bin/bash "$fixture_user"
+          sudo passwd -d "$fixture_user"
+          fixture_group="$(id -gn "$fixture_user")"
+          runner_group="$(id -gn)"
+          sftp_root="/tmp/larenor-ssh-native-sftp-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          sudo install -d -m 0770 -o "$fixture_user" -g "$runner_group" "$sftp_root"
+          printf 'Larenor SFTP fixture\n' > "$sftp_root/hello.txt"
+          printf 'alpha\n' > "$sftp_root/alpha.txt"
+          printf 'beta\n' > "$sftp_root/beta.txt"
+          dd if=/dev/zero of="$sftp_root/large.bin" bs=1M count=1 status=none
+          sudo install -d -m 0700 -o "$fixture_user" -g "$fixture_group" \
+            "/home/$fixture_user/.ssh"
+          sudo install -m 0600 -o "$fixture_user" -g "$fixture_group" \
+            "$fixture/client-key.pub" "/home/$fixture_user/.ssh/authorized_keys"
+          chmod 0711 "$fixture"
+
+          read -r ssh_port tunnel_port target_port < <(python3 - <<'PY'
+          import socket
+          sockets = []
+          try:
+              for _ in range(3):
+                  value = socket.socket()
+                  value.bind(('127.0.0.1', 0))
+                  sockets.append(value)
+              print(*(value.getsockname()[1] for value in sockets))
+          finally:
+              for value in sockets:
+                  value.close()
+          PY
+          )
+          cat > "$fixture/sshd_config" <<CONFIG
+          Port $ssh_port
+          ListenAddress 127.0.0.1
+          HostKey $fixture/host-key
+          PidFile $fixture/sshd.pid
+          AuthorizedKeysFile .ssh/authorized_keys
+          AuthenticationMethods publickey
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          ChallengeResponseAuthentication no
+          UsePAM no
+          PermitRootLogin no
+          PermitTTY yes
+          StrictModes no
+          AllowUsers $fixture_user
+          AllowTcpForwarding local
+          GatewayPorts no
+          X11Forwarding no
+          AllowAgentForwarding no
+          PermitTunnel no
+          MaxSessions 4
+          MaxStartups 4:30:4
+          Subsystem sftp internal-sftp
+          LogLevel VERBOSE
+          CONFIG
+          sudo install -d -m 0755 /run/sshd
+          sudo /usr/sbin/sshd -f "$fixture/sshd_config" -E "$fixture/sshd.log"
+          python3 -m http.server "$target_port" --bind 127.0.0.1 \
+            --directory "$fixture/http" >"$fixture/http.log" 2>&1 &
+          echo "$!" > "$fixture/http.pid"
+
+          for _ in $(seq 1 30); do
+            if ssh-keyscan -T 1 -p "$ssh_port" 127.0.0.1 >/dev/null 2>&1 && \
+               curl --fail --silent "http://127.0.0.1:$target_port/" >/dev/null; then
+              break
+            fi
+            sleep 0.2
+          done
+          ssh-keyscan -T 2 -p "$ssh_port" 127.0.0.1 >/dev/null
+          curl --fail --silent "http://127.0.0.1:$target_port/" >/dev/null
+          fingerprint="$(ssh-keygen -lf "$fixture/host-key.pub" -E sha256 | awk '{print $2}')"
+          cat >> "$GITHUB_ENV" <<ENV
+          LARENOR_SSH_FIXTURE_PORT=$ssh_port
+          LARENOR_SSH_TUNNEL_PORT=$tunnel_port
+          LARENOR_SSH_TARGET_PORT=$target_port
+          LARENOR_SSH_FIXTURE_USER=$fixture_user
+          LARENOR_SSH_PRIVATE_KEY=$fixture/client-key
+          LARENOR_SSH_HOST_KEY_TYPE=ssh-ed25519
+          LARENOR_SSH_HOST_KEY_FINGERPRINT=$fingerprint
+          LARENOR_SFTP_FIXTURE_ROOT=$sftp_root
+          LARENOR_SSH_FIXTURE_DIR=$fixture
+          ENV
+      - name: Validate workflow policy
+        run: python3 -m unittest tool.tests.ssh_native_workflow_test
+      - name: Run real SSH, SFTP and tunnel acceptance
+        run: |
+          flutter test --reporter expanded --timeout 60s \
+            test/features/remote_access/ssh/ssh_native_fixture_test.dart \
+            test/features/remote_access/ssh/ssh_session_controller_test.dart \
+            test/features/remote_access/ssh/ssh_terminal_panel_test.dart \
+            test/features/remote_access/ssh/sftp_controller_test.dart \
+            test/features/remote_access/ssh/sftp_browser_panel_test.dart \
+            test/features/remote_access/ssh/ssh_tunnel_controller_test.dart \
+            test/features/remote_access/ssh/ssh_tunnel_panel_test.dart
+      - name: Analyze native acceptance boundary
+        run: |
+          flutter analyze \
+            lib/features/remote_access/ssh \
+            test/features/remote_access/ssh/ssh_native_fixture_test.dart
+      - name: Build Android SSH host package
+        run: flutter build apk --debug --target-platform android-arm64 --no-pub
+      - name: Verify Android SSH host contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-debug.apk"
+          test -s "$apk"
+          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$build_tools/aapt" dump permissions "$apk" | \
+            grep -F "android.permission.INTERNET"
+          unzip -Z1 "$apk" | grep -Fx "lib/arm64-v8a/libflutter.so"
+          if unzip -Z1 "$apk" | grep -E '^lib/arm64-v8a/lib[^/]*(ssh|crypto)[^/]*\.so$'; then
+            echo "Unexpected SSH JNI library in pure-Dart transport package" >&2
+            exit 1
+          fi
+      - name: Stop fixture and show bounded diagnostics on failure
+        if: always()
+        shell: bash
+        run: |
+          fixture="${LARENOR_SSH_FIXTURE_DIR:-}"
+          if [ -n "$fixture" ] && [ -f "$fixture/sshd.pid" ]; then
+            sudo kill "$(cat "$fixture/sshd.pid")" 2>/dev/null || true
+          fi
+          if [ -n "$fixture" ] && [ -f "$fixture/http.pid" ]; then
+            kill "$(cat "$fixture/http.pid")" 2>/dev/null || true
+          fi
+          sftp_root="${LARENOR_SFTP_FIXTURE_ROOT:-}"
+          if [[ "$sftp_root" == /tmp/larenor-ssh-native-sftp-* ]]; then
+            sudo rm -rf -- "$sftp_root"
+          fi
+          if [ "${{ job.status }}" != "success" ] && [ -f "$fixture/sshd.log" ]; then
+            sudo tail -80 "$fixture/sshd.log"
+          fi
