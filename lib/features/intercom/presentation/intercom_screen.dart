@@ -8,6 +8,7 @@ import '../../../shared/widgets/action_status_indicator.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/camera_snapshot.dart';
 import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/integration_health.dart';
@@ -16,11 +17,31 @@ import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/door_station.dart';
 import '../providers/intercom_providers.dart';
 
-class IntercomScreen extends ConsumerWidget {
+class IntercomScreen extends ConsumerStatefulWidget {
   const IntercomScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IntercomScreen> createState() => _IntercomScreenState();
+}
+
+class _IntercomScreenState extends MediaSessionState<IntercomScreen> {
+  @override
+  void clearPendingInteraction() {}
+
+  VoidCallback _guarded(VoidCallback action) {
+    final generation = sessionGeneration;
+    return () {
+      if (sessionCurrent(generation) &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          TickerMode.valuesOf(context).enabled) {
+        action();
+      }
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccount(IntegrationId.ha, connectionConfigProvider);
     final l10n = AppLocalizations.of(context);
     final stations = ref.watch(doorStationsProvider);
     final config = ref.watch(connectionConfigProvider);
@@ -34,17 +55,34 @@ class IntercomScreen extends ConsumerWidget {
           key: const PageStorageKey('intercom'),
           padding: const EdgeInsets.all(20),
           children: [
-            IntegrationHealthStatus(
-              id: IntegrationId.ha,
-              configured: config.value != null,
+            SettingsSection(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: IntegrationHealthStatus(
+                    id: IntegrationId.ha,
+                    configured: config.value != null,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             stations.when(
               skipLoadingOnReload: false,
-              loading: () => const Center(child: CupertinoActivityIndicator()),
-              error: (_, _) => CupertinoButton(
-                onPressed: () => ref.invalidate(doorStationsProvider),
-                child: Text(l10n.commonRetry),
+              loading: () => Semantics(
+                liveRegion: true,
+                child: const Center(child: CupertinoActivityIndicator()),
+              ),
+              error: (_, _) => Semantics(
+                liveRegion: true,
+                child: CupertinoButton(
+                  key: const ValueKey('intercom-root-retry'),
+                  minimumSize: const Size.fromHeight(48),
+                  onPressed: _guarded(
+                    () => ref.invalidate(doorStationsProvider),
+                  ),
+                  child: Text(l10n.commonRetry),
+                ),
               ),
               data: (values) => values.isEmpty
                   ? Column(
@@ -54,7 +92,9 @@ class IntercomScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Text(l10n.intercomSetupDescription),
                         CupertinoButton(
-                          onPressed: () => context.push('/settings'),
+                          key: const ValueKey('intercom-root-configure'),
+                          minimumSize: const Size.fromHeight(48),
+                          onPressed: _guarded(() => context.push('/settings')),
                           child: Text(l10n.navigationConfigure),
                         ),
                       ],
@@ -272,23 +312,31 @@ class _DoorStationCardState extends MediaSessionState<_DoorStationCard> {
             }),
           const SizedBox(height: 12),
           CupertinoButton.filled(
+            key: ValueKey('intercom-release-${station.id}'),
+            minimumSize: const Size.fromHeight(48),
             onPressed: _busy || block != null ? null : _release,
             child: _busy && !_confirming
                 ? const CupertinoActivityIndicator()
                 : Text(l10n.intercomOpenDoor),
           ),
           if (blockedLabel != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(blockedLabel),
+            Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(blockedLabel),
+              ),
             ),
           if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: TextStyle(
-                  color: CupertinoColors.systemRed.resolveFrom(context),
+            Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(
+                    color: CupertinoColors.systemRed.resolveFrom(context),
+                  ),
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -14,6 +15,8 @@ import 'package:larenor/features/wellbeing/presentation/wellbeing_gate.dart';
 import 'package:larenor/features/wellbeing/presentation/wellbeing_screen.dart';
 import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'wellbeing_controller_test.dart'
     show FakeNative, MemoryStore, Connection;
@@ -158,9 +161,15 @@ Future<void> _mount(
 }
 
 Future<void> _unlock(WidgetTester tester) async {
-  await tester.enterText(find.byKey(const ValueKey('wellbeing-pin')), '1234');
-  await tester.ensureVisible(find.text('Unlock'));
-  await tester.tap(find.text('Unlock'));
+  final pin = find.byKey(const ValueKey('wellbeing-pin'));
+  await tester.enterText(pin, '1234');
+  final l10n = AppLocalizations.of(tester.element(pin));
+  final unlock = find.widgetWithText(
+    CupertinoButton,
+    l10n.settingsGateUnlockButton,
+  );
+  await tester.ensureVisible(unlock);
+  await tester.tap(unlock);
   await tester.pumpAndSettle();
 }
 
@@ -189,6 +198,81 @@ _PrivateStore _enabled() => _PrivateStore()
   );
 
 void main() {
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        'wellbeing uses shared tablet actions ${locale.languageCode} $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final native = FakeNative();
+          try {
+            await _mount(
+              tester,
+              store: _enabled(),
+              native: native,
+              locale: locale,
+              size: Size(width, 1100),
+              scale: 2,
+            );
+            await _unlock(tester);
+            expect(find.byType(AppSurface), findsOneWidget);
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            final action = find.byKey(const ValueKey('wellbeing-read-action'));
+            await tester.ensureVisible(action);
+            await tester.pumpAndSettle();
+            expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+            final l10n = AppLocalizations.of(tester.element(action));
+            final semanticAction = find.bySemanticsLabel(l10n.wellbeingRead);
+            expect(semanticAction, findsOneWidget);
+            final node = tester.getSemantics(semanticAction);
+            expect(node.flagsCollection.isButton, isTrue);
+            final text = find.descendant(
+              of: action,
+              matching: find.byType(Text),
+            );
+            Focus.of(tester.element(text)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(native.probes, 1);
+            expect(native.reads, 1);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('captured wellbeing read expires with private access', (
+    tester,
+  ) async {
+    final native = FakeNative();
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(
+      tester,
+      store: _enabled(),
+      native: native,
+      interaction: interaction,
+    );
+    await _unlock(tester);
+    final old = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('wellbeing-read-action')),
+        )
+        .onPressed!;
+    interaction.setActive(false);
+    await tester.pumpAndSettle();
+    interaction.setActive(true);
+    await tester.pump();
+    final before = (native.probes, native.reads);
+    old();
+    await tester.pumpAndSettle();
+    expect((native.probes, native.reads), before);
+  });
+
   testWidgets(
     'private config retry only rereads local stores and expires with its PIN session',
     (tester) async {

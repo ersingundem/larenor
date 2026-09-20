@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +22,8 @@ import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'backup_test_storage.dart';
@@ -180,6 +182,7 @@ Future<void> _mount(
   Locale locale = const Locale('en'),
   Size size = const Size(700, 1600),
   double textScale = 1,
+  bool Function()? gateCurrent,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({});
@@ -230,7 +233,10 @@ Future<void> _mount(
             ? const SettingsGateScreen()
             : connect
             ? const ConnectScreen()
-            : BackupScreen(freshInstall: freshInstall),
+            : BackupScreen(
+                freshInstall: freshInstall,
+                gateCurrent: gateCurrent,
+              ),
       ),
     ),
   );
@@ -268,6 +274,71 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        'backup uses shared tablet actions ${locale.languageCode} $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await _mount(
+              tester,
+              locale: locale,
+              size: Size(width, 1100),
+              textScale: 2,
+            );
+            expect(find.byType(AppSurface), findsOneWidget);
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            final action = find.byKey(const ValueKey('backup-export'));
+            await tester.ensureVisible(action);
+            await tester.pumpAndSettle();
+            expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+            final text = find.descendant(
+              of: action,
+              matching: find.byType(Text),
+            );
+            Focus.of(tester.element(text)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            final message = find.byKey(const ValueKey('backup-message'));
+            expect(message, findsOneWidget);
+            expect(
+              tester.getSemantics(message).flagsCollection.isLiveRegion,
+              isTrue,
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('captured backup action expires with its route authority', (
+    tester,
+  ) async {
+    var current = true;
+    final repository = _Repository();
+    await _mount(tester, repository: repository, gateCurrent: () => current);
+    await tester.enterText(
+      find.byKey(const ValueKey('backup-passphrase')),
+      'correct backup phrase',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('backup-confirm-passphrase')),
+      'correct backup phrase',
+    );
+    final old = tester
+        .widget<CupertinoButton>(find.byKey(const ValueKey('backup-export')))
+        .onPressed!;
+    current = false;
+    old();
+    await tester.pumpAndSettle();
+    expect(repository.captured, isNull);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final operation in ['export', 'preview']) {
       testWidgets(
