@@ -95,6 +95,8 @@ from .keenetic_commands.core_worker import build_keenetic_worker_effect
 from .keenetic_commands.provider import KeeneticCommandStateProvider
 from .inventory.schema import migrate_inventory
 from .inventory.service import InventoryRegistry
+from .local_notifications.schema import migrate_local_notifications
+from .local_notifications.service import LocalNotificationService
 
 
 class CoreServices:
@@ -208,6 +210,7 @@ class CoreServices:
                 migrate_bounded_blobs(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_inventory(connection, key, self.context)
+                migrate_local_notifications(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -274,6 +277,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context,
                 self.home_resources, self.product_blobs)
             self.inventory.validate_storage()
+            self.local_notifications = LocalNotificationService(
+                self.db, self.auth, settings, key, self.context)
+            self.local_notifications.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

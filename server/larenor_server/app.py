@@ -59,6 +59,7 @@ from .bounded_transfer.service import BlobProvider
 from .proxmox_commands.api import router as proxmox_power_router
 from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
+from .local_notifications.api import router as local_notification_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -267,6 +268,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(bounded_transfer_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
+    app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")

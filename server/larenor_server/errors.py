@@ -13,6 +13,13 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'notification_subscription_changed': 'The notification subscription changed. Read it again.',
+    'notification_subscription_inactive': 'The notification subscription is not active.',
+    'notification_registration_replay': 'This registration identifier belongs to a different request.',
+    'notification_event_conflict': 'This notification key belongs to a different event.',
+    'notification_not_delivered': 'This notification was not delivered to the subscription.',
+    'notification_limit_reached': 'The local notification limit has been reached.',
+    'notification_storage_unavailable': 'The local notification inbox is unavailable.',
     'outbound_denied': 'This component has no current permission for that destination.',
     'ha_migration_changed': 'The selected migration source or target changed. Review it again.',
     'ha_migration_preview_invalid': 'The migration preview is no longer available. Review it again.',
