@@ -28,7 +28,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-core"
+            "core"
           ]
         }
       },
@@ -114,7 +114,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-jellyfin"
+            "jellyfin"
           ]
         }
       },
@@ -161,7 +161,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-seerr"
+            "seerr"
           ]
         }
       },
@@ -214,7 +214,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-sonarr"
+            "sonarr"
           ]
         }
       },
@@ -267,7 +267,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-radarr"
+            "radarr"
           ]
         }
       },
@@ -322,7 +322,7 @@
       "networks": {
         "control": {
           "aliases": [
-            "larenor-qbittorrent"
+            "qbittorrent"
           ]
         }
       },

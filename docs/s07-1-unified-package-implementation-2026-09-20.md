@@ -243,3 +243,11 @@ sabit allowlist hata kodu yayınlar; hostname, resolver dosyası, IP, log veya
 container çıktısı açığa çıkmaz. Bu değişiklik başarı ölçütünü gevşetmez: hem
 Core self alias'ı hem her peer alias'ı gerçek Core runtime içinden çözülmeden
 receipt `dns: verified` olamaz.
+
+Katmanlı tanı, Core'un `localhost` ve kendi ağ alias'ını çözebildiğini; yalnız
+container adıyla aynı peer alias'ının iki mimaride de çözülemediğini gösterdi.
+Paket içi servis keşfi artık container kimliğinden ayrılan canonical kısa
+adları kullanır: `jellyfin`, `seerr`, `sonarr`, `radarr` ve `qbittorrent`.
+Core da aynı kuralla `core` alias'ını taşır. Container adları ve ownership
+kontrolleri değişmez. Rendered config ve runtime inspect exact kısa alias'ı,
+Core içi resolver ise gerçek erişilebilirliği ayrı ayrı doğrular.

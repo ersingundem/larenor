@@ -427,6 +427,15 @@ def _config_networks(service):
     raise ManagedStackCIError("unified_manifest_invalid")
 
 
+def _network_alias(name):
+    if name == package.CORE_NAME:
+        return "core"
+    for service_id, container_name in SERVICE_NAMES.items():
+        if container_name == name:
+            return service_id
+    raise ManagedStackCIError("unified_manifest_invalid")
+
+
 def _config_network_aliases(service, network):
     value = service.get("networks", {})
     if not isinstance(value, dict):
@@ -532,7 +541,7 @@ def validate_rendered_config(rendered, expected, project_name):
                 raise ManagedStackCIError("unified_manifest_invalid")
         elif (actual.get("network_mode") not in (None, "")
                 or _config_networks(actual) != {"control"}
-                or _config_network_aliases(actual, "control") != (name,)):
+                or _config_network_aliases(actual, "control") != (_network_alias(name),)):
             raise ManagedStackCIError("unified_manifest_invalid")
     core_build = rendered["services"][package.CORE_NAME].get("build")
     expected_build = expected["services"][package.CORE_NAME]["build"]
@@ -715,9 +724,9 @@ class DockerDriver:
                 dns, network = "host_network", "host"
             else:
                 aliases = networks.get(NETWORK, {}).get("Aliases", [])
-                if network_mode != NETWORK or item["containerName"] not in aliases:
+                if network_mode != NETWORK or item["serviceId"] not in aliases:
                     raise ManagedStackCIError("unified_container_receipt_invalid")
-                self._verify_dns(item["containerName"])
+                self._verify_dns(item["serviceId"])
                 dns, network = "verified", NETWORK
             values.append({
                 "serviceId": item["serviceId"], "containerName": item["containerName"],

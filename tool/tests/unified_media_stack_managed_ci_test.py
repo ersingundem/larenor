@@ -251,7 +251,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         target.validate_rendered_config(rendered, expected, rendered["name"])
         rendered["services"]["larenor-jellyfin"]["networks"]["control"][
             "aliases"
-        ] = ["jellyfin"]
+        ] = ["foreign-jellyfin"]
         with self.assertRaisesRegex(target.ManagedStackCIError,
                                     "unified_manifest_invalid"):
             target.validate_rendered_config(rendered, expected, rendered["name"])
@@ -289,7 +289,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                     (0, b""), (0, b""), (1, b""), (0, b"")]), patch.object(
                     target.time, "monotonic", side_effect=[0, 0, 0, 0, 1]), patch.object(
                     target.time, "sleep") as sleep:
-                driver._verify_dns("larenor-jellyfin", timeout=5, interval=1)
+                driver._verify_dns("jellyfin", timeout=5, interval=1)
             sleep.assert_called_once_with(1)
 
             for responses, code in (
@@ -307,7 +307,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                         target.time, "monotonic", side_effect=monotonic), patch.object(
                         target.time, "sleep"):
                     with self.assertRaisesRegex(target.ManagedStackCIError, code):
-                        driver._verify_dns("larenor-jellyfin", timeout=1, interval=1)
+                        driver._verify_dns("jellyfin", timeout=1, interval=1)
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
