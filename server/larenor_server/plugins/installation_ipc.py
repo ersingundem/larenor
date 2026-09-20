@@ -26,7 +26,8 @@ from .music_provider_setup_models import (
     PrivateMusicProviderSetupAction, ProviderSetupWorkerResult,
 )
 from .music_playback_models import (
-    MusicPlaybackReadback, MusicPlaybackWorkerResult,
+    MusicCatalogWorkerResult, MusicPlaybackReadback,
+    MusicPlaybackWorkerResult, PrivateMusicCatalogAction,
     PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
 )
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
@@ -819,11 +820,17 @@ class InstallationWorkerClient:
             'music_playback_execute', action, MusicPlaybackWorkerResult,
             deadline, gate)
 
+    def search_music_catalog(self, action, *, deadline, gate):
+        return self._music_playback_exchange(
+            'music_catalog_search', action, MusicCatalogWorkerResult,
+            deadline, gate)
+
     def _music_playback_exchange(self, operation, private, model, deadline,
                                  gate):
         now = time.monotonic()
         if (type(private) not in (PrivateMusicPlaybackAuthority,
-                                 PrivateMusicPlaybackAction)
+                                 PrivateMusicPlaybackAction,
+                                 PrivateMusicCatalogAction)
                 or type(deadline) not in (int, float)
                 or not math.isfinite(deadline)
                 or not now < deadline <= now + 120 or not callable(gate)):
@@ -1212,7 +1219,9 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     MusicAssistantBootstrapRuntimeError(
                         'music_assistant_bootstrap_readback_changed',
                         uncertain_effect=True))
-        if operation in {'music_players_read', 'music_playback_execute'}:
+        if operation in {
+                'music_players_read', 'music_playback_execute',
+                'music_catalog_search'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'private'}
                     or time.monotonic() >= deadline):
@@ -1222,10 +1231,14 @@ class InstallationWorkerServer(PreflightWorkerServer):
                                  separators=(',', ':'), allow_nan=False)
                 model = (PrivateMusicPlaybackAuthority
                          if operation == 'music_players_read'
+                         else PrivateMusicCatalogAction
+                         if operation == 'music_catalog_search'
                          else PrivateMusicPlaybackAction)
                 private = model.model_validate_json(raw)
                 method = ('read_music_players'
                           if operation == 'music_players_read'
+                          else 'search_music_catalog'
+                          if operation == 'music_catalog_search'
                           else 'execute_music_playback')
                 timed = getattr(self.backend, method + '_with_deadline', None)
                 result = (timed(private, deadline) if callable(timed)
@@ -1234,6 +1247,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
                               gate=lambda: time.monotonic() < deadline))
                 expected = (MusicPlaybackReadback
                             if operation == 'music_players_read'
+                            else MusicCatalogWorkerResult
+                            if operation == 'music_catalog_search'
                             else MusicPlaybackWorkerResult)
                 if time.monotonic() >= deadline or type(result) is not expected:
                     raise ValueError()

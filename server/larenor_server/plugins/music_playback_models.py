@@ -10,11 +10,11 @@ from ..models import StrictModel
 
 
 PlaybackOperation = Literal[
-    'play', 'pause', 'stop', 'next', 'previous', 'volume', 'mute',
+    'play', 'pause', 'seek', 'stop', 'next', 'previous', 'volume', 'mute',
     'queue_add', 'queue_replace', 'queue_clear',
 ]
 PlayerCapability = Literal[
-    'play', 'pause', 'stop', 'next_previous', 'volume_set', 'volume_mute',
+    'play', 'pause', 'seek', 'stop', 'next_previous', 'volume_set', 'volume_mute',
     'queue',
 ]
 
@@ -23,7 +23,10 @@ class VerifiedMusicPlayer(StrictModel):
     playerId: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=160)
     provider: str = Field(min_length=1, max_length=128)
-    targetKind: Literal['homepod', 'airplay', 'airplay_group', 'group', 'other']
+    targetKind: Literal[
+        'homepod', 'airplay', 'airplay_group', 'cast', 'cast_group', 'group',
+        'other',
+    ]
     available: bool
     enabled: bool
     playbackState: Literal['idle', 'playing', 'paused']
@@ -31,7 +34,8 @@ class VerifiedMusicPlayer(StrictModel):
     muted: bool | None = None
     groupMembers: list[str] = Field(max_length=64)
     queueId: str | None = Field(default=None, max_length=128)
-    capabilities: list[PlayerCapability] = Field(max_length=7)
+    positionSeconds: float | None = Field(default=None, ge=0, le=864000)
+    capabilities: list[PlayerCapability] = Field(max_length=8)
 
     @field_validator('playerId', 'provider', 'queueId')
     @classmethod
@@ -63,8 +67,73 @@ class VerifiedMusicPlayer(StrictModel):
         return self
 
 
+class VerifiedMusicQueue(StrictModel):
+    queueId: str = Field(min_length=1, max_length=128)
+    active: bool
+    itemCount: int = Field(ge=0, le=100000)
+    currentItemUri: str | None = Field(default=None, max_length=2048)
+    positionSeconds: float = Field(ge=0, le=864000)
+
+    @field_validator('queueId')
+    @classmethod
+    def safe_queue_id(cls, value):
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None:
+            raise ValueError('invalid_music_queue_readback')
+        return value
+
+    @field_validator('currentItemUri')
+    @classmethod
+    def safe_uri(cls, value):
+        if (value is not None and re.fullmatch(
+                r'(?:spotify|apple_music|ytmusic|library)://[^\s]+', value)
+                is None):
+            raise ValueError('invalid_music_queue_readback')
+        return value
+
+
+class MusicManagerProvider(StrictModel):
+    setupId: ObjectId
+    revision: Revision
+    providerDomain: Literal['spotify', 'apple_music', 'ytmusic']
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+    catalogAvailable: Literal[True] = True
+
+    @field_validator('providerInstanceId')
+    @classmethod
+    def safe_instance_id(cls, value):
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None:
+            raise ValueError('invalid_music_provider_binding')
+        return value
+
+
+class MusicCatalogItem(StrictModel):
+    uri: str = Field(min_length=1, max_length=2048)
+    name: str = Field(min_length=1, max_length=512)
+    mediaType: Literal[
+        'artist', 'album', 'track', 'playlist', 'radio', 'audiobook',
+        'podcast',
+    ]
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+    artists: list[str] = Field(default_factory=list, max_length=32)
+
+    @model_validator(mode='after')
+    def safe_public_fields(self):
+        if (re.fullmatch(r'(?:spotify|apple_music|ytmusic|library)://[^\s]+',
+                         self.uri) is None
+                or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
+                                self.providerInstanceId) is None
+                or any(not isinstance(value, str) or not 0 < len(value) <= 256
+                       or any(ord(char) < 32 or ord(char) == 127
+                              for char in value)
+                       for value in [self.name, *self.artists])):
+            raise ValueError('invalid_music_catalog_readback')
+        return self
+
+
 class MusicPlaybackReadback(StrictModel):
     players: list[VerifiedMusicPlayer] = Field(max_length=256)
+    queues: list[VerifiedMusicQueue] = Field(default_factory=list,
+                                             max_length=256)
 
     @model_validator(mode='after')
     def unique_players(self):
@@ -73,6 +142,8 @@ class MusicPlaybackReadback(StrictModel):
         known = {item.playerId for item in self.players}
         if any(not set(item.groupMembers) <= known for item in self.players):
             raise ValueError('invalid_music_player_readback')
+        if len({item.queueId for item in self.queues}) != len(self.queues):
+            raise ValueError('invalid_music_queue_readback')
         return self
 
 
@@ -92,12 +163,14 @@ class MusicPlaybackCommandRequest(StrictModel):
     targetId: str = Field(min_length=1, max_length=128)
     expectedProvider: str = Field(min_length=1, max_length=128)
     expectedTargetKind: Literal[
-        'homepod', 'airplay', 'airplay_group', 'group', 'other']
+        'homepod', 'airplay', 'airplay_group', 'cast', 'cast_group', 'group',
+        'other']
     expectedQueueId: str | None = Field(default=None, max_length=128)
     expectedGroupMembers: list[str] = Field(max_length=64)
     operation: PlaybackOperation
     volumeLevel: int | None = Field(default=None, ge=0, le=100)
     muted: bool | None = None
+    positionSeconds: float | None = Field(default=None, ge=0, le=864000)
     mediaUris: list[str] = Field(default_factory=list, max_length=64, repr=False)
 
     @model_validator(mode='after')
@@ -106,6 +179,7 @@ class MusicPlaybackCommandRequest(StrictModel):
         if (media != bool(self.mediaUris)
                 or (self.operation == 'volume') != (self.volumeLevel is not None)
                 or (self.operation == 'mute') != (self.muted is not None)
+                or (self.operation == 'seek') != (self.positionSeconds is not None)
                 or len(set(self.expectedGroupMembers)) != len(self.expectedGroupMembers)):
             raise ValueError('invalid_music_playback_command')
         if (any(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', item)
@@ -137,6 +211,62 @@ class MusicPlaybackStateResponse(StrictModel):
     playback: MusicPlaybackState
 
 
+class MusicManagerState(StrictModel):
+    installationId: ObjectId
+    installationRevision: Revision
+    coreRevision: Revision
+    revision: Revision
+    providers: list[MusicManagerProvider] = Field(max_length=256)
+    queues: list[VerifiedMusicQueue] = Field(max_length=256)
+    receivers: list[VerifiedMusicPlayer] = Field(max_length=256)
+    installAvailable: Literal[False] = False
+    updatedAt: str
+
+
+class MusicManagerStateResponse(StrictModel):
+    manager: MusicManagerState
+
+
+class SearchMusicCatalogRequest(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+    expectedCoreRevision: Revision
+    expectedManagerRevision: Revision
+    providerSetupId: ObjectId
+    expectedProviderRevision: Revision
+    providerDomain: Literal['spotify', 'apple_music', 'ytmusic']
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+    query: str = Field(min_length=1, max_length=160)
+    mediaTypes: list[Literal[
+        'artist', 'album', 'track', 'playlist', 'radio', 'audiobook',
+        'podcast',
+    ]] = Field(default_factory=list, max_length=7)
+    limit: int = Field(default=25, ge=1, le=100)
+    libraryOnly: bool = False
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (self.query != self.query.strip()
+                or any(ord(char) < 32 or ord(char) == 127
+                       for char in self.query)
+                or len(set(self.mediaTypes)) != len(self.mediaTypes)
+                or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
+                                self.providerInstanceId) is None):
+            raise ValueError('invalid_music_catalog_search')
+        return self
+
+
+class MusicCatalogSearchResult(StrictModel):
+    requestId: ObjectId
+    managerRevision: Revision
+    items: list[MusicCatalogItem] = Field(max_length=100)
+
+
+class MusicCatalogSearchResponse(StrictModel):
+    catalog: MusicCatalogSearchResult
+
+
 class MusicPlaybackReceipt(StrictModel):
     requestId: ObjectId
     targetId: str = Field(min_length=1, max_length=128)
@@ -161,9 +291,19 @@ class PrivateMusicPlaybackAction(StrictModel):
     token: str = Field(min_length=1, max_length=2048, repr=False)
 
 
+class PrivateMusicCatalogAction(StrictModel):
+    request: SearchMusicCatalogRequest = Field(repr=False)
+    token: str = Field(min_length=1, max_length=2048, repr=False)
+
+
+class MusicCatalogWorkerResult(StrictModel):
+    items: list[MusicCatalogItem] = Field(max_length=100)
+
+
 class MusicPlaybackWorkerResult(StrictModel):
     state: Literal['succeeded']
     target: VerifiedMusicPlayer
+    queue: VerifiedMusicQueue | None = None
 
 
 class _StoredPlaybackCommand(StrictModel):
@@ -175,5 +315,9 @@ class _StoredPlaybackCommand(StrictModel):
 
 class _StoredMusicPlayback(StrictModel):
     players: list[VerifiedMusicPlayer] = Field(max_length=256)
+    queues: list[VerifiedMusicQueue] = Field(default_factory=list,
+                                             max_length=256)
+    providerBindings: list[MusicManagerProvider] = Field(default_factory=list,
+                                                          max_length=256)
     commands: list[_StoredPlaybackCommand] = Field(default_factory=list,
                                                    max_length=256, repr=False)
