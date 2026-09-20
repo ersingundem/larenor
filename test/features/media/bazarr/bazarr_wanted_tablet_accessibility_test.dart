@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,6 +111,106 @@ void main() {
 
     expect(oldRequests, isEmpty);
     expect(replacementRequests, isEmpty);
+  });
+
+  testWidgets('wanted reload hides retained rows and expires search callback', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final client = BazarrClient(
+      config: _config,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(client.dispose);
+    var reads = 0;
+    final reload = Completer<List<BazarrWantedItem>>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bazarrConnectionProvider.overrideWith(_Connection.new),
+          bazarrClientProvider.overrideWith((_) => client),
+          bazarrMissingMoviesProvider.overrideWith((_) {
+            reads++;
+            return reads == 1 ? Future.value(const [_movie]) : reload.future;
+          }),
+          bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final old = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('bazarr-wanted-movie-42-search')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BazarrHomeScreen)),
+    );
+    container.invalidate(bazarrMissingMoviesProvider);
+    await tester.pump();
+
+    expect(find.text('Arrival'), findsNothing);
+    old();
+    await tester.pump();
+    expect(requests, isEmpty);
+
+    reload.complete(const [_movie]);
+    await tester.pumpAndSettle();
+    expect(find.text('Arrival'), findsOneWidget);
+  });
+
+  testWidgets('older search completion cannot unlock replacement search', (
+    tester,
+  ) async {
+    final oldResponse = Completer<http.Response>();
+    final newResponse = Completer<http.Response>();
+    BazarrClient client(Completer<http.Response> response) => BazarrClient(
+      config: _config,
+      httpClient: MockClient((_) => response.future),
+    );
+    final oldClient = client(oldResponse);
+    final newClient = client(newResponse);
+    addTearDown(oldClient.dispose);
+    addTearDown(newClient.dispose);
+    _initialBazarrClient = oldClient;
+    addTearDown(() => _initialBazarrClient = null);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bazarrConnectionProvider.overrideWith(_Connection.new),
+          bazarrClientProvider.overrideWith(
+            (ref) => ref.watch(_currentBazarrClient),
+          ),
+          bazarrMissingMoviesProvider.overrideWith((_) async => const [_movie]),
+          bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder action() =>
+        find.byKey(const ValueKey('bazarr-wanted-movie-42-search'));
+    tester.widget<CupertinoButton>(action()).onPressed!();
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BazarrHomeScreen)),
+    );
+    container.read(_currentBazarrClient.notifier).replace(newClient);
+    await tester.pump();
+    tester.widget<CupertinoButton>(action()).onPressed!();
+    await tester.pump();
+
+    oldResponse.complete(http.Response('{}', 200));
+    await tester.pump();
+    expect(tester.widget<CupertinoButton>(action()).onPressed, isNull);
+
+    newResponse.complete(http.Response('{}', 200));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CupertinoButton>(action()).onPressed, isNotNull);
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {

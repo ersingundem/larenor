@@ -64,7 +64,7 @@ class _IndexersList extends ConsumerStatefulWidget {
 }
 
 class _IndexersListState extends MediaSessionState<_IndexersList> {
-  final _pending = <int>{};
+  final _pending = <int, Object>{};
   String? _error;
 
   bool _current(int generation, ProwlarrClient client, Object reading) =>
@@ -81,12 +81,13 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
     Object reading,
     int generation,
   ) async {
-    if (_pending.contains(indexer.id) ||
+    if (_pending.containsKey(indexer.id) ||
         !_current(generation, client, reading)) {
       return;
     }
+    final lease = Object();
     setState(() {
-      _pending.add(indexer.id);
+      _pending[indexer.id] = lease;
       _error = null;
     });
     try {
@@ -99,7 +100,7 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
         setState(() => _error = AppLocalizations.of(context).actionFailed);
       }
     } finally {
-      if (_current(generation, client, reading)) {
+      if (mounted && identical(_pending[indexer.id], lease)) {
         setState(() => _pending.remove(indexer.id));
       }
     }
@@ -110,6 +111,15 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
     watchMediaAccount(IntegrationId.prowlarr, prowlarrConnectionProvider);
     final indexersAsync = ref.watch(prowlarrIndexersProvider);
     final client = ref.watch(prowlarrClientProvider);
+    ref.listen(prowlarrClientProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          sessionGeneration++;
+          _pending.clear();
+          _error = null;
+        });
+      }
+    });
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
 
@@ -145,6 +155,8 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
           ),
         ),
         ...indexersAsync.when(
+          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: false,
           loading: () => const [
             SliverFilledMessage(child: CupertinoActivityIndicator()),
           ],
@@ -169,7 +181,7 @@ class _IndexersListState extends MediaSessionState<_IndexersList> {
                   itemBuilder: (context, index) {
                     final indexer = indexers[index];
                     final toggle =
-                        client == null || _pending.contains(indexer.id)
+                        client == null || _pending.containsKey(indexer.id)
                         ? null
                         : (bool value) => _toggle(
                             indexer,

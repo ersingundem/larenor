@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -87,6 +89,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(reads, 2);
+  });
+
+  testWidgets('request reload hides retained rows and disables refresh', (
+    tester,
+  ) async {
+    var reads = 0;
+    final reload = Completer<List<JellyseerrRequestItem>>();
+    await _mount(
+      tester,
+      width: 600,
+      locale: const Locale('en'),
+      read: () {
+        reads++;
+        return reads == 1 ? Future.value(const [_request]) : reload.future;
+      },
+    );
+    final old = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyseerr-requests-refresh')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(JellyseerrRequestsScreen)),
+    );
+    container.invalidate(jellyseerrMyRequestsProvider);
+    await tester.pump();
+
+    expect(find.text('Arrival'), findsNothing);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('jellyseerr-requests-refresh')),
+          )
+          .onPressed,
+      isNull,
+    );
+    old();
+    await tester.pump();
+    expect(reads, 2);
+
+    reload.complete(const [_request]);
+    await tester.pumpAndSettle();
+    expect(find.text('Arrival'), findsOneWidget);
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {

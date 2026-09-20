@@ -113,11 +113,15 @@ class _BazarrWantedScaffoldState
               title: l10n.bazarrMoviesMissingHeader,
               itemsAsync: moviesAsync,
               onChanged: refresh,
+              sourceCurrent: () =>
+                  _current(generation, moviesAsync, episodesAsync),
             ),
             _WantedSection(
               title: l10n.bazarrEpisodesMissingHeader,
               itemsAsync: episodesAsync,
               onChanged: refresh,
+              sourceCurrent: () =>
+                  _current(generation, moviesAsync, episodesAsync),
             ),
           ]),
         ),
@@ -131,15 +135,19 @@ class _WantedSection extends ConsumerWidget {
     required this.title,
     required this.itemsAsync,
     required this.onChanged,
+    required this.sourceCurrent,
   });
 
   final String title;
   final AsyncValue<List<BazarrWantedItem>> itemsAsync;
   final VoidCallback onChanged;
+  final bool Function() sourceCurrent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return itemsAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const Center(child: CupertinoActivityIndicator()),
       error: (error, _) => Padding(
         padding: const EdgeInsets.all(16),
@@ -156,7 +164,11 @@ class _WantedSection extends ConsumerWidget {
           header: Text(title),
           children: [
             for (final item in items)
-              _WantedRow(item: item, onChanged: onChanged),
+              _WantedRow(
+                item: item,
+                onChanged: onChanged,
+                sourceCurrent: sourceCurrent,
+              ),
           ],
         );
       },
@@ -165,29 +177,40 @@ class _WantedSection extends ConsumerWidget {
 }
 
 class _WantedRow extends ConsumerStatefulWidget {
-  const _WantedRow({required this.item, required this.onChanged});
+  const _WantedRow({
+    required this.item,
+    required this.onChanged,
+    required this.sourceCurrent,
+  });
 
   final BazarrWantedItem item;
   final VoidCallback onChanged;
+  final bool Function() sourceCurrent;
 
   @override
   ConsumerState<_WantedRow> createState() => _WantedRowState();
 }
 
 class _WantedRowState extends MediaSessionState<_WantedRow> {
-  bool _searching = false;
+  Object? _searchLease;
 
   bool _current(int generation, BazarrClient client) =>
       sessionCurrent(generation) &&
+      widget.sourceCurrent() &&
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true &&
       identical(ref.read(bazarrClientProvider), client);
 
   Future<void> _searchFirstMissing(BazarrClient client, int generation) async {
     final language = widget.item.missingLanguages.firstOrNull;
-    if (_searching || !_current(generation, client) || language == null) return;
+    if (_searchLease != null ||
+        !_current(generation, client) ||
+        language == null) {
+      return;
+    }
 
-    setState(() => _searching = true);
+    final lease = Object();
+    setState(() => _searchLease = lease);
     try {
       if (widget.item.isMovie) {
         await client.searchMovieSubtitle(
@@ -206,7 +229,9 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
     } catch (_) {
       // Row simply won't update; user can retry.
     } finally {
-      if (_current(generation, client)) setState(() => _searching = false);
+      if (mounted && identical(_searchLease, lease)) {
+        setState(() => _searchLease = null);
+      }
     }
   }
 
@@ -214,6 +239,14 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final client = ref.watch(bazarrClientProvider);
+    ref.listen(bazarrClientProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          sessionGeneration++;
+          _searchLease = null;
+        });
+      }
+    });
     final generation = sessionGeneration;
     final languages = widget.item.missingLanguages
         .map((l) => l.label)
@@ -226,7 +259,7 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
 
     return SettingsActionTile(
       buttonKey: actionKey,
-      leading: _searching
+      leading: _searchLease != null
           ? const CupertinoActivityIndicator()
           : const Icon(CupertinoIcons.captions_bubble),
       title: Text(widget.item.title),
@@ -240,7 +273,7 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
         ],
       ),
       onTap:
-          _searching ||
+          _searchLease != null ||
               client == null ||
               widget.item.missingLanguages.isEmpty ||
               !_current(generation, client)

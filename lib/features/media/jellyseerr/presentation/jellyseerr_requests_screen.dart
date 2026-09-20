@@ -30,7 +30,11 @@ class _JellyseerrRequestsScreenState
     final requestsAsync = ref.watch(jellyseerrMyRequestsProvider);
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
-    final active = _current(generation, requestsAsync);
+    final active =
+        !requestsAsync.isLoading &&
+        !requestsAsync.hasError &&
+        requestsAsync.hasValue &&
+        _current(generation, requestsAsync);
 
     return ServiceRootScaffold(
       title: l10n.jellyseerrMyRequestsTitle,
@@ -60,6 +64,8 @@ class _JellyseerrRequestsScreenState
           ),
         ),
         ...requestsAsync.when(
+          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: false,
           loading: () => [
             SliverFilledMessage(
               child: _RequestsStatus(label: l10n.commonLoading, loading: true),

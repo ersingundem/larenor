@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -128,6 +129,102 @@ void main() {
 
     expect(oldRequests, isEmpty);
     expect(replacementRequests, isEmpty);
+  });
+
+  testWidgets('indexer reload hides retained toggle and expires callback', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final client = ProwlarrClient(
+      config: _config,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(client.dispose);
+    var reads = 0;
+    final reload = Completer<List<ProwlarrIndexer>>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prowlarrConnectionProvider.overrideWith(_Connection.new),
+          prowlarrClientProvider.overrideWith((_) => client),
+          prowlarrIndexersProvider.overrideWith((_) {
+            reads++;
+            return reads == 1 ? Future.value(const [_indexer]) : reload.future;
+          }),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final old = tester
+        .widget<CupertinoSwitch>(find.byType(CupertinoSwitch))
+        .onChanged!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProwlarrIndexersScreen)),
+    );
+    container.invalidate(prowlarrIndexersProvider);
+    await tester.pump();
+
+    expect(find.text('Local Indexer'), findsNothing);
+    old(false);
+    await tester.pump();
+    expect(requests, isEmpty);
+
+    reload.complete(const [_indexer]);
+    await tester.pumpAndSettle();
+    expect(find.text('Local Indexer'), findsOneWidget);
+  });
+
+  testWidgets('older toggle completion cannot unlock replacement write', (
+    tester,
+  ) async {
+    final oldResponse = Completer<http.Response>();
+    final newResponse = Completer<http.Response>();
+    ProwlarrClient client(Completer<http.Response> response) => ProwlarrClient(
+      config: _config,
+      httpClient: MockClient((_) => response.future),
+    );
+    final oldClient = client(oldResponse);
+    final newClient = client(newResponse);
+    addTearDown(oldClient.dispose);
+    addTearDown(newClient.dispose);
+    _initialProwlarrClient = oldClient;
+    addTearDown(() => _initialProwlarrClient = null);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prowlarrConnectionProvider.overrideWith(_Connection.new),
+          prowlarrClientProvider.overrideWith(
+            (ref) => ref.watch(_currentProwlarrClient),
+          ),
+          prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    CupertinoSwitch toggle() =>
+        tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch));
+    toggle().onChanged!(false);
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProwlarrIndexersScreen)),
+    );
+    container.read(_currentProwlarrClient.notifier).replace(newClient);
+    await tester.pump();
+    toggle().onChanged!(false);
+    await tester.pump();
+
+    oldResponse.complete(http.Response('{}', 200));
+    await tester.pump();
+    expect(toggle().onChanged, isNull);
+
+    newResponse.complete(http.Response('{}', 200));
+    await tester.pumpAndSettle();
+    expect(toggle().onChanged, isNotNull);
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
