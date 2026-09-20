@@ -512,6 +512,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
             throw const CoreBoundedDownloadException('invalid_response');
           }
           for (final event in page.events) {
+            if (session.user.role != ServerRole.admin &&
+                event.actorId != session.user.id) {
+              throw const CoreBoundedDownloadException('invalid_response');
+            }
             eventReceipts[event.receipt.requestId] = event.receipt;
           }
           if (page.nextAfter == null) break;

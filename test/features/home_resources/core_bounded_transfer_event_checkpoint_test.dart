@@ -55,6 +55,7 @@ Map<String, Object> _receipt({String state = 'completed'}) => {
 Map<String, Object?> _events(
   HomeResourceRecord target, {
   String chain = 'e',
+  String actor = '9',
   int head = 2,
   int? after,
 }) => {
@@ -74,13 +75,13 @@ Map<String, Object?> _events(
           {
             'sequence': 1,
             'kind': 'accepted',
-            'actorId': '9' * 32,
+            'actorId': actor * 32,
             'receipt': _receipt(state: 'accepted'),
           },
           {
             'sequence': 2,
             'kind': 'result',
-            'actorId': '9' * 32,
+            'actorId': actor * 32,
             'receipt': _receipt(),
           },
         ],
@@ -257,6 +258,7 @@ void main() {
       final backend = _MemoryBackend();
       final store = CoreBoundedEventCheckpointStore(backend: backend);
       var chain = 'e';
+      var eventActor = '8';
       var eventStatus = 200;
       final cursors = <int?>[];
 
@@ -272,7 +274,14 @@ void main() {
               cursors.add(after);
               return http.Response(
                 eventStatus == 200
-                    ? jsonEncode(_events(target, chain: chain, after: after))
+                    ? jsonEncode(
+                        _events(
+                          target,
+                          chain: chain,
+                          actor: eventActor,
+                          after: after,
+                        ),
+                      )
                     : '{"error":{"code":"server_unavailable","message":"private"}}',
                 eventStatus,
                 headers: {'content-type': 'application/json'},
@@ -298,11 +307,19 @@ void main() {
       await tester.runAsync(
         () => controller.loadHistory(target, isCurrent: () => true),
       );
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.failed);
+      expect(controller.historyTrusted, isFalse);
+      expect(backend.writes, 0);
+
+      eventActor = '9';
+      await tester.runAsync(
+        () => controller.loadHistory(target, isCurrent: () => true),
+      );
       expect(controller.historyPhase, CoreBoundedHistoryPhase.ready);
       expect(controller.historyTrusted, isTrue);
       expect(controller.historyChainId, 'e' * 32);
       expect(controller.historyHeadSequence, 2);
-      expect(cursors, [null]);
+      expect(cursors, [null, null]);
       expect(backend.writes, 1);
 
       controller.dispose();
