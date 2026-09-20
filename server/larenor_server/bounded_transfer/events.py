@@ -358,6 +358,21 @@ def _public(row):
     }
 
 
+def _view_checkpoints(key, chain_id, events):
+    proof = _signed(
+        key, b"larenor-bounded-transfer-view-checkpoint-v1\0",
+        [chain_id, 0],
+    )
+    checkpoints = [proof]
+    for event in events:
+        proof = _signed(
+            key, b"larenor-bounded-transfer-view-checkpoint-v1\0",
+            [chain_id, event["sequence"], event, proof],
+        )
+        checkpoints.append(proof)
+    return checkpoints
+
+
 def history(connection, key, actor, resource_id, ref, *, after, limit):
     state, rows = validate(connection, key)
     visible = [
@@ -371,19 +386,26 @@ def history(connection, key, actor, resource_id, ref, *, after, limit):
         value = _public(row)
         value["sequence"] = sequence
         events.append(value)
+    all_events = events
     head = len(events)
+    cursor = after or 0
     if after is not None:
         if after > head:
             raise ApiError("not_found", 404)
-        events = events[after:]
+        events = all_events[after:]
     page = events[:limit]
     view = [state["chain_id"], resource_id, "admin" if actor.role == "admin" else actor.id]
     chain_id = _signed(key, b"larenor-bounded-transfer-view-v1\0", view)[:32]
+    checkpoints = _view_checkpoints(key, chain_id, all_events)
+    page_end = cursor + len(page)
     return {
         "schemaVersion": 1,
         "ref": ref,
         "chainId": chain_id,
         "headSequence": head,
+        "cursorCheckpoint": checkpoints[cursor],
+        "pageCheckpoint": checkpoints[page_end],
+        "headCheckpoint": checkpoints[head],
         "events": page,
         "nextAfter": page[-1]["sequence"] if len(events) > limit else None,
         "verified": True,

@@ -420,6 +420,9 @@ final class CoreBoundedTransferEventPage {
   const CoreBoundedTransferEventPage._(
     this.chainId,
     this.headSequence,
+    this.cursorCheckpoint,
+    this.pageCheckpoint,
+    this.headCheckpoint,
     this.events,
     this.nextAfter,
   );
@@ -435,6 +438,9 @@ final class CoreBoundedTransferEventPage {
       'ref',
       'chainId',
       'headSequence',
+      'cursorCheckpoint',
+      'pageCheckpoint',
+      'headCheckpoint',
       'events',
       'nextAfter',
       'verified',
@@ -448,6 +454,9 @@ final class CoreBoundedTransferEventPage {
     const refKeys = {'schemaVersion', 'coreId', 'homeId', 'kind', 'id'};
     final chainId = raw['chainId'];
     final head = raw['headSequence'];
+    final cursorCheckpoint = raw['cursorCheckpoint'];
+    final pageCheckpoint = raw['pageCheckpoint'];
+    final headCheckpoint = raw['headCheckpoint'];
     final values = raw['events'];
     final next = raw['nextAfter'];
     if (raw['schemaVersion'] is! int ||
@@ -468,6 +477,12 @@ final class CoreBoundedTransferEventPage {
         head is! int ||
         head < 0 ||
         head > 2048 ||
+        cursorCheckpoint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(cursorCheckpoint) ||
+        pageCheckpoint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(pageCheckpoint) ||
+        headCheckpoint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(headCheckpoint) ||
         values is! List ||
         values.length > limit ||
         next != null && (next is! int || next < 1 || next > 2048)) {
@@ -495,11 +510,26 @@ final class CoreBoundedTransferEventPage {
         throw const CoreBoundedDownloadException('invalid_response');
       }
     }
-    return CoreBoundedTransferEventPage._(chainId, head, events, next as int?);
+    if (events.isEmpty &&
+            (cursorCheckpoint != pageCheckpoint ||
+                pageCheckpoint != headCheckpoint) ||
+        events.isNotEmpty && next == null && pageCheckpoint != headCheckpoint) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedTransferEventPage._(
+      chainId,
+      head,
+      cursorCheckpoint,
+      pageCheckpoint,
+      headCheckpoint,
+      events,
+      next as int?,
+    );
   }
 
   final String chainId;
   final int headSequence;
+  final String cursorCheckpoint, pageCheckpoint, headCheckpoint;
   final List<CoreBoundedTransferEvent> events;
   final int? nextAfter;
 

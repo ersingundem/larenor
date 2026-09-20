@@ -138,6 +138,9 @@ class ResourceHarness {
         },
         'chainId': 'e' * 32,
         'headSequence': 2,
+        'cursorCheckpoint': '0' * 64,
+        'pageCheckpoint': 'a' * 64,
+        'headCheckpoint': 'a' * 64,
         'events': [
           {
             'sequence': 1,

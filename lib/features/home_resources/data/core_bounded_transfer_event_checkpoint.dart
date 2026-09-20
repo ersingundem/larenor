@@ -79,23 +79,34 @@ final class CoreBoundedEventCheckpoint {
     required this.scope,
     required this.chainId,
     required this.headSequence,
+    required this.headCheckpoint,
     required this.verifiedAt,
     required this.revision,
   });
 
   final CoreBoundedEventCheckpointScope scope;
   final String chainId;
+
+  /// Null only while migrating a valid v1 anchor, whose schema predates the
+  /// authenticated head proof. Such an anchor still enforces chain and
+  /// sequence monotonicity and is never exposed as a trusted v2 record.
+  final String? headCheckpoint;
   final int headSequence, revision;
   final DateTime verifiedAt;
 
-  Map<String, Object> toJson() => {
-    'version': 1,
-    ...scope.toJson(),
-    'chainId': chainId,
-    'headSequence': headSequence,
-    'verifiedAt': verifiedAt.toUtc().toIso8601String(),
-    'revision': revision,
-  };
+  Map<String, Object> toJson() {
+    final proof = headCheckpoint;
+    if (proof == null) _fail('invalid_record');
+    return {
+      'version': 2,
+      ...scope.toJson(),
+      'chainId': chainId,
+      'headSequence': headSequence,
+      'headCheckpoint': proof,
+      'verifiedAt': verifiedAt.toUtc().toIso8601String(),
+      'revision': revision,
+    };
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -103,12 +114,19 @@ final class CoreBoundedEventCheckpoint {
       other.scope == scope &&
       other.chainId == chainId &&
       other.headSequence == headSequence &&
+      other.headCheckpoint == headCheckpoint &&
       other.verifiedAt == verifiedAt &&
       other.revision == revision;
 
   @override
-  int get hashCode =>
-      Object.hash(scope, chainId, headSequence, verifiedAt, revision);
+  int get hashCode => Object.hash(
+    scope,
+    chainId,
+    headSequence,
+    headCheckpoint,
+    verifiedAt,
+    revision,
+  );
 }
 
 /// Device-local bounded-transfer event-chain anchor.
@@ -122,12 +140,16 @@ final class CoreBoundedEventCheckpointStore {
   }) : _backend = backend ?? SecureCoreBoundedEventCheckpointBackend(),
        _clock = clock ?? DateTime.now;
 
-  static const _prefix = 'core_bounded_event_checkpoint_v1';
+  static const _prefix = 'core_bounded_event_checkpoint_v2';
+  static const _legacyPrefix = 'core_bounded_event_checkpoint_v1';
   static const _maximumRawBytes = 4096;
   final CoreBoundedEventCheckpointBackend _backend;
   final DateTime Function() _clock;
 
-  static String storageKey(CoreBoundedEventCheckpointScope scope) {
+  static String _storageKey(
+    CoreBoundedEventCheckpointScope scope,
+    String prefix,
+  ) {
     final identity = jsonEncode([
       scope.context.coreId,
       scope.context.homeId,
@@ -135,8 +157,14 @@ final class CoreBoundedEventCheckpointStore {
       scope.actorId,
       scope.role.name,
     ]);
-    return '${_prefix}_${sha256.convert(utf8.encode(identity))}';
+    return '${prefix}_${sha256.convert(utf8.encode(identity))}';
   }
+
+  static String storageKey(CoreBoundedEventCheckpointScope scope) =>
+      _storageKey(scope, _prefix);
+
+  static String _legacyStorageKey(CoreBoundedEventCheckpointScope scope) =>
+      _storageKey(scope, _legacyPrefix);
 
   void Function() _guard(bool Function() current) {
     var retired = false;
@@ -167,8 +195,9 @@ final class CoreBoundedEventCheckpointStore {
 
   static CoreBoundedEventCheckpoint? _decode(
     String? raw,
-    CoreBoundedEventCheckpointScope expected,
-  ) {
+    CoreBoundedEventCheckpointScope expected, {
+    required bool legacy,
+  }) {
     if (raw == null) return null;
     try {
       if (raw.length > _maximumRawBytes ||
@@ -176,7 +205,7 @@ final class CoreBoundedEventCheckpointStore {
         _fail('invalid_record');
       }
       final value = jsonDecode(raw);
-      const fields = {
+      final fields = <String>{
         'version',
         'context',
         'resourceId',
@@ -186,11 +215,12 @@ final class CoreBoundedEventCheckpointStore {
         'headSequence',
         'verifiedAt',
         'revision',
+        if (!legacy) 'headCheckpoint',
       };
       if (value is! Map ||
           value.length != fields.length ||
           value.keys.any((key) => !fields.contains(key)) ||
-          value['version'] != 1) {
+          value['version'] != (legacy ? 1 : 2)) {
         _fail('invalid_record');
       }
       final role = switch (value['role']) {
@@ -216,6 +246,7 @@ final class CoreBoundedEventCheckpointStore {
       );
       final chain = value['chainId'];
       final head = value['headSequence'];
+      final headCheckpoint = legacy ? null : value['headCheckpoint'];
       final rawVerifiedAt = value['verifiedAt'];
       final revision = value['revision'];
       if (scope != expected ||
@@ -224,6 +255,9 @@ final class CoreBoundedEventCheckpointStore {
           head is! int ||
           head < 0 ||
           head > 2048 ||
+          !legacy &&
+              (headCheckpoint is! String ||
+                  !RegExp(r'^[0-9a-f]{64}$').hasMatch(headCheckpoint)) ||
           rawVerifiedAt is! String ||
           revision is! int ||
           revision < 1 ||
@@ -238,6 +272,7 @@ final class CoreBoundedEventCheckpointStore {
         scope: scope,
         chainId: chain,
         headSequence: head,
+        headCheckpoint: headCheckpoint,
         verifiedAt: verifiedAt,
         revision: revision,
       );
@@ -254,7 +289,14 @@ final class CoreBoundedEventCheckpointStore {
   }) {
     final check = _guard(isCurrent), key = storageKey(scope);
     return ConfigurationWrites.run(() async {
-      final result = _decode(await _read(key, check), scope);
+      final raw = await _read(key, check);
+      final result = raw == null
+          ? _decode(
+              await _read(_legacyStorageKey(scope), check),
+              scope,
+              legacy: true,
+            )
+          : _decode(raw, scope, legacy: false);
       check();
       return result;
     });
@@ -265,6 +307,7 @@ final class CoreBoundedEventCheckpointStore {
     required CoreBoundedEventCheckpoint? before,
     required String chainId,
     required int headSequence,
+    required String headCheckpoint,
     required bool Function() isCurrent,
   }) {
     final check = _guard(isCurrent), key = storageKey(scope);
@@ -272,21 +315,34 @@ final class CoreBoundedEventCheckpointStore {
       if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(chainId) ||
           headSequence < 0 ||
           headSequence > 2048 ||
+          !RegExp(r'^[0-9a-f]{64}$').hasMatch(headCheckpoint) ||
           before != null && before.scope != scope) {
         _fail('invalid_proof');
       }
-      final current = _decode(await _read(key, check), scope);
+      final raw = await _read(key, check);
+      final current = raw == null
+          ? _decode(
+              await _read(_legacyStorageKey(scope), check),
+              scope,
+              legacy: true,
+            )
+          : _decode(raw, scope, legacy: false);
       if (current != before) _fail('conflict');
       if (current != null) {
         if (current.chainId != chainId) _fail('chain_changed');
         if (headSequence < current.headSequence) _fail('rollback');
-        if (headSequence == current.headSequence) return current;
+        if (headSequence == current.headSequence &&
+            current.headCheckpoint != null) {
+          if (headCheckpoint != current.headCheckpoint) _fail('rollback');
+          return current;
+        }
         if (current.revision >= 0x1fffffffffffff) _fail('limit');
       }
       final next = CoreBoundedEventCheckpoint._(
         scope: scope,
         chainId: chainId,
         headSequence: headSequence,
+        headCheckpoint: headCheckpoint,
         verifiedAt: _clock().toUtc(),
         revision: (current?.revision ?? 0) + 1,
       );

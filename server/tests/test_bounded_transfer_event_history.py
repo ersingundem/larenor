@@ -60,6 +60,8 @@ def test_acceptance_and_result_are_distinct_events_with_one_request_id(tmp_path)
         first = accepted.json()
         assert first["headSequence"] == 1
         assert first["nextAfter"] is None
+        assert len(first["cursorCheckpoint"]) == 64
+        assert first["pageCheckpoint"] == first["headCheckpoint"]
         assert first["events"] == [
             {
                 "sequence": 1,
@@ -84,6 +86,9 @@ def test_acceptance_and_result_are_distinct_events_with_one_request_id(tmp_path)
         assert final["chainId"] == first["chainId"]
         assert final["headSequence"] == 2
         assert final["nextAfter"] is None
+        assert final["cursorCheckpoint"] == first["headCheckpoint"]
+        assert final["pageCheckpoint"] == final["headCheckpoint"]
+        assert final["headCheckpoint"] != first["headCheckpoint"]
         assert [(item["sequence"], item["kind"], item["receipt"]["state"])
                 for item in final["events"]] == [(2, "result", "completed")]
         assert final["events"][0]["receipt"]["requestId"] == body["requestId"]
