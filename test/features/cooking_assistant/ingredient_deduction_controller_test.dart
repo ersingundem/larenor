@@ -131,4 +131,18 @@ void main() {
     expect(gateway.commits, 1);
     expect(controller.receipt?.pantryRevision, 13);
   });
+
+  test('account authority loss hides an already retained receipt', () async {
+    var current = true;
+    final controller = IngredientDeductionController(
+      gateway: _Gateway(),
+      preview: IngredientDeductionPreview.fromDraft(draft()),
+      isCurrent: () => current,
+    );
+    expect(await controller.confirm(), isTrue);
+    current = false;
+    expect(await controller.confirm(), isFalse);
+    expect(controller.receipt, isNull);
+    expect(controller.failure, IngredientDeductionFailure.staleAuthority);
+  });
 }
