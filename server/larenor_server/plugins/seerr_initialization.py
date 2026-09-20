@@ -149,6 +149,16 @@ def _public(value):
     return value["initialized"], value["plexClientIdentifier"]
 
 
+def _initialize_response(value):
+    if (
+        type(value) is not dict
+        or set(value) != {"initialized"}
+        or type(value["initialized"]) is not bool
+        or value["initialized"] is not True
+    ):
+        raise SeerrInitializationError("seerr_initialization_state_conflict")
+
+
 class SeerrInitialization:
     @staticmethod
     def _exchange(connection, deadline, api_key, method, path):
@@ -232,11 +242,7 @@ class SeerrInitialization:
             )
             if status != 200:
                 raise SeerrInitializationError("seerr_initialization_protocol")
-            changed_initialized, changed_client_id = _public(changed)
-            if not changed_initialized or changed_client_id != client_id:
-                raise SeerrInitializationError(
-                    "seerr_initialization_state_conflict"
-                )
+            _initialize_response(changed)
             steps.append("initialize_sent")
             if closed:
                 raise SeerrInitializationError("seerr_initialization_protocol")

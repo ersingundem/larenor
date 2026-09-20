@@ -19,6 +19,7 @@ UNINITIALIZED = {
     "plexClientIdentifier": "6919275e-142a-48d8-be6b-93594cbd4626",
 }
 INITIALIZED = UNINITIALIZED | {"initialized": True}
+INITIALIZE_RESPONSE = {"initialized": True}
 
 
 def close_aware_connection(replies):
@@ -47,7 +48,7 @@ def complete_initialization(connection, key, **options):
 
 def test_initializes_once_and_requires_authenticated_readback():
     connection = Connection(
-        [response(UNINITIALIZED), response(INITIALIZED), response(INITIALIZED)]
+        [response(UNINITIALIZED), response(INITIALIZE_RESPONSE), response(INITIALIZED)]
     )
 
     result = complete_initialization(connection, API_KEY, total_seconds=20)
@@ -83,7 +84,7 @@ def test_already_initialized_is_idempotent_without_mutation():
 
 def test_reuses_a_real_close_aware_http_stream_through_final_readback():
     connection, worker = close_aware_connection(
-        [response(UNINITIALIZED), response(INITIALIZED), response(INITIALIZED)]
+        [response(UNINITIALIZED), response(INITIALIZE_RESPONSE), response(INITIALIZED)]
     )
 
     result = complete_initialization(connection, API_KEY)
@@ -115,13 +116,34 @@ def test_public_state_drift_fails_before_mutation(payload):
     assert len(connection.requests) == 1
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"initialized": False},
+        {"initialized": 1},
+        {"initialized": True, "plexClientIdentifier": UNINITIALIZED["plexClientIdentifier"]},
+    ],
+)
+def test_initialize_response_must_match_the_pinned_minimal_shape(payload):
+    connection = Connection([response(UNINITIALIZED), response(payload)])
+
+    with pytest.raises(
+        SeerrInitializationError, match="^seerr_initialization_state_conflict$"
+    ) as raised:
+        complete_initialization(connection, API_KEY)
+
+    assert raised.value.uncertain_effect is True
+    assert raised.value.completed_steps == ("uninitialized_verified",)
+    assert len(connection.requests) == 2
+
+
 def test_lost_initialize_readback_is_uncertain_and_never_retried():
     invalid = (
         b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
         b"Content-Length: 7\r\nConnection: close\r\n\r\ninvalid"
     )
     connection = Connection(
-        [response(UNINITIALIZED), response(INITIALIZED), invalid]
+        [response(UNINITIALIZED), response(INITIALIZE_RESPONSE), invalid]
     )
 
     with pytest.raises(SeerrInitializationError) as raised:
