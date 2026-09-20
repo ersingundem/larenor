@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert' as convert;
 
 import 'package:http/http.dart' as http;
@@ -26,13 +27,16 @@ Map<String, dynamic> profileJson({
   'username': 'private-user',
 };
 
-Map<String, dynamic> listJson(Map<String, dynamic> profile) => {
+Map<String, dynamic> listJson(
+  Map<String, dynamic> profile, {
+  int? collectionRevision,
+}) => {
   'scope': {
     'schemaVersion': 1,
     'coreId': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     'homeId': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
   },
-  'collectionRevision': profile['revision'],
+  'collectionRevision': collectionRevision ?? profile['revision'],
   'profiles': [profile],
 };
 
@@ -44,6 +48,10 @@ class CoreProfilesFixture extends AdminFixture {
 
   late Map<String, dynamic> record;
   bool offline = false, conflict = false;
+  bool losePatchResponse = false;
+  int patchCalls = 0;
+  int? collectionRevisionOverride;
+  Completer<void>? holdNextList;
 
   Future<http.Response> response(http.Request request) async {
     if (request.url.path.endsWith('/context')) return defaultResponse(request);
@@ -51,7 +59,14 @@ class CoreProfilesFixture extends AdminFixture {
       return defaultResponse(request);
     }
     if (offline) throw StateError('offline-marker-must-not-escape');
-    if (request.method == 'GET') return json(listJson(record));
+    if (request.method == 'GET') {
+      final held = holdNextList;
+      holdNextList = null;
+      if (held != null) await held.future;
+      return json(
+        listJson(record, collectionRevision: collectionRevisionOverride),
+      );
+    }
     final body = request.body.isEmpty
         ? <String, dynamic>{}
         : convert.jsonDecode(request.body) as Map<String, dynamic>;
@@ -66,6 +81,7 @@ class CoreProfilesFixture extends AdminFixture {
       }, 409);
     }
     if (request.method == 'DELETE') return http.Response('', 204);
+    if (request.method == 'PATCH') patchCalls++;
     final changed =
         request.method == 'POST' ||
         record['label'] != body['label'] ||
@@ -84,6 +100,10 @@ class CoreProfilesFixture extends AdminFixture {
       'port': body['port'],
       'username': body['username'],
     };
+    if (request.method == 'PATCH' && losePatchResponse) {
+      losePatchResponse = false;
+      throw StateError('lost-response-marker-must-not-escape');
+    }
     return json({'profile': record}, request.method == 'POST' ? 201 : 200);
   }
 }

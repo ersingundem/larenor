@@ -111,6 +111,7 @@ final class CorePersonalProfilesController extends ChangeNotifier {
   Future<void> refresh() async {
     final original = _readySession;
     if (original == null || busy) return;
+    final previous = snapshot;
     final generation = account.generation;
     final operation = ++_epoch;
     _bind(original, generation);
@@ -140,6 +141,12 @@ final class CorePersonalProfilesController extends ChangeNotifier {
       });
       if (!_isCurrent(operation, generation, original) || result == null) {
         return;
+      }
+      if (previous != null &&
+          (result!.collectionRevision < previous.collectionRevision ||
+              result!.collectionRevision == previous.collectionRevision &&
+                  !_sameSnapshot(previous, result!))) {
+        throw const LarenorServerException('invalid_response');
       }
       snapshot = result;
       loaded = true;
@@ -197,6 +204,7 @@ final class CorePersonalProfilesController extends ChangeNotifier {
 
     final original = _readySession;
     if (!canMutate || original == null || !owner()) return;
+    final before = snapshot!;
     final generation = account.generation;
     final operation = ++_epoch;
     busy = true;
@@ -225,6 +233,22 @@ final class CorePersonalProfilesController extends ChangeNotifier {
           !owner() ||
           readback == null) {
         return;
+      }
+      final expectedCollectionDelta = deleted != null
+          ? 1
+          : before.profiles.any((item) => item.id == result?.id)
+          ? result!.revision ==
+                    before.profiles
+                        .singleWhere((item) => item.id == result!.id)
+                        .revision
+                ? 0
+                : 1
+          : 1;
+      if (before.collectionRevision >
+              9223372036854775807 - expectedCollectionDelta ||
+          readback!.collectionRevision !=
+              before.collectionRevision + expectedCollectionDelta) {
+        throw const LarenorServerException('invalid_response');
       }
       if (deleted != null) {
         if (readback!.profiles.any((item) => item.id == deleted.id)) {
@@ -309,6 +333,32 @@ final class CorePersonalProfilesController extends ChangeNotifier {
 
   String _safeCode(Object error) =>
       error is LarenorServerException ? error.code : 'connection_failed';
+
+  bool _sameSnapshot(
+    CorePersonalProfilesSnapshot first,
+    CorePersonalProfilesSnapshot second,
+  ) {
+    if (first.context != second.context ||
+        first.profiles.length != second.profiles.length) {
+      return false;
+    }
+    for (var index = 0; index < first.profiles.length; index++) {
+      final left = first.profiles[index];
+      final right = second.profiles[index];
+      final a = left.profile;
+      final b = right.profile;
+      if (left.id != right.id ||
+          left.revision != right.revision ||
+          a.name != b.name ||
+          a.protocol != b.protocol ||
+          a.host != b.host ||
+          a.port != b.port ||
+          a.username != b.username) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   void _retire({required bool clear}) {
     _epoch++;

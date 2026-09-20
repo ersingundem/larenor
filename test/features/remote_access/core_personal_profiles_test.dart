@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -119,6 +120,143 @@ void main() {
     controller.dispose();
     fixture.account.dispose();
   });
+
+  test(
+    'lost mutation response reconciles by readback after controller restart',
+    () async {
+      final fixture = CoreProfilesFixture();
+      await fixture.account.initialize();
+      final first = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      first.setVisible(true);
+      await _settle(first);
+      final target = first.profiles.single;
+      fixture.losePatchResponse = true;
+      await first.update(
+        target,
+        RemoteProfile(
+          id: target.id,
+          name: 'Recovered after restart',
+          protocol: target.profile.protocol,
+          host: target.profile.host,
+          port: target.profile.port,
+          username: target.profile.username,
+        ),
+        ownerCurrent: () => true,
+      );
+      expect(first.mutationOutcome, CoreProfileMutationOutcome.uncertain);
+      expect(first.evidence.isFreshVerified, isFalse);
+      expect(fixture.patchCalls, 1);
+      first.dispose();
+
+      final restarted = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      restarted.setVisible(true);
+      await _settle(restarted);
+      expect(restarted.profiles.single.profile.name, 'Recovered after restart');
+      expect(restarted.profiles.single.revision, 2);
+      expect(restarted.evidence.isFreshVerified, isTrue);
+      await restarted.refresh();
+      expect(fixture.patchCalls, 1);
+      expect(restarted.profiles.single.revision, 2);
+      restarted.dispose();
+      fixture.account.dispose();
+    },
+  );
+
+  test('mutation rejects a stale collection revision readback', () async {
+    final fixture = CoreProfilesFixture();
+    await fixture.account.initialize();
+    final controller = CorePersonalProfilesController(
+      account: fixture.account,
+      windowCurrent: () => true,
+      clock: () => fixture.now,
+    );
+    controller.setVisible(true);
+    await _settle(controller);
+    final target = controller.profiles.single;
+    fixture.collectionRevisionOverride = 1;
+
+    await controller.update(
+      target,
+      RemoteProfile(
+        id: target.id,
+        name: 'Server changed without collection revision',
+        protocol: target.profile.protocol,
+        host: target.profile.host,
+        port: target.profile.port,
+        username: target.profile.username,
+      ),
+      ownerCurrent: () => true,
+    );
+
+    expect(controller.mutationOutcome, CoreProfileMutationOutcome.uncertain);
+    expect(controller.evidence.isFreshVerified, isFalse);
+    expect(controller.profiles.single.profile.name, 'Living room desktop');
+    controller.dispose();
+    fixture.account.dispose();
+  });
+
+  test('refresh rejects collection revision rollback in one session', () async {
+    final fixture = CoreProfilesFixture()
+      ..record = profileJson(revision: 2, label: 'Current Core value');
+    await fixture.account.initialize();
+    final controller = CorePersonalProfilesController(
+      account: fixture.account,
+      windowCurrent: () => true,
+      clock: () => fixture.now,
+    );
+    controller.setVisible(true);
+    await _settle(controller);
+    expect(controller.snapshot?.collectionRevision, 2);
+
+    fixture.record = profileJson(revision: 1, label: 'Rolled back value');
+    fixture.collectionRevisionOverride = 1;
+    await controller.refresh();
+
+    expect(controller.profiles.single.profile.name, 'Current Core value');
+    expect(controller.snapshot?.collectionRevision, 2);
+    expect(controller.evidence.isFreshVerified, isFalse);
+    controller.dispose();
+    fixture.account.dispose();
+  });
+
+  test(
+    'late list is discarded after route and session family retire',
+    () async {
+      final fixture = CoreProfilesFixture();
+      await fixture.account.initialize();
+      final controller = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      final held = Completer<void>();
+      fixture.holdNextList = held;
+      controller.setVisible(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.busy, isTrue);
+
+      controller.setVisible(false);
+      final logout = fixture.account.signOut();
+      held.complete();
+      await logout;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.profiles, isEmpty);
+      expect(controller.loaded, isFalse);
+      expect(controller.evidence.stage, ConnectionEvidenceStage.none);
+      expect(controller.mutationOutcome, isNull);
+      controller.dispose();
+      fixture.account.dispose();
+    },
+  );
 }
 
 Future<void> _settle(CorePersonalProfilesController controller) async {
