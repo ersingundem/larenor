@@ -2,7 +2,7 @@
 
 This slice accepts three remaining Client surfaces without changing their
 service ownership or advancing the selected feature backlog. Queue progress
-remains `17/125`; selected-feature progress remains `0/63`.
+remains `18/125`; selected-feature progress remains `0/63`.
 
 1. **Home Assistant setup:** The first-run URL/token form and discovered-server
    choices use the shared tablet surface, grouped settings hierarchy and 48 dp
