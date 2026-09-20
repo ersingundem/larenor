@@ -13,10 +13,23 @@ opening the response and again before every frame.
 The explicit open consumes the registry read rate limit; per-frame revalidation
 does not consume another request allowance.
 
-Production starts with an empty provider. Trusted packaged Core code may inject a
-provider that resolves only a registry resource ID to immutable bytes, a media
-type, and a service revision. HTTP callers cannot supply a filesystem path, URL,
-provider name, or command. The synthetic provider exists only in tests.
+Production now includes one encrypted product provider. A caller with current
+`write` authority can attach or replace at most 256 KiB of document/media bytes
+for a resource through the separate bounded upload route. Download resolution
+still accepts only the registry resource ID; HTTP callers cannot supply a
+filesystem path, URL, provider name, or command. Packaged test providers remain
+composable without disabling the production store.
+
+`PUT .../blob/uploads/{requestId}` requires canonical content length, SHA-256,
+media type and exact user/resource/ACL/provider revisions. Core checks write
+authority before reading bytes and repeats it in the same SQLite transaction as
+the encrypted object and immutable upload receipt. The first write expects
+provider revision `0`; replacements require the exact current revision and
+advance it once. Exact request replay returns the saved result, while a changed
+envelope returns an idempotency conflict. Object and receipt tampering prevents
+startup, resource deletion cascades to its bytes, and a wall-clock rollback
+cannot move retained timestamps backwards. `GET .../blob/descriptor` exposes
+only authorized digest/type/length/revision metadata.
 
 ## Wire and lifecycle contract
 
@@ -64,13 +77,15 @@ frames, cancellation, and other verification failures with fixed localized
 English and Turkish messages. Buttons retain a 48 logical-pixel target and
 keyboard/TalkBack semantics at 2x text scale on compact tablets and DeX widths.
 
-The v1 Client pilot requests packaged service revision `1`. Provider discovery
-and later service revisions belong to the product-provider slice below.
+The v1 Client pilot still requests provider revision `1`. It can consume a first
+uploaded product object through the existing verified download/SAF path. Reading
+the descriptor, selecting a local source, uploading, and following replacement
+revisions in the tablet UI remain the next Client slice.
 
 ## Deliberately open work
 
-S08.10 still requires product resource providers and their settings, durable
-receipt history, upload/media transfer protocols, and physical SAF acceptance.
-Range and resume remain unsupported until they receive a separate authority,
-integrity, quota, and recovery design. This pilot makes no live-network or
-production-resource acceptance claim.
+S08.10 still requires the Android upload/settings flow, media-specific transfer
+protocols, Client receipt/history integration on main, and physical SAF
+acceptance. Range and resume remain unsupported until they receive a separate
+authority, integrity, quota, and recovery design. This pilot makes no physical
+device or live-LAN acceptance claim.

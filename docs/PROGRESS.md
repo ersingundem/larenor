@@ -39,6 +39,10 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
   kalıcı depoya yazılıyor. Restart yarım işi `interrupted` yapıyor; aynı işlem
   kimliği provider açılmadan replay/çatışma olarak ayrılıyor. Salt okunur tekil
   ve sınırlı geçmiş API'leri Swagger sözleşmesine eklendi.
+- S08.10 ürün blob sağlayıcısı yetkili raw upload'u JSON yolundan ayırıyor;
+  byte'ları AES-GCM ile saklıyor, exact user/resource/ACL/provider revision,
+  digest, boyut, media type ve idempotency makbuzunu atomik bağlıyor. Restart,
+  replacement, kaynak silme, saat geri gidişi ve SQLite tamper kapalı testlerde.
 - Seerr 3.4.1 için amd64/arm64 native workflow; sahiplikli `/app/config`, özel
   ağ, sabit create/start, `initialized=false` public readback, kaynak sınırları
   ve restart sonrası aynı taze durum kanıtını üretiyor. `installAvailable=false`
@@ -49,10 +53,10 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 Yerel kanıt: komut geçmişi paketi **71**, bounded transfer ve ilişkili Core
 paketleri **174**, Seerr/native araç paketleri **53 + 295**, medya widget paketi
 **8/8** geçti; security policy, compileall, gitleaks ve hedefli analiz temiz.
-Exact PR/main CI, Seerr gerçek native makbuzları, ürün transfer sağlayıcısı,
-upload/media protokolü, Client olay cursor/checkpoint bağlama ve fiziksel SAF
-açık olduğundan S06.5, S08.10 ve B5.1 kapanmadı; sayaçlar **15/125 (%12,0)** ve
-**0/63 (%0,0)** kaldı.
+Exact PR/main CI, Seerr gerçek native makbuzları, Android ürün
+descriptor/upload akışı, medya-özel protokoller ve fiziksel SAF açık olduğundan
+S06.5, S08.10 ve B5.1 kapanmadı; sayaçlar **15/125 (%12,0)** ve **0/63 (%0,0)**
+kaldı.
 
 ### F62 RDP — bounded Client yazılım dilimi
 

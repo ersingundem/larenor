@@ -66,6 +66,8 @@ from .home_resources.service import HomeResourceRegistry
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider, BoundedTransferService
 from .bounded_transfer.schema import migrate as migrate_bounded_transfers
+from .bounded_transfer.blob_schema import migrate as migrate_bounded_blobs
+from .bounded_transfer.product_store import CompositeBlobProvider, ProductBlobStore
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_assistant.schema import migrate_home_assistant
@@ -194,6 +196,7 @@ class CoreServices:
                 self.context = migrate_context(connection, key)
                 migrate_home_resources(connection, self.context, key)
                 migrate_bounded_transfers(connection)
+                migrate_bounded_blobs(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -246,8 +249,13 @@ class CoreServices:
             self.vault = VaultService(self.db, self.auth, settings, key)
             self.home_resources = HomeResourceRegistry(self.db, self.auth, settings, key, self.context)
             self.home_resources.validate_storage()
+            self.product_blobs = ProductBlobStore(
+                self.db, settings, key, self.home_resources)
+            self.product_blobs.validate_storage()
             self.bounded_transfers = BoundedTransferService(
-                self.home_resources, settings, key, self._blob_provider, self._transfer_limits)
+                self.home_resources, settings, key,
+                CompositeBlobProvider(self._blob_provider, self.product_blobs),
+                self._transfer_limits)
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
