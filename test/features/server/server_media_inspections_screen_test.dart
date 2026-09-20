@@ -172,6 +172,59 @@ void main() {
   );
   for (final language in ['en', 'tr']) {
     testWidgets(
+      '$language tablet 2x exposes section hierarchy without merging actions',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await mount(
+            tester,
+            review: true,
+            state: 'succeeded',
+            language: language,
+            scale: 2,
+          );
+          final screen = find.byType(ServerMediaInspectionsScreen);
+          final l = AppLocalizations.of(tester.element(screen));
+
+          for (final title in [
+            l.serverMediaInspectionsReview,
+            l.serverMediaInspectionsHistory,
+          ]) {
+            expect(
+              tester.getSemantics(find.text(title).first),
+              isSemantics(label: title, isHeader: true, isButton: false),
+            );
+          }
+
+          final refresh = tester.getSemantics(find.text(l.commonRefresh));
+          expect(
+            refresh,
+            isSemantics(
+              label: l.commonRefresh,
+              isHeader: false,
+              isButton: true,
+              hasTapAction: true,
+            ),
+          );
+
+          await tap(tester, 'inspection-view-00000000000000000000000000000001');
+          expect(
+            tester.getSemantics(find.text(l.serverJobsResults)),
+            isSemantics(
+              label: l.serverJobsResults,
+              isHeader: true,
+              isButton: false,
+            ),
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
+  }
+  for (final language in ['en', 'tr']) {
+    testWidgets(
       '$language tablet 2x distinguishes local storage and daemon context from installation',
       (tester) async {
         await mount(tester, state: 'succeeded', language: language, scale: 2);
