@@ -50,6 +50,8 @@ from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
 from .plugins.media_recovery_status import MediaRecoveryStatusManagement
 from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_flow import MediaFlowManagement
+from .plugins.media_flow_schema import migrate_media_flow
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
 )
@@ -229,6 +231,7 @@ class CoreServices:
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
                 migrate_media_archive_weekly_trends(connection)
+                migrate_media_flow(connection)
                 migrate_proxmox_power(connection, key)
                 migrate_keenetic_commands(
                     connection,
@@ -368,6 +371,8 @@ class CoreServices:
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db, self.auth, settings, self.media_installations,
                 self._media_archive_binding_reader, self._media_archive_worker)
+            self.media_flow = MediaFlowManagement(
+                self.db, self.auth, settings, key)
             self.keenetic_command_journal = KeeneticCommandJournal(
                 self.db, self.auth, settings, key, self.context
             )
