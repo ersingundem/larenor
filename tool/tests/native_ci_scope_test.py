@@ -48,6 +48,10 @@ class NativeCiScopeTest(unittest.TestCase):
             for name, patterns in refs.items()
             if name != "jellyfin-managed-characterization.yml"
         ))
+        shared_models = "server/larenor_server/plugins/models.py"
+        self.assertTrue(all(
+            is_relevant(shared_models, patterns) for patterns in refs.values()
+        ))
 
     def test_unknown_or_malformed_workflow_reference_has_no_skip_authority(self):
         for value in (

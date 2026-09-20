@@ -47,6 +47,7 @@ _NATIVE_SUBSTRATE_PATTERNS = (
     "server/larenor_server/plugins/network_*",
     "server/larenor_server/plugins/volume_*",
     "server/larenor_server/plugins/managed_container.py",
+    "server/larenor_server/plugins/models.py",
     "server/larenor_server/plugins/jellyfin_*",
     "server/larenor_server/plugins/seerr_*",
     "server/larenor_server/plugins/arr_*",
