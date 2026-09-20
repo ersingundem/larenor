@@ -11,14 +11,15 @@ mevcut kabul sınırını ve sonraki parçaların kanıtını ayırır; yeni `do
 | --- | --- | --- |
 | HA komut sonucu | Kaynak kapsamlı, şifreli/idempotent komut makbuzu; `pending`, `accepted`, `rejected`, `unknown`, ayrı provider kabulü ve gözlenen sonuç. Aynı `requestId` yeniden yazılmaz. | Son durum tek başına olay sırasını veya fiziksel etkiyi kanıtlamaz. |
 | HA geçmişi | Kaynak ve aktör yetkisiyle sayfalı `/history`; `pending → final` yazımlarını koruyan, yetkili görünüme özel zincir kimliği ve ileri sıra cursor'ı sunan `/history/events`; admin için ayrı HMAC zinciri/checkpoint doğrulaması. Client'da aynı ev bağlamına bağlı etkinlik ekranı. | Client'ın yeni olay cursor'ını ve zincir değişimini kalıcı güven durumu ile birleştirmesi; yenileme başarısızken eski doğrulamanın yeni kanıt sayılmaması. |
-| Sınırlı indirme | Ayrı `POST /blob` binary akışı; kaynak/user/ACL/service revision, 32 hex iz kimliği, sıralı frame, boş son frame, uzunluk ve SHA-256. Client tam doğrulamadan sonra Android SAF hedefini açar. | Gerçek ürün sağlayıcıları ve ayarları, kalıcı makbuz, ayrı upload/media protokolü, fiziksel SAF. |
+| Sınırlı indirme | Ayrı `POST /blob` binary akışı; kaynak/user/ACL/service revision, 32 hex iz kimliği, sıralı frame, boş son frame, uzunluk ve SHA-256. Başlangıç/tamamlanma/kesilme makbuzu kalıcı ve HMAC doğrulamalıdır; restart yarım işi `interrupted` yapar. Client tam doğrulamadan sonra Android SAF hedefini açar. | Gerçek ürün sağlayıcıları ve ayarları, Client makbuz/geçmiş görünümü, ayrı upload/media protokolü, fiziksel SAF. |
 
 Client artık her kullanıcı başlatmalı indirme için kriptografik rastgele 128 bit
 `requestId` üretir. Core bu kimliği doğrulayıp aynı değeri akış trace'i olarak
 geri verir; Client farklı bir trace taşıyan yanıtı hiçbir byte yayımlamadan
 reddeder. Böylece başlangıç ve doğrulanmış indirme sonucu aynı işlem kimliğine
 bağlanır. Kalıcı transfer makbuzu, restart sonrası tekrar ayrımı ve geçmiş API'si
-hala açık olduğundan S08.10 kabulü ve sayaçlar değişmez.
+kalıcı Client geçmiş görünümü ve ürün protokolleri hala açık olduğundan S08.10
+kabulü ve sayaçlar değişmez.
 
 Komut olay okuması değiştirilebilir güncel komut satırını olaymış gibi tekrar
 yorumlamaz. Şifreli append zincirindeki başlangıç ve sonuç snapshot'larını sıra

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-20",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -1913,7 +1913,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/s08-10-integration-acceptance-2026-09-15.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1924,7 +1925,32 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "server/tests/test_command_event_history.py",
+          "commit": "f40f87f804f69b7bd0f1696d9a693119afd8bcc7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kaynak ve aktör yetkili görünümüne özel monotonic chain/cursor, pending→final append snapshotları, restartta no-replay ve kapalı query/OpenAPI sözleşmesi; 71 ilgili komut geçmişi testi PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_bounded_transfer_receipts.py",
+          "commit": "7b653c1fbe42fefbd7f543c398bb9836d3a70881",
+          "state": "completed",
+          "result": "passed",
+          "label": "HMAC doğrulamalı kalıcı bounded-transfer makbuzu; completed/interrupted, restart recovery, exact replay ve değişen istek çatışması provider açılmadan ayrılıyor. Exact SQLite şema/satır doğrulaması ve kapalı query sınırı; 191 ilgili test PASS. Ürün providerı, upload/media ve fiziksel SAF açık."
+        },
+        {
+          "kind": "review",
+          "ref": "server/larenor_server/bounded_transfer/receipts.py",
+          "commit": "7b653c1fbe42fefbd7f543c398bb9836d3a70881",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yetki/query, pre-provider idempotency zarfı ve SQLite şema/satır bütünlüğü incelemesindeki açıklar kapatıldı; gizli global sıra ve çapraz aktör görünümü de olay API testlerinde reddediliyor."
+        }
+      ],
       "completionCommit": null,
       "reason": null
     },
