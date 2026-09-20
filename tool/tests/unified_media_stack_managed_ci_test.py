@@ -117,6 +117,48 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             self.assertEqual(driver.calls[-1], "cleanup")
             self.assertNotIn("private", str(raised.exception))
 
+    def test_rendered_compose_security_drift_is_rejected_before_prepare(self):
+        expected = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
+        encoded = json.dumps(expected).replace(
+            "${LARENOR_SOURCE_REVISION:?exact source revision required}", REVISION,
+        ).replace("${LARENOR_SOURCE_REVISION}", REVISION)
+        expected = json.loads(encoded)
+        resolved = json.loads(json.dumps(expected))
+        project = "larenor-native-" + "f" * 32
+        resolved["name"] = project
+        resolved["services"]["larenor-core"]["build"]["context"] = str(ROOT)
+        resolved["services"]["larenor-core"]["build"]["dockerfile"] = str(
+            ROOT / "server/Dockerfile")
+        target.validate_rendered_config(resolved, expected, project)
+        drifts = []
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-seerr"]["user"] = "0:0"
+        drifts.append(changed)
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-seerr"]["cap_add"] = ["SYS_ADMIN"]
+        drifts.append(changed)
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-seerr"]["environment"]["API_TOKEN"] = "private"
+        drifts.append(changed)
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-seerr"]["volumes"][0]["source"] = "/foreign"
+        drifts.append(changed)
+        for changed in drifts:
+            with self.subTest(changed=changed["services"]["larenor-seerr"]):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_manifest_invalid"):
+                    target.validate_rendered_config(changed, expected, project)
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            with patch.object(driver, "_compose", side_effect=[
+                    (0, b""), (0, json.dumps(drifts[0]).encode("utf-8"))]):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_manifest_invalid"):
+                    driver.config(target.COMPOSE, REVISION)
+
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "owned-root"
@@ -125,6 +167,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             receipt.write_text(json.dumps({
                 "schemaVersion": 1, "operationId": operation_id,
                 "sourceCommit": REVISION, "root": str(root),
+                "projectName": "larenor-native-" + operation_id,
             }))
             root.mkdir()
             (root / target.MARKER).write_text(operation_id + "\n")
@@ -134,6 +177,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 target.cleanup_owned(receipt, REVISION)
             self.assertFalse(root.exists())
             self.assertEqual(command.call_count, 1)
+            arguments = command.call_args.args[0]
+            self.assertEqual(arguments[arguments.index("--project-name") + 1],
+                             "larenor-native-" + operation_id)
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)

@@ -373,12 +373,138 @@ def verify(path, commit, selected_platform):
     validate_receipt(value, commit, selected_platform)
 
 
+def _config_mounts(service):
+    values = service.get("volumes", [])
+    if not isinstance(values, list):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    result = []
+    for item in values:
+        if not isinstance(item, dict) or item.get("type") != "bind":
+            raise ManagedStackCIError("unified_manifest_invalid")
+        bind = item.get("bind", {})
+        if bind.get("create_host_path", False) is not False:
+            raise ManagedStackCIError("unified_manifest_invalid")
+        result.append({"source": item.get("source"), "target": item.get("target"),
+                       "readOnly": item.get("read_only", False)})
+    return sorted(result, key=lambda item: (str(item["source"]), str(item["target"])))
+
+
+def _config_networks(service):
+    value = service.get("networks", [])
+    if isinstance(value, list):
+        return set(value)
+    if isinstance(value, dict):
+        return set(value)
+    raise ManagedStackCIError("unified_manifest_invalid")
+
+
+def _config_ports(service):
+    result = []
+    for item in service.get("ports", []):
+        if isinstance(item, str):
+            match = re.fullmatch(r"(?:0\.0\.0\.0:)?([0-9]+):([0-9]+)(?:/(tcp|udp))?", item)
+            if not match:
+                raise ManagedStackCIError("unified_manifest_invalid")
+            result.append((match.group(1), int(match.group(2)), match.group(3) or "tcp"))
+        elif isinstance(item, dict):
+            published = item.get("published")
+            target = item.get("target")
+            protocol = item.get("protocol", "tcp")
+            if (type(published) not in (str, int) or type(target) is not int
+                    or protocol not in {"tcp", "udp"}
+                    or item.get("host_ip", "0.0.0.0") not in {"", "0.0.0.0"}
+                    or item.get("mode", "ingress") != "ingress"):
+                raise ManagedStackCIError("unified_manifest_invalid")
+            result.append((str(published), target, protocol))
+        else:
+            raise ManagedStackCIError("unified_manifest_invalid")
+    return sorted(result)
+
+
+def _config_extra_hosts(service):
+    result = {}
+    value = service.get("extra_hosts", [])
+    if isinstance(value, dict):
+        result = dict(value)
+    elif isinstance(value, list):
+        for item in value:
+            if not isinstance(item, str) or not re.fullmatch(r"[^:=]+(?::|=)[^:=]+", item):
+                raise ManagedStackCIError("unified_manifest_invalid")
+            name, address = re.split(r":|=", item, maxsplit=1)
+            result[name] = address
+    else:
+        raise ManagedStackCIError("unified_manifest_invalid")
+    return result
+
+
+def validate_rendered_config(rendered, expected, project_name):
+    """Bind Docker's normalized config to every security/topology input we run."""
+    if (not isinstance(rendered, dict) or not isinstance(expected, dict)
+            or rendered.get("name") != project_name
+            or not re.fullmatch(r"larenor-native-[a-f0-9]{32}", project_name)
+            or set(rendered.get("services", {})) != set(expected.get("services", {}))
+            or set(rendered.get("networks", {})) != {"control"}):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    network = rendered["networks"]["control"]
+    if (not isinstance(network, dict) or network.get("name") != NETWORK
+            or network.get("driver", "bridge") != "bridge"
+            or network.get("external", False) is not False
+            or network.get("internal", False) is not False):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    forbidden = re.compile(r"token|api.?key|password|credential|authorization|secret.?value", re.I)
+
+    def private(value):
+        if isinstance(value, dict):
+            return any(forbidden.search(str(key)) or private(item)
+                       for key, item in value.items())
+        if isinstance(value, list):
+            return any(private(item) for item in value)
+        return False
+
+    if private(rendered):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    for name, wanted in expected["services"].items():
+        actual = rendered["services"].get(name)
+        if not isinstance(actual, dict):
+            raise ManagedStackCIError("unified_manifest_invalid")
+        for key in ("container_name", "image", "user", "environment", "labels",
+                    "cap_drop", "cap_add", "security_opt", "restart", "logging", "init"):
+            if actual.get(key) != wanted.get(key):
+                raise ManagedStackCIError("unified_manifest_invalid")
+        if (actual.get("privileged", False) is not False
+                or actual.get("read_only", False) != wanted.get("read_only", False)
+                or actual.get("devices", []) not in (None, [])
+                or any(key in actual for key in (
+                    "pid", "ipc", "uts", "cgroup", "secrets", "configs", "env_file",
+                    "command", "entrypoint"))
+                or _config_mounts(actual) != _config_mounts(wanted)
+                or _config_ports(actual) != _config_ports(wanted)
+                or _config_extra_hosts(actual) != _config_extra_hosts(wanted)):
+            raise ManagedStackCIError("unified_manifest_invalid")
+        if wanted.get("network_mode") == "host":
+            if actual.get("network_mode") != "host" or _config_networks(actual):
+                raise ManagedStackCIError("unified_manifest_invalid")
+        elif actual.get("network_mode") not in (None, "") or _config_networks(actual) != {"control"}:
+            raise ManagedStackCIError("unified_manifest_invalid")
+    core_build = rendered["services"][package.CORE_NAME].get("build")
+    expected_build = expected["services"][package.CORE_NAME]["build"]
+    if (not isinstance(core_build, dict)
+            or core_build.get("args") != expected_build["args"]
+            or Path(core_build.get("context", "")).resolve() != REPOSITORY.resolve()
+            or Path(core_build.get("dockerfile", "")).resolve()
+            != (REPOSITORY / "server/Dockerfile").resolve()):
+        raise ManagedStackCIError("unified_manifest_invalid")
+
+
 class DockerDriver:
-    def __init__(self, commit, selected_platform, ownership_receipt):
+    def __init__(self, commit, selected_platform, ownership_receipt, *, operation_id=None):
         self.commit = commit
         self.platform = selected_platform
         self.ownership_receipt = Path(ownership_receipt)
-        self.operation_id = uuid.uuid4().hex
+        self.operation_id = uuid.uuid4().hex if operation_id is None else operation_id
+        if not isinstance(self.operation_id, str) or not re.fullmatch(r"[a-f0-9]{32}", self.operation_id):
+            raise ManagedStackCIError("unified_launch_invalid")
+        self.project_name = "larenor-native-" + self.operation_id
         self.config_digest = None
         self.ownership_digest = None
         self._owned = False
@@ -388,7 +514,8 @@ class DockerDriver:
         }
 
     def _compose(self, *arguments, timeout=300, output=False, allow_failure=False):
-        return _command(["/usr/bin/docker", "compose", "-f", str(COMPOSE), *arguments],
+        return _command(["/usr/bin/docker", "compose", "--project-name", self.project_name,
+                         "-f", str(COMPOSE), *arguments],
                         environment=self._environment, timeout=timeout,
                         output=output, allow_failure=allow_failure)
 
@@ -401,8 +528,10 @@ class DockerDriver:
             parsed = _duplicate_safe(rendered.decode("utf-8"))
         except (UnicodeError, ValueError, json.JSONDecodeError):
             raise ManagedStackCIError("unified_manifest_invalid") from None
+        expected = SourceConfig().config(path, revision)
+        validate_rendered_config(parsed, expected, self.project_name)
         self.config_digest = _digest(parsed)
-        return SourceConfig().config(path, revision)
+        return expected
 
     def _docker_list(self, arguments):
         _, value = _command(["/usr/bin/docker", *arguments], environment=self._environment,
@@ -429,7 +558,8 @@ class DockerDriver:
                               "--format", "{{.ID}}"]):
             raise ManagedStackCIError("unified_foreign_resource")
         receipt = {"schemaVersion": 1, "operationId": self.operation_id,
-                   "sourceCommit": self.commit, "root": str(ROOT)}
+                   "sourceCommit": self.commit, "root": str(ROOT),
+                   "projectName": self.project_name}
         encoded = (_canonical(receipt) + "\n").encode("ascii")
         if not self.ownership_receipt.is_absolute() or self.ownership_receipt.is_symlink():
             raise ManagedStackCIError("unified_foreign_resource")
@@ -565,10 +695,11 @@ def _read_ownership(path, commit):
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
         raise ManagedStackCIError("unified_cleanup_not_owned") from None
     if (not isinstance(value, dict) or set(value) != {
-            "schemaVersion", "operationId", "sourceCommit", "root"}
+            "schemaVersion", "operationId", "sourceCommit", "root", "projectName"}
             or value.get("schemaVersion") != 1
             or not re.fullmatch(r"[a-f0-9]{32}", value.get("operationId", ""))
-            or value.get("sourceCommit") != commit or value.get("root") != str(ROOT)):
+            or value.get("sourceCommit") != commit or value.get("root") != str(ROOT)
+            or value.get("projectName") != "larenor-native-" + value.get("operationId", "")):
         raise ManagedStackCIError("unified_cleanup_not_owned")
     return value
 
@@ -589,7 +720,8 @@ def cleanup_owned(receipt_path, commit):
     environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp",
                    "LARENOR_SOURCE_REVISION": commit}
     try:
-        _command(["/usr/bin/docker", "compose", "-f", str(COMPOSE), "down",
+        _command(["/usr/bin/docker", "compose", "--project-name", value["projectName"],
+                  "-f", str(COMPOSE), "down",
                   "--remove-orphans", "--timeout", "30"], environment=environment,
                  timeout=180, output=False)
         shutil.rmtree(ROOT)

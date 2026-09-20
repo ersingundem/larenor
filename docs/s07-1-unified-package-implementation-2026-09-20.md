@@ -89,3 +89,29 @@ Yerel ortamda Docker ve bu iki self-hosted runner bulunmadığından gerçek nat
 workflow sonucu henüz yoktur. Policy ve fake-engine testleri yürütücü sırasını,
 receipt doğrulamasını, belirsiz servis reddini ve sahiplikli cleanup'ı kanıtlar;
 S07.1 bu yüzden `pending` ve sayaçlar değişmeden kalır.
+
+## Saldırgan paket incelemesi
+
+Native kabul kodu ilk incelemede iki gerçek sınır kusuru taşıyordu:
+
+- **P1 — rendered config bağı kopuktu.** Docker Compose'un normalize ettiği
+  `config --format json` yalnız hashleniyor, planner ise ham dosyadan manifest
+  üretiyordu. `validate_rendered_config` artık exact servis kümesi, image/user,
+  capability/security option, environment/label, bind, port, control ağı,
+  host-network istisnası, Core build context/Dockerfile ve private-field
+  yokluğunu gerçek rendered config üzerinde doğrulamadan prepare/pull yapmaz.
+- **P2 — cleanup proje sahipliği yeterince dar değildi.** Sabit Compose proje
+  adıyla `down`, foreign veya yarışta oluşmuş aynı adlı projeyi hedefleyebilirdi.
+  Her native çalıştırma artık CSPRNG operation kimliğinden özel bir Compose
+  project adı üretir; private ownership receipt bu adı revision ve root marker
+  ile bağlar. Bütün Compose mutasyonları ve cleanup aynı özel proje adıyla
+  çalışır. Eşleşmeyen receipt/marker hiçbir Docker veya dizin silme işlemi
+  başlatmaz.
+
+Ek denetimde CasaOS/Proxmox için Linux bind/bridge/host-network sözleşmesinin
+Compose kaynağında taşınabilir kaldığı; public receipt'te host path, environment,
+URL, log, raw container kimliği veya authority bulunmadığı; symlink/owner/mode ve
+birleşik kapasite gözlemlerinin mutation öncesi kapandığı; OCI index digest ile
+native platformun birlikte doğrulandığı; bootstrap authority verilmediğinde
+readiness'nin `verified` yapılmadığı doğrulandı. Bu alanlarda yeni P1/P2
+bulunmadı. Gerçek runner sonucu hâlâ zorunlu dış kanıttır.
