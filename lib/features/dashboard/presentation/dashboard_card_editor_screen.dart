@@ -289,7 +289,10 @@ class _DashboardCardEditorScreenState
                       if (_message != null)
                         Padding(
                           padding: const EdgeInsets.all(16),
-                          child: Text(_message!),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(_message!),
+                          ),
                         ),
                       if (ids.isEmpty)
                         Padding(
@@ -378,15 +381,28 @@ class _DashboardCardEditorScreenState
                                             ),
                                           ),
                                           if (reorderable && !_busy)
-                                            ReorderableDragStartListener(
-                                              index: index,
-                                              child: const Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: Icon(
-                                                  CupertinoIcons
-                                                      .line_horizontal_3,
-                                                ),
+                                            Semantics(
+                                              key: ValueKey(
+                                                'dashboard-edit-reorder-$id',
                                               ),
+                                              label: l10n.dashboardReorder(
+                                                name,
+                                              ),
+                                              child:
+                                                  ReorderableDragStartListener(
+                                                    index: index,
+                                                    child: const Padding(
+                                                      padding: EdgeInsets.all(
+                                                        12,
+                                                      ),
+                                                      child: ExcludeSemantics(
+                                                        child: Icon(
+                                                          CupertinoIcons
+                                                              .line_horizontal_3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                             ),
                                         ],
                                       ),
@@ -400,82 +416,102 @@ class _DashboardCardEditorScreenState
                                             WrapCrossAlignment.center,
                                         children: [
                                           if (tile?.type == TileType.webview)
-                                            CupertinoButton(
+                                            Semantics(
                                               key: ValueKey(
                                                 'dashboard-web-settings-$id',
                                               ),
-                                              onPressed: _busy
-                                                  ? null
-                                                  : () => _webSettings(
-                                                      tile!,
-                                                      generation,
-                                                    ),
-                                              child: Text(
-                                                l10n.webPanelSettings,
-                                              ),
-                                            ),
-                                          if (tile?.type == TileType.today)
-                                            CupertinoButton(
-                                              key: ValueKey(
-                                                'dashboard-today-settings-$id',
-                                              ),
-                                              onPressed: _busy
-                                                  ? null
-                                                  : () => _todaySettings(
-                                                      tile!,
-                                                      generation,
-                                                    ),
-                                              child: Text(l10n.commonEdit),
-                                            ),
-                                          CupertinoButton(
-                                            key: ValueKey(
-                                              'dashboard-edit-size-$id',
-                                            ),
-                                            onPressed: _busy
-                                                ? null
-                                                : () => _size(id, generation),
-                                            child: Text(
-                                              '${l10n.dashboardCardSize}: $sizeText',
-                                            ),
-                                          ),
-                                          if (reorderable) ...[
-                                            CupertinoButton(
-                                              key: ValueKey(
-                                                'dashboard-edit-up-$id',
-                                              ),
-                                              onPressed: _busy || index == 0
-                                                  ? null
-                                                  : () => _move(
-                                                      ids,
-                                                      index,
-                                                      index - 1,
-                                                      generation,
-                                                    ),
-                                              child: Semantics(
-                                                label: l10n.dashboardMoveUp,
-                                                child: const Icon(
-                                                  CupertinoIcons.arrow_up,
+                                              button: true,
+                                              child: CupertinoButton(
+                                                minimumSize: const Size(48, 48),
+                                                onPressed: _busy
+                                                    ? null
+                                                    : () => _webSettings(
+                                                        tile!,
+                                                        generation,
+                                                      ),
+                                                child: Text(
+                                                  l10n.webPanelSettings,
                                                 ),
                                               ),
                                             ),
-                                            CupertinoButton(
+                                          if (tile?.type == TileType.today)
+                                            Semantics(
+                                              key: ValueKey(
+                                                'dashboard-today-settings-$id',
+                                              ),
+                                              button: true,
+                                              child: CupertinoButton(
+                                                minimumSize: const Size(48, 48),
+                                                onPressed: _busy
+                                                    ? null
+                                                    : () => _todaySettings(
+                                                        tile!,
+                                                        generation,
+                                                      ),
+                                                child: Text(l10n.commonEdit),
+                                              ),
+                                            ),
+                                          Semantics(
+                                            key: ValueKey(
+                                              'dashboard-edit-size-$id',
+                                            ),
+                                            button: true,
+                                            child: CupertinoButton(
+                                              minimumSize: const Size(48, 48),
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _size(id, generation),
+                                              child: Text(
+                                                '${l10n.dashboardCardSize}: $sizeText',
+                                              ),
+                                            ),
+                                          ),
+                                          if (reorderable) ...[
+                                            Semantics(
+                                              key: ValueKey(
+                                                'dashboard-edit-up-$id',
+                                              ),
+                                              button: true,
+                                              label: l10n.dashboardMoveUp,
+                                              child: CupertinoButton(
+                                                minimumSize: const Size(48, 48),
+                                                onPressed: _busy || index == 0
+                                                    ? null
+                                                    : () => _move(
+                                                        ids,
+                                                        index,
+                                                        index - 1,
+                                                        generation,
+                                                      ),
+                                                child: const ExcludeSemantics(
+                                                  child: Icon(
+                                                    CupertinoIcons.arrow_up,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Semantics(
                                               key: ValueKey(
                                                 'dashboard-edit-down-$id',
                                               ),
-                                              onPressed:
-                                                  _busy ||
-                                                      index == ids.length - 1
-                                                  ? null
-                                                  : () => _move(
-                                                      ids,
-                                                      index,
-                                                      index + 1,
-                                                      generation,
-                                                    ),
-                                              child: Semantics(
-                                                label: l10n.dashboardMoveDown,
-                                                child: const Icon(
-                                                  CupertinoIcons.arrow_down,
+                                              button: true,
+                                              label: l10n.dashboardMoveDown,
+                                              child: CupertinoButton(
+                                                minimumSize: const Size(48, 48),
+                                                onPressed:
+                                                    _busy ||
+                                                        index == ids.length - 1
+                                                    ? null
+                                                    : () => _move(
+                                                        ids,
+                                                        index,
+                                                        index + 1,
+                                                        generation,
+                                                      ),
+                                                child: const ExcludeSemantics(
+                                                  child: Icon(
+                                                    CupertinoIcons.arrow_down,
+                                                  ),
                                                 ),
                                               ),
                                             ),

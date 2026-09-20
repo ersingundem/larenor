@@ -570,7 +570,10 @@ void main() {
     );
     tester
         .widget<CupertinoButton>(
-          find.byKey(const ValueKey('dashboard-edit-up-bandwidth')),
+          find.descendant(
+            of: find.byKey(const ValueKey('dashboard-edit-up-bandwidth')),
+            matching: find.byType(CupertinoButton),
+          ),
         )
         .onPressed!();
     await tester.pumpAndSettle();

@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/presentation/entity_multi_picker_screen.dart';
@@ -98,7 +100,10 @@ void main() {
           expect(tester.getSemantics(row).flagsCollection.isButton, isTrue);
           await tester.tap(row);
           await tester.pump();
-          expect(tester.getSemantics(row).flagsCollection.isSelected, isTrue);
+          expect(
+            tester.getSemantics(row).flagsCollection.isSelected,
+            ui.Tristate.isTrue,
+          );
           final add = find.byKey(const ValueKey('entity-multi-picker-add'));
           expect(tester.getRect(add).height, greaterThanOrEqualTo(48));
           expect(tester.getSemantics(add).flagsCollection.isButton, isTrue);
