@@ -239,6 +239,40 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                     with self.assertRaisesRegex(target.ManagedStackCIError, code):
                         method()
 
+    def test_core_runtime_wait_is_bounded_and_dns_failure_is_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            starting = json.dumps({
+                "Running": True, "Health": {"Status": "starting"},
+            }).encode("utf-8")
+            healthy = json.dumps({
+                "Running": True, "Health": {"Status": "healthy"},
+            }).encode("utf-8")
+            with patch.object(target, "_command", side_effect=[
+                    (0, starting), (0, healthy)]), patch.object(
+                    target.time, "monotonic", side_effect=[0, 0, 1]), patch.object(
+                    target.time, "sleep") as sleep:
+                driver._await_core_runtime(timeout=5, interval=1)
+            sleep.assert_called_once_with(1)
+
+            stopped = json.dumps({
+                "Running": False, "Health": {"Status": "unhealthy"},
+            }).encode("utf-8")
+            with patch.object(target, "_command", return_value=(0, stopped)):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_core_runtime_unready"):
+                    driver._await_core_runtime()
+
+            with patch.object(
+                    target, "_command",
+                    side_effect=target.ManagedStackCIError("unified_native_runtime_failed")):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_dns_runtime_failed"):
+                    driver._verify_dns("larenor-jellyfin")
+
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "owned-root"

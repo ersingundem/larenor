@@ -208,3 +208,13 @@ image artık bounded bellek/ağ kullanımı için sabit sırada tek tek çekilir
 Core build, create, start ve restart aşamaları ayrı allowlist hata kodlarıyla
 raporlanır. Kodlar URL, path, log veya credential taşımaz ve cleanup yine her
 sonuç yolunda çalışır.
+
+Üçüncü native deneme, iki mimaride de yaşam döngüsünün yaklaşık aynı noktada
+Core içinden DNS kanıtı alınırken kapandığını gösterdi. Container `start`
+komutunun dönmesi Core HTTP sağlık denetiminin hazır olduğunu kanıtlamadığından,
+receipt artık Dockerfile'daki public sağlık sözleşmesini en çok 180 saniye ve
+sabit aralıklarla bekler. Duran, sağlıksız, biçimsiz veya süre aşımına uğrayan
+Core fail-closed olur; container logu, health ayrıntısı ya da özel değer public
+çıktıya taşınmaz. DNS yürütme hatası da ayrı sabit kodla kapanır. Bu yalnız
+runtime/DNS kanıtını sıralar; authenticated servis readiness durumu hâlâ yetki
+sağlanana kadar açıkça `not_verified` kalır.

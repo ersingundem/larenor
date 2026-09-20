@@ -19,6 +19,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import uuid
 
 
@@ -67,6 +68,8 @@ _CODES = {
     "unified_create_runtime_failed",
     "unified_start_runtime_failed",
     "unified_restart_runtime_failed",
+    "unified_core_runtime_unready",
+    "unified_dns_runtime_failed",
 }
 
 
@@ -664,6 +667,7 @@ class DockerDriver:
             raise ManagedStackCIError("unified_restart_runtime_failed") from None
 
     def receipts(self, manifest, phase):
+        self._await_core_runtime()
         values = []
         for item in manifest["components"]:
             _, raw = _command(["/usr/bin/docker", "container", "inspect",
@@ -705,9 +709,38 @@ class DockerDriver:
     def _verify_dns(self, name):
         code = ("import socket,sys; values=socket.getaddrinfo(sys.argv[1],1); "
                 "assert values")
-        _command(["/usr/bin/docker", "exec", package.CORE_NAME,
-                  "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
-                 environment=self._environment, timeout=15, output=False)
+        try:
+            _command(["/usr/bin/docker", "exec", package.CORE_NAME,
+                      "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
+                     environment=self._environment, timeout=15, output=False)
+        except ManagedStackCIError:
+            raise ManagedStackCIError("unified_dns_runtime_failed") from None
+
+    def _await_core_runtime(self, *, timeout=180, interval=2):
+        """Wait for the package's public Core health check without reading logs."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status, raw = _command(
+                ["/usr/bin/docker", "container", "inspect", "--format",
+                 "{{json .State}}", package.CORE_NAME],
+                environment=self._environment, timeout=10, output=True,
+                allow_failure=True,
+            )
+            if status == 0:
+                try:
+                    state = _duplicate_safe(raw.decode("utf-8").strip())
+                except (UnicodeError, ValueError, json.JSONDecodeError):
+                    raise ManagedStackCIError("unified_core_runtime_unready") from None
+                health = state.get("Health") if isinstance(state, dict) else None
+                if (isinstance(health, dict) and state.get("Running") is True
+                        and health.get("Status") == "healthy"):
+                    return
+                if (not isinstance(state, dict) or state.get("Running") is not True
+                        or not isinstance(health, dict)
+                        or health.get("Status") not in {"starting", "healthy"}):
+                    raise ManagedStackCIError("unified_core_runtime_unready")
+            time.sleep(interval)
+        raise ManagedStackCIError("unified_core_runtime_unready")
 
     def authenticated_readiness(self, service_id):
         if service_id not in COMPONENTS:
