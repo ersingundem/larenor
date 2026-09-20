@@ -365,6 +365,7 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
                                           key: ValueKey(
                                             'admin-tab-${tab.name}',
                                           ),
+                                          minimumSize: const Size(48, 48),
                                           color: _tab == tab
                                               ? CupertinoColors
                                                     .tertiarySystemFill
@@ -393,6 +394,7 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
                             children: [
                               CupertinoButton(
                                 key: const ValueKey('admin-refresh'),
+                                minimumSize: const Size(48, 48),
                                 onPressed: !_admin.busy
                                     ? _callback(_load)
                                     : null,
@@ -401,6 +403,7 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
                               if (_tab == AdminTab.users)
                                 CupertinoButton(
                                   key: const ValueKey('admin-create'),
+                                  minimumSize: const Size(48, 48),
                                   onPressed: _enabled
                                       ? _callback(_create)
                                       : null,
@@ -446,6 +449,7 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
                           : hasMore
                           ? CupertinoButton(
                               key: const ValueKey('admin-more'),
+                              minimumSize: const Size.fromHeight(48),
                               onPressed: _enabled
                                   ? _callback(() => _load(more: true))
                                   : null,
@@ -502,11 +506,13 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
       children: [
         CupertinoButton(
           key: ValueKey('admin-edit-${user.id}'),
+          minimumSize: const Size(48, 48),
           onPressed: _enabled ? _callback(() => _edit(user)) : null,
           child: Text(l10n.serverAdminEdit),
         ),
         CupertinoButton(
           key: ValueKey('admin-reset-${user.id}'),
+          minimumSize: const Size(48, 48),
           onPressed: _enabled && user.id != _account.session?.user.id
               ? _callback(() => _reset(user))
               : null,
@@ -534,6 +540,7 @@ class _ServerAdminScreenState extends MediaSessionState<ServerAdminScreen> {
     if (session.status == AdminSessionStatus.active)
       CupertinoButton(
         key: ValueKey('admin-revoke-${session.id}'),
+        minimumSize: const Size.fromHeight(48),
         onPressed: _enabled ? _callback(() => _revoke(session)) : null,
         child: Text(l10n.serverAdminRevoke),
       ),
@@ -636,6 +643,7 @@ class _UserFormState extends State<_UserForm> {
                     selected: _role == role,
                     child: CupertinoButton(
                       key: ValueKey('admin-role-${role.name}'),
+                      minimumSize: const Size(48, 48),
                       onPressed: () {
                         if (widget.current()) setState(() => _role = role);
                       },
@@ -755,6 +763,7 @@ class _AccessFormState extends State<_AccessForm> {
                   selected: _role == role,
                   child: CupertinoButton(
                     key: ValueKey('admin-access-role-${role.name}'),
+                    minimumSize: const Size(48, 48),
                     onPressed: () {
                       if (widget.current()) setState(() => _role = role);
                     },
