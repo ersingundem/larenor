@@ -362,7 +362,11 @@ class _QbittorrentTorrentsScreenState
         statusKey: const ValueKey('qbittorrent-torrents-status'),
         actionLabel: l10n.commonRetry,
         actionKey: const ValueKey('qbittorrent-torrents-retry'),
-        onAction: () => ref.invalidate(qbittorrentConnectionProvider),
+        onAction: _guardedAction(() {
+          if (identical(ref.read(qbittorrentConnectionProvider), connection)) {
+            ref.invalidate(qbittorrentConnectionProvider);
+          }
+        }),
       );
     }
     if (OperationalServiceScope.maybeOf(context) == null &&
