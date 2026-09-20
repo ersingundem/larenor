@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../settings/presentation/settings_file_dialog.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -157,6 +159,17 @@ class _WebPanelDataState extends DashboardEditState<WebPanelDataScreen> {
     }
   }
 
+  Widget _statusRow(Widget child) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 48),
+    child: Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: child),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     watchDashboardAccount();
@@ -171,45 +184,58 @@ class _WebPanelDataState extends DashboardEditState<WebPanelDataScreen> {
       }
     });
     final l10n = AppLocalizations.of(context);
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.webPanelDataTitle),
-      ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(l10n.webPanelDataWarning),
-            const SizedBox(height: 20),
-            if (_expired)
-              Text(l10n.dashboardWidgetPickerExpired)
-            else if (pin.isLoading)
-              const Center(child: CupertinoActivityIndicator())
-            else if (pin.hasError)
-              Text(l10n.settingsGateStorageError)
-            else if (pin.value == null)
-              Text(l10n.settingsSetPin)
-            else
-              CupertinoButton(
-                key: const ValueKey('web-data-clear'),
-                onPressed: _busy ? null : _clear,
-                child: _clearing
-                    ? const CupertinoActivityIndicator()
-                    : Text(
+    return ServiceRootScaffold(
+      title: l10n.webPanelDataTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            children: [
+              SettingsSection(
+                footer: Text(l10n.webPanelDataWarning),
+                children: [
+                  if (_expired)
+                    _statusRow(Text(l10n.dashboardWidgetPickerExpired))
+                  else if (pin.isLoading)
+                    _statusRow(const CupertinoActivityIndicator())
+                  else if (pin.hasError)
+                    _statusRow(Text(l10n.settingsGateStorageError))
+                  else if (pin.value == null)
+                    _statusRow(Text(l10n.settingsSetPin))
+                  else
+                    SettingsActionTile(
+                      key: const ValueKey('web-data-clear'),
+                      buttonKey: const ValueKey('web-data-clear-action'),
+                      leading: _clearing
+                          ? const CupertinoActivityIndicator()
+                          : Icon(
+                              CupertinoIcons.delete,
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
+                              ),
+                            ),
+                      title: Text(
                         l10n.webPanelDataClear,
                         style: TextStyle(
                           color: CupertinoColors.systemRed.resolveFrom(context),
                         ),
                       ),
+                      onTap: _busy ? null : _clear,
+                    ),
+                ],
               ),
-            if (_message != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 20),
-                child: Text(_message!),
-              ),
-          ],
+              if (_message != null)
+                SettingsSection(
+                  children: [
+                    Semantics(
+                      liveRegion: true,
+                      child: _statusRow(Text(_message!)),
+                    ),
+                  ],
+                ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

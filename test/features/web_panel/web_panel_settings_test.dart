@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -13,6 +14,9 @@ import 'package:larenor/features/web_panel/data/web_panel_data.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_data_screen.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_settings_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
@@ -83,6 +87,7 @@ class Harness {
     bool data = false,
     Size size = const Size(600, 1100),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     coordinator = WebPanelDataCoordinator(api: api);
     container = ProviderContainer(
@@ -119,7 +124,7 @@ class Harness {
           child: CupertinoApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            locale: const Locale('en'),
+            locale: locale,
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context)
                   .copyWith(textScaler: TextScaler.linear(scale)),
@@ -399,5 +404,66 @@ void main() {
       expect(tester.takeException(), null);
       await h.close(tester);
     });
+  }
+  for (final locale in [const Locale('en'), const Locale('tr')]) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'website data uses the shared tablet surface ${locale.languageCode} $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = Harness();
+          await h.mount(
+            tester,
+            data: true,
+            size: Size(width, 1000),
+            scale: 2,
+            locale: locale,
+          );
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+          expect(find.byType(SettingsActionTile), findsOneWidget);
+          final headings = find.bySemanticsLabel(h.l10n.webPanelDataTitle);
+          expect(headings, findsWidgets);
+          expect(
+            headings.evaluate().any((element) {
+              final node = tester.getSemantics(
+                find.byElementPredicate(
+                  (candidate) => identical(candidate, element),
+                ),
+              );
+              return node.flagsCollection.isHeader &&
+                  !node.flagsCollection.isButton;
+            }),
+            isTrue,
+          );
+
+          final action = find.byKey(const ValueKey('web-data-clear-action'));
+          final actionNode = tester.getSemantics(action);
+          expect(actionNode.label, contains(h.l10n.webPanelDataClear));
+          expect(actionNode.flagsCollection.isButton, isTrue);
+          expect(actionNode.rect.width, greaterThanOrEqualTo(48));
+          expect(actionNode.rect.height, greaterThanOrEqualTo(48));
+
+          final label = find.descendant(
+            of: action,
+            matching: find.text(h.l10n.webPanelDataClear),
+          );
+          Focus.of(tester.element(label)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('backup-reauth-pin')),
+            findsOneWidget,
+          );
+          expect(h.pin.attempts, 0);
+          expect(h.api.clears, 0);
+          expect(tester.takeException(), null);
+          semantics.dispose();
+          await h.close(tester);
+        },
+      );
+    }
   }
 }
