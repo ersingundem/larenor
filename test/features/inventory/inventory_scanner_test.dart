@@ -36,19 +36,22 @@ final class ThrowingScannerPlatform implements InventoryScannerPlatform {
 }
 
 void main() {
-  test('camera creation failure closes safely and keeps manual entry', () async {
-    final controller = InventoryScannerController(
-      platform: ThrowingScannerPlatform(),
-      isCurrent: () => true,
-      onValue: (_) {},
-    );
+  test(
+    'camera creation failure closes safely and keeps manual entry',
+    () async {
+      final controller = InventoryScannerController(
+        platform: ThrowingScannerPlatform(),
+        isCurrent: () => true,
+        onValue: (_) {},
+      );
 
-    await controller.open();
+      await controller.open();
 
-    expect(controller.opened, isFalse);
-    expect(controller.failure, InventoryCameraFailure.unavailable);
-    expect(controller.manualEntryAvailable, isTrue);
-  });
+      expect(controller.opened, isFalse);
+      expect(controller.failure, InventoryCameraFailure.unavailable);
+      expect(controller.manualEntryAvailable, isTrue);
+    },
+  );
 
   test(
     'permission denial closes camera and preserves manual fallback',

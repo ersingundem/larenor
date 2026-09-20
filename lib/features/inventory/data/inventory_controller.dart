@@ -58,19 +58,24 @@ final class InventoryController extends ChangeNotifier {
   Future<void> resolveScanned(String value) => _resolve(value);
   Future<void> resolveManual(String value) => _resolve(value);
 
+  void _reject(InventoryFailure value) {
+    failure = value;
+    selected = null;
+    _entries.clear();
+    notifyListeners();
+  }
+
   Future<void> _resolve(String value) async {
     if (!canResolve) return;
     InventoryQr qr;
     try {
       qr = InventoryQr.parse(value);
     } on FormatException {
-      failure = InventoryFailure.invalidQr;
-      notifyListeners();
+      _reject(InventoryFailure.invalidQr);
       return;
     }
     if (qr.context != context) {
-      failure = InventoryFailure.foreignQr;
-      notifyListeners();
+      _reject(InventoryFailure.foreignQr);
       return;
     }
     final operation = ++_epoch;

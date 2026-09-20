@@ -52,7 +52,16 @@ final class InventoryScannerController extends ChangeNotifier {
     if (!canOpen) return;
     final epoch = ++_epoch;
     failure = null;
-    final session = platform.create();
+    final InventoryScannerSession session;
+    try {
+      session = platform.create();
+    } catch (_) {
+      if (!_disposed && epoch == _epoch) {
+        failure = InventoryCameraFailure.unavailable;
+        notifyListeners();
+      }
+      return;
+    }
     _session = session;
     _values = session.values.listen((value) => _accept(epoch, value));
     _errors = session.errors.listen((error) => _fail(epoch, error));
@@ -150,13 +159,14 @@ final class _MobileInventoryScannerSession implements InventoryScannerSession {
     },
     errorBuilder: (context, error) {
       if (!_closed) {
-        scheduleMicrotask(
-          () => _errors.add(
+        scheduleMicrotask(() {
+          if (_closed || _errors.isClosed) return;
+          _errors.add(
             error.errorCode == MobileScannerErrorCode.permissionDenied
                 ? InventoryCameraFailure.permissionDenied
                 : InventoryCameraFailure.unavailable,
-          ),
-        );
+          );
+        });
       }
       return const SizedBox.shrink();
     },
