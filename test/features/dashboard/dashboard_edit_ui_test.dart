@@ -31,6 +31,7 @@ import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_provide
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
@@ -206,6 +207,57 @@ Future<void> _preview(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in const ['en', 'tr']) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        '$language dashboard card editor fits ${width.toInt()}px at 2x text',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final harness = _Harness();
+          try {
+            await harness.mount(
+              tester,
+              const DashboardCardEditorScreen(
+                mode: DashboardEditorMode.room,
+                roomId: 'room',
+              ),
+              size: Size(width, 1100),
+              scale: 2,
+              language: language,
+            );
+            expect(find.byType(AppSurface), findsOneWidget);
+            for (final key in const [
+              'dashboard-edit-size-light.manual',
+              'dashboard-edit-down-light.manual',
+            ]) {
+              final action = find.byKey(ValueKey(key));
+              expect(
+                tester.getRect(action).height,
+                greaterThanOrEqualTo(48),
+                reason: key,
+              );
+              expect(
+                tester.getSemantics(action).flagsCollection.isButton,
+                isTrue,
+              );
+            }
+            final reorder = find.byKey(
+              const ValueKey('dashboard-edit-reorder-light.manual'),
+            );
+            expect(
+              tester.getRect(reorder).shortestSide,
+              greaterThanOrEqualTo(48),
+            );
+            expect(tester.getSemantics(reorder).label, isNotEmpty);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   testWidgets(
     'room deletion confirmation expires on idle and cannot pop an unrelated modal',
     (tester) async {
