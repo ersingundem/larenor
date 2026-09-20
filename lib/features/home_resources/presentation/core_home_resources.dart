@@ -69,6 +69,8 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     final phase = _download.phase;
     final phaseLabel = switch (phase) {
       CoreBoundedDownloadPhase.downloading => l10n.coreResourceDownloading,
+      CoreBoundedDownloadPhase.interrupted =>
+        l10n.coreResourceDownloadInterrupted,
       CoreBoundedDownloadPhase.choosingDestination =>
         l10n.coreResourceChooseDestination,
       CoreBoundedDownloadPhase.saved => l10n.coreResourceDownloadSaved,
@@ -435,6 +437,28 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                               isCurrent: current,
                             ),
                           ),
+                          if (_download.canResume(
+                            entry,
+                            _controller.userRevision,
+                          ))
+                            button(
+                              'core-resource-resume-${entry.id}',
+                              '${l10n.coreResourceDownloadResume}: ${entry.label}',
+                              true,
+                              () => _download.resume(
+                                entry,
+                                userRevision: _controller.userRevision!,
+                                isCurrent: current,
+                              ),
+                            ),
+                          if (_download.targetId == entry.id &&
+                              _download.canCancel)
+                            button(
+                              'core-resource-cancel-${entry.id}',
+                              '${l10n.coreResourceDownloadCancel}: ${entry.label}',
+                              true,
+                              () => _download.cancel(isCurrent: current),
+                            ),
                           if (entry.canWrite)
                             button(
                               'core-resource-upload-${entry.id}',

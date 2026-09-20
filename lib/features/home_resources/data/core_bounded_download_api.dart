@@ -11,10 +11,76 @@ import '../../server/domain/server_models.dart';
 import '../domain/home_resource_models.dart';
 
 final class CoreBoundedDownloadException implements Exception {
-  const CoreBoundedDownloadException(this.code);
+  const CoreBoundedDownloadException(this.code, {this.interrupted});
   final String code;
+  final CoreBoundedInterruptedDownload? interrupted;
   @override
   String toString() => 'CoreBoundedDownloadException($code)';
+}
+
+/// Memory-only continuation proof assembled from complete authenticated frames.
+///
+/// Only [CoreBoundedDownloadApi] can create this value. The byte prefix is
+/// immutable and its endpoint and scope bindings are deliberately omitted from
+/// diagnostics.
+final class CoreBoundedInterruptedDownload {
+  CoreBoundedInterruptedDownload._({
+    required this.previousRequestId,
+    required Uint8List verifiedPrefix,
+    required this.coreId,
+    required this.homeId,
+    required this.resourceId,
+    required this.expectedUserRevision,
+    required this.expectedResourceRevision,
+    required this.expectedAclRevision,
+    required this.serviceRevision,
+    required this.contentLength,
+    required this.sha256,
+    required this.contentType,
+    required this.endpointBaseUrl,
+  }) : verifiedPrefix = Uint8List.fromList(verifiedPrefix).asUnmodifiableView(),
+       nextOffset = verifiedPrefix.length {
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(previousRequestId) ||
+        nextOffset <= 0 ||
+        nextOffset >= contentLength ||
+        contentLength > CoreBoundedDownloadApi.maxBlobBytes) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+  }
+
+  final String previousRequestId;
+  final Uint8List verifiedPrefix;
+  final int nextOffset;
+  final String coreId, homeId, resourceId;
+  final int expectedUserRevision;
+  final int expectedResourceRevision;
+  final int expectedAclRevision;
+  final int serviceRevision;
+  final int contentLength;
+  final String sha256, contentType, endpointBaseUrl;
+
+  bool matches({
+    required ServerEndpoint endpoint,
+    required HomeResourceRecord target,
+    required int userRevision,
+    required CoreBoundedBlobDescriptor descriptor,
+  }) =>
+      endpoint.baseUrl == endpointBaseUrl &&
+      target.context.coreId == coreId &&
+      target.context.homeId == homeId &&
+      target.id == resourceId &&
+      target.kind == HomeResourceKind.resource &&
+      target.revision == expectedResourceRevision &&
+      target.aclRevision == expectedAclRevision &&
+      userRevision == expectedUserRevision &&
+      descriptor.resourceId == resourceId &&
+      descriptor.serviceRevision == serviceRevision &&
+      descriptor.contentLength == contentLength &&
+      descriptor.sha256 == sha256 &&
+      descriptor.contentType == contentType;
+
+  @override
+  String toString() => 'CoreBoundedInterruptedDownload';
 }
 
 final class CoreBoundedBlob {
@@ -281,6 +347,15 @@ final class CoreBoundedTransferReceipt {
       contentType == blob.contentType &&
       serviceRevision == blob.serviceRevision;
 
+  bool authenticatesInterrupted(CoreBoundedInterruptedDownload value) =>
+      state == CoreBoundedTransferState.interrupted &&
+      requestId == value.previousRequestId &&
+      traceId == value.previousRequestId &&
+      contentLength == value.contentLength &&
+      sha256 == value.sha256 &&
+      contentType == value.contentType &&
+      serviceRevision == value.serviceRevision;
+
   bool sameEvidence(CoreBoundedTransferReceipt other) =>
       requestId == other.requestId &&
       traceId == other.traceId &&
@@ -432,8 +507,9 @@ final class CoreBoundedTransferEventPage {
   String toString() => 'CoreBoundedTransferEventPage';
 }
 
-/// Consumes only the packaged Core v1 bounded stream. It never retries, ranges,
-/// resumes, follows redirects, or exposes partial bytes.
+/// Consumes only the packaged Core v1 bounded stream. It never retries, uses
+/// HTTP ranges, follows redirects, or exposes unverified partial frames. A
+/// continuation is a new signed request bound to one exact interrupted receipt.
 final class CoreBoundedDownloadApi {
   CoreBoundedDownloadApi({
     required this.endpoint,
@@ -478,6 +554,8 @@ final class CoreBoundedDownloadApi {
     required HomeResourceRecord target,
     required int expectedUserRevision,
     required int expectedServiceRevision,
+    CoreBoundedInterruptedDownload? resume,
+    void Function(String requestId)? onRequestStarted,
   }) async {
     if (_closed) throw const CoreBoundedDownloadException('cancelled');
     final requestId = _requestId();
@@ -488,14 +566,69 @@ final class CoreBoundedDownloadApi {
         expectedServiceRevision < 1 ||
         expectedServiceRevision > 9223372036854775807 ||
         timeout <= Duration.zero ||
-        timeout > const Duration(seconds: 15)) {
+        timeout > const Duration(seconds: 15) ||
+        resume != null &&
+            (requestId == resume.previousRequestId ||
+                resume.endpointBaseUrl != endpoint.baseUrl ||
+                resume.coreId != target.context.coreId ||
+                resume.homeId != target.context.homeId ||
+                resume.resourceId != target.id ||
+                resume.expectedUserRevision != expectedUserRevision ||
+                resume.expectedResourceRevision != target.revision ||
+                resume.expectedAclRevision != target.aclRevision ||
+                resume.serviceRevision != expectedServiceRevision)) {
       throw const CoreBoundedDownloadException('invalid_request');
     }
+    onRequestStarted?.call(requestId);
     final abort = Completer<void>();
     _pending.add(abort);
     final timer = Timer(timeout, () {
       if (!abort.isCompleted) abort.complete();
     });
+    _Metadata? metadata;
+    final wire = BytesBuilder(copy: false);
+    CoreBoundedDownloadException interruption(String code) {
+      final currentMetadata = metadata;
+      if (currentMetadata != null) {
+        try {
+          final frames = _decodeFrames(
+            wire.toBytes(),
+            currentMetadata,
+            requireFinal: false,
+          );
+          final prefix = Uint8List.fromList([
+            ...?resume?.verifiedPrefix,
+            ...frames.bytes,
+          ]);
+          if (!frames.finalSeen &&
+              prefix.isNotEmpty &&
+              prefix.length < currentMetadata.contentLength) {
+            return CoreBoundedDownloadException(
+              code,
+              interrupted: CoreBoundedInterruptedDownload._(
+                previousRequestId: requestId,
+                verifiedPrefix: prefix,
+                coreId: target.context.coreId,
+                homeId: target.context.homeId,
+                resourceId: target.id,
+                expectedUserRevision: expectedUserRevision,
+                expectedResourceRevision: target.revision,
+                expectedAclRevision: target.aclRevision,
+                serviceRevision: currentMetadata.serviceRevision,
+                contentLength: currentMetadata.contentLength,
+                sha256: currentMetadata.digest,
+                contentType: currentMetadata.contentType,
+                endpointBaseUrl: endpoint.baseUrl,
+              ),
+            );
+          }
+        } on CoreBoundedDownloadException {
+          // An invalid partial frame is never retained as resumable evidence.
+        }
+      }
+      return CoreBoundedDownloadException(code);
+    }
+
     try {
       final request = http.AbortableRequest(
         'POST',
@@ -516,43 +649,60 @@ final class CoreBoundedDownloadApi {
           'expectedAclRevision': target.aclRevision,
           'expectedServiceRevision': expectedServiceRevision,
           'deadlineMs': timeout.inMilliseconds,
+          if (resume != null) ...{
+            'resumeRequestId': resume.previousRequestId,
+            'resumeOffset': resume.nextOffset,
+          },
         }),
       );
       final response = await _client.send(request).timeout(timeout);
-      if (_closed || abort.isCompleted) {
-        throw const CoreBoundedDownloadException('cancelled');
-      }
+      if (_closed || abort.isCompleted) throw interruption('cancelled');
       if (response.statusCode != 200) {
         await response.stream.listen((_) {}).cancel();
         throw CoreBoundedDownloadException(_statusCode(response.statusCode));
       }
-      final metadata = _metadata(response, expectedServiceRevision, requestId);
-      final wire = BytesBuilder(copy: false);
+      metadata = _metadata(
+        response,
+        expectedServiceRevision,
+        requestId,
+        resume?.nextOffset ?? 0,
+      );
+      if (resume != null &&
+          (metadata.contentLength != resume.contentLength ||
+              metadata.digest != resume.sha256 ||
+              metadata.contentType != resume.contentType ||
+              metadata.serviceRevision != resume.serviceRevision)) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
       await for (final chunk in response.stream.timeout(timeout)) {
-        if (_closed || abort.isCompleted) {
-          throw const CoreBoundedDownloadException('cancelled');
-        }
+        if (_closed || abort.isCompleted) throw interruption('cancelled');
         if (wire.length + chunk.length > metadata.framedLength) {
           throw const CoreBoundedDownloadException('late_frame');
         }
         wire.add(chunk);
       }
-      if (_closed || abort.isCompleted) {
-        throw const CoreBoundedDownloadException('cancelled');
-      }
+      if (_closed || abort.isCompleted) throw interruption('cancelled');
       final raw = wire.takeBytes();
       if (raw.length != metadata.framedLength) {
         throw const CoreBoundedDownloadException('invalid_response');
       }
-      return _decode(raw, metadata);
-    } on CoreBoundedDownloadException {
-      rethrow;
+      return _decode(raw, metadata, prefix: resume?.verifiedPrefix);
+    } on CoreBoundedDownloadException catch (error) {
+      if (error.interrupted != null ||
+          !const {
+            'cancelled',
+            'timeout',
+            'connection_failed',
+          }.contains(error.code)) {
+        rethrow;
+      }
+      throw interruption(error.code);
     } on TimeoutException {
-      throw const CoreBoundedDownloadException('timeout');
+      throw interruption('timeout');
     } on http.RequestAbortedException {
-      throw CoreBoundedDownloadException(_closed ? 'cancelled' : 'timeout');
+      throw interruption(_closed ? 'cancelled' : 'timeout');
     } catch (_) {
-      throw CoreBoundedDownloadException(
+      throw interruption(
         _closed
             ? 'cancelled'
             : abort.isCompleted
@@ -677,6 +827,68 @@ final class CoreBoundedDownloadApi {
       throw const CoreBoundedDownloadException('invalid_response');
     }
     return value;
+  }
+
+  Future<CoreBoundedTransferReceipt> cancel({
+    required String token,
+    required HomeResourceRecord target,
+    required String requestId,
+  }) async {
+    _target(target);
+    if (_closed || !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    final abort = Completer<void>();
+    _pending.add(abort);
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    try {
+      final request = http.AbortableRequest(
+        'DELETE',
+        endpoint.api('${_transferPath(target)}/$requestId'),
+        abortTrigger: abort.future,
+      );
+      request.headers
+        ..['authorization'] = 'Bearer $token'
+        ..['accept'] = 'application/json';
+      final response = await _client.send(request).timeout(timeout);
+      if (_closed || abort.isCompleted) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      if (response.statusCode != 200) {
+        await response.stream.listen((_) {}).cancel();
+        throw CoreBoundedDownloadException(_statusCode(response.statusCode));
+      }
+      final raw = await _json(response, abort);
+      if (raw is! Map || raw.length != 1 || !raw.containsKey('receipt')) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      final value = CoreBoundedTransferReceipt.fromJson(raw['receipt']);
+      if (value.requestId != requestId ||
+          value.state != CoreBoundedTransferState.interrupted) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      return value;
+    } on CoreBoundedDownloadException {
+      rethrow;
+    } on TimeoutException {
+      throw const CoreBoundedDownloadException('timeout');
+    } on http.RequestAbortedException {
+      throw CoreBoundedDownloadException(_closed ? 'cancelled' : 'timeout');
+    } catch (_) {
+      throw CoreBoundedDownloadException(
+        _closed
+            ? 'cancelled'
+            : abort.isCompleted
+            ? 'timeout'
+            : 'connection_failed',
+      );
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      _pending.remove(abort);
+    }
   }
 
   Future<CoreBoundedBlobDescriptor> descriptor({
@@ -902,6 +1114,7 @@ final class CoreBoundedDownloadApi {
     http.StreamedResponse response,
     int expectedRevision,
     String expectedTrace,
+    int expectedResumeOffset,
   ) {
     int integer(String name, {required int maximum}) {
       final raw = response.headers[name];
@@ -928,6 +1141,10 @@ final class CoreBoundedDownloadApi {
       'content-length',
       maximum: maxBlobBytes + frameHeaderBytes * (maxDataFrames + 1),
     );
+    final resumeOffset = integer(
+      'x-larenor-resume-offset',
+      maximum: maxBlobBytes,
+    );
     if (type != wireType ||
         response.headers['accept-ranges'] != 'none' ||
         response.contentLength != framedLength ||
@@ -940,20 +1157,58 @@ final class CoreBoundedDownloadApi {
         blobType.length > 128 ||
         blobType.isEmpty ||
         blobType.contains(RegExp(r'[\x00-\x1f\x7f-\xff]')) ||
-        revision != expectedRevision) {
+        revision != expectedRevision ||
+        resumeOffset != expectedResumeOffset ||
+        resumeOffset >= length && resumeOffset != 0) {
       throw const CoreBoundedDownloadException('invalid_response');
     }
-    return _Metadata(trace, length, framedLength, digest, blobType, revision);
+    return _Metadata(
+      trace,
+      length,
+      framedLength,
+      digest,
+      blobType,
+      revision,
+      resumeOffset,
+    );
   }
 
-  CoreBoundedBlob _decode(Uint8List wire, _Metadata metadata) {
+  CoreBoundedBlob _decode(
+    Uint8List wire,
+    _Metadata metadata, {
+    Uint8List? prefix,
+  }) {
+    final frames = _decodeFrames(wire, metadata, requireFinal: true);
+    final content = Uint8List.fromList([...?prefix, ...frames.bytes]);
+    if (content.length != metadata.contentLength ||
+        sha256.convert(content).toString() != metadata.digest) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedBlob._(
+      bytes: content,
+      requestId: metadata.traceId,
+      traceId: metadata.traceId,
+      contentType: metadata.contentType,
+      sha256: metadata.digest,
+      serviceRevision: metadata.serviceRevision,
+    );
+  }
+
+  _DecodedFrames _decodeFrames(
+    Uint8List wire,
+    _Metadata metadata, {
+    required bool requireFinal,
+  }) {
     final bytes = BytesBuilder(copy: false);
     var offset = 0, expectedSequence = 0, dataFrames = 0;
     var finalSeen = false;
     while (offset < wire.length) {
       if (finalSeen) throw const CoreBoundedDownloadException('late_frame');
       if (wire.length - offset < frameHeaderBytes) {
-        throw const CoreBoundedDownloadException('invalid_response');
+        if (requireFinal) {
+          throw const CoreBoundedDownloadException('invalid_response');
+        }
+        break;
       }
       final header = ByteData.sublistView(
         wire,
@@ -969,8 +1224,14 @@ final class CoreBoundedDownloadApi {
       final flag = header.getUint8(44);
       final length = header.getUint32(45);
       offset += frameHeaderBytes;
-      if (flag > 1 || length > 16 * 1024 || offset + length > wire.length) {
+      if (flag > 1 || length > 16 * 1024) {
         throw const CoreBoundedDownloadException('invalid_response');
+      }
+      if (offset + length > wire.length) {
+        if (requireFinal) {
+          throw const CoreBoundedDownloadException('invalid_response');
+        }
+        break;
       }
       if (flag == 1) {
         if (length != 0) {
@@ -988,20 +1249,10 @@ final class CoreBoundedDownloadApi {
       offset += length;
       expectedSequence++;
     }
-    final content = bytes.takeBytes();
-    if (!finalSeen ||
-        content.length != metadata.contentLength ||
-        sha256.convert(content).toString() != metadata.digest) {
+    if (requireFinal && (!finalSeen || offset != wire.length)) {
       throw const CoreBoundedDownloadException('invalid_response');
     }
-    return CoreBoundedBlob._(
-      bytes: content,
-      requestId: metadata.traceId,
-      traceId: metadata.traceId,
-      contentType: metadata.contentType,
-      sha256: metadata.digest,
-      serviceRevision: metadata.serviceRevision,
-    );
+    return _DecodedFrames(bytes.takeBytes(), finalSeen);
   }
 
   void close() {
@@ -1023,7 +1274,14 @@ final class _Metadata {
     this.digest,
     this.contentType,
     this.serviceRevision,
+    this.resumeOffset,
   );
   final String traceId, digest, contentType;
-  final int contentLength, framedLength, serviceRevision;
+  final int contentLength, framedLength, serviceRevision, resumeOffset;
+}
+
+final class _DecodedFrames {
+  const _DecodedFrames(this.bytes, this.finalSeen);
+  final Uint8List bytes;
+  final bool finalSeen;
 }

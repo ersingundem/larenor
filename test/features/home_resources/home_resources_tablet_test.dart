@@ -119,12 +119,263 @@ http.Response _transferResponse(http.Request request) {
       'x-larenor-blob-sha256': digest,
       'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
       'x-larenor-service-revision': '1',
+      'x-larenor-resume-offset': '0',
       'accept-ranges': 'none',
     },
   );
 }
 
+final class _TabletResumeClient extends http.BaseClient {
+  static const firstId = 'a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0';
+  static const secondId = 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0';
+  static final payload = Uint8List.fromList(utf8.encode('abcdefghi'));
+  static final digest = sha256.convert(payload).toString();
+
+  Completer<void>? _cancelled;
+  int posts = 0, deletes = 0;
+
+  Map<String, Object> receipt(String id) => {
+    'requestId': id,
+    'traceId': id,
+    'state': 'interrupted',
+    'contentLength': payload.length,
+    'sha256': digest,
+    'contentType': 'text/plain; charset=utf-8',
+    'serviceRevision': 1,
+    'createdAt': 10.0,
+    'updatedAt': 11.0,
+  };
+
+  Map<String, String> headers(String id, int wireLength, int offset) => {
+    'content-type': CoreBoundedDownloadApi.wireType,
+    'content-length': '$wireLength',
+    'x-larenor-trace-id': id,
+    'x-larenor-blob-content-length': '${payload.length}',
+    'x-larenor-blob-sha256': digest,
+    'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
+    'x-larenor-service-revision': '1',
+    'x-larenor-resume-offset': '$offset',
+    'accept-ranges': 'none',
+  };
+
+  http.StreamedResponse jsonResponse(http.BaseRequest request, Object value) {
+    final bytes = utf8.encode(jsonEncode(value));
+    return http.StreamedResponse(
+      Stream.value(bytes),
+      200,
+      contentLength: bytes.length,
+      headers: {'content-type': 'application/json'},
+      request: request,
+    );
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.method == 'GET' && request.url.path.endsWith('/descriptor')) {
+      return jsonResponse(request, {
+        'blob': {
+          'resourceId': '3' * 32,
+          'serviceRevision': 1,
+          'contentLength': payload.length,
+          'sha256': digest,
+          'contentType': 'text/plain; charset=utf-8',
+          'createdAt': 10.0,
+          'updatedAt': 11.0,
+        },
+      });
+    }
+    if (request.method == 'GET') {
+      return jsonResponse(request, {
+        'receipt': receipt(request.url.pathSegments.last),
+      });
+    }
+    if (request.method == 'DELETE') {
+      deletes++;
+      expect(request.url.query, isEmpty);
+      expect(request.contentLength, 0);
+      final id = request.url.pathSegments.last;
+      if (!(_cancelled?.isCompleted ?? true)) _cancelled!.complete();
+      return jsonResponse(request, {'receipt': receipt(id)});
+    }
+    expect(request.method, 'POST');
+    await request.finalize().drain<void>();
+    final post = ++posts;
+    if (post == 1) {
+      final full = Uint8List.fromList([
+        ..._transferFrame(firstId, 0, false, utf8.encode('abc')),
+        ..._transferFrame(firstId, 1, false, utf8.encode('defghi')),
+        ..._transferFrame(firstId, 2, true, const []),
+      ]);
+      return http.StreamedResponse(
+        Stream<List<int>>.multi((events) {
+          events.add(_transferFrame(firstId, 0, false, utf8.encode('abc')));
+          events.add(
+            _transferFrame(
+              firstId,
+              1,
+              false,
+              utf8.encode('defghi'),
+            ).sublist(0, 51),
+          );
+          events.addError(const SocketException('synthetic interruption'));
+          events.close();
+        }),
+        200,
+        contentLength: full.length,
+        headers: headers(firstId, full.length, 0),
+        request: request,
+      );
+    }
+    final full = Uint8List.fromList([
+      ..._transferFrame(secondId, 0, false, utf8.encode('def')),
+      ..._transferFrame(secondId, 1, false, utf8.encode('ghi')),
+      ..._transferFrame(secondId, 2, true, const []),
+    ]);
+    final cancelled = _cancelled = Completer<void>();
+    return http.StreamedResponse(
+      Stream<List<int>>.multi((events) async {
+        events.add(_transferFrame(secondId, 0, false, utf8.encode('def')));
+        await cancelled.future;
+        events.addError(const SocketException('synthetic cancel'));
+        events.close();
+      }),
+      200,
+      contentLength: full.length,
+      headers: headers(secondId, full.length, 3),
+      request: request,
+    );
+  }
+
+  @override
+  void close() {
+    final cancelled = _cancelled;
+    _cancelled = null;
+    if (cancelled != null && !cancelled.isCompleted) cancelled.complete();
+  }
+}
+
 void main() {
+  for (final locale in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('resume and cancel stay accessible at $locale $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final fixture = contract();
+        final record = (fixture['memberList']['entries'] as List).last as Map;
+        final id = (record['ref'] as Map)['id'] as String;
+        final client = _TabletResumeClient();
+        var requestIndex = 0;
+        final ids = [_TabletResumeClient.firstId, _TabletResumeClient.secondId];
+        final harness = ResourceHarness();
+        harness.boundedDownloadApiFactory = (endpoint) =>
+            CoreBoundedDownloadApi(
+              endpoint: endpoint,
+              client: client,
+              requestId: () => ids[requestIndex++],
+            );
+        harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+          save: (_, _, _) async => throw StateError('SAF must not run'),
+        );
+        try {
+          await harness.mount(tester, locale: locale, width: width, scale: 2);
+          await harness.signIn();
+          await flush(tester);
+          final download = find.byKey(ValueKey('core-resource-download-$id'));
+          await tester.scrollUntilVisible(
+            download,
+            300,
+            scrollable: find.byType(Scrollable).first,
+            maxScrolls: 20,
+          );
+          await tester.ensureVisible(download);
+          await tester.pump();
+          await tester.tap(download);
+          final resume = find.byKey(ValueKey('core-resource-resume-$id'));
+          for (
+            var attempt = 0;
+            attempt < 30 && resume.evaluate().isEmpty;
+            attempt++
+          ) {
+            await tester.pump(const Duration(milliseconds: 10));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+          }
+          expect(resume, findsOneWidget);
+          await tester.ensureVisible(resume);
+          await tester.pump();
+          final l10n = AppLocalizations.of(tester.element(resume));
+          final resumeLabel =
+              '${l10n.coreResourceDownloadResume}: ${record['label']}';
+          final resumeText = find.text(resumeLabel);
+          final resumeNode = tester.getSemantics(resumeText);
+          expect(resumeNode.label, resumeLabel);
+          expect(resumeNode.flagsCollection.isButton, isTrue);
+          expect(tester.getSize(resume).height, greaterThanOrEqualTo(48));
+          final trust = find.byKey(
+            ValueKey('core-resource-transfer-trust-$id'),
+          );
+          expect(
+            tester.getSemantics(trust).flagsCollection.isLiveRegion,
+            isTrue,
+          );
+          expect(
+            tester.getSemantics(trust).label,
+            contains(l10n.coreResourceDownloadInterrupted),
+          );
+
+          Focus.of(tester.element(resumeText)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          final cancel = find.byKey(ValueKey('core-resource-cancel-$id'));
+          for (
+            var attempt = 0;
+            attempt < 30 && cancel.evaluate().isEmpty;
+            attempt++
+          ) {
+            await tester.pump(const Duration(milliseconds: 10));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+          }
+          expect(cancel, findsOneWidget);
+          await tester.ensureVisible(cancel);
+          await tester.pump();
+          final cancelLabel =
+              '${l10n.coreResourceDownloadCancel}: ${record['label']}';
+          final cancelText = find.text(cancelLabel);
+          final cancelNode = tester.getSemantics(cancelText);
+          expect(cancelNode.label, cancelLabel);
+          expect(cancelNode.flagsCollection.isButton, isTrue);
+          expect(tester.getSize(cancel).height, greaterThanOrEqualTo(48));
+          Focus.of(tester.element(cancelText)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          for (
+            var attempt = 0;
+            attempt < 50 &&
+                (client.deletes == 0 ||
+                    cancel.evaluate().isNotEmpty ||
+                    resume.evaluate().isEmpty);
+            attempt++
+          ) {
+            await tester.pump(const Duration(milliseconds: 10));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+          }
+          expect(client.deletes, 1);
+          expect(cancel, findsNothing);
+          expect(resume, findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
+
   testWidgets('tablet resource exposes durable transfer trust semantically', (
     tester,
   ) async {
