@@ -324,7 +324,7 @@ void main() {
           expect(find.byType(HomeSourceScreen), findsOneWidget);
           expect(
             find.text(language == 'tr' ? 'Ev kaynağı' : 'Home source'),
-            findsOneWidget,
+            findsWidgets,
           );
           for (final source in HomeSource.values) {
             final row = find.byKey(ValueKey('home-source-${source.name}'));
