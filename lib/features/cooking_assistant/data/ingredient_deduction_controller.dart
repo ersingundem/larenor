@@ -57,12 +57,16 @@ final class IngredientDeductionController extends ChangeNotifier {
     return true;
   }
 
+  bool _denyStale() {
+    receipt = null;
+    failure = IngredientDeductionFailure.staleAuthority;
+    return false;
+  }
+
   Future<bool> confirm() async {
+    if (!_current()) return _denyStale();
     if (receipt != null) return true;
-    if (!_current() ||
-        busy ||
-        failure == IngredientDeductionFailure.uncertain) {
-      if (!_current()) failure = IngredientDeductionFailure.staleAuthority;
+    if (busy || failure == IngredientDeductionFailure.uncertain) {
       return false;
     }
     return _perform(() => gateway.commit(preview), uncertainOnFailure: true);
@@ -71,11 +75,9 @@ final class IngredientDeductionController extends ChangeNotifier {
   /// The only operation allowed after a lost acknowledgement. It reads the
   /// existing receipt by idempotency key and never repeats the stock command.
   Future<bool> reconcile() async {
+    if (!_current()) return _denyStale();
     if (receipt != null) return true;
-    if (!_current() || busy) {
-      if (!_current()) failure = IngredientDeductionFailure.staleAuthority;
-      return false;
-    }
+    if (busy) return false;
     return _perform(() async {
       final value = await gateway.receipt(preview.idempotencyKey);
       if (value == null) throw StateError('receipt_not_found');
@@ -94,8 +96,7 @@ final class IngredientDeductionController extends ChangeNotifier {
     try {
       final value = await operation();
       if (epoch != _epoch || !_current()) {
-        failure = IngredientDeductionFailure.staleAuthority;
-        return false;
+        return _denyStale();
       }
       if (!_matches(value)) {
         failure = IngredientDeductionFailure.invalidReceipt;
@@ -106,7 +107,7 @@ final class IngredientDeductionController extends ChangeNotifier {
       return true;
     } catch (_) {
       if (epoch != _epoch || !_current()) {
-        failure = IngredientDeductionFailure.staleAuthority;
+        _denyStale();
       } else {
         failure = uncertainOnFailure
             ? IngredientDeductionFailure.uncertain
@@ -126,6 +127,7 @@ final class IngredientDeductionController extends ChangeNotifier {
     _retired = true;
     _epoch++;
     busy = false;
+    receipt = null;
     failure = IngredientDeductionFailure.staleAuthority;
     notifyListeners();
   }
