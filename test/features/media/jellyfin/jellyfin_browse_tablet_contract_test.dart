@@ -10,6 +10,7 @@ import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dar
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/poster_card.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _folder = JellyfinItem(
   id: 'documentaries',
@@ -70,7 +71,7 @@ Future<void> _tabToPoster(WidgetTester tester) async {
 
 void main() {
   for (final language in ['en', 'tr']) {
-    for (final width in [600.0, 1280.0]) {
+    for (final width in [600.0, 1200.0]) {
       testWidgets('Jellyfin browse drill-down uses the shared tablet surface '
           '$language $width 2x', (tester) async {
         final semantics = tester.ensureSemantics();
@@ -94,10 +95,33 @@ void main() {
           final l10n = AppLocalizations.of(
             tester.element(find.byType(JellyfinItemDetailScreen)),
           );
-          final browse = find.text(l10n.jellyfinBrowseButton);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          final heading = find.byKey(
+            const ValueKey('jellyfin-item-detail-title'),
+          );
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.label, _folder.name);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          final browse = find.byKey(
+            const ValueKey('jellyfin-item-primary-action'),
+          );
           final browseNode = tester.getSemantics(browse);
+          expect(browseNode.label, l10n.jellyfinBrowseButton);
           expect(browseNode.flagsCollection.isButton, isTrue);
+          expect(browseNode.rect.width, greaterThanOrEqualTo(48));
           expect(browseNode.rect.height, greaterThanOrEqualTo(48));
+
+          final browseLabel = find.descendant(
+            of: browse,
+            matching: find.text(l10n.jellyfinBrowseButton),
+          );
+          Focus.of(tester.element(browseLabel)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(JellyfinLibraryScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         } finally {
           semantics.dispose();
