@@ -43,18 +43,21 @@ void main() {
       (const Size(1200, 800), FairChoreStrings.en),
     ]) {
       final api = FakeFairChoreApi();
-      await pumpScreen(
-        tester,
-        size: sample.$1,
-        strings: sample.$2,
-        api: api,
-      );
+      await pumpScreen(tester, size: sample.$1, strings: sample.$2, api: api);
       expect(find.text(sample.$2.title), findsOneWidget);
       expect(find.text('Bitkileri sula'), findsOneWidget);
-      expect(tester.getSize(find.byKey(const ValueKey('chore-complete-chore-1'))).height,
-          greaterThanOrEqualTo(48));
-      expect(tester.getSize(find.byKey(const ValueKey('chore-defer-chore-1'))).height,
-          greaterThanOrEqualTo(48));
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('chore-complete-chore-1')))
+            .height,
+        greaterThanOrEqualTo(48),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('chore-defer-chore-1')))
+            .height,
+        greaterThanOrEqualTo(48),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     }

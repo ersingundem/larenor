@@ -19,13 +19,14 @@ const authorityB = FairChoreAuthority(
   routeId: 'chores-b',
 );
 
-FairChoreTask task({int revision = 1, String assignee = 'ada'}) => FairChoreTask(
-  id: 'chore-1',
-  title: 'Bitkileri sula',
-  revision: revision,
-  assigneeId: assignee,
-  dueAt: DateTime.utc(2026, 9, 22, 8),
-);
+FairChoreTask task({int revision = 1, String assignee = 'ada'}) =>
+    FairChoreTask(
+      id: 'chore-1',
+      title: 'Bitkileri sula',
+      revision: revision,
+      assigneeId: assignee,
+      dueAt: DateTime.utc(2026, 9, 22, 8),
+    );
 
 class FakeFairChoreApi implements FairChoreApi {
   final listRequests = <Completer<FairChorePage>>[];
@@ -89,65 +90,83 @@ class FakeFairChoreApi implements FairChoreApi {
 }
 
 void main() {
-  test('late list cannot cross exact route account or Core authority', () async {
-    final api = FakeFairChoreApi();
-    final controller = FairChoreController(api, commandIds: () => 'cmd-1');
-    final oldLease = controller.bind(authorityA);
-    final oldLoad = controller.load(oldLease);
-    final currentLease = controller.bind(authorityB);
-    api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
-    await oldLoad;
+  test(
+    'late list cannot cross exact route account or Core authority',
+    () async {
+      final api = FakeFairChoreApi();
+      final controller = FairChoreController(api, commandIds: () => 'cmd-1');
+      final oldLease = controller.bind(authorityA);
+      final oldLoad = controller.load(oldLease);
+      final currentLease = controller.bind(authorityB);
+      api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
+      await oldLoad;
 
-    expect(controller.authority, authorityB);
-    expect(controller.tasks, isEmpty);
-    expect(controller.state, FairChoreViewState.idle);
+      expect(controller.authority, authorityB);
+      expect(controller.tasks, isEmpty);
+      expect(controller.state, FairChoreViewState.idle);
 
-    final currentLoad = controller.load(currentLease);
-    api.listRequests.last.complete(FairChorePage(authorityB, [task(assignee: 'baran')]));
-    await currentLoad;
-    expect(controller.state, FairChoreViewState.ready);
-    expect(controller.tasks.single.assigneeId, 'baran');
-  });
+      final currentLoad = controller.load(currentLease);
+      api.listRequests.last.complete(
+        FairChorePage(authorityB, [task(assignee: 'baran')]),
+      );
+      await currentLoad;
+      expect(controller.state, FairChoreViewState.ready);
+      expect(controller.tasks.single.assigneeId, 'baran');
+    },
+  );
 
-  test('lost completion receipt reconciles by key without command replay', () async {
-    final api = FakeFairChoreApi()..timeoutCompletion = true;
-    final controller = FairChoreController(api, commandIds: () => 'complete-1');
-    final lease = controller.bind(authorityA);
-    final load = controller.load(lease);
-    api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
-    await load;
+  test(
+    'lost completion receipt reconciles by key without command replay',
+    () async {
+      final api = FakeFairChoreApi()..timeoutCompletion = true;
+      final controller = FairChoreController(
+        api,
+        commandIds: () => 'complete-1',
+      );
+      final lease = controller.bind(authorityA);
+      final load = controller.load(lease);
+      api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
+      await load;
 
-    await controller.complete(lease, task());
-    expect(controller.state, FairChoreViewState.uncertain);
-    expect(api.completeCalls, 1);
-    await controller.complete(lease, task());
-    expect(api.completeCalls, 1, reason: 'uncertain commands are never resent');
+      await controller.complete(lease, task());
+      expect(controller.state, FairChoreViewState.uncertain);
+      expect(api.completeCalls, 1);
+      await controller.complete(lease, task());
+      expect(
+        api.completeCalls,
+        1,
+        reason: 'uncertain commands are never resent',
+      );
 
-    api.reconciled = FairChoreReceipt(
-      authority: authorityA,
-      commandId: 'complete-1',
-      action: FairChoreAction.completed,
-      task: task(revision: 2, assignee: 'baran'),
-    );
-    await controller.reconcile(lease);
-    expect(api.receiptReads, 1);
-    expect(controller.state, FairChoreViewState.ready);
-    expect(controller.tasks.single.assigneeId, 'baran');
-  });
+      api.reconciled = FairChoreReceipt(
+        authority: authorityA,
+        commandId: 'complete-1',
+        action: FairChoreAction.completed,
+        task: task(revision: 2, assignee: 'baran'),
+      );
+      await controller.reconcile(lease);
+      expect(api.receiptReads, 1);
+      expect(controller.state, FairChoreViewState.ready);
+      expect(controller.tasks.single.assigneeId, 'baran');
+    },
+  );
 
-  test('detach rejects late receipts and clears retained household state', () async {
-    final api = FakeFairChoreApi();
-    final controller = FairChoreController(api, commandIds: () => 'cmd-1');
-    final lease = controller.bind(authorityA);
-    final load = controller.load(lease);
-    api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
-    await load;
-    controller.detach(lease);
+  test(
+    'detach rejects late receipts and clears retained household state',
+    () async {
+      final api = FakeFairChoreApi();
+      final controller = FairChoreController(api, commandIds: () => 'cmd-1');
+      final lease = controller.bind(authorityA);
+      final load = controller.load(lease);
+      api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
+      await load;
+      controller.detach(lease);
 
-    await controller.defer(lease, task(), days: 1);
-    expect(api.deferCalls, 0);
-    expect(controller.authority, isNull);
-    expect(controller.tasks, isEmpty);
-    expect(controller.state, FairChoreViewState.detached);
-  });
+      await controller.defer(lease, task(), days: 1);
+      expect(api.deferCalls, 0);
+      expect(controller.authority, isNull);
+      expect(controller.tasks, isEmpty);
+      expect(controller.state, FairChoreViewState.detached);
+    },
+  );
 }
