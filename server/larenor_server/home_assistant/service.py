@@ -324,7 +324,7 @@ class HomeAssistantAdapter:
         if (state['sequence'], state['head_hash']) != (sequence, head):
             raise ValueError()
 
-    def _existing_command(self, c, actor, resource, body):
+    def _existing_command(self, c, actor, resource, body, attribution=None):
         row = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
                         (body.requestId,)).fetchone()
         if row is None:
@@ -333,6 +333,9 @@ class HomeAssistantAdapter:
         if value.receipt.actorId != actor.id or value.receipt.ref.id != resource:
             raise ApiError('not_found', 404)
         if value.request != body:
+            raise ApiError('ha_command_conflict', 409)
+        if (attribution is None and value.attribution.source == 'core_rule') or (
+                attribution is not None and value.attribution != attribution):
             raise ApiError('ha_command_conflict', 409)
         if value.receipt.dispatchState == 'pending' and body.requestId not in self._active_commands:
             value = StoredCommand(request=value.request, attribution=value.attribution, receipt=value.receipt.model_copy(update={
@@ -422,12 +425,13 @@ class HomeAssistantAdapter:
         with self._tx(actor, core, home, admin=True) as (c, _):
             return {'verification': command_chain.checkpoint(c, self._key, self.resources.scope, checkpoint)}
 
-    def _prepare_command(self, actor, core, home, resource, body):
+    def _prepare_command(self, actor, core, home, resource, body, attribution=None):
         reserved = False
         try:
             with self._tx(actor, core, home) as (c, facts):
                 row, ref, data, binding = self._target(c, facts, resource)
-                existing = self._existing_command(c, actor, resource, body)
+                existing = self._existing_command(
+                    c, actor, resource, body, attribution=attribution)
                 if existing is not None:
                     return existing, None
                 self.resources._require(facts, row, ref, data, 'write',
@@ -448,24 +452,35 @@ class HomeAssistantAdapter:
                     action=body.action, dispatchState='pending', providerAccepted=None,
                     observedProjection=None, observationMatchesTarget=None,
                     causalityVerified=False, createdAt=created, completedAt=None)
-                attribution = CommandAttribution(correlationId=body.requestId, source='core_api',
+                command_attribution = attribution or CommandAttribution(
+                    correlationId=body.requestId, source='core_api',
                     reason='explicit_command_request', serviceId=binding.serviceId,
                     serviceRevision=binding.serviceRevision)
-                self._save_command(c, StoredCommand(request=body, receipt=receipt, attribution=attribution))
+                if (command_attribution.correlationId != body.requestId
+                        or command_attribution.serviceId != binding.serviceId
+                        or command_attribution.serviceRevision != binding.serviceRevision):
+                    raise ApiError('ha_command_conflict', 409)
+                self._save_command(c, StoredCommand(
+                    request=body, receipt=receipt,
+                    attribution=command_attribution))
                 self._command_generation += 1
                 self._cache.clear()
                 self._active_commands.add(body.requestId)
                 reserved = True
-            return None, (receipt, attribution, binding, service, fingerprint)
+            return None, (receipt, command_attribution, binding, service, fingerprint)
         except BaseException:
             if reserved:
                 with self._lock:
                     self._active_commands.discard(body.requestId)
             raise
 
-    def command(self, actor, core, home, resource, body, *, cancelled=lambda: False):
+    def command(self, actor, core, home, resource, body, *, cancelled=lambda: False,
+                attribution=None):
         body = CommandRequest.model_validate(body)
-        existing, prepared = self._prepare_command(actor, core, home, resource, body)
+        if attribution is not None:
+            attribution = CommandAttribution.model_validate(attribution)
+        existing, prepared = self._prepare_command(
+            actor, core, home, resource, body, attribution=attribution)
         if existing is not None:
             return {'receipt': existing.receipt.model_dump()}
         receipt, attribution, binding, service, fingerprint = prepared

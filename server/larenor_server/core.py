@@ -74,6 +74,8 @@ from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
+from .home_assistant.rule_schema import migrate as migrate_automation_rules
+from .home_assistant.rules import HomeAssistantRules
 from .keenetic_resources.schema import migrate as migrate_keenetic_resources
 from .keenetic_resources.service import KeeneticResourceAdapter
 from .home_assistant.migration_schema import migrate as migrate_direct_ha
@@ -204,6 +206,7 @@ class CoreServices:
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
+                migrate_automation_rules(connection, self.context, key)
                 migrate_keenetic_resources(connection, self.context, key)
                 migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
@@ -283,6 +286,8 @@ class CoreServices:
             self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
+            self.home_assistant_rules = HomeAssistantRules(self.home_assistant)
+            self.home_assistant_rules.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services)
             self.keenetic_resources.validate_storage()

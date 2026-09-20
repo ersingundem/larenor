@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 import re
 import unicodedata
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, ResourceRef
 
@@ -153,21 +153,43 @@ class LegacyStoredCommand(FrozenModel):
 class CommandAttribution(FrozenModel):
     schemaVersion: Literal[1] = 1
     correlationId: Identity
-    source: Literal['core_api', 'unknown']
-    reason: Literal['explicit_command_request', 'unknown']
+    source: Literal['core_api', 'core_rule', 'unknown']
+    reason: Literal[
+        'explicit_command_request', 'explicit_rule_execution', 'unknown'
+    ]
     serviceId: Identity | None
     serviceRevision: Revision | None
+    ruleId: Identity | None = None
+    ruleRevision: Revision | None = None
+    executionId: Identity | None = None
 
     _integer_version = field_validator('schemaVersion', mode='before')(CommandRequest.integer_version.__func__)
 
     @model_validator(mode='after')
     def known_source(self):
         if self.source == 'unknown':
-            if self.reason != 'unknown' or self.serviceId is not None or self.serviceRevision is not None:
+            if (self.reason != 'unknown' or self.serviceId is not None
+                    or self.serviceRevision is not None or self.ruleId is not None
+                    or self.ruleRevision is not None or self.executionId is not None):
                 raise ValueError('invalid_attribution')
-        elif self.reason != 'explicit_command_request' or self.serviceId is None or self.serviceRevision is None:
+        elif self.source == 'core_api':
+            if (self.reason != 'explicit_command_request' or self.serviceId is None
+                    or self.serviceRevision is None or self.ruleId is not None
+                    or self.ruleRevision is not None or self.executionId is not None):
+                raise ValueError('invalid_attribution')
+        elif (self.reason != 'explicit_rule_execution' or self.serviceId is None
+                or self.serviceRevision is None or self.ruleId is None
+                or self.ruleRevision is None or self.executionId != self.correlationId):
             raise ValueError('invalid_attribution')
         return self
+
+    @model_serializer(mode='wrap')
+    def omit_empty_rule(self, handler):
+        value = handler(self)
+        for key in ('ruleId', 'ruleRevision', 'executionId'):
+            if value[key] is None:
+                del value[key]
+        return value
 
 
 class StoredCommand(LegacyStoredCommand):

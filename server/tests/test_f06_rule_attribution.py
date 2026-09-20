@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from conftest import auth
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
+from test_admin import activate, create as create_user
 from test_home_assistant_adapter import bind, ha, setup
 from test_home_assistant_commands import command_body
 
@@ -51,7 +52,10 @@ def test_rule_is_current_admin_created_encrypted_and_restart_readable(server, ha
         "serviceRevision": service["revision"],
     }
     with app.state.core.db.connection() as connection:
-        raw = "\n".join(connection.iterdump())
+        raw = str([
+            tuple(row)
+            for row in connection.execute('SELECT * FROM automation_rule_records')
+        ])
     assert "turn_on" not in raw
     assert admin["user"]["id"] not in raw
 
@@ -72,7 +76,7 @@ def test_rule_execution_uses_stored_identity_and_one_correlated_result(server, h
     ).json()["rule"]
     request_id = "7" * 32
     execute = client.post(
-        rules_url(public) + "/" + rule["id"] + "/executions",
+        public + "/rules/" + rule["id"] + "/executions",
         headers=auth(admin),
         json={
             "schemaVersion": 1,
@@ -91,7 +95,7 @@ def test_rule_execution_uses_stored_identity_and_one_correlated_result(server, h
         "schemaVersion": 1,
         "correlationId": request_id,
         "source": "core_rule",
-        "reason": "rule_execution",
+        "reason": "explicit_rule_execution",
         "serviceId": service["id"],
         "serviceRevision": service["revision"],
         "ruleId": rule["id"],
@@ -99,7 +103,7 @@ def test_rule_execution_uses_stored_identity_and_one_correlated_result(server, h
         "executionId": request_id,
     }
     repeated = client.post(
-        rules_url(public) + "/" + rule["id"] + "/executions",
+        public + "/rules/" + rule["id"] + "/executions",
         headers=auth(admin),
         json={
             "schemaVersion": 1,
@@ -127,8 +131,22 @@ def test_rule_origin_cannot_be_claimed_by_nearby_command_and_storage_fails_close
         rules_url(public), headers=auth(admin), json=create_body(record, binding)
     ).json()["rule"]
     calls = ha.command_calls
+    create_user(client, admin)
+    member = activate(client, "member")
+    assert client.get(
+        rules_url(public) + "/" + rule["id"], headers=auth(member)
+    ).status_code == 403
+    assert client.post(
+        public + "/rules/" + rule["id"] + "/executions",
+        headers=auth(member),
+        json={
+            "schemaVersion": 1,
+            "requestId": "3" * 32,
+            "expectedRuleRevision": 1,
+        },
+    ).status_code == 404
     missing = client.post(
-        rules_url(public) + "/" + "f" * 32 + "/executions",
+        public + "/rules/" + "f" * 32 + "/executions",
         headers=auth(admin),
         json={
             "schemaVersion": 1,
@@ -138,14 +156,14 @@ def test_rule_origin_cannot_be_claimed_by_nearby_command_and_storage_fails_close
     )
     assert missing.status_code == 404
     forged = client.post(
-        rules_url(public) + "/" + rule["id"] + "/executions",
+        public + "/rules/" + rule["id"] + "/executions",
         headers=auth(admin),
         json={
             "schemaVersion": 1,
             "requestId": "4" * 32,
             "expectedRuleRevision": 1,
             "source": "core_rule",
-            "reason": "rule_execution",
+            "reason": "explicit_rule_execution",
         },
     )
     assert forged.status_code == 400
