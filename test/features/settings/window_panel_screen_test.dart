@@ -117,27 +117,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('platform read failure is distinct from loading and unknown data', (
-    tester,
-  ) async {
-    final store = _Store();
-    await _mount(
-      tester,
-      store,
-      const WindowPolicySnapshot(),
-      snapshotError: true,
-    );
-    final failure = find.byKey(const ValueKey('window-status-error'));
-    expect(failure, findsOneWidget);
-    expect(
-      tester.getSemantics(failure).label,
-      contains('Pencere durumu okunamadı'),
-    );
-    expect(find.byKey(const ValueKey('window-status-loading')), findsNothing);
-    expect(find.text('Tekrar Dene'), findsOneWidget);
-    expect(find.textContaining('private platform'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'platform read failure is distinct from loading and unknown data',
+    (tester) async {
+      final store = _Store();
+      await _mount(
+        tester,
+        store,
+        const WindowPolicySnapshot(),
+        snapshotError: true,
+      );
+      final failure = find.byKey(const ValueKey('window-status-error'));
+      expect(failure, findsOneWidget);
+      expect(
+        tester.getSemantics(failure).label,
+        contains('Pencere durumu okunamadı'),
+      );
+      expect(find.byKey(const ValueKey('window-status-loading')), findsNothing);
+      expect(find.text('Tekrar Dene'), findsOneWidget);
+      expect(find.textContaining('private platform'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('captured profile action expires across lifecycle changes', (
     tester,

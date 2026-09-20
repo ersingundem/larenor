@@ -40,6 +40,7 @@ class _Repository extends AmbientRepository {
     if (failList) throw StateError('private repository detail');
     return pendingList?.future ?? List.of(ids);
   }
+
   @override
   Future<Uint8List> readPhoto(String id) {
     reads.add(id);
@@ -181,11 +182,7 @@ void main() {
   ) async {
     final pending = Completer<List<String>>();
     final repository = _Repository()..pendingList = pending;
-    await _mount(
-      tester,
-      const AmbientSettingsScreen(),
-      repository: repository,
-    );
+    await _mount(tester, const AmbientSettingsScreen(), repository: repository);
     final l10n = AppLocalizations.of(
       tester.element(find.byType(AmbientSettingsScreen)),
     );
@@ -204,10 +201,7 @@ void main() {
     pending.complete(const []);
     await _frames(tester);
     expect(find.byKey(const ValueKey('ambient-library-loading')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('ambient-library-empty')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
 
     await _mount(
