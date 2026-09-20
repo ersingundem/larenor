@@ -12,6 +12,8 @@ import 'package:larenor/features/core_ha/data/core_ha_api.dart';
 import 'package:larenor/features/core_ha/data/core_ha_checkpoint_store.dart';
 import 'package:larenor/features/core_ha/data/core_ha_event_checkpoint_store.dart';
 import 'package:larenor/features/core_ha/domain/core_ha_activity_models.dart';
+import 'package:larenor/features/core_ha/domain/core_ha_models.dart';
+import 'package:larenor/features/core_ha/domain/core_ha_models.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
@@ -34,6 +36,7 @@ final class _HistoryCoreFixture {
       verificationReads = 0,
       rejected = 0,
       restarts = 0;
+  int historyStatus = 200;
   int sequence = 2;
   String chainId = 'c' * 32, headHash = 'd' * 64;
   String eventChainId = 'e' * 32;
@@ -46,6 +49,7 @@ final class _HistoryCoreFixture {
   Completer<void>? verificationGate;
   Completer<void>? eventGate;
   final eventAfter = <int?>[];
+  Completer<void>? historyGate;
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
   int get port => server.port;
@@ -69,6 +73,48 @@ final class _HistoryCoreFixture {
     );
     fixture.server.listen(fixture._handle);
     return fixture;
+  }
+
+  void serveRuleAttribution() {
+    final entries = history['complete']['response']['entries'] as List;
+    final first = entries.first as Map<String, dynamic>;
+    final attribution = first['attribution'] as Map<String, dynamic>;
+    attribution
+      ..clear()
+      ..addAll({
+        'schemaVersion': 1,
+        'correlationId':
+            (first['receipt'] as Map<String, dynamic>)['requestId'],
+        'source': 'core_rule',
+        'reason': 'explicit_rule_execution',
+        'serviceId': '2' * 32,
+        'serviceRevision': 1,
+        'ruleId': '3' * 32,
+        'ruleRevision': 4,
+        'executionId': (first['receipt'] as Map<String, dynamic>)['requestId'],
+      });
+  }
+
+  void appendUnknownAttribution() {
+    final entries = history['complete']['response']['entries'] as List;
+    final unknown =
+        jsonDecode(jsonEncode(entries.last)) as Map<String, dynamic>;
+    final receipt = unknown['receipt'] as Map<String, dynamic>;
+    receipt
+      ..['requestId'] = '7' * 32
+      ..['createdAt'] = '2026-09-05T11:59:59.000Z'
+      ..['completedAt'] = '2026-09-05T11:59:59.000Z';
+    (unknown['attribution'] as Map<String, dynamic>)
+      ..clear()
+      ..addAll({
+        'schemaVersion': 1,
+        'correlationId': '7' * 32,
+        'source': 'unknown',
+        'reason': 'unknown',
+        'serviceId': null,
+        'serviceRevision': null,
+      });
+    entries.add(unknown);
   }
 
   void advance() {
@@ -160,6 +206,14 @@ final class _HistoryCoreFixture {
         rejected++;
         await _reply(request, 400, {
           'error': {'code': 'invalid_request'},
+        });
+        return;
+      }
+      final gate = historyGate;
+      if (gate != null) await gate.future;
+      if (historyStatus != 200) {
+        await _reply(request, historyStatus, {
+          'error': {'code': 'server_unavailable'},
         });
         return;
       }
