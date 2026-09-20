@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../../shared/widgets/settings_service_tile.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -65,9 +66,13 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: CupertinoSearchTextField(
-                  key: const ValueKey('entities-search'),
-                  onChanged: (value) => setState(() => _query = value),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: CupertinoSearchTextField(
+                    key: const ValueKey('entities-search'),
+                    placeholder: l10n.commonSearch,
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
                 ),
               ),
               SettingsActionTile(
@@ -106,33 +111,29 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
                   header: Text('${filtered.length}'),
                   children: [
                     for (final entity in filtered)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 48),
-                        child: CupertinoListTile(
-                          key: ValueKey('entity-${entity.entityId}'),
-                          leading: IconBadge(
-                            icon: CupertinoIcons.list_bullet,
-                            color: categoryColorForDomain(
-                              context,
-                              entity.entityId.split('.').first,
-                            ),
-                          ),
-                          title: Text(entity.displayName),
-                          subtitle: Text(entity.entityId),
-                          onTap: () => Navigator.of(context).push(
-                            CupertinoPageRoute<String>(
-                              builder: (_) =>
-                                  RegistryEditorScreen.entity(entity),
-                            ),
-                          ),
-                          trailing: CupertinoSwitch(
-                            value: entity.disabledBy == null,
-                            onChanged: _pending.contains(entity.entityId)
-                                ? null
-                                : (enabled) =>
-                                      _setEnabled(entity.entityId, enabled),
+                      SettingsServiceTile(
+                        title: entity.displayName,
+                        leading: IconBadge(
+                          icon: CupertinoIcons.list_bullet,
+                          color: categoryColorForDomain(
+                            context,
+                            entity.entityId.split('.').first,
                           ),
                         ),
+                        additionalInfo: Text(entity.entityId),
+                        enabled: entity.disabledBy == null,
+                        busy: _pending.contains(entity.entityId),
+                        openKey: ValueKey('entity-${entity.entityId}'),
+                        toggleKey: ValueKey('entity-toggle-${entity.entityId}'),
+                        onOpen: () => Navigator.of(context).push(
+                          CupertinoPageRoute<String>(
+                            builder: (_) => RegistryEditorScreen.entity(entity),
+                          ),
+                        ),
+                        onToggle: _pending.contains(entity.entityId)
+                            ? null
+                            : (enabled) =>
+                                  _setEnabled(entity.entityId, enabled),
                       ),
                   ],
                 ),

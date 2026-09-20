@@ -1,14 +1,18 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/admin/data/models/ha_registry_entry.dart';
 import 'package:larenor/features/admin/presentation/entities_screen.dart';
+import 'package:larenor/features/admin/presentation/registry_editor_screen.dart';
 import 'package:larenor/features/admin/providers/admin_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
+import 'package:larenor/shared/widgets/settings_service_tile.dart';
 
 class _Registry extends EntityRegistry {
   static int builds = 0;
@@ -61,7 +65,8 @@ void main() {
 
         expect(find.byType(ServiceRootScaffold), findsOneWidget);
         expect(find.byType(SettingsSection), findsNWidgets(2));
-        expect(find.byType(SettingsActionTile), findsOneWidget);
+        expect(find.byType(SettingsActionTile), findsNWidgets(2));
+        expect(find.byType(SettingsServiceTile), findsOneWidget);
         expect(
           tester
               .getSemantics(
@@ -79,11 +84,28 @@ void main() {
         expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
         expect(
           tester
-              .getSemantics(find.byKey(const ValueKey('entity-light.entry')))
+              .getSemantics(find.byKey(const ValueKey('entities-search')))
               .rect
               .height,
           greaterThanOrEqualTo(48),
         );
+        final entity = find.byKey(const ValueKey('entity-light.entry'));
+        final toggle = find.byKey(const ValueKey('entity-toggle-light.entry'));
+        expect(
+          tester.getSemantics(entity).rect.height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(tester.getSemantics(entity).flagsCollection.isButton, isTrue);
+        expect(tester.getSemantics(entity).label, contains('Entry light'));
+        expect(
+          tester.getSemantics(toggle).rect.height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(
+          tester.getSemantics(toggle).flagsCollection.isToggled,
+          ui.Tristate.isTrue,
+        );
+        expect(tester.getSemantics(toggle).label, contains('Entry light'));
 
         Focus.of(
           tester.element(
@@ -95,6 +117,17 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(_Registry.builds, 2);
+
+        Focus.of(
+          tester.element(
+            find.descendant(of: entity, matching: find.text('Entry light')),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(RegistryEditorScreen), findsOneWidget);
         expect(tester.takeException(), isNull);
         semantics.dispose();
       });

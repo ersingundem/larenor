@@ -80,7 +80,7 @@ void main() {
 
           expect(find.byType(ServiceRootScaffold), findsOneWidget);
           expect(find.byType(SettingsSection), findsNWidgets(2));
-          expect(find.byType(SettingsActionTile), findsOneWidget);
+          expect(find.byType(SettingsActionTile), findsNWidgets(2));
           expect(
             tester
                 .getSemantics(
@@ -103,13 +103,29 @@ void main() {
           expect(
             tester
                 .getSemantics(
-                  find.byKey(
-                    const ValueKey('keenetic-device-AA:BB:CC:DD:EE:01'),
-                  ),
+                  find.byKey(const ValueKey('keenetic-devices-search')),
                 )
                 .rect
                 .height,
             greaterThanOrEqualTo(48),
+          );
+          expect(
+            tester
+                .getSize(find.byType(CupertinoSlidingSegmentedControl<bool>))
+                .height,
+            greaterThanOrEqualTo(48),
+          );
+          final device = find.byKey(
+            const ValueKey('keenetic-device-AA:BB:CC:DD:EE:01'),
+          );
+          expect(
+            tester.getSemantics(device).rect.height,
+            greaterThanOrEqualTo(48),
+          );
+          expect(tester.getSemantics(device).flagsCollection.isButton, isTrue);
+          expect(
+            tester.getSemantics(device).label,
+            contains('Living room tablet'),
           );
 
           Focus.of(
@@ -122,6 +138,20 @@ void main() {
           await tester.pumpAndSettle();
 
           expect(builds, 2);
+
+          Focus.of(
+            tester.element(
+              find.descendant(
+                of: device,
+                matching: find.text('Living room tablet'),
+              ),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(find.text('AA:BB:CC:DD:EE:01'), findsOneWidget);
           expect(tester.takeException(), isNull);
           semantics.dispose();
         },

@@ -84,6 +84,37 @@ void main() {
               .isHeader,
           isTrue,
         );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(WebPanelSettingsScreen)),
+        );
+        final labels = <ValueKey<String>, String>{
+          const ValueKey('web-settings-url'): l10n.webPanelStartUrl,
+          const ValueKey('web-settings-title'): l10n.webPanelTitle,
+          const ValueKey('web-settings-origin'): l10n.webPanelOrigins,
+        };
+        for (final MapEntry(key: key, value: label) in labels.entries) {
+          final field = find.byKey(key);
+          if (field.evaluate().isEmpty) {
+            await tester.scrollUntilVisible(
+              field,
+              160,
+              scrollable: find
+                  .byWidgetPredicate(
+                    (widget) =>
+                        widget is Scrollable &&
+                        widget.axisDirection == AxisDirection.down,
+                  )
+                  .first,
+            );
+            await tester.pumpAndSettle();
+          }
+          expect(tester.getSize(field).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.getSemantics(field).flagsCollection.isTextField,
+            isTrue,
+          );
+          expect(tester.getSemantics(field).label, contains(label));
+        }
         final save = find.byKey(const ValueKey('web-settings-save'));
         if (save.evaluate().isEmpty) {
           await tester.scrollUntilVisible(

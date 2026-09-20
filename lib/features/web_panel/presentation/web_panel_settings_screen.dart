@@ -236,21 +236,38 @@ class _WebPanelSettingsState
                           children: [
                             Text(l10n.webPanelStartUrl),
                             const SizedBox(height: 8),
-                            CupertinoTextField(
-                              key: const ValueKey('web-settings-url'),
-                              controller: _url,
-                              keyboardType: TextInputType.url,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              maxLength: 4096,
+                            Semantics(
+                              label: l10n.webPanelStartUrl,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: CupertinoTextField(
+                                  key: const ValueKey('web-settings-url'),
+                                  controller: _url,
+                                  keyboardType: TextInputType.url,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  maxLength: 4096,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
                             Text(l10n.webPanelTitle),
                             const SizedBox(height: 8),
-                            CupertinoTextField(
-                              key: const ValueKey('web-settings-title'),
-                              controller: _title,
-                              maxLength: 512,
+                            Semantics(
+                              label: l10n.webPanelTitle,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: CupertinoTextField(
+                                  key: const ValueKey('web-settings-title'),
+                                  controller: _title,
+                                  placeholder: l10n.webPanelTitle,
+                                  maxLength: 512,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -285,14 +302,20 @@ class _WebPanelSettingsState
                         ),
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: CupertinoTextField(
-                          key: const ValueKey('web-settings-origin'),
-                          controller: _origin,
-                          keyboardType: TextInputType.url,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          placeholder: 'https://login.example.com',
-                          maxLength: 4096,
+                        child: Semantics(
+                          label: l10n.webPanelOrigins,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: CupertinoTextField(
+                              key: const ValueKey('web-settings-origin'),
+                              controller: _origin,
+                              keyboardType: TextInputType.url,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              placeholder: 'https://login.example.com',
+                              maxLength: 4096,
+                            ),
+                          ),
                         ),
                       ),
                       SettingsActionTile(
@@ -337,17 +360,20 @@ class _WebPanelSettingsState
                           children: [
                             Text('${l10n.webPanelTextSize}: $_textZoom%'),
                             if (android)
-                              CupertinoSlider(
-                                key: const ValueKey('web-settings-text-zoom'),
-                                min: 75,
-                                max: 200,
-                                divisions: 5,
-                                value: _textZoom.toDouble(),
-                                onChanged: (value) {
-                                  if (_valid(generation)) {
-                                    setState(() => _textZoom = value.round());
-                                  }
-                                },
+                              SizedBox(
+                                height: 48,
+                                child: CupertinoSlider(
+                                  key: const ValueKey('web-settings-text-zoom'),
+                                  min: 75,
+                                  max: 200,
+                                  divisions: 5,
+                                  value: _textZoom.toDouble(),
+                                  onChanged: (value) {
+                                    if (_valid(generation)) {
+                                      setState(() => _textZoom = value.round());
+                                    }
+                                  },
+                                ),
                               )
                             else
                               Padding(

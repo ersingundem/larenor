@@ -99,14 +99,17 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: CupertinoSearchTextField(
-                  key: const ValueKey('keenetic-devices-search'),
-                  placeholder: l10n.commonSearch,
-                  onChanged: (value) {
-                    if (keeneticCurrent(generation)) {
-                      setState(() => _query = value);
-                    }
-                  },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: CupertinoSearchTextField(
+                    key: const ValueKey('keenetic-devices-search'),
+                    placeholder: l10n.commonSearch,
+                    onChanged: (value) {
+                      if (keeneticCurrent(generation)) {
+                        setState(() => _query = value);
+                      }
+                    },
+                  ),
                 ),
               ),
               Padding(
@@ -114,17 +117,20 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: CupertinoSlidingSegmentedControl<bool>(
-                  groupValue: _onlineOnly,
-                  children: {
-                    false: Text(l10n.keeneticAllDevices),
-                    true: Text(l10n.keeneticOnline),
-                  },
-                  onValueChanged: (value) {
-                    if (value != null && keeneticCurrent(generation)) {
-                      setState(() => _onlineOnly = value);
-                    }
-                  },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: CupertinoSlidingSegmentedControl<bool>(
+                    groupValue: _onlineOnly,
+                    children: {
+                      false: Text(l10n.keeneticAllDevices),
+                      true: Text(l10n.keeneticOnline),
+                    },
+                    onValueChanged: (value) {
+                      if (value != null && keeneticCurrent(generation)) {
+                        setState(() => _onlineOnly = value);
+                      }
+                    },
+                  ),
                 ),
               ),
               SettingsActionTile(
@@ -172,39 +178,33 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                   ),
                   children: [
                     for (final device in visibleDevices)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 48),
-                        child: CupertinoListTile(
-                          key: ValueKey('keenetic-device-${device.mac}'),
-                          leading: Icon(
-                            device.active
-                                ? CupertinoIcons.wifi
-                                : CupertinoIcons.wifi_slash,
-                            color: device.active
-                                ? CupertinoColors.systemGreen.resolveFrom(
-                                    context,
-                                  )
-                                : CupertinoColors.systemGrey,
-                          ),
-                          title: Text(device.name),
-                          subtitle: Text(
-                            '${device.ip ?? device.mac} · ${device.active ? l10n.keeneticOnline : l10n.keeneticOffline}',
-                          ),
-                          trailing: const CupertinoListTileChevron(),
-                          onTap: () {
-                            if (!keeneticCurrent(generation)) return;
-                            final source = captureKeeneticSource();
-                            if (source == null) return;
-                            Navigator.of(context).push(
-                              CupertinoPageRoute<void>(
-                                builder: (_) => _DeviceDetails(
-                                  device: device,
-                                  sourceCurrent: source,
-                                ),
-                              ),
-                            );
-                          },
+                      SettingsActionTile(
+                        buttonKey: ValueKey('keenetic-device-${device.mac}'),
+                        leading: Icon(
+                          device.active
+                              ? CupertinoIcons.wifi
+                              : CupertinoIcons.wifi_slash,
+                          color: device.active
+                              ? CupertinoColors.systemGreen.resolveFrom(context)
+                              : CupertinoColors.systemGrey,
                         ),
+                        title: Text(device.name),
+                        additionalInfo: Text(
+                          '${device.ip ?? device.mac} · ${device.active ? l10n.keeneticOnline : l10n.keeneticOffline}',
+                        ),
+                        onTap: () {
+                          if (!keeneticCurrent(generation)) return;
+                          final source = captureKeeneticSource();
+                          if (source == null) return;
+                          Navigator.of(context).push(
+                            CupertinoPageRoute<void>(
+                              builder: (_) => _DeviceDetails(
+                                device: device,
+                                sourceCurrent: source,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                   ],
                 ),
