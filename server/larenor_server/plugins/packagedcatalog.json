@@ -873,7 +873,15 @@
         }
       ],
       "ports": [],
-      "tmpfs": [],
+      "tmpfs": [
+        {
+          "target": "/tmp",
+          "sizeMiB": 128,
+          "uid": 0,
+          "gid": 0,
+          "executable": false
+        }
+      ],
       "environment": [
         {
           "name": "LOG_LEVEL",
