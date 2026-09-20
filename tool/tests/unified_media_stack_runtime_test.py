@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -134,6 +135,30 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(package.PackageError, "manifest_invalid"):
             self.planner.preflight(changed_manifest, HostFacts(
                 changed_manifest["directoryRequirements"]))
+
+    def test_trusted_compose_rejects_noncanonical_paths_and_out_of_range_ids(self):
+        original = json.loads(
+            (ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
+        mutations = (
+            lambda value: value["services"]["larenor-seerr"]["volumes"][0].update(
+                {"source": "/var/lib/larenor-server/../foreign"}),
+            lambda value: value["services"]["larenor-seerr"]["volumes"][0].update(
+                {"target": "/app/../foreign"}),
+            lambda value: value["services"]["larenor-seerr"].update(
+                {"user": "1000:2147483648"}),
+        )
+        for mutate in mutations:
+            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as directory:
+                changed = json.loads(json.dumps(original))
+                mutate(changed)
+                compose_path = Path(directory) / "unified.compose.yaml"
+                compose_path.write_text(json.dumps(changed))
+                planner = package.UnifiedPackagePlanner(
+                    compose_path=compose_path,
+                    catalog_path=ROOT / "server/larenor_server/plugins/packagedcatalog.json",
+                )
+                with self.assertRaisesRegex(package.PackageError, "config_identity_changed"):
+                    planner.preview(REVISION, ConfigBackend())
 
     def test_owned_directory_preflight_fails_closed_before_runtime_mutation(self):
         preview, _ = self.preview()

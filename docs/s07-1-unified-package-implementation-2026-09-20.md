@@ -184,3 +184,11 @@ birleşik kapasite gözlemlerinin mutation öncesi kapandığı; OCI index diges
 native platformun birlikte doğrulandığı; bootstrap authority verilmediğinde
 readiness'nin `verified` yapılmadığı doğrulandı. Bu alanlarda yeni P1/P2
 bulunmadı. Gerçek runner sonucu hâlâ zorunlu dış kanıttır.
+
+Son güven sınırı incelemesinde Compose kaynağındaki bind yollarının yalnız metin
+önekine göre doğrulandığı görüldü. Planlayıcı artık kaynak ve hedef yollarında
+`..`, gereksiz ayraç, göreli veya kök hedef biçimlerini reddeder; owned kaynak
+gerçek bir `/var/lib/larenor-server` alt yolu olmak zorundadır. Container
+kimliğinde hem UID hem GID signed 32-bit aralığında doğrulanır. Böylece inceleme
+altındaki trusted Compose değişikliği owned root dışına bind veya taşan GID ile
+preflight üretmeden fail-closed olur.

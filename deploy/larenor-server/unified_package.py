@@ -9,7 +9,7 @@ proved with owned fakes.
 
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 
 
@@ -72,10 +72,24 @@ def _bounded_document(value):
 def _user_id(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,10}:[0-9]{1,10}", value):
         raise PackageError("config_identity_changed")
-    uid = int(value.split(":", 1)[0])
-    if uid > 2**31 - 1:
+    uid_text, gid_text = value.split(":", 1)
+    uid, gid = int(uid_text), int(gid_text)
+    if uid > 2**31 - 1 or gid > 2**31 - 1:
         raise PackageError("config_identity_changed")
     return uid
+
+
+def _absolute_posix_path(value, *, owned=False):
+    if not isinstance(value, str) or not value.startswith("/"):
+        raise PackageError("config_identity_changed")
+    path = PurePosixPath(value)
+    if (str(path) != value or ".." in path.parts or path == PurePosixPath("/")):
+        raise PackageError("config_identity_changed")
+    if owned:
+        root = PurePosixPath("/var/lib/larenor-server")
+        if root not in path.parents:
+            raise PackageError("config_identity_changed")
+    return value
 
 
 def _mounts(service):
@@ -87,13 +101,11 @@ def _mounts(service):
         if (not isinstance(mount, dict) or set(mount) - {"type", "source", "target", "read_only", "bind"}
                 or mount.get("type") != "bind"
                 or mount.get("bind") != {"create_host_path": False}
-                or not isinstance(mount.get("source"), str)
-                or not mount["source"].startswith("/var/lib/larenor-server/")
-                or not isinstance(mount.get("target"), str)
-                or not mount["target"].startswith("/")
                 or type(mount.get("read_only", False)) is not bool):
             raise PackageError("config_identity_changed")
-        result.append({"source": mount["source"], "target": mount["target"],
+        source = _absolute_posix_path(mount.get("source"), owned=True)
+        target = _absolute_posix_path(mount.get("target"))
+        result.append({"source": source, "target": target,
                        "readOnly": mount.get("read_only", False)})
     if len({item["target"] for item in result}) != len(result):
         raise PackageError("config_identity_changed")
