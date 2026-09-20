@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../data/local_audio_bridge.dart';
 import '../domain/local_audio_models.dart';
 import '../providers/local_audio_providers.dart';
@@ -81,6 +83,16 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
 
+  bool _capturedActionCurrent(
+    AppInteractionController? interaction,
+    int? epoch,
+    LocalAudioBridge bridge,
+  ) =>
+      _canAct &&
+      identical(interaction, AppInteractionScope.maybeRead(context)) &&
+      interaction?.epoch == epoch &&
+      identical(bridge, ref.read(localAudioBridgeProvider));
+
   Future<void> _run(
     Future<void> Function(LocalAudioBridge) action, {
     String? expectedSourceId,
@@ -89,12 +101,13 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final generation = _generation;
     final interaction = AppInteractionScope.maybeRead(context);
     final epoch = interaction?.epoch;
+    final bridge = ref.read(localAudioBridgeProvider);
     bool current() =>
         _canAct &&
         generation == _generation &&
         identical(interaction, AppInteractionScope.maybeRead(context)) &&
-        interaction?.epoch == epoch;
-    final bridge = ref.read(localAudioBridgeProvider);
+        interaction?.epoch == epoch &&
+        identical(bridge, ref.read(localAudioBridgeProvider));
     setState(() {
       _busy = true;
       _error = null;
@@ -118,7 +131,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && identical(bridge, ref.read(localAudioBridgeProvider))) {
         setState(() {
           _busy = false;
           _seekSeconds = null;
@@ -161,6 +174,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final bridge = ref.read(localAudioBridgeProvider);
     final previousSource = ref.read(localAudioProvider).value?.sourceId;
     final interaction = AppInteractionScope.maybeRead(context);
+    final interactionEpoch = interaction?.epoch;
     setState(() {
       _artworkBusy = true;
       _error = null;
@@ -169,7 +183,8 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         mounted &&
         token == _artworkGeneration &&
         identical(bridge, ref.read(localAudioBridgeProvider)) &&
-        identical(interaction, AppInteractionScope.maybeRead(context));
+        identical(interaction, AppInteractionScope.maybeRead(context)) &&
+        interaction?.epoch == interactionEpoch;
     try {
       final bytes = await ref.read(localAudioArtworkFileAccessProvider).pick();
       if (bytes == null || !ownerCurrent()) return;
@@ -177,13 +192,8 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
       // a draft; returning never starts playback or revives a command ticket.
       await WidgetsBinding.instance.endOfFrame;
       if (!ownerCurrent() || !_canAct) return;
-      final epoch = interaction?.epoch;
       final generation = _generation;
-      bool current() =>
-          ownerCurrent() &&
-          _canAct &&
-          epoch == interaction?.epoch &&
-          generation == _generation;
+      bool current() => ownerCurrent() && _canAct && generation == _generation;
       final state = await bridge.snapshot();
       if (!current() || state.sourceId != previousSource) return;
       setState(() => _draftArtwork = null);
@@ -209,13 +219,29 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final active = _foreground && TickerMode.valuesOf(context).enabled;
+    final interaction = AppInteractionScope.maybeOf(context);
+    final interactionEpoch = interaction?.epoch;
+    final bridge = ref.watch(localAudioBridgeProvider);
+    VoidCallback guarded(VoidCallback action) => () {
+      if (_capturedActionCurrent(interaction, interactionEpoch, bridge)) {
+        action();
+      }
+    };
+    final active =
+        _foreground &&
+        interaction?.active != false &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
     ref.listen(localAudioBridgeProvider, (previous, next) {
       if (previous != null && !identical(previous, next)) {
         setState(() {
+          _generation++;
           _artworkGeneration++;
           _draftArtwork = null;
           _artworkBusy = false;
+          _busy = false;
+          _seekSeconds = null;
+          _error = null;
         });
       }
     });
@@ -243,249 +269,340 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final canSelect = ready && !_artworkBusy;
     final duration = state?.duration?.inMilliseconds.toDouble();
     final position = state?.position?.inMilliseconds.toDouble();
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(l10n.localAudioTitle)),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                const Icon(CupertinoIcons.music_note_2, size: 44),
-                const SizedBox(height: 16),
-                Text(l10n.localAudioHint, style: AppText.body),
-                const SizedBox(height: 20),
-                if (reading?.isLoading == true)
-                  const CupertinoActivityIndicator(),
-                if (reading?.hasError == true) Text(l10n.localAudioUnavailable),
-                if (state?.supported == false) Text(l10n.localAudioUnsupported),
-                if (_error != null) Text(_error!),
-                if (state?.failure != null)
-                  Text(localAudioFailureLabel(l10n, state!.failure)),
-                if (state?.supported == true)
-                  _AudioPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _AudioMetadataHeader(snapshot: state!),
-                        const SizedBox(height: 12),
-                        Text(switch (state.phase) {
-                          LocalAudioPhase.idle => l10n.localAudioIdle,
-                          LocalAudioPhase.loading => l10n.localAudioLoading,
-                          LocalAudioPhase.ready =>
-                            state.isPlaying
-                                ? l10n.localAudioPlaying
-                                : l10n.localAudioPaused,
-                          LocalAudioPhase.ended => l10n.localAudioEnded,
-                          LocalAudioPhase.error => l10n.localAudioUnavailable,
-                        }),
-                        if (duration != null &&
-                            duration > 0 &&
-                            position != null) ...[
+    return ServiceRootScaffold(
+      title: l10n.localAudioTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(CupertinoIcons.music_note_2, size: 44),
+                    const SizedBox(height: 16),
+                    Text(l10n.localAudioHint, style: AppText.body),
+                    const SizedBox(height: 20),
+                    if (reading?.isLoading == true)
+                      const CupertinoActivityIndicator(),
+                    if (reading?.hasError == true)
+                      Text(l10n.localAudioUnavailable),
+                    if (state?.supported == false)
+                      Text(l10n.localAudioUnsupported),
+                    if (_error != null) Text(_error!),
+                    if (state?.failure != null)
+                      Text(localAudioFailureLabel(l10n, state!.failure)),
+                    if (state?.supported == true)
+                      _AudioPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _AudioMetadataHeader(snapshot: state!),
+                            const SizedBox(height: 12),
+                            Text(switch (state.phase) {
+                              LocalAudioPhase.idle => l10n.localAudioIdle,
+                              LocalAudioPhase.loading => l10n.localAudioLoading,
+                              LocalAudioPhase.ready =>
+                                state.isPlaying
+                                    ? l10n.localAudioPlaying
+                                    : l10n.localAudioPaused,
+                              LocalAudioPhase.ended => l10n.localAudioEnded,
+                              LocalAudioPhase.error =>
+                                l10n.localAudioUnavailable,
+                            }),
+                            if (duration != null &&
+                                duration > 0 &&
+                                position != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                '${_time(Duration(milliseconds: position.round()))} / ${_time(state.duration!)}',
+                                style: AppText.footnote,
+                              ),
+                              Semantics(
+                                label: l10n.localAudioPosition,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: CupertinoSlider(
+                                    value: (_seekSeconds ?? position).clamp(
+                                      0,
+                                      duration,
+                                    ),
+                                    min: 0,
+                                    max: duration,
+                                    onChanged: ready && state.canSeek
+                                        ? (value) {
+                                            if (_capturedActionCurrent(
+                                              interaction,
+                                              interactionEpoch,
+                                              bridge,
+                                            )) {
+                                              setState(
+                                                () => _seekSeconds = value,
+                                              );
+                                            }
+                                          }
+                                        : null,
+                                    onChangeEnd: ready && state.canSeek
+                                        ? (value) {
+                                            if (_capturedActionCurrent(
+                                              interaction,
+                                              interactionEpoch,
+                                              bridge,
+                                            )) {
+                                              _run(
+                                                (bridge) => bridge.seek(
+                                                  Duration(
+                                                    milliseconds: value.round(),
+                                                  ),
+                                                  expectedSourceId:
+                                                      state.sourceId,
+                                                ),
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              );
+                                            }
+                                          }
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              children: [
+                                if (state.canPause)
+                                  CupertinoButton(
+                                    onPressed: ready
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.pause(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
+                                              expectedSourceId: state.sourceId,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Text(l10n.localAudioPause),
+                                  ),
+                                if (state.canPlay && !state.isPlaying)
+                                  CupertinoButton(
+                                    onPressed: ready
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.resume(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
+                                              expectedSourceId: state.sourceId,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Text(l10n.localAudioResume),
+                                  ),
+                                if (state.canStop)
+                                  CupertinoButton(
+                                    onPressed: ready
+                                        ? guarded(
+                                            () => _run(
+                                              (bridge) => bridge.stop(
+                                                expectedSourceId:
+                                                    state.sourceId,
+                                              ),
+                                              expectedSourceId: state.sourceId,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Text(l10n.localAudioStop),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    _AudioPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.localAudioSourceTitle,
+                            style: AppText.title2,
+                          ),
+                          const SizedBox(height: 16),
+                          CupertinoTextField(
+                            key: const ValueKey('local-audio-name'),
+                            controller: _title,
+                            enabled: ready,
+                            maxLength: 256,
+                            placeholder: l10n.localAudioName,
+                            padding: const EdgeInsets.all(14),
+                          ),
+                          const SizedBox(height: 12),
+                          CupertinoTextField(
+                            key: const ValueKey('local-audio-url'),
+                            controller: _address,
+                            enabled: ready,
+                            maxLength: 2048,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            keyboardType: TextInputType.url,
+                            placeholder: l10n.localAudioAddress,
+                            padding: const EdgeInsets.all(14),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(l10n.localAudioFormat, style: AppText.headline),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              for (final entry in const {
+                                'audio/mpeg': 'MP3',
+                                'audio/aac': 'AAC',
+                                'audio/mp4': 'M4A',
+                                'audio/ogg': 'OGG',
+                                'audio/flac': 'FLAC',
+                                'audio/wav': 'WAV',
+                              }.entries)
+                                Semantics(
+                                  key: ValueKey(
+                                    'local-audio-format-${entry.key}',
+                                  ),
+                                  selected: _mime == entry.key,
+                                  child: CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    color: _mime == entry.key
+                                        ? CupertinoColors.activeBlue
+                                        : null,
+                                    foregroundColor: _mime == entry.key
+                                        ? CupertinoColors.white
+                                        : null,
+                                    onPressed: ready
+                                        ? guarded(
+                                            () => setState(
+                                              () => _mime = entry.key,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_mime == entry.key) ...[
+                                          const Icon(
+                                            CupertinoIcons.check_mark,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                        Text(entry.value),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                           const SizedBox(height: 12),
                           Text(
-                            '${_time(Duration(milliseconds: position.round()))} / ${_time(state.duration!)}',
+                            l10n.localAudioSourceHint,
                             style: AppText.footnote,
                           ),
-                          Semantics(
-                            label: l10n.localAudioPosition,
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: CupertinoSlider(
-                                value: (_seekSeconds ?? position).clamp(
-                                  0,
-                                  duration,
-                                ),
-                                min: 0,
-                                max: duration,
-                                onChanged: ready && state.canSeek
-                                    ? (value) =>
-                                          setState(() => _seekSeconds = value)
-                                    : null,
-                                onChangeEnd: ready && state.canSeek
-                                    ? (value) => _run(
-                                        (bridge) => bridge.seek(
-                                          Duration(milliseconds: value.round()),
-                                          expectedSourceId: state.sourceId,
-                                        ),
-                                        expectedSourceId: state.sourceId,
-                                      )
-                                    : null,
+                          const SizedBox(height: 20),
+                          Text(
+                            l10n.localAudioArtworkTitle,
+                            style: AppText.headline,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.localAudioArtworkHint,
+                            style: AppText.footnote,
+                          ),
+                          if (_draftArtwork != null) ...[
+                            const SizedBox(height: 12),
+                            LocalAudioCover(
+                              artwork: _draftArtwork,
+                              imageKey: const ValueKey(
+                                'local-audio-draft-cover',
                               ),
                             ),
+                          ],
+                          if (_artworkBusy) Text(l10n.localAudioArtworkLoading),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              CupertinoButton(
+                                key: const ValueKey(
+                                  'local-audio-artwork-choose',
+                                ),
+                                onPressed: canSelect
+                                    ? guarded(_chooseArtwork)
+                                    : null,
+                                child: Text(l10n.localAudioArtworkChoose),
+                              ),
+                              if (_draftArtwork != null)
+                                CupertinoButton(
+                                  key: const ValueKey(
+                                    'local-audio-artwork-remove',
+                                  ),
+                                  onPressed: canSelect
+                                      ? guarded(
+                                          () => setState(
+                                            () => _draftArtwork = null,
+                                          ),
+                                        )
+                                      : null,
+                                  child: Text(l10n.localAudioArtworkRemove),
+                                ),
+                            ],
                           ),
                         ],
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            if (state.canPause)
-                              CupertinoButton(
-                                onPressed: ready
-                                    ? () => _run(
-                                        (bridge) => bridge.pause(
-                                          expectedSourceId: state.sourceId,
-                                        ),
-                                        expectedSourceId: state.sourceId,
-                                      )
-                                    : null,
-                                child: Text(l10n.localAudioPause),
-                              ),
-                            if (state.canPlay && !state.isPlaying)
-                              CupertinoButton(
-                                onPressed: ready
-                                    ? () => _run(
-                                        (bridge) => bridge.resume(
-                                          expectedSourceId: state.sourceId,
-                                        ),
-                                        expectedSourceId: state.sourceId,
-                                      )
-                                    : null,
-                                child: Text(l10n.localAudioResume),
-                              ),
-                            if (state.canStop)
-                              CupertinoButton(
-                                onPressed: ready
-                                    ? () => _run(
-                                        (bridge) => bridge.stop(
-                                          expectedSourceId: state.sourceId,
-                                        ),
-                                        expectedSourceId: state.sourceId,
-                                      )
-                                    : null,
-                                child: Text(l10n.localAudioStop),
-                              ),
-                          ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SettingsSection(
+                      header: Semantics(
+                        key: const ValueKey('local-audio-actions-header'),
+                        container: true,
+                        header: true,
+                        child: Text(l10n.localAudioSourceTitle),
+                      ),
+                      children: [
+                        SettingsActionTile(
+                          buttonKey: const ValueKey('local-audio-start'),
+                          leading: _busy
+                              ? const CupertinoActivityIndicator()
+                              : const Icon(CupertinoIcons.play_fill),
+                          title: Text(l10n.localAudioTitle),
+                          onTap: canSelect ? guarded(_play) : null,
+                        ),
+                        SettingsActionTile(
+                          leading: const Icon(CupertinoIcons.battery_100),
+                          title: Text(l10n.localAudioPowerTitle),
+                          onTap: !active || _busy
+                              ? null
+                              : guarded(
+                                  () => Navigator.of(context).push(
+                                    CupertinoPageRoute<void>(
+                                      builder: (_) =>
+                                          const PlaybackPowerScreen(),
+                                    ),
+                                  ),
+                                ),
                         ),
                       ],
                     ),
-                  ),
-                const SizedBox(height: 20),
-                _AudioPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.localAudioSourceTitle, style: AppText.title2),
-                      const SizedBox(height: 16),
-                      CupertinoTextField(
-                        key: const ValueKey('local-audio-name'),
-                        controller: _title,
-                        enabled: ready,
-                        maxLength: 256,
-                        placeholder: l10n.localAudioName,
-                        padding: const EdgeInsets.all(14),
-                      ),
-                      const SizedBox(height: 12),
-                      CupertinoTextField(
-                        key: const ValueKey('local-audio-url'),
-                        controller: _address,
-                        enabled: ready,
-                        maxLength: 2048,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        keyboardType: TextInputType.url,
-                        placeholder: l10n.localAudioAddress,
-                        padding: const EdgeInsets.all(14),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(l10n.localAudioFormat, style: AppText.headline),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          for (final entry in const {
-                            'audio/mpeg': 'MP3',
-                            'audio/aac': 'AAC',
-                            'audio/mp4': 'M4A',
-                            'audio/ogg': 'OGG',
-                            'audio/flac': 'FLAC',
-                            'audio/wav': 'WAV',
-                          }.entries)
-                            CupertinoButton(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              color: _mime == entry.key
-                                  ? CupertinoColors.activeBlue
-                                  : null,
-                              foregroundColor: _mime == entry.key
-                                  ? CupertinoColors.white
-                                  : null,
-                              onPressed: ready
-                                  ? () => setState(() => _mime = entry.key)
-                                  : null,
-                              child: Text(entry.value),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(l10n.localAudioSourceHint, style: AppText.footnote),
-                      const SizedBox(height: 20),
-                      Text(
-                        l10n.localAudioArtworkTitle,
-                        style: AppText.headline,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(l10n.localAudioArtworkHint, style: AppText.footnote),
-                      if (_draftArtwork != null) ...[
-                        const SizedBox(height: 12),
-                        LocalAudioCover(
-                          artwork: _draftArtwork,
-                          imageKey: const ValueKey('local-audio-draft-cover'),
-                        ),
-                      ],
-                      if (_artworkBusy) Text(l10n.localAudioArtworkLoading),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          CupertinoButton(
-                            key: const ValueKey('local-audio-artwork-choose'),
-                            onPressed: canSelect ? _chooseArtwork : null,
-                            child: Text(l10n.localAudioArtworkChoose),
-                          ),
-                          if (_draftArtwork != null)
-                            CupertinoButton(
-                              key: const ValueKey('local-audio-artwork-remove'),
-                              onPressed: canSelect
-                                  ? () {
-                                      if (_canAct) {
-                                        setState(() => _draftArtwork = null);
-                                      }
-                                    }
-                                  : null,
-                              child: Text(l10n.localAudioArtworkRemove),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      CupertinoButton.filled(
-                        key: const ValueKey('local-audio-start'),
-                        onPressed: canSelect ? _play : null,
-                        child: _busy
-                            ? const CupertinoActivityIndicator()
-                            : Text(l10n.localAudioTitle),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                CupertinoButton(
-                  onPressed: !active || _busy
-                      ? null
-                      : () => Navigator.of(context).push(
-                          CupertinoPageRoute<void>(
-                            builder: (_) => const PlaybackPowerScreen(),
-                          ),
-                        ),
-                  child: Text(l10n.localAudioPowerTitle),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

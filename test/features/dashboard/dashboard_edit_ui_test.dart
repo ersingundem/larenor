@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -30,6 +31,9 @@ import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_provide
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _config = HaConnectionConfig(
   baseUrl: 'http://home.invalid:8123',
@@ -136,6 +140,7 @@ class _Harness {
     bool passive = false,
     Size size = const Size(800, 1100),
     double scale = 1,
+    String language = 'en',
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -164,6 +169,7 @@ class _Harness {
         container: container,
         child: CupertinoApp(
           navigatorKey: navigator,
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: child,
@@ -929,5 +935,53 @@ void main() {
       await _tap(tester, 'dashboard-edit-size-light.manual');
       expect(tester.takeException(), isNull);
     });
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets('$language room sync exposes an accessible preview action at '
+          '${size.width}px and 2x', (tester) async {
+        final semantics = tester.ensureSemantics();
+        final harness = _Harness();
+        await harness.mount(
+          tester,
+          const RoomAreaSyncScreen(roomId: 'room'),
+          size: size,
+          scale: 2,
+          language: language,
+        );
+
+        expect(find.byType(ServiceRootScaffold), findsOneWidget);
+        expect(find.byType(SettingsSection), findsWidgets);
+        expect(find.byType(SettingsActionTile), findsWidgets);
+        expect(
+          tester
+              .getSemantics(
+                find.byKey(const ValueKey('room-sync-status-header')),
+              )
+              .flagsCollection
+              .isHeader,
+          isTrue,
+        );
+
+        await _tap(tester, 'room-sync-area-living');
+        final preview = find.byKey(const ValueKey('room-sync-preview'));
+        await tester.ensureVisible(preview);
+        expect(tester.getRect(preview).height, greaterThanOrEqualTo(48));
+        expect(tester.getSemantics(preview).flagsCollection.isButton, isTrue);
+        Focus.of(
+          tester.element(
+            find.descendant(of: preview, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const ValueKey('room-sync-apply')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
+    }
   }
 }

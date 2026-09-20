@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../domain/dashboard_room.dart';
 import '../providers/dashboard_providers.dart';
@@ -189,97 +191,95 @@ class _RoomAreaSyncScreenState extends DashboardEditState<RoomAreaSyncScreen> {
     final areas = !source.isLoading && !source.hasError
         ? source.value?.areas.values.toList() ?? []
         : [];
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(l10n.roomSyncTitle)),
-      child: !foreground
-          ? const SizedBox.expand()
-          : SafeArea(
-              child: CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (room != null)
-                            Text(room.name, style: AppText.title2),
-                          const SizedBox(height: 12),
-                          Text(l10n.roomSyncLocalOnly),
-                          if (mismatch)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(l10n.roomSyncMismatch),
-                            ),
-                          if (_message != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Semantics(
-                                liveRegion: true,
-                                child: Text(_message!),
-                              ),
-                            ),
-                          if (room == null)
-                            Text(l10n.navigationDestinationMissing),
-                          if (bound != null) ...[
-                            const SizedBox(height: 12),
-                            Text(bound.sourceName, style: AppText.headline),
-                            CupertinoButton(
-                              key: const ValueKey('room-sync-unbind'),
-                              onPressed: _busy
-                                  ? null
-                                  : dashboardAction(() => _unbind(room!)),
-                              child: Text(l10n.roomSyncUnbind),
-                            ),
-                          ],
-                          if (source.isLoading)
-                            const CupertinoActivityIndicator(),
-                          if (source.hasError) Text(l10n.roomSyncFailed),
-                          if (!mismatch && room != null) ...[
-                            if (bound == null)
-                              Text(
-                                l10n.roomSyncPickArea,
-                                style: AppText.headline,
-                              ),
-                            if (bound != null || selected != null)
-                              CupertinoButton.filled(
-                                key: const ValueKey('room-sync-preview'),
-                                onPressed:
-                                    _busy || source.isLoading || source.hasError
-                                    ? null
-                                    : dashboardAction(
-                                        () => _previewChanges(selected!),
-                                      ),
-                                child: Text(l10n.roomSyncPreview),
-                              ),
-                          ],
-                          CupertinoButton(
-                            key: const ValueKey('room-sync-refresh'),
-                            onPressed: _busy
-                                ? null
-                                : dashboardAction(() {
-                                    setState(() => _preview = null);
-                                    ref.invalidate(roomAreaSyncSourceProvider);
-                                  }),
-                            child: Text(l10n.commonRetry),
-                          ),
-                          if (preview != null && !validPreview)
-                            Text(l10n.roomSyncStale),
-                        ],
-                      ),
-                    ),
+    return ServiceRootScaffold(
+      title: l10n.roomSyncTitle,
+      slivers: !foreground
+          ? [const SliverFilledMessage(child: SizedBox.expand())]
+          : [
+              SliverToBoxAdapter(
+                child: SettingsSection(
+                  header: Semantics(
+                    key: const ValueKey('room-sync-status-header'),
+                    header: true,
+                    child: Text(room?.name ?? l10n.roomSyncTitle),
                   ),
-                  if (bound == null && !mismatch)
-                    SliverList.builder(
-                      itemCount: areas.length,
-                      itemBuilder: (context, index) {
-                        final area = areas[index];
-                        return CupertinoListTile(
-                          key: ValueKey('room-sync-area-${area.areaId}'),
+                  footer: Text(l10n.roomSyncLocalOnly),
+                  children: [
+                    if (mismatch)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(l10n.roomSyncMismatch),
+                      ),
+                    if (_message != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(_message!),
+                        ),
+                      ),
+                    if (room == null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(l10n.navigationDestinationMissing),
+                      ),
+                    if (bound != null)
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('room-sync-unbind'),
+                        title: Text(l10n.roomSyncUnbind),
+                        additionalInfo: Text(bound.sourceName),
+                        onTap: _busy
+                            ? null
+                            : dashboardAction(() => _unbind(room!)),
+                      ),
+                    if (source.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CupertinoActivityIndicator(),
+                      ),
+                    if (source.hasError)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(l10n.roomSyncFailed),
+                      ),
+                    if (!mismatch &&
+                        room != null &&
+                        (bound != null || selected != null))
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('room-sync-preview'),
+                        title: Text(l10n.roomSyncPreview),
+                        onTap: _busy || source.isLoading || source.hasError
+                            ? null
+                            : dashboardAction(() => _previewChanges(selected!)),
+                      ),
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('room-sync-refresh'),
+                      title: Text(l10n.commonRetry),
+                      onTap: _busy
+                          ? null
+                          : dashboardAction(() {
+                              setState(() => _preview = null);
+                              ref.invalidate(roomAreaSyncSourceProvider);
+                            }),
+                    ),
+                    if (preview != null && !validPreview)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(l10n.roomSyncStale),
+                      ),
+                  ],
+                ),
+              ),
+              if (bound == null && !mismatch && areas.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: SettingsSection(
+                    header: Text(l10n.roomSyncPickArea),
+                    children: [
+                      for (final area in areas)
+                        SettingsActionTile(
+                          buttonKey: ValueKey('room-sync-area-${area.areaId}'),
                           title: Text(area.name),
-                          trailing: selected == area.areaId
-                              ? const Icon(CupertinoIcons.check_mark)
-                              : null,
+                          selected: selected == area.areaId,
                           onTap: _busy
                               ? null
                               : () {
@@ -290,13 +290,17 @@ class _RoomAreaSyncScreenState extends DashboardEditState<RoomAreaSyncScreen> {
                                     });
                                   }
                                 },
-                        );
-                      },
-                    ),
-                  if (preview != null && validPreview) ...[
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
+                        ),
+                    ],
+                  ),
+                ),
+              if (preview != null && validPreview) ...[
+                SliverToBoxAdapter(
+                  child: SettingsSection(
+                    header: Text(l10n.roomSyncPreview),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -323,53 +327,48 @@ class _RoomAreaSyncScreenState extends DashboardEditState<RoomAreaSyncScreen> {
                                 preview.change.heldUnknown.length,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            CupertinoButton.filled(
-                              key: const ValueKey('room-sync-apply'),
-                              onPressed:
-                                  _busy ||
-                                      preview.change.missingArea ||
-                                      !preview.change.hasChanges
-                                  ? null
-                                  : () => _apply(preview),
-                              child: Text(l10n.roomSyncApply),
-                            ),
                           ],
                         ),
                       ),
-                    ),
-                    for (final group in [
-                      (
-                        ids: preview.change.added,
-                        icon: CupertinoIcons.add_circled,
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('room-sync-apply'),
+                        title: Text(l10n.roomSyncApply),
+                        onTap:
+                            _busy ||
+                                preview.change.missingArea ||
+                                !preview.change.hasChanges
+                            ? null
+                            : () => _apply(preview),
                       ),
-                      (
-                        ids: preview.change.removed,
-                        icon: CupertinoIcons.minus_circle,
-                      ),
-                      (
-                        ids: preview.change.heldUnknown,
-                        icon: CupertinoIcons.question_circle,
-                      ),
-                    ])
-                      SliverList.builder(
-                        itemCount: group.ids.length,
-                        itemBuilder: (context, index) {
-                          final id = group.ids[index];
-                          return CupertinoListTile(
-                            leading: Icon(group.icon),
-                            title: Text(
-                              preview.source.entities[id]?.friendlyName ?? id,
-                            ),
-                            subtitle: Text(id),
-                          );
-                        },
-                      ),
-                  ],
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                ],
-              ),
-            ),
+                    ],
+                  ),
+                ),
+                for (final group in [
+                  (ids: preview.change.added, icon: CupertinoIcons.add_circled),
+                  (
+                    ids: preview.change.removed,
+                    icon: CupertinoIcons.minus_circle,
+                  ),
+                  (
+                    ids: preview.change.heldUnknown,
+                    icon: CupertinoIcons.question_circle,
+                  ),
+                ])
+                  SliverList.builder(
+                    itemCount: group.ids.length,
+                    itemBuilder: (context, index) {
+                      final id = group.ids[index];
+                      return CupertinoListTile(
+                        leading: Icon(group.icon),
+                        title: Text(
+                          preview.source.entities[id]?.friendlyName ?? id,
+                        ),
+                        subtitle: Text(id),
+                      );
+                    },
+                  ),
+              ],
+            ],
     );
   }
 }

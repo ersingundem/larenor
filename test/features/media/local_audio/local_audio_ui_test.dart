@@ -1,12 +1,18 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/local_audio/presentation/local_audio_screen.dart';
 import 'package:larenor/features/media/local_audio/presentation/playback_power_screen.dart';
 import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'local_audio_ui_fixture.dart';
 
@@ -18,6 +24,7 @@ Future<void> _frames(WidgetTester tester) async {
 
 class _Harness {
   final bridge = FakeLocalAudioBridge();
+  final interaction = AppInteractionController();
   final visible = ValueNotifier(true);
   late ProviderContainer container;
   Future<void> mount(
@@ -26,12 +33,14 @@ class _Harness {
     bool pushed = false,
     Size size = const Size(600, 1100),
     double scale = 1,
+    String language = 'en',
   }) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     addTearDown(visible.dispose);
+    addTearDown(interaction.dispose);
     addTearDown(bridge.events.close);
     container = ProviderContainer(
       overrides: [localAudioBridgeProvider.overrideWithValue(bridge)],
@@ -47,27 +56,30 @@ class _Harness {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: CupertinoApp(
-          locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: pushed
-              ? Builder(
-                  builder: (context) => CupertinoPageScaffold(
-                    child: CupertinoButton(
-                      child: const Text('Open audio'),
-                      onPressed: () => Navigator.of(context).push(
-                        CupertinoPageRoute<void>(builder: (_) => screen()),
+        child: AppInteractionScope(
+          controller: interaction,
+          child: CupertinoApp(
+            locale: Locale(language),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: pushed
+                ? Builder(
+                    builder: (context) => CupertinoPageScaffold(
+                      child: CupertinoButton(
+                        child: const Text('Open audio'),
+                        onPressed: () => Navigator.of(context).push(
+                          CupertinoPageRoute<void>(builder: (_) => screen()),
+                        ),
                       ),
                     ),
-                  ),
-                )
-              : screen(),
+                  )
+                : screen(),
+          ),
         ),
       ),
     );
@@ -109,6 +121,107 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language source action is accessible at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          await h.mount(tester, size: size, scale: 2, language: language);
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          await h.source(tester);
+          final start = find.byKey(const ValueKey('local-audio-start'));
+          await tester.scrollUntilVisible(
+            start,
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('local-audio-actions-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+          expect(tester.getRect(start).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(start).flagsCollection.isButton, isTrue);
+          Focus.of(
+            tester.element(
+              find.descendant(of: start, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await _frames(tester);
+          expect(h.bridge.plays, hasLength(1));
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+          await h.unmount(tester);
+        },
+      );
+    }
+  }
+
+  testWidgets('audio format selection is visible beyond color and announced', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final h = _Harness();
+    await h.mount(tester, scale: 2);
+    final mp3 = find.byKey(const ValueKey('local-audio-format-audio/mpeg'));
+    final m4a = find.byKey(const ValueKey('local-audio-format-audio/mp4'));
+    await tester.scrollUntilVisible(
+      mp3,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(
+      tester.getSemantics(mp3).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      tester.getSemantics(m4a).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
+    );
+    expect(
+      find.descendant(
+        of: mp3,
+        matching: find.byIcon(CupertinoIcons.check_mark),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(m4a);
+    await _frames(tester);
+    await tester.tap(m4a);
+    await _frames(tester);
+
+    expect(
+      tester.getSemantics(mp3).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
+    );
+    expect(
+      tester.getSemantics(m4a).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      find.descendant(
+        of: m4a,
+        matching: find.byIcon(CupertinoIcons.check_mark),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+    await h.unmount(tester);
+  });
+
   testWidgets('current source identity accompanies all native controls', (
     tester,
   ) async {
@@ -174,6 +287,75 @@ void main() {
       await h.unmount(tester);
     },
   );
+
+  testWidgets('captured play callback expires with interaction authority', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    await h.source(tester);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!;
+    h.interaction.setActive(false);
+    await _frames(tester);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('local-audio-start')),
+          )
+          .onPressed,
+      isNull,
+    );
+    h.interaction.setActive(true);
+    await _frames(tester);
+    stale();
+    await _frames(tester);
+    expect(h.bridge.plays, isEmpty);
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(h.bridge.plays, hasLength(1));
+    await h.unmount(tester);
+  });
+
+  testWidgets('captured play callback expires when native bridge is replaced', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    await h.source(tester);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!;
+    final replacement = FakeLocalAudioBridge();
+    addTearDown(replacement.events.close);
+    h.container.updateOverrides([
+      localAudioBridgeProvider.overrideWithValue(replacement),
+    ]);
+    await _frames(tester);
+
+    stale();
+    await _frames(tester);
+    expect(h.bridge.plays, isEmpty);
+    expect(replacement.plays, isEmpty);
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(replacement.plays, hasLength(1));
+    await h.unmount(tester);
+  });
 
   for (final invalid in [
     'https://radio.example/live?token=secret',

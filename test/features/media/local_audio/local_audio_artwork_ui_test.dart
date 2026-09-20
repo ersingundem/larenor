@@ -206,7 +206,7 @@ void main() {
     },
   );
   testWidgets(
-    'OS picker background can return a draft but never restores playback authority',
+    'OS picker result is discarded after interaction authority expires',
     (tester) async {
       final h = _Harness();
       h.bridge.current = audioState();
@@ -223,8 +223,9 @@ void main() {
       await _frames(tester);
       expect(
         find.byKey(const ValueKey('local-audio-draft-cover')),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(h.bridge.preparations, 0);
       expect(h.bridge.plays, isEmpty);
       expect(h.bridge.commands, isEmpty);
     },
