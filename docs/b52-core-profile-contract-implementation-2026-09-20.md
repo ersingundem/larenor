@@ -43,12 +43,11 @@ route, lifecycle and one-resource lease gates before opening a connection.
 
 ## Client dependency
 
-This Server contract is cleanly mergeable with PR #223 at head `17858e38`:
-the two changes own disjoint files and a three-way merge-tree has no conflict.
-PR #223 remains the required Client-side proof for device-local profile
-separation plus PIN, background, idle, route and bounded-resource retirement.
-This branch must not claim B5.2 completion or open its dependent PR until that
-Client boundary has merged.
+PR #223 merged as `900fe81d` and supplies the required Client-side proof for
+device-local profile separation plus PIN, background, idle, route and
+bounded-resource retirement. This Server contract is rebased on that authority.
+The dependent Client synchronization slice remains a separate review and CI
+gate.
 
 Physical targets, Client synchronization, multi-Core discovery and S08.11
 central search remain separate acceptance gates, so roadmap counters do not
