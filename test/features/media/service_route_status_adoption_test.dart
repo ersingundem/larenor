@@ -4,9 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/media/bazarr/data/bazarr_config.dart';
+import 'package:larenor/features/media/bazarr/presentation/bazarr_connect_screen.dart';
 import 'package:larenor/features/media/bazarr/presentation/bazarr_home_screen.dart';
 import 'package:larenor/features/media/bazarr/providers/bazarr_providers.dart';
+import 'package:larenor/features/media/jellyseerr/data/jellyseerr_config.dart';
+import 'package:larenor/features/media/jellyseerr/presentation/jellyseerr_connect_screen.dart';
+import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
 import 'package:larenor/features/media/prowlarr/data/prowlarr_config.dart';
+import 'package:larenor/features/media/prowlarr/presentation/prowlarr_connect_screen.dart';
 import 'package:larenor/features/media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import 'package:larenor/features/media/prowlarr/providers/prowlarr_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -31,6 +36,17 @@ class _FailingProwlarrConnection extends ProwlarrConnection {
   Future<ProwlarrConfig?> build() async {
     onRead();
     throw StateError('private Prowlarr diagnostic');
+  }
+}
+
+class _FailingJellyseerrConnection extends JellyseerrConnection {
+  _FailingJellyseerrConnection(this.onRead);
+  final VoidCallback onRead;
+
+  @override
+  Future<JellyseerrConfig?> build() async {
+    onRead();
+    throw StateError('private Jellyseerr diagnostic');
   }
 }
 
@@ -134,6 +150,93 @@ void main() {
           privateDiagnostic: 'private Prowlarr diagnostic',
         );
         await _tabTo(tester, const ValueKey('prowlarr-indexers-retry'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(prowlarrReads, 2);
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    });
+
+    testWidgets('service connect routes share private recovery state '
+        '$width 2x', (tester) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      try {
+        var jellyseerrReads = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            key: const ValueKey('jellyseerr-connect-scope'),
+            overrides: [
+              jellyseerrConnectionProvider.overrideWith(
+                () => _FailingJellyseerrConnection(() => jellyseerrReads++),
+              ),
+            ],
+            child: _app(const JellyseerrConnectScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        _expectStatus(
+          tester,
+          service: 'Jellyseerr',
+          statusKey: 'jellyseerr-connect-status',
+          retryKey: 'jellyseerr-connect-retry',
+          privateDiagnostic: 'private Jellyseerr diagnostic',
+        );
+        await _tabTo(tester, const ValueKey('jellyseerr-connect-retry'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(jellyseerrReads, 2);
+
+        var bazarrReads = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            key: const ValueKey('bazarr-connect-scope'),
+            overrides: [
+              bazarrConnectionProvider.overrideWith(
+                () => _FailingBazarrConnection(() => bazarrReads++),
+              ),
+            ],
+            child: _app(const BazarrConnectScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        _expectStatus(
+          tester,
+          service: 'Bazarr',
+          statusKey: 'bazarr-connect-status',
+          retryKey: 'bazarr-connect-retry',
+          privateDiagnostic: 'private Bazarr diagnostic',
+        );
+        await _tabTo(tester, const ValueKey('bazarr-connect-retry'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(bazarrReads, 2);
+
+        var prowlarrReads = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            key: const ValueKey('prowlarr-connect-scope'),
+            overrides: [
+              prowlarrConnectionProvider.overrideWith(
+                () => _FailingProwlarrConnection(() => prowlarrReads++),
+              ),
+            ],
+            child: _app(const ProwlarrConnectScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+        _expectStatus(
+          tester,
+          service: 'Prowlarr',
+          statusKey: 'prowlarr-connect-status',
+          retryKey: 'prowlarr-connect-retry',
+          privateDiagnostic: 'private Prowlarr diagnostic',
+        );
+        await _tabTo(tester, const ValueKey('prowlarr-connect-retry'));
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pumpAndSettle();
         expect(prowlarrReads, 2);
