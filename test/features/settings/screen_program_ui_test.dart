@@ -136,6 +136,20 @@ void main() {
               find.byKey(const ValueKey('screen-rule-name')),
               findsOneWidget,
             );
+            for (final key in [
+              'screen-rule-save',
+              'screen-rule-day-1',
+              'screen-rule-start',
+              'screen-rule-end',
+              'screen-rule-mode-inherit',
+            ]) {
+              final action = find.byKey(ValueKey(key));
+              await tester.ensureVisible(action);
+              await tester.pumpAndSettle();
+              final size = tester.getSize(action);
+              expect(size.width, greaterThanOrEqualTo(48), reason: key);
+              expect(size.height, greaterThanOrEqualTo(48), reason: key);
+            }
             expect(tester.takeException(), isNull);
           } finally {
             semantics.dispose();
@@ -144,6 +158,28 @@ void main() {
       );
     }
   }
+
+  testWidgets('existing rule actions keep 48dp targets at 2x text', (
+    tester,
+  ) async {
+    final store = _Store(
+      ScreenProgram(enabled: true, rules: [_rule('first'), _rule('second')]),
+    );
+    await _mount(tester, store, size: const Size(600, 900), scale: 2);
+
+    for (final key in [
+      'screen-rule-first',
+      'screen-rule-down-first',
+      'screen-rule-delete-first',
+    ]) {
+      final action = find.byKey(ValueKey(key));
+      await tester.ensureVisible(action);
+      await tester.pumpAndSettle();
+      final size = tester.getSize(action);
+      expect(size.width, greaterThanOrEqualTo(48), reason: key);
+      expect(size.height, greaterThanOrEqualTo(48), reason: key);
+    }
+  });
 
   testWidgets(
     'opening a schedule does not write settings or issue platform commands',
