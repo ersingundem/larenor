@@ -34,6 +34,13 @@ SAFE_SKIP_PATTERNS = (
     "l10n.yaml",
     "pubspec.yaml",
     "pubspec.lock",
+    ".github/workflows/arr-managed-characterization.yml",
+    ".github/workflows/jellyfin-managed-characterization.yml",
+    ".github/workflows/music-assistant-managed-characterization.yml",
+    ".github/workflows/qbittorrent-managed-characterization.yml",
+    ".github/workflows/seerr-managed-characterization.yml",
+    "tool/native_ci_scope.py",
+    "tool/tests/native_ci_scope_test.py",
 )
 
 
