@@ -278,3 +278,9 @@ class BoundedTransferService:
     def history(self, actor, core_id, home_id, resource_id, limit):
         self.registry.get(actor, core_id, home_id, resource_id)
         return self.receipts.history(actor, resource_id, limit)
+
+    def events(self, actor, core_id, home_id, resource_id, *, after, limit):
+        record = self.registry.get(actor, core_id, home_id, resource_id)["record"]
+        return self.receipts.events(
+            actor, resource_id, record["ref"], after=after, limit=limit
+        )

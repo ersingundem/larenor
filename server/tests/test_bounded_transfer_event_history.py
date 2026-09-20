@@ -1,10 +1,12 @@
 """Immutable, view-scoped bounded-transfer event history."""
 
 from fastapi.testclient import TestClient
+import pytest
 
 from conftest import auth, login, ready
 from larenor_server.app import create_app
 from larenor_server.bounded_transfer.models import BlobDescriptor
+from larenor_server.errors import StartupError
 from test_admin import activate, create as create_user
 from test_bounded_transfer import fixture, request_body, resource
 
@@ -170,3 +172,33 @@ def test_restart_and_replay_do_not_fabricate_new_transfer_events(tmp_path):
             f"{_path(record)}/transfers/events", headers=auth(admin)
         ).json()
         assert final == before
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "UPDATE bounded_transfer_events SET state='interrupted' WHERE sequence=1",
+        "UPDATE bounded_transfer_events SET entry_hash='" + "0" * 64 + "' WHERE sequence=1",
+        "UPDATE bounded_transfer_event_state SET sequence=0",
+        "DELETE FROM bounded_transfer_events WHERE sequence=1",
+    ],
+)
+def test_event_chain_tamper_blocks_restart(tmp_path, tamper):
+    app, settings, clock, provider = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        identity = record["ref"]["id"]
+        provider.blobs[identity] = BlobDescriptor(
+            identity, 1, "application/octet-stream", b"tamper fixture"
+        )
+        assert client.post(
+            _path(record),
+            headers=auth(admin),
+            json=request_body(app, admin, record),
+        ).status_code == 200
+        with app.state.core.db.connection() as connection:
+            connection.execute(tamper)
+
+    with pytest.raises(StartupError, match="bounded_transfer_storage_invalid"):
+        create_app(settings, blob_provider=provider)
