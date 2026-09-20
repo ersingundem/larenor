@@ -88,6 +88,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   CoreBoundedBlobDescriptor? descriptor;
   CoreBoundedTransferReceipt? receipt;
   bool receiptTrusted = false;
+  bool _serviceReachable = false;
   int epoch = 0;
   bool _disposed = false, _visible = false, busy = false;
   CoreBoundedDownloadApi? _transport;
@@ -125,6 +126,17 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
       userRevision != null &&
       userRevision >= 1 &&
       userRevision <= 9223372036854775807;
+
+  bool get serviceReachable => _serviceReachable;
+
+  bool get intentRegistered =>
+      targetId != null && phase != CoreBoundedDownloadPhase.idle;
+
+  bool get providerAccepted =>
+      receiptTrusted && receipt?.state == CoreBoundedTransferState.completed;
+
+  bool get deviceResultObserved =>
+      providerAccepted && phase == CoreBoundedDownloadPhase.saved;
 
   bool canLoadHistory(HomeResourceRecord target) =>
       !busy &&
@@ -200,6 +212,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     traceId = null;
     receipt = null;
     receiptTrusted = false;
+    _serviceReachable = false;
     phase = CoreBoundedDownloadPhase.idle;
   }
 
@@ -514,6 +527,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     traceId = null;
     receipt = null;
     receiptTrusted = false;
+    _serviceReachable = false;
     _emit();
     CoreBoundedDownloadApi? transport;
     try {
@@ -536,6 +550,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           if (!current()) {
             throw const CoreBoundedDownloadException('cancelled');
           }
+          _serviceReachable = true;
+          _emit();
           final candidate = await transport!.download(
             token: session.accessToken,
             target: target,
@@ -577,13 +593,26 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           : CoreBoundedDownloadPhase.cancelled;
     } catch (error) {
       if (current()) {
-        receipt = null;
-        receiptTrusted = false;
+        if (!receiptTrusted) receipt = null;
         final code = switch (error) {
           CoreBoundedDownloadException e => e.code,
           LarenorServerException e => e.code,
           _ => 'failed',
         };
+        if (const {
+          'forbidden',
+          'not_found',
+          'revision_conflict',
+          'payload_too_large',
+          'rate_limited',
+          'server_error',
+          'failed',
+          'invalid_response',
+          'late_frame',
+          'file_access_failed',
+        }.contains(code)) {
+          _serviceReachable = true;
+        }
         phase = switch (code) {
           'cancelled' => CoreBoundedDownloadPhase.cancelled,
           'unauthorized' => CoreBoundedDownloadPhase.unauthorized,

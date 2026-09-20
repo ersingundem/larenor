@@ -219,11 +219,18 @@ void main() {
         final download = find.byKey(ValueKey('core-resource-download-$id'));
         await tester.ensureVisible(download);
         await tester.tap(download);
-        await flush(tester);
+        for (
+          var attempt = 0;
+          attempt < 20 && find.text('Transfer incomplete').evaluate().isEmpty;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
 
-        final trust = find.byKey(
-          ValueKey('core-resource-transfer-trust-$id'),
-        );
+        final trust = find.byKey(ValueKey('core-resource-transfer-trust-$id'));
         expect(trust, findsOneWidget);
         expect(
           tester.getSemantics(trust).label,
@@ -282,8 +289,8 @@ void main() {
         expect(trust, findsOneWidget);
         expect(
           tester.widget<TrustEvidenceCard>(trust).state,
-          TrustEvidenceState.verified,
-          reason: 'the receipt is trusted while SAF owns the foreground flow',
+          TrustEvidenceState.checking,
+          reason: 'provider acceptance is not a device save result',
         );
 
         tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
