@@ -3,41 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/app_interaction_scope.dart';
-import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
-import '../data/local_notification_controller.dart';
+import '../data/local_notification_runtime.dart';
 import '../domain/local_notification_models.dart';
-import '../providers/local_notification_providers.dart';
-
-class _RouteOwner extends ChangeNotifier implements LocalNotificationOwner {
-  _RouteOwner(this._check);
-  final bool Function() _check;
-  bool _retired = false;
-  @override
-  bool get isCurrent {
-    if (_retired) return false;
-    try {
-      if (_check()) return true;
-    } catch (_) {}
-    retire();
-    return false;
-  }
-
-  void synchronize() {
-    final _ = isCurrent;
-  }
-
-  void retire() {
-    if (!_retired) {
-      _retired = true;
-      notifyListeners();
-    }
-  }
-}
+import 'local_notification_platform_card.dart';
+import 'local_notification_runtime_scope.dart';
 
 class LocalNotificationScreen extends ConsumerStatefulWidget {
   const LocalNotificationScreen({super.key});
@@ -48,9 +22,7 @@ class LocalNotificationScreen extends ConsumerStatefulWidget {
 
 class _LocalNotificationScreenState
     extends ConsumerState<LocalNotificationScreen> {
-  _RouteOwner? _owner;
-  LocalNotificationController? _controller;
-  int _windowEpoch = 0;
+  LocalNotificationRuntimeCoordinator? _runtime;
 
   bool _windowCurrent() {
     final state = ref.read(windowPolicySnapshotProvider);
@@ -66,38 +38,10 @@ class _LocalNotificationScreenState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller != null) return;
-    final interaction = AppInteractionScope.maybeOf(context),
-        epoch = interaction?.epoch,
-        container = ProviderScope.containerOf(context, listen: false),
-        windowEpoch = _windowEpoch;
-    _owner = _RouteOwner(
-      () =>
-          mounted &&
-          _windowEpoch == windowEpoch &&
-          _windowCurrent() &&
-          identical(
-            ProviderScope.containerOf(context, listen: false),
-            container,
-          ) &&
-          (interaction?.active ?? true) &&
-          interaction?.epoch == epoch &&
-          TickerMode.valuesOf(context).enabled &&
-          ModalRoute.of(context)?.isCurrent == true,
-    );
-    final controller = LocalNotificationController(
-      home: ref.read(homeSessionControllerProvider)!,
-      apiFactory: ref.read(localNotificationApiFactoryProvider),
-      store: ref.read(localNotificationStoreProvider),
-      permissionGateway: ref.read(localNotificationPermissionProvider),
-      clock: ref.read(localNotificationClockProvider),
-      windowCurrent: _windowCurrent,
-      owner: _owner!,
-    );
-    _controller = controller;
-    controller
-      ..addListener(_changed)
-      ..setVisible(true);
+    final runtime = LocalNotificationRuntimeScope.of(context);
+    if (identical(runtime, _runtime)) return;
+    _runtime?.removeListener(_changed);
+    _runtime = runtime..addListener(_changed);
   }
 
   void _changed() {
@@ -106,17 +50,22 @@ class _LocalNotificationScreenState
 
   @override
   void dispose() {
-    _controller?.setVisible(false);
-    _controller?.removeListener(_changed);
-    _controller?.dispose();
-    _owner?.retire();
-    _owner?.dispose();
+    _runtime?.removeListener(_changed);
     super.dispose();
   }
 
+  bool _routeCurrent() {
+    final interaction = AppInteractionScope.maybeRead(context);
+    return mounted &&
+        _windowCurrent() &&
+        (interaction?.active ?? true) &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+  }
+
   Future<void> _detail(LocalNotificationEvent event) async {
-    final owner = _owner!, controller = _controller!;
-    if (!owner.isCurrent ||
+    final controller = _runtime!.controller;
+    if (!_routeCurrent() ||
         !identical(
           controller.events.where((item) => identical(item, event)).firstOrNull,
           event,
@@ -152,7 +101,7 @@ class _LocalNotificationScreenState
                       onPressed: () async {
                         bool current() =>
                             mounted &&
-                            owner.isCurrent &&
+                            _routeCurrent() &&
                             ModalRoute.of(sheetContext)?.isCurrent == true;
                         final accepted = await controller.markRead(
                           event,
@@ -162,7 +111,7 @@ class _LocalNotificationScreenState
                           return;
                         }
                         Navigator.of(sheetContext).pop();
-                        if (route != null && mounted && owner.isCurrent) {
+                        if (route != null && mounted && _routeCurrent()) {
                           context.go(route);
                         }
                       },
@@ -190,11 +139,8 @@ class _LocalNotificationScreenState
   @override
   Widget build(BuildContext context) {
     ref.watch(windowPolicySnapshotProvider);
-    ref.listen(windowPolicySnapshotProvider, (_, _) {
-      _windowEpoch++;
-      _owner?.synchronize();
-    });
-    final l10n = AppLocalizations.of(context), controller = _controller;
+    final l10n = AppLocalizations.of(context), runtime = _runtime;
+    final controller = runtime?.controller;
     return AppPageScaffold(
       child: SafeArea(
         child: CustomScrollView(
@@ -227,6 +173,30 @@ class _LocalNotificationScreenState
                         LocalNotificationPermission.denied,
                   ),
                   const SizedBox(height: 16),
+                  if (runtime != null) ...[
+                    LocalNotificationPlatformCard(
+                      status: runtime.platformStatus,
+                      onRequestPermission:
+                          runtime.platformBusy || !_routeCurrent()
+                          ? null
+                          : () => runtime.requestPermission(
+                              interactionCurrent: _routeCurrent,
+                            ),
+                      onOpenNotificationSettings:
+                          runtime.platformBusy || !_routeCurrent()
+                          ? null
+                          : () => runtime.openNotificationSettings(
+                              current: _routeCurrent,
+                            ),
+                      onOpenPowerSettings:
+                          runtime.platformBusy || !_routeCurrent()
+                          ? null
+                          : () => runtime.openPowerSettings(
+                              current: _routeCurrent,
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (controller == null ||
                       controller.busy && !controller.loaded)
                     const Center(

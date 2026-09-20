@@ -8,6 +8,8 @@ import 'package:larenor/core/home_session_controller.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/local_notifications/data/local_notification_api.dart';
 import 'package:larenor/features/local_notifications/data/local_notification_controller.dart';
+import 'package:larenor/features/local_notifications/data/local_notification_platform.dart';
+import 'package:larenor/features/local_notifications/data/local_notification_runtime.dart';
 import 'package:larenor/features/local_notifications/data/local_notification_store.dart';
 import 'package:larenor/features/local_notifications/domain/local_notification_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
@@ -59,6 +61,80 @@ final class _Permission implements LocalNotificationPermissionGateway {
   @override
   Future<LocalNotificationPermission> read() async =>
       LocalNotificationPermission.inAppOnly;
+}
+
+final class _Platform implements LocalNotificationPlatform {
+  final tapController = StreamController<LocalNotificationTap>.broadcast();
+  AndroidNotificationStatus status = const AndroidNotificationStatus(
+    permission: AndroidNotificationPermission.granted,
+    channelEnabled: true,
+    recoveryRequired: false,
+    batteryOptimizationExempt: false,
+    deliveryMode: 'foregroundPull',
+  );
+  int probes = 0,
+      requests = 0,
+      reconciles = 0,
+      concurrent = 0,
+      maxConcurrent = 0;
+  Completer<void>? reconcileBarrier;
+  Completer<void>? requestBarrier;
+
+  @override
+  Stream<LocalNotificationTap> get taps => tapController.stream;
+
+  @override
+  Future<AndroidNotificationStatus> probe({
+    required bool Function() current,
+  }) async {
+    probes++;
+    if (!current()) throw StateError('stale');
+    return status;
+  }
+
+  @override
+  Future<AndroidNotificationStatus> requestPermission({
+    required bool Function() current,
+  }) async {
+    requests++;
+    if (!current()) throw StateError('stale');
+    await requestBarrier?.future;
+    if (!current()) throw StateError('stale');
+    return status;
+  }
+
+  @override
+  Future<AndroidNotificationStatus> reconcile({
+    required ServerSession session,
+    required LocalNotificationSubscription subscription,
+    required List<LocalNotificationEvent> events,
+    required bool Function() current,
+  }) async {
+    reconciles++;
+    concurrent++;
+    maxConcurrent = concurrent > maxConcurrent ? concurrent : maxConcurrent;
+    try {
+      await reconcileBarrier?.future;
+      if (!current()) throw StateError('stale');
+      return status;
+    } finally {
+      concurrent--;
+    }
+  }
+
+  @override
+  Future<void> openNotificationSettings({
+    required bool Function() current,
+  }) async {
+    if (!current()) throw StateError('stale');
+  }
+
+  @override
+  Future<void> openPowerSettings({required bool Function() current}) async {
+    if (!current()) throw StateError('stale');
+  }
+
+  Future<void> close() => tapController.close();
 }
 
 final class _LoopbackCore {
@@ -310,8 +386,8 @@ final class _Harness {
     expect(controller.busy, isFalse);
   }
 
-  Future<void> close() async {
-    controller.dispose();
+  Future<void> close({bool disposeController = true}) async {
+    if (disposeController) controller.dispose();
     owner.dispose();
     home.dispose();
     account.dispose();
@@ -352,6 +428,205 @@ void main() {
       );
     },
   );
+
+  test(
+    'foreground runtime bounds pulls and never requests permission implicitly',
+    () async {
+      final harness = await _Harness.start();
+      final platform = _Platform();
+      final pullBarrier = Completer<void>();
+      harness.core.pullBarrier = pullBarrier;
+      final runtime = LocalNotificationRuntimeCoordinator(
+        home: harness.home,
+        controller: harness.controller,
+        platform: platform,
+        clock: () => DateTime.utc(2026, 9, 20, 12),
+        active: () => harness.owner.current,
+        navigate: (_) {},
+        pollInterval: const Duration(milliseconds: 2),
+      );
+      addTearDown(() async {
+        runtime.dispose();
+        await platform.close();
+        await harness.close(disposeController: false);
+      });
+
+      runtime.setEnabled(true);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(harness.core.pullCalls, 1);
+      expect(platform.requests, 0);
+      pullBarrier.complete();
+      harness.core.pullBarrier = null;
+      await harness.settle();
+      for (var i = 0; i < 100 && platform.reconciles == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+      expect(platform.probes, 1);
+      expect(platform.reconciles, 1);
+      expect(platform.maxConcurrent, 1);
+    },
+  );
+
+  test(
+    'tap requires exact binding and revision then ACK readback before route',
+    () async {
+      final harness = await _Harness.start();
+      final platform = _Platform();
+      final routes = <String>[];
+      final runtime = LocalNotificationRuntimeCoordinator(
+        home: harness.home,
+        controller: harness.controller,
+        platform: platform,
+        clock: () => DateTime.utc(2026, 9, 20, 12),
+        active: () => harness.owner.current,
+        navigate: routes.add,
+      );
+      addTearDown(() async {
+        runtime.dispose();
+        await platform.close();
+        await harness.close(disposeController: false);
+      });
+      runtime.setEnabled(true);
+      await harness.settle();
+      final subscription = harness.controller.subscription!;
+      final event = harness.controller.events.single;
+      final exact = LocalNotificationTap(
+        bindingId: AndroidLocalNotificationPlatform.bindingId(
+          harness.account.session!,
+        ),
+        subscriptionRevision: subscription.revision,
+        eventId: event.id,
+        sequence: event.sequence,
+      );
+
+      platform.tapController.add(
+        LocalNotificationTap(
+          bindingId: exact.bindingId,
+          subscriptionRevision: exact.subscriptionRevision + 1,
+          eventId: exact.eventId,
+          sequence: exact.sequence,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(harness.core.ackCalls, 0);
+      expect(routes, isEmpty);
+
+      platform.tapController.add(exact);
+      for (var i = 0; i < 100 && routes.isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(harness.core.ackCalls, 1);
+      expect(harness.core.pullCalls, 2);
+      expect(
+        harness.controller.events.single.readState,
+        LocalNotificationReadState.read,
+      );
+      expect(routes, ['/today']);
+
+      platform.tapController.add(exact);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(harness.core.ackCalls, 1);
+      expect(routes, ['/today']);
+    },
+  );
+
+  test(
+    'explicit permission survives only the exact system focus handoff',
+    () async {
+      final harness = await _Harness.start();
+      final platform = _Platform()
+        ..status = const AndroidNotificationStatus(
+          permission: AndroidNotificationPermission.notRequested,
+          channelEnabled: true,
+          recoveryRequired: false,
+          batteryOptimizationExempt: false,
+          deliveryMode: 'foregroundPull',
+        );
+      final runtime = LocalNotificationRuntimeCoordinator(
+        home: harness.home,
+        controller: harness.controller,
+        platform: platform,
+        clock: () => DateTime.utc(2026, 9, 20, 12),
+        active: () => harness.owner.current,
+        navigate: (_) {},
+      );
+      addTearDown(() async {
+        runtime.dispose();
+        await platform.close();
+        await harness.close(disposeController: false);
+      });
+      runtime.setEnabled(true);
+      await harness.settle();
+      final barrier = Completer<void>();
+      platform.requestBarrier = barrier;
+      final pending = runtime.requestPermission(interactionCurrent: () => true);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(platform.requests, 1);
+      expect(runtime.permissionPending, isTrue);
+
+      harness.owner.setCurrent(false);
+      runtime.suspendForPermissionDialog();
+      platform.status = const AndroidNotificationStatus(
+        permission: AndroidNotificationPermission.denied,
+        channelEnabled: false,
+        recoveryRequired: false,
+        batteryOptimizationExempt: false,
+        deliveryMode: 'foregroundPull',
+      );
+      barrier.complete();
+      expect(await pending, isTrue);
+      expect(
+        runtime.platformStatus.permission,
+        AndroidNotificationPermission.denied,
+      );
+      expect(runtime.enabled, isFalse);
+      expect(platform.requests, 1);
+    },
+  );
+
+  test('late tap readback after authority retirement never routes', () async {
+    final harness = await _Harness.start();
+    final platform = _Platform();
+    final routes = <String>[];
+    final runtime = LocalNotificationRuntimeCoordinator(
+      home: harness.home,
+      controller: harness.controller,
+      platform: platform,
+      clock: () => DateTime.utc(2026, 9, 20, 12),
+      active: () => harness.owner.current,
+      navigate: routes.add,
+    );
+    addTearDown(() async {
+      runtime.dispose();
+      await platform.close();
+      await harness.close(disposeController: false);
+    });
+    runtime.setEnabled(true);
+    await harness.settle();
+    final event = harness.controller.events.single;
+    final barrier = Completer<void>();
+    harness.core.pullBarrier = barrier;
+    platform.tapController.add(
+      LocalNotificationTap(
+        bindingId: AndroidLocalNotificationPlatform.bindingId(
+          harness.account.session!,
+        ),
+        subscriptionRevision: harness.controller.subscription!.revision,
+        eventId: event.id,
+        sequence: event.sequence,
+      ),
+    );
+    for (var i = 0; i < 100 && harness.core.ackCalls == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    expect(harness.core.ackCalls, 1);
+    harness.owner.setCurrent(false);
+    runtime.retire();
+    barrier.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(routes, isEmpty);
+    expect(harness.controller.loaded, isFalse);
+  });
 
   test('scope revision session and malformed responses fail closed', () async {
     final harness = await _Harness.start();

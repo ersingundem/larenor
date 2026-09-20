@@ -74,9 +74,13 @@ class LocalNotificationBridgeTest {
             assertEquals("notRequested", (messenger.call("probe").value as Map<*, *>)["permission"])
             val request = messenger.call("requestPermission")
             assertEquals(0, request.replies)
+            // The Android permission dialog owns focus while it is visible.
+            activity.windowFocusChanged(false); bridge.windowChanged()
+            assertEquals(0, request.replies)
             assertTrue(bridge.onRequestPermissionsResult(LocalNotificationBridge.REQUEST_NOTIFICATIONS,
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS), intArrayOf(PackageManager.PERMISSION_DENIED)))
             assertEquals("denied", (request.value as Map<*, *>)["permission"])
+            activity.windowFocusChanged(true); bridge.windowChanged()
             val again = messenger.call("requestPermission")
             assertEquals(1, again.replies)
             assertEquals("denied", (again.value as Map<*, *>)["permission"])
@@ -121,6 +125,10 @@ class LocalNotificationBridgeTest {
             assertEquals(2, manager.activeNotifications.size)
             assertNull(messenger.call("reconcile", reconcile(listOf(event(1), event(2)))).error)
             assertEquals(2, manager.activeNotifications.size)
+            assertNull(messenger.call("reconcile", reconcile(listOf(event(2)))).error)
+            assertEquals(1, manager.activeNotifications.size)
+            assertNull(messenger.call("reconcile", reconcile(emptyList())).error)
+            assertEquals(0, manager.activeNotifications.size)
             assertEquals("stale", messenger.call("reconcile", reconcile(listOf(event(2)), revision = 2)).error)
         } finally { bridge.dispose(); activity.pause().stop().destroy() }
     }

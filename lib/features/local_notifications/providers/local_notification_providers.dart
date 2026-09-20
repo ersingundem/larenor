@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../server/data/larenor_server_api.dart';
 import '../data/local_notification_controller.dart';
+import '../data/local_notification_platform.dart';
 import '../data/local_notification_store.dart';
 
 final localNotificationApiFactoryProvider =
@@ -18,4 +19,7 @@ final localNotificationPermissionProvider =
     );
 final localNotificationClockProvider = Provider<DateTime Function()>(
   (_) => DateTime.now,
+);
+final localNotificationPlatformProvider = Provider<LocalNotificationPlatform>(
+  (_) => AndroidLocalNotificationPlatform(),
 );

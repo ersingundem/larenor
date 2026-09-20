@@ -66,7 +66,9 @@ class LocalNotificationBridge(
     }
 
     fun windowChanged() {
-        if (!foreground) cancelPermission("cancelled")
+        // Android's permission dialog temporarily owns window focus. Losing
+        // focus alone must not retire the exact pending system callback.
+        if (disposed || activity.isFinishing) cancelPermission("cancelled")
     }
 
     private fun createChannel() {
@@ -169,7 +171,7 @@ class LocalNotificationBridge(
         val result = permissionResult ?: return true
         permissionResult = null
         val exact = permissions.size == 1 && permissions[0] == Manifest.permission.POST_NOTIFICATIONS && grants.size == 1
-        if (!exact || disposed || !foreground) fail(result, "cancelled") else result.success(status())
+        if (!exact || disposed || activity.isFinishing) fail(result, "cancelled") else result.success(status())
         return true
     }
 
@@ -219,6 +221,19 @@ class LocalNotificationBridge(
             high = event.sequence
             store.edit().putLong("last_sequence", high).apply()
         }
+        val desired = parsed.map { it.id.hashCode() }.toSet()
+        val stale = storedNotificationIds() - desired
+        stale.forEach(manager::cancel)
+        if (stale.isNotEmpty()) {
+            val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty()
+            val retained = tapKeys.filterNot { key ->
+                key.removePrefix("tap_").substringBefore('_').hashCode() in stale
+            }.toSet()
+            val editor = store.edit()
+            (tapKeys - retained).forEach(editor::remove)
+            editor.putStringSet("tap_keys", retained).apply()
+        }
+        store.edit().putStringSet("notification_ids", desired.map(Int::toString).toSet()).apply()
     }
 
     private data class Event(val id: String, val sequence: Long, val title: String, val body: String, val private: Boolean)
