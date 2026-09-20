@@ -67,7 +67,10 @@ class TransferReceipts:
                     self._verify(old)
                     if old["state"] == "accepted":
                         row = dict(old)
-                        row["state"], row["updated_at"] = "interrupted", self.clock()
+                        row["state"], row["updated_at"] = (
+                            "interrupted",
+                            max(old["updated_at"], self.clock()),
+                        )
                         connection.execute(
                             "UPDATE bounded_transfer_receipts SET state=?,updated_at=?,authentication_tag=? WHERE request_id=?",
                             (row["state"], row["updated_at"], self._tag(row), row["request_id"]),
@@ -139,7 +142,10 @@ class TransferReceipts:
                 if old["state"] != "accepted":
                     return
                 row = dict(old)
-                row["state"], row["updated_at"] = state, self.clock()
+                row["state"], row["updated_at"] = (
+                    state,
+                    max(old["updated_at"], self.clock()),
+                )
                 connection.execute(
                     "UPDATE bounded_transfer_receipts SET state=?,updated_at=?,authentication_tag=? WHERE request_id=?",
                     (state, row["updated_at"], self._tag(row), request_id),

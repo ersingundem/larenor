@@ -284,7 +284,7 @@ void main() {
             () => Future<void>.delayed(const Duration(milliseconds: 10)),
           );
         }
-        expect((transferRequests, saveRequests), (3, 1));
+        expect((transferRequests, saveRequests), (2, 1));
 
         await harness.account.signOut();
         harness.userId = '8' * 32;
@@ -305,7 +305,7 @@ void main() {
         );
         expect(
           (transferRequests, saveRequests),
-          (3, 1),
+          (2, 1),
           reason: 'an account switch never replays the old transfer',
         );
       } finally {
@@ -461,6 +461,38 @@ void main() {
                 Focus.of(tester.element(downloadText)).hasPrimaryFocus,
                 isTrue,
               );
+              final history = find.byKey(
+                ValueKey(
+                  'core-resource-transfer-history-${unicode['ref']['id'] as String}',
+                ),
+              );
+              await tester.ensureVisible(history);
+              await flush(tester);
+              expect(tester.getRect(history).height, greaterThanOrEqualTo(48));
+              final historyLabel =
+                  '${l10n.coreResourceTransferHistory}: ${unicode['label'] as String}';
+              final historyText = find.text(historyLabel);
+              expect(historyText, findsOneWidget);
+              expect(
+                tester.getSemantics(historyText).flagsCollection.isButton,
+                isTrue,
+              );
+              await tester.tap(historyText);
+              await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 20)),
+              );
+              await flush(tester);
+              expect(
+                find.byKey(
+                  ValueKey('core-resource-transfer-receipt-${'c' * 32}'),
+                ),
+                findsOneWidget,
+              );
+              expect(
+                find.text(l10n.coreResourceTransferCompleted),
+                findsOneWidget,
+              );
+              expect(find.text('16 B · text/plain'), findsOneWidget);
               for (final element
                   in find
                       .descendant(of: last, matching: find.byType(RichText))

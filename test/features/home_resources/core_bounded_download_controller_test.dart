@@ -114,6 +114,35 @@ final class _PendingClient extends http.BaseClient {
   void close() {}
 }
 
+final class _FirstRequestGateClient extends http.BaseClient {
+  _FirstRequestGateClient(this.respond)
+    : _inner = MockClient((request) async => respond(request));
+
+  final http.Response Function(http.Request request) respond;
+  final http.Client _inner;
+  final sent = Completer<void>();
+  final release = Completer<void>();
+  int requests = 0;
+  int closes = 0;
+  bool _gated = false;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    requests++;
+    if (!_gated) {
+      _gated = true;
+      sent.complete();
+      await release.future;
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() {
+    closes++;
+  }
+}
+
 HomeResourcePage _page() {
   final raw = contract();
   return HomeResourcePage.fromJson(
@@ -173,7 +202,7 @@ void main() {
       expect(controller.receipt?.state, CoreBoundedTransferState.completed);
       expect(controller.traceId, 'c' * 32);
       expect(utf8.decode(published!), 'verified fixture');
-      expect((requests, saves), (3, 1));
+      expect((requests, saves), (2, 1));
       await tester.runAsync(
         () => controller.download(
           page.entries.first,
@@ -183,7 +212,7 @@ void main() {
       );
       expect(
         requests,
-        3,
+        2,
         reason: 'a room is never a binary download authority',
       );
       controller.retainAuthority(page.entries, page.userRevision + 1);
@@ -274,7 +303,7 @@ void main() {
     );
 
     expect(controller.phase, CoreBoundedDownloadPhase.cancelled);
-    expect((requests, saves), (3, 1));
+    expect((requests, saves), (2, 1));
   });
 
   testWidgets('mismatched durable receipt never reaches SAF', (tester) async {
@@ -316,7 +345,7 @@ void main() {
 
     expect(controller.phase, CoreBoundedDownloadPhase.failed);
     expect(controller.receiptTrusted, isFalse);
-    expect((requests, saves), (3, 0));
+    expect((requests, saves), (2, 0));
   });
 
   testWidgets(
@@ -450,6 +479,193 @@ void main() {
       expect(controller.phase, CoreBoundedDownloadPhase.idle);
       expect(controller.busy, isFalse);
       expect((pending.requests, saves), (1, 0));
+    },
+  );
+
+  testWidgets(
+    'retired history completion cannot close a newer history transport',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _page(), target = page.entries.last;
+      http.Response historyResponse(http.Request _) => http.Response(
+        jsonEncode({
+          'receipts': [_receipt()],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+      final firstClient = _FirstRequestGateClient(historyResponse);
+      final secondClient = _FirstRequestGateClient(historyResponse);
+      var factories = 0;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          client: factories++ == 0 ? firstClient : secondClient,
+        ),
+        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+        () => harness.now,
+        () => true,
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      final firstFuture = controller.loadHistory(target, isCurrent: () => true);
+      await tester.pump();
+      expect(firstClient.sent.isCompleted, isTrue);
+
+      controller.setVisible(false);
+      controller.setVisible(true);
+      expect(firstClient.closes, 1);
+
+      final secondFuture = controller.loadHistory(
+        target,
+        isCurrent: () => true,
+      );
+      await tester.pump();
+      expect(secondClient.sent.isCompleted, isTrue);
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.loading);
+
+      firstClient.release.complete();
+      await tester.runAsync(() => firstFuture);
+
+      expect(secondClient.closes, 0);
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.loading);
+
+      secondClient.release.complete();
+      await tester.runAsync(() => secondFuture);
+
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.ready);
+      expect(controller.history, hasLength(1));
+      expect(secondClient.requests, 1);
+      expect(secondClient.closes, 1);
+    },
+  );
+
+  testWidgets(
+    'authorized history is visible only while exact resource authority remains',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _page(), target = page.entries.last;
+      var requests = 0;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          client: MockClient((request) async {
+            requests++;
+            expect(request.method, 'GET');
+            return http.Response(
+              jsonEncode({
+                'receipts': [
+                  {
+                    'requestId': 'c' * 32,
+                    'traceId': 'c' * 32,
+                    'state': 'completed',
+                    'contentLength': 16,
+                    'sha256': 'd' * 64,
+                    'contentType': 'text/plain',
+                    'serviceRevision': 1,
+                    'createdAt': 1789911000.0,
+                    'updatedAt': 1789911001.0,
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+        () => harness.now,
+        () => true,
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      expect(controller.canLoadHistory(target), isTrue);
+      await tester.runAsync(
+        () => controller.loadHistory(target, isCurrent: () => true),
+      );
+
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.ready);
+      expect(controller.historyTargetId, target.id);
+      expect(controller.history, hasLength(1));
+      expect(requests, 1);
+
+      controller.retainAuthority(const [], page.userRevision);
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.idle);
+      expect(controller.history, isEmpty);
+      expect(controller.historyTargetId, isNull);
+    },
+  );
+
+  testWidgets(
+    'a new target operation retires evidence bound to the previous resource',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _page(), first = page.entries.last;
+      final raw = jsonDecode(
+        jsonEncode((contract()['memberList'] as Map)['entries'][1]),
+      ) as Map<String, dynamic>;
+      (raw['ref'] as Map<String, dynamic>)['id'] = '4' * 32;
+      raw['label'] = 'Second resource';
+      final second = HomeResourceRecord.fromJson(
+        raw,
+        expectedContext: page.context,
+      );
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          requestId: () => 'c' * 32,
+          client: MockClient((request) async => _verifiedResponse(request)),
+        ),
+        CoreBoundedDownloadFileAccess(
+          save: (_, _, _) async => Uri.parse('content://synthetic/document'),
+        ),
+        () => harness.now,
+        () => true,
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      await tester.runAsync(
+        () => controller.loadHistory(first, isCurrent: () => true),
+      );
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.ready);
+      expect(controller.historyTargetId, first.id);
+
+      await tester.runAsync(
+        () => controller.download(
+          second,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        ),
+      );
+      expect(controller.phase, CoreBoundedDownloadPhase.saved);
+      expect(controller.targetId, second.id);
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.idle);
+      expect(controller.historyTargetId, isNull);
+      expect(controller.history, isEmpty);
+
+      await tester.runAsync(
+        () => controller.loadHistory(first, isCurrent: () => true),
+      );
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.ready);
+      expect(controller.historyTargetId, first.id);
+      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+      expect(controller.targetId, isNull);
+      expect(controller.traceId, isNull);
     },
   );
 }

@@ -115,6 +115,63 @@ def test_restart_marks_accepted_without_final_frame_interrupted(tmp_path):
         assert response.json()["receipt"]["state"] == "interrupted"
 
 
+def test_clock_rollback_keeps_recovered_and_completed_receipts_valid(tmp_path):
+    app, settings, clock, provider = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        identity = record["ref"]["id"]
+        provider.blobs[identity] = BlobDescriptor(
+            identity, 1, "application/octet-stream", b"rollback fixture"
+        )
+        body = request_body(app, admin, record)
+        actor = app.state.core.auth.authenticate(admin["accessToken"])
+        app.state.core.bounded_transfers.open(
+            actor,
+            record["ref"]["coreId"],
+            record["ref"]["homeId"],
+            identity,
+            **app.state.core.bounded_transfers.python_arguments(body),
+            cancelled=lambda: False,
+        )
+        created_at = clock.now
+
+    clock.now -= 60
+    recovered = create_app(settings, blob_provider=provider)
+    with TestClient(recovered) as client:
+        admin = login(client, "admin", "Synthetic new password 2026").json()
+        receipt = client.get(
+            f"{_path(record)}/transfers/{body['requestId']}", headers=auth(admin)
+        )
+        assert receipt.status_code == 200
+        assert receipt.json()["receipt"]["state"] == "interrupted"
+        assert receipt.json()["receipt"]["updatedAt"] == created_at
+
+        next_body = request_body(recovered, admin, record)
+        actor = recovered.state.core.auth.authenticate(admin["accessToken"])
+        opened = recovered.state.core.bounded_transfers.open(
+            actor,
+            record["ref"]["coreId"],
+            record["ref"]["homeId"],
+            identity,
+            **recovered.state.core.bounded_transfers.python_arguments(next_body),
+            cancelled=lambda: False,
+        )
+        completed_created_at = clock.now
+        clock.now -= 60
+        list(opened.frames)
+        completed = client.get(
+            f"{_path(record)}/transfers/{next_body['requestId']}",
+            headers=auth(admin),
+        )
+        assert completed.status_code == 200
+        assert completed.json()["receipt"]["state"] == "completed"
+        assert completed.json()["receipt"]["updatedAt"] == completed_created_at
+
+    with TestClient(create_app(settings, blob_provider=provider)):
+        pass
+
+
 def test_receipt_authentication_failure_blocks_restart(tmp_path):
     app, settings, clock, provider = fixture(tmp_path)
     with TestClient(app) as client:

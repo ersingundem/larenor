@@ -128,96 +128,89 @@ void main() {
     },
   );
 
-  test(
-    'completed receipt and bounded history authenticate downloaded bytes',
-    () async {
-      final payload = utf8.encode('receipt fixture');
-      final trace = '4' * 32;
-      final digest = sha256.convert(payload).toString();
-      final wire = Uint8List.fromList([
-        ...frame(trace, 0, false, payload),
-        ...frame(trace, 1, true, const []),
-      ]);
-      final receipt = {
-        'requestId': trace,
-        'traceId': trace,
-        'state': 'completed',
-        'contentLength': payload.length,
-        'sha256': digest,
-        'contentType': 'application/octet-stream',
-        'serviceRevision': 4,
-        'createdAt': 10.0,
-        'updatedAt': 11.0,
-      };
-      final requests = <String>[];
-      final fixture = await loopback((request) async {
-        requests.add(
-          '${request.method} ${request.uri.path}?${request.uri.query}',
-        );
-        if (request.method == 'POST') {
-          await request.drain<void>();
-          request.response
-            ..statusCode = 200
-            ..headers.contentType = ContentType(
-              'application',
-              'vnd.larenor.blob-stream.v1',
-            )
-            ..headers.set('x-larenor-trace-id', trace)
-            ..headers.set('x-larenor-blob-content-length', payload.length)
-            ..headers.set('x-larenor-blob-sha256', digest)
-            ..headers.set(
-              'x-larenor-blob-content-type',
-              'application/octet-stream',
-            )
-            ..headers.set('x-larenor-service-revision', 4)
-            ..headers.set('accept-ranges', 'none')
-            ..contentLength = wire.length
-            ..add(wire);
-        } else {
-          request.response
-            ..statusCode = 200
-            ..headers.contentType = ContentType.json
-            ..write(
-              jsonEncode(
-                request.uri.path.endsWith(trace)
-                    ? {'receipt': receipt}
-                    : {
-                        'receipts': [receipt],
-                      },
-              ),
-            );
-        }
-        await request.response.close();
-      });
-      addTearDown(() => fixture.server.close(force: true));
-      final api = CoreBoundedDownloadApi(
-        endpoint: fixture.endpoint,
-        timeout: const Duration(seconds: 5),
-        requestId: () => trace,
+  test('completed durable receipt authenticates downloaded bytes', () async {
+    final payload = utf8.encode('receipt fixture');
+    final trace = '4' * 32;
+    final digest = sha256.convert(payload).toString();
+    final wire = Uint8List.fromList([
+      ...frame(trace, 0, false, payload),
+      ...frame(trace, 1, true, const []),
+    ]);
+    final receipt = {
+      'requestId': trace,
+      'traceId': trace,
+      'state': 'completed',
+      'contentLength': payload.length,
+      'sha256': digest,
+      'contentType': 'application/octet-stream',
+      'serviceRevision': 4,
+      'createdAt': 10.0,
+      'updatedAt': 11.0,
+    };
+    final requests = <String>[];
+    final fixture = await loopback((request) async {
+      requests.add(
+        '${request.method} ${request.uri.path}?${request.uri.query}',
       );
-      addTearDown(api.close);
+      if (request.method == 'POST') {
+        await request.drain<void>();
+        request.response
+          ..statusCode = 200
+          ..headers.contentType = ContentType(
+            'application',
+            'vnd.larenor.blob-stream.v1',
+          )
+          ..headers.set('x-larenor-trace-id', trace)
+          ..headers.set('x-larenor-blob-content-length', payload.length)
+          ..headers.set('x-larenor-blob-sha256', digest)
+          ..headers.set(
+            'x-larenor-blob-content-type',
+            'application/octet-stream',
+          )
+          ..headers.set('x-larenor-service-revision', 4)
+          ..headers.set('accept-ranges', 'none')
+          ..contentLength = wire.length
+          ..add(wire);
+      } else {
+        request.response
+          ..statusCode = 200
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(
+              request.uri.path.endsWith(trace)
+                  ? {'receipt': receipt}
+                  : {
+                      'receipts': [receipt],
+                    },
+            ),
+          );
+      }
+      await request.response.close();
+    });
+    addTearDown(() => fixture.server.close(force: true));
+    final api = CoreBoundedDownloadApi(
+      endpoint: fixture.endpoint,
+      timeout: const Duration(seconds: 5),
+      requestId: () => trace,
+    );
+    addTearDown(api.close);
 
-      final blob = await api.download(
-        token: 'synthetic-token',
-        target: target(),
-        expectedUserRevision: 7,
-        expectedServiceRevision: 4,
-      );
-      final verified = await api.verifyCompleted(
-        token: 'synthetic-token',
-        target: target(),
-        blob: blob,
-      );
+    final blob = await api.download(
+      token: 'synthetic-token',
+      target: target(),
+      expectedUserRevision: 7,
+      expectedServiceRevision: 4,
+    );
+    final verified = await api.verifyCompleted(
+      token: 'synthetic-token',
+      target: target(),
+      blob: blob,
+    );
 
-      expect(verified.requestId, trace);
-      expect(verified.state, CoreBoundedTransferState.completed);
-      expect(requests, [
-        startsWith('POST '),
-        endsWith('/transfers/$trace?'),
-        endsWith('/transfers?limit=50'),
-      ]);
-    },
-  );
+    expect(verified.requestId, trace);
+    expect(verified.state, CoreBoundedTransferState.completed);
+    expect(requests, [startsWith('POST '), endsWith('/transfers/$trace?')]);
+  });
 
   for (final entry in {
     401: 'unauthorized',
@@ -398,4 +391,164 @@ void main() {
     );
     expect(requests, 1);
   });
+
+  test('reads bounded transfer history with exact resource authority', () async {
+    final receiptId = '4' * 32;
+    final traceId = receiptId;
+    final fixture = await loopback((request) async {
+      expect(request.method, 'GET');
+      expect(
+        request.uri.path,
+        '/api/v1/home-resources/${'a' * 32}/${'b' * 32}/${'3' * 32}/blob/transfers',
+      );
+      expect(request.uri.queryParameters, {'limit': '20'});
+      expect(request.headers.value('authorization'), 'Bearer synthetic-token');
+      request.response
+        ..statusCode = 200
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'receipts': [
+              {
+                'requestId': receiptId,
+                'traceId': traceId,
+                'state': 'completed',
+                'contentLength': 42,
+                'sha256': '6' * 64,
+                'contentType': 'application/pdf',
+                'serviceRevision': 7,
+                'createdAt': 1789911000.25,
+                'updatedAt': 1789911001.5,
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+    addTearDown(() => fixture.server.close(force: true));
+    final api = CoreBoundedDownloadApi(endpoint: fixture.endpoint);
+    addTearDown(api.close);
+
+    final history = await api.history(
+      token: 'synthetic-token',
+      target: target(),
+      limit: 20,
+    );
+
+    expect(history, hasLength(1));
+    expect(history.single.requestId, receiptId);
+    expect(history.single.traceId, traceId);
+    expect(history.single.state, CoreBoundedTransferState.completed);
+    expect(history.single.contentLength, 42);
+    expect(history.single.contentType, 'application/pdf');
+    expect(history.single.serviceRevision, 7);
+    expect(
+      history.single.createdAt,
+      DateTime.fromMillisecondsSinceEpoch(1789911000250),
+    );
+    expect(
+      history.single.updatedAt,
+      DateTime.fromMillisecondsSinceEpoch(1789911001500),
+    );
+    expect(history.single.toString(), 'CoreBoundedTransferReceipt');
+  });
+
+  test(
+    'transfer history rejects malformed or excessive receipt lists',
+    () async {
+      for (final body in <Object?>[
+        {'receipts': List.filled(51, const <String, Object?>{})},
+        {
+          'receipts': [
+            {
+              'requestId': '4' * 32,
+              'traceId': '5' * 32,
+              'state': 'completed',
+              'contentLength': 42,
+              'sha256': '6' * 64,
+              'contentType': 'application/pdf',
+              'serviceRevision': 7,
+              'createdAt': 1789911000.25,
+              'updatedAt': 1789911001.5,
+            },
+          ],
+        },
+        {
+          'receipts': [
+            {
+              'requestId': '4' * 32,
+              'traceId': '5' * 32,
+              'state': 'completed',
+              'contentLength': 42,
+              'sha256': '6' * 64,
+              'contentType': 'application/pdf',
+              'serviceRevision': 7,
+              'createdAt': 1789911001.5,
+              'updatedAt': 1789911000.25,
+            },
+          ],
+        },
+      ]) {
+        final fixture = await loopback((request) async {
+          request.response
+            ..statusCode = 200
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode(body));
+          await request.response.close();
+        });
+        final api = CoreBoundedDownloadApi(endpoint: fixture.endpoint);
+        await expectLater(
+          api.history(token: 'synthetic-token', target: target()),
+          throwsA(
+            isA<CoreBoundedDownloadException>().having(
+              (error) => error.code,
+              'code',
+              'invalid_response',
+            ),
+          ),
+        );
+        api.close();
+        await fixture.server.close(force: true);
+      }
+    },
+  );
+
+  test(
+    'accepts creation ordering when an older transfer finishes later',
+    () async {
+      Map<String, Object?> receipt(String id, double created, double updated) =>
+          {
+            'requestId': id * 32,
+            'traceId': id * 32,
+            'state': 'completed',
+            'contentLength': 1,
+            'sha256': id * 64,
+            'contentType': 'application/octet-stream',
+            'serviceRevision': 1,
+            'createdAt': created,
+            'updatedAt': updated,
+          };
+      final fixture = await loopback((request) async {
+        request.response
+          ..statusCode = 200
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode({
+              'receipts': [receipt('8', 2000, 2001), receipt('7', 1000, 3000)],
+            }),
+          );
+        await request.response.close();
+      });
+      addTearDown(() => fixture.server.close(force: true));
+      final api = CoreBoundedDownloadApi(endpoint: fixture.endpoint);
+      addTearDown(api.close);
+
+      final result = await api.history(
+        token: 'synthetic-token',
+        target: target(),
+      );
+
+      expect(result.map((receipt) => receipt.requestId), ['8' * 32, '7' * 32]);
+    },
+  );
 }

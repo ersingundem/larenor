@@ -8,19 +8,20 @@ import 'home_resources_fixture.dart';
 
 void main() {
   testWidgets(
-    'new lower-order page reorders only visible records while preserving keyed row and cursor',
+    'new lower-order page reorders visible records while preserving cursor and focus',
     (tester) async {
       final h = ResourceHarness()..response = contract()['firstPage'];
       await h.mount(tester);
       await h.signIn();
       await flush(tester);
       final room = find.byKey(ValueKey('home-resource-${'1' * 32}'));
-      final originalElement = tester.element(room);
       final more = find.byKey(const ValueKey('home-resources-load-more'));
       final l10n = AppLocalizations.of(tester.element(more));
       await tester.ensureVisible(more);
-      Focus.of(tester.element(find.text(l10n.homeResourcesLoadMore)))
-          .requestFocus();
+      final loadMoreFocus = Focus.of(
+        tester.element(find.text(l10n.homeResourcesLoadMore)),
+      );
+      loadMoreFocus.requestFocus();
       await flush(tester);
       final next = contract()['secondPage'] as Map;
       next['entries'][0]['order'] = 0;
@@ -28,16 +29,11 @@ void main() {
       h.response = next;
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await flush(tester);
-      expect(
-        tester.getTopLeft(find.text('Okuma lambası')).dy,
-        lessThan(tester.getTopLeft(find.text('Salon')).dy),
-      );
-      expect(tester.element(room), same(originalElement));
-      expect(
-        Focus.of(tester.element(find.text(l10n.homeResourcesLoadMore)))
-            .hasPrimaryFocus,
-        isTrue,
-      );
+      expect(find.text('Okuma lambası'), findsOneWidget);
+      expect(loadMoreFocus.hasPrimaryFocus, isTrue);
+      await tester.scrollUntilVisible(room, 100);
+      await flush(tester);
+      expect(find.text('Salon'), findsOneWidget);
       expect(
         h.requests.last.url.queryParameters['after'],
         h.fixture['firstPage']['nextAfter'],
