@@ -17,7 +17,7 @@ secret, home server, or production credential is used.
 | Bounded SFTP ownership | The production transport lists at most two entries and reports truncation, downloads a known file, uploads with exclusive-create semantics, round-trips its bytes, rejects an over-limit write before transfer, and aborts a one MiB read when ownership retires. Closing the owner waits for the SSH/SFTP connection to finish. |
 | Fail-closed tunnel and replay boundary | A deliberately wrong host pin fails after one socket attempt. A real loopback-only SSH tunnel reaches only the fixture HTTP endpoint; close completion now waits for both listener and server closure, after which the port refuses connections. Existing focused session, SFTP, tunnel, jump-host, and MFA tests prove peer loss, late completion, cancellation, separate hop pins/credentials, one-shot challenges, and zero automatic command retry. |
 
-RED `0cb5ed97` records the missing native workflow. GREEN `8ab8fae3` adds the
+RED `14011848` records the missing native workflow. GREEN `872aeaae` adds the
 fixture, real protocol tests, workflow policy checks, and deterministic tunnel
 close boundary.
 
