@@ -29,6 +29,13 @@ class _ConnectedConnection extends JellyseerrConnection {
     baseUrl: 'https://jellyseerr.fixture.invalid',
     apiKey: 'fixture-key',
   );
+
+  void change() => state = const AsyncData(
+    JellyseerrConfig(
+      baseUrl: 'https://replacement.fixture.invalid',
+      apiKey: 'replacement-key',
+    ),
+  );
 }
 
 Future<void> _tabToRetry(WidgetTester tester) async {
@@ -43,6 +50,76 @@ Future<void> _tabToRetry(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('captured retry cannot invalidate replacement connection', (
+    tester,
+  ) async {
+    var reads = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jellyseerrConnectionProvider.overrideWith(
+            () => _FailingConnection(() => reads++),
+          ),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const JellyseerrHomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final retry = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyseerr-home-retry')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(JellyseerrHomeScreen)),
+    );
+    container.invalidate(jellyseerrConnectionProvider);
+    await tester.pumpAndSettle();
+    expect(reads, 2);
+
+    retry();
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+  });
+
+  testWidgets('captured requests route cannot cross media account authority', (
+    tester,
+  ) async {
+    final connection = _ConnectedConnection();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jellyseerrConnectionProvider.overrideWith(() => connection),
+          jellyseerrClientProvider.overrideWith((_) => null),
+          jellyseerrMyRequestsProvider.overrideWith((_) async => []),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const JellyseerrHomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final open = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyseerr-requests-action')),
+        )
+        .onPressed!;
+
+    connection.change();
+    await tester.pumpAndSettle();
+    open();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JellyseerrRequestsScreen), findsNothing);
+  });
+
   for (final width in [600.0, 1280.0]) {
     testWidgets('Jellyseerr failure uses shared live tablet state and retry '
         '$width 2x', (tester) async {
