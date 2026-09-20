@@ -98,5 +98,5 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
 }
