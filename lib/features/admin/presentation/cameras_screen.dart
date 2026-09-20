@@ -9,16 +9,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/camera_snapshot.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 import 'camera_viewer_screen.dart';
 import '../../../shared/theme/typography.dart';
 
-class CamerasScreen extends ConsumerWidget {
+class CamerasScreen extends ConsumerStatefulWidget {
   const CamerasScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CamerasScreen> createState() => _CamerasScreenState();
+}
+
+class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
+  bool _current(int generation, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(entitiesProvider), reading);
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entitiesProvider);
+    final generation = sessionGeneration;
+    final active = _current(generation, entitiesAsync);
 
     return ServiceRootScaffold(
       title: l10n.settingsCameras,
@@ -34,7 +48,13 @@ class CamerasScreen extends ConsumerWidget {
               SettingsActionTile(
                 buttonKey: const ValueKey('cameras-refresh-action'),
                 title: Text(l10n.commonRefresh),
-                onTap: () => ref.invalidate(entitiesProvider),
+                onTap: active
+                    ? () {
+                        if (_current(generation, entitiesAsync)) {
+                          ref.invalidate(entitiesProvider);
+                        }
+                      }
+                    : null,
               ),
             ],
           ),
@@ -44,7 +64,7 @@ class CamerasScreen extends ConsumerWidget {
             child: Center(child: CupertinoActivityIndicator()),
           ),
           error: (error, _) => SliverFillRemaining(
-            child: Center(child: Text(l10n.adminLoadError(error.toString()))),
+            child: Center(child: Text(l10n.adminLoadError(l10n.actionFailed))),
           ),
           data: (entities) {
             final cameras =
@@ -73,14 +93,19 @@ class CamerasScreen extends ConsumerWidget {
                       minimumSize: const Size(48, 48),
                       padding: EdgeInsets.zero,
                       borderRadius: BorderRadius.circular(12),
-                      onPressed: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => CameraViewerScreen(
-                            entityId: camera.entityId,
-                            title: camera.friendlyName,
-                          ),
-                        ),
-                      ),
+                      onPressed: active
+                          ? () {
+                              if (!_current(generation, entitiesAsync)) return;
+                              Navigator.of(context).push(
+                                CupertinoPageRoute(
+                                  builder: (_) => CameraViewerScreen(
+                                    entityId: camera.entityId,
+                                    title: camera.friendlyName,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Stack(

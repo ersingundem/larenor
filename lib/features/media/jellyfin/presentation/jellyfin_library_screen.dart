@@ -7,6 +7,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_item_detail_screen.dart';
 import 'widgets/jellyfin_poster.dart';
@@ -15,7 +16,7 @@ import 'widgets/jellyfin_poster.dart';
 /// item (Movie/Episode) or a container (Series/Season/folder) both push
 /// [JellyfinItemDetailScreen], which then either offers Play or a further
 /// "Browse" step into this same screen — a simple recursive drill-down.
-class JellyfinLibraryScreen extends ConsumerWidget {
+class JellyfinLibraryScreen extends ConsumerStatefulWidget {
   const JellyfinLibraryScreen({
     super.key,
     required this.parentId,
@@ -26,25 +27,49 @@ class JellyfinLibraryScreen extends ConsumerWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(jellyfinLibraryItemsProvider(parentId));
+  ConsumerState<JellyfinLibraryScreen> createState() =>
+      _JellyfinLibraryScreenState();
+}
+
+class _JellyfinLibraryScreenState
+    extends MediaSessionState<JellyfinLibraryScreen> {
+  bool _current(int generation, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(
+        ref.read(jellyfinLibraryItemsProvider(widget.parentId)),
+        reading,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = jellyfinLibraryItemsProvider(widget.parentId);
+    final itemsAsync = ref.watch(provider);
+    final generation = sessionGeneration;
+    final active = _current(generation, itemsAsync);
 
     return ServiceRootScaffold(
-      title: title,
+      title: widget.title,
       slivers: [
         SliverToBoxAdapter(
           child: SettingsSection(
             header: Semantics(
               key: const ValueKey('jellyfin-library-header'),
               header: true,
-              child: Text(title),
+              child: Text(widget.title),
             ),
             children: [
               SettingsActionTile(
                 buttonKey: const ValueKey('jellyfin-library-refresh'),
                 title: Text(AppLocalizations.of(context).commonRefresh),
-                onTap: () =>
-                    ref.invalidate(jellyfinLibraryItemsProvider(parentId)),
+                onTap: active
+                    ? () {
+                        if (_current(generation, itemsAsync)) {
+                          ref.invalidate(provider);
+                        }
+                      }
+                    : null,
               ),
             ],
           ),
@@ -97,12 +122,15 @@ class JellyfinLibraryScreen extends ConsumerWidget {
                       return JellyfinPoster(
                         item: item,
                         width: double.infinity,
-                        onTap: () => Navigator.of(context).push(
-                          CupertinoPageRoute(
-                            builder: (_) =>
-                                JellyfinItemDetailScreen(item: item),
-                          ),
-                        ),
+                        onTap: () {
+                          if (!_current(generation, itemsAsync)) return;
+                          Navigator.of(context).push(
+                            CupertinoPageRoute(
+                              builder: (_) =>
+                                  JellyfinItemDetailScreen(item: item),
+                            ),
+                          );
+                        },
                       );
                     }, childCount: items.length),
                   ),

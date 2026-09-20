@@ -8,21 +8,38 @@ import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../dashboard/domain/tile_config.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 import '../providers/keenetic_telemetry_providers.dart';
+import '../providers/keenetic_telemetry_controller.dart';
 import 'keenetic_metric_presentation.dart';
 import 'keenetic_metric_view.dart';
 
-class KeeneticMetricDetailScreen extends ConsumerWidget {
+class KeeneticMetricDetailScreen extends ConsumerStatefulWidget {
   const KeeneticMetricDetailScreen({super.key, required this.tile});
   final TileConfig tile;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KeeneticMetricDetailScreen> createState() =>
+      _KeeneticMetricDetailScreenState();
+}
+
+class _KeeneticMetricDetailScreenState
+    extends MediaSessionState<KeeneticMetricDetailScreen> {
+  bool _current(int generation, KeeneticTelemetryController controller) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(keeneticTelemetryControllerProvider), controller);
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final controller = ref.watch(keeneticTelemetryControllerProvider);
+    final generation = sessionGeneration;
     final request = KeeneticMetricRequest(
-      tile.keeneticMetric ?? KeeneticMetricKind.routerResources,
-      interfaceId: tile.keeneticInterfaceId,
+      widget.tile.keeneticMetric ?? KeeneticMetricKind.routerResources,
+      interfaceId: widget.tile.keeneticInterfaceId,
     );
-    final title = tile.title ?? keeneticMetricTitle(l10n, request.kind);
+    final title = widget.tile.title ?? keeneticMetricTitle(l10n, request.kind);
     return ServiceRootScaffold(
       title: title,
       slivers: [
@@ -107,12 +124,13 @@ class KeeneticMetricDetailScreen extends ConsumerWidget {
                                   configured &&
                                       snapshot != null &&
                                       snapshot.isRefreshing == false &&
-                                      !snapshot.isPaused
-                                  ? () => ref
-                                        .read(
-                                          keeneticTelemetryControllerProvider,
-                                        )
-                                        .refresh()
+                                      !snapshot.isPaused &&
+                                      _current(generation, controller)
+                                  ? () {
+                                      if (_current(generation, controller)) {
+                                        controller.refresh();
+                                      }
+                                    }
                                   : null,
                             ),
                           ],
