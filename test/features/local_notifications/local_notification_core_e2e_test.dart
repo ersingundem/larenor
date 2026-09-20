@@ -58,9 +58,12 @@ final class _Owner extends ChangeNotifier implements LocalNotificationOwner {
 }
 
 final class _Permission implements LocalNotificationPermissionGateway {
+  const _Permission([this.value = LocalNotificationPermission.inAppOnly]);
+
+  final LocalNotificationPermission value;
+
   @override
-  Future<LocalNotificationPermission> read() async =>
-      LocalNotificationPermission.inAppOnly;
+  Future<LocalNotificationPermission> read() async => value;
 }
 
 final class _Platform implements LocalNotificationPlatform {
@@ -330,7 +333,10 @@ final class _Harness {
   final _Owner owner;
   final LocalNotificationController controller;
 
-  static Future<_Harness> start() async {
+  static Future<_Harness> start({
+    LocalNotificationPermission permission =
+        LocalNotificationPermission.inAppOnly,
+  }) async {
     final core = await _LoopbackCore.start();
     final now = DateTime.utc(2026, 9, 20, 12);
     final endpoint = ServerEndpoint(core.baseUrl);
@@ -360,7 +366,7 @@ final class _Harness {
       home: home,
       apiFactory: (endpoint) => LarenorServerApi(endpoint: endpoint),
       store: LocalNotificationStore(backend: _MemoryNotificationStore()),
-      permissionGateway: _Permission(),
+      permissionGateway: _Permission(permission),
       clock: () => now,
       windowCurrent: () => true,
       owner: owner,
@@ -428,6 +434,21 @@ void main() {
       );
     },
   );
+
+  test('denied fixture capability stops before notification HTTP', () async {
+    final harness = await _Harness.start(
+      permission: LocalNotificationPermission.denied,
+    );
+    addTearDown(harness.close);
+
+    await harness.load();
+
+    expect(harness.controller.failure, 'permission_denied');
+    expect(harness.controller.loaded, isFalse);
+    expect(harness.core.registerCalls, 0);
+    expect(harness.core.pullCalls, 0);
+    expect(harness.core.ackCalls, 0);
+  });
 
   test(
     'foreground runtime bounds pulls and never requests permission implicitly',
