@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show ViewFocusEvent, ViewFocusState;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
@@ -19,7 +19,7 @@ import 'rdp_security_store.dart';
 import 'rdp_session_controller.dart';
 
 final rdpEngineFactoryProvider = Provider<RdpEngine Function()>(
-  (_) => UnsupportedRdpEngine.new,
+  (_) => RdpMethodChannelEngine.new,
 );
 final rdpSecurityStoreProvider = Provider<RdpSecurityStore>(
   (_) => RdpSecurityStore(),
@@ -252,9 +252,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }
 
   @override
-  void didChangeViewFocus(ViewFocusEvent event) {
+  void didChangeViewFocus(ui.ViewFocusEvent event) {
     if (event.viewId != View.of(context).viewId) return;
-    _focused = event.state == ViewFocusState.focused;
+    _focused = event.state == ui.ViewFocusState.focused;
     if (!_focused) _retire();
   }
 
@@ -611,6 +611,49 @@ class _RdpInputSurface extends StatefulWidget {
 class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   final _focus = FocusNode(debugLabel: 'RDP desktop input');
   Size? _lastSize;
+  StreamSubscription<RdpFrame>? _frames;
+  ui.Image? _image;
+  int _frameGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _frames = widget.controller.frames.listen(_frame);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RdpInputSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      unawaited(_frames?.cancel());
+      _frames = widget.controller.frames.listen(_frame);
+      _image?.dispose();
+      _image = null;
+      _frameGeneration++;
+    }
+  }
+
+  void _frame(RdpFrame frame) {
+    final generation = ++_frameGeneration;
+    ui.decodeImageFromPixels(
+      frame.bgra,
+      frame.width,
+      frame.height,
+      ui.PixelFormat.bgra8888,
+      (image) {
+        frame.bgra.fillRange(0, frame.bgra.length, 0);
+        if (!mounted || generation != _frameGeneration) {
+          image.dispose();
+          return;
+        }
+        final old = _image;
+        setState(() => _image = image);
+        old?.dispose();
+        unawaited(widget.controller.acknowledgeFrame(frame.sequence));
+      },
+      rowBytes: frame.stride,
+    );
+  }
 
   KeyEventResult _key(FocusNode _, KeyEvent event) {
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
@@ -658,6 +701,9 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
 
   @override
   void dispose() {
+    _frameGeneration++;
+    unawaited(_frames?.cancel());
+    _image?.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -695,11 +741,15 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
                   ),
                   alignment: Alignment.center,
                   child: ExcludeSemantics(
-                    child: Icon(
-                      CupertinoIcons.desktopcomputer,
-                      size: 64,
-                      color: CupertinoColors.systemGrey.resolveFrom(context),
-                    ),
+                    child: _image == null
+                        ? Icon(
+                            CupertinoIcons.desktopcomputer,
+                            size: 64,
+                            color: CupertinoColors.systemGrey.resolveFrom(
+                              context,
+                            ),
+                          )
+                        : RawImage(image: _image, fit: BoxFit.contain),
                   ),
                 ),
               ),

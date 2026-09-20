@@ -42,6 +42,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/freerdp/
 
 # Widget Preview related
 .widget_preview/

@@ -44,6 +44,18 @@ class RdpSessionController extends ChangeNotifier {
   RdpCertificatePin? pendingCertificate;
   String? error;
   bool get hasSensitiveInput => _passwordDecision != null;
+  Stream<RdpFrame> get frames => _channel is RdpFrameChannel
+      ? (_channel! as RdpFrameChannel).frames
+      : const Stream<RdpFrame>.empty();
+
+  Future<void> acknowledgeFrame(int sequence) async {
+    final channel = _channel;
+    if (phase == RdpSessionPhase.connected &&
+        channel is RdpFrameChannel &&
+        _current(_generation)) {
+      await channel.acknowledgeFrame(sequence);
+    }
+  }
 
   RdpEngine? _engine;
   RdpChannel? _channel;

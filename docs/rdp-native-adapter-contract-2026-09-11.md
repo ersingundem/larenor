@@ -39,11 +39,12 @@ request.
 
 ## Acceptance still open
 
-F62 remains at **0/63** feature acceptance. A later slice must pin FreeRDP
-source and build provenance, supported Android ABIs, and JNI symbols; implement
-deadline, cancellation, lifecycle, stale-session, surface/frame, input, audio,
-and clipboard handling; then prove the boundary against an isolated owned RDP
-fixture. Windows/NLA and RD Gateway interoperability plus Huawei tablet and
-Samsung DeX keyboard, pointer, external-display, resolution, reconnect, and
-long-session checks require physical acceptance. None of those claims are
-closed by these JVM tests.
+The follow-up
+[`f62-freerdp-native-engine-acceptance-2026-09-20.md`](f62-freerdp-native-engine-acceptance-2026-09-20.md)
+pins FreeRDP source/build provenance and ABIs, creates exact AAR/ELF receipts,
+and implements the bounded JNI lifecycle, frame, input and channel contract.
+F62 remains at **0/63** feature acceptance: the receipted package still needs a
+reviewed concrete product `RdpJniRuntime` plus an isolated owned Windows
+fixture. Windows/NLA and RD Gateway interoperability and Huawei tablet/Samsung
+DeX keyboard, pointer, external-display, resolution, reconnect and long-session
+checks still require real acceptance.

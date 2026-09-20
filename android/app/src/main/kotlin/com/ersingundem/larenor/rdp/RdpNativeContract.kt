@@ -19,6 +19,7 @@ class RdpNativeFailure(val code: String) : RuntimeException("Native RDP operatio
             "invalidFailure", "invalidCapabilities", "invalidRequest", "invalidSecrets",
             "engineUnavailable", "tlsRequired", "certificatePinningRequired", "nlaUnavailable",
             "gatewayUnavailable", "displayUnavailable", "inputUnavailable", "clipboardUnavailable",
+            "channelUnavailable", "framebufferUnavailable", "frameBackpressure",
             "foregroundRequired", "busy", "timedOut", "cancelled", "staleSession", "connectionFailed",
         )
     }
@@ -63,7 +64,10 @@ class RdpNativeCapabilities private constructor(
     val maxDpi: Int,
     val pointer: Boolean,
     val keyboard: Boolean,
+    val ime: Boolean,
     val clipboardModes: Set<RdpClipboardMode>,
+    val audio: Boolean,
+    val files: Boolean,
 ) {
     val canConnect get() = availability == RdpNativeAvailability.AVAILABLE && tls &&
         certificatePinning && pointer && keyboard
@@ -84,8 +88,8 @@ class RdpNativeCapabilities private constructor(
             }
             val security = strictMap(root["security"], setOf("tls", "certificatePinning", "nla", "rdGateway"), "invalidCapabilities")
             val display = strictMap(root["display"], setOf("dynamicResolution", "externalDisplay", "maxWidth", "maxHeight", "maxDpi"), "invalidCapabilities")
-            val input = strictMap(root["input"], setOf("pointer", "keyboard"), "invalidCapabilities")
-            val channels = strictMap(root["channels"], setOf("clipboardModes"), "invalidCapabilities")
+            val input = strictMap(root["input"], setOf("pointer", "keyboard", "ime"), "invalidCapabilities")
+            val channels = strictMap(root["channels"], setOf("clipboardModes", "audio", "files"), "invalidCapabilities")
             val rawModes = channels["clipboardModes"] as? List<*> ?: fail("invalidCapabilities")
             if (rawModes.size > 3 || rawModes.toSet().size != rawModes.size) fail("invalidCapabilities")
             val modes = rawModes.map {
@@ -107,12 +111,16 @@ class RdpNativeCapabilities private constructor(
                 int(display, "maxHeight", 0, 8192, "invalidCapabilities"),
                 int(display, "maxDpi", 0, 640, "invalidCapabilities"),
                 bool(input, "pointer", "invalidCapabilities"),
-                bool(input, "keyboard", "invalidCapabilities"), modes,
+                bool(input, "keyboard", "invalidCapabilities"),
+                bool(input, "ime", "invalidCapabilities"), modes,
+                bool(channels, "audio", "invalidCapabilities"),
+                bool(channels, "files", "invalidCapabilities"),
             )
             if (availability == RdpNativeAvailability.UNAVAILABLE) {
                 if (revision != null || result.tls || result.certificatePinning || result.nla || result.rdGateway ||
                     result.dynamicResolution || result.externalDisplay || result.maxWidth != 0 || result.maxHeight != 0 ||
-                    result.maxDpi != 0 || result.pointer || result.keyboard || modes.isNotEmpty()) fail("invalidCapabilities")
+                    result.maxDpi != 0 || result.pointer || result.keyboard || result.ime || modes.isNotEmpty() ||
+                    result.audio || result.files) fail("invalidCapabilities")
             } else if (revision == null || result.maxWidth < 640 || result.maxHeight < 480 ||
                 result.maxDpi < 72 || RdpClipboardMode.DISABLED !in modes) fail("invalidCapabilities")
             return result
@@ -138,6 +146,8 @@ class RdpNativeRequest private constructor(
     val display: RdpNativeDisplay,
     val keyboardLayout: RdpKeyboardLayout,
     val clipboardMode: RdpClipboardMode,
+    val audio: Boolean,
+    val files: Boolean,
 ) {
     override fun toString() = "RdpNativeRequest(<redacted>)"
     fun publicSummary(): Map<String, Any> = mapOf(
@@ -146,10 +156,11 @@ class RdpNativeRequest private constructor(
         "displayHeight" to display.height, "displayDpi" to display.dpi,
         "externalDisplay" to display.externalDisplay, "dynamicResize" to display.dynamicResize,
         "keyboardLayout" to keyboardLayout.name, "clipboardMode" to clipboardMode.name,
+        "audio" to audio, "files" to files,
     )
 
     companion object {
-        private val requestKeys = setOf("schemaVersion", "requestId", "targetHost", "targetPort", "username", "domain", "gateway", "certificateFingerprint", "requiresNla", "display", "keyboardLayout", "clipboardMode")
+        private val requestKeys = setOf("schemaVersion", "requestId", "targetHost", "targetPort", "username", "domain", "gateway", "certificateFingerprint", "requiresNla", "display", "keyboardLayout", "clipboardMode", "audio", "files")
         private fun host(value: Any?): String {
             val host = text(value, 1, 253, "invalidRequest")
             if (Regex("[\\s/@\\\\?#%\\[\\]]").containsMatchIn(host)) fail("invalidRequest")
@@ -197,6 +208,8 @@ class RdpNativeRequest private constructor(
                 RdpNativeDisplay(width, height, int(display, "dpi", 72, 640, "invalidRequest"),
                     bool(display, "externalDisplay", "invalidRequest"), bool(display, "dynamicResize", "invalidRequest")),
                 keyboard, clipboard,
+                root["audio"] as? Boolean ?: fail("invalidRequest"),
+                root["files"] as? Boolean ?: fail("invalidRequest"),
             )
         }
     }
@@ -205,10 +218,13 @@ class RdpNativeRequest private constructor(
 class RdpNativeNegotiated internal constructor(
     val engineRevision: String,
     val clipboardMode: RdpClipboardMode,
+    val audio: Boolean,
+    val files: Boolean,
     private val display: RdpNativeDisplay,
 ) {
     fun toMap(): Map<String, Any> = mapOf(
         "engineRevision" to engineRevision, "clipboardMode" to clipboardMode.name,
+        "audio" to audio, "files" to files,
         "width" to display.width, "height" to display.height, "dpi" to display.dpi,
         "externalDisplay" to display.externalDisplay, "dynamicResize" to display.dynamicResize,
     )
@@ -226,7 +242,11 @@ object RdpNativeNegotiator {
             display.externalDisplay && !capabilities.externalDisplay || display.dynamicResize && !capabilities.dynamicResolution) fail("displayUnavailable")
         if (!capabilities.pointer || !capabilities.keyboard) fail("inputUnavailable")
         if (request.clipboardMode !in capabilities.clipboardModes) fail("clipboardUnavailable")
-        return RdpNativeNegotiated(capabilities.engineRevision ?: fail("invalidCapabilities"), request.clipboardMode, display)
+        if (request.audio && !capabilities.audio || request.files && !capabilities.files) fail("channelUnavailable")
+        return RdpNativeNegotiated(
+            capabilities.engineRevision ?: fail("invalidCapabilities"),
+            request.clipboardMode, request.audio, request.files, display,
+        )
     }
 }
 
@@ -263,9 +283,21 @@ class RdpNativeSecrets private constructor(
 }
 
 interface RdpNativeSession { fun close() }
+interface RdpNativeSessionObserver {
+    fun onSecurity() = Unit
+    fun onFrame() = Unit
+    fun onClosed(code: String?) = Unit
+
+    companion object { val NONE = object : RdpNativeSessionObserver {} }
+}
 interface RdpNativeBackend {
     fun capabilities(): RdpNativeCapabilities
-    fun open(request: RdpNativeRequest, negotiated: RdpNativeNegotiated, secrets: RdpNativeSecrets): RdpNativeSession
+    fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+    ): RdpNativeSession
 }
 
 class UnavailableRdpNativeBackend : RdpNativeBackend {
@@ -275,10 +307,15 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
         "schemaVersion" to 1, "availability" to "unavailable", "engineRevision" to null,
         "security" to mapOf("tls" to false, "certificatePinning" to false, "nla" to false, "rdGateway" to false),
         "display" to mapOf("dynamicResolution" to false, "externalDisplay" to false, "maxWidth" to 0, "maxHeight" to 0, "maxDpi" to 0),
-        "input" to mapOf("pointer" to false, "keyboard" to false),
-        "channels" to mapOf("clipboardModes" to emptyList<String>()),
+        "input" to mapOf("pointer" to false, "keyboard" to false, "ime" to false),
+        "channels" to mapOf("clipboardModes" to emptyList<String>(), "audio" to false, "files" to false),
     ))
-    override fun open(request: RdpNativeRequest, negotiated: RdpNativeNegotiated, secrets: RdpNativeSecrets): RdpNativeSession {
+    override fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver,
+    ): RdpNativeSession {
         openCalls++
         fail("engineUnavailable")
     }
@@ -286,10 +323,14 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
 
 class RdpNativeAdapter(private val backend: RdpNativeBackend = UnavailableRdpNativeBackend()) {
     fun capabilities() = backend.capabilities()
-    fun open(request: RdpNativeRequest, secrets: RdpNativeSecrets): RdpNativeSession = try {
+    fun open(
+        request: RdpNativeRequest,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+    ): RdpNativeSession = try {
         secrets.requireGatewayShape(request.gateway != null)
         val negotiated = RdpNativeNegotiator.negotiate(request, backend.capabilities())
-        backend.open(request, negotiated, secrets)
+        backend.open(request, negotiated, secrets, observer)
     } catch (failure: RdpNativeFailure) {
         throw failure
     } catch (_: Exception) {

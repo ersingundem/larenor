@@ -1,0 +1,15 @@
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -226,6 +226,12 @@
+ 	rdpSettings* settings = instance->context->settings;
+ 
+ 	if (!settings)
++		return FALSE;
++
++	/* Larenor verifies an SPKI SHA-256 pin itself.  A printable certificate
++	 * fingerprint is insufficient for that contract, so require the exact PEM
++	 * certificate in both normal and changed-certificate callbacks. */
++	if (!freerdp_settings_set_bool(settings, FreeRDP_CertificateCallbackPreferPEM, TRUE))
+ 		return FALSE;
+ 
+ 	int rc = PubSub_SubscribeChannelConnected(instance->context->pubSub,
