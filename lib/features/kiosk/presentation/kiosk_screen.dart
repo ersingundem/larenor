@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/kiosk_models.dart';
@@ -36,11 +37,22 @@ class KioskScreen extends ConsumerStatefulWidget {
 }
 
 class _KioskScreenState extends MediaSessionState<KioskScreen> {
-  late final KioskController _controller;
+  late KioskController _controller;
   @override
   void initState() {
     super.initState();
     _controller = ref.read(kioskControllerProvider);
+    ref.listenManual(kioskControllerProvider, (previous, next) {
+      if (previous == null || identical(previous, next) || !mounted) return;
+      setState(() {
+        sessionGeneration++;
+        clearPendingInteraction();
+        _controller = next;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _current(sessionGeneration)) _refresh();
+      });
+    });
   }
 
   KioskSnapshot? _snapshot;
@@ -78,6 +90,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
     _receipt = null;
     _error = null;
     _loading = false;
+    _pending = false;
     _controller.invalidate();
     _erasePin();
     _retirePinRoute();
@@ -149,11 +162,11 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
     }
   }
 
-  Future<void> _act(KioskAction action) async {
-    final epoch = sessionGeneration;
+  Future<void> _act(KioskAction action, int epoch) async {
     if (_pending ||
         _loading ||
         _mustRefresh ||
+        epoch != sessionGeneration ||
         !_current(epoch) ||
         _snapshot?.actions.contains(action) != true) {
       return;
@@ -252,7 +265,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _pending = false);
+      if (_current(epoch)) setState(() => _pending = false);
     }
   }
 
@@ -279,12 +292,10 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
     final l = AppLocalizations.of(context), snapshot = _snapshot;
     final active =
         _current(sessionGeneration) && !_pending && !_loading && !_mustRefresh;
+    final generation = sessionGeneration;
     String truth(bool? value) =>
         value == null ? l.commonUnknown : (value ? l.commonYes : l.commonNo);
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           l.kioskTitle,
@@ -316,7 +327,11 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     ),
                   if (snapshot?.supported == true) ...[
                     SettingsSection(
-                      header: Text(l.kioskState),
+                      header: Semantics(
+                        container: true,
+                        header: true,
+                        child: Text(l.kioskState),
+                      ),
                       footer: Text(l.kioskExternalHint),
                       children: [
                         _row(l.kioskState, switch (snapshot!.lockState) {
@@ -344,6 +359,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                             l,
                             action,
                             active && snapshot.actions.contains(action),
+                            generation,
                           ),
                       ],
                     ),
@@ -359,6 +375,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                             l,
                             action,
                             active && snapshot.actions.contains(action),
+                            generation,
                           ),
                       ],
                     ),
@@ -386,6 +403,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     ),
                   CupertinoButton(
                     key: const ValueKey('kiosk-refresh'),
+                    minimumSize: const Size(48, 48),
                     onPressed:
                         !_pending && !_loading && _current(sessionGeneration)
                         ? _refresh
@@ -393,7 +411,11 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     child: Text(l.commonRefresh),
                   ),
                   SettingsSection(
-                    header: Text(l.kioskRecovery),
+                    header: Semantics(
+                      container: true,
+                      header: true,
+                      child: Text(l.kioskRecovery),
+                    ),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -411,15 +433,20 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
     );
   }
 
-  Widget _actionButton(AppLocalizations l, KioskAction action, bool enabled) =>
-      SizedBox(
-        width: double.infinity,
-        child: CupertinoButton(
-          key: ValueKey('kiosk-${action.name}'),
-          onPressed: enabled ? () => _act(action) : null,
-          child: Text(_actionLabel(l, action), textAlign: TextAlign.center),
-        ),
-      );
+  Widget _actionButton(
+    AppLocalizations l,
+    KioskAction action,
+    bool enabled,
+    int generation,
+  ) => SizedBox(
+    width: double.infinity,
+    child: CupertinoButton(
+      key: ValueKey('kiosk-${action.name}'),
+      minimumSize: const Size.fromHeight(48),
+      onPressed: enabled ? () => _act(action, generation) : null,
+      child: Text(_actionLabel(l, action), textAlign: TextAlign.center),
+    ),
+  );
 
   Widget _row(String name, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
