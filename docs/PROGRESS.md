@@ -70,6 +70,12 @@ index digest'leri, sürüm/lisans/source revision etiketleri, sabit ad/ağ/bind
 eşlemeleri ve secret-free environment sözleşmesi odaklı testlerle doğrulandı.
 [Kriterler ve açık kapılar](s07-1-unified-package-implementation-2026-09-20.md).
 
+İkinci yerel dilim, Compose `config` çıktısından deterministic ve secret-free
+kurulum manifesti üretir; owned directory sahiplik/izin/kapasite preflight'ını
+pull/up önüne koyar; altı servisin image/container receipt'lerini authenticated
+readback durumundan ayırır. Readback başarısızlığı çalışan container'ı servis
+olarak doğrulamaz ve otomatik retry başlatmaz.
+
 Docker CLI, iki mimarili gerçek süreç kabulü, sahiplikli dizin hazırlığı,
 installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
 `pending` kalır.
