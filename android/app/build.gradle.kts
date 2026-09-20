@@ -110,14 +110,14 @@ flutter {
 dependencies {
     if (hasFreeRdp) {
         implementation(files(freeRdpAar))
-        implementation("androidx.appcompat:appcompat:1.7.1")
+        implementation("androidx.appcompat:appcompat:1.8.0")
         implementation("androidx.core:core:1.19.0")
         implementation("androidx.preference:preference:1.2.1")
         implementation("androidx.recyclerview:recyclerview:1.4.0")
         implementation("androidx.lifecycle:lifecycle-viewmodel:2.11.0")
         implementation("androidx.lifecycle:lifecycle-livedata:2.11.0")
-        implementation("androidx.room:room-runtime:2.8.4")
-        implementation("net.zetetic:sqlcipher-android:4.17.0@aar")
+        implementation("androidx.room:room-runtime:2.8.5")
+        implementation("net.zetetic:sqlcipher-android:4.19.0@aar")
         implementation("androidx.sqlite:sqlite:2.7.0")
     }
     implementation("com.android.tools.build:apksig:9.1.0")
