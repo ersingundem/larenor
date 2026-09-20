@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/local_audio/presentation/local_audio_screen.dart';
 import 'package:larenor/features/media/local_audio/presentation/playback_power_screen.dart';
 import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'local_audio_ui_fixture.dart';
 
@@ -26,6 +30,7 @@ class _Harness {
     bool pushed = false,
     Size size = const Size(600, 1100),
     double scale = 1,
+    String language = 'en',
   }) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.physicalSize = size;
@@ -48,7 +53,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -109,6 +114,52 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language source action is accessible at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          await h.mount(tester, size: size, scale: 2, language: language);
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          await h.source(tester);
+          final start = find.byKey(const ValueKey('local-audio-start'));
+          await tester.scrollUntilVisible(
+            start,
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('local-audio-actions-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+          expect(tester.getRect(start).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(start).flagsCollection.isButton, isTrue);
+          Focus.of(
+            tester.element(
+              find.descendant(of: start, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await _frames(tester);
+          expect(h.bridge.plays, hasLength(1));
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+          await h.unmount(tester);
+        },
+      );
+    }
+  }
+
   testWidgets('current source identity accompanies all native controls', (
     tester,
   ) async {
