@@ -1,14 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
+import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PendingStore extends PinLockStore {
@@ -25,10 +30,13 @@ Future<void> showGate(
   String? initialPin = '1234',
   bool pushGate = false,
   AppInteractionController? interaction,
+  Size size = const Size(500, 900),
+  double scale = 1,
+  String language = 'en',
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?initialPin});
-  tester.view.physicalSize = const Size(500, 900);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -37,11 +45,19 @@ Future<void> showGate(
         if (store != null) pinLockStoreProvider.overrideWith((ref) => store),
       ],
       child: CupertinoApp(
+        locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (_, child) => interaction == null
-            ? child!
-            : AppInteractionScope(controller: interaction, child: child!),
+        builder: (context, child) {
+          final scaled = MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          );
+          return interaction == null
+              ? scaled
+              : AppInteractionScope(controller: interaction, child: scaled);
+        },
         home: pushGate
             ? Builder(
                 builder: (context) => CupertinoPageScaffold(
@@ -76,6 +92,53 @@ class PendingSaveStore extends PinLockStore {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language PIN gate uses shared tablet semantics at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          await showGate(tester, size: size, scale: 2, language: language);
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsOneWidget);
+          expect(find.byType(SettingsActionTile), findsOneWidget);
+          expect(
+            tester
+                .getSemantics(find.byKey(const ValueKey('settings-pin-header')))
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final submit = find.byKey(const ValueKey('settings-pin-submit'));
+          expect(tester.getRect(submit).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(submit).flagsCollection.isButton, isTrue);
+          final field = find.byKey(const ValueKey('settings-pin-field'));
+          expect(tester.getRect(field).height, greaterThanOrEqualTo(48));
+          await tester.enterText(field, '1234');
+          Focus.of(
+            tester.element(
+              find.descendant(of: submit, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(find.byType(SettingsGateScreen), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('settings-pin-submit')),
+            findsNothing,
+          );
+          expect(find.byType(SettingsSplitScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
+
   testWidgets(
     'owned settings navigator preserves pane back and app back navigation',
     (tester) async {
