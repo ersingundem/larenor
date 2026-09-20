@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../settings/presentation/settings_file_dialog.dart';
 import '../../settings/presentation/panes/settings_nav_row.dart';
@@ -281,22 +282,33 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
       title: l10n.ambientTitle,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('ambient-actions-heading'),
+            container: true,
+            header: true,
+            child: Text(l10n.ambientTitle),
+          ),
           footer: Text(l10n.ambientHint),
           children: [
-            CupertinoButton(
-              onPressed: available
-                  ? () => Navigator.of(context).push(
-                      CupertinoPageRoute<void>(
-                        builder: (_) => CupertinoPageScaffold(
-                          navigationBar: CupertinoNavigationBar(
-                            middle: Text(l10n.ambientTitle),
+            SettingsActionTile(
+              buttonKey: const ValueKey('ambient-preview-action'),
+              leading: const Icon(CupertinoIcons.rectangle_on_rectangle),
+              title: Text(l10n.ambientPreview),
+              onTap: available
+                  ? () {
+                      if (!_current || generation != _generation) return;
+                      Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => CupertinoPageScaffold(
+                            navigationBar: CupertinoNavigationBar(
+                              middle: Text(l10n.ambientTitle),
+                            ),
+                            child: const SafeArea(child: AmbientScreen()),
                           ),
-                          child: const SafeArea(child: AmbientScreen()),
                         ),
-                      ),
-                    )
+                      );
+                    }
                   : null,
-              child: Text(l10n.ambientPreview),
             ),
           ],
         ),
@@ -320,11 +332,16 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
                     : Text(l10n.ambientFailed),
               ),
               if (settings.hasError)
-                CupertinoButton(
-                  onPressed: available
-                      ? () => ref.invalidate(ambientSettingsProvider)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('ambient-retry-action'),
+                  leading: const Icon(CupertinoIcons.refresh),
+                  title: Text(l10n.commonRetry),
+                  onTap: available
+                      ? () {
+                          if (!_current || generation != _generation) return;
+                          ref.invalidate(ambientSettingsProvider);
+                        }
                       : null,
-                  child: Text(l10n.commonRetry),
                 ),
             ],
           )

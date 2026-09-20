@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +20,8 @@ import 'package:larenor/features/settings/presentation/idle_gate.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/features/wellbeing/providers/wellbeing_privacy_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -97,6 +100,7 @@ Future<ProviderContainer> _mount(
   AppInteractionController? interaction,
   Size size = const Size(390, 844),
   double scale = 1,
+  Locale locale = const Locale('en'),
 }) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   tester.view.physicalSize = size;
@@ -116,7 +120,7 @@ Future<ProviderContainer> _mount(
     UncontrolledProviderScope(
       container: container,
       child: CupertinoApp(
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, body) => MediaQuery(
@@ -166,6 +170,61 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
+  }
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'ambient preview uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await _mount(
+              tester,
+              const AmbientSettingsScreen(),
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(AmbientSettingsScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('ambient-actions-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.ambientTitle);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final preview = find.byKey(
+              const ValueKey('ambient-preview-action'),
+            );
+            final previewNode = tester.getSemantics(preview);
+            expect(previewNode.label, contains(l10n.ambientPreview));
+            expect(previewNode.flagsCollection.isButton, isTrue);
+            expect(previewNode.rect.width, greaterThanOrEqualTo(48));
+            expect(previewNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: preview,
+              matching: find.text(l10n.ambientPreview),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await _frames(tester);
+            expect(find.byType(AmbientScreen), findsOneWidget);
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox());
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
   }
   testWidgets('ambient switches announce each setting name', (tester) async {
     final semantics = tester.ensureSemantics();
@@ -282,6 +341,27 @@ void main() {
     button();
     await _frames(tester);
     expect(files.picks, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('captured preview cannot open after idle and wake', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(
+      tester,
+      const AmbientSettingsScreen(),
+      interaction: interaction,
+    );
+    final preview = find.byKey(const ValueKey('ambient-preview-action'));
+    final old = tester.widget<CupertinoButton>(preview).onPressed!;
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await _frames(tester);
+    old();
+    await _frames(tester);
+    expect(find.byType(AmbientScreen), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('removal needs confirmation and keeps unrelated selections', (
