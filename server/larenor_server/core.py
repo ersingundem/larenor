@@ -76,6 +76,8 @@ from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .meal_plans.schema import migrate_meal_plans
 from .meal_plans.repository import MealPlanRepository
+from .personal_profiles.schema import migrate_personal_profiles
+from .personal_profiles.repository import PersonalProfileRepository
 from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
 from .home_assistant.rule_schema import migrate as migrate_automation_rules
@@ -210,6 +212,7 @@ class CoreServices:
                 migrate_bounded_blobs(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_meal_plans(connection)
+                migrate_personal_profiles(connection)
                 migrate_inventory(connection, key, self.context)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -277,6 +280,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context,
                 self.home_people)
             self.meal_plans.validate_storage()
+            self.personal_profiles = PersonalProfileRepository(
+                self.db, self.auth, settings, key, self.context)
+            self.personal_profiles.validate_storage()
             self.inventory = InventoryRegistry(
                 self.db, self.auth, settings, key, self.context,
                 self.home_resources, self.product_blobs)
