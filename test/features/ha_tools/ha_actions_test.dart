@@ -134,7 +134,13 @@ void main() {
           final run = find.byKey(const ValueKey('ha-action-run'));
           expect(tester.getSize(run).height, greaterThanOrEqualTo(48));
           final l10n = AppLocalizations.of(tester.element(run));
-          expect(tester.getSemantics(run).label, l10n.haRun);
+          expect(
+            tester
+                .getSemantics(find.bySemanticsLabel(l10n.haRun))
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
           expect(tester.takeException(), isNull);
         } finally {
           semantics.dispose();

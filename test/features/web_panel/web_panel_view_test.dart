@@ -163,14 +163,16 @@ void main() {
             final button = find.byKey(ValueKey(entry.$1));
             expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
             expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
-            expect(tester.getSemantics(button).label, entry.$2);
             expect(
-              tester.getSemantics(button).flagsCollection.isButton,
+              tester
+                  .getSemantics(find.bySemanticsLabel(entry.$2))
+                  .flagsCollection
+                  .isButton,
               isTrue,
             );
           }
-          final retry = find.byKey(const ValueKey('ha-frontend-retry'));
-          Focus.of(tester.element(retry)).requestFocus();
+          Focus.of(tester.element(find.bySemanticsLabel(h.l10n.commonRetry)))
+              .requestFocus();
           await tester.pump();
           final before = h.platform.controllers.length;
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);

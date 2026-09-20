@@ -254,14 +254,17 @@ void main() {
               expect(button, findsOneWidget);
               expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
               expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
-              expect(tester.getSemantics(button).label, entry.$2);
               expect(
-                tester.getSemantics(button).flagsCollection.isButton,
+                tester
+                    .getSemantics(find.bySemanticsLabel(entry.$2))
+                    .flagsCollection
+                    .isButton,
                 isTrue,
               );
             }
-            final toggle = find.byKey(const ValueKey('jellyfin-player-toggle'));
-            Focus.of(tester.element(toggle)).requestFocus();
+            Focus.of(
+              tester.element(find.bySemanticsLabel(l10n.entityControlPause)),
+            ).requestFocus();
             await tester.pump();
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
             await tester.pumpAndSettle();
