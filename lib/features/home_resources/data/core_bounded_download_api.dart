@@ -326,8 +326,6 @@ final class CoreBoundedTransferEvent {
         kind == CoreBoundedTransferEventKind.accepted &&
             receipt.state != CoreBoundedTransferState.accepted ||
         kind == CoreBoundedTransferEventKind.result &&
-            receipt.state == CoreBoundedTransferState.accepted ||
-        kind == CoreBoundedTransferEventKind.baseline &&
             receipt.state == CoreBoundedTransferState.accepted) {
       throw const CoreBoundedDownloadException('invalid_response');
     }

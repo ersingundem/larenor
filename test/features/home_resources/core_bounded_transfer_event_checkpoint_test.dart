@@ -118,6 +118,39 @@ void main() {
     expect(page.events, isEmpty);
     expect(page.nextAfter, isNull);
 
+    final baselineApi = CoreBoundedDownloadApi(
+      endpoint: ServerEndpoint('https://core.invalid'),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            ..._events(target, head: 1),
+            'events': [
+              {
+                'sequence': 1,
+                'kind': 'baseline',
+                'actorId': '9' * 32,
+                'receipt': _receipt(state: 'accepted'),
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    addTearDown(baselineApi.close);
+
+    final baseline = await baselineApi.eventHistory(
+      token: 'fixture-token',
+      target: target,
+    );
+    expect(baseline.headSequence, 1);
+    expect(baseline.events.single.kind, CoreBoundedTransferEventKind.baseline);
+    expect(
+      baseline.events.single.receipt.state,
+      CoreBoundedTransferState.accepted,
+    );
+
     for (final mutation
         in <Map<String, Object?> Function(Map<String, Object?>)>{
           (value) => {...value, 'chainId': 'bad'},
