@@ -100,6 +100,32 @@ def test_links_resolve_to_exact_current_home_types_and_persisted_document(server
     assert client.get(root(app) + "/items/" + item_id, headers=auth(admin)).status_code == 404
 
 
+def test_reference_resolver_rejects_cryptographically_invalid_registry_and_blob_rows(server):
+    app, client, admin, room, device, doc = resolved_fixture(server)
+    minimal = item_body(room, device, doc["ref"]["id"]) | {
+        "deviceId": None, "documentIds": []}
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE home_resource_records SET kind='room' WHERE id=?",
+            (device["ref"]["id"],),
+        )
+    forged = minimal | {"roomId": device["ref"]["id"]}
+    assert client.post(root(app) + "/items", headers=auth(admin), json=forged).status_code == 503
+
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE home_resource_records SET kind='resource' WHERE id=?",
+            (device["ref"]["id"],),
+        )
+        connection.execute(
+            "UPDATE bounded_blob_objects SET authentication_tag=? WHERE resource_id=?",
+            ("0" * 64, doc["ref"]["id"]),
+        )
+    forged = minimal | {"roomId": room["ref"]["id"],
+                        "documentIds": [doc["ref"]["id"]]}
+    assert client.post(root(app) + "/items", headers=auth(admin), json=forged).status_code == 503
+
+
 def test_admin_grants_and_updates_are_closed_revision_controlled_and_revocable(server):
     app, client, admin, room, device, doc = resolved_fixture(server)
     created_user = create_user(client, admin, "inventory.member")
@@ -164,6 +190,7 @@ def test_history_is_authorized_restart_stable_and_detects_chain_or_state_tamper(
 
     with app.state.core.db.transaction() as connection:
         connection.execute("UPDATE inventory_audit SET entry_hash=? WHERE sequence=1", ("0" * 64,))
+    assert client.get(base, headers=auth(admin)).status_code == 503
     with pytest.raises(StartupError, match="inventory_storage_invalid"):
         with TestClient(create_app(settings)):
             pass

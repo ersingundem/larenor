@@ -15,7 +15,7 @@ import 'inventory_models_test.dart';
 final class FakeInventoryGateway implements InventoryGateway {
   FakeInventoryGateway({this.delay, this.failure});
   final Completer<InventoryItem>? delay;
-  final Object? failure;
+  Object? failure;
   int resolves = 0, histories = 0, grantReads = 0;
 
   @override
@@ -148,6 +148,23 @@ void main() {
       await offline.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
       expect(offline.entries, isEmpty);
       expect(offline.failure, InventoryFailure.offline);
+
+      final retainedGateway = FakeInventoryGateway();
+      final retained = InventoryController(
+        gateway: retainedGateway,
+        context: context,
+        canReadGrants: false,
+        isCurrent: () => true,
+      );
+      await retained.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
+      expect(retained.entries, hasLength(1));
+      retainedGateway.failure = const LarenorServerException(
+        'connection_failed',
+      );
+      await retained.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
+      expect(retained.entries, isEmpty);
+      expect(retained.selected, isNull);
+      expect(retained.failure, InventoryFailure.offline);
     },
   );
 }
