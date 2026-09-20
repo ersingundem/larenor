@@ -20,6 +20,7 @@ from larenor_server.plugins.media_archive_health_models import (
     QbittorrentArchiveSnapshot,
 )
 from larenor_server.plugins.media_flow_models import (
+    MediaFlowPathEvidence,
     MediaFlowObservation,
     SeerrFlowSnapshot,
 )
@@ -63,7 +64,57 @@ def source(service, *, revision=4, observed=NOW - 10):
     }
 
 
-def observation(*, revision=4, observed=NOW - 10, series=False):
+def delivery_evidence(*, series=False, attempt=1, effect_state="verified"):
+    media_key = "series:tvdb:101" if series else "movie:tmdb:603"
+    item_keys = (
+        ["episode:tvdb:101:1:1"] if series else [media_key]
+    )
+    return {
+        "mediaKey": media_key,
+        "operationId": "2" * 32,
+        "requestReceiptId": "3" * 32,
+        "retryAttempt": attempt,
+        "effectState": effect_state,
+        "files": [
+            {
+                "mediaKey": item_key,
+                "torrentId": "a" * 40,
+                "importReceiptId": "4" * 32,
+                "playbackItemId": "c" * 32,
+                "paths": [
+                    {
+                        "provider": "qbittorrent",
+                        "containerRoot": "/data/downloads",
+                        "containerPath": "/data/downloads/movies/The.Matrix.mkv",
+                        "hostRoot": "/srv/larenor/media/downloads",
+                        "device": 41,
+                        "inode": 9001,
+                    },
+                    {
+                        "provider": "sonarr" if series else "radarr",
+                        "containerRoot": "/media",
+                        "containerPath": "/media/movies/The.Matrix.mkv",
+                        "hostRoot": "/srv/larenor/media/library",
+                        "device": 41,
+                        "inode": 9001,
+                    },
+                    {
+                        "provider": "jellyfin",
+                        "containerRoot": "/media",
+                        "containerPath": "/media/movies/The.Matrix.mkv",
+                        "hostRoot": "/srv/larenor/media/library",
+                        "device": 41,
+                        "inode": 9001,
+                    },
+                ],
+            }
+            for item_key in item_keys
+        ],
+    }
+
+
+def observation(*, revision=4, observed=NOW - 10, series=False,
+                delivery=True, attempt=1, effect_state="verified"):
     target = "series:tvdb:101" if series else "movie:tmdb:603"
     requests = [{
         "mediaKey": target,
@@ -179,6 +230,9 @@ def observation(*, revision=4, observed=NOW - 10, series=False):
         }]
     return MediaFlowObservation(
         flowRevision=revision,
+        delivery=(delivery_evidence(
+            series=series, attempt=attempt, effect_state=effect_state,
+        ) if delivery else None),
         seerr=SeerrFlowSnapshot(
             **source("seerr", revision=revision, observed=observed),
             requests=requests,
@@ -204,6 +258,112 @@ def observation(*, revision=4, observed=NOW - 10, series=False):
             items=jellyfin,
         ),
     )
+
+
+def test_hardlink_inode_and_canonical_mapping_prove_one_secret_free_file_chain(
+        server):
+    pair = ready(server)
+    current = authority(
+        server, pair, "movie:tmdb:603", Provider([observation()]))
+    response = read(server, pair, current)
+    assert response.status_code == 200, response.text
+    delivery = response.json()["flow"]["delivery"]
+    assert delivery == {
+        "state": "hardlink_verified",
+        "retryAttempt": 1,
+        "fileCount": 1,
+    }
+    assert all(private not in response.text for private in (
+        "/data/downloads", "/srv/larenor", "9001", "The.Matrix.mkv",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("containerPath", "/data/downloads/../private/movie.mkv"),
+    ("containerPath", "/data/downloads//movies/movie.mkv"),
+    ("containerPath", "data/downloads/movies/movie.mkv"),
+    ("containerPath", "/data/downloads-other/movie.mkv"),
+    ("hostRoot", "/srv/larenor/media/../private"),
+])
+def test_container_host_mapping_rejects_noncanonical_or_escaping_paths(
+        field, value):
+    raw = delivery_evidence()["files"][0]["paths"][0]
+    with pytest.raises(ValueError):
+        MediaFlowPathEvidence.model_validate({**raw, field: value})
+
+
+def test_container_host_mapping_resolves_only_the_relative_canonical_suffix():
+    raw = delivery_evidence()["files"][0]["paths"][0]
+    evidence = MediaFlowPathEvidence.model_validate(raw)
+    assert evidence.resolved_host_path() == (
+        "/srv/larenor/media/downloads/movies/The.Matrix.mkv")
+
+
+def test_interrupted_retry_is_idempotent_and_uncertain_effect_fails_closed(
+        server):
+    pair = ready(server)
+    first_provider = Provider([observation()])
+    first = authority(server, pair, "movie:tmdb:603", first_provider)
+    first_read = read(server, pair, first)
+    assert first_read.status_code == 200, first_read.text
+
+    retry_provider = Provider([observation(revision=5, attempt=2)])
+    retry = authority(server, pair, "movie:tmdb:603", retry_provider)
+    retried = read(server, pair, retry)
+    assert retried.status_code == 200, retried.text
+    flow = retried.json()["flow"]
+    assert flow["delivery"] == {
+        "state": "hardlink_verified",
+        "retryAttempt": 2,
+        "fileCount": 1,
+    }
+    assert len(flow["seasons"]) == 0
+    assert [stage["name"] for stage in flow["stages"]] == [
+        "request", "download", "import", "playable",
+    ]
+
+    uncertain_provider = Provider([
+        observation(revision=6, attempt=3, effect_state="uncertain")])
+    server[0].state.core.media_flow.provider = uncertain_provider
+    uncertain = server[1].post(
+        BASE + "/authority",
+        headers=auth(pair),
+        json={"requestId": "e" * 32, "mediaKey": "movie:tmdb:603"},
+    )
+    assert uncertain.status_code == 409
+    assert uncertain.json()["error"]["code"] == "media_flow_effect_uncertain"
+    assert "path" not in uncertain.text.lower()
+
+    verified_provider = Provider([observation(revision=6, attempt=3)])
+    accepted = authority(server, pair, "movie:tmdb:603", verified_provider)
+    assert accepted["flowRevision"] == 6
+
+
+def test_retry_rejects_duplicate_or_rebound_request_import_and_playback(
+        server):
+    pair = ready(server)
+    first = authority(
+        server, pair, "movie:tmdb:603", Provider([observation()]))
+    assert read(server, pair, first).status_code == 200
+
+    rebound = observation(revision=5, attempt=2).model_dump(mode="python")
+    rebound["delivery"]["requestReceiptId"] = "5" * 32
+    changed_provider = Provider([MediaFlowObservation.model_validate(rebound)])
+    server[0].state.core.media_flow.provider = changed_provider
+    changed = server[1].post(
+        BASE + "/authority",
+        headers=auth(pair),
+        json={"requestId": "e" * 32, "mediaKey": "movie:tmdb:603"},
+    )
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "media_flow_authority_changed"
+
+    duplicate = observation(revision=5, attempt=2).model_dump(mode="python")
+    duplicate["delivery"]["files"].append(
+        duplicate["delivery"]["files"][0])
+    with pytest.raises(ValueError):
+        MediaFlowObservation.model_validate(duplicate)
 
 
 def authority(server, pair, media_key, provider):
