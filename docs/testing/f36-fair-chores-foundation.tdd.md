@@ -22,9 +22,9 @@ snapshot and never infers membership from display names or event timing.
 
 ## TDD and verification
 
-- RED: `2bf253a8` defined restart/rotation, authority/departure, idempotency, and
+- RED: `1260d85b` defined restart/rotation, authority/departure, idempotency, and
   tamper cases before `larenor_server.fair_chores` existed.
-- RED hardening: `498614ca` reproduced same-home disclosure and cross-action
+- RED hardening: `af931a76` reproduced same-home disclosure and cross-action
   idempotency-key reuse before the authority fix.
 - GREEN: `server/tests/test_f36_fair_chores.py` passes all three scenarios using
   isolated SQLite files and no production account, host, or secret.
