@@ -11,6 +11,7 @@ import 'package:larenor/features/core_ha/data/core_ha_activity_controller.dart';
 import 'package:larenor/features/core_ha/data/core_ha_api.dart';
 import 'package:larenor/features/core_ha/data/core_ha_checkpoint_store.dart';
 import 'package:larenor/features/core_ha/data/core_ha_event_checkpoint_store.dart';
+import 'package:larenor/features/core_ha/domain/core_ha_activity_models.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
@@ -388,6 +389,107 @@ final class _Journey {
 }
 
 void main() {
+  test(
+    'real Core HTTP rule history binds actor rule service command and result',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      journey.fixture.serveRuleAttribution();
+      try {
+        await journey.start();
+        final entry = journey.controller!.entries.first;
+        expect(entry.attribution.source, CoreHaAttributionSource.coreRule);
+        expect(
+          entry.attribution.reason,
+          CoreHaAttributionReason.explicitRuleExecution,
+        );
+        expect(entry.attribution.correlationId, entry.receipt.requestId);
+        expect(entry.attribution.executionId, entry.receipt.requestId);
+        expect(entry.attribution.ruleId, '3' * 32);
+        expect(entry.attribution.ruleRevision, 4);
+        expect(entry.attribution.serviceId, '2' * 32);
+        expect(entry.attribution.serviceRevision, 1);
+        expect(entry.receipt.actorId, 'f' * 32);
+        expect(entry.receipt.action, CoreHaCommandAction.turnOn);
+        expect(entry.receipt.dispatchState, CoreHaDispatchState.accepted);
+        expect(journey.fixture.historyReads, 1);
+        expect(journey.network.blocked, 0);
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
+  test(
+    'real Core HTTP never elevates explicit or unknown history to a rule',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      journey.fixture
+        ..serveRuleAttribution()
+        ..appendUnknownAttribution();
+      try {
+        await journey.start();
+        final entries = journey.controller!.entries;
+        expect(entries.map((entry) => entry.attribution.source), [
+          CoreHaAttributionSource.coreRule,
+          CoreHaAttributionSource.coreApi,
+          CoreHaAttributionSource.unknown,
+        ]);
+        expect(entries.first.attribution.ruleId, '3' * 32);
+        for (final entry in entries.skip(1)) {
+          expect(entry.attribution.ruleId, isNull);
+          expect(entry.attribution.ruleRevision, isNull);
+          expect(entry.attribution.executionId, isNull);
+        }
+        expect(
+          entries.last.attribution.reason,
+          CoreHaAttributionReason.unknown,
+        );
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
+  test(
+    'offline and late authority change never make retained rule proof current',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      journey.fixture.serveRuleAttribution();
+      try {
+        await journey.start();
+        final controller = journey.controller!;
+        expect(controller.entries.first.attribution.ruleId, '3' * 32);
+        expect(controller.stale, isFalse);
+        expect(controller.eventTrustCurrent, isTrue);
+
+        journey.fixture.historyStatus = 503;
+        await journey.refresh();
+        expect(controller.entries.first.attribution.ruleId, '3' * 32);
+        expect(controller.stale, isTrue);
+        expect(controller.eventTrustCurrent, isFalse);
+
+        journey.fixture.historyStatus = 200;
+        journey.fixture.historyGate = Completer<void>();
+        final reads = journey.fixture.historyReads;
+        final pending = journey.refresh();
+        while (journey.fixture.historyReads == reads) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        journey.current = false;
+        journey.owner.value++;
+        controller.setVisible(false);
+        journey.fixture.historyGate!.complete();
+        await pending;
+        expect(controller.entries, isEmpty);
+        expect(controller.stale, isFalse);
+        expect(controller.eventTrustCurrent, isFalse);
+        expect(controller.verification, isNull);
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
   test(
     'real Client HTTP pins, advances, rotates, and alarms after Core restore',
     () async {
