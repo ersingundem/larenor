@@ -40,9 +40,17 @@ _ACCEPTANCE_SOURCE_FILES = (
     "server/larenor_server/plugins/music_assistant_core.py",
     "server/larenor_server/plugins/music_assistant_core_models.py",
     "server/larenor_server/plugins/music_assistant_core_schema.py",
+    "server/larenor_server/plugins/music_provider_setups.py",
+    "server/larenor_server/plugins/music_provider_setup_api.py",
+    "server/larenor_server/plugins/music_provider_setup_models.py",
+    "server/larenor_server/plugins/music_provider_setup_runtime.py",
+    "server/larenor_server/plugins/music_provider_setup_schema.py",
+    "server/larenor_server/plugins/music_playback_models.py",
+    "server/larenor_server/plugins/music_playback_runtime.py",
     "server/tests/test_music_assistant_bootstrap_jobs.py",
     "server/tests/test_music_assistant_bootstrap_runtime.py",
     "server/tests/test_music_assistant_core_wiring.py",
+    "server/tests/test_music_provider_setups.py",
 )
 _DIAGNOSTIC_PHASES = {
     "resource_prepare": "music_assistant_resource_prepare_failed",
@@ -278,6 +286,7 @@ def validate_receipt(value, commit, selected):
         "bootstrapAuthenticated": True,
         "restartCount": 1,
         "restartTokenPersistent": True,
+        "playerReadbackVerified": True,
         "installAvailable": False,
     }
     require(_same(value, expected))
@@ -470,6 +479,18 @@ def _authenticated_restart_readback(runtime, installation_id, readback, *, deadl
             time.sleep(0.25)
 
 
+def _authenticated_player_readback(runtime, installation_id, token, *, deadline):
+    from larenor_server.plugins.music_playback_models import (
+        MusicPlaybackReadback, PrivateMusicPlaybackAuthority,
+    )
+
+    result = runtime.read(
+        PrivateMusicPlaybackAuthority(
+            installationId=installation_id, token=token),
+        deadline=deadline)
+    require(type(result) is MusicPlaybackReadback and len(result.players) <= 256)
+
+
 def _start_verify_restart(daemon, source, endpoint, helper_id):
     from larenor_server.plugins.managed_container import (
         JellyfinBindingBuilder,
@@ -560,6 +581,10 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
         with diagnostic_phase("restart_state"):
             _authenticated_restart_readback(
                 runtime, installation_id, readback, deadline=time.monotonic() + 120)
+            from larenor_server.plugins.music_playback_runtime import MusicPlaybackRuntime
+            _authenticated_player_readback(
+                MusicPlaybackRuntime(), installation_id, readback.token,
+                deadline=time.monotonic() + 30)
             restarted = engine.inspect_container(binding.name)
             require(
                 managed_container_matches(restarted, binding)
@@ -618,6 +643,7 @@ def characterize(daemon, *, checkout_binding=None, acceptance_binding=None):
         "bootstrapAuthenticated": result.authenticated,
         "restartCount": 1,
         "restartTokenPersistent": result.token_persistent,
+        "playerReadbackVerified": True,
         "installAvailable": False,
     }
 

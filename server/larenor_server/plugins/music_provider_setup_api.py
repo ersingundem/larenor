@@ -49,6 +49,12 @@ def resume(identifier: ObjectId, body: ContinueMusicProviderSetupRequest,
     return core.music_provider_setups.resume(actor, identifier, body)
 
 
+@router.post('/{identifier}/retry', response_model=MusicProviderSetupResponse)
+def retry(identifier: ObjectId, body: ContinueMusicProviderSetupRequest,
+          core: Core, actor: Admin):
+    return core.music_provider_setups.retry(actor, identifier, body)
+
+
 @router.post('/{identifier}/cancel', response_model=MusicProviderSetupResponse)
 def cancel(identifier: ObjectId, body: ContinueMusicProviderSetupRequest,
            core: Core, actor: Admin):

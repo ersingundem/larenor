@@ -1,7 +1,11 @@
 """Encrypted, user-managed onboarding over upstream Music Assistant setup flows."""
 
+from contextlib import contextmanager
+import fcntl
+import os
 import re
 import secrets
+import stat
 import time
 import uuid
 from urllib.parse import urlsplit
@@ -245,6 +249,168 @@ class MusicProviderSetupManagement:
             self._assert_admin(connection, actor)
             row = self._find(connection, identifier)
             return {'setup': self._public(row, self._decode(row))}
+
+    def _gate_locked(self, connection, row):
+        current = connection.execute(
+            'SELECT u.revision,u.role,u.disabled,u.must_change_password,'
+            'f.revoked_at,f.expires_at FROM users u JOIN session_families f '
+            'ON f.user_id=u.id WHERE u.id=? AND f.id=?',
+            (row['actor_id'], row['family_id'])).fetchone()
+        if not (current and current['revision'] == row['actor_revision']
+                and current['role'] == 'admin' and not current['disabled']
+                and not current['must_change_password']
+                and current['revoked_at'] is None
+                and current['expires_at'] > self.settings.clock()):
+            return False
+        try:
+            self._private_token(connection, row)
+            return True
+        except ApiError:
+            return False
+
+    def _gate(self, identifier, revision):
+        try:
+            with self.db.connection() as connection:
+                connection.execute('BEGIN')
+                row = self._find(connection, identifier)
+                stored = self._decode(row)
+                return (row['revision'] == revision
+                        and stored.status == 'queued'
+                        and stored.discovery is None
+                        and self._gate_locked(connection, row))
+        except (ApiError, OSError, TypeError, ValueError):
+            return False
+
+    @contextmanager
+    def _dispatch_lock(self):
+        descriptor = None
+        try:
+            descriptor = os.open(
+                self.settings.data_dir / '.music-provider-setups.lock',
+                os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+                raise ApiError('music_provider_setup_storage_unavailable', 503)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                yield False
+                return
+            yield True
+        except OSError:
+            raise ApiError('music_provider_setup_storage_unavailable', 503) from None
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def tick(self):
+        with self._dispatch_lock() as acquired:
+            if not acquired or self.backend is None:
+                return None
+            with self.db.connection() as connection:
+                connection.execute('BEGIN')
+                rows = connection.execute(
+                    'SELECT * FROM music_provider_setups ORDER BY sequence LIMIT ?',
+                    (MAX_SETUPS + 1,)).fetchall()
+                if len(rows) > MAX_SETUPS:
+                    raise ApiError('music_provider_setup_storage_unavailable', 503)
+                selected = None
+                for row in rows:
+                    stored = self._decode(row)
+                    if stored.status == 'queued' and stored.discovery is None:
+                        selected = row, stored
+                        break
+                if selected is None:
+                    return None
+                row, stored = selected
+                authorized = self._gate_locked(connection, row)
+                token = self._private_token(connection, row) if authorized else None
+                revision = row['revision']
+            if not authorized:
+                return self._initial_discovery_failed(row, stored)
+            action = PrivateMusicProviderSetupAction(
+                setupId=row['id'], providerDomain=stored.request.providerDomain,
+                command='start', token=token)
+            try:
+                result = self.backend.execute_music_provider_setup(
+                    action, deadline=time.monotonic() + 15,
+                    gate=lambda: self._gate(row['id'], revision))
+                if (type(result) is not ProviderSetupWorkerResult
+                        or result.providerDomain != stored.request.providerDomain
+                        or result.state not in {'action_required', 'ready'}):
+                    raise ValueError()
+                if result.discovery is not None:
+                    if result.discovery.expiresAt <= self.settings.clock():
+                        raise ValueError()
+                    self._validate_discovery(result.discovery)
+                if not self._gate(row['id'], revision):
+                    raise ValueError()
+            except Exception:
+                return self._initial_discovery_failed(row, stored)
+            with self.db.transaction() as connection:
+                current = self._find(connection, row['id'])
+                current_stored = self._decode(current)
+                if current['revision'] != revision or current_stored.status != 'queued':
+                    return {'setup': self._public(current, current_stored)}
+                if not self._gate_locked(connection, current):
+                    return self._initial_discovery_failed_locked(
+                        connection, current, current_stored)
+                changed = dict(current)
+                changed.update(
+                    revision=current['revision'] + 1,
+                    state='action_required' if result.discovery is not None else 'queued',
+                    updated_at=max(current['updated_at'], int(self.settings.clock())))
+                final = _StoredMusicProviderSetup(
+                    request=current_stored.request, discovery=result.discovery,
+                    status=result.state,
+                    providerInstanceId=result.providerInstanceId)
+                self._save(connection, changed, final)
+                saved = self._find(connection, current['id'])
+                return {'setup': self._public(saved, self._decode(saved))}
+
+    def _initial_discovery_failed_locked(self, connection, current, stored):
+        changed = dict(current)
+        changed.update(
+            revision=current['revision'] + 1, state='queued',
+            updated_at=max(current['updated_at'], int(self.settings.clock())))
+        failed = _StoredMusicProviderSetup(
+            request=stored.request, status='needs_attention')
+        self._save(connection, changed, failed)
+        saved = self._find(connection, current['id'])
+        return {'setup': self._public(saved, self._decode(saved))}
+
+    def _initial_discovery_failed(self, row, stored):
+        with self.db.transaction() as connection:
+            current = self._find(connection, row['id'])
+            current_stored = self._decode(current)
+            if current['revision'] != row['revision']:
+                return {'setup': self._public(current, current_stored)}
+            return self._initial_discovery_failed_locked(
+                connection, current, stored)
+
+    def retry(self, actor, identifier, body):
+        if type(body) is not ContinueMusicProviderSetupRequest:
+            raise ApiError('invalid_request')
+        with self.db.transaction() as connection:
+            self._assert_admin(connection, actor)
+            row = self._find(connection, identifier)
+            stored = self._decode(row)
+            if (row['revision'] != body.expectedRevision
+                    or stored.status != 'needs_attention'
+                    or stored.discovery is not None):
+                raise ApiError('revision_conflict', 409)
+            self._readiness(connection, row['installation_id'],
+                            row['installation_revision'])
+            changed = dict(row)
+            changed.update(
+                revision=row['revision'] + 1, state='queued',
+                updated_at=max(row['updated_at'], int(self.settings.clock())))
+            queued = _StoredMusicProviderSetup(
+                request=stored.request, status='queued')
+            self._save(connection, changed, queued)
+            saved = self._find(connection, identifier)
+            return {'setup': self._public(saved, self._decode(saved))}
 
     def record_initial_discovery(self, identifier, expected_revision, discovery):
         if type(expected_revision) is not int or expected_revision < 1:
