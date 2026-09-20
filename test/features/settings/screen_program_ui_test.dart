@@ -167,6 +167,7 @@ void main() {
               findsOneWidget,
             );
             for (final key in [
+              'screen-rule-save',
               'screen-rule-day-1',
               'screen-rule-start',
               'screen-rule-end',

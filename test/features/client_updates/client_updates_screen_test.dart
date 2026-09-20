@@ -306,6 +306,42 @@ void main() {
     },
   );
 
+  testWidgets('retained cancel cannot stop a newer download generation', (
+    tester,
+  ) async {
+    final first = Completer<StagedClientUpdate>();
+    api.pending = first;
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('updates-download')));
+    await tester.pump();
+    final oldCancel = tester
+        .widget<CupertinoButton>(find.byKey(const ValueKey('updates-cancel')))
+        .onPressed!;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    first.complete(api.staged());
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    final second = Completer<StagedClientUpdate>();
+    api.pending = second;
+    await tester.tap(find.byKey(const ValueKey('updates-download')));
+    await tester.pump();
+    final cancelsBefore = api.cancels;
+    oldCancel();
+    await tester.pump();
+    expect(api.cancels, cancelsBefore);
+    second.complete(api.staged());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('updates-install')), findsOneWidget);
+  });
+
   testWidgets('narrow DeX window with large text stays scrollable', (
     tester,
   ) async {

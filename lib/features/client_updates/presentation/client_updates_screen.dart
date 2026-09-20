@@ -52,6 +52,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   bool _checked = false;
   bool _disposed = false;
   int _operation = 0;
+  int _commandGeneration = 0;
 
   bool get _active =>
       sessionCurrent(sessionGeneration) &&
@@ -105,6 +106,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   }
 
   void _retire() {
+    _commandGeneration++;
     _repository?.close();
     _repository = null;
     _update?.removeListener(_updated);
@@ -116,6 +118,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   @override
   void clearPendingInteraction() {
     _operation++;
+    _commandGeneration++;
     _repository?.close();
     _repository = null;
     _checking = false;
@@ -194,6 +197,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     if (!_active || !_signedIn || update == null || update.busy) return;
     final operation = _operation;
     final epoch = sessionGeneration;
+    _commandGeneration++;
     setState(() => _error = null);
     update.setVisible(true);
     try {
@@ -201,6 +205,21 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     } catch (error) {
       if (_current(operation, epoch)) setState(() => _error = _failure(error));
     }
+  }
+
+  Future<void> _cancel(
+    ClientUpdateController expected,
+    int commandGeneration,
+  ) async {
+    if (!_active ||
+        !_signedIn ||
+        !identical(expected, _update) ||
+        !expected.busy ||
+        commandGeneration != _commandGeneration) {
+      return;
+    }
+    _commandGeneration++;
+    await expected.cancel();
   }
 
   ClientUpdateFailure _failure(Object error) => error is ClientUpdateException
@@ -229,6 +248,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     final busy = _checking || update?.busy == true;
     final enabled = _active && _signedIn && !busy;
     final progress = update?.transfer;
+    final commandGeneration = _commandGeneration;
     final text = !_signedIn
         ? l10n.clientUpdatesAccountRequired
         : _checking
@@ -332,11 +352,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                   _button(
                     l10n.commonCancel,
                     'updates-cancel',
-                    _active
-                        ? () async {
-                            await update!.cancel();
-                          }
-                        : null,
+                    _active ? () => _cancel(update!, commandGeneration) : null,
                     icon: CupertinoIcons.xmark_circle,
                   ),
               ],

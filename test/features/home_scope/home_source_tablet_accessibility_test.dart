@@ -77,4 +77,22 @@ void main() {
       );
     }
   }
+
+  testWidgets('selected source cannot issue a duplicate configuration write', (
+    tester,
+  ) async {
+    final harness = ScopeHarness(HomeSource.directLocal);
+    await harness.mount(tester);
+    harness.router(tester).push('/settings/home-source');
+    await flush(tester);
+
+    final selected = find.byKey(
+      const ValueKey('home-source-action-directLocal'),
+    );
+    expect(tester.widget<CupertinoButton>(selected).onPressed, isNull);
+    await tester.tap(selected);
+    await flush(tester);
+    expect(harness.source.writes, 0);
+    expect(harness.source.value, HomeSource.directLocal);
+  });
 }

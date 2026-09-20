@@ -28,7 +28,20 @@ visibility; RED `e5be4741` captures that boundary and GREEN `a5eaa2a4` binds
 schedule actions to the current session, route, and `TickerMode` visibility
 while preserving the authorized editor-to-parent save handoff.
 
+The post-rebase review found and closed three further P2 gaps. A cancel callback
+captured for an earlier Android Client download could cancel a newer download
+after a background/resume cycle; cancel now binds to the exact command
+generation and controller. Selecting the already-active home source caused a
+redundant durable configuration write; selected rows are inert while failed
+source reads still expose recovery choices, and callbacks bind to the captured
+runtime identity. The schedule editor's navigation-bar Save target remained 44
+dp; Save now uses the shared 48 dp keyboard/TalkBack action surface in content.
+
 Focused evidence:
 
 - `flutter test test/features/client_updates/client_updates_screen_test.dart test/features/home_scope/home_source_tablet_accessibility_test.dart test/features/settings/screen_program_ui_test.dart test/core/home_session_runtime_test.dart`
 - `flutter analyze lib/features/client_updates/presentation/client_updates_screen.dart lib/features/home_scope/presentation/home_source_screen.dart lib/features/settings/presentation/screen_program_screen.dart test/features/client_updates/client_updates_screen_test.dart test/features/home_scope/home_source_tablet_accessibility_test.dart test/features/settings/screen_program_ui_test.dart test/core/home_session_runtime_test.dart`
+
+The four focused suites pass **61/61** after these fixes. Real update install,
+physical Huawei/DeX layout, keyboard and TalkBack acceptance remain manual, so
+queue progress stays 17/125 and selected-feature progress stays 0/63.

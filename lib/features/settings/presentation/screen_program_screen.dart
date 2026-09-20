@@ -542,12 +542,6 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.screenProgramRule),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          key: const ValueKey('screen-rule-save'),
-          onPressed: ready ? _save : null,
-          child: Text(l10n.commonSave),
-        ),
       ),
       child: SafeArea(
         child: Center(
@@ -558,6 +552,18 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  SettingsSection(
+                    margin: EdgeInsets.zero,
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('screen-rule-save'),
+                        leading: const Icon(CupertinoIcons.check_mark_circled),
+                        title: Text(l10n.commonSave),
+                        onTap: ready ? _save : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   if (!ready) Text(l10n.screenProgramExpired),
                   CupertinoTextField(
                     key: const ValueKey('screen-rule-name'),

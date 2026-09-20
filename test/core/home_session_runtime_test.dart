@@ -331,7 +331,10 @@ void main() {
             await tester.ensureVisible(row);
             await flush(tester);
             expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
-            expect(tester.widget<SettingsActionTile>(row).onTap, isNotNull);
+            expect(
+              tester.widget<SettingsActionTile>(row).onTap,
+              source == HomeSource.verifiedCore ? isNull : isNotNull,
+            );
           }
           expect(tester.takeException(), isNull);
         },

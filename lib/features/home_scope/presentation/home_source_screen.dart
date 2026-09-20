@@ -65,6 +65,11 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                   session = account.session,
                   accountGeneration = account.generation,
                   identity = controller.runtimeIdentity;
+              bool selectionCurrent(HomeSource source) =>
+                  current() &&
+                  !controller.busy &&
+                  controller.runtimeIdentity == identity &&
+                  (controller.failure != null || controller.source != source);
               bool transferWindow() {
                 final state = ref.read(windowPolicySnapshotProvider);
                 if (state.isLoading || state.hasError || !state.hasValue) {
@@ -130,10 +135,10 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                           selected:
                               controller.source == source &&
                               controller.failure == null,
-                          onTap: controller.busy || !current()
+                          onTap: !selectionCurrent(source)
                               ? null
                               : () {
-                                  if (current() && !controller.busy) {
+                                  if (selectionCurrent(source)) {
                                     controller.choose(source);
                                   }
                                 },
