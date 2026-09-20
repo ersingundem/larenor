@@ -1,6 +1,6 @@
 # F06 atfedilebilir işlem açıklaması — kabul incelemesi
 
-**İncelenen taban:** `8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b`
+**İncelenen taban:** `67261f690f74b813ed22b65237999d9dca9e1cef`
 **Karar tarihi:** 20 Eylül 2026
 **Karar:** Kod dilimi yerel incelemeden geçti; F06 henüz kabul edilmedi.
 
@@ -116,6 +116,6 @@ model/UI/izole Core HTTP paketi yeniden **36/36 PASS** verdi.
 ## Korunan karar sınırı
 
 `F06.status` değeri `pending`, `evidence` boş ve `completionCommit` null kalır.
-Kuyruk sayacı mevcut main değeri olan **16/125 (%12,8)**, seçili özellik sayacı
+Kuyruk sayacı mevcut main değeri olan **17/125 (%13,6)**, seçili özellik sayacı
 **0/63** olarak korunur. Exact PR CI kanıtlandıktan sonra ayrı kapanış
 incelemesi F06'yı kabul edebilir.
