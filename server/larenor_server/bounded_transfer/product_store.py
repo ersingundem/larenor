@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
 from . import blob_schema
+from .media_policy import validate_media_payload
 from .models import BlobDescriptor
 
 
@@ -274,6 +275,7 @@ class ProductBlobStore:
             raise ApiError("server_unavailable", 503) from None
 
     def put(self, actor, core_id, home_id, resource_id, request_id, values, content):
+        validate_media_payload(values["contentType"], content)
         envelope = self.envelope_hash(actor.id, core_id, home_id, resource_id, values)
         replay = self.replay(
             actor, core_id, home_id, resource_id, request_id, envelope
