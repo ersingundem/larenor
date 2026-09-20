@@ -90,6 +90,27 @@ void main() {
     },
   );
 
+  test('queued write is cancelled after its interaction expires', () async {
+    final store = _Store();
+    final container = ProviderContainer(
+      overrides: [windowProfileStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    await container.read(windowProfileProvider.future);
+    final blocker = Completer<void>();
+    final pending = ConfigurationWrites.run(() => blocker.future);
+    var current = true;
+    final write = container
+        .read(windowProfileProvider.notifier)
+        .set(WindowProfile.panel, isCurrent: () => current);
+    current = false;
+    blocker.complete();
+    await pending;
+    await write;
+    expect(store.writes, 0);
+    expect(container.read(windowProfileProvider).value, WindowProfile.adaptive);
+  });
+
   test(
     'rapid profile choices save serially and do not publish early',
     () async {

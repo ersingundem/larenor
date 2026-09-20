@@ -1,9 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/presentation/entity_picker_screen.dart';
@@ -14,59 +17,171 @@ import '../domain/door_station.dart';
 import '../providers/intercom_providers.dart';
 
 /// Configuration is reachable only through the existing Settings PIN gate.
-class IntercomSettingsScreen extends ConsumerWidget {
+class IntercomSettingsScreen extends ConsumerStatefulWidget {
   const IntercomSettingsScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IntercomSettingsScreen> createState() =>
+      _IntercomSettingsScreenState();
+}
+
+class _IntercomSettingsScreenState extends ConsumerState<IntercomSettingsScreen>
+    with WidgetsBindingObserver {
+  bool _foreground = true;
+  bool _wasVisible = true;
+  int _generation = 0;
+  AppInteractionController? _interaction;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    if (_wasVisible && !visible) _generation++;
+    _wasVisible = visible;
+    final interaction = AppInteractionScope.maybeOf(context);
+    if (!identical(interaction, _interaction)) {
+      _interaction?.removeListener(_interactionChanged);
+      _interaction = interaction;
+      _interaction?.addListener(_interactionChanged);
+    }
+  }
+
+  void _interactionChanged() {
+    if (_interaction?.active == false) _generation++;
+  }
+
+  bool _current(int generation) =>
+      mounted &&
+      generation == _generation &&
+      _foreground &&
+      _interaction?.active != false &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent != false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground && !foreground) _generation++;
+    _foreground = foreground;
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _interaction?.removeListener(_interactionChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final stations = ref.watch(doorStationsProvider);
     final config = ref.watch(connectionConfigProvider);
-    void edit([DoorStation? station]) => Navigator.of(context).push(
-      CupertinoPageRoute<void>(
-        builder: (_) => _StationEditor(initial: station),
-      ),
-    );
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(l10n.intercomTitle)),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(l10n.intercomSetupDescription),
-            const SizedBox(height: 16),
-            stations.when(
-              loading: () => const Center(child: CupertinoActivityIndicator()),
-              error: (_, _) => CupertinoButton(
-                onPressed: () => ref.invalidate(doorStationsProvider),
-                child: Text(l10n.commonRetry),
-              ),
-              data: (values) => SettingsSection(
-                children: [
-                  for (final station in values)
-                    CupertinoListTile(
-                      title: Text(station.name),
-                      subtitle: Text(
-                        station.unlockEnabled
-                            ? l10n.intercomReleaseEnabled
-                            : l10n.intercomReleaseDisabled,
-                      ),
-                      trailing: const CupertinoListTileChevron(),
-                      onTap: () => edit(station),
-                    ),
-                  if (values.length < DoorStation.maxStations)
-                    CupertinoListTile(
-                      title: Text(l10n.intercomAdd),
-                      leading: const Icon(CupertinoIcons.add_circled),
-                      onTap: config.value == null || config.isReloading
-                          ? null
-                          : () => edit(),
-                    ),
-                ],
-              ),
-            ),
-          ],
+    final generation = _generation;
+    DoorStation? currentStation(DoorStation captured) {
+      final current = ref.read(doorStationsProvider);
+      if (current.isLoading || current.hasError) return null;
+      for (final station in current.value ?? const <DoorStation>[]) {
+        if (station == captured) return station;
+      }
+      return null;
+    }
+
+    void edit([DoorStation? station]) {
+      if (!_current(generation)) return;
+      final current = station == null ? null : currentStation(station);
+      if (station != null && current == null) return;
+      Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => _StationEditor(initial: current),
         ),
-      ),
+      );
+    }
+
+    return ServiceRootScaffold(
+      title: l10n.intercomTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('intercom-stations-heading'),
+              container: true,
+              header: true,
+              child: Text(l10n.intercomTitle),
+            ),
+            footer: Text(l10n.intercomSetupDescription),
+            children: stations.when(
+              loading: () => const [
+                CupertinoListTile(
+                  title: Center(child: CupertinoActivityIndicator()),
+                ),
+              ],
+              error: (_, _) => [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Semantics(
+                    key: const ValueKey('intercom-error-state'),
+                    liveRegion: true,
+                    child: Text(l10n.intercomStale),
+                  ),
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('intercom-retry-action'),
+                  leading: const Icon(CupertinoIcons.refresh),
+                  title: Text(l10n.commonRetry),
+                  onTap: () {
+                    if (_current(generation)) {
+                      ref.invalidate(doorStationsProvider);
+                    }
+                  },
+                ),
+              ],
+              data: (values) => [
+                if (values.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Semantics(
+                      key: const ValueKey('intercom-empty-state'),
+                      child: Text(l10n.intercomEmpty),
+                    ),
+                  ),
+                for (final station in values)
+                  SettingsActionTile(
+                    buttonKey: ValueKey('intercom-station-${station.id}'),
+                    leading: const Icon(CupertinoIcons.video_camera),
+                    title: Text(station.name),
+                    additionalInfo: Text(
+                      station.unlockEnabled
+                          ? l10n.intercomReleaseEnabled
+                          : l10n.intercomReleaseDisabled,
+                    ),
+                    onTap: () => edit(station),
+                  ),
+                if (values.length < DoorStation.maxStations)
+                  SettingsActionTile(
+                    buttonKey: const ValueKey('intercom-add-action'),
+                    leading: const Icon(CupertinoIcons.add_circled),
+                    title: Text(l10n.intercomAdd),
+                    onTap: config.value == null || config.isReloading
+                        ? null
+                        : () => edit(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

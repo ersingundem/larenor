@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../settings/presentation/settings_file_dialog.dart';
 import '../../settings/presentation/panes/settings_nav_row.dart';
@@ -242,6 +244,7 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
     final generation = _generation;
 
     Widget toggle(
+      Key key,
       String title,
       bool selected,
       ValueChanged<bool> action, {
@@ -251,17 +254,46 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MergeSemantics(
-            child: Row(
-              children: [
-                Expanded(child: Text(title)),
-                const SizedBox(width: 12),
-                CupertinoSwitch(
-                  value: selected,
-                  onChanged: available ? action : null,
+          Row(
+            children: [
+              Expanded(child: Text(title)),
+              const SizedBox(width: 12),
+              FocusableActionDetector(
+                enabled: available,
+                shortcuts: const {
+                  SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+                  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+                },
+                actions: {
+                  ActivateIntent: CallbackAction<ActivateIntent>(
+                    onInvoke: (_) {
+                      if (available) action(!selected);
+                      return null;
+                    },
+                  ),
+                },
+                child: Semantics(
+                  key: key,
+                  container: true,
+                  label: title,
+                  toggled: selected,
+                  enabled: available,
+                  onTap: available ? () => action(!selected) : null,
+                  child: SizedBox(
+                    width: 60,
+                    height: 48,
+                    child: Center(
+                      child: ExcludeSemantics(
+                        child: CupertinoSwitch(
+                          value: selected,
+                          onChanged: available ? action : null,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           if (hint != null) ...[
             const SizedBox(height: 8),
@@ -281,32 +313,46 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
       title: l10n.ambientTitle,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('ambient-actions-heading'),
+            container: true,
+            header: true,
+            child: Text(l10n.ambientTitle),
+          ),
           footer: Text(l10n.ambientHint),
           children: [
-            CupertinoButton(
-              onPressed: available
-                  ? () => Navigator.of(context).push(
-                      CupertinoPageRoute<void>(
-                        builder: (_) => CupertinoPageScaffold(
-                          navigationBar: CupertinoNavigationBar(
-                            middle: Text(l10n.ambientTitle),
+            SettingsActionTile(
+              buttonKey: const ValueKey('ambient-preview-action'),
+              leading: const Icon(CupertinoIcons.rectangle_on_rectangle),
+              title: Text(l10n.ambientPreview),
+              onTap: available
+                  ? () {
+                      if (!_current || generation != _generation) return;
+                      Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => CupertinoPageScaffold(
+                            navigationBar: CupertinoNavigationBar(
+                              middle: Text(l10n.ambientTitle),
+                            ),
+                            child: const SafeArea(child: AmbientScreen()),
                           ),
-                          child: const SafeArea(child: AmbientScreen()),
                         ),
-                      ),
-                    )
+                      );
+                    }
                   : null,
-              child: Text(l10n.ambientPreview),
             ),
           ],
         ),
         if (_message != null)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              _message!,
-              style: TextStyle(
-                color: CupertinoColors.systemRed.resolveFrom(context),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                _message!,
+                style: TextStyle(
+                  color: CupertinoColors.systemRed.resolveFrom(context),
+                ),
               ),
             ),
           ),
@@ -320,11 +366,16 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
                     : Text(l10n.ambientFailed),
               ),
               if (settings.hasError)
-                CupertinoButton(
-                  onPressed: available
-                      ? () => ref.invalidate(ambientSettingsProvider)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('ambient-retry-action'),
+                  leading: const Icon(CupertinoIcons.refresh),
+                  title: Text(l10n.commonRetry),
+                  onTap: available
+                      ? () {
+                          if (!_current || generation != _generation) return;
+                          ref.invalidate(ambientSettingsProvider);
+                        }
                       : null,
-                  child: Text(l10n.commonRetry),
                 ),
             ],
           )
@@ -333,21 +384,25 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
             footer: Text(l10n.ambientSharedHint),
             children: [
               toggle(
+                const ValueKey('ambient-toggle-photos'),
                 l10n.ambientPhotosEnabled,
                 value.photosEnabled,
                 (v) => _save(generation, value.copyWith(photosEnabled: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-clock'),
                 l10n.ambientClock,
                 value.showClock,
                 (v) => _save(generation, value.copyWith(showClock: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-weather'),
                 l10n.ambientWeather,
                 value.showWeather,
                 (v) => _save(generation, value.copyWith(showWeather: v)),
               ),
               toggle(
+                const ValueKey('ambient-toggle-shift'),
                 l10n.ambientShift,
                 value.pixelShift,
                 (v) => _save(generation, value.copyWith(pixelShift: v)),
@@ -424,6 +479,12 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
                 padding: EdgeInsets.all(16),
                 child: CupertinoActivityIndicator(),
               ),
+            if (library.isLoading)
+              const Padding(
+                key: ValueKey('ambient-library-loading'),
+                padding: EdgeInsets.all(16),
+                child: Center(child: CupertinoActivityIndicator()),
+              ),
             CupertinoButton(
               onPressed: available && ids != null && ids.length < 24
                   ? () => _pick(generation)
@@ -432,10 +493,14 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
             ),
             if (library.hasError)
               Padding(
+                key: const ValueKey('ambient-library-error'),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    Text(l10n.ambientFailed),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(l10n.ambientFailed),
+                    ),
                     CupertinoButton(
                       onPressed: available
                           ? () => ref.invalidate(ambientLibraryProvider)
@@ -447,6 +512,7 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
               ),
             if (ids?.isEmpty == true)
               Padding(
+                key: const ValueKey('ambient-library-empty'),
                 padding: const EdgeInsets.all(16),
                 child: Text(l10n.ambientEmpty),
               ),

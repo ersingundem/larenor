@@ -6,6 +6,7 @@ import '../../../core/window/window_policy_models.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../providers/window_profile_provider.dart';
 import 'panes/settings_nav_row.dart';
@@ -16,29 +17,95 @@ class WindowPanelScreen extends ConsumerStatefulWidget {
   ConsumerState<WindowPanelScreen> createState() => _WindowPanelScreenState();
 }
 
-class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen> {
+class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen>
+    with WidgetsBindingObserver {
   bool _saving = false;
   bool _saveFailed = false;
+  bool _foreground = true;
+  bool _wasVisible = true;
+  int _generation = 0;
+  AppInteractionController? _interaction;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    if (_wasVisible && !visible) _expireInteraction();
+    _wasVisible = visible;
+    final interaction = AppInteractionScope.maybeOf(context);
+    if (!identical(interaction, _interaction)) {
+      _interaction?.removeListener(_interactionChanged);
+      _interaction = interaction;
+      _interaction?.addListener(_interactionChanged);
+    }
+  }
+
+  void _interactionChanged() {
+    if (_interaction?.active == false) _expireInteraction();
+  }
+
+  void _expireInteraction() {
+    _generation++;
+    _saving = false;
+    _saveFailed = false;
+  }
 
   bool get _current =>
       mounted &&
+      _foreground &&
       ModalRoute.of(context)?.isCurrent == true &&
-      AppInteractionScope.maybeRead(context)?.active != false &&
-      (WidgetsBinding.instance.lifecycleState == null ||
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed);
+      _interaction?.active != false &&
+      TickerMode.valuesOf(context).enabled;
 
-  Future<void> _setProfile(WindowProfile profile) async {
-    if (!_current || _saving) return;
+  bool _operationCurrent(int generation) =>
+      _current && generation == _generation;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground == foreground || !mounted) return;
+    setState(() {
+      if (_foreground && !foreground) _expireInteraction();
+      _foreground = foreground;
+    });
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _interaction?.removeListener(_interactionChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _setProfile(WindowProfile profile, int generation) async {
+    if (!_operationCurrent(generation) || _saving) return;
     setState(() {
       _saving = true;
       _saveFailed = false;
     });
     try {
-      await ref.read(windowProfileProvider.notifier).set(profile);
+      await ref
+          .read(windowProfileProvider.notifier)
+          .set(profile, isCurrent: () => _operationCurrent(generation));
     } catch (_) {
-      if (mounted) setState(() => _saveFailed = true);
+      if (_operationCurrent(generation)) {
+        setState(() => _saveFailed = true);
+      }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (_operationCurrent(generation)) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -53,6 +120,7 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen> {
     final selected = preference.isLoading || preference.hasError
         ? null
         : preference.value;
+    final generation = _generation;
     String flag(bool? value) => value == null
         ? l10n.commonUnknown
         : value
@@ -62,59 +130,39 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen> {
       title: l10n.windowTitle,
       children: [
         SettingsSection(
-          header: Text(l10n.windowProfile),
+          header: Semantics(
+            key: const ValueKey('window-profile-heading'),
+            container: true,
+            header: true,
+            child: Text(l10n.windowProfile),
+          ),
           children: [
             for (final profile in WindowProfile.values)
-              Semantics(
+              SettingsActionTile(
+                buttonKey: ValueKey('window-profile-${profile.name}'),
                 selected: selected == profile,
-                child: CupertinoButton(
-                  padding: const EdgeInsets.all(16),
-                  onPressed:
-                      _saving ||
-                          selected == null ||
-                          (profile == WindowProfile.panel &&
-                              snapshot?.supported != true)
-                      ? null
-                      : () => _setProfile(profile),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              profile == WindowProfile.adaptive
-                                  ? l10n.windowAdaptive
-                                  : l10n.windowPanel,
-                              style: AppText.headline.copyWith(
-                                color: CupertinoColors.label.resolveFrom(
-                                  context,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              profile == WindowProfile.adaptive
-                                  ? l10n.windowAdaptiveHint
-                                  : l10n.windowPanelHint,
-                              style: AppText.footnote.copyWith(
-                                color: CupertinoColors.secondaryLabel
-                                    .resolveFrom(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(
-                        selected == profile
-                            ? CupertinoIcons.check_mark_circled_solid
-                            : CupertinoIcons.circle,
-                        color: CupertinoTheme.of(context).primaryColor,
-                      ),
-                    ],
-                  ),
+                leading: Icon(
+                  selected == profile
+                      ? CupertinoIcons.check_mark_circled_solid
+                      : CupertinoIcons.circle,
                 ),
+                title: Text(
+                  profile == WindowProfile.adaptive
+                      ? l10n.windowAdaptive
+                      : l10n.windowPanel,
+                ),
+                additionalInfo: Text(
+                  profile == WindowProfile.adaptive
+                      ? l10n.windowAdaptiveHint
+                      : l10n.windowPanelHint,
+                ),
+                onTap:
+                    _saving ||
+                        selected == null ||
+                        (profile == WindowProfile.panel &&
+                            snapshot?.supported != true)
+                    ? null
+                    : () => _setProfile(profile, generation),
               ),
           ],
         ),
@@ -124,17 +172,30 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen> {
             child: CupertinoActivityIndicator(),
           ),
         if (_saveFailed || preference.hasError)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(l10n.windowSaveFailed),
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(l10n.windowSaveFailed),
+            ),
           ),
         SettingsSection(
           header: Text(l10n.windowStatus),
           children: [
             if (reading.isLoading)
               const Padding(
+                key: ValueKey('window-status-loading'),
                 padding: EdgeInsets.all(20),
                 child: CupertinoActivityIndicator(),
+              )
+            else if (reading.hasError)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Semantics(
+                  key: const ValueKey('window-status-error'),
+                  liveRegion: true,
+                  child: Text(l10n.windowUnknown),
+                ),
               )
             else ...[
               _WindowValue(
@@ -164,15 +225,19 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen> {
                 ),
               ),
             ],
-            CupertinoButton(
-              onPressed: reading.isLoading
+            SettingsActionTile(
+              buttonKey: const ValueKey('window-status-refresh'),
+              leading: const Icon(CupertinoIcons.refresh),
+              title: Text(
+                reading.hasError ? l10n.commonRetry : l10n.commonRefresh,
+              ),
+              onTap: reading.isLoading
                   ? null
                   : () {
-                      if (_current) {
+                      if (_operationCurrent(generation)) {
                         ref.invalidate(windowPolicySnapshotProvider);
                       }
                     },
-              child: Text(l10n.commonRefresh),
             ),
           ],
         ),

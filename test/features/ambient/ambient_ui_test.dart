@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +20,8 @@ import 'package:larenor/features/settings/presentation/idle_gate.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/features/wellbeing/providers/wellbeing_privacy_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -27,11 +30,17 @@ final _a = 'a' * 64, _b = 'b' * 64;
 
 class _Repository extends AmbientRepository {
   List<String> ids = [];
+  Completer<List<String>>? pendingList;
+  bool failList = false;
   final reads = <String>[];
   final values = <String, Future<Uint8List>>{};
   int imports = 0, changes = 0;
   @override
-  Future<List<String>> list() async => List.of(ids);
+  Future<List<String>> list() async {
+    if (failList) throw StateError('private repository detail');
+    return pendingList?.future ?? List.of(ids);
+  }
+
   @override
   Future<Uint8List> readPhoto(String id) {
     reads.add(id);
@@ -97,6 +106,7 @@ Future<ProviderContainer> _mount(
   AppInteractionController? interaction,
   Size size = const Size(390, 844),
   double scale = 1,
+  Locale locale = const Locale('en'),
 }) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   tester.view.physicalSize = size;
@@ -116,7 +126,7 @@ Future<ProviderContainer> _mount(
     UncontrolledProviderScope(
       container: container,
       child: CupertinoApp(
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, body) => MediaQuery(
@@ -167,6 +177,108 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('ambient library keeps loading empty and error states distinct', (
+    tester,
+  ) async {
+    final pending = Completer<List<String>>();
+    final repository = _Repository()..pendingList = pending;
+    await _mount(tester, const AmbientSettingsScreen(), repository: repository);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(AmbientSettingsScreen)),
+    );
+    await tester.scrollUntilVisible(
+      find.text(l10n.ambientPhotos),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-library-loading')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsNothing);
+    expect(find.byKey(const ValueKey('ambient-library-error')), findsNothing);
+
+    pending.complete(const []);
+    await _frames(tester);
+    expect(find.byKey(const ValueKey('ambient-library-loading')), findsNothing);
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+
+    await _mount(
+      tester,
+      const AmbientSettingsScreen(),
+      repository: _Repository()..failList = true,
+    );
+    final failedL10n = AppLocalizations.of(
+      tester.element(find.byType(AmbientSettingsScreen)),
+    );
+    await tester.scrollUntilVisible(
+      find.text(failedL10n.ambientPhotos),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final failure = find.byKey(const ValueKey('ambient-library-error'));
+    expect(failure, findsOneWidget);
+    expect(tester.getSemantics(failure).label, contains('could not be loaded'));
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsNothing);
+    expect(find.textContaining('private repository'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'ambient preview uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await _mount(
+              tester,
+              const AmbientSettingsScreen(),
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(AmbientSettingsScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('ambient-actions-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.ambientTitle);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final preview = find.byKey(
+              const ValueKey('ambient-preview-action'),
+            );
+            final previewNode = tester.getSemantics(preview);
+            expect(previewNode.label, contains(l10n.ambientPreview));
+            expect(previewNode.flagsCollection.isButton, isTrue);
+            expect(previewNode.rect.width, greaterThanOrEqualTo(48));
+            expect(previewNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: preview,
+              matching: find.text(l10n.ambientPreview),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await _frames(tester);
+            expect(find.byType(AmbientScreen), findsOneWidget);
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox());
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
   testWidgets('ambient switches announce each setting name', (tester) async {
     final semantics = tester.ensureSemantics();
     try {
@@ -178,18 +290,46 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(AmbientSettingsScreen)),
       );
-      final labels = [
-        l10n.ambientPhotosEnabled,
-        l10n.ambientClock,
-        l10n.ambientWeather,
-        l10n.ambientShift,
+      final controls = <(Key, String)>[
+        (const ValueKey('ambient-toggle-photos'), l10n.ambientPhotosEnabled),
+        (const ValueKey('ambient-toggle-clock'), l10n.ambientClock),
+        (const ValueKey('ambient-toggle-weather'), l10n.ambientWeather),
+        (const ValueKey('ambient-toggle-shift'), l10n.ambientShift),
       ];
-      for (var i = 0; i < labels.length; i++) {
-        final control = find.byType(CupertinoSwitch).at(i);
+      for (final (key, label) in controls) {
+        final control = find.byKey(key);
         await tester.ensureVisible(control);
         await _frames(tester);
-        expect(tester.getSemantics(control).label, contains(labels[i]));
+        expect(tester.getSize(control), const Size(60, 48));
+        expect(tester.getSemantics(control).label, contains(label));
       }
+      final clock = find.byKey(const ValueKey('ambient-toggle-clock'));
+      expect(
+        tester
+            .widget<CupertinoSwitch>(
+              find.descendant(
+                of: clock,
+                matching: find.byType(CupertinoSwitch),
+              ),
+            )
+            .value,
+        isTrue,
+      );
+      Focus.of(tester.element(clock)).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _frames(tester);
+      expect(
+        tester
+            .widget<CupertinoSwitch>(
+              find.descendant(
+                of: clock,
+                matching: find.byType(CupertinoSwitch),
+              ),
+            )
+            .value,
+        isFalse,
+      );
       await tester.pumpWidget(const SizedBox());
     } finally {
       semantics.dispose();
@@ -282,6 +422,27 @@ void main() {
     button();
     await _frames(tester);
     expect(files.picks, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('captured preview cannot open after idle and wake', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(
+      tester,
+      const AmbientSettingsScreen(),
+      interaction: interaction,
+    );
+    final preview = find.byKey(const ValueKey('ambient-preview-action'));
+    final old = tester.widget<CupertinoButton>(preview).onPressed!;
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await _frames(tester);
+    old();
+    await _frames(tester);
+    expect(find.byType(AmbientScreen), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('removal needs confirmation and keeps unrelated selections', (
