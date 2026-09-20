@@ -5,7 +5,7 @@ maintenance from reserving unrelated Android and Server test capacity.
 
 ## Acceptance criteria
 
-1. Changes limited to the five reviewed managed-characterization workflows,
+1. Changes limited to the six reviewed managed-characterization workflows,
    `native_ci_scope.py`, or its policy test reuse Android evidence.
 2. The same exact native-policy-only set reuses Server evidence while the native
    workflows retain their own required check names and fail-open scope gate.
@@ -14,8 +14,8 @@ maintenance from reserving unrelated Android and Server test capacity.
    product suites.
 
 The RED policy tests first demonstrated both Android and Server false positives.
-The GREEN implementation uses an exact seven-path allowlist rather than a broad
+The GREEN implementation uses an exact eight-path allowlist rather than a broad
 workflow or `tool/**` exception. Seventeen Android, Server, and native-scope
 policy tests pass; compile, diff, progress, and merge-tree checks are clean.
 This optimization does not change queue or selected-feature completion; the
-accepted baseline is **16/125** and **0/63**.
+accepted `67261f69` baseline is **17/125** and **0/63**.

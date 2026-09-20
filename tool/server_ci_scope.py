@@ -39,6 +39,7 @@ SAFE_SKIP_PATTERNS = (
     ".github/workflows/music-assistant-managed-characterization.yml",
     ".github/workflows/qbittorrent-managed-characterization.yml",
     ".github/workflows/seerr-managed-characterization.yml",
+    ".github/workflows/unified-media-stack-managed.yml",
     "tool/native_ci_scope.py",
     "tool/tests/native_ci_scope_test.py",
 )
