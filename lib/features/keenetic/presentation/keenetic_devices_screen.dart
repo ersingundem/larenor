@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../data/models/keenetic_device.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_session_guard.dart';
@@ -83,38 +86,67 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
     final devicesAsync = ref.watch(keeneticDevicesProvider);
     final l10n = AppLocalizations.of(context);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(AppLocalizations.of(context).keeneticConnectedDevices),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => _refresh(generation),
-          child: const Icon(CupertinoIcons.refresh),
+    return ServiceRootScaffold(
+      title: l10n.keeneticConnectedDevices,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('keenetic-devices-controls-header'),
+              header: true,
+              child: Text(l10n.keeneticConnectedDevices),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: CupertinoSearchTextField(
+                  key: const ValueKey('keenetic-devices-search'),
+                  placeholder: l10n.commonSearch,
+                  onChanged: (value) {
+                    if (keeneticCurrent(generation)) {
+                      setState(() => _query = value);
+                    }
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: CupertinoSlidingSegmentedControl<bool>(
+                  groupValue: _onlineOnly,
+                  children: {
+                    false: Text(l10n.keeneticAllDevices),
+                    true: Text(l10n.keeneticOnline),
+                  },
+                  onValueChanged: (value) {
+                    if (value != null && keeneticCurrent(generation)) {
+                      setState(() => _onlineOnly = value);
+                    }
+                  },
+                ),
+              ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('keenetic-devices-refresh'),
+                title: Text(l10n.commonRefresh),
+                onTap: () => _refresh(generation),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: devicesAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
+        devicesAsync.when(
+          loading: () =>
+              const SliverFilledMessage(child: CupertinoActivityIndicator()),
+          error: (error, _) => SliverFilledMessage(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(l10n.healthReadError, textAlign: TextAlign.center),
-                  CupertinoButton(
-                    onPressed: () => _refresh(generation),
-                    child: Text(l10n.commonRetry),
-                  ),
-                ],
-              ),
+              child: Text(l10n.healthReadError, textAlign: TextAlign.center),
             ),
           ),
           data: (devices) {
             if (devices.isEmpty) {
-              return Center(
-                child: Text(AppLocalizations.of(context).devicesScreenEmpty),
-              );
+              return SliverFilledMessage(child: Text(l10n.devicesScreenEmpty));
             }
             final query = _query.trim().toLowerCase();
             final visibleDevices = devices.where((device) {
@@ -126,49 +158,24 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                 device.interfaceId ?? '',
               ].any((field) => field.toLowerCase().contains(query));
             }).toList();
-            return ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: CupertinoSearchTextField(
-                    placeholder: l10n.commonSearch,
-                    onChanged: (value) {
-                      if (keeneticCurrent(generation)) {
-                        setState(() => _query = value);
-                      }
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: CupertinoSlidingSegmentedControl<bool>(
-                    groupValue: _onlineOnly,
-                    children: {
-                      false: Text(l10n.keeneticAllDevices),
-                      true: Text(l10n.keeneticOnline),
-                    },
-                    onValueChanged: (value) {
-                      if (value != null && keeneticCurrent(generation)) {
-                        setState(() => _onlineOnly = value);
-                      }
-                    },
-                  ),
-                ),
-                if (visibleDevices.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text(l10n.commonNoData, textAlign: TextAlign.center),
-                  )
-                else
-                  CupertinoListSection.insetGrouped(
-                    header: Text(
-                      l10n.keeneticTileDevicesOnline(
-                        devices.where((device) => device.active).length,
-                      ),
+            if (visibleDevices.isEmpty) {
+              return SliverFilledMessage(child: Text(l10n.commonNoData));
+            }
+            return SliverSafeArea(
+              top: false,
+              sliver: SliverToBoxAdapter(
+                child: SettingsSection(
+                  header: Text(
+                    l10n.keeneticTileDevicesOnline(
+                      devices.where((device) => device.active).length,
                     ),
-                    children: [
-                      for (final device in visibleDevices)
-                        CupertinoListTile(
+                  ),
+                  children: [
+                    for (final device in visibleDevices)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoListTile(
+                          key: ValueKey('keenetic-device-${device.mac}'),
                           leading: Icon(
                             device.active
                                 ? CupertinoIcons.wifi
@@ -198,13 +205,14 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                             );
                           },
                         ),
-                    ],
-                  ),
-              ],
+                      ),
+                  ],
+                ),
+              ),
             );
           },
         ),
-      ),
+      ],
     );
   }
 }
