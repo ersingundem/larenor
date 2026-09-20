@@ -53,7 +53,7 @@ Ortak yönetici görünümü, altı yönetilen medya servisi için container
 create/start makbuzunu authenticated servis sonucundan ayrı gösterir. Restart,
 iptal ve belirsiz etki kayıtları salt okunur API tarafından silinmez veya
 yeniden yürütülmez; yetki kaybı worker etkisi başlamadan kapanır ve eski oturum
-sonucu okuyamaz. [Tam üç kabul ölçütü ve açık kapılar](s06-6-recovery-status-implementation-2026-09-20.md).
+sonucu okuyamaz. [Tam üç kabul ölçütü ve açık kapılar](testing/s06-6-recovery-status-implementation-2026-09-20.md).
 
 Bu kaynak henüz exact CI ve bağımsız inceleme kanıtı taşımadığı için S06.6
 `in_progress` kalır. Kuyruk **16/125 (%12,8)** ve S06 koordinatörü **5/6**

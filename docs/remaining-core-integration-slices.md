@@ -22,7 +22,7 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md), **6/6 kabul** | Saf plan/journal, imaj, appdata, volume ve özel ağ kaynakları exact `4021391` iki mimarili native makbuzla kabul edildi; makbuz kurulum veya sağlık değildir |
 | 4 | **Kabul edildi:** dar, süreli kurulum adımlarının API/işçiye bağlanması | Exact PR20 `2b9166b`: şifreli API, ayrı IPC, taze typed kaynak kanıtı, portsuz Jellyfin binding, journal/runtime ve native create/start; tam Android/Server/Security CI yeşil |
 | 5 | **Kabul edildi:** özel bootstrap ve otomatik servis eşleştirmesi | Seerr 3.4.1 ve Music Assistant 2.10.4 dahil şifreli private bootstrap, authenticated readback, restart ve amd64/arm64 native kabulü |
-| 6 | **Yerel TDD tamam, CI açık:** tamamlama, iptal ve kurtarma | [Ortak secret-free sonuç görünümü](s06-6-recovery-status-implementation-2026-09-20.md) create/start ile servis doğrulamasını ayırır; iptal/belirsiz etki silinmez veya otomatik tekrarlanmaz. Exact iki mimarili CI bekleniyor |
+| 6 | **Yerel TDD tamam, CI açık:** tamamlama, iptal ve kurtarma | [Ortak secret-free sonuç görünümü](testing/s06-6-recovery-status-implementation-2026-09-20.md) create/start ile servis doğrulamasını ayırır; iptal/belirsiz etki silinmez veya otomatik tekrarlanmaz. Exact iki mimarili CI bekleniyor |
 
 Sadece `/version` okumak çalışma yetkisini, mount geçerliliğini, portu veya
 HomePod keşfini doğrulamaz. Bütünleşik Music Assistant ve medya motorlarının

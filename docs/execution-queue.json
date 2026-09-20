@@ -857,7 +857,7 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/integrated-media-stack.md",
-        "docs/s06-6-recovery-status-implementation-2026-09-20.md"
+        "docs/testing/s06-6-recovery-status-implementation-2026-09-20.md"
       ],
       "scope": "Ev kurulumu ve fiziksel alıcı kabulü ayrı kalır.",
       "acceptance": [
