@@ -11,7 +11,7 @@ that rendered them.
 
 | Surface | Acceptance evidence |
 | --- | --- |
-| Cameras | Refresh and viewer navigation require the current entity result, foreground session, visible route, active interaction scope, and active `TickerMode`. Hidden or inactive routes release their camera cards, replacing the entity result invalidates a captured callback, and load failures render localized safe copy without raw diagnostics. The grid keeps bounded card widths while DeX resizes. Every camera name sits over a tested bottom scrim, preserving contrast over bright or changing snapshots instead of relying on the image content. |
+| Cameras | Refresh and viewer navigation require the current entity result, foreground session, visible route, active interaction scope, and active `TickerMode`. Hidden or inactive routes release their camera cards, replacing the entity result invalidates a captured callback, and load failures render localized safe copy without raw diagnostics. Loading, empty, and failure states use one TalkBack live-region contract. The grid keeps bounded card widths while DeX resizes. Every camera name sits over a tested bottom scrim, preserving contrast over bright or changing snapshots instead of relying on the image content. |
 | Jellyfin library | Refresh and item navigation require the current library result, Jellyfin account configuration, and visible session. Account replacement expires the route, removes old posters, and blocks captured refresh/navigation before either can reach the new account. |
 | Keenetic metrics | Refresh uses the exact displayed telemetry controller. Hidden or inactive routes release metric demand, and a callback captured before controller replacement or interaction expiry cannot refresh either the retired or replacement controller. |
 
@@ -24,7 +24,7 @@ without introducing network calls.
 ## Verification
 
 - `flutter test test/features/admin/cameras_tablet_accessibility_test.dart test/features/keenetic/keenetic_metric_detail_tablet_accessibility_test.dart test/features/media/jellyfin/jellyfin_library_tablet_accessibility_test.dart`
-- The focused suite passes 18/18 tests.
+- The focused suite passes 19/19 tests.
 - Targeted `flutter analyze` over the three production screens and tests.
 - Queue/progress, diff hygiene, and merge-tree checks against `origin/main`.
 

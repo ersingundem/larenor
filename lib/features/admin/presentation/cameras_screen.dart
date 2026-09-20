@@ -71,19 +71,19 @@ class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
           ),
         ),
         entitiesAsync.when(
-          loading: () => const SliverFillRemaining(
-            child: Center(child: CupertinoActivityIndicator()),
+          loading: () => SliverFilledMessage(
+            child: _CameraStatus(label: l10n.commonLoading, loading: true),
           ),
-          error: (error, _) => SliverFillRemaining(
-            child: Center(child: Text(l10n.adminLoadError(l10n.actionFailed))),
+          error: (error, _) => SliverFilledMessage(
+            child: _CameraStatus(label: l10n.adminLoadError(l10n.actionFailed)),
           ),
           data: (entities) {
             final cameras =
                 entities.values.where((e) => e.domain == 'camera').toList()
                   ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
             if (cameras.isEmpty) {
-              return SliverFillRemaining(
-                child: Center(child: Text(l10n.camerasScreenEmpty)),
+              return SliverFilledMessage(
+                child: _CameraStatus(label: l10n.camerasScreenEmpty),
               );
             }
             return SliverSafeArea(
@@ -168,4 +168,27 @@ class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
       ],
     );
   }
+}
+
+class _CameraStatus extends StatelessWidget {
+  const _CameraStatus({required this.label, this.loading = false});
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Semantics(
+      key: const ValueKey('cameras-status'),
+      label: label,
+      liveRegion: true,
+      excludeSemantics: true,
+      child: loading
+          ? const CupertinoActivityIndicator()
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(label, textAlign: TextAlign.center),
+            ),
+    ),
+  );
 }

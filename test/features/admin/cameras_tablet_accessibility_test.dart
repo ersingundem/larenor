@@ -23,18 +23,25 @@ class _Entities extends Entities {
   };
 }
 
+class _FailingEntities extends Entities {
+  @override
+  Future<Map<String, HaEntity>> build() async =>
+      throw StateError('private camera endpoint detail');
+}
+
 Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
   AppInteractionController? interaction,
+  Entities Function()? entities,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [entitiesProvider.overrideWith(_Entities.new)],
+      overrides: [entitiesProvider.overrideWith(entities ?? _Entities.new)],
       child: CupertinoApp(
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -57,6 +64,26 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('camera failure is localized, private, and announced', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _mount(
+      tester,
+      language: 'tr',
+      width: 600,
+      entities: _FailingEntities.new,
+    );
+
+    final status = find.byKey(const ValueKey('cameras-status'));
+    expect(status, findsOneWidget);
+    expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
+    expect(find.textContaining('private camera endpoint detail'), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets('captured camera action cannot cross entity authority', (
     tester,
   ) async {
