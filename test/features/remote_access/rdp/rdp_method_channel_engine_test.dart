@@ -27,8 +27,12 @@ void main() {
           'certificateFingerprint':
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
-        'activate' || 'open' || 'input' || 'resize' || 'ackFrame' || 'cancel' =>
-          null,
+        'activate' ||
+        'open' ||
+        'input' ||
+        'resize' ||
+        'ackFrame' ||
+        'cancel' => null,
         _ => throw MissingPluginException(),
       };
     });
