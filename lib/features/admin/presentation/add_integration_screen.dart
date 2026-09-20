@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 
-import '../../../shared/widgets/app_page_scaffold.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -11,10 +9,13 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/flow_schema_field.dart';
 import '../data/models/flow_step.dart';
 import '../providers/admin_providers.dart';
-import '../data/admin_client.dart';
 import 'widgets/dynamic_form_field.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import 'admin_session_state.dart';
 
 class AddIntegrationScreen extends ConsumerStatefulWidget {
   const AddIntegrationScreen({
@@ -34,7 +35,8 @@ class AddIntegrationScreen extends ConsumerStatefulWidget {
       _AddIntegrationScreenState();
 }
 
-class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
+class _AddIntegrationScreenState
+    extends AdminSessionState<AddIntegrationScreen> {
   List<String>? _handlers;
   String _query = '';
   String? _handlersError;
@@ -45,36 +47,48 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
   bool _submitting = false;
   String? _stepError;
   Timer? _progressTimer;
-  HaAdminClient? _client;
   bool _ownsFlow = false;
 
   @override
   void initState() {
     super.initState();
-    _client = ref.read(haAdminClientProvider);
-    if (widget.flowId != null) {
-      _fetchFlow(widget.flowId!);
-    } else if (widget.handler != null) {
-      _startFlow(widget.handler!);
-    } else {
-      _loadHandlers();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !adminAuthorityCurrent) return;
+      final generation = adminActionGeneration;
+      if (widget.flowId != null) {
+        _fetchFlow(widget.flowId!, generation);
+      } else if (widget.handler != null) {
+        _startFlow(widget.handler!, generation);
+      } else {
+        _loadHandlers(generation);
+      }
+    });
   }
 
-  Future<void> _loadHandlers() async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+  @override
+  void adminSessionExpired() => _progressTimer?.cancel();
+
+  Future<void> _loadHandlers(int generation) async {
+    final client = adminClient;
+    if (client == null || !adminActionCurrent(generation)) return;
     try {
       final handlers = await client.listFlowHandlers();
-      if (mounted) setState(() => _handlers = handlers);
+      if (adminActionCurrent(generation)) {
+        setState(() {
+          _handlers = handlers;
+          _handlersError = null;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() => _handlersError = e.toString());
+      if (adminActionCurrent(generation)) {
+        setState(() => _handlersError = e.toString());
+      }
     }
   }
 
-  Future<void> _startFlow(String handler) async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+  Future<void> _startFlow(String handler, int generation) async {
+    final client = adminClient;
+    if (client == null || !adminActionCurrent(generation)) return;
     setState(() => _submitting = true);
     try {
       final step = await client.startFlow(
@@ -83,24 +97,30 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         options: widget.options,
       );
       _ownsFlow = true;
-      if (!mounted) {
+      if (!adminActionCurrent(generation)) {
         if (step.flowId != null) {
           await client.cancelFlow(step.flowId!, options: widget.options);
         }
         return;
       }
-      _acceptStep(step);
+      _acceptStep(step, generation);
     } catch (e) {
-      if (mounted) setState(() => _stepError = e.toString());
+      if (adminActionCurrent(generation)) {
+        setState(() => _stepError = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (adminActionCurrent(generation)) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
-  Future<void> _submitStep(Map<String, dynamic> data) async {
-    final client = ref.read(haAdminClientProvider);
+  Future<void> _submitStep(Map<String, dynamic> data, int generation) async {
+    final client = adminClient;
     final flowId = _step?.flowId;
-    if (client == null || flowId == null) return;
+    if (client == null || flowId == null || !adminActionCurrent(generation)) {
+      return;
+    }
 
     setState(() => _submitting = true);
     try {
@@ -109,33 +129,48 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         data,
         options: widget.options,
       );
-      if (!mounted) return;
-      _acceptStep(next);
+      if (!adminActionCurrent(generation)) return;
+      _acceptStep(next, generation);
     } catch (e) {
-      if (mounted) setState(() => _stepError = e.toString());
+      if (adminActionCurrent(generation)) {
+        setState(() => _stepError = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (adminActionCurrent(generation)) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
-          widget.options
-              ? AppLocalizations.of(context).adminOptions
-              : widget.entryId != null
-              ? AppLocalizations.of(context).adminReconfigure
-              : AppLocalizations.of(context).addIntegrationTitle,
+    watchAdminSession();
+    final l10n = AppLocalizations.of(context);
+    return ServiceRootScaffold(
+      title: widget.options
+          ? l10n.adminOptions
+          : widget.entryId != null
+          ? l10n.adminReconfigure
+          : l10n.addIntegrationTitle,
+      slivers: [
+        SliverFillRemaining(
+          child: SafeArea(top: false, child: _buildBody(context)),
         ),
-      ),
-      child: SafeArea(child: _buildBody(context)),
+      ],
     );
   }
 
   Widget _buildBody(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (!adminAuthorityCurrent) {
+      return Center(
+        child: Semantics(
+          liveRegion: true,
+          child: Text(l10n.adminEditorSessionChanged),
+        ),
+      );
+    }
+    final generation = adminActionGeneration;
     final step = _step;
     if (step == null) {
       if (widget.handler != null || widget.flowId != null) {
@@ -147,9 +182,10 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
                   children: [
                     Text(_stepError!),
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       onPressed: () => widget.flowId != null
-                          ? _fetchFlow(widget.flowId!)
-                          : _startFlow(widget.handler!),
+                          ? _fetchFlow(widget.flowId!, generation)
+                          : _startFlow(widget.handler!, generation),
                       child: Text(l10n.commonRetry),
                     ),
                   ],
@@ -186,7 +222,10 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
               Text(l10n.adminFlowWaiting),
               if (_stepError != null) Text(_stepError!),
               CupertinoButton(
-                onPressed: _submitting ? null : () => _fetchFlow(step.flowId!),
+                minimumSize: const Size(48, 48),
+                onPressed: _submitting
+                    ? null
+                    : () => _fetchFlow(step.flowId!, generation),
                 child: Text(l10n.commonRefresh),
               ),
             ],
@@ -202,13 +241,15 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
                 Text(l10n.adminFlowExternal, textAlign: TextAlign.center),
                 if (step.url != null)
                   CupertinoButton.filled(
-                    onPressed: () => _openExternal(step.url!),
+                    minimumSize: const Size(48, 48),
+                    onPressed: () => _openExternal(step.url!, generation),
                     child: Text(l10n.commonNext),
                   ),
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   onPressed: _submitting
                       ? null
-                      : () => _fetchFlow(step.flowId!),
+                      : () => _fetchFlow(step.flowId!, generation),
                   child: Text(l10n.commonRefresh),
                 ),
                 if (_stepError != null) Text(_stepError!),
@@ -223,6 +264,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
 
   Widget _buildHandlerPicker(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final generation = adminActionGeneration;
     if (_handlersError != null) {
       return Center(
         child: Column(
@@ -230,9 +272,10 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
           children: [
             Text(l10n.adminLoadError(_handlersError!)),
             CupertinoButton(
+              minimumSize: const Size(48, 48),
               onPressed: () {
                 setState(() => _handlersError = null);
-                _loadHandlers();
+                _loadHandlers(generation);
               },
               child: Text(l10n.commonRetry),
             ),
@@ -252,9 +295,12 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.all(12),
-          child: CupertinoSearchTextField(
-            placeholder: l10n.addIntegrationSearchPlaceholder,
-            onChanged: (value) => setState(() => _query = value),
+          child: SizedBox(
+            height: 48,
+            child: CupertinoSearchTextField(
+              placeholder: l10n.addIntegrationSearchPlaceholder,
+              onChanged: (value) => setState(() => _query = value),
+            ),
           ),
         ),
         Padding(
@@ -276,15 +322,27 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
             ),
           ),
         Expanded(
-          child: ListView.builder(
-            itemCount: filtered.length,
-            itemBuilder: (context, index) {
-              final handler = filtered[index];
-              return CupertinoListTile(
-                title: Text(handler),
-                onTap: _submitting ? null : () => _startFlow(handler),
-              );
-            },
+          child: ListView(
+            children: [
+              if (filtered.isNotEmpty)
+                SettingsSection(
+                  header: Semantics(
+                    key: const ValueKey('integration-list-header'),
+                    header: true,
+                    child: Text(l10n.addIntegrationTitle),
+                  ),
+                  children: [
+                    for (final handler in filtered)
+                      SettingsActionTile(
+                        buttonKey: ValueKey('integration-handler-$handler'),
+                        title: Text(handler),
+                        onTap: _submitting
+                            ? null
+                            : () => _startFlow(handler, generation),
+                      ),
+                  ],
+                ),
+            ],
           ),
         ),
         if (_submitting)
@@ -298,19 +356,22 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
 
   Widget _buildMenu(FlowStep step) {
     final options = step.menuOptions ?? const [];
+    final generation = adminActionGeneration;
     return ListView(
       children: [
         const SizedBox(height: 16),
         SettingsSection(
-          header: step.title != null ? Text(step.title!) : null,
+          header: step.title != null
+              ? Semantics(header: true, child: Text(step.title!))
+              : null,
           children: [
             for (final option in options)
-              CupertinoListTile(
+              SettingsActionTile(
+                buttonKey: ValueKey('integration-menu-$option'),
                 title: Text(option),
-                trailing: const CupertinoListTileChevron(),
                 onTap: _submitting
                     ? null
-                    : () => _submitStep({'next_step_id': option}),
+                    : () => _submitStep({'next_step_id': option}, generation),
               ),
           ],
         ),
@@ -319,6 +380,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
   }
 
   Widget _buildForm(FlowStep step) {
+    final generation = adminActionGeneration;
     return ListView(
       children: [
         const SizedBox(height: 16),
@@ -368,12 +430,14 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: CupertinoButton.filled(
+            minimumSize: const Size(48, 48),
             onPressed: _submitting
                 ? null
                 : () {
                     try {
                       _submitStep(
                         normalizeFlowValues(step.dataSchema, _formValues),
+                        generation,
                       );
                     } on FormatException catch (error) {
                       setState(
@@ -391,7 +455,8 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
     );
   }
 
-  void _acceptStep(FlowStep next) {
+  void _acceptStep(FlowStep next, int generation) {
+    if (!adminActionCurrent(generation)) return;
     final sameStep =
         _step?.stepId == next.stepId && _step?.flowId == next.flowId;
     setState(() {
@@ -407,7 +472,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         next.flowId != null) {
       _progressTimer = Timer(
         const Duration(seconds: 2),
-        () => _fetchFlow(next.flowId!),
+        () => _fetchFlow(next.flowId!, generation),
       );
     }
     if (next.type == 'create_entry' || next.type == 'abort') {
@@ -415,27 +480,37 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
     }
   }
 
-  Future<void> _fetchFlow(String flowId) async {
-    final client = _client;
-    if (client == null || _submitting) return;
+  Future<void> _fetchFlow(String flowId, int generation) async {
+    final client = adminClient;
+    if (client == null || _submitting || !adminActionCurrent(generation)) {
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final next = await client.getFlow(flowId, options: widget.options);
-      if (mounted) _acceptStep(next);
+      if (adminActionCurrent(generation)) _acceptStep(next, generation);
     } catch (error) {
-      if (mounted) setState(() => _stepError = error.toString());
+      if (adminActionCurrent(generation)) {
+        setState(() => _stepError = error.toString());
+      }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (adminActionCurrent(generation)) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
-  Future<void> _openExternal(String url) async {
+  Future<void> _openExternal(String url, int generation) async {
+    if (!adminActionCurrent(generation)) return;
     final uri = Uri.tryParse(url);
     if (uri == null || !['https', 'http'].contains(uri.scheme)) return;
     await Navigator.of(context).push(
       CupertinoPageRoute<void>(builder: (_) => _ExternalFlowPage(url: uri)),
     );
-    if (mounted && _step?.flowId != null) await _fetchFlow(_step!.flowId!);
+    if (adminAuthorityCurrent && _step?.flowId != null) {
+      setState(() {});
+      await _fetchFlow(_step!.flowId!, adminActionGeneration);
+    }
   }
 
   @override
@@ -446,7 +521,9 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         step?.flowId != null &&
         step?.type != 'create_entry' &&
         step?.type != 'abort') {
-      unawaited(_client?.cancelFlow(step!.flowId!, options: widget.options));
+      unawaited(
+        adminClient?.cancelFlow(step!.flowId!, options: widget.options),
+      );
     }
     super.dispose();
   }
@@ -467,6 +544,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 20),
             CupertinoButton.filled(
+              minimumSize: const Size(48, 48),
               onPressed: () => Navigator.of(context).pop(),
               child: Text(AppLocalizations.of(context).commonDone),
             ),
