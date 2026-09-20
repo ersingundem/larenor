@@ -31,6 +31,88 @@ RELEVANT_PATTERNS = (
     "tool/media_resource_smoke.py",
 )
 
+# The managed characterizers share a deliberately small native substrate. Keep
+# that substrate coupled, while service-specific Core changes only repeat the
+# matrix which can actually observe them.
+_NATIVE_SUBSTRATE_PATTERNS = (
+    "server/Dockerfile.volume-bootstrap",
+    "server/Dockerfile.volume-bootstrap.dockerignore",
+    "server/larenor_server/context.py",
+    "server/larenor_server/services/transport.py",
+    "server/larenor_server/plugins/catalog.py",
+    "server/larenor_server/plugins/packagedcatalog.json",
+    "server/larenor_server/plugins/stack_plan.py",
+    "server/larenor_server/plugins/resource_*",
+    "server/larenor_server/plugins/image_*",
+    "server/larenor_server/plugins/network_*",
+    "server/larenor_server/plugins/volume_*",
+    "server/larenor_server/plugins/managed_container.py",
+    "server/larenor_server/plugins/jellyfin_*",
+    "server/larenor_server/plugins/seerr_*",
+    "server/larenor_server/plugins/arr_*",
+    "server/larenor_server/plugins/qbittorrent_*",
+    "server/larenor_server/plugins/shared_library_consumers.py",
+    "server/larenor_server/plugins/engine_*.py",
+    "server/larenor_server/plugins/installation_*",
+    "server/larenor_server/plugins/media_service_bootstrap_models.py",
+    "server/larenor_server/plugins/worker.py",
+    "server/larenor_server/plugins/docker_probe.py",
+    "tool/jellyfin_*",
+    "tool/volume_bootstrap_helper.py",
+    "tool/media_resource_smoke.py",
+)
+_WORKFLOW_PATTERNS = {
+    "jellyfin-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/jellyfin-managed-characterization.yml",
+    ),
+    "qbittorrent-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/qbittorrent-managed-characterization.yml",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/tests/qbittorrent_managed_ci_test.py",
+        "tool/tests/qbittorrent_managed_workflow_test.py",
+    ),
+    "arr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/arr-managed-characterization.yml",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/arr_managed_ci.py",
+        "tool/tests/arr_managed_ci_test.py",
+        "tool/tests/arr_managed_workflow_test.py",
+    ),
+    "seerr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/seerr-managed-characterization.yml",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/seerr_managed_ci.py",
+        "tool/tests/seerr_managed_ci_test.py",
+        "tool/tests/seerr_managed_workflow_test.py",
+    ),
+    "music-assistant-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/music-assistant-managed-characterization.yml",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/music_assistant_managed_ci.py",
+        "tool/tests/music_assistant_managed_ci_test.py",
+        "tool/tests/music_assistant_managed_workflow_test.py",
+        "server/larenor_server/app.py",
+        "server/larenor_server/core.py",
+        "server/larenor_server/plugins/models.py",
+        "server/larenor_server/plugins/music_*",
+        "server/tests/test_music_*",
+        "server/tests/test_plugin_catalog.py",
+    ),
+}
+_WORKFLOW_REF = re.compile(
+    r"^ersingundem/larenor/\.github/workflows/([^/@\s]+)@[^\s]+$"
+)
+
+
+def patterns_for_workflow(workflow_ref: str) -> tuple[str, ...] | None:
+    match = _WORKFLOW_REF.fullmatch(workflow_ref)
+    if match is None:
+        return None
+    patterns = _WORKFLOW_PATTERNS.get(match.group(1))
+    if patterns is None:
+        return None
+    return ("tool/native_ci_scope.py", *patterns)
+
 
 def is_relevant(path: str, patterns: Iterable[str] = RELEVANT_PATTERNS) -> bool:
     normalized = path.removeprefix("./")
@@ -43,6 +125,7 @@ def decide_scope(
     base_sha: str,
     head_sha: str,
     changed_files: Callable[[str, str], Iterable[str]],
+    patterns: Iterable[str] = RELEVANT_PATTERNS,
 ) -> tuple[bool, str]:
     """Return ``(run_native, reason)`` and fail open on incomplete evidence."""
 
@@ -54,7 +137,7 @@ def decide_scope(
         paths = tuple(changed_files(base_sha, head_sha))
     except (OSError, subprocess.SubprocessError, UnicodeError):
         return True, "diff-unavailable"
-    if any(is_relevant(path) for path in paths):
+    if any(is_relevant(path, patterns) for path in paths):
         return True, "native-input-changed"
     return False, "native-inputs-unchanged"
 
@@ -84,12 +167,17 @@ def main() -> int:
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     base_sha = os.environ.get("PR_BASE_SHA", "")
     head_sha = os.environ.get("PR_HEAD_SHA", "")
-    run_native, reason = decide_scope(
-        event_name=event_name,
-        base_sha=base_sha,
-        head_sha=head_sha,
-        changed_files=git_changed_files,
-    )
+    patterns = patterns_for_workflow(os.environ.get("GITHUB_WORKFLOW_REF", ""))
+    if event_name == "pull_request" and patterns is None:
+        run_native, reason = True, "native-workflow-unknown"
+    else:
+        run_native, reason = decide_scope(
+            event_name=event_name,
+            base_sha=base_sha,
+            head_sha=head_sha,
+            changed_files=git_changed_files,
+            patterns=patterns or RELEVANT_PATTERNS,
+        )
     _append(args.github_output, f"run={'true' if run_native else 'false'}")
     _append(args.github_output, f"reason={reason}")
     revisions = (
