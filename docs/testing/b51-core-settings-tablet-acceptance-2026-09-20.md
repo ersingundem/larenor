@@ -21,10 +21,10 @@ Adversarial review covered captured callbacks, account/home replacement,
 foreground and route loss, concurrent writes, hidden platform actions, semantic
 duplication and narrow DeX overflow. It found two P2 gaps. Existing rule, time,
 weekday, mode and confirmation controls inherited the 44 dp Cupertino minimum;
-RED `294fac26` reproduces it and GREEN `44640b98` gives the content actions
+RED `a39366be` reproduces it and GREEN `abdd1c60` gives the content actions
 explicit 48 dp bounds. A callback retained after the schedule surface became
 hidden could still write because route authority alone did not establish
-visibility; RED `6f043848` captures that boundary and GREEN `f3ad14e1` binds
+visibility; RED `e5be4741` captures that boundary and GREEN `a5eaa2a4` binds
 schedule actions to the current session, route, and `TickerMode` visibility
 while preserving the authorized editor-to-parent save handoff.
 
