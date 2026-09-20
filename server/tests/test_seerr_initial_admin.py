@@ -105,6 +105,34 @@ def test_creates_initial_admin_reads_key_and_destroys_session():
     assert PASSWORD not in repr(result) and COOKIE not in repr(result)
 
 
+def test_accepts_canonical_percent_encoded_base64_session_signature():
+    cookie = (
+        "s%3A" + "A" * 48 + "." + "b" * 20 + "%2F" + "c" * 20 + "%2B"
+    )
+    replies = valid_responses()
+    replies[1] = response(
+        {
+            "id": 1,
+            "permissions": 2,
+            "userType": 3,
+            "jellyfinUsername": USERNAME,
+        },
+        cookie=cookie,
+    )
+    connection = Connection(replies)
+
+    result = SeerrInitialAdmin().create(
+        connection,
+        username=USERNAME,
+        credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
+    )
+
+    assert result.state == "verified"
+    assert all(cookie.encode("ascii") in raw for raw in connection.requests[2:])
+    assert cookie not in repr(result)
+
+
 @pytest.mark.parametrize(
     "public",
     [
