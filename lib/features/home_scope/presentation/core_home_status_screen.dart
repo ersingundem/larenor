@@ -7,13 +7,24 @@ import '../../home_resources/presentation/core_home_resources.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 
 /// Core metadata and independent account recovery; no home adapters are mounted.
 class CoreHomeStatusScreen extends ConsumerWidget {
   const CoreHomeStatusScreen({super.key});
+  Widget _statusRow(Widget child) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 48),
+    child: Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: child),
+    ),
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(homeSessionControllerProvider)!;
@@ -26,118 +37,97 @@ class CoreHomeStatusScreen extends ConsumerWidget {
         interaction?.epoch == epoch &&
         TickerMode.valuesOf(context).enabled &&
         ModalRoute.of(context)?.isCurrent == true;
-    return AppPageScaffold(
-      child: SafeArea(
-        child: ListenableBuilder(
-          listenable: controller,
-          builder: (_, _) => Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 780),
-              child: CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.all(24),
-                    sliver: SliverMainAxisGroup(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Semantics(
-                                header: true,
-                                child: Text(
-                                  l10n.homeSourceCore,
-                                  style: CupertinoTheme.of(context)
-                                      .textTheme
-                                      .navLargeTitleTextStyle,
-                                ),
+    return ServiceRootScaffold(
+      title: l10n.homeSourceCore,
+      slivers: [
+        SliverToBoxAdapter(
+          child: ListenableBuilder(
+            listenable: controller,
+            builder: (_, _) => Column(
+              children: [
+                SettingsSection(
+                  footer: Text(l10n.homeCoreUnavailable),
+                  children: [
+                    _statusRow(
+                      Text(
+                        controller.failure != null
+                            ? l10n.homeSourceStorageError
+                            : controller.busy
+                            ? l10n.homeSourceLoading
+                            : controller.account.context != null
+                            ? l10n.homeCoreVerified
+                            : l10n.homeCoreVerificationRequired,
+                      ),
+                    ),
+                    if (controller.account.failure
+                        case 'storage_failed' || 'logout_not_confirmed')
+                      Semantics(
+                        liveRegion: true,
+                        child: _statusRow(
+                          Text(
+                            controller.account.failure == 'storage_failed'
+                                ? l10n.serverFailureStorage
+                                : l10n.serverLogoutUnconfirmed,
+                            style: TextStyle(
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
                               ),
-                              const SizedBox(height: 20),
-                              Text(
-                                controller.failure != null
-                                    ? l10n.homeSourceStorageError
-                                    : controller.busy
-                                    ? l10n.homeSourceLoading
-                                    : controller.account.context != null
-                                    ? l10n.homeCoreVerified
-                                    : l10n.homeCoreVerificationRequired,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(l10n.homeCoreUnavailable),
-                              if (controller.account.failure
-                                  case 'storage_failed' ||
-                                      'logout_not_confirmed')
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Semantics(
-                                    liveRegion: true,
-                                    child: Text(
-                                      controller.account.failure ==
-                                              'storage_failed'
-                                          ? l10n.serverFailureStorage
-                                          : l10n.serverLogoutUnconfirmed,
-                                      style: TextStyle(
-                                        color: CupertinoColors.systemRed
-                                            .resolveFrom(context),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 24),
-                              SettingsSection(
-                                children: [
-                                  const HomePeopleEntry(),
-                                  if (controller.account.context != null)
-                                    SettingsActionTile(
-                                      title: Text(l10n.inventoryTitle),
-                                      onTap: !current()
-                                          ? null
-                                          : () {
-                                              if (current()) {
-                                                context.push('/inventory');
-                                              }
-                                            },
-                                    ),
-                                  if (controller.failure == null &&
-                                      !controller.busy)
-                                    SettingsActionTile(
-                                      title: Text(l10n.homeCoreManageAccount),
-                                      onTap: !current()
-                                          ? null
-                                          : () {
-                                              if (current()) {
-                                                context.push('/settings');
-                                              }
-                                            },
-                                    ),
-                                  SettingsActionTile(
-                                    title: Text(l10n.homeSourceTitle),
-                                    onTap: controller.busy || !current()
-                                        ? null
-                                        : () {
-                                            if (current()) {
-                                              context.push(
-                                                '/settings/home-source',
-                                              );
-                                            }
-                                          },
-                                  ),
-                                ],
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                        const CoreHomeResources(),
-                      ],
+                      ),
+                  ],
+                ),
+                SettingsSection(
+                  children: [
+                    const HomePeopleEntry(),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-inventory-entry'),
+                        buttonKey: const ValueKey('core-home-inventory-action'),
+                        title: Text(l10n.inventoryTitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/inventory');
+                              },
+                      ),
+                    if (controller.failure == null && !controller.busy)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-manage-account-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-manage-account-action',
+                        ),
+                        title: Text(l10n.homeCoreManageAccount),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/settings');
+                              },
+                      ),
+                    SettingsActionTile(
+                      key: const ValueKey('core-home-source-entry'),
+                      buttonKey: const ValueKey('core-home-source-action'),
+                      title: Text(l10n.homeSourceTitle),
+                      onTap: controller.busy || !current()
+                          ? null
+                          : () {
+                              if (current()) {
+                                context.push('/settings/home-source');
+                              }
+                            },
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
-      ),
+        const SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          sliver: CoreHomeResources(),
+        ),
+      ],
     );
   }
 }
