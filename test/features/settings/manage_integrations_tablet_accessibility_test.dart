@@ -184,6 +184,10 @@ void main() {
     );
 
     expect(find.text('Error'), findsOneWidget);
+    expect(
+      find.text('Integration choices could not be loaded.'),
+      findsOneWidget,
+    );
     expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('private storage'), findsNothing);
     expect(find.byType(CupertinoSwitch), findsNothing);
@@ -284,7 +288,13 @@ void main() {
     await tester.tap(toggle);
     await tester.pumpAndSettle();
 
-    expect(find.text('Error'), findsOneWidget);
+    expect(
+      find.text(
+        'The integration choice could not be saved. '
+        'Your previous setting remains in use.',
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('private write'), findsNothing);
     expect(
       tester.getSemantics(toggle).flagsCollection.isToggled,
@@ -336,5 +346,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(toggle, findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('every visible service action opens a real destination route', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      createEnabled: () => _Enabled(() async => AppService.values.toSet()),
+      locale: const Locale('en'),
+      width: 600,
+      textScale: 1,
+    );
+    final navigator = Navigator.of(
+      tester.element(find.byType(ManageIntegrationsScreen)),
+    );
+
+    for (final service in AppService.values) {
+      final action = find.byKey(ValueKey('integration-open-${service.name}'));
+      await tester.scrollUntilVisible(
+        action,
+        280,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(action);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(navigator.canPop(), isTrue, reason: service.name);
+      navigator.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.takeException(), isNull, reason: service.name);
+    }
   });
 }

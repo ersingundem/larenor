@@ -229,6 +229,8 @@
   "settingsSectionIntegrations": "ENTEGRASYONLAR",
   "settingsIntegrationsFooter": "Yalnızca açtığınız ve bağladığınız servisler burada görünür — hepsini Entegrasyonları Yönet'ten yönetebilirsiniz.",
   "settingsManageIntegrations": "Entegrasyonları Yönet",
+  "settingsIntegrationsLoadFailed": "Entegrasyon seçimleri yüklenemedi.",
+  "settingsIntegrationsSaveFailed": "Entegrasyon seçimi kaydedilemedi. Önceki ayarınız kullanılmaya devam ediyor.",
   "settingsIdleAfterTitle": "Şu süre sonra boşta",
   "settingsSetPinTitle": "PIN Belirle",
   "settingsPinPlaceholder": "4–12 rakam",

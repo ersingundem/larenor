@@ -48,32 +48,35 @@ class SettingsServiceTile extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsetsDirectional.only(end: 12),
-            child: busy
-                ? const SizedBox(
-                    width: 60,
-                    height: 48,
-                    child: Center(child: CupertinoActivityIndicator()),
-                  )
-                : Semantics(
-                    key: toggleKey,
-                    container: true,
-                    label: title,
-                    toggled: enabled,
-                    enabled: onToggle != null,
-                    onTap: onToggle == null ? null : () => onToggle!(!enabled),
-                    child: SizedBox(
-                      width: 60,
-                      height: 48,
-                      child: Center(
-                        child: ExcludeSemantics(
-                          child: CupertinoSwitch(
-                            value: enabled,
-                            onChanged: onToggle,
-                          ),
+            child: Semantics(
+              key: toggleKey,
+              container: true,
+              label: title,
+              toggled: enabled,
+              enabled: onToggle != null && !busy,
+              onTap: onToggle == null || busy
+                  ? null
+                  : () => onToggle!(!enabled),
+              child: SizedBox(
+                width: 60,
+                height: 48,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ExcludeSemantics(
+                      child: Opacity(
+                        opacity: busy ? .28 : 1,
+                        child: CupertinoSwitch(
+                          value: enabled,
+                          onChanged: busy ? null : onToggle,
                         ),
                       ),
                     ),
-                  ),
+                    if (busy) const CupertinoActivityIndicator(),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

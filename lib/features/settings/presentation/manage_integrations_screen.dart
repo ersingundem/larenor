@@ -117,6 +117,11 @@ class _ManageIntegrationsScreenState
             const Icon(CupertinoIcons.exclamationmark_triangle, size: 28),
             const SizedBox(height: 12),
             Text(l10n.commonError),
+            const SizedBox(height: 6),
+            Text(
+              l10n.settingsIntegrationsLoadFailed,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
             CupertinoButton.filled(
               onPressed: () => ref.invalidate(enabledServicesProvider),
@@ -141,7 +146,8 @@ class _ManageIntegrationsScreenState
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                l10n.commonError,
+                l10n.settingsIntegrationsSaveFailed,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: CupertinoColors.systemRed.resolveFrom(context),
                 ),
