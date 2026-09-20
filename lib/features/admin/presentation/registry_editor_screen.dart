@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,7 +31,8 @@ class RegistryEditorScreen extends ConsumerStatefulWidget {
       _RegistryEditorScreenState();
 }
 
-class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
+class _RegistryEditorScreenState
+    extends MediaSessionState<RegistryEditorScreen> {
   late final _name = TextEditingController(
     text: widget.device?.nameByUser ?? widget.entity?.name ?? '',
   );
@@ -45,34 +47,30 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
   bool _saving = false;
   String? _error;
   HaAdminClient? _scopeClient;
-  late final AppLifecycleListener _lifecycle;
+  late final int _scopeGeneration;
   bool _scopeExpired = false;
 
   @override
   void initState() {
     super.initState();
     _scopeClient = ref.read(haAdminClientProvider);
-    final lifecycle = WidgetsBinding.instance.lifecycleState;
-    _scopeExpired = lifecycle != null && lifecycle != AppLifecycleState.resumed;
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) {
-        if (state != AppLifecycleState.resumed && mounted) {
-          setState(() => _scopeExpired = true);
-        }
-      },
-    );
+    _scopeGeneration = sessionGeneration;
   }
 
   bool _current() =>
-      mounted &&
+      sessionCurrent(_scopeGeneration) &&
       !_scopeExpired &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
       _scopeClient != null &&
       identical(_scopeClient, ref.read(haAdminClientProvider));
 
   @override
+  void clearPendingInteraction() => _scopeExpired = true;
+
+  @override
   void dispose() {
     _scopeExpired = true;
-    _lifecycle.dispose();
     _name.dispose();
     _icon.dispose();
     _entityId.dispose();
@@ -211,109 +209,148 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
           middle: Text(
             widget.device != null ? l10n.adminEditDevice : l10n.adminEditEntity,
           ),
-          trailing: CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: _saving || !_current() ? null : _save,
-            child: _saving
-                ? const CupertinoActivityIndicator()
-                : Text(l10n.commonSave),
-          ),
         ),
         child: SafeArea(
-          child: ListView(
-            children: [
-              if (!_current())
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(l10n.adminEditorSessionChanged),
-                ),
-              SettingsSection(
-                footer: Text(l10n.adminRegistryHint),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: ListView(
                 children: [
-                  CupertinoTextFormFieldRow(
-                    controller: _name,
-                    prefix: Text(l10n.adminName),
-                    readOnly: _saving,
-                    placeholder:
-                        widget.device?.name ??
-                        widget.entity?.originalName ??
-                        '',
-                  ),
-                  if (widget.entity != null) ...[
-                    CupertinoTextFormFieldRow(
-                      controller: _entityId,
-                      prefix: Text(l10n.adminEntityId),
-                      readOnly: _saving,
-                      autocorrect: false,
+                  if (!_current())
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(l10n.adminEditorSessionChanged),
                     ),
-                    CupertinoTextFormFieldRow(
-                      controller: _icon,
-                      prefix: Text(l10n.adminIcon),
-                      readOnly: _saving,
-                      placeholder: 'mdi:lightbulb',
-                      autocorrect: false,
-                    ),
-                  ],
-                  CupertinoListTile(
-                    title: Text(l10n.adminArea),
-                    additionalInfo: Text(areaName ?? _area ?? l10n.commonNone),
-                    trailing: areas.isLoading
-                        ? const CupertinoActivityIndicator()
-                        : const CupertinoListTileChevron(),
-                    onTap: _saving || areas.isLoading
-                        ? null
-                        : () async {
-                            if (areas.hasError) {
-                              ref.invalidate(areasProvider);
-                              return;
-                            }
-                            final picked = await pickAdminArea(
-                              context,
-                              values,
-                              _area,
-                            );
-                            if (picked != null && mounted) {
-                              setState(
-                                () => _area = picked.isEmpty ? null : picked,
-                              );
-                            }
-                          },
+                  SettingsSection(
+                    footer: Text(l10n.adminRegistryHint),
+                    children: [
+                      ConstrainedBox(
+                        key: const ValueKey('registry-editor-name'),
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoTextFormFieldRow(
+                          controller: _name,
+                          prefix: Text(l10n.adminName),
+                          readOnly: _saving || !_current(),
+                          placeholder:
+                              widget.device?.name ??
+                              widget.entity?.originalName ??
+                              '',
+                        ),
+                      ),
+                      if (widget.entity != null) ...[
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: CupertinoTextFormFieldRow(
+                            controller: _entityId,
+                            prefix: Text(l10n.adminEntityId),
+                            readOnly: _saving || !_current(),
+                            autocorrect: false,
+                          ),
+                        ),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: CupertinoTextFormFieldRow(
+                            controller: _icon,
+                            prefix: Text(l10n.adminIcon),
+                            readOnly: _saving || !_current(),
+                            placeholder: 'mdi:lightbulb',
+                            autocorrect: false,
+                          ),
+                        ),
+                      ],
+                      ConstrainedBox(
+                        key: const ValueKey('registry-editor-area'),
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoListTile(
+                          title: Text(l10n.adminArea),
+                          subtitle: Text(
+                            areaName ?? _area ?? l10n.commonNone,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: areas.isLoading
+                              ? const CupertinoActivityIndicator()
+                              : const CupertinoListTileChevron(),
+                          onTap: _saving || areas.isLoading || !_current()
+                              ? null
+                              : () async {
+                                  if (areas.hasError) {
+                                    ref.invalidate(areasProvider);
+                                    return;
+                                  }
+                                  final picked = await pickAdminArea(
+                                    context,
+                                    values,
+                                    _area,
+                                  );
+                                  if (picked != null && _current()) {
+                                    setState(
+                                      () => _area = picked.isEmpty
+                                          ? null
+                                          : picked,
+                                    );
+                                  }
+                                },
+                        ),
+                      ),
+                      ConstrainedBox(
+                        key: const ValueKey('registry-editor-enabled'),
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoListTile(
+                          title: Text(l10n.adminEnabled),
+                          trailing: CupertinoSwitch(
+                            value: _enabled,
+                            onChanged: _saving || !_current()
+                                ? null
+                                : (value) => setState(() => _enabled = value),
+                          ),
+                        ),
+                      ),
+                      if (widget.entity != null)
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          child: CupertinoListTile(
+                            title: Text(l10n.adminHidden),
+                            trailing: CupertinoSwitch(
+                              value: _hidden,
+                              onChanged: _saving || !_current()
+                                  ? null
+                                  : (value) => setState(() => _hidden = value),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  CupertinoListTile(
-                    title: Text(l10n.adminEnabled),
-                    trailing: CupertinoSwitch(
-                      value: _enabled,
-                      onChanged: _saving
-                          ? null
-                          : (value) => setState(() => _enabled = value),
+                  if (areas.hasError)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(l10n.adminLoadError(areas.error.toString())),
                     ),
-                  ),
-                  if (widget.entity != null)
-                    CupertinoListTile(
-                      title: Text(l10n.adminHidden),
-                      trailing: CupertinoSwitch(
-                        value: _hidden,
-                        onChanged: _saving
-                            ? null
-                            : (value) => setState(() => _hidden = value),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: CupertinoColors.systemRed,
+                        ),
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    child: CupertinoButton.filled(
+                      key: const ValueKey('registry-editor-save'),
+                      minimumSize: const Size.fromHeight(48),
+                      onPressed: _saving || !_current() ? null : _save,
+                      child: _saving
+                          ? const CupertinoActivityIndicator()
+                          : Text(l10n.commonSave),
+                    ),
+                  ),
                 ],
               ),
-              if (areas.hasError)
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(l10n.adminLoadError(areas.error.toString())),
-                ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: CupertinoColors.systemRed),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
