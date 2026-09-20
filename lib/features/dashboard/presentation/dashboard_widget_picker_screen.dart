@@ -5,7 +5,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../admin/data/models/ha_registry_entry.dart';
 import '../../admin/providers/admin_providers.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -286,7 +288,22 @@ class _DashboardWidgetPickerScreenState
       );
     } else if (_type == null) {
       slivers.add(
-        SliverToBoxAdapter(child: _message(l10n.dashboardWidgetPickerHint)),
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('widget-picker-types-header'),
+              container: true,
+              header: true,
+              child: Text(l10n.widgetGalleryTitle),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l10n.dashboardWidgetPickerHint),
+              ),
+            ],
+          ),
+        ),
       );
       final core = ref.read(homeSessionControllerProvider);
       final types = [
@@ -519,34 +536,30 @@ class _DashboardWidgetPickerScreenState
         );
       }
     }
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        leading: _type != null && widget.initialType == null && _current
-            ? CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: dashboardAction(
-                  () => setState(() {
-                    _type = null;
-                    _query = '';
-                  }),
-                ),
-                child: Text(l10n.commonBack),
-              )
-            : null,
-        middle: Text(
-          _type == null
-              ? l10n.widgetGalleryTitle
-              : tileTypeLabel(context, _type!),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => closeDashboardModal(context),
-          child: Text(l10n.commonCancel),
-        ),
+    return ServiceRootScaffold(
+      title: _type == null
+          ? l10n.widgetGalleryTitle
+          : tileTypeLabel(context, _type!),
+      leading: _type != null && widget.initialType == null && _current
+          ? CupertinoButton(
+              minimumSize: const Size(48, 48),
+              padding: EdgeInsets.zero,
+              onPressed: dashboardAction(
+                () => setState(() {
+                  _type = null;
+                  _query = '';
+                }),
+              ),
+              child: Text(l10n.commonBack),
+            )
+          : null,
+      trailing: CupertinoButton(
+        minimumSize: const Size(48, 48),
+        padding: EdgeInsets.zero,
+        onPressed: () => closeDashboardModal(context),
+        child: Text(l10n.commonCancel),
       ),
-      child: SafeArea(
-        child: CustomScrollView(key: ValueKey(_type), slivers: slivers),
-      ),
+      slivers: [SliverMainAxisGroup(key: ValueKey(_type), slivers: slivers)],
     );
   }
 
@@ -559,53 +572,16 @@ class _DashboardWidgetPickerScreenState
     String? subtitle,
     required IconData icon,
     required VoidCallback? onPressed,
-  }) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
-          context,
-        ),
-        borderRadius: BorderRadius.circular(18),
+  }) => SettingsSection(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+    children: [
+      SettingsActionTile(
+        buttonKey: key,
+        leading: Icon(icon),
+        title: Text(title),
+        additionalInfo: subtitle == null ? null : Text(subtitle),
+        onTap: onPressed,
       ),
-      child: CupertinoButton(
-        key: key,
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: CupertinoColors.label.resolveFrom(context),
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(
-                          context,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(CupertinoIcons.chevron_forward, size: 16),
-          ],
-        ),
-      ),
-    ),
+    ],
   );
 }
