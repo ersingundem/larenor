@@ -239,6 +239,23 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                     with self.assertRaisesRegex(target.ManagedStackCIError, code):
                         method()
 
+    def test_rendered_network_aliases_are_explicit_and_exact(self):
+        revision = REVISION
+        expected = target.SourceConfig().config(target.COMPOSE, revision)
+        rendered = json.loads(json.dumps(expected))
+        rendered["name"] = "larenor-native-" + "f" * 32
+        rendered["services"]["larenor-core"]["build"]["context"] = str(target.REPOSITORY)
+        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
+            target.REPOSITORY / "server/Dockerfile"
+        )
+        target.validate_rendered_config(rendered, expected, rendered["name"])
+        rendered["services"]["larenor-jellyfin"]["networks"]["control"][
+            "aliases"
+        ] = ["jellyfin"]
+        with self.assertRaisesRegex(target.ManagedStackCIError,
+                                    "unified_manifest_invalid"):
+            target.validate_rendered_config(rendered, expected, rendered["name"])
+
     def test_core_runtime_wait_is_bounded_and_dns_failure_is_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
             driver = target.DockerDriver(

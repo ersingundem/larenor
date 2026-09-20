@@ -25,9 +25,13 @@
       "extra_hosts": [
         "host.docker.internal:host-gateway"
       ],
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-core"
+          ]
+        }
+      },
       "volumes": [
         {
           "type": "bind",
@@ -107,9 +111,13 @@
           "max-file": "3"
         }
       },
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-jellyfin"
+          ]
+        }
+      },
       "labels": {
         "io.larenor.component": "jellyfin",
         "io.larenor.version": "10.11.11",
@@ -150,9 +158,13 @@
         }
       },
       "init": true,
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-seerr"
+          ]
+        }
+      },
       "labels": {
         "io.larenor.component": "seerr",
         "io.larenor.version": "3.4.1",
@@ -199,9 +211,13 @@
           "max-file": "3"
         }
       },
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-sonarr"
+          ]
+        }
+      },
       "labels": {
         "io.larenor.component": "sonarr",
         "io.larenor.version": "4.0.19.2979",
@@ -248,9 +264,13 @@
           "max-file": "3"
         }
       },
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-radarr"
+          ]
+        }
+      },
       "labels": {
         "io.larenor.component": "radarr",
         "io.larenor.version": "6.3.0.10514",
@@ -299,9 +319,13 @@
           "max-file": "3"
         }
       },
-      "networks": [
-        "control"
-      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "larenor-qbittorrent"
+          ]
+        }
+      },
       "labels": {
         "io.larenor.component": "qbittorrent",
         "io.larenor.version": "5.2.3",

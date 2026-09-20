@@ -225,3 +225,12 @@ peer DNS yürütmesi olduğu görüldü. Receipt artık hedef container'ın ger�
 sırasında kısa süreli gecikmesine karşı yalnız `gethostbyname` çözümünü sınırlı
 30 saniye içinde tekrarlar. Süre aşımı hâlâ `unified_dns_runtime_failed` ile
 kapanır ve stack üzerinde otomatik mutation yapılmaz.
+
+Dördüncü native çalışma, implicit Compose servis adlarının `docker inspect`
+üzerinde alias olarak görünmesine karşın Core içindeki Docker DNS çözümünün iki
+mimaride de süre aşımına uğradığını kanıtladı. Paket artık Core ve host-network
+istisnası dışındaki her bileşen için kendi sabit container adını `control`
+ağında explicit tek alias olarak bildirir. Rendered Compose doğrulaması exact
+alias kümesini mutation öncesi denetler; başka, eksik veya ek alias fail-closed
+olur. Runtime yine Core içinden gerçek resolver sorgusunu geçirerek `dns:
+verified` makbuzu üretmek zorundadır; yalnız inspect metadata'sı başarı sayılmaz.

@@ -424,6 +424,22 @@ def _config_networks(service):
     raise ManagedStackCIError("unified_manifest_invalid")
 
 
+def _config_network_aliases(service, network):
+    value = service.get("networks", {})
+    if not isinstance(value, dict):
+        return ()
+    settings = value.get(network)
+    if settings is None:
+        return ()
+    if not isinstance(settings, dict) or set(settings) - {"aliases"}:
+        raise ManagedStackCIError("unified_manifest_invalid")
+    aliases = settings.get("aliases", [])
+    if (not isinstance(aliases, list)
+            or any(not isinstance(alias, str) for alias in aliases)):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    return tuple(aliases)
+
+
 def _config_ports(service):
     result = []
     for item in service.get("ports", []):
@@ -511,7 +527,9 @@ def validate_rendered_config(rendered, expected, project_name):
         if wanted.get("network_mode") == "host":
             if actual.get("network_mode") != "host" or _config_networks(actual):
                 raise ManagedStackCIError("unified_manifest_invalid")
-        elif actual.get("network_mode") not in (None, "") or _config_networks(actual) != {"control"}:
+        elif (actual.get("network_mode") not in (None, "")
+                or _config_networks(actual) != {"control"}
+                or _config_network_aliases(actual, "control") != (name,)):
             raise ManagedStackCIError("unified_manifest_invalid")
     core_build = rendered["services"][package.CORE_NAME].get("build")
     expected_build = expected["services"][package.CORE_NAME]["build"]
