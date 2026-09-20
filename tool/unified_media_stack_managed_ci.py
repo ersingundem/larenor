@@ -39,10 +39,13 @@ SOURCE_FILES = (
     ".github/workflows/unified-media-stack-managed.yml",
     "deploy/larenor-server/unified.compose.yaml",
     "deploy/larenor-server/unified_package.py",
+    "deploy/larenor-server/deployment_bundle.py",
+    "deploy/larenor-server/.env.example",
     "server/larenor_server/plugins/packagedcatalog.json",
     "tool/unified_media_stack_managed_ci.py",
     "tool/tests/unified_media_stack_deployment_test.py",
     "tool/tests/unified_media_stack_runtime_test.py",
+    "tool/tests/unified_media_stack_bundle_test.py",
     "tool/tests/unified_media_stack_managed_ci_test.py",
     "tool/tests/unified_media_stack_managed_workflow_test.py",
 )

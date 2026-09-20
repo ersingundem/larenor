@@ -109,6 +109,46 @@ Native kabul kodu ilk incelemede iki gerçek sınır kusuru taşıyordu:
   çalışır. Eşleşmeyen receipt/marker hiçbir Docker veya dizin silme işlemi
   başlatmaz.
 
+## Dördüncü üç kriter — CasaOS ve genel Compose kurulum bundle'ı
+
+`deployment_bundle.py`, mevcut `unified.compose.yaml` tanımını tek canonical
+kaynak olarak doğrular ve aynı kaynaktan CasaOS import çıktısı ile genel Docker
+Compose/Proxmox VM çıktısı üretir. Her iki çıktı da yalnız `larenor-core`
+servisinin 8098 girişini yayınlar. Jellyfin, Seerr, Sonarr, Radarr ve
+qBittorrent yalnız control ağında kalır; Music Assistant'ın LAN discovery için
+gerekli host-network istisnası açıkça korunur. Altı upstream image katalogdaki
+exact OCI index digest'leriyle bağlıdır.
+
+Kullanıcının değiştirebildiği yüzey yalnız `.env.example` içindeki dört alandır:
+data root, timezone, locale ve Core host portu. Bu dosyada veya üretilen
+manifestte servisler arası URL, API tokenı, parola ya da credential bulunmaz.
+CasaOS `main`, mimari, port ve giriş yolu metadata'sı aynı plan içinde üretilir;
+generic ve CasaOS çıktı digest'leri ortak manifest digest'ine bağlanır.
+CasaOS metadata'sı stable reverse-domain `id`, string `port_map`, source
+revision'a bağlı icon URL'si, yerelleştirilmiş başlık ve semver Core sürümünü
+CasaOS AppStore'un güncel `x-casaos` sözleşmesine göre taşır:
+<https://github.com/IceWhaleTech/CasaOS-AppStore/blob/main/docs/specs/compose-and-x-casaos.md>.
+
+Varsayılan komut salt okunur JSON üretir:
+
+```sh
+python3 deploy/larenor-server/deployment_bundle.py \
+  --source-revision 0123456789abcdef0123456789abcdef01234567 \
+  --format manifest
+```
+
+`--format docker-compose` genel Linux/Proxmox VM, `--format casaos` CasaOS
+Custom Install çıktısını verir. Planlayıcı Docker socketine bağlanmaz, subprocess
+başlatmaz, dizin yaratmaz, image çekmez ve daemon durumunu değiştirmez.
+
+Install ve upgrade preflight aynı digest'e bağlı bundle'ı yeniden üretip karşılaştırır;
+amd64/arm64 mimarisini, bütün owned dizinlerin tür/sahip/izin bilgisini, aynı
+dosya sistemindeki birleşik kapasiteyi ve özel backup/rollback hedeflerini
+raporlar. Eksik veya bozuk gözlem, symlink, beklenmeyen mimari, yanlış sahip ya
+da yetersiz kapasite `ready=false` üretir. Bu salt okunur sonuç ayrıca bir apply
+yetkisi veya mutation değildir. Gerçek GitHub-hosted iki mimari sonucu ve B1
+bağımlılığı açık olduğundan S07.1 `pending` kalır.
+
 Ek denetimde CasaOS/Proxmox için Linux bind/bridge/host-network sözleşmesinin
 Compose kaynağında taşınabilir kaldığı; public receipt'te host path, environment,
 URL, log, raw container kimliği veya authority bulunmadığı; symlink/owner/mode ve

@@ -86,6 +86,14 @@ ownership receipt ile çalışan scoped `always()` cleanup fail-closed test edil
 Gerçek iki mimarili workflow sonucu, S06.5 authority aktarımı, production
 installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
 `pending` kalır.
+
+Dördüncü yerel dilim, aynı canonical Compose tanımından CasaOS ve genel
+Docker Compose/Proxmox bundle'ı üretir. Tek public giriş Core portudur; altı
+servisin exact digest'i ve Music Assistant discovery istisnası korunur.
+Secret-free `.env.example` yalnız data root, timezone, locale ve Core portunu
+açar. Install/upgrade preflight owned path, mimari, disk ile backup/rollback
+hedeflerini salt okunur ve fail-closed raporlar; hiçbir daemon mutation yapmaz.
+Gerçek iki mimari CI kanıtı gelmeden S07.1 ve sayaçlar değişmez.
 Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
 
 ## Şimdi yapılan işler

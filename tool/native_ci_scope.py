@@ -30,6 +30,8 @@ RELEVANT_PATTERNS = (
     ".github/workflows/unified-media-stack-managed.yml",
     "deploy/larenor-server/unified.compose.yaml",
     "deploy/larenor-server/unified_package.py",
+    "deploy/larenor-server/deployment_bundle.py",
+    "deploy/larenor-server/.env.example",
     "tool/unified_media_stack_managed_ci.py",
     "tool/tests/unified_media_stack_*",
     "tool/volume_bootstrap_helper.py",
