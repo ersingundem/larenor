@@ -8,6 +8,7 @@ _SERVICE_ORDER = (
     "qbittorrent", "sonarr", "radarr", "jellyfin", "seerr",
     "music_assistant",
 )
+_INSTALLATION_SERVICES = frozenset({"jellyfin", "seerr", "music_assistant"})
 _MAX_INSTALLATIONS = 256
 _MAX_CONFIGURATIONS = 256
 
@@ -68,7 +69,10 @@ class MediaRecoveryStatusManagement:
         latest = {}
         for row in rows:
             payload = self.installations._decode(row)
-            latest.setdefault(payload.request.serviceId, (row, payload))
+            service_id = payload.request.serviceId
+            if service_id not in _INSTALLATION_SERVICES:
+                raise ApiError("media_installation_storage_unavailable", 503)
+            latest.setdefault(service_id, (row, payload))
         return latest
 
     def _installation_result(self, connection, service_id, row, payload):
@@ -102,7 +106,9 @@ class MediaRecoveryStatusManagement:
             bootstrap, stored) if service_id == "seerr" else manager._public(bootstrap)
         service_verified = (
             service_id == "seerr" and public["state"] == "succeeded"
-            or service_id == "jellyfin" and stored.readback is not None
+            or service_id == "jellyfin"
+            and public["state"] in {"wiring_partial", "succeeded"}
+            and stored.readback is not None
         )
         if service_id == "music_assistant" and public["state"] == "succeeded":
             core_row = connection.execute(
