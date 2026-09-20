@@ -259,6 +259,39 @@ void main() {
     await h.unmount(tester);
   });
 
+  testWidgets('captured play callback expires when native bridge is replaced', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    await h.source(tester);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!;
+    final replacement = FakeLocalAudioBridge();
+    addTearDown(replacement.events.close);
+    h.container.updateOverrides([
+      localAudioBridgeProvider.overrideWithValue(replacement),
+    ]);
+    await _frames(tester);
+
+    stale();
+    await _frames(tester);
+    expect(h.bridge.plays, isEmpty);
+    expect(replacement.plays, isEmpty);
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('local-audio-start')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(replacement.plays, hasLength(1));
+    await h.unmount(tester);
+  });
+
   for (final invalid in [
     'https://radio.example/live?token=secret',
     'https://user:secret@radio.example/live',

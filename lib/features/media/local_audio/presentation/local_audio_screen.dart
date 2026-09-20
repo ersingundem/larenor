@@ -86,10 +86,12 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   bool _capturedActionCurrent(
     AppInteractionController? interaction,
     int? epoch,
+    LocalAudioBridge bridge,
   ) =>
       _canAct &&
       identical(interaction, AppInteractionScope.maybeRead(context)) &&
-      interaction?.epoch == epoch;
+      interaction?.epoch == epoch &&
+      identical(bridge, ref.read(localAudioBridgeProvider));
 
   Future<void> _run(
     Future<void> Function(LocalAudioBridge) action, {
@@ -99,12 +101,13 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final generation = _generation;
     final interaction = AppInteractionScope.maybeRead(context);
     final epoch = interaction?.epoch;
+    final bridge = ref.read(localAudioBridgeProvider);
     bool current() =>
         _canAct &&
         generation == _generation &&
         identical(interaction, AppInteractionScope.maybeRead(context)) &&
-        interaction?.epoch == epoch;
-    final bridge = ref.read(localAudioBridgeProvider);
+        interaction?.epoch == epoch &&
+        identical(bridge, ref.read(localAudioBridgeProvider));
     setState(() {
       _busy = true;
       _error = null;
@@ -128,7 +131,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && identical(bridge, ref.read(localAudioBridgeProvider))) {
         setState(() {
           _busy = false;
           _seekSeconds = null;
@@ -218,16 +221,23 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     final l10n = AppLocalizations.of(context);
     final interaction = AppInteractionScope.maybeOf(context);
     final interactionEpoch = interaction?.epoch;
+    final bridge = ref.watch(localAudioBridgeProvider);
     VoidCallback guarded(VoidCallback action) => () {
-      if (_capturedActionCurrent(interaction, interactionEpoch)) action();
+      if (_capturedActionCurrent(interaction, interactionEpoch, bridge)) {
+        action();
+      }
     };
     final active = _foreground && TickerMode.valuesOf(context).enabled;
     ref.listen(localAudioBridgeProvider, (previous, next) {
       if (previous != null && !identical(previous, next)) {
         setState(() {
+          _generation++;
           _artworkGeneration++;
           _draftArtwork = null;
           _artworkBusy = false;
+          _busy = false;
+          _seekSeconds = null;
+          _error = null;
         });
       }
     });
@@ -322,6 +332,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                             if (_capturedActionCurrent(
                                               interaction,
                                               interactionEpoch,
+                                              bridge,
                                             )) {
                                               setState(
                                                 () => _seekSeconds = value,
@@ -334,6 +345,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                             if (_capturedActionCurrent(
                                               interaction,
                                               interactionEpoch,
+                                              bridge,
                                             )) {
                                               _run(
                                                 (bridge) => bridge.seek(

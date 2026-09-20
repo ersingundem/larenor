@@ -18,6 +18,7 @@ import 'package:larenor/shared/widgets/settings_section.dart';
 class _Connection extends ConnectionConfig {
   var signOuts = 0;
   Completer<void>? gate;
+  Object? error;
 
   @override
   Future<HaConnectionConfig?> build() async => null;
@@ -26,6 +27,7 @@ class _Connection extends ConnectionConfig {
   Future<void> signOut() async {
     signOuts++;
     await gate?.future;
+    if (error != null) throw error!;
     state = const AsyncData(null);
   }
 }
@@ -174,4 +176,55 @@ void main() {
       expect(connection.signOuts, 1);
     },
   );
+
+  testWidgets('failed sign out stays on route and announces a safe error', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    final connection = _Connection()..error = StateError('credential detail');
+    final router = GoRouter(
+      initialLocation: '/about',
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const Text('Home route')),
+        GoRoute(path: '/about', builder: (_, _) => const AboutPane()),
+      ],
+    );
+    addTearDown(interaction.dispose);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [connectionConfigProvider.overrideWith(() => connection)],
+        child: CupertinoApp.router(
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (_, child) =>
+              AppInteractionScope(controller: interaction, child: child!),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('about-sign-out-action')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('about-sign-out-action')),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+
+    final l10n = AppLocalizations.of(tester.element(find.byType(AboutPane)));
+    final error = find.byKey(const ValueKey('about-sign-out-error'));
+    expect(find.byType(AboutPane), findsOneWidget);
+    expect(find.text('Home route'), findsNothing);
+    expect(find.text(l10n.commonError), findsOneWidget);
+    expect(tester.getSemantics(error).flagsCollection.isLiveRegion, isTrue);
+    expect(find.textContaining('credential detail'), findsNothing);
+    expect(connection.signOuts, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

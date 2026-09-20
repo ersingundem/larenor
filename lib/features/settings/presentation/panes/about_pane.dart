@@ -23,6 +23,7 @@ class AboutPane extends ConsumerStatefulWidget {
 
 class _AboutPaneState extends ConsumerState<AboutPane> {
   bool _signingOut = false;
+  String? _signOutError;
 
   bool _current(AppInteractionController? interaction, int? epoch) =>
       mounted &&
@@ -37,11 +38,20 @@ class _AboutPaneState extends ConsumerState<AboutPane> {
     int? epoch,
   ) async {
     if (_signingOut || !_current(interaction, epoch)) return;
-    setState(() => _signingOut = true);
+    setState(() {
+      _signingOut = true;
+      _signOutError = null;
+    });
     try {
       await ref.read(connectionConfigProvider.notifier).signOut();
       if (!mounted) return;
       if (_current(interaction, epoch)) context.go('/');
+    } catch (_) {
+      if (_current(interaction, epoch)) {
+        setState(
+          () => _signOutError = AppLocalizations.of(context).commonError,
+        );
+      }
     } finally {
       if (mounted) setState(() => _signingOut = false);
     }
@@ -121,6 +131,24 @@ class _AboutPaneState extends ConsumerState<AboutPane> {
                   ? null
                   : () => _signOut(interaction, interactionEpoch),
             ),
+            if (_signOutError != null)
+              Semantics(
+                key: const ValueKey('about-sign-out-error'),
+                container: true,
+                liveRegion: true,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Text(
+                    _signOutError!,
+                    style: AppText.footnote.copyWith(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ],
