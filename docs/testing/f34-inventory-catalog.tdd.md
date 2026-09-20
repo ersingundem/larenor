@@ -20,7 +20,7 @@ Android paylaşım hedefi ve fiziksel kamera kabulü tamamlanana kadar açık ka
    sayfalar arası tekrar ve 100 kayıt sınırını aşan zincir görünür veriyi
    temizleyerek kapalı başarısız olur.
 
-RED `e262d042`, eksik Server liste rotasını ve eksik Client sayfa/controller
+RED `ebba5da5`, eksik Server liste rotasını ve eksik Client sayfa/controller
 sözleşmelerini testlerle kaydeder.
 
 ## Doğrulama
