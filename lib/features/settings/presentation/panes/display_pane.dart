@@ -29,6 +29,15 @@ class DisplayPane extends ConsumerWidget {
     final idleMode = ref.watch(idleModeProvider).value;
     final appearance =
         ref.watch(appearanceProvider).value ?? AppAppearance.system;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final interactionEpoch = interaction?.epoch;
+    bool authorityCurrent() =>
+        context.mounted &&
+        interaction?.active != false &&
+        interaction?.epoch == interactionEpoch &&
+        TickerMode.valuesOf(context).enabled;
+    bool surfaceCurrent() =>
+        authorityCurrent() && ModalRoute.of(context)?.isCurrent == true;
 
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryDisplay,
@@ -72,11 +81,16 @@ class DisplayPane extends ConsumerWidget {
                 color: CupertinoColors.systemPurple,
               ),
               title: Text(l10n.localAudioPowerTitle),
-              onTap: () => Navigator.of(context).push(
-                CupertinoPageRoute<void>(
-                  builder: (_) => const PlaybackPowerScreen(),
-                ),
-              ),
+              onTap: surfaceCurrent()
+                  ? () {
+                      if (!surfaceCurrent()) return;
+                      Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => const PlaybackPowerScreen(),
+                        ),
+                      );
+                    }
+                  : null,
             ),
             SettingsActionTile(
               buttonKey: const ValueKey('display-appearance-action'),
@@ -86,7 +100,18 @@ class DisplayPane extends ConsumerWidget {
               ),
               title: Text(l10n.settingsAppearance),
               additionalInfo: Text(_appearanceLabel(l10n, appearance)),
-              onTap: () => _showAppearancePicker(context, ref, appearance),
+              onTap: surfaceCurrent()
+                  ? () {
+                      if (surfaceCurrent()) {
+                        _showAppearancePicker(
+                          context,
+                          ref,
+                          appearance,
+                          authorityCurrent,
+                        );
+                      }
+                    }
+                  : null,
             ),
             CupertinoListTile(
               leading: const IconBadge(
@@ -95,10 +120,17 @@ class DisplayPane extends ConsumerWidget {
               ),
               title: Text(l10n.settingsKeepScreenOn),
               subtitle: Text(l10n.settingsKeepScreenOnHint),
-              trailing: CupertinoSwitch(
+              trailing: _SettingsSwitchControl(
+                key: const ValueKey('display-keep-screen-on'),
+                label: l10n.settingsKeepScreenOn,
                 value: keepScreenOn.value ?? false,
-                onChanged: (value) =>
-                    ref.read(keepScreenOnProvider.notifier).set(value),
+                onChanged: surfaceCurrent()
+                    ? (value) {
+                        if (surfaceCurrent()) {
+                          ref.read(keepScreenOnProvider.notifier).set(value);
+                        }
+                      }
+                    : null,
               ),
             ),
             if (idleMode != null) ...[
@@ -109,10 +141,19 @@ class DisplayPane extends ConsumerWidget {
                 ),
                 title: Text(l10n.settingsIdleMode),
                 subtitle: Text(l10n.settingsIdleModeHint),
-                trailing: CupertinoSwitch(
+                trailing: _SettingsSwitchControl(
+                  key: const ValueKey('display-idle-mode'),
+                  label: l10n.settingsIdleMode,
                   value: idleMode.enabled,
-                  onChanged: (value) =>
-                      ref.read(idleModeProvider.notifier).setEnabled(value),
+                  onChanged: surfaceCurrent()
+                      ? (value) {
+                          if (surfaceCurrent()) {
+                            ref
+                                .read(idleModeProvider.notifier)
+                                .setEnabled(value);
+                          }
+                        }
+                      : null,
                 ),
               ),
               if (idleMode.enabled)
@@ -122,7 +163,13 @@ class DisplayPane extends ConsumerWidget {
                     l10n.settingsMinutesShort(idleMode.timeoutMinutes),
                   ),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () => _showTimeoutPicker(context, ref),
+                  onTap: surfaceCurrent()
+                      ? () {
+                          if (surfaceCurrent()) {
+                            _showTimeoutPicker(context, ref, authorityCurrent);
+                          }
+                        }
+                      : null,
                 ),
             ],
           ],
@@ -153,15 +200,9 @@ class DisplayPane extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     AppAppearance current,
+    bool Function() authorityCurrent,
   ) async {
-    if (!context.mounted) return;
-    final interaction = AppInteractionScope.maybeRead(context);
-    final epoch = interaction?.epoch;
-    bool interactionCurrent() =>
-        context.mounted &&
-        interaction?.active != false &&
-        epoch == interaction?.epoch;
-    if (!interactionCurrent()) return;
+    if (!authorityCurrent()) return;
     final l10n = AppLocalizations.of(context);
     final choice = await showCupertinoModalPopup<AppAppearance>(
       context: context,
@@ -173,7 +214,7 @@ class DisplayPane extends ConsumerWidget {
           for (final option in AppAppearance.values)
             CupertinoActionSheetAction(
               onPressed: () {
-                if (interactionCurrent() &&
+                if (authorityCurrent() &&
                     sheetContext.mounted &&
                     ModalRoute.of(sheetContext)?.isCurrent == true) {
                   Navigator.pop(sheetContext, option);
@@ -198,20 +239,17 @@ class DisplayPane extends ConsumerWidget {
         ),
       ),
     );
-    if (choice != null && interactionCurrent()) {
+    if (choice != null && authorityCurrent()) {
       await ref.read(appearanceProvider.notifier).set(choice);
     }
   }
 
-  Future<void> _showTimeoutPicker(BuildContext context, WidgetRef ref) async {
-    if (!context.mounted) return;
-    final interaction = AppInteractionScope.maybeRead(context);
-    final epoch = interaction?.epoch;
-    bool interactionCurrent() =>
-        context.mounted &&
-        interaction?.active != false &&
-        epoch == interaction?.epoch;
-    if (!interactionCurrent()) return;
+  Future<void> _showTimeoutPicker(
+    BuildContext context,
+    WidgetRef ref,
+    bool Function() authorityCurrent,
+  ) async {
+    if (!authorityCurrent()) return;
     const options = [1, 2, 5, 10, 15, 30];
     final choice = await showCupertinoModalPopup<int>(
       context: context,
@@ -222,7 +260,7 @@ class DisplayPane extends ConsumerWidget {
           for (final minutes in options)
             CupertinoActionSheetAction(
               onPressed: () {
-                if (interactionCurrent() &&
+                if (authorityCurrent() &&
                     context.mounted &&
                     ModalRoute.of(context)?.isCurrent == true) {
                   Navigator.pop(context, minutes);
@@ -243,8 +281,39 @@ class DisplayPane extends ConsumerWidget {
         ),
       ),
     );
-    if (choice != null && interactionCurrent()) {
+    if (choice != null && authorityCurrent()) {
       await ref.read(idleModeProvider.notifier).setTimeoutMinutes(choice);
     }
   }
+}
+
+class _SettingsSwitchControl extends StatelessWidget {
+  const _SettingsSwitchControl({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    label: label,
+    toggled: value,
+    enabled: onChanged != null,
+    onTap: onChanged == null ? null : () => onChanged!(!value),
+    child: SizedBox(
+      width: 60,
+      height: 48,
+      child: Center(
+        child: ExcludeSemantics(
+          child: CupertinoSwitch(value: value, onChanged: onChanged),
+        ),
+      ),
+    ),
+  );
 }

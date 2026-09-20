@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/settings/presentation/panes/integrations_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
@@ -15,6 +16,7 @@ Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -30,7 +32,12 @@ Future<void> _mount(
               .copyWith(textScaler: const TextScaler.linear(2)),
           child: child!,
         ),
-        home: const IntegrationsPane(),
+        home: interaction == null
+            ? const IntegrationsPane()
+            : AppInteractionScope(
+                controller: interaction,
+                child: const IntegrationsPane(),
+              ),
       ),
     ),
   );
@@ -85,4 +92,29 @@ void main() {
       );
     }
   }
+
+  testWidgets('idle retires a captured integration navigation callback', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(tester, language: 'en', width: 600, interaction: interaction);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.descendant(
+            of: find.byKey(const ValueKey('integrations-media-hub-action')),
+            matching: find.byType(CupertinoButton),
+          ),
+        )
+        .onPressed!;
+
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await tester.pump();
+    stale();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MediaHubScreen), findsNothing);
+    expect(find.byType(IntegrationsPane), findsOneWidget);
+  });
 }

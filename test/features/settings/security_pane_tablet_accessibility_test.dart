@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/panes/security_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -13,6 +15,7 @@ Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -28,7 +31,12 @@ Future<void> _mount(
               .copyWith(textScaler: const TextScaler.linear(2)),
           child: child!,
         ),
-        home: const SecurityPane(),
+        home: interaction == null
+            ? const SecurityPane()
+            : AppInteractionScope(
+                controller: interaction,
+                child: const SecurityPane(),
+              ),
       ),
     ),
   );
@@ -79,4 +87,24 @@ void main() {
       );
     }
   }
+
+  testWidgets('idle retires a captured PIN editor callback', (tester) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(tester, language: 'en', width: 600, interaction: interaction);
+    final stale = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('security-pin-action')),
+        )
+        .onPressed!;
+
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await tester.pump();
+    stale();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    expect(await PinLockStore().read(), isNull);
+  });
 }

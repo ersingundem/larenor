@@ -16,6 +16,14 @@ class SecurityPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final pin = ref.watch(pinLockProvider).value;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool current() =>
+        context.mounted &&
+        interaction?.active != false &&
+        interaction?.epoch == epoch &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
 
     return SettingsPaneScaffold(
       title: l10n.settingsCategorySecurity,
@@ -39,7 +47,11 @@ class SecurityPane extends ConsumerWidget {
               title: Text(
                 pin == null ? l10n.settingsSetPin : l10n.settingsChangePin,
               ),
-              onTap: () => _showSetPinDialog(context, ref),
+              onTap: current()
+                  ? () {
+                      if (current()) _showSetPinDialog(context, ref);
+                    }
+                  : null,
             ),
             if (pin != null)
               SettingsActionTile(
@@ -49,7 +61,11 @@ class SecurityPane extends ConsumerWidget {
                   color: CupertinoColors.systemGrey,
                 ),
                 title: Text(l10n.settingsRemovePin),
-                onTap: () => _clearPin(context, ref),
+                onTap: current()
+                    ? () {
+                        if (current()) _clearPin(context, ref);
+                      }
+                    : null,
               ),
           ],
         ),

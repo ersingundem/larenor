@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/settings/presentation/panes/display_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -13,12 +16,20 @@ Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    ProviderScope(child: _LocalizedDisplayPane(language: language)),
+    ProviderScope(
+      child: interaction == null
+          ? _LocalizedDisplayPane(language: language)
+          : AppInteractionScope(
+              controller: interaction,
+              child: _LocalizedDisplayPane(language: language),
+            ),
+    ),
   );
   await tester.pumpAndSettle();
 }
@@ -92,9 +103,44 @@ void main() {
 
           expect(find.byType(CupertinoActionSheet), findsOneWidget);
           expect(tester.takeException(), isNull);
+          final keepScreenOn = find.byKey(
+            const ValueKey('display-keep-screen-on'),
+          );
+          expect(tester.getRect(keepScreenOn).height, closeTo(48, .001));
+          expect(
+            tester.getSemantics(keepScreenOn).flagsCollection.isToggled,
+            ui.Tristate.isFalse,
+          );
           semantics.dispose();
         },
       );
     }
   }
+
+  testWidgets('idle retires a captured display setting callback', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await _mount(tester, language: 'en', width: 600, interaction: interaction);
+    final control = find.byKey(const ValueKey('display-keep-screen-on'));
+    final stale = tester
+        .widget<CupertinoSwitch>(
+          find.descendant(of: control, matching: find.byType(CupertinoSwitch)),
+        )
+        .onChanged!;
+
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await tester.pump();
+    stale(true);
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('keep_screen_on'), isNull);
+    expect(
+      tester.getSemantics(control).flagsCollection.isToggled,
+      ui.Tristate.isFalse,
+    );
+  });
 }

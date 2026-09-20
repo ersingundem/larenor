@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/brand_icon.dart';
 import '../../../../shared/widgets/icon_badge.dart';
@@ -32,6 +33,14 @@ class SettingsNavRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = this.service;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool current() =>
+        context.mounted &&
+        interaction?.active != false &&
+        interaction?.epoch == epoch &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
     return SettingsActionTile(
       leading: service != null && hasBrandIcon(service)
           ? BrandIcon(service: service)
@@ -39,9 +48,13 @@ class SettingsNavRow extends StatelessWidget {
       title: Text(title),
       // `title` auto-populates the pushed screen's back button, so it
       // reads the section's name rather than a generic "Back".
-      onTap: () =>
-          Navigator.of(context)
-              .push(CupertinoPageRoute(title: title, builder: builder)),
+      onTap: current()
+          ? () {
+              if (!current()) return;
+              Navigator.of(context)
+                  .push(CupertinoPageRoute(title: title, builder: builder));
+            }
+          : null,
     );
   }
 }
