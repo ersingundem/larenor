@@ -3,7 +3,11 @@ import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
 import '../../../shared/utils/foreground_poller.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../data/models/proxmox_task.dart';
 import '../data/proxmox_client.dart';
 import '../providers/proxmox_providers.dart';
@@ -89,98 +93,128 @@ class _ProxmoxTasksScreenState extends ProxmoxSessionState<ProxmoxTasksScreen> {
     }
     final generation = sessionGeneration;
     final tasks = ref.watch(proxmoxTasksProvider(widget.nodeName));
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.proxmoxTasksTitle),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _refresh,
-          child: const Icon(CupertinoIcons.refresh),
+    return ServiceRootScaffold(
+      title: l10n.proxmoxTasksTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              container: true,
+              header: true,
+              child: Text(
+                l10n.proxmoxTasksTitle,
+                key: const ValueKey('proxmox-tasks-section-title'),
+              ),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('proxmox-tasks-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: _refresh,
+              ),
+            ],
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: tasks.when(
+        ...tasks.when(
           skipLoadingOnRefresh: false,
           skipLoadingOnReload: false,
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(l10n.commonError),
-            ),
-          ),
+          loading: () => const [
+            SliverFilledMessage(child: CupertinoActivityIndicator()),
+          ],
+          error: (error, _) => [
+            SliverFilledMessage(child: Text(l10n.commonError)),
+          ],
           data: (items) => items.isEmpty
-              ? Center(child: Text(l10n.proxmoxNoTasks))
-              : ListView.builder(
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final task = items[index];
-                    return CupertinoListTile(
-                      leading: Icon(
-                        task.isRunning
-                            ? CupertinoIcons.clock
-                            : task.isSuccess
-                            ? CupertinoIcons.checkmark_circle_fill
-                            : CupertinoIcons.exclamationmark_circle_fill,
-                        color: task.isRunning
-                            ? CupertinoColors.systemOrange
-                            : task.isSuccess
-                            ? CupertinoColors.systemGreen
-                            : CupertinoColors.systemRed,
-                      ),
-                      title: Text(
-                        '${task.type}${task.resourceId?.isNotEmpty == true ? ' · ${task.resourceId}' : ''}',
-                      ),
-                      subtitle: Text(
-                        task.isRunning
-                            ? l10n.proxmoxTaskRunning
-                            : task.isSuccess
-                            ? l10n.proxmoxTaskSucceeded
-                            : l10n.commonError,
-                      ),
-                      additionalInfo: _taskTime(task.startTimeSeconds) == null
-                          ? null
-                          : Text(_taskTime(task.startTimeSeconds)!),
-                      trailing: const CupertinoListTileChevron(),
-                      onTap: () {
-                        if (!mounted ||
-                            !sessionAvailable ||
-                            generation != sessionGeneration ||
-                            ModalRoute.of(context)?.isCurrent == false) {
-                          return;
-                        }
-                        final current = ref.read(
-                          proxmoxTasksProvider(widget.nodeName),
-                        );
-                        if (current.isLoading ||
-                            current.hasError ||
-                            current.value?.any(
-                                  (value) => value.upid == task.upid,
-                                ) !=
-                                true) {
-                          return;
-                        }
-                        final source = captureProxmoxRouteSource(ref);
-                        if (source == null) return;
-                        final nodeName = widget.nodeName;
-                        Navigator.of(context).push(
-                          CupertinoPageRoute<void>(
-                            builder: (_) => _TaskLogScreen(
-                              nodeName: nodeName,
-                              task: task,
-                              sourceCurrent: source,
-                            ),
+              ? [SliverFilledMessage(child: Text(l10n.proxmoxNoTasks))]
+              : [
+                  SliverPadding(
+                    padding: Insets.page,
+                    sliver: SliverList.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final task = items[index];
+                        final time = _taskTime(task.startTimeSeconds);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: Gap.sm),
+                          child: SettingsSection(
+                            margin: EdgeInsets.zero,
+                            children: [
+                              SettingsActionTile(
+                                buttonKey: ValueKey(
+                                  'proxmox-task-${task.upid}',
+                                ),
+                                leading: Icon(
+                                  task.isRunning
+                                      ? CupertinoIcons.clock
+                                      : task.isSuccess
+                                      ? CupertinoIcons.checkmark_circle_fill
+                                      : CupertinoIcons
+                                            .exclamationmark_circle_fill,
+                                  color: task.isRunning
+                                      ? CupertinoColors.systemOrange
+                                      : task.isSuccess
+                                      ? CupertinoColors.systemGreen
+                                      : CupertinoColors.systemRed,
+                                ),
+                                title: Text(
+                                  '${task.type}${task.resourceId?.isNotEmpty == true ? ' · ${task.resourceId}' : ''}',
+                                ),
+                                additionalInfo: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      task.isRunning
+                                          ? l10n.proxmoxTaskRunning
+                                          : task.isSuccess
+                                          ? l10n.proxmoxTaskSucceeded
+                                          : l10n.commonError,
+                                    ),
+                                    if (time != null) Text(time),
+                                  ],
+                                ),
+                                onTap: () {
+                                  if (!mounted ||
+                                      !sessionAvailable ||
+                                      generation != sessionGeneration ||
+                                      ModalRoute.of(context)?.isCurrent ==
+                                          false) {
+                                    return;
+                                  }
+                                  final current = ref.read(
+                                    proxmoxTasksProvider(widget.nodeName),
+                                  );
+                                  if (current.isLoading ||
+                                      current.hasError ||
+                                      current.value?.any(
+                                            (value) => value.upid == task.upid,
+                                          ) !=
+                                          true) {
+                                    return;
+                                  }
+                                  final source = captureProxmoxRouteSource(ref);
+                                  if (source == null) return;
+                                  final nodeName = widget.nodeName;
+                                  Navigator.of(context).push(
+                                    CupertinoPageRoute<void>(
+                                      builder: (_) => _TaskLogScreen(
+                                        nodeName: nodeName,
+                                        task: task,
+                                        sourceCurrent: source,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
         ),
-      ),
+      ],
     );
   }
 }
