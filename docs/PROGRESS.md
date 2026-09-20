@@ -47,6 +47,18 @@ paketlenmesi S07.1'de, doğrulanmış iptal/kurtarma S06.6'da; CasaOS/Proxmox,
 gerçek sağlayıcı hesabı ve HomePod/Cast kabulü MANUAL kapısında kalır. Kuyruk
 **16/125 (%12,8)**, seçili özellik kabulü **0/63**'tür.
 
+### S06.6 doğrulanmış sonuç, iptal ve kurtarma — yerel TDD tamam
+
+Ortak yönetici görünümü, altı yönetilen medya servisi için container
+create/start makbuzunu authenticated servis sonucundan ayrı gösterir. Restart,
+iptal ve belirsiz etki kayıtları salt okunur API tarafından silinmez veya
+yeniden yürütülmez; yetki kaybı worker etkisi başlamadan kapanır ve eski oturum
+sonucu okuyamaz. [Tam üç kabul ölçütü ve açık kapılar](testing/s06-6-recovery-status-implementation-2026-09-20.md).
+
+Bu kaynak henüz exact CI ve bağımsız inceleme kanıtı taşımadığı için S06.6
+`in_progress` kalır. Kuyruk **16/125 (%12,8)** ve S06 koordinatörü **5/6**
+olarak korunur; fiziksel kurulum kanıt yerine sayılmaz.
+
 ## Şimdi yapılan işler
 
 ### Beşinci toplu aday — olay, transfer, Seerr ve ortak medya eylemi
