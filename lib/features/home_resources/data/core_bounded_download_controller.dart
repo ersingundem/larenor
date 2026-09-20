@@ -263,13 +263,17 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
       // upload() executes synchronously through its new epoch/busy claim before
       // its first await, leaving no interleaving point between the two phases.
       busy = false;
-      handedOff = true;
-      await upload(
+      final next = upload(
         target,
         source: source,
         userRevision: userRevision,
         isCurrent: isCurrent,
       );
+      handedOff = epoch != operation && busy;
+      if (!handedOff) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      await next;
     } catch (_) {
       if (current()) {
         uploadPhase = CoreBoundedUploadPhase.failed;
