@@ -825,6 +825,12 @@ void main() {
         await remount('İkinci ev · Salon');
         expect(find.text('Salon'), findsNothing);
         expect(find.text('Okuma lambası'), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text('İkinci ev · Okuma lambası'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         expect(find.text('İkinci ev · Okuma lambası'), findsOneWidget);
         expect(resources.requestedScopes.last, ('c' * 32, 'd' * 32));
         expect(resources.reads, 4);
@@ -836,6 +842,12 @@ void main() {
         await remount('Salon');
         expect(find.text('İkinci ev · Salon'), findsNothing);
         expect(find.text('İkinci ev · Okuma lambası'), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text('Okuma lambası'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         expect(find.text('Okuma lambası'), findsOneWidget);
         expect(resources.requestedScopes.last, ('a' * 32, 'b' * 32));
         expect(resources.reads, 5);
