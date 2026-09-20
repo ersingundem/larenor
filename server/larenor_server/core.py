@@ -91,6 +91,8 @@ from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keen
 from .keenetic_commands.service import KeeneticCommandAuthority
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
 from .keenetic_commands.provider import KeeneticCommandStateProvider
+from .inventory.schema import migrate_inventory
+from .inventory.service import InventoryRegistry
 
 
 class CoreServices:
@@ -203,6 +205,7 @@ class CoreServices:
                 migrate_bounded_transfer_events(connection, key)
                 migrate_bounded_blobs(connection)
                 migrate_home_people(connection, self.context, key)
+                migrate_inventory(connection, key, self.context)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -264,6 +267,10 @@ class CoreServices:
                 self._transfer_limits)
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
+            self.inventory = InventoryRegistry(
+                self.db, self.auth, settings, key, self.context,
+                self.home_resources, self.product_blobs)
+            self.inventory.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

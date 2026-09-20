@@ -152,6 +152,23 @@ class HomeResourceRegistry:
         ref, data = self._decode(row)
         return row, ref, data
 
+    def validate_reference(self, connection, record_id, expected_kind, *, missing):
+        """Verify a same-Core reference without granting the caller record access."""
+        if expected_kind not in {"room", "resource"} or missing not in {
+            "invalid_request", "not_found"
+        }:
+            raise ApiError("invalid_request")
+        self._check_context(connection, self.scope.coreId, self.scope.homeId)
+        self._state(connection)
+        try:
+            _row, ref, _data = self._target(connection, record_id)
+        except ApiError as error:
+            if error.code == "not_found":
+                raise ApiError(missing, 404 if missing == "not_found" else 400) from None
+            raise
+        if ref.kind != expected_kind:
+            raise ApiError(missing, 404 if missing == "not_found" else 400)
+
     def _decision(self, actor, row, ref, data, action, **expected):
         permission = data.grants.get(actor.userId)
         grant = None if permission is None else GrantSnapshot(subjectId=actor.userId, target=ref,

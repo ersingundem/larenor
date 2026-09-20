@@ -217,7 +217,13 @@ void main() {
         await harness.signIn();
         await flush(tester);
         final download = find.byKey(ValueKey('core-resource-download-$id'));
-        await tester.ensureVisible(download);
+        await tester.scrollUntilVisible(
+          download,
+          200,
+          scrollable: find.byType(Scrollable).first,
+          maxScrolls: 20,
+        );
+        await tester.pump();
         await tester.tap(download);
         for (
           var attempt = 0;
