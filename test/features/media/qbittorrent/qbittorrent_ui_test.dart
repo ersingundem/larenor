@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +14,9 @@ import 'package:larenor/features/media/qbittorrent/presentation/add_torrent_shee
 import 'package:larenor/features/media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
 const _config = QbittorrentConfig(
@@ -37,15 +40,28 @@ const _tile = TileConfig(
 );
 
 class _Connection extends QbittorrentConnection {
+  _Connection([this.failBuild = false]);
+
+  int builds = 0;
+  bool failBuild;
+
   @override
-  Future<QbittorrentConfig?> build() async => _config;
-  void change() => state = const AsyncData(
-    QbittorrentConfig(
-      baseUrl: 'http://other.invalid',
-      username: 'another',
-      password: 'another',
-    ),
-  );
+  Future<QbittorrentConfig?> build() async {
+    builds++;
+    if (failBuild) throw StateError('private connection failure');
+    return _config;
+  }
+
+  void change() {
+    failBuild = false;
+    state = const AsyncData(
+      QbittorrentConfig(
+        baseUrl: 'http://other.invalid',
+        username: 'another',
+        password: 'another',
+      ),
+    );
+  }
 }
 
 class _Files extends TorrentFileAccess {
@@ -56,7 +72,10 @@ class _Files extends TorrentFileAccess {
 }
 
 class _Harness {
-  final connection = _Connection();
+  _Harness({bool connectionFails = false})
+    : connection = _Connection(connectionFails);
+
+  final _Connection connection;
   final mutations = <http.Request>[];
   List<TorrentInfo> items = [_torrent];
   bool readFails = false;
@@ -70,6 +89,7 @@ class _Harness {
     bool tile = false,
     Size? size,
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     if (size != null) {
       tester.view.physicalSize = size;
@@ -109,7 +129,11 @@ class _Harness {
         torrentFileAccessProvider.overrideWithValue(files),
       ],
     );
-    await container.read(qbittorrentConnectionProvider.future);
+    try {
+      await container.read(qbittorrentConnectionProvider.future);
+    } catch (_) {
+      if (!connection.failBuild) rethrow;
+    }
     addTearDown(() {
       container.dispose();
       client.dispose();
@@ -118,6 +142,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: tile
@@ -148,6 +173,12 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
+Finder _torrentRows() => find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey<String> &&
+      (widget.key! as ValueKey<String>).value.startsWith('torrent-row-'),
+);
+
 Future<void> _background(WidgetTester tester) async {
   for (final state in [
     AppLifecycleState.inactive,
@@ -171,6 +202,28 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'captured retry cannot invalidate replacement qBittorrent account',
+    (tester) async {
+      final harness = _Harness(connectionFails: true);
+      await harness.mount(tester);
+      expect(harness.connection.builds, 1);
+      final retry = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('qbittorrent-torrents-retry')),
+          )
+          .onPressed!;
+
+      harness.connection.change();
+      await tester.pumpAndSettle();
+      retry();
+      await tester.pumpAndSettle();
+
+      expect(harness.connection.builds, 1);
+      expect(harness.mutations, isEmpty);
+    },
+  );
+
   testWidgets('5000 torrents build lazily and unknown progress is never zero', (
     tester,
   ) async {
@@ -184,13 +237,13 @@ void main() {
         }),
       );
     await harness.mount(tester);
-    expect(find.byType(CupertinoListTile).evaluate().length, lessThan(50));
+    expect(_torrentRows().evaluate().length, lessThan(50));
     expect(find.textContaining('Progress is not reported.'), findsWidgets);
     expect(find.textContaining('0%'), findsNothing);
     expect(find.text('Torrent 4999'), findsNothing);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));
     await tester.pumpAndSettle();
-    expect(find.byType(CupertinoListTile).evaluate().length, lessThan(50));
+    expect(_torrentRows().evaluate().length, lessThan(50));
     expect(tester.takeException(), isNull);
   });
 
@@ -204,6 +257,10 @@ void main() {
         expect(find.textContaining('private-backend-body'), findsNothing);
         expect(find.text('No torrents'), findsNothing);
         expect(find.text('No active torrents'), findsNothing);
+        if (!tile) {
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+        }
       },
     );
   }
@@ -223,8 +280,8 @@ void main() {
     final harness = _Harness();
     await harness.mount(tester);
     final row = tester
-        .widget<CupertinoListTile>(find.byKey(const ValueKey('torrent-row-0')))
-        .onTap!;
+        .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+        .onPressed!;
     harness.readFails = true;
     harness.container.invalidate(qbittorrentTorrentsProvider);
     await tester.pumpAndSettle();
@@ -255,10 +312,8 @@ void main() {
       harness.mutate = (_) => pending.future;
       await harness.mount(tester);
       final row = tester
-          .widget<CupertinoListTile>(
-            find.byKey(const ValueKey('torrent-row-0')),
-          )
-          .onTap!;
+          .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+          .onPressed!;
       row();
       row();
       await tester.pumpAndSettle();
@@ -326,10 +381,8 @@ void main() {
         ..mutate = (_) async => throw http.ClientException('private-failure');
       await harness.mount(tester);
       final row = tester
-          .widget<CupertinoListTile>(
-            find.byKey(const ValueKey('torrent-row-0')),
-          )
-          .onTap!;
+          .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+          .onPressed!;
       await _tap(tester, 'torrent-row-0');
       await _tap(tester, 'torrent-action-pause');
       row();
@@ -341,19 +394,19 @@ void main() {
       );
       expect(
         tester
-            .widget<CupertinoListTile>(
+            .widget<CupertinoButton>(
               find.byKey(const ValueKey('torrent-row-0')),
             )
-            .onTap,
+            .onPressed,
         isNull,
       );
       await _tap(tester, 'torrent-refresh');
       expect(
         tester
-            .widget<CupertinoListTile>(
+            .widget<CupertinoButton>(
               find.byKey(const ValueKey('torrent-row-0')),
             )
-            .onTap,
+            .onPressed,
         isNotNull,
       );
       expect(tester.takeException(), isNull);
@@ -547,4 +600,70 @@ void main() {
     await _tap(tester, 'torrent-row-0');
     expect(tester.takeException(), isNull);
   });
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets('${locale.languageCode} torrent hierarchy fits '
+          '${width.toInt()}px at 2x text', (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          final harness = _Harness();
+          await harness.mount(
+            tester,
+            size: Size(width, 900),
+            scale: 2,
+            locale: locale,
+          );
+          final l10n = await AppLocalizations.delegate.load(locale);
+
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          final heading = find.text(l10n.qbittorrentTileFallbackName);
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          for (final key in const [
+            'torrent-refresh',
+            'torrent-add',
+            'torrent-row-0',
+          ]) {
+            final action = find.byKey(ValueKey(key));
+            final rect = tester.getRect(action);
+            expect(rect.width, greaterThanOrEqualTo(48));
+            expect(rect.height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(action).flagsCollection.isButton,
+              isTrue,
+            );
+          }
+          expect(
+            tester.widgetList<CupertinoButton>(find.byType(CupertinoButton)),
+            everyElement(
+              predicate<CupertinoButton>(
+                (button) => (button.minimumSize?.height ?? 0) >= 48,
+              ),
+            ),
+          );
+
+          tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 900);
+          await tester.pumpAndSettle();
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          expect(find.byKey(const ValueKey('torrent-refresh')), findsOneWidget);
+          expect(find.byKey(const ValueKey('torrent-add')), findsOneWidget);
+          expect(find.byKey(const ValueKey('torrent-row-0')), findsOneWidget);
+          expect(tester.takeException(), isNull);
+
+          Focus.of(tester.element(find.text('Family video'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(CupertinoActionSheet), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
 }

@@ -14,6 +14,8 @@ import 'package:larenor/features/media/arr/providers/readarr_providers.dart';
 import 'package:larenor/features/media/arr/providers/sonarr_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _RadarrConnection extends RadarrConnection {
   _RadarrConnection(this.onRead);
@@ -138,7 +140,7 @@ Future<void> _tabToRetry(WidgetTester tester, Key key) async {
 }
 
 void main() {
-  for (final width in [600.0, 1280.0]) {
+  for (final width in [600.0, 1200.0]) {
     testWidgets('Arr roots share private live tablet states $width 2x', (
       tester,
     ) async {
@@ -155,7 +157,9 @@ void main() {
             tester.element(find.byType(AppSurface)),
           );
           expect(find.byType(AppSurface), findsOneWidget);
-          expect(find.text(route.name), findsOneWidget);
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsOneWidget);
+          expect(find.text(route.name), findsWidgets);
           expect(find.text(l10n.mediaErrorUnreachable), findsOneWidget);
           expect(
             find.textContaining('private ${route.name} diagnostic'),

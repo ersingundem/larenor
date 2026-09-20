@@ -9,6 +9,8 @@ import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/operational_service_scope.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../health/data/action_receipt.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/action_providers.dart';
@@ -360,7 +362,11 @@ class _QbittorrentTorrentsScreenState
         statusKey: const ValueKey('qbittorrent-torrents-status'),
         actionLabel: l10n.commonRetry,
         actionKey: const ValueKey('qbittorrent-torrents-retry'),
-        onAction: () => ref.invalidate(qbittorrentConnectionProvider),
+        onAction: _guardedAction(() {
+          if (identical(ref.read(qbittorrentConnectionProvider), connection)) {
+            ref.invalidate(qbittorrentConnectionProvider);
+          }
+        }),
       );
     }
     if (OperationalServiceScope.maybeOf(context) == null &&
@@ -382,30 +388,41 @@ class _QbittorrentTorrentsScreenState
         _message ?? (_uncertain ? l10n.qbittorrentActionUnknown : null);
     return ServiceRootScaffold(
       title: 'qBittorrent',
-      leading: CupertinoButton(
-        key: const ValueKey('torrent-refresh'),
-        padding: EdgeInsets.zero,
-        onPressed: _pending
-            ? null
-            : _guardedAction(() {
-                if (ready) {
-                  _refresh();
-                } else {
-                  ref.invalidate(qbittorrentClientProvider);
-                  ref.invalidate(qbittorrentTorrentsProvider);
-                }
-              }),
-        child: const Icon(CupertinoIcons.refresh),
-      ),
-      trailing: CupertinoButton(
-        key: const ValueKey('torrent-add'),
-        padding: EdgeInsets.zero,
-        onPressed: _pending || _uncertain || !ready
-            ? null
-            : _guardedAction(_add),
-        child: const Icon(CupertinoIcons.add),
-      ),
       slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              container: true,
+              header: true,
+              child: Text(l10n.qbittorrentTileFallbackName),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('torrent-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: _pending
+                    ? null
+                    : _guardedAction(() {
+                        if (ready) {
+                          _refresh();
+                        } else {
+                          ref.invalidate(qbittorrentClientProvider);
+                          ref.invalidate(qbittorrentTorrentsProvider);
+                        }
+                      }),
+              ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('torrent-add'),
+                leading: const Icon(CupertinoIcons.add),
+                title: Text(l10n.qbittorrentAddTorrentTitle),
+                onTap: _pending || _uncertain || !ready
+                    ? null
+                    : _guardedAction(_add),
+              ),
+            ],
+          ),
+        ),
         if (message != null)
           SliverToBoxAdapter(
             child: Padding(
@@ -434,36 +451,42 @@ class _QbittorrentTorrentsScreenState
                         itemCount: items.length,
                         itemBuilder: (context, index) {
                           final torrent = items[index];
-                          return CupertinoListTile(
-                            key: ValueKey('torrent-row-$index'),
-                            backgroundColor: CupertinoColors
-                                .secondarySystemGroupedBackground
-                                .resolveFrom(context),
-                            title: Text(
-                              torrent.name ?? l10n.commonUnknown,
-                              maxLines: 2,
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: Gap.sm),
+                            child: SettingsSection(
+                              margin: EdgeInsets.zero,
+                              children: [
+                                SettingsActionTile(
+                                  buttonKey: ValueKey('torrent-row-$index'),
+                                  title: Text(
+                                    torrent.name ?? l10n.commonUnknown,
+                                    maxLines: 2,
+                                  ),
+                                  additionalInfo: Text(
+                                    '${torrent.state?.name ?? l10n.commonUnknown} · ${torrentProgressLabel(l10n, torrent.progress)}',
+                                  ),
+                                  onTap:
+                                      _pending ||
+                                          _uncertain ||
+                                          !ready ||
+                                          !_validHash(torrent.hash)
+                                      ? null
+                                      : () {
+                                          if (_current(generation) &&
+                                              identical(
+                                                ref
+                                                    .read(
+                                                      qbittorrentTorrentsProvider,
+                                                    )
+                                                    .value,
+                                                items,
+                                              )) {
+                                            _showActions(torrent);
+                                          }
+                                        },
+                                ),
+                              ],
                             ),
-                            subtitle: Text(
-                              '${torrent.state?.name ?? l10n.commonUnknown} · ${torrentProgressLabel(l10n, torrent.progress)}',
-                            ),
-                            trailing: const CupertinoListTileChevron(),
-                            onTap:
-                                _pending ||
-                                    _uncertain ||
-                                    !ready ||
-                                    !_validHash(torrent.hash)
-                                ? null
-                                : () {
-                                    if (_current(generation) &&
-                                        identical(
-                                          ref
-                                              .read(qbittorrentTorrentsProvider)
-                                              .value,
-                                          items,
-                                        )) {
-                                      _showActions(torrent);
-                                    }
-                                  },
                           );
                         },
                       ),
