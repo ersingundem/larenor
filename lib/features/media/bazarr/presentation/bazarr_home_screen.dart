@@ -8,7 +8,7 @@ import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
-import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
 
 class BazarrHomeScreen extends ConsumerWidget {
@@ -59,6 +59,7 @@ class _BazarrWantedScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moviesAsync = ref.watch(bazarrMissingMoviesProvider);
     final episodesAsync = ref.watch(bazarrMissingEpisodesProvider);
+    final l10n = AppLocalizations.of(context);
 
     void refresh() {
       ref.invalidate(bazarrMissingMoviesProvider);
@@ -67,22 +68,34 @@ class _BazarrWantedScaffold extends ConsumerWidget {
 
     return ServiceRootScaffold(
       title: 'Bazarr',
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: refresh,
-        child: const Icon(CupertinoIcons.refresh),
-      ),
       slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('bazarr-home-section-title'),
+              container: true,
+              header: true,
+              child: const Text('Bazarr'),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('bazarr-home-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: refresh,
+              ),
+            ],
+          ),
+        ),
         SliverList(
           delegate: SliverChildListDelegate([
-            const SizedBox(height: Gap.sm),
             _WantedSection(
-              title: AppLocalizations.of(context).bazarrMoviesMissingHeader,
+              title: l10n.bazarrMoviesMissingHeader,
               itemsAsync: moviesAsync,
               onChanged: refresh,
             ),
             _WantedSection(
-              title: AppLocalizations.of(context).bazarrEpisodesMissingHeader,
+              title: l10n.bazarrEpisodesMissingHeader,
               itemsAsync: episodesAsync,
               onChanged: refresh,
             ),
@@ -172,27 +185,34 @@ class _WantedRowState extends ConsumerState<_WantedRow> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final languages = widget.item.missingLanguages
         .map((l) => l.label)
         .join(', ');
+    final actionKey = widget.item.isMovie
+        ? ValueKey('bazarr-wanted-movie-${widget.item.radarrId}-search')
+        : ValueKey(
+            'bazarr-wanted-episode-${widget.item.seriesId}-${widget.item.episodeId}-search',
+          );
 
-    return CupertinoListTile(
-      leading: const Icon(CupertinoIcons.captions_bubble),
-      title: Text(widget.item.title),
-      subtitle: Text(
-        languages.isEmpty
-            ? AppLocalizations.of(context).bazarrMissingSubtitlesLabel
-            : languages,
-      ),
-      trailing: _searching
+    return SettingsActionTile(
+      buttonKey: actionKey,
+      leading: _searching
           ? const CupertinoActivityIndicator()
-          : CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: widget.item.missingLanguages.isEmpty
-                  ? null
-                  : _searchFirstMissing,
-              child: Text(AppLocalizations.of(context).commonSearch),
-            ),
+          : const Icon(CupertinoIcons.captions_bubble),
+      title: Text(widget.item.title),
+      additionalInfo: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            languages.isEmpty ? l10n.bazarrMissingSubtitlesLabel : languages,
+          ),
+          Text(l10n.commonSearch),
+        ],
+      ),
+      onTap: _searching || widget.item.missingLanguages.isEmpty
+          ? null
+          : _searchFirstMissing,
     );
   }
 }
