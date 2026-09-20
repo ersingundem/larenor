@@ -8,12 +8,27 @@ import 'package:larenor/shared/widgets/settings_section.dart';
 /// header and leaves footers at the theme's body size, which is what made
 /// the settings screens look top-heavy. These lock in iOS's real values.
 void main() {
-  Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-    CupertinoApp(
-      theme: larenorTheme(brightness: Brightness.light),
-      home: CupertinoPageScaffold(child: child),
-    ),
-  );
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    double width = 800,
+    double scale = 1,
+  }) async {
+    tester.view.physicalSize = Size(width, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      CupertinoApp(
+        theme: larenorTheme(brightness: Brightness.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: CupertinoPageScaffold(child: child),
+      ),
+    );
+  }
 
   TextStyle styleOf(WidgetTester tester, String text) {
     final element = tester.element(find.text(text));
@@ -92,5 +107,68 @@ void main() {
 
     expect(find.text('Sign out'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [600.0, 1200.0]) {
+    testWidgets('exposes a section heading at $width width and 2x text', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await pump(
+          tester,
+          const SettingsSection(
+            header: Text('STATUS'),
+            footer: Text('Connection evidence is read only.'),
+            children: [CupertinoListTile(title: Text('Core'))],
+          ),
+          width: width,
+          scale: 2,
+        );
+
+        expect(
+          tester.getSemantics(find.text('STATUS')).flagsCollection.isHeader,
+          isTrue,
+        );
+        expect(
+          tester
+              .getSemantics(find.text('Connection evidence is read only.'))
+              .flagsCollection
+              .isHeader,
+          isFalse,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    });
+  }
+
+  testWidgets('preserves an explicit heading as one semantic container', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await pump(
+        tester,
+        SettingsSection(
+          header: Semantics(
+            key: const ValueKey('explicit-section-heading'),
+            container: true,
+            header: true,
+            child: const Text('HISTORY'),
+          ),
+          children: const [CupertinoListTile(title: Text('Receipt'))],
+        ),
+      );
+
+      final node = tester.getSemantics(
+        find.byKey(const ValueKey('explicit-section-heading')),
+      );
+      expect(node.flagsCollection.isHeader, isTrue);
+      expect(node.label, 'HISTORY');
+    } finally {
+      semantics.dispose();
+    }
   });
 }
