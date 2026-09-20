@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../health/data/integration_health.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../domain/energy_models.dart';
@@ -23,40 +26,40 @@ class EnergyMaintenanceScreen extends ConsumerStatefulWidget {
 }
 
 class _EnergyMaintenanceScreenState
-    extends ConsumerState<EnergyMaintenanceScreen> {
+    extends DashboardEditState<EnergyMaintenanceScreen> {
   MaintenanceScope _scope = MaintenanceScope.selected;
   final _expanded = <String>{};
-  bool _foreground = true;
-  late final AppLifecycleListener _lifecycle;
+  bool? _wasVisible, _wasCurrent;
+
   @override
-  void initState() {
-    super.initState();
-    final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) {
-        if (mounted) {
-          setState(() => _foreground = state == AppLifecycleState.resumed);
-        }
-      },
-    );
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    final current = ModalRoute.isCurrentOf(context) ?? true;
+    if ((_wasVisible == true && !visible) ||
+        (_wasCurrent == true && !current)) {
+      interactionGeneration++;
+    }
+    _wasVisible = visible;
+    _wasCurrent = current;
   }
 
   @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
+  void invalidateDashboardInteraction() {
+    _expanded.clear();
   }
 
   @override
   Widget build(BuildContext context) {
+    watchDashboardAccount();
     final l10n = AppLocalizations.of(context);
     final connection = ref.watch(connectionConfigProvider);
     final configured =
         !connection.isLoading &&
         !connection.hasError &&
         connection.value != null;
-    final active = _foreground && TickerMode.valuesOf(context).enabled;
+    final generation = interactionGeneration;
+    final active = interactionCurrent(generation);
     // Keeping the inert controller preserves the selected range. Releasing the
     // stream's demand stops its timer and invalidates any in-flight response.
     final controller = configured ? ref.watch(energyControllerProvider) : null;
@@ -70,11 +73,6 @@ class _EnergyMaintenanceScreenState
     final maintenance = active && configured
         ? ref.watch(maintenanceProvider(_scope))
         : null;
-    ref.listen(connectionConfigProvider, (previous, next) {
-      if (next.isLoading || next.hasError || previous?.value != next.value) {
-        _expanded.clear();
-      }
-    });
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(l10n.energyTitle)),
       child: SafeArea(
@@ -84,119 +82,145 @@ class _EnergyMaintenanceScreenState
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
-                  child: _SectionHeading(
-                    title: l10n.energyRecorded,
-                    hint: l10n.energyHint,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                  child: SettingsSection(
+                    header: _SectionHeader(l10n.energyRecorded),
+                    footer: Text(l10n.energyHint),
+                    children: [
+                      Padding(
+                        padding: Insets.tile,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final range in EnergyRange.values)
-                              CupertinoButton(
-                                key: ValueKey('energy-range-${range.name}'),
-                                color: controller?.range == range
-                                    ? CupertinoColors.activeBlue.resolveFrom(
-                                        context,
-                                      )
-                                    : CupertinoColors.tertiarySystemFill
-                                          .resolveFrom(context),
-                                onPressed: !active || controller == null
-                                    ? null
-                                    : () {
-                                        controller.setRange(range);
-                                        setState(_expanded.clear);
-                                      },
-                                child: Text(
-                                  range == EnergyRange.today
-                                      ? l10n.todayTitle
-                                      : l10n.energyLast7Days,
-                                  style: AppText.subhead.copyWith(
-                                    color: controller?.range == range
-                                        ? CupertinoColors.white
-                                        : CupertinoColors.label.resolveFrom(
-                                            context,
-                                          ),
+                            Wrap(
+                              spacing: Gap.sm,
+                              runSpacing: Gap.sm,
+                              children: [
+                                for (final range in EnergyRange.values)
+                                  Semantics(
+                                    selected: controller?.range == range,
+                                    child: CupertinoButton(
+                                      key: ValueKey(
+                                        'energy-range-${range.name}',
+                                      ),
+                                      minimumSize: const Size(48, 48),
+                                      color: controller?.range == range
+                                          ? CupertinoColors.activeBlue
+                                                .resolveFrom(context)
+                                          : CupertinoColors.tertiarySystemFill
+                                                .resolveFrom(context),
+                                      onPressed: !active || controller == null
+                                          ? null
+                                          : () {
+                                              if (!interactionCurrent(
+                                                    generation,
+                                                  ) ||
+                                                  !identical(
+                                                    ref.read(
+                                                      energyControllerProvider,
+                                                    ),
+                                                    controller,
+                                                  )) {
+                                                return;
+                                              }
+                                              controller.setRange(range);
+                                              setState(_expanded.clear);
+                                            },
+                                      child: Text(
+                                        range == EnergyRange.today
+                                            ? l10n.todayTitle
+                                            : l10n.energyLast7Days,
+                                        style: AppText.subhead.copyWith(
+                                          color: controller?.range == range
+                                              ? CupertinoColors.white
+                                              : CupertinoColors.label
+                                                    .resolveFrom(context),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                              ],
+                            ),
+                            Gap.vMd,
+                            IntegrationHealthStatus(
+                              id: IntegrationId.ha,
+                              configured: configured,
+                            ),
+                            if (connection.isLoading ||
+                                (active &&
+                                    configured &&
+                                    (reading.isLoading ||
+                                        (snapshot == null &&
+                                            state?.failure == null))))
+                              const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CupertinoActivityIndicator(),
                               ),
+                            if (connection.hasError || reading.hasError)
+                              Text(l10n.healthReadError)
+                            else if (!configured && !connection.isLoading)
+                              Text(l10n.commonNotConnected),
+                            if (state?.failure != null)
+                              Text(energyFailureLabel(l10n, state!.failure!)),
+                            if (snapshot != null) ...[
+                              if (snapshot.energyConfigured == false)
+                                Text(l10n.energyNotConfigured),
+                              if (snapshot.issues.isNotEmpty)
+                                Text(l10n.energySourceIssue),
+                              for (final failure
+                                  in snapshot.issues
+                                      .map((issue) => issue.failure)
+                                      .toSet())
+                                Text(
+                                  energyFailureLabel(l10n, failure),
+                                  style: AppText.footnote,
+                                ),
+                              if (snapshot.energyConfigured == true &&
+                                  snapshot.meters.isEmpty)
+                                Text(l10n.energyNoMeters),
+                              if (snapshot.period != null)
+                                Text(
+                                  '${snapshot.period!.days.first.localDate} — ${snapshot.period!.days.last.localDate} · ${snapshot.period!.timeZone}',
+                                  style: AppText.footnote,
+                                ),
+                              Text(
+                                l10n.energyLastChecked(
+                                  DateFormat.yMd(l10n.localeName)
+                                      .add_Hm()
+                                      .format(snapshot.readAt.toLocal()),
+                                ),
+                                style: AppText.footnote,
+                              ),
+                            ],
+                            CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(48, 48),
+                              onPressed:
+                                  !active ||
+                                      connection.isLoading ||
+                                      (!connection.hasError &&
+                                          controller == null) ||
+                                      state?.isRefreshing == true
+                                  ? null
+                                  : () {
+                                      if (!interactionCurrent(generation)) {
+                                        return;
+                                      }
+                                      if (connection.hasError) {
+                                        ref.invalidate(
+                                          connectionConfigProvider,
+                                        );
+                                      } else {
+                                        controller?.refresh();
+                                      }
+                                    },
+                              child: state?.isRefreshing == true
+                                  ? const CupertinoActivityIndicator()
+                                  : Text(l10n.commonRefresh),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        IntegrationHealthStatus(
-                          id: IntegrationId.ha,
-                          configured: configured,
-                        ),
-                        if (connection.isLoading ||
-                            (active &&
-                                configured &&
-                                (reading.isLoading ||
-                                    (snapshot == null &&
-                                        state?.failure == null))))
-                          const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: CupertinoActivityIndicator(),
-                          ),
-                        if (connection.hasError || reading.hasError)
-                          Text(l10n.healthReadError)
-                        else if (!configured && !connection.isLoading)
-                          Text(l10n.commonNotConnected),
-                        if (state?.failure != null)
-                          Text(energyFailureLabel(l10n, state!.failure!)),
-                        if (snapshot != null) ...[
-                          if (snapshot.energyConfigured == false)
-                            Text(l10n.energyNotConfigured),
-                          if (snapshot.issues.isNotEmpty)
-                            Text(l10n.energySourceIssue),
-                          for (final failure
-                              in snapshot.issues
-                                  .map((issue) => issue.failure)
-                                  .toSet())
-                            Text(
-                              energyFailureLabel(l10n, failure),
-                              style: AppText.footnote,
-                            ),
-                          if (snapshot.energyConfigured == true &&
-                              snapshot.meters.isEmpty)
-                            Text(l10n.energyNoMeters),
-                          if (snapshot.period != null)
-                            Text(
-                              '${snapshot.period!.days.first.localDate} — ${snapshot.period!.days.last.localDate} · ${snapshot.period!.timeZone}',
-                              style: AppText.footnote,
-                            ),
-                          Text(
-                            l10n.energyLastChecked(
-                              DateFormat.yMd(l10n.localeName)
-                                  .add_Hm()
-                                  .format(snapshot.readAt.toLocal()),
-                            ),
-                            style: AppText.footnote,
-                          ),
-                        ],
-                        CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: !active || state?.isRefreshing == true
-                              ? null
-                              : () {
-                                  if (connection.hasError) {
-                                    ref.invalidate(connectionConfigProvider);
-                                  } else {
-                                    controller?.refresh();
-                                  }
-                                },
-                          child: state?.isRefreshing == true
-                              ? const CupertinoActivityIndicator()
-                              : Text(l10n.commonRefresh),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 if (snapshot != null)
@@ -207,11 +231,14 @@ class _EnergyMaintenanceScreenState
                       return _MeterCard(
                         meter: meter,
                         expanded: _expanded.contains(meter.definition.key),
-                        onToggle: () => setState(() {
-                          if (!_expanded.add(meter.definition.key)) {
-                            _expanded.remove(meter.definition.key);
-                          }
-                        }),
+                        onToggle: () {
+                          if (!interactionCurrent(generation)) return;
+                          setState(() {
+                            if (!_expanded.add(meter.definition.key)) {
+                              _expanded.remove(meter.definition.key);
+                            }
+                          });
+                        },
                       );
                     },
                   ),
@@ -226,43 +253,56 @@ class _EnergyMaintenanceScreenState
                     ),
                   ),
                 SliverToBoxAdapter(
-                  child: _SectionHeading(
-                    title: l10n.maintenanceTitle,
-                    hint: l10n.maintenanceHint,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final scope in MaintenanceScope.values)
-                          CupertinoButton(
-                            key: ValueKey('maintenance-scope-${scope.name}'),
-                            color: _scope == scope
-                                ? CupertinoColors.activeBlue.resolveFrom(
-                                    context,
-                                  )
-                                : CupertinoColors.tertiarySystemFill
-                                      .resolveFrom(context),
-                            onPressed: () => setState(() => _scope = scope),
-                            child: Text(
-                              scope == MaintenanceScope.selected
-                                  ? l10n.maintenanceSelected
-                                  : l10n.maintenanceAll,
-                              style: AppText.subhead.copyWith(
-                                color: _scope == scope
-                                    ? CupertinoColors.white
-                                    : CupertinoColors.label.resolveFrom(
-                                        context,
-                                      ),
+                  child: SettingsSection(
+                    header: _SectionHeader(l10n.maintenanceTitle),
+                    footer: Text(l10n.maintenanceHint),
+                    children: [
+                      Padding(
+                        padding: Insets.tile,
+                        child: Wrap(
+                          spacing: Gap.sm,
+                          runSpacing: Gap.sm,
+                          children: [
+                            for (final scope in MaintenanceScope.values)
+                              Semantics(
+                                selected: _scope == scope,
+                                child: CupertinoButton(
+                                  key: ValueKey(
+                                    'maintenance-scope-${scope.name}',
+                                  ),
+                                  minimumSize: const Size(48, 48),
+                                  color: _scope == scope
+                                      ? CupertinoColors.activeBlue.resolveFrom(
+                                          context,
+                                        )
+                                      : CupertinoColors.tertiarySystemFill
+                                            .resolveFrom(context),
+                                  onPressed: !active || !configured
+                                      ? null
+                                      : () {
+                                          if (!interactionCurrent(generation)) {
+                                            return;
+                                          }
+                                          setState(() => _scope = scope);
+                                        },
+                                  child: Text(
+                                    scope == MaintenanceScope.selected
+                                        ? l10n.maintenanceSelected
+                                        : l10n.maintenanceAll,
+                                    style: AppText.subhead.copyWith(
+                                      color: _scope == scope
+                                          ? CupertinoColors.white
+                                          : CupertinoColors.label.resolveFrom(
+                                              context,
+                                            ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                      ],
-                    ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (maintenance?.isLoading == true)
@@ -287,10 +327,14 @@ class _EnergyMaintenanceScreenState
                       return _Surface(
                         child: CupertinoButton(
                           padding: EdgeInsets.zero,
-                          onPressed: () => context.push(
-                            Uri(pathSegments: ['', 'entities', item.entityId])
-                                .toString(),
-                          ),
+                          minimumSize: const Size(48, 48),
+                          onPressed: () {
+                            if (!interactionCurrent(generation)) return;
+                            context.push(
+                              Uri(pathSegments: ['', 'entities', item.entityId])
+                                  .toString(),
+                            );
+                          },
                           child: Row(
                             children: [
                               Icon(
@@ -407,6 +451,7 @@ class _MeterCard extends StatelessWidget {
           CupertinoButton(
             key: ValueKey('energy-meter-${meter.definition.key}'),
             padding: EdgeInsets.zero,
+            minimumSize: const Size(48, 48),
             onPressed: onToggle,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -468,26 +513,28 @@ class _ServerCapacity extends ConsumerWidget {
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: SettingsSection(
+            header: _SectionHeader(l10n.maintenanceCapacity),
+            footer: Text(l10n.maintenanceCapacityHint),
             children: [
-              _SectionHeading(
-                title: l10n.maintenanceCapacity,
-                hint: l10n.maintenanceCapacityHint,
-              ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: IntegrationHealthStatus(
-                  id: IntegrationId.proxmox,
-                  configured: true,
+                padding: Insets.tile,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const IntegrationHealthStatus(
+                      id: IntegrationId.proxmox,
+                      configured: true,
+                    ),
+                    if (nodes.isLoading)
+                      const Center(child: CupertinoActivityIndicator())
+                    else if (nodes.hasError)
+                      _Message(l10n.healthReadError)
+                    else if (values?.isEmpty == true)
+                      _Message(l10n.maintenanceNoNodes),
+                  ],
                 ),
               ),
-              if (nodes.isLoading)
-                const Center(child: CupertinoActivityIndicator())
-              else if (nodes.hasError)
-                _Message(l10n.healthReadError)
-              else if (values?.isEmpty == true)
-                _Message(l10n.maintenanceNoNodes),
             ],
           ),
         ),
@@ -526,6 +573,7 @@ class _ServerCapacity extends ConsumerWidget {
                     ),
                     CupertinoButton(
                       padding: EdgeInsets.zero,
+                      minimumSize: const Size(48, 48),
                       onPressed: () => context.push('/system/proxmox'),
                       child: const Text('Proxmox'),
                     ),
@@ -539,6 +587,7 @@ class _ServerCapacity extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: CupertinoButton(
               padding: EdgeInsets.zero,
+              minimumSize: const Size(48, 48),
               onPressed: nodes.isLoading
                   ? null
                   : () => ref.invalidate(proxmoxNodesProvider),
@@ -591,26 +640,12 @@ class _Surface extends StatelessWidget {
   );
 }
 
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.hint});
-  final String title, hint;
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+  final String title;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: AppText.title2),
-        const SizedBox(height: 8),
-        Text(
-          hint,
-          style: AppText.subhead.copyWith(
-            color: CupertinoColors.secondaryLabel.resolveFrom(context),
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) =>
+      Semantics(container: true, header: true, child: Text(title));
 }
 
 class _Message extends StatelessWidget {

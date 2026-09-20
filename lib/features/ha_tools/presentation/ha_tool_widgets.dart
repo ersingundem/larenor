@@ -43,17 +43,20 @@ class HaTextInput extends StatelessWidget {
         const SizedBox(height: 8),
         Semantics(
           label: label,
-          child: CupertinoTextField(
-            controller: controller,
-            minLines: lines,
-            maxLines: lines + 5,
-            readOnly: readOnly,
-            autocorrect: false,
-            enableSuggestions: false,
-            keyboardType: lines > 1
-                ? TextInputType.multiline
-                : TextInputType.text,
-            padding: const EdgeInsets.all(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: CupertinoTextField(
+              controller: controller,
+              minLines: lines,
+              maxLines: lines + 5,
+              readOnly: readOnly,
+              autocorrect: false,
+              enableSuggestions: false,
+              keyboardType: lines > 1
+                  ? TextInputType.multiline
+                  : TextInputType.text,
+              padding: const EdgeInsets.all(12),
+            ),
           ),
         ),
       ],
@@ -72,48 +75,66 @@ class HaResult extends StatelessWidget {
         : const JsonEncoder.withIndent('  ').convert(value);
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            isError
-                ? AppLocalizations.of(context).commonError
-                : AppLocalizations.of(context).haResult,
-            style: AppText.headline.copyWith(
-              color: isError
-                  ? CupertinoColors.systemRed.resolveFrom(context)
-                  : null,
+      child: Semantics(
+        key: const ValueKey('ha-result-live-region'),
+        container: true,
+        liveRegion: isError,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              container: true,
+              header: true,
+              child: Text(
+                isError
+                    ? AppLocalizations.of(context).commonError
+                    : AppLocalizations.of(context).haResult,
+                key: const ValueKey('ha-result-heading'),
+                style: AppText.headline.copyWith(
+                  color: isError
+                      ? CupertinoColors.systemRed.resolveFrom(context)
+                      : null,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SelectableText(
-            text,
-            style: AppText.footnote.copyWith(fontFamily: 'monospace'),
-          ),
-        ],
+            const SizedBox(height: 12),
+            SelectableText(
+              text,
+              style: AppText.footnote.copyWith(fontFamily: 'monospace'),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-Future<bool> confirmHaAction(BuildContext context, String request) async {
+Future<bool> confirmHaAction(
+  BuildContext context,
+  String request, {
+  ValueChanged<Route<bool>?>? onRoute,
+}) async {
   final l10n = AppLocalizations.of(context);
-  return await showCupertinoDialog<bool>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: Text(l10n.haConfirmRun),
-          content: Text(request),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel),
-            ),
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.haRun),
-            ),
-          ],
+  final route = CupertinoDialogRoute<bool>(
+    context: context,
+    builder: (context) => CupertinoAlertDialog(
+      title: Text(l10n.haConfirmRun),
+      content: Text(request),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.commonCancel),
         ),
-      ) ??
-      false;
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(l10n.haRun),
+        ),
+      ],
+    ),
+  );
+  onRoute?.call(route);
+  final result = await Navigator.of(context).push(route);
+  await route.completed;
+  onRoute?.call(null);
+  return result ?? false;
 }
