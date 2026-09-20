@@ -162,6 +162,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         resolved["services"]["larenor-core"]["build"]["context"] = str(ROOT)
         resolved["services"]["larenor-core"]["build"]["dockerfile"] = str(
             ROOT / "server/Dockerfile")
+        for service in resolved["services"].values():
+            service["command"] = None
+            service["entrypoint"] = None
         target.validate_rendered_config(resolved, expected, project)
         drifts = []
         changed = json.loads(json.dumps(resolved))
@@ -175,6 +178,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         drifts.append(changed)
         changed = json.loads(json.dumps(resolved))
         changed["services"]["larenor-seerr"]["volumes"][0]["source"] = "/foreign"
+        drifts.append(changed)
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-seerr"]["command"] = ["unsafe-override"]
         drifts.append(changed)
         for changed in drifts:
             with self.subTest(changed=changed["services"]["larenor-seerr"]):

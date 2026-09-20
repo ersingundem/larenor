@@ -196,3 +196,8 @@ preflight üretmeden fail-closed olur.
 Paket, S06.6 kapanışını içeren `67261f69` main tabanına yeniden bağlandı.
 Kabul edilen taban **17/125 (%13,6)** ve **0/63**'tür; S07.1 gerçek PR
 amd64/arm64 yürütmesi tamamlanana kadar bu dilim sayaç yükseltmez.
+
+İlk gerçek PR native çalışması, güncel Docker Compose'un image varsayılanını
+temsil etmek için `command: null` ve `entrypoint: null` alanlarını eklediğini
+gösterdi. Validator bu güvenli normalizasyonu kabul eder; iki alanın herhangi
+bir gerçek override değeri taşıması hâlâ mutation öncesi fail-closed olur.

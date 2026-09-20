@@ -493,8 +493,9 @@ def validate_rendered_config(rendered, expected, project_name):
                 or actual.get("read_only", False) != wanted.get("read_only", False)
                 or actual.get("devices", []) not in (None, [])
                 or any(key in actual for key in (
-                    "pid", "ipc", "uts", "cgroup", "secrets", "configs", "env_file",
-                    "command", "entrypoint"))
+                    "pid", "ipc", "uts", "cgroup", "secrets", "configs", "env_file"))
+                or actual.get("command") is not None
+                or actual.get("entrypoint") is not None
                 or _config_mounts(actual) != _config_mounts(wanted)
                 or _config_ports(actual) != _config_ports(wanted)
                 or _config_extra_hosts(actual) != _config_extra_hosts(wanted)):
