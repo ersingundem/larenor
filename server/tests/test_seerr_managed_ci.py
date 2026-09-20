@@ -136,9 +136,9 @@ def test_characterize_projects_only_closed_convergence_evidence(monkeypatch):
             expected["helper"],
             expected["volumeStates"],
             SimpleNamespace(
-            state="seerr_container_started",
-            fresh=True,
-            persistent=True,
+                state="seerr_container_started",
+                fresh=True,
+                persistent=True,
                 admin_state="verified",
                 admin_session_closed=True,
                 arr_service_ids=("radarr", "sonarr"),
