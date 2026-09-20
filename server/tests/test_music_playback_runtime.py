@@ -213,7 +213,34 @@ def test_catalog_search_filters_exact_provider_and_never_exposes_token():
     result = runtime.search(action, deadline=time.monotonic() + 2)
     assert [item.uri for item in result.items] == ['spotify://track/right']
     assert calls[0][2]['command'] == 'music/search'
+    assert calls[0][2]['args']['providers'] == ['spotify--fixture']
     assert 'private-token' not in repr(action)
+
+
+def test_catalog_search_accepts_domain_provider_and_exact_radio_result_key():
+    calls = []
+    responses = [{
+        'radio': [{
+            'uri': 'spotify://radio/right', 'name': 'Right Radio',
+            'provider': 'spotify', 'artists': [],
+        }],
+        # Music Assistant's SearchResults model calls this field `radio`, not
+        # `radios`; accepting a second spelling could hide an upstream change.
+        'radios': [{
+            'uri': 'spotify://radio/wrong', 'name': 'Wrong Radio',
+            'provider': 'spotify--fixture', 'artists': [],
+        }],
+    }]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+    action = PrivateMusicCatalogAction(
+        request=catalog_request().model_copy(update={'mediaTypes': ['radio']}),
+        token='private-token')
+
+    result = runtime.search(action, deadline=time.monotonic() + 2)
+
+    assert [(item.uri, item.providerInstanceId) for item in result.items] == [
+        ('spotify://radio/right', 'spotify--fixture')]
+    assert calls[0][2]['args']['providers'] == ['spotify--fixture']
 
 
 class Backend:

@@ -188,6 +188,7 @@ class MusicPlaybackRuntime:
                 'media_types': request.mediaTypes,
                 'limit': request.limit,
                 'library_only': request.libraryOnly,
+                'providers': [request.providerInstanceId],
             }, deadline, cancelled)
         if type(raw) is not dict:
             raise MusicPlaybackRuntimeError('music_catalog_readback_changed')
@@ -195,16 +196,23 @@ class MusicPlaybackRuntime:
         allowed = request.mediaTypes or [
             'artist', 'album', 'track', 'playlist', 'radio', 'audiobook',
             'podcast']
+        result_keys = {
+            'artist': 'artists', 'album': 'albums', 'track': 'tracks',
+            'playlist': 'playlists', 'radio': 'radio',
+            'audiobook': 'audiobooks', 'podcast': 'podcasts',
+        }
         try:
             for media_type in allowed:
-                values = raw.get(media_type + 's', [])
+                values = raw.get(result_keys[media_type], [])
                 if type(values) is not list:
                     raise ValueError()
                 for value in values:
                     if type(value) is not dict:
                         raise ValueError()
                     provider = value.get('provider')
-                    if provider != request.providerInstanceId:
+                    if provider not in {
+                            request.providerInstanceId,
+                            request.providerDomain}:
                         continue
                     artists = []
                     for artist in value.get('artists') or []:
@@ -215,7 +223,8 @@ class MusicPlaybackRuntime:
                         artists.append(name)
                     items.append(MusicCatalogItem(
                         uri=value['uri'], name=value['name'],
-                        mediaType=media_type, providerInstanceId=provider,
+                        mediaType=media_type,
+                        providerInstanceId=request.providerInstanceId,
                         artists=artists))
                     if len(items) > request.limit:
                         raise ValueError()
