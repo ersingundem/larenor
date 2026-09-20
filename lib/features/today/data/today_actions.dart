@@ -26,6 +26,39 @@ class TodayActions {
     String? dueDate,
     DateTime? dueAt,
     String? description,
+  }) => _addTodo(
+    list,
+    summary,
+    dueDate: dueDate,
+    dueAt: dueAt,
+    description: description,
+  );
+
+  /// Uses the same once-only mutation and readback path, while rechecking an
+  /// external account/home/route lease before and after each asynchronous edge.
+  Future<void> addTodoBound(
+    TodayTodoList list,
+    String summary, {
+    required bool Function() current,
+    String? dueDate,
+    DateTime? dueAt,
+    String? description,
+  }) => _addTodo(
+    list,
+    summary,
+    current: current,
+    dueDate: dueDate,
+    dueAt: dueAt,
+    description: description,
+  );
+
+  Future<void> _addTodo(
+    TodayTodoList list,
+    String summary, {
+    bool Function()? current,
+    String? dueDate,
+    DateTime? dueAt,
+    String? description,
   }) async {
     if (!list.canAdd) throw const TodayException('unsupported_add');
     final title = _summary(summary);
@@ -39,6 +72,7 @@ class TodayActions {
     await _mutate<List<TodayTodoItem>>(
       target: list.entityId,
       action: 'todo.add_item',
+      current: current,
       prepare: () async {
         final before = await repository.readTodoItems(list.entityId);
         beforeIds.addAll(before.map((item) => item.uid).whereType<String>());
@@ -142,15 +176,20 @@ class TodayActions {
     required Future<void> Function() send,
     required Future<T> Function() read,
     required bool Function(T) confirms,
+    bool Function()? current,
   }) async {
     final observations = StreamController<T>();
     var active = true;
     var writeStarted = false;
+    bool valid() => active && (current?.call() ?? true);
     Future<void> readBack() async {
       try {
-        for (var attempt = 0; attempt < 3 && active; attempt++) {
+        for (var attempt = 0; attempt < 3 && valid(); attempt++) {
           final value = await read();
-          if (!active) return;
+          if (!valid()) {
+            observations.addError(const TodayException('disposed'));
+            return;
+          }
           observations.add(value);
           if (confirms(value)) break;
           if (attempt < 2) await Future<void>.delayed(readbackDelay);
@@ -172,10 +211,12 @@ class TodayActions {
           action: action,
         ),
         send: () async {
+          if (!valid()) throw const TodayException('disposed');
           await prepare?.call();
-          if (!active) throw const TodayException('disposed');
+          if (!valid()) throw const TodayException('disposed');
           writeStarted = true;
           await send();
+          if (!valid()) throw const TodayException('disposed');
           // Only reads can be repeated. The mutation itself is sent once.
           unawaited(readBack());
         },
@@ -186,6 +227,7 @@ class TodayActions {
           return classifyHaActionFailure(error);
         },
       );
+      if (!valid()) throw const TodayException('disposed');
       onChanged?.call();
       if (receipt.status == ActionStatus.failed ||
           receipt.status == ActionStatus.unknown) {

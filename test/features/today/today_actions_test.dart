@@ -265,4 +265,22 @@ void main() {
     );
     expect(receipts.receipts.single.status, ActionStatus.confirmed);
   });
+
+  test('bound add drops stale authority after preflight before POST', () async {
+    final gate = Completer<void>();
+    var entered = false;
+    var current = true;
+    api.beforeItems = (_) async {
+      entered = true;
+      await gate.future;
+    };
+    final result = actions.addTodoBound(list, 'Bread', current: () => current);
+    while (!entered) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    current = false;
+    gate.complete();
+    await expectLater(result, throwsA(isA<TodayException>()));
+    expect(api.serviceCalls, isEmpty);
+  });
 }

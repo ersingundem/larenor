@@ -8,6 +8,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../navigation/presentation/app_shell_actions.dart';
 import '../../navigation/search/domain/local_search_index.dart';
+import '../../meal_planner/presentation/recipe_shopping_sheet.dart';
 import '../data/today_timezone.dart';
 import '../domain/today_calendar_summary.dart';
 import '../domain/today_daily_summary.dart';
@@ -657,6 +658,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
   ) {
     final l10n = AppLocalizations.of(context);
     final items = list.items.value ?? const <TodayTodoItem>[];
+    final actions = ref.read(todayActionsProvider);
     return TodayCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,6 +704,15 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                       ? guarded(() => _edit(list))
                       : null,
                   child: Text(l10n.todayAddTask),
+                ),
+              if (list.canAdd && actions != null)
+                RecipeShoppingLaunchButton(
+                  list: list,
+                  actions: actions,
+                  enabled:
+                      actionsAvailable &&
+                      todayListWritable(snapshot, list) &&
+                      !_pending.contains(list.entityId),
                 ),
             ],
           ),
