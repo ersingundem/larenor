@@ -11,6 +11,7 @@ import '../../../auth/providers/auth_providers.dart';
 import '../../../dashboard/presentation/widgets/more_info_sheet.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/presentation/health_labels.dart';
+import '../../../server/music_manager/presentation/server_music_manager_screen.dart';
 import '../../ha_playback/presentation/ha_playback_screen.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../../local_audio/presentation/local_audio_screen.dart';
@@ -457,6 +458,23 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
             child: Text(l10n.musicOutputs),
           ),
           children: [
+            SettingsActionTile(
+              buttonKey: const ValueKey('music-core-manager-action'),
+              leading: const Icon(CupertinoIcons.speaker_2),
+              title: Text(l10n.serverMusicManagerTitle),
+              additionalInfo: Text(l10n.serverMusicManagerIntro),
+              onTap: _active
+                  ? () {
+                      if (_canAct(generation)) {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const ServerMusicManagerScreen(),
+                          ),
+                        );
+                      }
+                    }
+                  : null,
+            ),
             SettingsActionTile(
               buttonKey: const ValueKey('music-local-audio-action'),
               leading: const Icon(CupertinoIcons.music_note_2),
