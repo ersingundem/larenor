@@ -14,16 +14,13 @@ class LocalAudioArtworkFileAccess {
       allowedExtensions: const ['png', 'jpg', 'jpeg'],
     );
     if (file == null) return null;
-    final declaredLength = await file
-        .length()
-        .timeout(const Duration(seconds: 10));
+    final declaredLength = await file.length().timeout(
+      const Duration(seconds: 10),
+    );
     if (declaredLength == null) {
       throw const LocalAudioException(LocalAudioFailure.invalidArtwork);
     }
-    return readBounded(
-      file.readAsByteStream(),
-      declaredLength: declaredLength,
-    );
+    return readBounded(file.readAsByteStream(), declaredLength: declaredLength);
   }
 
   static Future<Uint8List> readBounded(
