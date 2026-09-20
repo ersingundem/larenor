@@ -171,6 +171,16 @@ def test_music_assistant_binding_is_fixed_digest_host_network_and_owned_data_onl
     assert managed_container_matches(drift, binding) is False
 
 
+def test_music_assistant_accepts_only_created_host_network_before_attachment_identity():
+    _builder, _stack, binding = build_music_assistant()
+    observed = snapshot(binding)
+    observed['NetworkSettings']['Networks']['host']['NetworkID'] = ''
+    assert managed_container_matches(observed, binding)
+
+    observed['State'] = {'Status': 'running', 'Running': True}
+    assert managed_container_matches(observed, binding) is False
+
+
 def test_builder_derives_ports_off_private_network_and_exact_nocopy_mounts():
     _builder, stack, binding = build()
     body = json.loads(binding.specification)

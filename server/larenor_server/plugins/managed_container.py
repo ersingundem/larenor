@@ -595,13 +595,18 @@ def managed_container_matches(value, binding):
         attached = networks[body['HostConfig']['NetworkMode']]
         if type(attached) is not dict:
             return False
+        state = value.get('State')
+        unattached_created = (
+            attached.get('NetworkID') == ''
+            and type(state) is dict
+            and state.get('Status') == 'created'
+            and state.get('Running') is False
+        )
         if body['HostConfig']['NetworkMode'] == 'host':
-            return _identity(attached.get('NetworkID'), _HASH)
+            return _identity(attached.get('NetworkID'), _HASH) or unattached_created
         if attached.get('NetworkID') == binding.network_id:
             return True
-        state = value.get('State')
-        return (attached.get('NetworkID') == '' and type(state) is dict
-                and state.get('Status') == 'created' and state.get('Running') is False)
+        return unattached_created
     except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
         return False
 

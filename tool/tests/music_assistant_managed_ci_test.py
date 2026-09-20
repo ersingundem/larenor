@@ -1,15 +1,18 @@
 """Closed contract tests for native Music Assistant acceptance."""
 
+import importlib.util
 import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
 
-from larenor_server.plugins.music_assistant_core_models import (
-    AuthenticatedMusicAssistantReadback,
-)
 from tool import music_assistant_managed_ci as target
+
+SERVER_DEPENDENCIES_AVAILABLE = (
+    importlib.util.find_spec("pydantic") is not None
+    and importlib.util.find_spec("larenor_server") is not None
+)
 
 
 class MusicAssistantManagedCITest(unittest.TestCase):
@@ -57,6 +60,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             "installAvailable": False,
         }
 
+    @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")
     def test_fixture_selects_only_pinned_owned_appdata_on_both_architectures(self):
         for platform_name in ("linux/amd64", "linux/arm64"):
             source = target.fixture_source(platform_name)
@@ -67,6 +71,7 @@ class MusicAssistantManagedCITest(unittest.TestCase):
                 [("music_assistant", "managed_appdata", "/data")],
             )
 
+    @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")
     def test_receipt_is_exact_and_rejects_private_or_optimistic_claims(self):
         value = self.receipt()
         target.validate_receipt(value, "a" * 40, "linux/amd64")
@@ -79,13 +84,18 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             with self.assertRaises(target.MusicAssistantManagedCIError):
                 target.validate_receipt(changed, "a" * 40, "linux/amd64")
 
+    @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")
     def test_restart_readback_proves_same_identity_with_retained_token(self):
-        readback = AuthenticatedMusicAssistantReadback(
-            token="private-native-token",
-            serverId="mass-native",
-            serverVersion="2.10.2",
-            schemaVersion=65,
-        )
+        class Readback:
+            token = "private-native-token"
+            serverId = "mass-native"
+            serverVersion = "2.10.2"
+            schemaVersion = 65
+
+            def __repr__(self):
+                return "Readback(<private>)"
+
+        readback = Readback()
 
         class Runtime:
             def __init__(self):
