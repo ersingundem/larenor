@@ -58,6 +58,37 @@ Future<void> _tabToRefresh(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('captured requests refresh cannot cross result authority', (
+    tester,
+  ) async {
+    var reads = 0;
+    await _mount(
+      tester,
+      width: 600,
+      locale: const Locale('en'),
+      read: () async {
+        reads++;
+        return const [_request];
+      },
+    );
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyseerr-requests-refresh')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(JellyseerrRequestsScreen)),
+    );
+    container.invalidate(jellyseerrMyRequestsProvider);
+    await tester.pumpAndSettle();
+    expect(reads, 2);
+
+    refresh();
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} requests use shared tablet surface '

@@ -70,6 +70,53 @@ Future<void> _tabToToggle(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('captured indexer toggle cannot cross Prowlarr authority', (
+    tester,
+  ) async {
+    final oldRequests = <http.Request>[];
+    final replacementRequests = <http.Request>[];
+    ProwlarrClient client(List<http.Request> requests) => ProwlarrClient(
+      config: _config,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{}', 200);
+      }),
+    );
+    final oldClient = client(oldRequests);
+    final replacementClient = client(replacementRequests);
+    addTearDown(oldClient.dispose);
+    addTearDown(replacementClient.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prowlarrConnectionProvider.overrideWith(_Connection.new),
+          prowlarrClientProvider.overrideWith((_) => oldClient),
+          prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final toggle = tester
+        .widget<CupertinoSwitch>(find.byType(CupertinoSwitch))
+        .onChanged!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProwlarrIndexersScreen)),
+    );
+    container.updateOverrides([
+      prowlarrConnectionProvider.overrideWith(_Connection.new),
+      prowlarrClientProvider.overrideWith((_) => replacementClient),
+      prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
+    ]);
+    await tester.pumpAndSettle();
+
+    toggle(false);
+    await tester.pumpAndSettle();
+
+    expect(oldRequests, isEmpty);
+    expect(replacementRequests, isEmpty);
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} indexer hierarchy fits '

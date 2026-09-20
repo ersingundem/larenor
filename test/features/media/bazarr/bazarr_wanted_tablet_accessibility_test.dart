@@ -48,6 +48,57 @@ Widget _tabletApp(Locale locale) => CupertinoApp(
 );
 
 void main() {
+  testWidgets('captured subtitle search cannot cross Bazarr authority', (
+    tester,
+  ) async {
+    final oldRequests = <http.Request>[];
+    final replacementRequests = <http.Request>[];
+    BazarrClient client(List<http.Request> requests) => BazarrClient(
+      config: _config,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{}', 200);
+      }),
+    );
+    final oldClient = client(oldRequests);
+    final replacementClient = client(replacementRequests);
+    addTearDown(oldClient.dispose);
+    addTearDown(replacementClient.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bazarrConnectionProvider.overrideWith(_Connection.new),
+          bazarrClientProvider.overrideWith((_) => oldClient),
+          bazarrMissingMoviesProvider.overrideWith((_) async => const [_movie]),
+          bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
+        ],
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final search = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('bazarr-wanted-movie-42-search')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BazarrHomeScreen)),
+    );
+    container.updateOverrides([
+      bazarrConnectionProvider.overrideWith(_Connection.new),
+      bazarrClientProvider.overrideWith((_) => replacementClient),
+      bazarrMissingMoviesProvider.overrideWith((_) async => const [_movie]),
+      bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
+    ]);
+    await tester.pumpAndSettle();
+
+    search();
+    await tester.pumpAndSettle();
+
+    expect(oldRequests, isEmpty);
+    expect(replacementRequests, isEmpty);
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} wanted hierarchy fits '
