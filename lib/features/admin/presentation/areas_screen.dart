@@ -1,91 +1,136 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../shared/widgets/settings_section.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
+import '../data/admin_client.dart';
 import '../providers/admin_providers.dart';
 import '../data/models/ha_area.dart';
 import 'widgets/admin_dialogs.dart';
 
-class AreasScreen extends ConsumerWidget {
+class AreasScreen extends ConsumerStatefulWidget {
   const AreasScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AreasScreen> createState() => _AreasScreenState();
+}
+
+class _AreasScreenState extends MediaSessionState<AreasScreen> {
+  bool _current(int generation, HaAdminClient client) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(haAdminClientProvider), client);
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final areasAsync = ref.watch(areasProvider);
+    final client = ref.watch(haAdminClientProvider);
+    final generation = sessionGeneration;
+    final active = client != null && _current(generation, client);
 
-    return AppPageScaffold(
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(l10n.settingsAreas),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => _edit(context, ref),
-              child: const Icon(CupertinoIcons.add),
-            ),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => ref.invalidate(areasProvider),
-              child: const Icon(CupertinoIcons.refresh),
-            ),
+    return ServiceRootScaffold(
+      title: l10n.settingsAreas,
+      trailing: Semantics(
+        key: const ValueKey('areas-add'),
+        container: true,
+        button: true,
+        enabled: active,
+        label: l10n.adminAddArea,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            onPressed: active ? () => _edit(generation, client) : null,
+            child: const Icon(CupertinoIcons.add),
           ),
-          areasAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CupertinoActivityIndicator()),
-            ),
-            error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
-            ),
-            data: (areas) {
-              if (areas.isEmpty) {
-                return SliverFillRemaining(
-                  child: Center(child: Text(l10n.areasScreenEmpty)),
-                );
-              }
-              return SliverSafeArea(
-                top: false,
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    const SizedBox(height: 16),
-                    SettingsSection(
-                      children: [
-                        for (final area in areas)
-                          CupertinoListTile(
-                            leading: IconBadge(
-                              icon: CupertinoIcons.square_grid_2x2,
-                              color: CupertinoColors.systemGreen.resolveFrom(
-                                context,
-                              ),
-                            ),
-                            title: Text(area.name),
-                            trailing: const CupertinoListTileChevron(),
-                            onTap: () => _actions(context, ref, area),
-                          ),
-                      ],
-                    ),
-                  ]),
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
+      leading: Semantics(
+        key: const ValueKey('areas-refresh'),
+        container: true,
+        button: true,
+        enabled: active,
+        label: l10n.commonRefresh,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: EdgeInsets.zero,
+            onPressed: active
+                ? () {
+                    if (_current(generation, client)) {
+                      ref.invalidate(areasProvider);
+                    }
+                  }
+                : null,
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+        ),
+      ),
+      slivers: [
+        areasAsync.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: Center(child: Text(l10n.adminLoadError(error.toString()))),
+          ),
+          data: (areas) {
+            if (areas.isEmpty) {
+              return SliverFillRemaining(
+                child: Center(child: Text(l10n.areasScreenEmpty)),
+              );
+            }
+            return SliverSafeArea(
+              top: false,
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: 16),
+                  SettingsSection(
+                    header: Semantics(
+                      key: const ValueKey('areas-list-header'),
+                      header: true,
+                      child: Text(l10n.settingsAreas),
+                    ),
+                    children: [
+                      for (final area in areas)
+                        SettingsActionTile(
+                          buttonKey: ValueKey('admin-area-${area.areaId}'),
+                          leading: IconBadge(
+                            icon: CupertinoIcons.square_grid_2x2,
+                            color: CupertinoColors.systemGreen.resolveFrom(
+                              context,
+                            ),
+                          ),
+                          title: Text(area.name),
+                          onTap: active
+                              ? () => _actions(generation, client, area)
+                              : null,
+                        ),
+                    ],
+                  ),
+                ]),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
   Future<void> _edit(
-    BuildContext context,
-    WidgetRef ref, [
+    int generation,
+    HaAdminClient client, [
     HaArea? area,
   ]) async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+    if (!_current(generation, client)) return;
     final name = await promptAdminName(
       context,
       title: area == null
@@ -93,24 +138,29 @@ class AreasScreen extends ConsumerWidget {
           : AppLocalizations.of(context).adminEditArea,
       initial: area?.name ?? '',
     );
-    if (name == null || !context.mounted) return;
+    if (name == null || !mounted || !_current(generation, client)) return;
     try {
       if (area == null) {
         await client.createArea(name);
       } else {
         await client.updateArea(area.areaId, name);
       }
-      if (context.mounted) ref.invalidate(areasProvider);
+      if (mounted && _current(generation, client)) {
+        ref.invalidate(areasProvider);
+      }
     } catch (error) {
-      if (context.mounted) await showAdminMessage(context, error.toString());
+      if (mounted && _current(generation, client)) {
+        await showAdminMessage(context, error.toString());
+      }
     }
   }
 
   Future<void> _actions(
-    BuildContext context,
-    WidgetRef ref,
+    int generation,
+    HaAdminClient client,
     HaArea area,
   ) async {
+    if (!_current(generation, client)) return;
     final action = await showCupertinoModalPopup<String>(
       context: context,
       builder: (context) => CupertinoActionSheet(
@@ -132,9 +182,9 @@ class AreasScreen extends ConsumerWidget {
         ),
       ),
     );
-    if (!context.mounted) return;
+    if (!mounted || !_current(generation, client)) return;
     if (action == 'edit') {
-      await _edit(context, ref, area);
+      await _edit(generation, client, area);
       return;
     }
     if (action != 'delete') return;
@@ -156,15 +206,17 @@ class AreasScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (confirm != true || !context.mounted) return;
+    if (confirm != true || !mounted || !_current(generation, client)) return;
     try {
-      await ref.read(haAdminClientProvider)?.deleteArea(area.areaId);
-      if (!context.mounted) return;
+      await client.deleteArea(area.areaId);
+      if (!mounted || !_current(generation, client)) return;
       ref.invalidate(areasProvider);
       ref.invalidate(devicesProvider);
       ref.invalidate(entityRegistryProvider);
     } catch (error) {
-      if (context.mounted) await showAdminMessage(context, error.toString());
+      if (mounted && _current(generation, client)) {
+        await showAdminMessage(context, error.toString());
+      }
     }
   }
 }
