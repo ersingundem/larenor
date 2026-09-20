@@ -70,14 +70,20 @@ class MusicAssistantBootstrapRuntime:
                 '127.0.0.1', 8095, timeout=timeout))
 
     @staticmethod
-    def _check(deadline, cancelled):
+    def _check(deadline, cancelled, gate=None, *, uncertain_effect=False):
+        try:
+            authorized = gate is None or gate() is True
+        except Exception:
+            authorized = False
         if (type(deadline) not in (int, float) or not math.isfinite(deadline)
-                or time.monotonic() >= deadline or cancelled.is_set()):
+                or time.monotonic() >= deadline or cancelled.is_set()
+                or not authorized):
             raise MusicAssistantBootstrapRuntimeError(
-                'music_assistant_bootstrap_cancelled')
+                'music_assistant_bootstrap_cancelled',
+                uncertain_effect=uncertain_effect)
 
-    def _request(self, path, body, token, deadline, cancelled):
-        self._check(deadline, cancelled)
+    def _request(self, path, body, token, deadline, cancelled, gate):
+        self._check(deadline, cancelled, gate)
         connection = None
         try:
             connection = self.connection_factory(
@@ -102,7 +108,8 @@ class MusicAssistantBootstrapRuntime:
                 raw.decode('utf-8'), object_pairs_hook=_unique,
                 parse_constant=lambda _value: (_ for _ in ()).throw(
                     ValueError()))
-            self._check(deadline, cancelled)
+            self._check(
+                deadline, cancelled, gate, uncertain_effect=True)
             return response.status, parsed
         except MusicAssistantBootstrapRuntimeError:
             raise
@@ -118,12 +125,12 @@ class MusicAssistantBootstrapRuntime:
                 pass
 
     def _rpc(self, installation_id, step, token, command, args, deadline,
-             cancelled):
+             cancelled, gate):
         status, value = self._request('/api', {
             'message_id': installation_id + '-' + step,
             'command': command,
             'args': args,
-        }, token, deadline, cancelled)
+        }, token, deadline, cancelled, gate)
         if (status != 200 or type(value) is not dict
                 or set(value) != {'message_id', 'result'}
                 or value['message_id'] != installation_id + '-' + step):
@@ -163,27 +170,28 @@ class MusicAssistantBootstrapRuntime:
         return value
 
     def create(self, *, installation_id, username, credential, deadline,
-               cancelled=None):
+               cancelled=None, gate=None):
         if (type(installation_id) is not str
                 or _ID.fullmatch(installation_id) is None
                 or username != 'larenor-core'
                 or type(credential) is not str
                 or _CREDENTIAL.fullmatch(credential) is None
                 or type(deadline) not in (int, float)
-                or not math.isfinite(deadline)):
+                or not math.isfinite(deadline)
+                or (gate is not None and not callable(gate))):
             raise MusicAssistantBootstrapRuntimeError(
                 'invalid_music_assistant_bootstrap')
         cancelled = threading.Event() if cancelled is None else cancelled
         if type(cancelled) is not threading.Event:
             raise MusicAssistantBootstrapRuntimeError(
                 'invalid_music_assistant_bootstrap')
-        self._check(deadline, cancelled)
+        self._check(deadline, cancelled, gate)
 
         status, setup = self._request('/setup', {
             'username': username,
             'password': credential,
             'device_name': 'Larenor Core',
-        }, None, deadline, cancelled)
+        }, None, deadline, cancelled, gate)
         if status == 400:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_state_conflict')
@@ -201,32 +209,33 @@ class MusicAssistantBootstrapRuntime:
         long_token = self._rpc(
             installation_id, 'long-token', short_token,
             'auth/token/create', {'name': 'Larenor Core'}, deadline,
-            cancelled)
+            cancelled, gate)
         if type(long_token) is not str or _TOKEN.fullmatch(long_token) is None:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_uncertain',
                 uncertain_effect=True)
         self._user(self._rpc(
             installation_id, 'user', long_token, 'auth/me', {}, deadline,
-            cancelled), username, user_id)
+            cancelled, gate), username, user_id)
         before = self._info(self._rpc(
             installation_id, 'info-before', long_token, 'info', {}, deadline,
-            cancelled), False)
+            cancelled, gate), False)
         if self._rpc(
                 installation_id, 'onboard', long_token,
-                'config/onboard_complete', {}, deadline, cancelled) is not None:
+                'config/onboard_complete', {}, deadline, cancelled,
+                gate) is not None:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_uncertain',
                 uncertain_effect=True)
         if self._rpc(
                 installation_id, 'logout', short_token, 'auth/logout', {},
-                deadline, cancelled) is not None:
+                deadline, cancelled, gate) is not None:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_uncertain',
                 uncertain_effect=True)
         after = self._info(self._rpc(
             installation_id, 'info-after', long_token, 'info', {}, deadline,
-            cancelled), True, before['server_id'])
+            cancelled, gate), True, before['server_id'])
         try:
             return AuthenticatedMusicAssistantReadback(
                 token=long_token, serverId=after['server_id'],

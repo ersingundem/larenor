@@ -348,6 +348,7 @@ def test_runtime_owns_music_assistant_first_run_inside_authority_gates():
     assert calls[1][1]['installation_id'] == 'a' * 32
     assert calls[1][1]['username'] == 'larenor-core'
     assert calls[1][1]['credential'] == 'S' * 48
+    assert calls[1][1]['gate'] is gate
 
 
 @pytest.mark.parametrize('bootstrap_code,public_code', [
