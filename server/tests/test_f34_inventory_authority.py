@@ -131,6 +131,10 @@ def test_admin_grants_and_updates_are_closed_revision_controlled_and_revocable(s
         "schemaVersion": 1, "expectedRevision": 3})
     assert revoked.status_code == 204
     assert client.get(base, headers=auth(member)).status_code == 404
+    history = client.get(base + "/history", headers=auth(admin))
+    assert history.status_code == 200
+    assert [entry["action"] for entry in history.json()["entries"]] == [
+        "create", "grant", "update", "revoke"]
 
 
 def test_history_is_authorized_restart_stable_and_detects_chain_or_state_tamper(server):
