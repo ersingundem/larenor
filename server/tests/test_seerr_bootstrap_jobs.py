@@ -98,6 +98,7 @@ def test_admin_queues_encrypted_seerr_bootstrap_and_reads_it_after_restart(serve
         "convergencePhase": "queued",
         "arrWired": False,
         "initialized": False,
+        "readback": None,
         "createdAt": "2026-09-05T12:00:00.000Z",
         "updatedAt": "2026-09-05T12:00:00.000Z",
     }

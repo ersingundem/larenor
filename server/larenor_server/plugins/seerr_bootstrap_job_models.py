@@ -17,6 +17,21 @@ class CreateSeerrBootstrapRequest(StrictModel):
     expectedSourceBootstrapRevision: Revision
 
 
+class SeerrBootstrapReadback(StrictModel):
+    arrServiceIds: list[Literal["radarr", "sonarr"]] = Field(
+        min_length=2, max_length=2)
+    arrInstanceIds: list[int] = Field(min_length=2, max_length=2)
+    initializationChanged: bool
+
+    @model_validator(mode="after")
+    def exact(self):
+        if (self.arrServiceIds != ["radarr", "sonarr"]
+                or any(type(value) is not int or not 0 <= value <= 2**31 - 1
+                       for value in self.arrInstanceIds)):
+            raise ValueError("invalid_seerr_bootstrap_readback")
+        return self
+
+
 class SeerrBootstrapJob(StrictModel):
     id: ObjectId
     requestId: ObjectId
@@ -49,6 +64,7 @@ class SeerrBootstrapJob(StrictModel):
     ]
     arrWired: bool = False
     initialized: bool = False
+    readback: SeerrBootstrapReadback | None = None
     createdAt: str
     updatedAt: str
 
@@ -69,6 +85,11 @@ class SeerrBootstrapJob(StrictModel):
         if self.state in {"succeeded", "cancelled"} and self.errorCode is not None:
             raise ValueError("invalid_seerr_bootstrap_job")
         if self.state in {"needs_attention", "failed"} and self.errorCode is None:
+            raise ValueError("invalid_seerr_bootstrap_job")
+        verified = self.convergencePhase == "verified"
+        if (self.arrWired != (self.convergencePhase in {"initialize", "verified"})
+                or self.initialized != verified
+                or (self.readback is not None) != verified):
             raise ValueError("invalid_seerr_bootstrap_job")
         return self
 
