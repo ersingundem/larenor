@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,7 @@ import 'package:larenor/features/proxmox/data/models/proxmox_node.dart';
 import 'package:larenor/features/proxmox/data/proxmox_config.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'energy_fixture.dart';
 
@@ -123,6 +125,7 @@ class _Harness {
     WidgetTester tester, {
     Size size = const Size(600, 1100),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.physicalSize = size;
@@ -202,7 +205,7 @@ class _Harness {
         container: container,
         child: CupertinoApp.router(
           routerConfig: router,
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -465,61 +468,143 @@ void main() {
     },
   );
 
-  for (final fixture in [
-    (const Size(320, 900), 2.0),
-    (const Size(1280, 1000), 1.6),
-  ]) {
-    testWidgets(
-      'energy, maintenance and server capacity fit ${fixture.$1.width} at ${fixture.$2} text scale',
-      (tester) async {
-        final harness = _Harness(
-          state: _state([
-            _meter(
-              'Very long energy meter label used by a household',
-              issues: {
-                EnergyCoverageIssue.missingBaseline,
-                EnergyCoverageIssue.hourlyGap,
-                EnergyCoverageIssue.boundaryLimited,
-              },
-            ),
-          ]),
-          selected: [_item('sensor.maintenance_fixture')],
-          nodes: [
-            const ProxmoxNode(
-              name: 'Long server capacity node label',
-              status: 'online',
-              cpuFraction: .2,
-              mem: 20,
-              maxMem: 100,
-            ),
-          ],
-        );
-        await harness.mount(tester, size: fixture.$1, scale: fixture.$2);
-        expect(tester.takeException(), isNull);
-        await show(
-          tester,
-          find.byKey(
-            const ValueKey(
-              'energy-meter-deviceConsumption:Very long energy meter label used by a household',
-            ),
-          ),
-        );
-        await tester.tap(
-          find.byKey(
-            const ValueKey(
-              'energy-meter-deviceConsumption:Very long energy meter label used by a household',
-            ),
-          ),
-        );
-        await frames(tester);
-        expect(tester.takeException(), isNull);
-        await show(tester, find.text('sensor.maintenance_fixture'));
-        expect(tester.takeException(), isNull);
-        await show(tester, find.text('Long server capacity node label'));
-        expect(tester.takeException(), isNull);
-        await harness.unmount(tester);
-      },
-    );
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        '${locale.languageCode} energy hierarchy fits ${width.toInt()}px at 2x text',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final harness = _Harness(
+            state: _state([
+              _meter(
+                'Very long energy meter label used by a household',
+                issues: {
+                  EnergyCoverageIssue.missingBaseline,
+                  EnergyCoverageIssue.hourlyGap,
+                  EnergyCoverageIssue.boundaryLimited,
+                },
+              ),
+            ]),
+            selected: [_item('sensor.maintenance_fixture')],
+            nodes: [
+              const ProxmoxNode(
+                name: 'Long server capacity node label',
+                status: 'online',
+                cpuFraction: .2,
+                mem: 20,
+                maxMem: 100,
+              ),
+            ],
+          );
+          try {
+            await harness.mount(
+              tester,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: locale,
+            );
+            final l10n = await AppLocalizations.delegate.load(locale);
+            final energyHeading = find.text(l10n.energyRecorded);
+            expect(
+              find.ancestor(
+                of: energyHeading,
+                matching: find.byType(SettingsSection),
+              ),
+              findsOneWidget,
+            );
+            expect(
+              tester.getSemantics(energyHeading).flagsCollection.isHeader,
+              isTrue,
+            );
+            final energyRange = find.byKey(
+              const ValueKey('energy-range-last7Days'),
+            );
+            expect(
+              tester.getRect(energyRange).height,
+              greaterThanOrEqualTo(48),
+            );
+            Focus.of(tester.element(find.text(l10n.energyLast7Days)))
+                .requestFocus();
+            await frames(tester);
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await frames(tester);
+            expect(
+              harness.container.read(energyControllerProvider)!.range,
+              EnergyRange.last7Days,
+            );
+            expect(tester.takeException(), isNull);
+            await show(
+              tester,
+              find.byKey(
+                const ValueKey(
+                  'energy-meter-deviceConsumption:Very long energy meter label used by a household',
+                ),
+              ),
+            );
+            await tester.tap(
+              find.byKey(
+                const ValueKey(
+                  'energy-meter-deviceConsumption:Very long energy meter label used by a household',
+                ),
+              ),
+            );
+            await frames(tester);
+            expect(tester.takeException(), isNull);
+            await show(tester, find.text('sensor.maintenance_fixture'));
+            final maintenanceHeading = find.text(l10n.maintenanceTitle);
+            await show(tester, maintenanceHeading);
+            expect(
+              find.ancestor(
+                of: maintenanceHeading,
+                matching: find.byType(SettingsSection),
+              ),
+              findsOneWidget,
+            );
+            expect(
+              tester.getSemantics(maintenanceHeading).flagsCollection.isHeader,
+              isTrue,
+            );
+            final allScope = find.byKey(
+              const ValueKey('maintenance-scope-all'),
+            );
+            await show(tester, allScope);
+            expect(tester.getRect(allScope).height, greaterThanOrEqualTo(48));
+            final allLabel = find.text(l10n.maintenanceAll);
+            Focus.of(tester.element(allLabel)).requestFocus();
+            await frames(tester);
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await frames(tester);
+            expect(tester.takeException(), isNull);
+            await show(tester, find.text('Long server capacity node label'));
+            final capacityHeading = find.text(l10n.maintenanceCapacity);
+            await show(tester, capacityHeading);
+            expect(
+              find.ancestor(
+                of: capacityHeading,
+                matching: find.byType(SettingsSection),
+              ),
+              findsOneWidget,
+            );
+            expect(
+              tester.getSemantics(capacityHeading).flagsCollection.isHeader,
+              isTrue,
+            );
+            expect(
+              tester.widgetList<CupertinoButton>(find.byType(CupertinoButton)),
+              everyElement(
+                predicate<CupertinoButton>(
+                  (button) => (button.minimumSize?.height ?? 0) >= 48,
+                ),
+              ),
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+            await harness.unmount(tester);
+          }
+        },
+      );
+    }
   }
   testWidgets(
     'real reader pauses offstage/background and preserves selected range while retained',
