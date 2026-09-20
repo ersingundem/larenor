@@ -2,8 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../domain/local_audio_models.dart';
 import '../providers/local_audio_providers.dart';
 
@@ -121,73 +122,85 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
         : value
         ? l10n.commonYes
         : l10n.commonNo;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.localAudioPowerTitle),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Text(l10n.localAudioPowerHint, style: AppText.body),
-                const SizedBox(height: 20),
-                if (_reading) const CupertinoActivityIndicator(),
-                if (_error != null) Text(_error!),
-                if (_status?.supported == false)
-                  Text(l10n.localAudioUnsupported),
-                if (supported) ...[
-                  _row(
-                    l10n.localAudioNotifications,
-                    flag(_status!.notificationsEnabled),
-                  ),
-                  _row(
-                    l10n.localAudioBackgroundRestricted,
-                    flag(_status!.backgroundRestricted),
-                  ),
-                  _row(
-                    l10n.localAudioBatteryExempt,
-                    flag(_status!.batteryOptimizationExempt),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.localAudioMediaNotificationHint,
-                    style: AppText.footnote,
-                  ),
-                  const SizedBox(height: 16),
-                  CupertinoButton(
-                    onPressed: _active && !_opening ? () => _open(true) : null,
-                    child: Text(l10n.localAudioOpenBattery),
-                  ),
-                  CupertinoButton(
-                    onPressed: _active && !_opening ? () => _open(false) : null,
-                    child: Text(l10n.localAudioOpenNotifications),
-                  ),
-                ],
-                CupertinoButton(
-                  onPressed: _active && !_reading ? _refresh : null,
-                  child: Text(l10n.commonRefresh),
+    return ServiceRootScaffold(
+      title: l10n.localAudioPowerTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('local-audio-power-section-title'),
+              container: true,
+              header: true,
+              child: Text(l10n.localAudioPowerTitle),
+            ),
+            footer: Text(l10n.localAudioPowerHint),
+            children: [
+              if (_reading)
+                CupertinoListTile(
+                  title: Text(l10n.commonLoading),
+                  trailing: const CupertinoActivityIndicator(),
+                ),
+              if (_error != null) CupertinoListTile(title: Text(_error!)),
+              if (_status?.supported == false)
+                CupertinoListTile(title: Text(l10n.localAudioUnsupported)),
+              if (supported) ...[
+                _PowerStatusRow(
+                  title: l10n.localAudioNotifications,
+                  value: flag(_status!.notificationsEnabled),
+                ),
+                _PowerStatusRow(
+                  title: l10n.localAudioBackgroundRestricted,
+                  value: flag(_status!.backgroundRestricted),
+                ),
+                _PowerStatusRow(
+                  title: l10n.localAudioBatteryExempt,
+                  value: flag(_status!.batteryOptimizationExempt),
                 ),
               ],
-            ),
+            ],
           ),
         ),
-      ),
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            footer: supported
+                ? Text(l10n.localAudioMediaNotificationHint)
+                : null,
+            children: [
+              if (supported) ...[
+                SettingsActionTile(
+                  buttonKey: const ValueKey('local-audio-open-battery'),
+                  leading: const Icon(CupertinoIcons.battery_100),
+                  title: Text(l10n.localAudioOpenBattery),
+                  onTap: _active && !_opening ? () => _open(true) : null,
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('local-audio-open-notifications'),
+                  leading: const Icon(CupertinoIcons.bell),
+                  title: Text(l10n.localAudioOpenNotifications),
+                  onTap: _active && !_opening ? () => _open(false) : null,
+                ),
+              ],
+              SettingsActionTile(
+                buttonKey: const ValueKey('local-audio-power-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: _active && !_reading ? _refresh : null,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _row(String title, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      alignment: WrapAlignment.spaceBetween,
-      children: [
-        Text(title, style: AppText.headline),
-        Text(value, style: AppText.body),
-      ],
-    ),
-  );
+class _PowerStatusRow extends StatelessWidget {
+  const _PowerStatusRow({required this.title, required this.value});
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) =>
+      CupertinoListTile(title: Text(title), subtitle: Text(value));
 }
