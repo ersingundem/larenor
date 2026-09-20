@@ -5,6 +5,7 @@ import '../../../../core/direct_home_access.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../data/qbittorrent_credentials_store.dart';
 import '../providers/qbittorrent_providers.dart';
@@ -168,8 +169,10 @@ class _QbittorrentConnectScreenState
     ref.watch(directHomeAccessProvider);
     final l10n = AppLocalizations.of(context);
     if (!_access.isCurrent) {
-      return CupertinoPageScaffold(
-        child: Center(child: Text(l10n.mediaErrorUnreachable)),
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.mediaErrorUnreachable,
+        statusKey: const ValueKey('qbittorrent-connect-status'),
       );
     }
     // A standalone form also owns the provider subscription during verification.
@@ -182,13 +185,21 @@ class _QbittorrentConnectScreenState
       _clearFields();
     }
     if (reading.isLoading && !_connecting) {
-      return const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.commonLoading,
+        statusKey: const ValueKey('qbittorrent-connect-status'),
+        loading: true,
       );
     }
     if (reading.hasError && !_recovery) {
-      return CupertinoPageScaffold(
-        child: Center(child: Text(l10n.mediaErrorUnreachable)),
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.mediaErrorUnreachable,
+        statusKey: const ValueKey('qbittorrent-connect-status'),
+        actionLabel: l10n.commonRetry,
+        actionKey: const ValueKey('qbittorrent-connect-retry'),
+        onAction: () => ref.invalidate(qbittorrentConnectionProvider),
       );
     }
     final generation = sessionGeneration;
