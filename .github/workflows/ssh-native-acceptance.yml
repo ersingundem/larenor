@@ -7,6 +7,7 @@ on:
       - "lib/features/remote_access/ssh/**"
       - "test/features/remote_access/ssh/**"
       - "tool/tests/ssh_native_workflow_test.py"
+      - "android/app/src/main/AndroidManifest.xml"
       - "pubspec.lock"
       - "pubspec.yaml"
   workflow_dispatch:
@@ -144,6 +145,22 @@ jobs:
           flutter analyze \
             lib/features/remote_access/ssh \
             test/features/remote_access/ssh/ssh_native_fixture_test.dart
+      - name: Build Android SSH host package
+        run: flutter build apk --debug --target-platform android-arm64 --no-pub
+      - name: Verify Android SSH host contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/app/outputs/flutter-apk/app-debug.apk"
+          test -s "$apk"
+          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$build_tools/aapt" dump permissions "$apk" | \
+            grep -F "android.permission.INTERNET"
+          unzip -Z1 "$apk" | grep -Fx "lib/arm64-v8a/libflutter.so"
+          if unzip -Z1 "$apk" | grep -E '^lib/arm64-v8a/lib[^/]*(ssh|crypto)[^/]*\.so$'; then
+            echo "Unexpected SSH JNI library in pure-Dart transport package" >&2
+            exit 1
+          fi
       - name: Stop fixture and show bounded diagnostics on failure
         if: always()
         shell: bash

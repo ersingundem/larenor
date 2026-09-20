@@ -370,6 +370,30 @@ void main() {
     expect(engine.opens, 1);
   });
   test(
+    'explicit reconnect uses a fresh engine and never replays old input',
+    () async {
+      store.pin = hostPin;
+      final first = Engine();
+      final second = Engine();
+      var index = 0;
+      final reconnecting = SshSessionController(
+        profile: profile(),
+        store: store,
+        engineFactory: () => [first, second][index++],
+        isCurrent: () => current,
+      );
+      addTearDown(reconnecting.dispose);
+      await reconnecting.connect();
+      await reconnecting.sendLine('first-only');
+      reconnecting.cancel();
+      await reconnecting.connect();
+      await reconnecting.sendLine('second-only');
+      expect(utf8.decode(first.channel.writes.single), 'first-only\n');
+      expect(utf8.decode(second.channel.writes.single), 'second-only\n');
+      expect(index, 2);
+    },
+  );
+  test(
     'late open after cancel closes channel without becoming connected',
     () async {
       store.pin = hostPin;

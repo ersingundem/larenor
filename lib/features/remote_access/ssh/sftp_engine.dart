@@ -288,19 +288,36 @@ class _DartSftpTransport implements SftpTransport {
           SftpFileOpenMode.create |
           SftpFileOpenMode.exclusive,
     );
+    Object? failure;
+    StackTrace? failureStack;
+    var complete = false;
     try {
       await file.write(
-        Stream.value(Uint8List.fromList(bytes)),
+        Stream.value(bytes),
         onProgress: onProgress,
         chunkSize: 16 * 1024,
         maxPendingRequests: 4,
       );
       _check(isCurrent);
-    } catch (error) {
-      if (error is SftpFailure) rethrow;
-      throw const SftpFailure('transfer_failed');
+      complete = true;
+    } catch (error, stack) {
+      failure = error;
+      failureStack = stack;
     } finally {
       await file.close().catchError((Object _) {});
+    }
+    if (!complete) {
+      // Exclusive create proves this attempt owns the path. Never leave a
+      // partial object that looks like a successful upload after cancellation.
+      try {
+        await _sftp.remove(normalized).timeout(const Duration(seconds: 3));
+      } catch (_) {}
+    }
+    if (failure case final error?) {
+      if (error is SftpFailure) {
+        Error.throwWithStackTrace(error, failureStack!);
+      }
+      throw const SftpFailure('transfer_failed');
     }
   }
 

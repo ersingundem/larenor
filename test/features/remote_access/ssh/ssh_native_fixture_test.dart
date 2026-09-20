@@ -113,6 +113,14 @@ void main() {
       final errors = BytesBuilder(copy: false);
       final stdout = channel.stdout.listen(output.add);
       final stderr = channel.stderr.listen(errors.add);
+      channel.resize(
+        const SshTerminalSize(
+          columns: 132,
+          rows: 43,
+          pixelWidth: 1584,
+          pixelHeight: 1032,
+        ),
+      );
       channel.write(
         Uint8List.fromList(
           utf8.encode("printf 'Larenor İstanbul\\n'; stty size; exit\n"),
@@ -127,7 +135,7 @@ void main() {
         ...errors.takeBytes(),
       ], allowMalformed: false);
       expect(transcript, contains('Larenor İstanbul'));
-      expect(transcript, contains(RegExp(r'37\s+101')));
+      expect(transcript, contains(RegExp(r'43\s+132')));
     },
     skip: nativeSkip,
     timeout: const Timeout(Duration(seconds: 30)),
@@ -195,6 +203,25 @@ void main() {
       );
 
       await expectLater(
+        transport.upload(
+          '${fixture.root}/cancelled-$pid.bin',
+          Uint8List(1024 * 1024),
+          maxBytes: 2 * 1024 * 1024,
+          isCurrent: () => current,
+          onProgress: (_) => current = false,
+        ),
+        throwsA(
+          isA<SftpFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'retired',
+          ),
+        ),
+      );
+      expect(File('${fixture.root}/cancelled-$pid.bin').existsSync(), isFalse);
+
+      current = true;
+      await expectLater(
         transport.download(
           '${fixture.root}/large.bin',
           maxBytes: 2 * 1024 * 1024,
@@ -220,6 +247,11 @@ void main() {
     'wrong host pin and closed local tunnel fail without retry or replay',
     () async {
       var socketAttempts = 0;
+      SshHostPin? presentedPin;
+      final expectedFingerprint = fixture!.hostKeyFingerprint;
+      final changedFingerprint =
+          '${expectedFingerprint.substring(0, expectedFingerprint.length - 1)}'
+          '${expectedFingerprint.endsWith('A') ? 'B' : 'A'}';
       final rejected = DartSshEngine(
         connectSocket: (host, port) {
           socketAttempts++;
@@ -229,9 +261,16 @@ void main() {
       addTearDown(rejected.close);
       await expectLater(
         rejected.open(
-          fixture!.profile,
+          fixture.profile,
           fixture.credential(),
-          verifyHost: (_) async => throw const SshFailure('host_changed'),
+          verifyHost: (pin) async {
+            presentedPin = pin;
+            if (pin.type != fixture.hostKeyType ||
+                pin.fingerprint != changedFingerprint) {
+              throw const SshFailure('host_changed');
+            }
+            return true;
+          },
           isCurrent: () => true,
           answerChallenge: (_, _) async => null,
         ),
@@ -245,6 +284,8 @@ void main() {
       );
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(socketAttempts, 1);
+      expect(presentedPin?.type, fixture.hostKeyType);
+      expect(presentedPin?.fingerprint, fixture.hostKeyFingerprint);
 
       var tunnelCurrent = true;
       final tunnelEngine = DartSshTunnelEngine();
@@ -273,17 +314,15 @@ void main() {
       final response = await utf8.decoder.bind(socket).join();
       expect(response, contains('200 OK'));
       expect(response, contains('Larenor tunnel fixture'));
+      final retiredSocket = await Socket.connect(
+        handle.localAddress,
+        handle.localPort,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       tunnelCurrent = false;
-      try {
-        final retiredSocket = await Socket.connect(
-          handle.localAddress,
-          handle.localPort,
-        );
-        retiredSocket.add(const [1]);
-        await retiredSocket.done.timeout(const Duration(seconds: 5));
-      } on SocketException {
-        // The listener may retire between the TCP handshake and connect().
-      }
+      retiredSocket.write('GET / HTTP/1.0\r\nHost: fixture\r\n\r\n');
+      await handle.done.timeout(const Duration(seconds: 5));
+      await retiredSocket.close();
       await handle.done.timeout(const Duration(seconds: 5));
       await expectLater(
         Socket.connect(handle.localAddress, handle.localPort),
@@ -293,5 +332,56 @@ void main() {
     },
     skip: nativeSkip,
     timeout: const Timeout(Duration(seconds: 45)),
+  );
+
+  test(
+    'authority loss after local bind closes the unpublished listener',
+    () async {
+      var current = true;
+      ServerSocket? bound;
+      final engine = DartSshTunnelEngine(
+        bindServer: (port) async {
+          bound = await ServerSocket.bind(
+            InternetAddress.loopbackIPv4,
+            port,
+            shared: false,
+          );
+          current = false;
+          return bound!;
+        },
+      );
+      addTearDown(engine.close);
+      final tunnel = SshTunnelProfile.parse(
+        name: 'Retired before publish',
+        localPort: '${fixture!.tunnelPort}',
+        targetHost: '127.0.0.1',
+        targetPort: '${fixture.targetPort}',
+      );
+      await expectLater(
+        engine.start(
+          fixture.profile,
+          fixture.credential(),
+          tunnel,
+          verifyHost: fixture.verify,
+          isCurrent: () => current,
+        ),
+        throwsA(
+          isA<SshFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'retired',
+          ),
+        ),
+      );
+      expect(bound, isNotNull);
+      final replacement = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        fixture.tunnelPort,
+        shared: false,
+      );
+      await replacement.close();
+    },
+    skip: nativeSkip,
+    timeout: const Timeout(Duration(seconds: 30)),
   );
 }

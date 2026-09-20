@@ -245,6 +245,7 @@ class SftpController extends ChangeNotifier {
         maxEntries: sftpMaxEntries,
         isCurrent: () => _current(generation),
       );
+      await store.checkProfile(profile, isCurrent: () => _current(generation));
       _check(generation);
       final sorted = [...listing.entries]
         ..sort((a, b) {
@@ -258,7 +259,13 @@ class SftpController extends ChangeNotifier {
       _publish();
     } catch (exception) {
       if (generation == _generation) {
-        _end(code: exception is SftpFailure ? exception.code : 'list_failed');
+        _end(
+          code: exception is SftpFailure
+              ? exception.code
+              : exception is SshFailure
+              ? exception.code
+              : 'list_failed',
+        );
       }
     }
   }
@@ -287,6 +294,7 @@ class SftpController extends ChangeNotifier {
           }
         },
       );
+      await store.checkProfile(profile, isCurrent: () => _current(generation));
       _check(generation);
       final saved = await fileAccess.saveDownload(entry.name, bytes);
       _check(generation);
@@ -297,7 +305,11 @@ class SftpController extends ChangeNotifier {
     } catch (exception) {
       if (generation == _generation) {
         _end(
-          code: exception is SftpFailure ? exception.code : 'transfer_failed',
+          code: exception is SftpFailure
+              ? exception.code
+              : exception is SshFailure
+              ? exception.code
+              : 'transfer_failed',
         );
       }
     } finally {
@@ -341,6 +353,7 @@ class SftpController extends ChangeNotifier {
           }
         },
       );
+      await store.checkProfile(profile, isCurrent: () => _current(generation));
       _check(generation);
       notice = 'uploaded';
       phase = SftpPhase.ready;
@@ -349,7 +362,11 @@ class SftpController extends ChangeNotifier {
     } catch (exception) {
       if (generation == _generation) {
         _end(
-          code: exception is SftpFailure ? exception.code : 'transfer_failed',
+          code: exception is SftpFailure
+              ? exception.code
+              : exception is SshFailure
+              ? exception.code
+              : 'transfer_failed',
         );
       }
     } finally {

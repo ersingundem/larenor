@@ -49,6 +49,14 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         self.assertNotRegex(self.raw, r"\$\{\{\s*secrets\.")
         self.assertNotIn("0.0.0.0", self.raw)
 
+    def test_android_host_contract_is_built_and_inspected(self):
+        self.assertIn("flutter build apk --debug --target-platform android-arm64 --no-pub", self.raw)
+        self.assertIn("app-debug.apk", self.raw)
+        self.assertIn("dump permissions", self.raw)
+        self.assertIn("android.permission.INTERNET", self.raw)
+        self.assertIn("lib/arm64-v8a/libflutter.so", self.raw)
+        self.assertIn("Unexpected SSH JNI library", self.raw)
+
 
 if __name__ == "__main__":
     unittest.main()

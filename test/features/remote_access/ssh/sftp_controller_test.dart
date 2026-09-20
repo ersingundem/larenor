@@ -18,6 +18,7 @@ class FakeSftpTransport implements SftpTransport {
   final uploaded = <String, Uint8List>{};
   final reads = <String>[];
   Completer<void>? operationGate;
+  void Function()? afterOperation;
   int listCalls = 0;
   bool closed = false;
 
@@ -50,6 +51,7 @@ class FakeSftpTransport implements SftpTransport {
     await operationGate?.future;
     if (!isCurrent()) throw const SftpFailure('retired');
     onProgress(3);
+    afterOperation?.call();
     return Uint8List.fromList([1, 2, 3]);
   }
 
@@ -65,6 +67,7 @@ class FakeSftpTransport implements SftpTransport {
     if (!isCurrent()) throw const SftpFailure('retired');
     uploaded[path] = Uint8List.fromList(bytes);
     onProgress(bytes.length);
+    afterOperation?.call();
   }
 
   @override
@@ -223,4 +226,19 @@ void main() {
     expect(controller.phase, SftpPhase.closed);
     expect(controller.progress, 0);
   });
+
+  test(
+    'profile replacement during transfer cannot publish or save stale bytes',
+    () async {
+      await connect();
+      transport.afterOperation = () => store.valid = false;
+      await controller.download(
+        const SftpEntry.file('private.txt', '/private.txt', size: 3),
+      );
+      expect(saved, isEmpty);
+      expect(controller.notice, isNull);
+      expect(controller.error, 'profile_changed');
+      expect(engine.closed, isTrue);
+    },
+  );
 }
