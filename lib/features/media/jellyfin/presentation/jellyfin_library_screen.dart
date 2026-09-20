@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_item_detail_screen.dart';
 import 'widgets/jellyfin_poster.dart';
@@ -26,20 +27,21 @@ class JellyfinLibraryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(jellyfinLibraryItemsProvider(parentId));
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(title)),
       child: SafeArea(
         child: itemsAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
-            ),
+          loading: () => _LibraryStatus(
+            label: AppLocalizations.of(context).commonLoading,
+            loading: true,
+          ),
+          error: (_, _) => _LibraryStatus(
+            label: AppLocalizations.of(context).mediaErrorUnreachable,
           ),
           data: (items) {
             if (items.isEmpty) {
-              return Center(
-                child: Text(AppLocalizations.of(context).jellyfinLibraryEmpty),
+              return _LibraryStatus(
+                label: AppLocalizations.of(context).jellyfinLibraryEmpty,
               );
             }
             return LayoutBuilder(
@@ -85,4 +87,29 @@ class JellyfinLibraryScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The browse flow uses the same private, live status contract as the media
+/// hub: backend diagnostics stay out of the UI and TalkBack gets one update.
+class _LibraryStatus extends StatelessWidget {
+  const _LibraryStatus({required this.label, this.loading = false});
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Semantics(
+      key: const ValueKey('jellyfin-library-status'),
+      label: label,
+      liveRegion: true,
+      excludeSemantics: true,
+      child: loading
+          ? const CupertinoActivityIndicator()
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(label, textAlign: TextAlign.center),
+            ),
+    ),
+  );
 }
