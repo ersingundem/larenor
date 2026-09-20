@@ -21,6 +21,7 @@ const _tile = TileConfig(
 Future<List<TileConfig>> _mount(
   WidgetTester tester, {
   required Size size,
+  String language = 'tr',
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -29,7 +30,7 @@ Future<List<TileConfig>> _mount(
   await tester.pumpWidget(
     ProviderScope(
       child: CupertinoApp(
-        locale: const Locale('tr'),
+        locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
@@ -65,37 +66,52 @@ Future<List<TileConfig>> _mount(
 }
 
 void main() {
-  for (final size in [const Size(600, 900), const Size(1280, 900)]) {
-    testWidgets('edits Today context at ${size.width}px with 2x text', (
-      tester,
-    ) async {
-      final semantics = tester.ensureSemantics();
-      final results = await _mount(tester, size: size);
-      final shopping = find.byKey(
-        const ValueKey('today-widget-section-shopping'),
-      );
-      expect(
-        tester.getSemantics(shopping).flagsCollection.isSelected,
-        ui.Tristate.isTrue,
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('today-widget-section-calendar')),
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('today-widget-query')),
-        'dişçi',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1280, 900)]) {
+      testWidgets(
+        '$language edits Today context at ${size.width}px with 2x text',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final results = await _mount(tester, size: size, language: language);
+          final title = tester.getSemantics(
+            find.byKey(const ValueKey('today-widget-title')),
+          );
+          final searchTitle = tester.getSemantics(
+            find.byKey(const ValueKey('today-widget-search-title')),
+          );
+          expect(title.flagsCollection.isHeader, isTrue);
+          expect(title.flagsCollection.isButton, isFalse);
+          expect(searchTitle.flagsCollection.isHeader, isTrue);
+          expect(searchTitle.flagsCollection.isButton, isFalse);
 
-      expect(results, hasLength(1));
-      expect(results.single.todaySection, 'calendar');
-      expect(results.single.todayQuery, 'dişçi');
-      expect(results.single.width, 3);
-      expect(results.single.height, 2);
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-    });
+          final shopping = find.byKey(
+            const ValueKey('today-widget-section-shopping'),
+          );
+          final shoppingNode = tester.getSemantics(shopping);
+          expect(shoppingNode.id, isNot(title.id));
+          expect(shoppingNode.flagsCollection.isHeader, isFalse);
+          expect(shoppingNode.flagsCollection.isButton, isTrue);
+          expect(shoppingNode.flagsCollection.isSelected, ui.Tristate.isTrue);
+          await tester.tap(
+            find.byKey(const ValueKey('today-widget-section-calendar')),
+          );
+          await tester.enterText(
+            find.byKey(const ValueKey('today-widget-query')),
+            'dişçi',
+          );
+          await tester.testTextInput.receiveAction(TextInputAction.done);
+          await tester.pumpAndSettle();
+
+          expect(results, hasLength(1));
+          expect(results.single.todaySection, 'calendar');
+          expect(results.single.todayQuery, 'dişçi');
+          expect(results.single.width, 3);
+          expect(results.single.height, 2);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
   }
 
   testWidgets('filter strips controls and is bounded before save', (
