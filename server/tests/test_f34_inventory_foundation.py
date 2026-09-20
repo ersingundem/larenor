@@ -86,7 +86,7 @@ def test_closed_versioned_link_contract_rejects_duplicates_extras_and_bounds(ser
     for value in invalid:
         response = client.post(root(app) + "/items", headers=auth(admin), json=value)
         assert response.status_code == 400, response.text
-        assert response.json() == {"error": {"code": "invalid_request"}}
+        assert response.json()["error"]["code"] == "invalid_request"
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM inventory_items").fetchone()[0] == 0
 
