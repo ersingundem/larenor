@@ -329,8 +329,16 @@ class LarenorServerApi {
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
           revisionNumber < 9223372036854775807;
+      final personalProfileDeleteQuery =
+          method == 'DELETE' &&
+          RegExp(
+            r'^/personal-profiles/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          canonicalRevision(revision);
       if (!readQuery &&
           !forgetQuery &&
+          !personalProfileDeleteQuery &&
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&

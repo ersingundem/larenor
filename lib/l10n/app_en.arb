@@ -3306,5 +3306,15 @@
   "localNotificationsAndroidForegroundOnly": "Core polling currently runs while Larenor is active. Power status is diagnostic and no exemption is assumed.",
   "localNotificationsAndroidEnable": "Enable Android notifications",
   "localNotificationsAndroidSettings": "Open notification settings",
-  "localNotificationsAndroidPower": "Open power settings"
+  "localNotificationsAndroidPower": "Open power settings",
+  "remoteAccessDeviceLocal": "On this tablet",
+  "remoteAccessDeviceLocalScope": "Private profiles stored only on this device",
+  "remoteAccessCoreManaged": "Larenor Core",
+  "remoteAccessCoreScope": "Profiles for this signed-in account and home",
+  "remoteAccessCoreProfiles": "Core profiles",
+  "remoteAccessCoreAdd": "Add Core profile",
+  "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
+  "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
+  "remoteAccessCoreResolve": "Refresh to resolve conflict",
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
 }

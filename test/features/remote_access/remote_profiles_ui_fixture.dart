@@ -16,6 +16,8 @@ import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_session_panel.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_engine.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -56,6 +58,7 @@ class RemoteUi {
     SshEngine Function()? sshEngine,
     RdpEngine Function()? rdpEngine,
     RdpTrustStore? rdpTrust,
+    ServerAccountController? serverAccount,
   }) async {
     SharedPreferences.setMockInitialValues({});
     if (pin) values['settings_pin'] = '1234';
@@ -120,6 +123,8 @@ class RemoteUi {
             rdpEngineFactoryProvider.overrideWithValue(rdpEngine),
           if (rdpTrust != null)
             rdpTrustStoreProvider.overrideWithValue(rdpTrust),
+          if (serverAccount != null)
+            serverAccountControllerProvider.overrideWithValue(serverAccount),
           windowPolicySnapshotProvider.overrideWith((ref) async* {
             yield const WindowPolicySnapshot();
             yield* windows.stream;

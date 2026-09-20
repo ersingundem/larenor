@@ -2968,5 +2968,15 @@
   "localNotificationsAndroidForegroundOnly": "Core sorgulaması şu anda Larenor etkinken çalışır. Güç durumu yalnız tanıdır; muafiyet varsayılmaz.",
   "localNotificationsAndroidEnable": "Android bildirimlerini etkinleştir",
   "localNotificationsAndroidSettings": "Bildirim ayarlarını aç",
-  "localNotificationsAndroidPower": "Güç ayarlarını aç"
+  "localNotificationsAndroidPower": "Güç ayarlarını aç",
+  "remoteAccessDeviceLocal": "Bu tablette",
+  "remoteAccessDeviceLocalScope": "Yalnızca bu cihazda saklanan kişisel profiller",
+  "remoteAccessCoreManaged": "Larenor Core",
+  "remoteAccessCoreScope": "Bu oturumdaki hesap ve eve ait profiller",
+  "remoteAccessCoreProfiles": "Core profilleri",
+  "remoteAccessCoreAdd": "Core profili ekle",
+  "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
+  "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
+  "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
 }
