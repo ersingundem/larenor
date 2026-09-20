@@ -68,7 +68,7 @@ class _JellyfinItemDetailScreenState
     }
     final generation = sessionGeneration;
     final active =
-        foreground &&
+        sessionCurrent(generation) &&
         TickerMode.valuesOf(context).enabled &&
         ModalRoute.of(context)?.isCurrent == true;
     final metadata = [

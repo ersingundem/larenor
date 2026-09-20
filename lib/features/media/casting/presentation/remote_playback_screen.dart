@@ -165,8 +165,7 @@ class _RemotePlaybackScreenState
     watchMediaAccounts(jellyfinOnly: true);
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
-    final active =
-        foreground && !sessionExpired && TickerMode.valuesOf(context).enabled;
+    final active = _surfaceCurrent(generation);
     final reading = active ? ref.watch(remotePlaybackProvider) : null;
     final snapshot = reading == null || reading.isLoading || reading.hasError
         ? null
@@ -191,29 +190,48 @@ class _RemotePlaybackScreenState
             footer: Text(l10n.mediaRemoteHint),
             children: [
               if (sessionExpired)
-                CupertinoListTile(title: Text(l10n.mediaRemoteAccountChanged))
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-account-status'),
+                  label: l10n.mediaRemoteAccountChanged,
+                )
               else if (reading?.hasError == true)
-                CupertinoListTile(title: Text(l10n.healthReadError))
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-read-status'),
+                  label: l10n.healthReadError,
+                )
               else if (reading?.isLoading == true ||
                   snapshot?.isLoading == true)
-                const CupertinoListTile(
-                  title: Center(child: CupertinoActivityIndicator()),
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-loading-status'),
+                  label: l10n.commonLoading,
+                  loading: true,
                 )
               else if (snapshot?.configured == false)
-                CupertinoListTile(title: Text(l10n.commonNotConnected))
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-connection-status'),
+                  label: l10n.commonNotConnected,
+                )
               else if (snapshot != null &&
                   snapshot.targets.isEmpty &&
                   snapshot.failure == null)
-                CupertinoListTile(title: Text(l10n.mediaRemoteEmpty)),
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-empty-status'),
+                  label: l10n.mediaRemoteEmpty,
+                ),
               if (_error != null)
-                CupertinoListTile(title: Text(_error!))
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-action-status'),
+                  label: _error!,
+                )
               else if (snapshot?.outcomeUnknown == true)
-                CupertinoListTile(title: Text(l10n.mediaRemoteUnconfirmed))
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-action-status'),
+                  label: l10n.mediaRemoteUnconfirmed,
+                )
               else if (snapshot?.failure != null)
-                CupertinoListTile(
-                  title: Text(
-                    remotePlaybackFailureLabel(l10n, snapshot!.failure!),
-                  ),
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-action-status'),
+                  label: remotePlaybackFailureLabel(l10n, snapshot!.failure!),
                 ),
               if (snapshot?.readAt != null)
                 CupertinoListTile(
@@ -295,4 +313,27 @@ class _RemotePlaybackScreenState
       ],
     );
   }
+}
+
+class _RemotePlaybackStatus extends StatelessWidget {
+  const _RemotePlaybackStatus({
+    super.key,
+    required this.label,
+    this.loading = false,
+  });
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: label,
+    excludeSemantics: true,
+    child: CupertinoListTile(
+      title: Text(label),
+      trailing: loading ? const CupertinoActivityIndicator() : null,
+    ),
+  );
 }

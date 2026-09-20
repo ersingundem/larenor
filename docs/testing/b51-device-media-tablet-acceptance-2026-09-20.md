@@ -39,11 +39,21 @@ receiver launcher likewise rechecks its current `TickerMode` and enabled state,
 so a captured callback cannot open receiver discovery from a hidden tablet
 pane. None of these guards retries playback or native commands.
 
+The final variable-window audit closed three further P2 gaps. Receiver
+discovery now releases its live provider while the tablet is idle or covered
+and performs one fresh read after wake. Jellyfin item actions now reflect the
+same interaction authority in their enabled semantics instead of merely
+rejecting a visually enabled stale action. Playback Power clears retained
+device evidence on idle and reads it again after wake. Loading, failure,
+disconnected and empty receiver states, plus native power failures, are named
+TalkBack live regions; private transport and platform diagnostics remain
+hidden.
+
 Focused evidence:
 
 - `flutter test test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
 - `flutter analyze lib/features/media/casting/presentation/remote_playback_screen.dart lib/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart lib/features/media/local_audio/presentation/playback_power_screen.dart test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
-- Focused result: **60/60 tests passed**.
+- Focused result: **64/64 tests passed**.
 - Focused line coverage across the three accepted screens: **377/414
   (91.1%)** — Remote Playback 149/159, Jellyfin item detail 60/75, Playback
   Power 168/180.

@@ -278,6 +278,64 @@ void main() {
     await h.unmount(tester);
   });
 
+  testWidgets(
+    'idle suspends discovery and exposes only a fresh receiver snapshot after wake',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester);
+      expect(h.api.reads, 1);
+      h.interaction.setActive(false);
+      await _frames(tester);
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('remote-playback-refresh')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(find.text('Living room TV'), findsNothing);
+      await tester.pump(const Duration(minutes: 5));
+      expect(h.api.reads, 1);
+
+      h.interaction.setActive(true);
+      await _frames(tester);
+      expect(h.api.reads, 2);
+      expect(find.text('Living room TV'), findsOneWidget);
+      expect(h.api.commands, isEmpty);
+      await h.unmount(tester);
+    },
+  );
+
+  testWidgets('loading and empty discovery states are announced distinctly', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final h = _Harness();
+    h.api.targetGate = Completer<void>();
+    h.api.targets = [];
+    try {
+      await h.mount(tester);
+      final l10n = h.labels(tester);
+      final loading = find.byKey(
+        const ValueKey('remote-playback-loading-status'),
+      );
+      expect(tester.getSemantics(loading).label, l10n.commonLoading);
+      expect(tester.getSemantics(loading).flagsCollection.isLiveRegion, isTrue);
+      expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
+
+      h.api.targetGate!.complete();
+      await _frames(tester);
+      final empty = find.byKey(const ValueKey('remote-playback-empty-status'));
+      expect(tester.getSemantics(empty).label, l10n.mediaRemoteEmpty);
+      expect(tester.getSemantics(empty).flagsCollection.isLiveRegion, isTrue);
+      expect(find.text(l10n.commonLoading), findsNothing);
+    } finally {
+      semantics.dispose();
+      await h.unmount(tester);
+    }
+  });
+
   for (final actionKey in const [
     'remote-playback-refresh',
     'remote-playback-target-remote-session',
@@ -419,6 +477,7 @@ void main() {
   testWidgets(
     'discovery failure is visible and does not masquerade as empty clients',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final h = _Harness();
       h.api.targetError = TimeoutException('fixture discovery');
       await h.mount(tester);
@@ -432,6 +491,11 @@ void main() {
       expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
       expect(find.text(l10n.mediaRemoteUnconfirmed), findsNothing);
       expect(find.text('Living room TV'), findsNothing);
+      final status = find.byKey(
+        const ValueKey('remote-playback-action-status'),
+      );
+      expect(tester.getSemantics(status).label, isNotEmpty);
+      expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
       await tester.pump(const Duration(minutes: 1));
       expect(h.api.reads, 1);
       expect(h.api.commands, isEmpty);
@@ -440,6 +504,7 @@ void main() {
       await _frames(tester);
       expect(h.api.reads, 2);
       expect(find.text('Living room TV'), findsOneWidget);
+      semantics.dispose();
       await h.unmount(tester);
     },
   );

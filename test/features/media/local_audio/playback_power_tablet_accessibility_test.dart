@@ -120,15 +120,45 @@ void main() {
     await tester.pumpAndSettle();
     final battery = find.byKey(const ValueKey('local-audio-open-battery'));
     final stale = tester.widget<CupertinoButton>(battery).onPressed!;
+    final l10n = await AppLocalizations.delegate.load(const Locale('en'));
     interaction.setActive(false);
-    interaction.setActive(true);
     await tester.pump();
+    expect(find.text(l10n.localAudioNotifications), findsNothing);
+    interaction.setActive(true);
+    await tester.pumpAndSettle();
+    expect(bridge.powerReads, 2);
+    expect(find.text(l10n.localAudioNotifications), findsOneWidget);
     stale();
     await tester.pumpAndSettle();
     expect(bridge.batteryOpens, 0);
     tester.widget<CupertinoButton>(battery).onPressed!();
     await tester.pumpAndSettle();
     expect(bridge.batteryOpens, 1);
+  });
+
+  testWidgets('power read failure is private and announced as live status', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final bridge = FakeLocalAudioBridge()
+      ..powerError = StateError('private native diagnostic');
+    addTearDown(bridge.events.close);
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [localAudioBridgeProvider.overrideWithValue(bridge)],
+          child: _tabletApp(const Locale('en')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      final status = find.byKey(const ValueKey('local-audio-power-status'));
+      expect(tester.getSemantics(status).label, l10n.healthReadError);
+      expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
+      expect(find.textContaining('private native diagnostic'), findsNothing);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('bridge replacement retires captured native settings callback', (

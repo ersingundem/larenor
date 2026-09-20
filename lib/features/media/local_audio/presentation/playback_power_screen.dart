@@ -74,12 +74,19 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
       return;
     }
     setState(() {});
+    if (_interaction?.active == true && _active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_refresh());
+      });
+    }
   }
 
   void _expireAuthority({bool notify = true}) {
     _generation++;
     _reading = false;
     _opening = false;
+    _status = null;
+    _error = null;
     if (notify && mounted) setState(() {});
   }
 
@@ -243,13 +250,10 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
             footer: Text(l10n.localAudioPowerHint),
             children: [
               if (_reading)
-                CupertinoListTile(
-                  title: Text(l10n.commonLoading),
-                  trailing: const CupertinoActivityIndicator(),
-                ),
-              if (_error != null) CupertinoListTile(title: Text(_error!)),
+                _PowerStatusTile(label: l10n.commonLoading, loading: true),
+              if (_error != null) _PowerStatusTile(label: _error!),
               if (_status?.supported == false)
-                CupertinoListTile(title: Text(l10n.localAudioUnsupported)),
+                _PowerStatusTile(label: l10n.localAudioUnsupported),
               if (supported) ...[
                 _PowerStatusRow(
                   title: l10n.localAudioNotifications,
@@ -316,4 +320,24 @@ class _PowerStatusRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       CupertinoListTile(title: Text(title), subtitle: Text(value));
+}
+
+class _PowerStatusTile extends StatelessWidget {
+  const _PowerStatusTile({required this.label, this.loading = false});
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    key: const ValueKey('local-audio-power-status'),
+    container: true,
+    liveRegion: true,
+    label: label,
+    excludeSemantics: true,
+    child: CupertinoListTile(
+      title: Text(label),
+      trailing: loading ? const CupertinoActivityIndicator() : null,
+    ),
+  );
 }
