@@ -1,16 +1,30 @@
 version: 2
+
+multi-ecosystem-groups:
+  weekly-maintenance:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Istanbul"
+    labels:
+      - "dependencies"
+
 updates:
   - package-ecosystem: "pub"
     directory: "/"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "weekly-maintenance"
 
   - package-ecosystem: "gradle"
     directory: "/android"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "weekly-maintenance"
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "weekly-maintenance"
