@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Opt-in native Seerr start, fresh-state and restart acceptance."""
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from dataclasses import dataclass, replace
 import json
 import os
@@ -22,6 +22,8 @@ _DIAGNOSTIC_PHASES = {
     "resource_prepare": "seerr_resource_prepare_failed",
     "helper_build": "seerr_helper_build_failed",
     "volume_prepare": "seerr_volume_prepare_failed",
+    "native_lifecycle": "seerr_native_lifecycle_failed",
+    "journal_setup": "seerr_journal_setup_failed",
     "runtime_setup": "seerr_runtime_setup_failed",
     "container_create": "seerr_container_create_failed",
     "container_start": "seerr_container_start_failed",
@@ -317,35 +319,43 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
     from larenor_server.plugins.worker import WorkerStep
 
     job = uuid.uuid4().hex
-    with (
-        ResourceJournal(daemon.root / "resource-journal") as resources,
-        VolumeCreateJournal(daemon.root / "volume-journal") as volumes,
-        ManagedWorkerJournal(
-            daemon.root / "seerr-container-journal", initialize=True
-        ) as containers,
-    ):
-        verifier = VolumeBootstrapVerifier(endpoint, helper_id, daemon.platform)
-        readers = JellyfinEngineReaders(endpoint, verifier)
-        broker = JellyfinResourceProofBroker(
-            source.stack,
-            source.catalog,
-            source.policy,
-            resources,
-            volumes,
-            readers,
-            engine_identity=endpoint,
-            service_id="seerr",
-        )
-        builder = JellyfinBindingBuilder(
-            source.catalog,
-            source.policy,
-            containers.identity,
-            broker,
-            service_id="seerr",
-        )
-        binding = builder(source.stack)
-        engine = smoke._managed_engine(endpoint)
-        operations = JournaledManagedContainerOperations(containers, engine)
+    journals = ExitStack()
+    try:
+        with diagnostic_phase("journal_setup"):
+            resources = journals.enter_context(
+                ResourceJournal(daemon.root / "resource-journal")
+            )
+            volumes = journals.enter_context(
+                VolumeCreateJournal(daemon.root / "volume-journal")
+            )
+            containers = journals.enter_context(
+                ManagedWorkerJournal(
+                    daemon.root / "seerr-container-journal", initialize=True
+                )
+            )
+        with diagnostic_phase("runtime_setup"):
+            verifier = VolumeBootstrapVerifier(endpoint, helper_id, daemon.platform)
+            readers = JellyfinEngineReaders(endpoint, verifier)
+            broker = JellyfinResourceProofBroker(
+                source.stack,
+                source.catalog,
+                source.policy,
+                resources,
+                volumes,
+                readers,
+                engine_identity=endpoint,
+                service_id="seerr",
+            )
+            builder = JellyfinBindingBuilder(
+                source.catalog,
+                source.policy,
+                containers.identity,
+                broker,
+                service_id="seerr",
+            )
+            binding = builder(source.stack)
+            engine = smoke._managed_engine(endpoint)
+            operations = JournaledManagedContainerOperations(containers, engine)
 
         def command(kind):
             return WorkerStep(
@@ -407,6 +417,9 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
                 host["NanoCpus"],
                 host["PidsLimit"],
             )
+    finally:
+        with diagnostic_phase("journal_setup"):
+            journals.close()
     return _SeerrNativeResult("seerr_container_started", True, True)
 
 
@@ -424,7 +437,8 @@ def characterize(daemon, *, checkout_binding=None):
         helper_id, attestation = shared._build_helper(daemon, checkout_binding)
     with diagnostic_phase("volume_prepare"):
         shared._prepare_volumes(daemon, source, helper_id)
-    result = _start_verify_restart(daemon, source, endpoint, helper_id)
+    with diagnostic_phase("native_lifecycle"):
+        result = _start_verify_restart(daemon, source, endpoint, helper_id)
     smoke.check_source(checkout_binding)
     component = next(
         item.manifest

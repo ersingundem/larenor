@@ -137,6 +137,34 @@ def test_characterize_projects_only_closed_native_evidence(monkeypatch):
     assert events == [("source", "a" * 40), ("source", "a" * 40)]
 
 
+def test_characterize_closes_unexpected_native_lifecycle_failures(monkeypatch):
+    module = api()
+    source = module.fixture_source("linux/amd64")
+    binding = ("a" * 40, module.smoke.source_hashes())
+    daemon = SimpleNamespace(platform="linux/amd64")
+    monkeypatch.setattr(module, "fixture_source", lambda _platform: source)
+    monkeypatch.setattr(module.smoke, "check_source", lambda _value: None)
+    monkeypatch.setattr(
+        module, "_prepare_resources", lambda *_args: ("endpoint", ["ready"])
+    )
+    monkeypatch.setattr(
+        module.shared,
+        "_build_helper",
+        lambda *_args: ("sha256:" + "f" * 64, {}),
+    )
+    monkeypatch.setattr(module.shared, "_prepare_volumes", lambda *_args: None)
+    monkeypatch.setattr(
+        module,
+        "_start_verify_restart",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("private")),
+    )
+
+    with pytest.raises(
+        module.SeerrManagedCIError, match="^seerr_native_lifecycle_failed$"
+    ):
+        module.characterize(daemon, checkout_binding=binding)
+
+
 def test_receipt_verification_never_starts_daemon(tmp_path, monkeypatch, capsys):
     module = api()
     path = tmp_path / "receipt.json"
