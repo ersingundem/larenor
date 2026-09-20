@@ -36,7 +36,10 @@ makbuzu kalıcıdır; restart, değiştirilmiş SQLite satırı, eski revision, 
 kaybı ve saat geri gidişi kapalı testlerle doğrulanır. Android descriptor ve
 upload sözleşmesini tüketir; gerçek cihaz SAF/LAN ile medya-özel protokoller
 henüz kapanmadığından S08.10 kapanmaz.
-Range/resume ve otomatik retry ayrıca tasarlanmadan açılmaz.
+HTTP Range ve otomatik retry kapalı kalır. Core'un uygulama düzeyi devam
+sözleşmesi yalnız aynı aktör/kapsam/içerik/provider revision değerlerine bağlı
+`interrupted` makbuzdan yeni işlem kimliğiyle başlar; Android devam/cancel UX'i
+ve fiziksel SAF kanıtı tamamlanana kadar özellik kapanmış sayılmaz.
 [Pilotun sınırları](BOUNDED_TRANSFER_PILOT.md).
 
 ## Kabul dilimleri ve kaybolmaması gereken kanıt

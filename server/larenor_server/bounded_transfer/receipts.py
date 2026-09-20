@@ -84,9 +84,71 @@ class TransferReceipts:
 
     @staticmethod
     def envelope_hash(actor_id, core_id, home_id, resource_id, body):
+        values = body.model_dump()
+        if body.resumeRequestId is None:
+            values.pop("resumeRequestId")
+            values.pop("resumeOffset")
         return hashlib.sha256(_json([
-            actor_id, core_id, home_id, resource_id, body.model_dump(),
+            actor_id, core_id, home_id, resource_id, values,
         ])).hexdigest()
+
+    def authorize_resume(self, actor, core_id, home_id, resource_id, body,
+                         descriptor):
+        """Bind a new request to one exact interrupted receipt."""
+        try:
+            with self.db.connection() as connection:
+                row = connection.execute(
+                    "SELECT * FROM bounded_transfer_receipts WHERE request_id=?",
+                    (body.resumeRequestId,),
+                ).fetchone()
+                if row is None or row["actor_id"] != actor.id:
+                    raise ApiError("not_found", 404)
+                self._verify(row)
+                if (
+                    row["core_id"] != core_id
+                    or row["home_id"] != home_id
+                    or row["resource_id"] != resource_id
+                    or row["state"] != "interrupted"
+                    or row["content_length"] != len(descriptor.content)
+                    or row["sha256"] != hashlib.sha256(descriptor.content).hexdigest()
+                    or row["content_type"] != descriptor.content_type
+                    or row["service_revision"] != descriptor.service_revision
+                    or not 0 < body.resumeOffset <= row["content_length"]
+                ):
+                    raise ApiError("revision_conflict", 409)
+        except (sqlite3.Error, ValueError, TypeError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def cancel(self, actor, resource_id, request_id):
+        try:
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    "SELECT * FROM bounded_transfer_receipts "
+                    "WHERE request_id=? AND resource_id=?",
+                    (request_id, resource_id),
+                ).fetchone()
+                if row is None or (row["actor_id"] != actor.id
+                                   and actor.role != "admin"):
+                    raise ApiError("not_found", 404)
+                self._verify(row)
+                if row["state"] == "completed":
+                    raise ApiError("revision_conflict", 409)
+                if row["state"] == "accepted":
+                    changed = dict(row)
+                    changed["state"] = "interrupted"
+                    changed["updated_at"] = max(row["updated_at"], self.clock())
+                    connection.execute(
+                        "UPDATE bounded_transfer_receipts "
+                        "SET state=?,updated_at=?,authentication_tag=? "
+                        "WHERE request_id=?",
+                        (changed["state"], changed["updated_at"],
+                         self._tag(changed), request_id),
+                    )
+                    events.append(connection, self.key, changed, kind="result")
+                    row = changed
+                return {"receipt": self._public(row)}
+        except (sqlite3.Error, ValueError, TypeError):
+            raise ApiError("server_unavailable", 503) from None
 
     def accept(self, actor, core_id, home_id, resource_id, body, descriptor):
         digest = self.envelope_hash(actor.id, core_id, home_id, resource_id, body)

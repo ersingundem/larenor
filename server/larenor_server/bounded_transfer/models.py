@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..home_resources.models import ResourceRef
 
@@ -11,7 +11,7 @@ Identity = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 
 
 class TransferRequest(BaseModel):
-    """One explicit, non-resumable download request."""
+    """One explicit download request, optionally resuming an interrupted one."""
 
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
     requestId: Identity
@@ -20,6 +20,15 @@ class TransferRequest(BaseModel):
     expectedAclRevision: Revision
     expectedServiceRevision: Revision
     deadlineMs: Annotated[int, Field(ge=1, le=15_000)] = 5_000
+    resumeRequestId: Identity | None = None
+    resumeOffset: Annotated[int, Field(ge=0, le=256 * 1024)] = 0
+
+    @model_validator(mode="after")
+    def coherent_resume(self):
+        if ((self.resumeRequestId is None) != (self.resumeOffset == 0)
+                or self.resumeRequestId == self.requestId):
+            raise ValueError("invalid_transfer_resume")
+        return self
 
 
 class TransferReceipt(BaseModel):

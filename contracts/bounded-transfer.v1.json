@@ -87,6 +87,7 @@
       "x-larenor-blob-sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
       "x-larenor-blob-content-type": "text/plain; charset=utf-8",
       "x-larenor-service-revision": "1",
+      "x-larenor-resume-offset": "0",
       "cache-control": "no-store, no-store",
       "accept-ranges": "none"
     },

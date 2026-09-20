@@ -39,8 +39,19 @@ media type, service revision, and framed HTTP content length. Every frame carrie
 the same trace ID, a monotonically increasing sequence, a final flag, and an exact
 payload length. A zero-length final frame is the only success marker.
 
-Core rejects `Range` and `If-Range`; this pilot does not support resume. It also
-does not retry, replay, or restart a request. Client disconnect, cancellation,
+Core rejects `Range` and `If-Range`; HTTP byte ranges stay outside the signed
+wire contract. A new request may instead name one exact interrupted receipt and
+its next byte offset. Core binds that continuation to the same actor, Core,
+home, resource, full length, SHA-256, media type, and provider revision before
+reserving only the remaining byte quota. It emits a new trace and starts frame
+sequence zero at the requested source offset, while retaining the full-object
+digest and length so the Client can authenticate the assembled result. Completed,
+missing, changed, cross-scope, and self-referencing continuations fail closed.
+
+`DELETE .../blob/transfers/{requestId}` records an idempotent interrupted result
+and marks an active stream for cancellation before its next frame. Normal
+completion, interruption, explicit cancellation, and duplicate close all retire
+the in-memory active lease. Client disconnect, cancellation,
 deadline expiry, changed provider bytes or revision, lost session, and changed
 user/resource/ACL authority abort the stream before the final success frame.
 The declared framed content length makes such an abort incomplete to an HTTP
@@ -88,8 +99,8 @@ the picker/request result before it can update UI trust.
 
 ## Deliberately open work
 
-S08.10 still requires media-specific transfer protocols, the remaining Client
-receipt/event checkpoint integration, exact-main CI, and physical SAF
-acceptance. Range and resume remain unsupported until they receive a separate
-authority, integrity, quota, and recovery design. This pilot makes no physical
-device or live-LAN acceptance claim.
+S08.10 still requires the Client continuation/cancellation UX, the remaining
+Client receipt/event checkpoint integration, exact-main CI, and physical SAF
+acceptance. The Core continuation contract is intentionally application-level;
+generic HTTP Range remains unsupported. This pilot makes no physical device or
+live-LAN acceptance claim.
