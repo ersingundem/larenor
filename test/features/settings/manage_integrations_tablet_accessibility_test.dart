@@ -292,4 +292,49 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('pending toggle keeps one disabled named control in place', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    var writes = 0;
+    await _mount(
+      tester,
+      createEnabled: () => _Enabled(
+        () async => {AppService.jellyfin},
+        onSet: (_, _) {
+          writes++;
+          return pending.future;
+        },
+      ),
+      locale: const Locale('en'),
+      width: 600,
+      textScale: 1,
+    );
+
+    final toggle = find.byKey(const ValueKey('integration-toggle-jellyfin'));
+    await tester.tap(toggle);
+    await tester.pump();
+
+    expect(toggle, findsOneWidget);
+    expect(
+      tester.getSemantics(toggle).flagsCollection.isEnabled,
+      ui.Tristate.isFalse,
+    );
+    expect(
+      find.descendant(
+        of: toggle,
+        matching: find.byType(CupertinoActivityIndicator),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(writes, 1);
+
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(toggle, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
