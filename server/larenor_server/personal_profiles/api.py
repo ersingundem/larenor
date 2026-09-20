@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -9,6 +9,7 @@ from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import (
     CreatePersonalProfileRequest,
+    PersonalProfileDeletionResponse,
     PersonalProfileResponse,
     PersonalProfilesResponse,
     UpdatePersonalProfileRequest,
@@ -17,11 +18,12 @@ from .models import (
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 Expected = Annotated[int, Query(ge=1, le=2**63 - 1)]
-router = APIRouter(tags=['Personal profiles'], responses={
+ExpectedCollection = Annotated[int, Query(ge=0, le=2**63 - 1)]
+router = APIRouter(tags=['Core remote profiles'], responses={
     status: {'model': ErrorResponse}
     for status in (400, 401, 403, 404, 409, 413, 429, 503)
 })
-BASE = '/personal-profiles/{core_id}/{home_id}'
+BASE = '/core-remote-profiles/{core_id}/{home_id}'
 
 
 @router.get(BASE, response_model=PersonalProfilesResponse)
@@ -31,8 +33,13 @@ def profiles(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
 
 @router.get(BASE + '/{profile_id}', response_model=PersonalProfileResponse)
 def profile(core_id: Identity, home_id: Identity, profile_id: Identity,
+            expectedRevision: Expected,
+            expectedCollectionRevision: ExpectedCollection,
+            expectedAccountRevision: Expected,
             actor: Ready, core: Core):
-    return core.personal_profiles.get(actor, core_id, home_id, profile_id)
+    return core.personal_profiles.get(
+        actor, core_id, home_id, profile_id, expectedRevision,
+        expectedCollectionRevision, expectedAccountRevision)
 
 
 @router.post(BASE, response_model=PersonalProfileResponse, status_code=201)
@@ -47,9 +54,13 @@ def update_profile(core_id: Identity, home_id: Identity, profile_id: Identity,
     return core.personal_profiles.update(actor, core_id, home_id, profile_id, body)
 
 
-@router.delete(BASE + '/{profile_id}', status_code=204)
+@router.delete(
+    BASE + '/{profile_id}', response_model=PersonalProfileDeletionResponse)
 def delete_profile(core_id: Identity, home_id: Identity, profile_id: Identity,
-                   expectedRevision: Expected, actor: Ready, core: Core):
-    core.personal_profiles.delete(
-        actor, core_id, home_id, profile_id, expectedRevision)
-    return Response(status_code=204)
+                   requestId: Identity, expectedRevision: Expected,
+                   expectedCollectionRevision: ExpectedCollection,
+                   expectedAccountRevision: Expected,
+                   actor: Ready, core: Core):
+    return core.personal_profiles.delete(
+        actor, core_id, home_id, profile_id, expectedRevision,
+        expectedCollectionRevision, expectedAccountRevision, requestId)

@@ -49,6 +49,19 @@ def legacy_v2(app):
         for table in ('meal_plan_records', 'meal_plan_receipts'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='meal_plans_schema'")
+        # Core remote profiles also bind ciphertext, receipts and journal state
+        # to the later Core/home identity.
+        for table in (
+            'personal_profile_records',
+            'personal_profile_state',
+            'personal_profile_audit',
+            'personal_profile_audit_state',
+            'personal_profile_receipts',
+        ):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute(
+            "DELETE FROM metadata WHERE key='personal_profiles_schema'"
+        )
         # QR inventory also binds encrypted records and its audit chain to
         # the later Core/home identity. Historical v1/v2 fixtures predate it.
         for table in ('inventory_items', 'inventory_audit', 'inventory_audit_state'):

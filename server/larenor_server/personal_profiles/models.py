@@ -1,4 +1,4 @@
-"""Closed public and encrypted persistence contracts for personal profiles."""
+"""Closed public and encrypted persistence contracts for Core remote profiles."""
 import ipaddress
 import re
 from typing import Annotated, Literal
@@ -21,8 +21,16 @@ def _safe_text(value: str, *, empty: bool = False) -> str:
 
 
 class PersonalProfileRef(HomeScope):
-    kind: Literal['remoteProfile']
+    kind: Literal['coreRemoteProfile']
     id: Identity
+    accountId: Identity
+
+
+class PersonalProfileAuthority(HomeScope):
+    accountId: Identity
+    sessionFamilyId: Identity
+    accountRevision: Revision
+    collectionRevision: CollectionRevision
 
 
 class PersonalProfileFields(FrozenModel):
@@ -65,11 +73,16 @@ class PersonalProfileFields(FrozenModel):
 
 
 class CreatePersonalProfileRequest(PersonalProfileFields):
-    pass
+    requestId: Identity
+    expectedAccountRevision: Revision
+    expectedCollectionRevision: CollectionRevision
 
 
 class UpdatePersonalProfileRequest(PersonalProfileFields):
+    requestId: Identity
+    expectedAccountRevision: Revision
     expectedRevision: Revision
+    expectedCollectionRevision: CollectionRevision
 
 
 class StoredPersonalProfile(PersonalProfileFields):
@@ -82,10 +95,20 @@ class PersonalProfile(PersonalProfileFields):
 
 
 class PersonalProfileResponse(FrozenModel):
+    authority: PersonalProfileAuthority
     profile: PersonalProfile
 
 
 class PersonalProfilesResponse(FrozenModel):
-    scope: HomeScope
-    collectionRevision: CollectionRevision
+    authority: PersonalProfileAuthority
     profiles: list[PersonalProfile] = Field(max_length=32)
+
+
+class PersonalProfileDeletion(FrozenModel):
+    ref: PersonalProfileRef
+    deletedRevision: Revision
+
+
+class PersonalProfileDeletionResponse(FrozenModel):
+    authority: PersonalProfileAuthority
+    deletion: PersonalProfileDeletion

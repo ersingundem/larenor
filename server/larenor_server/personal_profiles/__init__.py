@@ -1,1 +1,1 @@
-"""Account-owned personal profile metadata."""
+"""Account-owned Core remote profile metadata."""
