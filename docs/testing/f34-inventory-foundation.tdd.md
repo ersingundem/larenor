@@ -34,3 +34,12 @@ Android QR tarama/üretme ve eşya ayrıntısı, reader listesini sonradan deği
 listeleme/sayfalama, gerçek Client → izole Core E2E, exact-head CI ve fiziksel
 kamera kabulü sonraki dilimlerdir. `F34.status` pending; kuyruk **16/125**, seçili
 özellik kabulü **0/63** kalır.
+
+## Historical schema regression
+
+Full sharded Server CI exposed that the shared v1/v2 fixture builders retained
+F34 tables while deleting the Core/home identity those tables authenticate.
+Those fixtures now remove the three inventory tables and `inventory_schema`
+marker when constructing a database that predates F34. Seven exact historical
+upgrade, rollback and concurrent-startup regressions pass; production migration
+and storage validation remain fail-closed for a real unmarked or foreign table.

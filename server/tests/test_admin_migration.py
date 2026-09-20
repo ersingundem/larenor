@@ -24,6 +24,11 @@ def downgrade_to_known_v1(app):
         for table in ('home_people_records', 'home_people_state', 'home_people_audit'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_people_schema'")
+        # QR inventory also binds encrypted records and its audit chain to
+        # the later Core/home identity. Historical v1/v2 fixtures predate it.
+        for table in ('inventory_items', 'inventory_audit', 'inventory_audit_state'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='inventory_schema'")
         # The selected-HA binding domain also requires the later Core identity.
         for table in ('home_assistant_commands', 'home_assistant_bindings', 'home_assistant_state'):
             connection.execute(f'DROP TABLE {table}')
