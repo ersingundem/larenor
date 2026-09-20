@@ -283,9 +283,21 @@ class RdpNativeSecrets private constructor(
 }
 
 interface RdpNativeSession { fun close() }
+interface RdpNativeSessionObserver {
+    fun onSecurity() = Unit
+    fun onFrame() = Unit
+    fun onClosed(code: String?) = Unit
+
+    companion object { val NONE = object : RdpNativeSessionObserver {} }
+}
 interface RdpNativeBackend {
     fun capabilities(): RdpNativeCapabilities
-    fun open(request: RdpNativeRequest, negotiated: RdpNativeNegotiated, secrets: RdpNativeSecrets): RdpNativeSession
+    fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+    ): RdpNativeSession
 }
 
 class UnavailableRdpNativeBackend : RdpNativeBackend {
@@ -298,7 +310,12 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
         "input" to mapOf("pointer" to false, "keyboard" to false, "ime" to false),
         "channels" to mapOf("clipboardModes" to emptyList<String>(), "audio" to false, "files" to false),
     ))
-    override fun open(request: RdpNativeRequest, negotiated: RdpNativeNegotiated, secrets: RdpNativeSecrets): RdpNativeSession {
+    override fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver,
+    ): RdpNativeSession {
         openCalls++
         fail("engineUnavailable")
     }
@@ -306,10 +323,14 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
 
 class RdpNativeAdapter(private val backend: RdpNativeBackend = UnavailableRdpNativeBackend()) {
     fun capabilities() = backend.capabilities()
-    fun open(request: RdpNativeRequest, secrets: RdpNativeSecrets): RdpNativeSession = try {
+    fun open(
+        request: RdpNativeRequest,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+    ): RdpNativeSession = try {
         secrets.requireGatewayShape(request.gateway != null)
         val negotiated = RdpNativeNegotiator.negotiate(request, backend.capabilities())
-        backend.open(request, negotiated, secrets)
+        backend.open(request, negotiated, secrets, observer)
     } catch (failure: RdpNativeFailure) {
         throw failure
     } catch (_: Exception) {

@@ -46,6 +46,13 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         for disabled in ("WITH_FFMPEG=OFF", "WITH_OPENH264=OFF", "WITH_OPUS=OFF"):
             self.assertIn(disabled, build)
         self.assertIn("freerdp_android_package.py receipt", receipt)
+        product = next(step["run"] for step in steps if "verify-apk" in step.get("run", ""))
+        self.assertIn("flutter build apk --debug", product)
+        self.assertIn("android/app/freerdp/freeRDPCore.aar", product)
+        self.assertIn("freerdp_android_package.py verify-apk", product)
+        patch = next(step["run"] for step in steps if "freerdp-certificate-pem.patch" in step.get("run", ""))
+        self.assertIn("git apply --check", patch)
+        self.assertIn("<manifest", patch)
 
     def test_exact_reviewed_source_guard_runs_before_checkout_and_build(self):
         steps = self.workflow["jobs"]["package"]["steps"]

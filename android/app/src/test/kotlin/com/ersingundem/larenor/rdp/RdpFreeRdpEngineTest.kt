@@ -35,6 +35,13 @@ class RdpFreeRdpEngineTest {
 
     @Test
     fun framebufferAndDexResizeAreBoundedAndRequireOneFrameAck() {
+        val acknowledgedFixture = Fixture()
+        val acknowledged = acknowledgedFixture.active()
+        acknowledgedFixture.operation.frame(frame(1, 1280, 800, 180))
+        assertTrue(acknowledged.acknowledgeFrame(1))
+        assertEquals(RdpJniPhase.ACTIVE, acknowledged.phase)
+        assertEquals(1, acknowledgedFixture.operation.resumes)
+
         val fixture = Fixture()
         val session = fixture.active()
         val first = frame(1, 1280, 800, 180)
@@ -109,6 +116,7 @@ class RdpFreeRdpEngineTest {
             )
             override fun capabilities() = availableCapabilities()
             override fun create(
+                request: RdpNativeRequest,
                 plan: RdpNativeNegotiated,
                 listener: RdpJniOperation.Listener,
             ) = Operation(listener).also { operation = it }
@@ -132,6 +140,7 @@ class RdpFreeRdpEngineTest {
         var closes = 0
         var inputs = 0
         var resizes = 0
+        var resumes = 0
         override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
             starts++
             return true
@@ -145,6 +154,7 @@ class RdpFreeRdpEngineTest {
             return true
         }
         override fun acknowledgeFrame(sequence: Long): Boolean = true
+        override fun resumeFrames(): Boolean { resumes++; return true }
         override fun close() { closes++ }
         override fun detach() { listener = null }
         fun secure(value: RdpJniSecurity) { listener?.onSecurity(value) }

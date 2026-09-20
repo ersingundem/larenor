@@ -101,12 +101,14 @@ kabulüyle güncel sayaçlar **17/125 (%13,6)** ve **0/63 (%0,0)** oldu.
 Core ve Proxmox'tan bağımsız kişisel RDP profilleri; hedef/gateway ayrımı,
 Windows domain, şifreli kimlik bilgisi ve sertifika pini, açık bağlantı/yeniden
 bağlantı, tablet/DeX pointer-klavye-resize yüzeyi olarak hazırlandı. Üretim
-varsayılanı native motor yokken bağlantı denemez. Gerçek Windows/RD Gateway,
-somut ürün `RdpJniRuntime` bağlantısı ve fiziksel Huawei tablet/DeX kabulü açık
-olduğundan F62 kabulü ve **17/125 · 0/63** sayaçları değişmedi. FreeRDP 3.31.1
-kaynak/araç zinciri/ABI kilidi, GitHub-hosted AAR+ELF digest makbuzu, TLS/NLA/
-pin yaşam döngüsü, doğrudan framebuffer backpressure ve varsayılan kapalı kanal
-sözleşmesi ayrı yazılım kapısı olarak hazırlandı. Ayrıntı:
+varsayılanı native motor yokken bağlantı denemez. Receipted AAR artık gerçek
+APK derlemesine koşullu bağlanır; production MethodChannel motoru SPKI/TLS/NLA,
+BGRA framebuffer, pointer/klavye/IME ve DeX resize akışını aynı sahipli oturuma
+taşır. Ses/dosya ve RD Gateway yeteneği güvenli biçimde kapalıdır. İzole gerçek
+Windows hostu ve fiziksel Huawei tablet/DeX kabulü açık olduğundan F62 kabulü ve
+**17/125 · 0/63** sayaçları değişmedi. FreeRDP 3.31.1 kaynak/araç zinciri/ABI
+kilidi, GitHub-hosted AAR+APK makbuzu ve varsayılan kapalı kanal sözleşmesi ayrı
+yazılım kapısı olarak hazırlandı. Ayrıntı:
 [bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md) ve
 [FreeRDP native motor kapısı](f62-freerdp-native-engine-acceptance-2026-09-20.md).
 ### Bağımsız F61 VNC Client temeli — yerel dal

@@ -9,6 +9,9 @@
   },
   "reviewedFiles": {
     "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java": "c8de7e1a37889a3abd2227cd4a2b83e960290290",
+    "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java": "8c82d6e67db089dee2cedc87dd67bc8b83efa5ab",
+    "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/SessionState.java": "3b039910bd16d60efe2116fdbb9a22fcabc7f865",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c": "2e1f1c0d099a3ffcee0597090625439228d2441c",
     "client/Android/Studio/freeRDPCore/src/main/cpp/CMakeLists.txt": "1123f8515a55c7aaea3663c0cb3097079fc8c0c4",
     "client/Android/Studio/freeRDPCore/build.gradle": "a9337c8ef86497c0b6a5c9c29ded943b84cd2317",
     "client/Android/Studio/gradle/wrapper/gradle-wrapper.properties": "a9db11550c6202b666ed9c44cafdc6726fd5b264"
@@ -32,5 +35,15 @@
     "libfreerdp-client3.so",
     "libfreerdp3.so",
     "libwinpr3.so"
+  ],
+  "requiredClasses": [
+    "com/freerdp/freerdpcore/services/LibFreeRDP.class",
+    "com/freerdp/freerdpcore/services/LibFreeRDP$EventListener.class",
+    "com/freerdp/freerdpcore/services/LibFreeRDP$UIEventListener.class",
+    "com/freerdp/freerdpcore/application/GlobalApp.class",
+    "com/freerdp/freerdpcore/application/SessionState.class"
+  ],
+  "requiredJniSymbols": [
+    "JNI_OnLoad"
   ]
 }

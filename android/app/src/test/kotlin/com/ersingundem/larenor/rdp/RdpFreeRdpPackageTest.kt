@@ -66,6 +66,7 @@ class RdpFreeRdpPackageTest {
         override fun identity() = value
         override fun capabilities() = capabilitiesFixture()
         override fun create(
+            request: RdpNativeRequest,
             plan: RdpNativeNegotiated,
             listener: RdpJniOperation.Listener,
         ): RdpJniOperation {

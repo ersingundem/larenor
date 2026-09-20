@@ -53,7 +53,7 @@ def load_lock(path=LOCK_PATH):
     _require(set(value) == {
         "schemaVersion", "engineRevision", "source", "reviewedFiles",
         "toolchain", "supportedAbis", "jniSchema", "defaultChannels",
-        "requiredLibraries",
+        "requiredLibraries", "requiredClasses", "requiredJniSymbols",
     }, "invalid_lock")
     _require(value["schemaVersion"] == 1 and value["jniSchema"] == 1,
              "invalid_lock")
@@ -68,7 +68,7 @@ def load_lock(path=LOCK_PATH):
         "freerdp-3.31.1.tar.gz"
     ), "invalid_lock")
     reviewed = value["reviewedFiles"]
-    _require(type(reviewed) is dict and len(reviewed) == 4 and
+    _require(type(reviewed) is dict and len(reviewed) == 7 and
              all(type(name) is str and HEX40.fullmatch(digest or "")
                  for name, digest in reviewed.items()), "invalid_lock")
     _require(value["toolchain"] == {
@@ -83,6 +83,14 @@ def load_lock(path=LOCK_PATH):
         "libfreerdp-android.so", "libfreerdp-client3.so",
         "libfreerdp3.so", "libwinpr3.so",
     ], "invalid_lock")
+    _require(value["requiredClasses"] == [
+        "com/freerdp/freerdpcore/services/LibFreeRDP.class",
+        "com/freerdp/freerdpcore/services/LibFreeRDP$EventListener.class",
+        "com/freerdp/freerdpcore/services/LibFreeRDP$UIEventListener.class",
+        "com/freerdp/freerdpcore/application/GlobalApp.class",
+        "com/freerdp/freerdpcore/application/SessionState.class",
+    ], "invalid_lock")
+    _require(value["requiredJniSymbols"] == ["JNI_OnLoad"], "invalid_lock")
     kotlin = KOTLIN_PATH.read_text()
     for expected in (
         f'const val VERSION = "{source["version"]}"',
@@ -136,6 +144,11 @@ def package_receipt(aar, abi, lock):
             names = bundle.namelist()
             _require("AndroidManifest.xml" in names and "classes.jar" in names,
                      "invalid_aar")
+            classes = bundle.read("classes.jar")
+            with zipfile.ZipFile(__import__("io").BytesIO(classes)) as jar:
+                class_names = set(jar.namelist())
+                _require(all(name in class_names for name in lock["requiredClasses"]),
+                         "missing_java_contract")
             native = [name for name in names if name.startswith("jni/") and
                       name.endswith(".so")]
             _require(native and all(name.startswith(prefix) for name in native),
@@ -152,6 +165,9 @@ def package_receipt(aar, abi, lock):
                     "size": len(data),
                     "sha256": hashlib.sha256(data).hexdigest(),
                 })
+            primary = bundle.read(by_name["libfreerdp-android.so"])
+            _require(all(symbol.encode() in primary for symbol in lock["requiredJniSymbols"]),
+                     "missing_jni_symbol")
     except (zipfile.BadZipFile, KeyError, OSError) as error:
         raise PackageError("invalid_aar") from error
     return {
@@ -161,9 +177,33 @@ def package_receipt(aar, abi, lock):
         "sourceSha256": lock["source"]["sha256"],
         "abi": abi,
         "aarSha256": _sha256(aar),
+        "classesSha256": hashlib.sha256(classes).hexdigest(),
         "defaultChannels": [],
         "libraries": entries,
     }
+
+
+def verify_install(aar, receipt_path, lock):
+    try:
+        receipt = json.loads(receipt_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise PackageError("invalid_receipt") from error
+    _require(type(receipt) is dict and receipt.get("abi") in lock["supportedAbis"],
+             "invalid_receipt")
+    _require(receipt == package_receipt(aar, receipt["abi"], lock),
+             "receipt_mismatch")
+
+
+def verify_apk(apk, receipt_path, lock):
+    try:
+        receipt = json.loads(receipt_path.read_text())
+        with zipfile.ZipFile(apk) as bundle:
+            for item in receipt["libraries"]:
+                data = bundle.read(f'lib/{receipt["abi"]}/{item["name"]}')
+                _require(hashlib.sha256(data).hexdigest() == item["sha256"],
+                         "apk_library_mismatch")
+    except (OSError, KeyError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+        raise PackageError("invalid_apk") from error
 
 
 def main(argv=None):
@@ -176,6 +216,12 @@ def main(argv=None):
     receipt.add_argument("aar", type=Path)
     receipt.add_argument("--abi", required=True)
     receipt.add_argument("--output", type=Path, required=True)
+    install = sub.add_parser("verify-install")
+    install.add_argument("aar", type=Path)
+    install.add_argument("receipt", type=Path)
+    apk = sub.add_parser("verify-apk")
+    apk.add_argument("apk", type=Path)
+    apk.add_argument("receipt", type=Path)
     args = parser.parse_args(argv)
     try:
         lock = load_lock()
@@ -184,6 +230,10 @@ def main(argv=None):
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+        elif args.command == "verify-install":
+            verify_install(args.aar, args.receipt, lock)
+        elif args.command == "verify-apk":
+            verify_apk(args.apk, args.receipt, lock)
         return 0
     except PackageError as error:
         print(f"FreeRDP package error: {error}", file=sys.stderr)

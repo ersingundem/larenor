@@ -13,8 +13,11 @@ DeX session.
    SHA-256, four reviewed upstream JNI/build file blob IDs, Android build
    tools, NDK 29.0.13113456, CMake 4.1.2 and the arm64-v8a/x86_64 ABI set.
    The GitHub-hosted package workflow verifies the archive before extraction,
-   builds each ABI without emulation, checks the ELF architecture and required
-   FreeRDP/WinPR libraries, and emits a digest receipt. Runtime identity must
+   builds each ABI without emulation, checks the ELF architecture, JNI entry,
+   reviewed Java surface and required FreeRDP/WinPR libraries, and emits a
+   digest receipt. Gradle accepts the AAR only with that exact receipt, compiles
+   the packaged runtime into a real Larenor debug APK and verifies that the APK
+   contains the same receipted native bytes. Runtime identity must
    match that same tuple and report no default channel before an operation can
    be created. TLS 1.2/1.3, exact SPKI pin evidence and requested NLA gate the
    active state; mismatch closes once with a redacted, non-retryable code.
@@ -43,22 +46,26 @@ DeX session.
   `RdpFreeRdpEngineTest` cover the closed schemas, package mismatch, TLS/NLA/
   pin rejection, direct frames, one-frame backpressure, pointer/key/IME,
   DeX-style resize, channel denial, disconnect and replay.
-- Python policy: **7/7** tests in `freerdp_android_package_test` and
+- Python policy: **9/9** tests in `freerdp_android_package_test` and
   `freerdp_android_workflow_test` cover archive/path/blob tamper, mixed/wrong
   ABI rejection, exact receipts, pinned actions, same-repository execution,
   minimal permissions and absence of production addresses or secrets.
-- The normal product build remains fail closed. A workflow artifact is build
-  evidence, not an automatically trusted application dependency.
-- Existing Flutter RDP model/controller/security/panel regression is **21/21**
-  and targeted analysis reports no issue.
+- The normal product build remains fail closed when no package is installed.
+  A receipted package enables a separately compiled `RdpPackagedRuntime`; the
+  same workflow must compile it into the APK and compare its packaged ELF
+  digests before the artifact is accepted.
+- Flutter now uses the production MethodChannel engine by default on Android.
+  It renders BGRA frames, acknowledges one frame at a time and retires the
+  native owner on route/window loss. The focused bridge/panel proof is **6/6**;
+  existing RDP model/controller/security/panel coverage remains in the targeted
+  suite and targeted analysis reports no issue.
 
 ## Acceptance deliberately still open
 
-F62 cannot be marked done until a reviewed concrete `RdpJniRuntime` binds the
-receipted AAR into the Android product, Client frame rendering and lifecycle
-permission prompts use that runtime, and an isolated owned Windows fixture
-proves a real TLS/NLA handshake, pinned identity, decoded framebuffer, input,
-disconnect and loss behavior. Real RD Gateway and advanced channel support
+F62 cannot be marked done until GitHub runs the exact AAR→APK job and an
+isolated owned Windows fixture proves a real TLS/NLA handshake, pinned identity,
+decoded framebuffer, input, disconnect and loss behavior. Real RD Gateway and
+advanced channel support
 need their own motor/host matrix. Huawei MatePad, Samsung DeX, external display,
 Turkish dead-key/IME, pointer, audio/clipboard permission and long-session
 checks remain in manual physical acceptance. File, drive, microphone, printer,

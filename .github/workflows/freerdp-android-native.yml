@@ -7,8 +7,13 @@
       "paths": [
         ".github/workflows/freerdp-android-native.yml",
         "android/freerdp-native.lock.json",
+        "android/freerdp-certificate-pem.patch",
+        "android/app/build.gradle.kts",
+        "android/app/src/freerdp/**",
         "android/app/src/main/kotlin/com/ersingundem/larenor/rdp/**",
         "android/app/src/test/kotlin/com/ersingundem/larenor/rdp/**",
+        "lib/features/remote_access/rdp/**",
+        "test/features/remote_access/rdp/**",
         "tool/freerdp_android_package.py",
         "tool/tests/freerdp_android_package_test.py"
       ]
@@ -22,7 +27,7 @@
   "jobs": {
     "package": {
       "runs-on": "ubuntu-24.04",
-      "timeout-minutes": 35,
+      "timeout-minutes": 60,
       "strategy": {
         "fail-fast": false,
         "matrix": {"abi": ["arm64-v8a", "x86_64"]}
@@ -53,6 +58,10 @@
           "run": "set -euo pipefail\npython3 tool/freerdp_android_package.py verify-lock\narchive=\"$RUNNER_TEMP/freerdp-3.31.1.tar.gz\"\ncurl --fail --location --proto '=https' --tlsv1.2 --retry 3 --output \"$archive\" https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz\npython3 tool/freerdp_android_package.py verify-source \"$archive\"\nmkdir \"$RUNNER_TEMP/freerdp-source\"\ntar --extract --gzip --file \"$archive\" --directory \"$RUNNER_TEMP/freerdp-source\" --strip-components=1 --no-same-owner\n"
         },
         {
+          "name": "Apply reviewed SPKI evidence patch and minimal library manifest",
+          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
+        },
+        {
           "name": "Build one exact native ABI with optional channels default-off",
           "env": {"GRADLE_USER_HOME": "${{ runner.temp }}/freerdp-gradle"},
           "run": "set -euo pipefail\nstudio=\"$RUNNER_TEMP/freerdp-source/client/Android/Studio\"\ncat > \"$studio/release.properties\" <<EOF\nCOMPILE_API=37\nTARGET_API=37\nMIN_API=29\nTOOLS_VERSION=37.0.0\nNDK_VERSION=29.0.13113456\nCMAKE_VERSION=4.1.2\nBUILD_UNIVERSAL=true\nSPLIT_ENABLED=false\nABI_FILTERS=$ABI\nSPLIT_ARCHITECTURES=$ABI\nVERSION_NAME=3.31.1\nCMAKE_ARGUMENTS=-DWITH_FFMPEG=OFF;-DWITH_OPENH264=OFF;-DWITH_OPUS=OFF;-DWITH_WEBP=OFF;-DWITH_JPEG=OFF;-DWITH_PNG=OFF;-DWITH_CJSON=ON;-DWITH_OPENSSL=ON\nEOF\ncd \"$studio\"\n./gradlew --no-daemon --stacktrace :freeRDPCore:assembleRelease\n"
@@ -60,6 +69,15 @@
         {
           "name": "Create exact package receipt",
           "run": "set -euo pipefail\naar=\"$RUNNER_TEMP/freerdp-source/client/Android/Studio/freeRDPCore/build/outputs/aar/freeRDPCore-release.aar\"\nout=\"$RUNNER_TEMP/freerdp-${ABI}-receipt.json\"\npython3 tool/freerdp_android_package.py receipt \"$aar\" --abi \"$ABI\" --output \"$out\"\nmkdir \"$RUNNER_TEMP/freerdp-package\"\ncp \"$aar\" \"$RUNNER_TEMP/freerdp-package/freeRDPCore-${ABI}.aar\"\ncp \"$out\" \"$RUNNER_TEMP/freerdp-package/receipt.json\"\n"
+        },
+        {
+          "uses": "subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2",
+          "with": {"flutter-version": "3.41.4", "channel": "stable", "cache": true}
+        },
+        {
+          "name": "Compile the receipted runtime into a real Larenor APK",
+          "env": {"GRADLE_USER_HOME": "${{ runner.temp }}/larenor-gradle"},
+          "run": "set -euo pipefail\nmkdir -p android/app/freerdp\ncp \"$RUNNER_TEMP/freerdp-package/freeRDPCore-${ABI}.aar\" android/app/freerdp/freeRDPCore.aar\ncp \"$RUNNER_TEMP/freerdp-package/receipt.json\" android/app/freerdp/receipt.json\nflutter pub get\ndart run build_runner build --delete-conflicting-outputs\nif test \"$ABI\" = arm64-v8a; then target=android-arm64; else target=android-x64; fi\nflutter build apk --debug --target-platform \"$target\"\npython3 tool/freerdp_android_package.py verify-apk build/app/outputs/flutter-apk/app-debug.apk android/app/freerdp/receipt.json\n"
         },
         {
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",

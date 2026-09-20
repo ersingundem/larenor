@@ -11,7 +11,14 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tool"))
-from freerdp_android_package import PackageError, load_lock, package_receipt, verify_source
+from freerdp_android_package import (
+    PackageError,
+    load_lock,
+    package_receipt,
+    verify_apk,
+    verify_install,
+    verify_source,
+)
 
 
 class FreeRdpAndroidPackageTest(unittest.TestCase):
@@ -48,6 +55,44 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "mixed_abi_aar"):
                 package_receipt(aar, "arm64-v8a", lock)
 
+    def test_install_and_apk_must_contain_the_receipted_exact_native_payload(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            aar, receipt, apk = root / "core.aar", root / "receipt.json", root / "app.apk"
+            self._aar(aar, lock, "arm64-v8a")
+            value = package_receipt(aar, "arm64-v8a", lock)
+            receipt.write_text(json.dumps(value))
+            verify_install(aar, receipt, lock)
+            with zipfile.ZipFile(aar) as source, zipfile.ZipFile(apk, "w") as target:
+                for item in value["libraries"]:
+                    target.writestr(
+                        f'lib/arm64-v8a/{item["name"]}',
+                        source.read(f'jni/arm64-v8a/{item["name"]}'),
+                    )
+            verify_apk(apk, receipt, lock)
+            tampered = root / "tampered.apk"
+            with zipfile.ZipFile(apk) as source, zipfile.ZipFile(tampered, "w") as target:
+                for name in source.namelist():
+                    payload = source.read(name)
+                    if name.endswith("/libfreerdp3.so"):
+                        payload = b"tamper"
+                    target.writestr(name, payload)
+            with self.assertRaisesRegex(PackageError, "apk_library_mismatch"):
+                verify_apk(tampered, receipt, lock)
+
+    def test_receipt_tamper_never_enables_the_gradle_dependency(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            aar, receipt = root / "core.aar", root / "receipt.json"
+            self._aar(aar, lock, "x86_64")
+            value = package_receipt(aar, "x86_64", lock)
+            value["engineRevision"] = "unreviewed"
+            receipt.write_text(json.dumps(value))
+            with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
+                verify_install(aar, receipt, lock)
+
     def _source(self, path, lock):
         with tarfile.open(path, "w:gz") as archive:
             for name, digest in lock["reviewedFiles"].items():
@@ -60,11 +105,18 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 lock["reviewedFiles"][name] = self._git_blob(data)
 
     def _aar(self, path, lock, abi, second=None):
+        classes = io.BytesIO()
+        with zipfile.ZipFile(classes, "w") as jar:
+            for name in lock["requiredClasses"]:
+                jar.writestr(name, b"fixture")
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"manifest")
-            archive.writestr("classes.jar", b"classes")
+            archive.writestr("classes.jar", classes.getvalue())
             for name in lock["requiredLibraries"]:
-                archive.writestr(f"jni/{abi}/{name}", self._elf(183))
+                payload = self._elf(183 if abi == "arm64-v8a" else 62)
+                if name == "libfreerdp-android.so":
+                    payload += b"JNI_OnLoad"
+                archive.writestr(f"jni/{abi}/{name}", payload)
             if second:
                 archive.writestr(f"jni/{second}/extra.so", self._elf(62))
 

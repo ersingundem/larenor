@@ -11,6 +11,7 @@ class RdpNativeContractTest {
             request: RdpNativeRequest,
             negotiated: RdpNativeNegotiated,
             secrets: RdpNativeSecrets,
+            observer: RdpNativeSessionObserver,
         ): RdpNativeSession {
             openCalls++
             return object : RdpNativeSession { override fun close() = Unit }

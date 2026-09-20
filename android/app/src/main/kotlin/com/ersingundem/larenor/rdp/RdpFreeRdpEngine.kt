@@ -34,7 +34,7 @@ enum class RdpJniPhase { CONNECTING, ACTIVE, AWAITING_FRAME_ACK, CANCELLED, FAIL
 enum class RdpJniChannel { CLIPBOARD, AUDIO, FILES }
 
 data class RdpJniSecurity(
-    val tlsProtocol: String,
+    val minimumTlsProtocol: String,
     val nla: Boolean,
     val certificateFingerprint: String,
 )
@@ -113,6 +113,8 @@ interface RdpJniOperation {
     fun input(sequence: Long, event: RdpJniInput): Boolean
     fun resize(sequence: Long, display: RdpNativeDisplay): Boolean
     fun acknowledgeFrame(sequence: Long): Boolean
+    /** Called only after the contract has returned to ACTIVE following an ack. */
+    fun resumeFrames(): Boolean = true
     fun close()
     fun detach()
 }
@@ -120,7 +122,13 @@ interface RdpJniOperation {
 interface RdpJniRuntime {
     fun identity(): RdpFreeRdpIdentity
     fun capabilities(): Map<String, Any?>
-    fun create(plan: RdpNativeNegotiated, listener: RdpJniOperation.Listener): RdpJniOperation
+    fun inspect(host: String, port: Int, username: String): RdpJniSecurity =
+        failRdp("engineUnavailable")
+    fun create(
+        request: RdpNativeRequest,
+        plan: RdpNativeNegotiated,
+        listener: RdpJniOperation.Listener,
+    ): RdpJniOperation
 }
 
 private class RdpJniListenerProxy : RdpJniOperation.Listener {
@@ -155,6 +163,7 @@ class RdpFreeRdpBackend(private val runtime: RdpJniRuntime?) : RdpNativeBackend 
         request: RdpNativeRequest,
         negotiated: RdpNativeNegotiated,
         secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver,
     ): RdpNativeSession {
         val candidate = runtime ?: failRdp("engineUnavailable")
         val capabilities = verifiedCapabilities ?: failRdp("engineUnavailable")
@@ -163,13 +172,13 @@ class RdpFreeRdpBackend(private val runtime: RdpJniRuntime?) : RdpNativeBackend 
         }
         val proxy = RdpJniListenerProxy()
         val operation = try {
-            candidate.create(negotiated, proxy)
+            candidate.create(request, negotiated, proxy)
         } catch (_: LinkageError) {
             failRdp("engineUnavailable")
         } catch (_: Exception) {
             failRdp("connectionFailed")
         }
-        val session = RdpFreeRdpSession(request, negotiated, capabilities, operation)
+        val session = RdpFreeRdpSession(request, negotiated, capabilities, operation, observer)
         proxy.target = session
         try {
             session.start(secrets)
@@ -186,6 +195,7 @@ class RdpFreeRdpSession internal constructor(
     private val plan: RdpNativeNegotiated,
     private val capabilities: RdpNativeCapabilities,
     private val operation: RdpJniOperation,
+    private val observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
 ) : RdpNativeSession, RdpJniOperation.Listener {
     var phase = RdpJniPhase.CONNECTING
         private set
@@ -218,13 +228,16 @@ class RdpFreeRdpSession internal constructor(
             return
         }
         when {
-            evidence.tlsProtocol !in setOf("TLSv1.2", "TLSv1.3") ->
+            evidence.minimumTlsProtocol != "TLSv1.2" ->
                 terminate(RdpJniPhase.FAILED, "tlsRequired")
             evidence.certificateFingerprint != request.certificateFingerprint ->
                 terminate(RdpJniPhase.FAILED, "certificatePinningRequired")
             request.requiresNla && !evidence.nla ->
                 terminate(RdpJniPhase.FAILED, "nlaUnavailable")
-            else -> phase = RdpJniPhase.ACTIVE
+            else -> {
+                phase = RdpJniPhase.ACTIVE
+                observer.onSecurity()
+            }
         }
     }
 
@@ -250,6 +263,7 @@ class RdpFreeRdpSession internal constructor(
         pendingFrame = frame
         lastFrameSequence = frame.sequence
         phase = RdpJniPhase.AWAITING_FRAME_ACK
+        observer.onFrame()
     }
 
     fun acknowledgeFrame(sequence: Long): Boolean {
@@ -272,6 +286,17 @@ class RdpFreeRdpSession internal constructor(
             return false
         }
         phase = RdpJniPhase.ACTIVE
+        val resumed = try {
+            operation.resumeFrames()
+        } catch (_: LinkageError) {
+            false
+        } catch (_: Exception) {
+            false
+        }
+        if (!resumed) {
+            terminate(RdpJniPhase.FAILED, "connectionFailed")
+            return false
+        }
         return true
     }
 
@@ -392,6 +417,7 @@ class RdpFreeRdpSession internal constructor(
         pendingFrame = null
         try { operation.detach() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
         try { operation.close() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
+        observer.onClosed(code)
     }
 
     companion object {
