@@ -322,6 +322,11 @@ void main() {
       );
       expect(tester.getSemantics(loading).label, l10n.commonLoading);
       expect(tester.getSemantics(loading).flagsCollection.isLiveRegion, isTrue);
+      final evidence = find.byKey(const ValueKey('connection-evidence-status'));
+      expect(
+        tester.getSemantics(evidence).label,
+        contains(l10n.healthConnecting),
+      );
       expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
 
       h.api.targetGate!.complete();
@@ -329,6 +334,10 @@ void main() {
       final empty = find.byKey(const ValueKey('remote-playback-empty-status'));
       expect(tester.getSemantics(empty).label, l10n.mediaRemoteEmpty);
       expect(tester.getSemantics(empty).flagsCollection.isLiveRegion, isTrue);
+      expect(
+        tester.getSemantics(evidence).label,
+        contains(l10n.healthReadCurrent),
+      );
       expect(find.text(l10n.commonLoading), findsNothing);
     } finally {
       semantics.dispose();
@@ -491,9 +500,7 @@ void main() {
       expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
       expect(find.text(l10n.mediaRemoteUnconfirmed), findsNothing);
       expect(find.text('Living room TV'), findsNothing);
-      final status = find.byKey(
-        const ValueKey('remote-playback-action-status'),
-      );
+      final status = find.byKey(const ValueKey('connection-evidence-status'));
       expect(tester.getSemantics(status).label, isNotEmpty);
       expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
       await tester.pump(const Duration(minutes: 1));

@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/connection_evidence_status.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../health/data/connection_evidence.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/presentation/health_labels.dart';
 import '../../hub/presentation/media_session_state.dart';
@@ -43,6 +45,51 @@ String remotePlaybackFailureLabel(
   RemotePlaybackFailure.expiredIntent => l10n.mediaRemoteExpired,
   RemotePlaybackFailure.busy => l10n.mediaRemoteBusy,
 };
+
+ConnectionEvidence _remotePlaybackEvidence({
+  required bool configured,
+  required bool loading,
+  required bool readFailed,
+  required RemotePlaybackSnapshot? snapshot,
+}) {
+  if (!configured || snapshot?.configured == false) {
+    return const ConnectionEvidence.none();
+  }
+  final verifiedAt = snapshot?.readAt;
+  final stage = verifiedAt == null
+      ? ConnectionEvidenceStage.saved
+      : ConnectionEvidenceStage.verified;
+  if (loading || snapshot?.isLoading == true) {
+    return verifiedAt == null
+        ? const ConnectionEvidence.connecting()
+        : ConnectionEvidence.retrying(stage: stage, lastVerifiedAt: verifiedAt);
+  }
+  if (readFailed) {
+    return ConnectionEvidence.error(stage: stage, lastVerifiedAt: verifiedAt);
+  }
+  final failure = snapshot?.failure;
+  if (failure != null) {
+    return switch (failure) {
+      RemotePlaybackFailure.authentication =>
+        ConnectionEvidence.authenticationRequired(
+          stage: stage,
+          lastVerifiedAt: verifiedAt,
+        ),
+      RemotePlaybackFailure.permission => ConnectionEvidence.permissionDenied(
+        stage: stage,
+        lastVerifiedAt: verifiedAt,
+      ),
+      RemotePlaybackFailure.transport ||
+      RemotePlaybackFailure.timeout => ConnectionEvidence.unavailable(
+        stage: stage,
+        lastVerifiedAt: verifiedAt,
+      ),
+      _ => ConnectionEvidence.error(stage: stage, lastVerifiedAt: verifiedAt),
+    };
+  }
+  if (verifiedAt != null) return ConnectionEvidence.verified(verifiedAt);
+  return const ConnectionEvidence.saved();
+}
 
 class RemotePlaybackScreen extends ConsumerStatefulWidget {
   const RemotePlaybackScreen({super.key, required this.itemId});
@@ -166,11 +213,18 @@ class _RemotePlaybackScreenState
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
     final active = _surfaceCurrent(generation);
+    final configured = ref.watch(remotePlaybackControllerProvider) != null;
     final reading = active ? ref.watch(remotePlaybackProvider) : null;
     final snapshot = reading == null || reading.isLoading || reading.hasError
         ? null
         : reading.value;
     final busy = _preparing != null || snapshot?.isBusy == true;
+    final evidence = _remotePlaybackEvidence(
+      configured: configured,
+      loading: reading?.isLoading == true,
+      readFailed: reading?.hasError == true,
+      snapshot: snapshot,
+    );
     final receipt =
         snapshot?.receipt?.itemId ==
             widget.itemId.replaceAll('-', '').toLowerCase()
@@ -189,6 +243,10 @@ class _RemotePlaybackScreenState
             ),
             footer: Text(l10n.mediaRemoteHint),
             children: [
+              if (!sessionExpired)
+                CupertinoListTile(
+                  title: ConnectionEvidenceStatus(evidence: evidence),
+                ),
               if (sessionExpired)
                 _RemotePlaybackStatus(
                   key: const ValueKey('remote-playback-account-status'),
@@ -227,11 +285,6 @@ class _RemotePlaybackScreenState
                 _RemotePlaybackStatus(
                   key: const ValueKey('remote-playback-action-status'),
                   label: l10n.mediaRemoteUnconfirmed,
-                )
-              else if (snapshot?.failure != null)
-                _RemotePlaybackStatus(
-                  key: const ValueKey('remote-playback-action-status'),
-                  label: remotePlaybackFailureLabel(l10n, snapshot!.failure!),
                 ),
               if (snapshot?.readAt != null)
                 CupertinoListTile(
