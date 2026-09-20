@@ -6,6 +6,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
 import 'settings_nav_row.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
 
 class SecurityPane extends ConsumerWidget {
@@ -20,11 +21,17 @@ class SecurityPane extends ConsumerWidget {
       title: l10n.settingsCategorySecurity,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('security-settings-header'),
+            header: true,
+            child: Text(l10n.settingsCategorySecurity),
+          ),
           footer: Text(
             pin == null ? l10n.settingsNoPinFooter : l10n.settingsPinSetFooter,
           ),
           children: [
-            CupertinoListTile(
+            SettingsActionTile(
+              buttonKey: const ValueKey('security-pin-action'),
               leading: const IconBadge(
                 icon: CupertinoIcons.lock_fill,
                 color: CupertinoColors.systemRed,
@@ -35,7 +42,8 @@ class SecurityPane extends ConsumerWidget {
               onTap: () => _showSetPinDialog(context, ref),
             ),
             if (pin != null)
-              CupertinoListTile(
+              SettingsActionTile(
+                buttonKey: const ValueKey('security-remove-pin-action'),
                 leading: const IconBadge(
                   icon: CupertinoIcons.lock_open_fill,
                   color: CupertinoColors.systemGrey,
