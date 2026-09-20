@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/features/media/jellyfin/presentation/jellyfin_home_screen.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/presentation/manage_integrations_screen.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
@@ -15,12 +16,17 @@ import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Enabled extends EnabledServices {
-  _Enabled(this.load);
+  _Enabled(this.load, {this.onSet});
 
   final Future<Set<AppService>> Function() load;
+  final Future<void> Function(AppService service, bool enabled)? onSet;
 
   @override
   Future<Set<AppService>> build() => load();
+
+  @override
+  Future<void> setEnabled(AppService service, bool enabled) =>
+      onSet?.call(service, enabled) ?? super.setEnabled(service, enabled);
 }
 
 Future<void> _mount(
@@ -44,9 +50,8 @@ Future<void> _mount(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
         home: const ManageIntegrationsScreen(),
@@ -98,16 +103,24 @@ void main() {
             expect(openNode.label, contains('Jellyfin'));
 
             final toggleNode = tester.getSemantics(toggle);
-            expect(toggleNode.flagsCollection.isEnabled, isTrue);
-            expect(toggleNode.flagsCollection.isToggled, isTrue);
+            expect(toggleNode.flagsCollection.isEnabled, ui.Tristate.isTrue);
+            expect(toggleNode.flagsCollection.isToggled, ui.Tristate.isTrue);
             expect(toggleNode.rect.height, greaterThanOrEqualTo(48));
             expect(toggleNode.label, contains('Jellyfin'));
 
-            Focus.of(tester.element(open)).requestFocus();
+            final openLabel = find.descendant(
+              of: open,
+              matching: find.text('Jellyfin'),
+            );
+            Focus.of(tester.element(openLabel)).requestFocus();
             await tester.pump();
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.pump();
-            expect(Focus.of(tester.element(toggle)).hasPrimaryFocus, isTrue);
+            expect(
+              FocusManager.instance.primaryFocus!.context!
+                  .findAncestorWidgetOfExactType<CupertinoSwitch>(),
+              isNotNull,
+            );
 
             await tester.scrollUntilVisible(
               find.byKey(const ValueKey('integration-open-keenetic')),
@@ -149,7 +162,7 @@ void main() {
           )
           .flagsCollection
           .isToggled,
-      isTrue,
+      ui.Tristate.isTrue,
     );
   });
 
@@ -186,7 +199,7 @@ void main() {
           )
           .flagsCollection
           .isToggled,
-      isTrue,
+      ui.Tristate.isTrue,
     );
     expect(tester.takeException(), isNull);
   });
@@ -221,5 +234,62 @@ void main() {
     } finally {
       semantics.dispose();
     }
+  });
+
+  testWidgets('Enter opens the actual service without changing its toggle', (
+    tester,
+  ) async {
+    var writes = 0;
+    await _mount(
+      tester,
+      createEnabled: () => _Enabled(
+        () async => {AppService.jellyfin},
+        onSet: (_, _) async => writes++,
+      ),
+      locale: const Locale('en'),
+      width: 600,
+      textScale: 1,
+    );
+
+    final open = find.byKey(const ValueKey('integration-open-jellyfin'));
+    final openLabel = find.descendant(
+      of: open,
+      matching: find.text('Jellyfin'),
+    );
+    Focus.of(tester.element(openLabel)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JellyfinHomeScreen), findsOneWidget);
+    expect(writes, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed toggle keeps the prior state and hides private errors', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      createEnabled: () => _Enabled(
+        () async => {AppService.jellyfin},
+        onSet: (_, _) async => throw StateError('private write failure'),
+      ),
+      locale: const Locale('en'),
+      width: 600,
+      textScale: 1,
+    );
+
+    final toggle = find.byKey(const ValueKey('integration-toggle-jellyfin'));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Error'), findsOneWidget);
+    expect(find.textContaining('private write'), findsNothing);
+    expect(
+      tester.getSemantics(toggle).flagsCollection.isToggled,
+      ui.Tristate.isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 }
