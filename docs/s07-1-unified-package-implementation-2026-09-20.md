@@ -192,3 +192,7 @@ gerçek bir `/var/lib/larenor-server` alt yolu olmak zorundadır. Container
 kimliğinde hem UID hem GID signed 32-bit aralığında doğrulanır. Böylece inceleme
 altındaki trusted Compose değişikliği owned root dışına bind veya taşan GID ile
 preflight üretmeden fail-closed olur.
+
+Paket, S06.6 kapanışını içeren `67261f69` main tabanına yeniden bağlandı.
+Kabul edilen taban **17/125 (%13,6)** ve **0/63**'tür; S07.1 gerçek PR
+amd64/arm64 yürütmesi tamamlanana kadar bu dilim sayaç yükseltmez.
