@@ -47,9 +47,11 @@ class WindowProfileNotifier extends AsyncNotifier<WindowProfile> {
         : WindowProfile.adaptive;
   }
 
-  Future<void> set(WindowProfile profile) => ConfigurationWrites.run(() async {
-    if (!ref.mounted) return;
-    await ref.read(windowProfileStoreProvider).write(profile);
-    if (ref.mounted) state = AsyncData(profile);
-  });
+  Future<void> set(WindowProfile profile, {bool Function()? isCurrent}) =>
+      ConfigurationWrites.run(() async {
+        final current = isCurrent ?? () => true;
+        if (!ref.mounted || !current()) return;
+        await ref.read(windowProfileStoreProvider).write(profile);
+        if (ref.mounted && current()) state = AsyncData(profile);
+      });
 }
