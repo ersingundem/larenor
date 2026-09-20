@@ -27,8 +27,12 @@ class RdpNativeContractTest {
         "engineRevision" to "freerdp-fixture-1",
         "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to true),
         "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640),
-        "input" to mapOf("pointer" to true, "keyboard" to true),
-        "channels" to mapOf("clipboardModes" to listOf("disabled", "clientToRemote", "bidirectional")),
+        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
+        "channels" to mapOf(
+            "clipboardModes" to listOf("disabled", "clientToRemote", "bidirectional"),
+            "audio" to false,
+            "files" to false,
+        ),
     )
 
     private fun request(overrides: Map<String, Any?> = emptyMap()) = mapOf<String, Any?>(
@@ -44,6 +48,8 @@ class RdpNativeContractTest {
         "display" to mapOf("width" to 2560, "height" to 1600, "dpi" to 220, "externalDisplay" to true, "dynamicResize" to true),
         "keyboardLayout" to "turkishQ",
         "clipboardMode" to "clientToRemote",
+        "audio" to false,
+        "files" to false,
     ) + overrides
 
     private fun reject(code: String, action: () -> Unit) {
@@ -97,7 +103,9 @@ class RdpNativeContractTest {
             "nlaUnavailable" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to false, "rdGateway" to true)),
             "gatewayUnavailable" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false)),
             "displayUnavailable" to mapOf("display" to mapOf("dynamicResolution" to false, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640)),
-            "clipboardUnavailable" to mapOf("channels" to mapOf("clipboardModes" to listOf("disabled"))),
+            "clipboardUnavailable" to mapOf("channels" to mapOf(
+                "clipboardModes" to listOf("disabled"), "audio" to false, "files" to false,
+            )),
         )
         for ((code, override) in cases) {
             reject(code) {
