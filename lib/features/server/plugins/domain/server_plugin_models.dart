@@ -449,7 +449,7 @@ class PluginManifest {
     _integer(map['manifestVersion'], 1, 1);
     _integer(map['configSchemaVersion'], 1, 1);
     _one(map['dataSchemaVersion'], {'upstream_managed_unverified'});
-    _one(map['verifiedAt'], {'2026-09-05'});
+    _one(map['verifiedAt'], {'2026-09-05', '2026-09-20'});
     if (_bool(map['installable'])) _invalid();
     _unique(images.map((value) => value.platform));
     _unique(settings.map((value) => value.name));
