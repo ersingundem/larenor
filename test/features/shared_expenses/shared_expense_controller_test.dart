@@ -24,20 +24,24 @@ const participants = [
   ExpenseParticipant(id: 'baran', label: 'Baran'),
 ];
 
-SharedExpenseRecord record({String id = 'expense-1', int revision = 1}) =>
-    SharedExpenseRecord(
-      id: id,
-      revision: revision,
-      title: 'Ortak market',
-      currency: 'TRY',
-      currencyScale: 2,
-      totalMinor: 10000,
-      payerId: 'ada',
-      shares: const [
-        ExpenseShare(accountId: 'ada', amountMinor: 5000),
-        ExpenseShare(accountId: 'baran', amountMinor: 5000),
-      ],
-    );
+SharedExpenseRecord record({
+  String id = 'expense-1',
+  int revision = 1,
+  String payerId = 'ada',
+  List<ExpenseShare> shares = const [
+    ExpenseShare(accountId: 'ada', amountMinor: 5000),
+    ExpenseShare(accountId: 'baran', amountMinor: 5000),
+  ],
+}) => SharedExpenseRecord(
+  id: id,
+  revision: revision,
+  title: 'Ortak market',
+  currency: 'TRY',
+  currencyScale: 2,
+  totalMinor: 10000,
+  payerId: payerId,
+  shares: shares,
+);
 
 class FakeSharedExpenseApi implements SharedExpenseApi {
   final snapshots = <Completer<ExpenseLedgerSnapshot>>[];
@@ -212,6 +216,17 @@ void main() {
       expect(api.exportReads, 1);
       expect(controller.exportedRecords.single.id, 'expense-new');
       expect(api.createCalls, 1, reason: 'export is read-only');
+
+      api.exported = ExpenseExport(expenseAuthorityA, 5, [
+        record(
+          id: 'foreign-expense',
+          payerId: 'cem',
+          shares: const [ExpenseShare(accountId: 'cem', amountMinor: 10000)],
+        ),
+      ]);
+      await controller.readExport(lease);
+      expect(controller.state, SharedExpenseViewState.error);
+      expect(controller.exportedRecords, isEmpty);
     },
   );
 }
