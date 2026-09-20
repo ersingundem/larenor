@@ -205,6 +205,9 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
   Widget _editor() {
     final strings = widget.strings;
     final draft = _draft;
+    final canCreate =
+        widget.controller.state == SharedExpenseViewState.ready ||
+        widget.controller.state == SharedExpenseViewState.empty;
     return _Panel(
       title: strings.newExpense,
       child: Column(
@@ -282,7 +285,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
           _ActionButton(
             key: const ValueKey('expense-create'),
             label: strings.create,
-            onPressed: draft == null
+            onPressed: draft == null || !canCreate
                 ? null
                 : () => widget.controller.create(_lease, draft),
           ),

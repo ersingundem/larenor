@@ -223,7 +223,14 @@ class SharedExpenseController extends ChangeNotifier {
       );
       if (!_current(lease)) return;
       if (result.authority != lease.authority ||
-          result.ledgerRevision != revision) {
+          result.ledgerRevision != revision ||
+          result.records.any(
+            (record) =>
+                record.payerId != lease.authority.accountId &&
+                !record.shares.any(
+                  (share) => share.accountId == lease.authority.accountId,
+                ),
+          )) {
         _exportedRecords = const [];
         _set(SharedExpenseViewState.error);
         return;
