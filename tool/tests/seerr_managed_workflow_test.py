@@ -72,7 +72,6 @@ class SeerrManagedWorkflowPolicyTest(unittest.TestCase):
             "tool/seerr_managed_ci.py",
             "server/larenor_server/plugins/seerr_bootstrap_executor.py",
             "server/larenor_server/plugins/seerr_bootstrap_models.py",
-            "server/larenor_server/plugins/seerr_bootstrap_jobs.py",
             "server/larenor_server/plugins/seerr_arr_wiring.py",
             "server/larenor_server/plugins/seerr_endpoint.py",
             "server/larenor_server/plugins/seerr_initial_admin.py",
@@ -87,6 +86,7 @@ class SeerrManagedWorkflowPolicyTest(unittest.TestCase):
             "server/larenor_server/plugins/arr_managed_download_client.py",
             "server/larenor_server/plugins/arr_bootstrap_executor.py",
             "server/larenor_server/plugins/arr_authenticated_readback.py",
+            "server/larenor_server/plugins/qbittorrent_api_key.py",
         ):
             self.assertIn(repr(path), source)
 

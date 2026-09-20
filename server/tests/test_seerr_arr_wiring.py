@@ -55,13 +55,19 @@ def close_aware_connection(replies):
 
 def discovery(service):
     value = {
-        "profiles": [{"id": service.profile_id, "name": service.profile_name}],
+        "profiles": [
+            {
+                "id": service.profile_id,
+                "name": service.profile_name,
+                "cutoff": 7,
+            }
+        ],
         "rootFolders": [{"id": 1, "path": service.root_path}],
-        "tags": [],
+        "tags": [{"id": 2, "label": "larenor", "extra": True}],
         "urlBase": "",
     }
     if service.service_id == "sonarr":
-        value["languageProfiles"] = [{"id": 1, "name": "English"}]
+        value["languageProfiles"] = None
     return value
 
 
