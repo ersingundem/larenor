@@ -15,6 +15,7 @@ import 'jellyseerr_requests_screen.dart';
 import 'jellyseerr_status_label.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../../../shared/theme/spacing.dart';
 
 class JellyseerrHomeScreen extends ConsumerWidget {
@@ -27,8 +28,11 @@ class JellyseerrHomeScreen extends ConsumerWidget {
     return connectionAsync.when(
       skipLoadingOnReload: false,
       skipLoadingOnRefresh: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => ServiceRouteStatusScaffold(
+        title: 'Jellyseerr',
+        label: AppLocalizations.of(context).commonLoading,
+        statusKey: const ValueKey('jellyseerr-home-status'),
+        loading: true,
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
@@ -38,10 +42,13 @@ class JellyseerrHomeScreen extends ConsumerWidget {
             }.contains(error.code)) {
           return const JellyseerrConnectScreen();
         }
-        return CupertinoPageScaffold(
-          child: Center(
-            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-          ),
+        return ServiceRouteStatusScaffold(
+          title: 'Jellyseerr',
+          label: AppLocalizations.of(context).mediaErrorUnreachable,
+          statusKey: const ValueKey('jellyseerr-home-status'),
+          actionLabel: AppLocalizations.of(context).commonRetry,
+          actionKey: const ValueKey('jellyseerr-home-retry'),
+          onAction: () => ref.invalidate(jellyseerrConnectionProvider),
         );
       },
       data: (config) {
