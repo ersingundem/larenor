@@ -62,6 +62,43 @@ bağımsız incelemede başarısız Jellyfin bootstrap'ının eski readback ile
 `verified` görünmesi engellendi. S06.6 `done`, kuyruk **17/125 (%13,6)** ve S06
 koordinatörü **6/6** oldu. Fiziksel kurulum kanıt yerine sayılmaz.
 
+### S07.1 birleşik paket — ilk üç kriter yerelde hazır
+
+Yeni [birleşik paket tanımı](../deploy/larenor-server/unified.compose.yaml),
+Larenor Core ile altı sabit medya bileşenini tek projede toplar. Katalog OCI
+index digest'leri, sürüm/lisans/source revision etiketleri, sabit ad/ağ/bind
+eşlemeleri ve secret-free environment sözleşmesi odaklı testlerle doğrulandı.
+[Kriterler ve açık kapılar](s07-1-unified-package-implementation-2026-09-20.md).
+
+İkinci yerel dilim, Compose `config` çıktısından deterministic ve secret-free
+kurulum manifesti üretir; owned directory sahiplik/izin/kapasite preflight'ını
+pull/up önüne koyar; altı servisin image/container receipt'lerini authenticated
+readback durumundan ayırır. Readback başarısızlığı çalışan container'ı servis
+olarak doğrulamaz ve otomatik retry başlatmaz.
+
+Üçüncü yerel dilim, ilgili pull request değişiklikleri ve trusted `main` için
+GitHub-hosted Linux amd64/arm64 native matrisini ekler. İlgisiz değişiklikler
+sabit required check adlarıyla hızlı scope reuse alır. Exact
+config/pull/build/create/start/restart zinciri, iki aşamalı
+container-DNS-mount-network receipt'i, authenticated readiness ayrımı ve yalnız
+ownership receipt ile çalışan scoped `always()` cleanup fail-closed test edildi.
+
+Gerçek iki mimarili workflow sonucu, S06.5 authority aktarımı, production
+installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
+`pending` kalır.
+
+Dördüncü yerel dilim, aynı canonical Compose tanımından CasaOS ve genel
+Docker Compose/Proxmox bundle'ı üretir. Tek public giriş Core portudur; altı
+servisin exact digest'i ve Music Assistant discovery istisnası korunur.
+Secret-free `.env.example` yalnız data root, timezone, locale ve Core portunu
+açar. Install/upgrade preflight owned path, mimari, disk ile backup/rollback
+hedeflerini salt okunur ve fail-closed raporlar; hiçbir daemon mutation yapmaz.
+Dar saldırgan inceleme data root/ara dizin symlink boşluğunu ve canonical olmayan
+port metnini RED testlerle kapattı; Compose/CasaOS/digest ve public-port sınırları
+ayrıca değişiklik regresyonlarıyla doğrulandı.
+Gerçek iki mimari CI kanıtı gelmeden S07.1 ve sayaçlar değişmez.
+Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
+
 ## Şimdi yapılan işler
 
 ### Beşinci toplu aday — olay, transfer, Seerr ve ortak medya eylemi

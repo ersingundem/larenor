@@ -1,0 +1,135 @@
+{
+  "name": "Unified Media Stack Native Acceptance",
+  "on": {
+    "workflow_dispatch": {},
+    "pull_request": {
+      "branches": [
+        "main"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "unified-media-stack-native-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "native-scope": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "outputs": {
+        "run": "${{ steps.scope.outputs.run }}",
+        "reason": "${{ steps.scope.outputs.reason }}"
+      },
+      "env": {
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}",
+        "PR_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "PR_HEAD_SHA": "${{ github.event.pull_request.head.sha }}"
+      },
+      "steps": [
+        {
+          "name": "Require reviewed exact workflow source",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch)\n    test \"$GITHUB_REF\" = refs/heads/main\n    test -z \"$GITHUB_BASE_REF\"\n    test -z \"$PR_HEAD_REPOSITORY\"\n    ;;\n  pull_request)\n    test \"$GITHUB_BASE_REF\" = main\n    test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"\n    case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac\n    ;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
+        },
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Decide whether native evidence changed",
+          "id": "scope",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  pull_request)\n    git show \"$PR_BASE_SHA:tool/native_ci_scope.py\" > \"$RUNNER_TEMP/native_ci_scope.py\"\n    python3 \"$RUNNER_TEMP/native_ci_scope.py\" --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\"\n    ;;\n  workflow_dispatch)\n    python3 tool/native_ci_scope.py --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\"\n    ;;\n  *) exit 1;;\nesac"
+        }
+      ],
+      "name": "unified-stack-native-scope"
+    },
+    "unified-media-stack-native": {
+      "runs-on": "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
+      "timeout-minutes": 45,
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "runner": "ubuntu-24.04",
+              "platform": "linux/amd64"
+            },
+            {
+              "runner": "ubuntu-24.04-arm",
+              "platform": "linux/arm64"
+            }
+          ]
+        }
+      },
+      "env": {
+        "EXPECTED_PLATFORM": "${{ matrix.platform }}",
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}",
+        "PR_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "PR_HEAD_SHA": "${{ github.event.pull_request.head.sha }}"
+      },
+      "steps": [
+        {
+          "name": "Require reviewed exact workflow source",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch)\n    test \"$GITHUB_REF\" = refs/heads/main\n    test -z \"$GITHUB_BASE_REF\"\n    test -z \"$PR_HEAD_REPOSITORY\"\n    ;;\n  pull_request)\n    test \"$GITHUB_BASE_REF\" = main\n    test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"\n    case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac\n    ;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
+        },
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          },
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Install exact Python toolchain",
+          "run": "python3 -m venv \"$RUNNER_TEMP/unified-stack-bootstrap\"\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python install 3.12.14\npython_bin=\"$(\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python find 3.12.14)\"\ntest -x \"$python_bin\"\necho \"UNIFIED_STACK_PYTHON=$python_bin\" >> \"$GITHUB_ENV\"",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Verify planner and native policy contracts",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_bundle_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Run exact unified stack lifecycle",
+          "id": "native",
+          "timeout-minutes": 38,
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\"",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Remove only receipt-owned containers, network and directories",
+          "id": "cleanup",
+          "if": "always() && needs.native-scope.outputs.run == 'true'",
+          "run": "sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  /usr/bin/python3 -B -m tool.unified_media_stack_managed_ci --cleanup-owned \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\""
+        },
+        {
+          "name": "Verify bounded public native receipt",
+          "id": "verify",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-platform \"$EXPECTED_PLATFORM\"",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Preserve verified secret-free unified stack receipt",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "unified-media-stack-${{ github.sha }}-${{ runner.arch }}",
+            "path": "${{ runner.temp }}/unified-stack-public-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          },
+          "if": "needs.native-scope.outputs.run == 'true'"
+        }
+      ],
+      "name": "unified-stack-native (${{ matrix.platform }})",
+      "needs": "native-scope"
+    }
+  }
+}

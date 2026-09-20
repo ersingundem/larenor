@@ -27,6 +27,13 @@ RELEVANT_PATTERNS = (
     "tool/arr_managed_ci.py",
     "tool/seerr_managed_ci.py",
     "tool/music_assistant_managed_ci.py",
+    ".github/workflows/unified-media-stack-managed.yml",
+    "deploy/larenor-server/unified.compose.yaml",
+    "deploy/larenor-server/unified_package.py",
+    "deploy/larenor-server/deployment_bundle.py",
+    "deploy/larenor-server/.env.example",
+    "tool/unified_media_stack_managed_ci.py",
+    "tool/tests/unified_media_stack_*",
     "tool/volume_bootstrap_helper.py",
     "tool/media_resource_smoke.py",
 )
@@ -98,6 +105,18 @@ _WORKFLOW_PATTERNS = {
         "server/larenor_server/plugins/music_*",
         "server/tests/test_music_*",
         "server/tests/test_plugin_catalog.py",
+    ),
+    "unified-media-stack-managed.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+        ".github/workflows/unified-media-stack-managed.yml",
+        "server/Dockerfile",
+        "server/Dockerfile.dockerignore",
+        "deploy/larenor-server/unified.compose.yaml",
+        "deploy/larenor-server/unified_package.py",
+        "deploy/larenor-server/deployment_bundle.py",
+        "deploy/larenor-server/.env.example",
+        "tool/qbittorrent_managed_ci.py",
+        "tool/unified_media_stack_managed_ci.py",
+        "tool/tests/unified_media_stack_*",
     ),
 }
 _WORKFLOW_REF = re.compile(

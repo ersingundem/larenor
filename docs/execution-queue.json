@@ -980,11 +980,23 @@
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/s07-1-unified-package-implementation-2026-09-20.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
-        "Tek Larenor kurulumu, sürüm/lisans/mimari ve dahili motor yaşam döngüsü doğrulanır; eski CasaOS container/verisine sahiplik alınmaz."
+        "Tek Larenor dağıtım tanımı Core ile katalogdaki altı sabit bileşeni exact OCI index digest, sürüm, lisans ve iki mimari metadatasıyla içerir.",
+        "Container ve DNS adları, ortak control ağı ve Larenor sahiplik kökü altındaki bind source/target eşlemeleri deterministiktir; Music Assistant host-network istisnası açıktır.",
+        "Paket kullanıcıdan servisler arası URL, API tokenı, parola veya credential kopyalamasını istemez ve serileştirilmiş tanım secret girdisi taşımaz.",
+        "Compose config adaptörünün çözdüğü exact Core ve altı servis kimliğinden canonical, deterministic ve secret-free kurulum önizlemesi ile manifest digest'i üretilir.",
+        "Larenor-owned dizinler pull/up öncesi salt okunur doğrulanır; symlink, bozuk gözlem, yanlış sahip/izin ve yetersiz birleşik kapasite fail-closed olur ve sıfır runtime mutation bırakır.",
+        "Pull ve up receipt'leri altı servis için exact image/container kimliğiyle doğrulanır; authenticated readiness ayrı raporlanır, başarısız readback needs_attention olur ve otomatik retry yapılmaz.",
+        "Exact unified Compose config, pull, Core build ve create-start-restart zinciri ilgili pull request değişiklikleri ile trusted main dispatch üzerinde GitHub-hosted Linux amd64/arm64 matrisinde çalışır; ilgisiz diff sabit check adlarıyla scope reuse alır ve actions ile Python tooling immutably pinlidir.",
+        "Altı servisin image/container kimliği, mount, network ve Docker DNS receipt'i start/restart sonrasında doğrulanır; authenticated readiness ayrı kalır ve authority yoksa not_verified fail-closed raporlanır.",
+        "Native artifact bounded ve secret-free'dir; eksik/belirsiz servis reddedilir ve container/ağ/dizin cleanup'ı her sonuçta yalnız eşleşen private ownership receipt ile yapılır.",
+        "Tek canonical tanım CasaOS ve genel Docker Compose/Proxmox bundle'ı üretir; yalnız Core portu yayınlanır, altı servis exact digest ile bağlıdır ve yalnız Music Assistant discovery için host-network istisnası taşır.",
+        "Secret-free env örneği yalnız data root, timezone, locale ve Core portunu açar; kullanıcıdan servisler arası URL, API tokenı, parola veya credential istenmez ve iki çıktı deterministic manifest digest'ine bağlıdır.",
+        "Install/upgrade önizlemesi owned path tür/sahip/izinlerini, birleşik disk bütçesini, amd64/arm64 mimarisini ve backup/rollback hedeflerini fail-closed raporlar; varsayılan planlayıcı daemon mutation yapmaz."
       ],
       "requiredEvidence": [
         "test",
@@ -993,7 +1005,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "İlk on iki paket kriteri yerel TDD ile hazır; gerçek GitHub-hosted amd64/arm64 native workflow sonucu, S06.5 authority aktarımı, production worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan sayaç değişmedi."
     },
     {
       "id": "S07.2",

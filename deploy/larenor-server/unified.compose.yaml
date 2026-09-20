@@ -1,0 +1,409 @@
+{
+  "name": "larenor-server",
+  "services": {
+    "larenor-core": {
+      "build": {
+        "context": "../..",
+        "dockerfile": "server/Dockerfile",
+        "args": {
+          "LARENOR_SOURCE_REVISION": "${LARENOR_SOURCE_REVISION:?exact source revision required}"
+        }
+      },
+      "image": "ghcr.io/ersingundem/larenor-server:sha-${LARENOR_SOURCE_REVISION}",
+      "container_name": "larenor-core",
+      "user": "10001:10001",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "8098:8098"
+      ],
+      "extra_hosts": [
+        "host.docker.internal:host-gateway"
+      ],
+      "networks": {
+        "control": {
+          "aliases": [
+            "core"
+          ]
+        }
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/core/data",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/core/secrets",
+          "target": "/secrets",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "labels": {
+        "io.larenor.component": "core",
+        "io.larenor.version": "${LARENOR_SOURCE_REVISION}",
+        "io.larenor.license": "AGPL-3.0-only"
+      }
+    },
+    "larenor-jellyfin": {
+      "image": "ghcr.io/jellyfin/jellyfin@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+      "container_name": "larenor-jellyfin",
+      "user": "1000:1000",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "environment": {
+        "TZ": "Etc/UTC"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/jellyfin/config",
+          "target": "/config",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/jellyfin/cache",
+          "target": "/cache",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/library",
+          "target": "/media",
+          "bind": {
+            "create_host_path": false
+          },
+          "read_only": true
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "networks": {
+        "control": {
+          "aliases": [
+            "jellyfin"
+          ]
+        }
+      },
+      "labels": {
+        "io.larenor.component": "jellyfin",
+        "io.larenor.version": "10.11.11",
+        "io.larenor.license": "GPL-2.0",
+        "io.larenor.source-revision": "1fbd8739292cce610231be93daf43368733edf63"
+      }
+    },
+    "larenor-seerr": {
+      "image": "ghcr.io/seerr-team/seerr@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "container_name": "larenor-seerr",
+      "user": "1000:1000",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "environment": {
+        "TZ": "Etc/UTC",
+        "PORT": "5055"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/seerr/config",
+          "target": "/app/config",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "init": true,
+      "networks": {
+        "control": {
+          "aliases": [
+            "seerr"
+          ]
+        }
+      },
+      "labels": {
+        "io.larenor.component": "seerr",
+        "io.larenor.version": "3.4.1",
+        "io.larenor.license": "MIT",
+        "io.larenor.source-revision": "69f73a6f1486fdb51b8ddae9a94a8dfb629f461c"
+      }
+    },
+    "larenor-sonarr": {
+      "image": "ghcr.io/linuxserver/sonarr@sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
+      "container_name": "larenor-sonarr",
+      "user": "1000:1000",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
+      ],
+      "environment": {
+        "TZ": "Etc/UTC"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/sonarr/config",
+          "target": "/config",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/library",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "networks": {
+        "control": {
+          "aliases": [
+            "sonarr"
+          ]
+        }
+      },
+      "labels": {
+        "io.larenor.component": "sonarr",
+        "io.larenor.version": "4.0.19.2979",
+        "io.larenor.license": "GPL-3.0-only",
+        "io.larenor.source-revision": "ccdf333222caedce7e559412cf93bf31d9264f1c"
+      }
+    },
+    "larenor-radarr": {
+      "image": "ghcr.io/linuxserver/radarr@sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
+      "container_name": "larenor-radarr",
+      "user": "1000:1000",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
+      ],
+      "environment": {
+        "TZ": "Etc/UTC"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/radarr/config",
+          "target": "/config",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/library",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "networks": {
+        "control": {
+          "aliases": [
+            "radarr"
+          ]
+        }
+      },
+      "labels": {
+        "io.larenor.component": "radarr",
+        "io.larenor.version": "6.3.0.10514",
+        "io.larenor.license": "GPL-3.0-only",
+        "io.larenor.source-revision": "d37af7f113fb639a43bc872efa84997eb3c6e9c7"
+      }
+    },
+    "larenor-qbittorrent": {
+      "image": "ghcr.io/linuxserver/qbittorrent@sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+      "container_name": "larenor-qbittorrent",
+      "user": "1000:1000",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
+      ],
+      "environment": {
+        "TZ": "Etc/UTC",
+        "WEBUI_PORT": "8080",
+        "TORRENTING_PORT": "6881"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/qbittorrent/config",
+          "target": "/config",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/library",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "networks": {
+        "control": {
+          "aliases": [
+            "qbittorrent"
+          ]
+        }
+      },
+      "labels": {
+        "io.larenor.component": "qbittorrent",
+        "io.larenor.version": "5.2.3",
+        "io.larenor.license": "GPL-3.0-only",
+        "io.larenor.source-revision": "66a3432c396f4f3dbdbef7bd7ed5ab2042537fd0"
+      }
+    },
+    "larenor-music-assistant": {
+      "image": "ghcr.io/music-assistant/server@sha256:37a9a2776e838a754c9f5b38c432567389952304e7cb8f6b44b6cd28043de6de",
+      "container_name": "larenor-music-assistant",
+      "user": "0:0",
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,exec,size=128m,uid=0,gid=0,mode=1777"
+      ],
+      "environment": {
+        "LOG_LEVEL": "warning"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/components/music-assistant/data",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/library",
+          "target": "/media",
+          "bind": {
+            "create_host_path": false
+          },
+          "read_only": true
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "network_mode": "host",
+      "labels": {
+        "io.larenor.component": "music_assistant",
+        "io.larenor.version": "2.10.4",
+        "io.larenor.license": "Apache-2.0",
+        "io.larenor.source-revision": "e30a4974ba951f38e21bea8d502af3b903df992c"
+      },
+      "cap_add": [
+        "NET_BIND_SERVICE"
+      ]
+    }
+  },
+  "networks": {
+    "control": {
+      "name": "larenor-server-control-v1",
+      "driver": "bridge"
+    }
+  }
+}
