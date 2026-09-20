@@ -21,7 +21,7 @@ acceptance.
 
 The widget matrix covers English and Turkish at 600 and 1200 logical pixels
 with 200% text. It uses synthetic entities and repositories; no Home Assistant
-or other home service is contacted. RED commit `5483727b` records the layout,
+or other home service is contacted. RED commit `98c97c39` records the layout,
 target-size and semantics gaps before the production changes.
 
 ## Verification
