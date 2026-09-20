@@ -201,3 +201,10 @@ amd64/arm64 yürütmesi tamamlanana kadar bu dilim sayaç yükseltmez.
 temsil etmek için `command: null` ve `entrypoint: null` alanlarını eklediğini
 gösterdi. Validator bu güvenli normalizasyonu kabul eder; iki alanın herhangi
 bir gerçek override değeri taşıması hâlâ mutation öncesi fail-closed olur.
+
+İkinci native denemede ARM runner yaşam döngüsü tek genel runtime koduyla
+kapandığı için hangi aşamanın başarısız olduğu ayırt edilemiyordu. Altı büyük
+image artık bounded bellek/ağ kullanımı için sabit sırada tek tek çekilir; pull,
+Core build, create, start ve restart aşamaları ayrı allowlist hata kodlarıyla
+raporlanır. Kodlar URL, path, log veya credential taşımaz ve cleanup yine her
+sonuç yolunda çalışır.

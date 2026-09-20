@@ -198,6 +198,47 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_manifest_invalid"):
                     driver.config(target.COMPOSE, REVISION)
 
+    def test_native_driver_pulls_services_sequentially_and_reports_exact_stage(self):
+        manifest = target.expected_manifest(REVISION)
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            compose_calls = []
+
+            def compose(*arguments, **kwargs):
+                compose_calls.append((arguments, kwargs))
+                return 0, b""
+
+            def command(arguments, **_kwargs):
+                image = arguments[-1]
+                return 0, json.dumps([{
+                    "RepoDigests": [image], "Os": "linux", "Architecture": "amd64",
+                }]).encode("utf-8")
+
+            with patch.object(driver, "_compose", side_effect=compose), patch.object(
+                    target, "_command", side_effect=command):
+                receipts = driver.pull(manifest)
+            self.assertEqual(
+                [call[0] for call in compose_calls],
+                [("pull", "--quiet", target.SERVICE_NAMES[item])
+                 for item in COMPONENTS]
+                + [("build", "--pull", "larenor-core")],
+            )
+            self.assertEqual(len(receipts), len(COMPONENTS))
+
+            for method, code in (
+                (lambda: driver.create(manifest), "unified_create_runtime_failed"),
+                (lambda: driver.start(manifest), "unified_start_runtime_failed"),
+                (lambda: driver.restart(manifest), "unified_restart_runtime_failed"),
+            ):
+                with self.subTest(code=code), patch.object(
+                        driver, "_compose",
+                        side_effect=target.ManagedStackCIError("unified_native_runtime_failed")):
+                    with self.assertRaisesRegex(target.ManagedStackCIError, code):
+                        method()
+
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "owned-root"

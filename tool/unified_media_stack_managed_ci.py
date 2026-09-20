@@ -62,6 +62,11 @@ _CODES = {
     "unified_foreign_resource",
     "unified_cleanup_not_owned",
     "unified_cleanup_failed",
+    "unified_pull_runtime_failed",
+    "unified_build_runtime_failed",
+    "unified_create_runtime_failed",
+    "unified_start_runtime_failed",
+    "unified_restart_runtime_failed",
 }
 
 
@@ -613,8 +618,15 @@ class DockerDriver:
                 "availableMiB": volume.f_bavail * volume.f_frsize // 1048576}
 
     def pull(self, manifest):
-        self._compose("pull", "--ignore-buildable", "--quiet", timeout=900)
-        self._compose("build", "--pull", "larenor-core", timeout=900)
+        for service_id in COMPONENTS:
+            try:
+                self._compose("pull", "--quiet", SERVICE_NAMES[service_id], timeout=900)
+            except ManagedStackCIError:
+                raise ManagedStackCIError("unified_pull_runtime_failed") from None
+        try:
+            self._compose("build", "--pull", "larenor-core", timeout=900)
+        except ManagedStackCIError:
+            raise ManagedStackCIError("unified_build_runtime_failed") from None
         receipts = []
         architecture = self.platform.split("/", 1)[1]
         for item in manifest["components"]:
@@ -634,13 +646,22 @@ class DockerDriver:
         return receipts
 
     def create(self, manifest):
-        self._compose("create", "--no-build", timeout=300)
+        try:
+            self._compose("create", "--no-build", timeout=300)
+        except ManagedStackCIError:
+            raise ManagedStackCIError("unified_create_runtime_failed") from None
 
     def start(self, manifest):
-        self._compose("start", timeout=180)
+        try:
+            self._compose("start", timeout=180)
+        except ManagedStackCIError:
+            raise ManagedStackCIError("unified_start_runtime_failed") from None
 
     def restart(self, manifest):
-        self._compose("restart", "--timeout", "30", timeout=240)
+        try:
+            self._compose("restart", "--timeout", "30", timeout=240)
+        except ManagedStackCIError:
+            raise ManagedStackCIError("unified_restart_runtime_failed") from None
 
     def receipts(self, manifest, phase):
         values = []
