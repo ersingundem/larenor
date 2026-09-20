@@ -218,3 +218,10 @@ Core fail-closed olur; container logu, health ayrıntısı ya da özel değer pu
 çıktıya taşınmaz. DNS yürütme hatası da ayrı sabit kodla kapanır. Bu yalnız
 runtime/DNS kanıtını sıralar; authenticated servis readiness durumu hâlâ yetki
 sağlanana kadar açıkça `not_verified` kalır.
+
+Bu sağlık sıralaması iki runner'da da Core'u doğruladı ve kalan kapalı kodun ilk
+peer DNS yürütmesi olduğu görüldü. Receipt artık hedef container'ın gerçekten
+`running` olduğunu DNS'den önce doğrular; Docker alias kaydının start/restart
+sırasında kısa süreli gecikmesine karşı yalnız `gethostbyname` çözümünü sınırlı
+30 saniye içinde tekrarlar. Süre aşımı hâlâ `unified_dns_runtime_failed` ile
+kapanır ve stack üzerinde otomatik mutation yapılmaz.

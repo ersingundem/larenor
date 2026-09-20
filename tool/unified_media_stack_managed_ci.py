@@ -686,6 +686,8 @@ class DockerDriver:
                              for entry in mounts if entry.get("Type") == "bind"}
             if actual_mounts != expected_mounts or current.get("Config", {}).get("Image") != item["image"]:
                 raise ManagedStackCIError("unified_container_receipt_invalid")
+            if current.get("State", {}).get("Running") is not True:
+                raise ManagedStackCIError("unified_container_receipt_invalid")
             if item["serviceId"] == "music_assistant":
                 if network_mode != "host":
                     raise ManagedStackCIError("unified_container_receipt_invalid")
@@ -699,22 +701,27 @@ class DockerDriver:
             values.append({
                 "serviceId": item["serviceId"], "containerName": item["containerName"],
                 "image": item["image"], "containerId": current.get("Id"),
-                "state": "running" if current.get("State", {}).get("Running") is True else "failed",
+                "state": "running",
                 "dns": dns, "network": network,
                 "mounts": [{"target": entry["target"], "readOnly": entry["readOnly"]}
                            for entry in item["mounts"]],
             })
         return values
 
-    def _verify_dns(self, name):
-        code = ("import socket,sys; values=socket.getaddrinfo(sys.argv[1],1); "
-                "assert values")
-        try:
-            _command(["/usr/bin/docker", "exec", package.CORE_NAME,
-                      "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
-                     environment=self._environment, timeout=15, output=False)
-        except ManagedStackCIError:
-            raise ManagedStackCIError("unified_dns_runtime_failed") from None
+    def _verify_dns(self, name, *, timeout=30, interval=2):
+        code = "import socket,sys; assert socket.gethostbyname(sys.argv[1])"
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status, _ = _command(
+                ["/usr/bin/docker", "exec", package.CORE_NAME,
+                 "/opt/larenor/.venv/bin/python", "-B", "-c", code, name],
+                environment=self._environment, timeout=10, output=False,
+                allow_failure=True,
+            )
+            if status == 0:
+                return
+            time.sleep(interval)
+        raise ManagedStackCIError("unified_dns_runtime_failed")
 
     def _await_core_runtime(self, *, timeout=180, interval=2):
         """Wait for the package's public Core health check without reading logs."""

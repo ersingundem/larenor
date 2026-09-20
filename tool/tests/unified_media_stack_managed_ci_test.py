@@ -266,12 +266,18 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_core_runtime_unready"):
                     driver._await_core_runtime()
 
-            with patch.object(
-                    target, "_command",
-                    side_effect=target.ManagedStackCIError("unified_native_runtime_failed")):
+            with patch.object(target, "_command", side_effect=[(1, b""), (0, b"")]), patch.object(
+                    target.time, "monotonic", side_effect=[0, 0, 1]), patch.object(
+                    target.time, "sleep") as sleep:
+                driver._verify_dns("larenor-jellyfin", timeout=5, interval=1)
+            sleep.assert_called_once_with(1)
+
+            with patch.object(target, "_command", return_value=(1, b"")), patch.object(
+                    target.time, "monotonic", side_effect=[0, 0, 1]), patch.object(
+                    target.time, "sleep"):
                 with self.assertRaisesRegex(target.ManagedStackCIError,
                                             "unified_dns_runtime_failed"):
-                    driver._verify_dns("larenor-jellyfin")
+                    driver._verify_dns("larenor-jellyfin", timeout=1, interval=1)
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
