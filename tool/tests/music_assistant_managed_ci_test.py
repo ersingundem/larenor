@@ -169,6 +169,30 @@ class MusicAssistantManagedCITest(unittest.TestCase):
         self.assertEqual(
             str(raised.exception), "music_assistant_container_oom_killed")
 
+    def test_container_exit_logs_reduce_to_allowlisted_diagnostics(self):
+        class Response:
+            status = 200
+            body = b"fatal: Read-only file system: /private/path"
+
+        class Engine:
+            value = b"fatal: Read-only file system: /private/path"
+
+            def _exchange(self, _method, _target):
+                Response.body = self.value
+                return Response()
+
+        engine = Engine()
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_readonly_root",
+        )
+        engine.value = b"unrecognized private upstream output"
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_exited",
+        )
+        self.assertNotIn("private", target._closed_exit_diagnostic(engine, "a" * 64))
+
 
 if __name__ == "__main__":
     unittest.main()

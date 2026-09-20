@@ -70,6 +70,12 @@ _DIAGNOSTIC_CODES = frozenset(
         "music_assistant_characterization_cancelled",
         "music_assistant_characterization_failed",
         "music_assistant_container_exited",
+        "music_assistant_container_capability_denied",
+        "music_assistant_container_permission_denied",
+        "music_assistant_container_port_conflict",
+        "music_assistant_container_readonly_root",
+        "music_assistant_container_runtime_broken",
+        "music_assistant_container_storage_exhausted",
         "music_assistant_container_oom_killed",
         "music_assistant_info_unreachable",
         *_CONTAINER_CREATE_DIAGNOSTICS,
@@ -333,19 +339,48 @@ class _MusicAssistantNativeResult:
     token_persistent: bool
 
 
-def _require_running(engine, name):
+_EXIT_SIGNATURES = (
+    (b"read-only file system", "music_assistant_container_readonly_root"),
+    (b"operation not permitted", "music_assistant_container_capability_denied"),
+    (b"permission denied", "music_assistant_container_permission_denied"),
+    (b"address already in use", "music_assistant_container_port_conflict"),
+    (b"no space left on device", "music_assistant_container_storage_exhausted"),
+    (b"modulenotfounderror", "music_assistant_container_runtime_broken"),
+    (b"importerror", "music_assistant_container_runtime_broken"),
+)
+
+
+def _closed_exit_diagnostic(engine, container_id):
+    try:
+        response = engine._exchange(
+            "GET",
+            "/containers/" + container_id + "/logs?stdout=1&stderr=1&tail=200",
+        )
+        if response.status != 200 or len(response.body) > 65536:
+            return "music_assistant_container_exited"
+        lowered = response.body.lower()
+        return next(
+            code for signature, code in _EXIT_SIGNATURES if signature in lowered
+        )
+    except (StopIteration, Exception):
+        return "music_assistant_container_exited"
+
+
+def _require_running(engine, name, diagnose_exit=None):
     value = engine.inspect_container(name)
     state = value.get("State") if type(value) is dict else None
     if type(state) is not dict or state.get("Running") is not True:
         code = (
             "music_assistant_container_oom_killed"
             if type(state) is dict and state.get("OOMKilled") is True
+            else diagnose_exit(value.get("Id"))
+            if callable(diagnose_exit) and type(value.get("Id")) is str
             else "music_assistant_container_exited"
         )
         raise MusicAssistantManagedCIError(code)
 
 
-def _public_info(*, deadline, engine, name):
+def _public_info(*, deadline, engine, name, diagnose_exit=None):
     import http.client
     from larenor_server.plugins.music_assistant_bootstrap_runtime import (
         MusicAssistantBootstrapRuntime,
@@ -375,7 +410,7 @@ def _public_info(*, deadline, engine, name):
             raise MusicAssistantManagedCIError(
                 "music_assistant_fresh_state_failed") from None
         except Exception:
-            _require_running(engine, name)
+            _require_running(engine, name, diagnose_exit)
             if time.monotonic() >= deadline:
                 raise MusicAssistantManagedCIError(
                     "music_assistant_info_unreachable") from None
@@ -482,6 +517,8 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
                 deadline=time.monotonic() + 120,
                 engine=engine,
                 name=binding.name,
+                diagnose_exit=lambda container_id: _closed_exit_diagnostic(
+                    engine, container_id),
             )
             running = engine.inspect_container(binding.name)
             require(
