@@ -30,6 +30,17 @@ class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final exposed =
+        foreground &&
+        interactionActive &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+    if (!exposed) {
+      return ServiceRootScaffold(
+        title: l10n.settingsCameras,
+        slivers: const [SliverFilledMessage(child: SizedBox.expand())],
+      );
+    }
     final entitiesAsync = ref.watch(entitiesProvider);
     final generation = sessionGeneration;
     final active = _current(generation, entitiesAsync);
@@ -80,8 +91,8 @@ class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
               sliver: SliverPadding(
                 padding: const EdgeInsets.all(12),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 360,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.3,

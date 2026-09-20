@@ -33,13 +33,24 @@ class _KeeneticMetricDetailScreenState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final controller = ref.watch(keeneticTelemetryControllerProvider);
-    final generation = sessionGeneration;
     final request = KeeneticMetricRequest(
       widget.tile.keeneticMetric ?? KeeneticMetricKind.routerResources,
       interfaceId: widget.tile.keeneticInterfaceId,
     );
     final title = widget.tile.title ?? keeneticMetricTitle(l10n, request.kind);
+    final exposed =
+        foreground &&
+        interactionActive &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+    if (!exposed) {
+      return ServiceRootScaffold(
+        title: title,
+        slivers: const [SliverFilledMessage(child: SizedBox.expand())],
+      );
+    }
+    final controller = ref.watch(keeneticTelemetryControllerProvider);
+    final generation = sessionGeneration;
     return ServiceRootScaffold(
       title: title,
       slivers: [

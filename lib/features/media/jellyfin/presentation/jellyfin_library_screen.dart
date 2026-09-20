@@ -44,6 +44,31 @@ class _JellyfinLibraryScreenState
 
   @override
   Widget build(BuildContext context) {
+    watchMediaAccounts(jellyfinOnly: true);
+    final l10n = AppLocalizations.of(context);
+    final exposed =
+        foreground &&
+        interactionActive &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+    if (!exposed || sessionExpired) {
+      return ServiceRootScaffold(
+        title: widget.title,
+        slivers: [
+          SliverFilledMessage(
+            child: sessionExpired
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      l10n.mediaAccountChanged,
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ],
+      );
+    }
     final provider = jellyfinLibraryItemsProvider(widget.parentId);
     final itemsAsync = ref.watch(provider);
     final generation = sessionGeneration;
@@ -62,7 +87,7 @@ class _JellyfinLibraryScreenState
             children: [
               SettingsActionTile(
                 buttonKey: const ValueKey('jellyfin-library-refresh'),
-                title: Text(AppLocalizations.of(context).commonRefresh),
+                title: Text(l10n.commonRefresh),
                 onTap: active
                     ? () {
                         if (_current(generation, itemsAsync)) {
@@ -76,22 +101,15 @@ class _JellyfinLibraryScreenState
         ),
         itemsAsync.when(
           loading: () => SliverFilledMessage(
-            child: _LibraryStatus(
-              label: AppLocalizations.of(context).commonLoading,
-              loading: true,
-            ),
+            child: _LibraryStatus(label: l10n.commonLoading, loading: true),
           ),
           error: (_, _) => SliverFilledMessage(
-            child: _LibraryStatus(
-              label: AppLocalizations.of(context).mediaErrorUnreachable,
-            ),
+            child: _LibraryStatus(label: l10n.mediaErrorUnreachable),
           ),
           data: (items) {
             if (items.isEmpty) {
               return SliverFilledMessage(
-                child: _LibraryStatus(
-                  label: AppLocalizations.of(context).jellyfinLibraryEmpty,
-                ),
+                child: _LibraryStatus(label: l10n.jellyfinLibraryEmpty),
               );
             }
             return SliverLayoutBuilder(

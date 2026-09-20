@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_metric_detail_screen.dart';
@@ -45,6 +46,7 @@ Future<void> _mount(
   required String language,
   required double width,
   required _Controller controller,
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -59,11 +61,16 @@ Future<void> _mount(
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(2)),
-          child: child!,
-        ),
+        builder: (context, child) {
+          final content = MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          );
+          return interaction == null
+              ? content
+              : AppInteractionScope(controller: interaction, child: content);
+        },
         home: const KeeneticMetricDetailScreen(tile: _tile),
       ),
     ),
@@ -99,6 +106,35 @@ void main() {
 
     expect(old.refreshes, 0);
     expect(replacement.refreshes, 0);
+  });
+
+  testWidgets('inactive tablet releases metric view and rejects old refresh', (
+    tester,
+  ) async {
+    final controller = _Controller();
+    final interaction = AppInteractionController();
+    addTearDown(controller.dispose);
+    addTearDown(interaction.dispose);
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      controller: controller,
+      interaction: interaction,
+    );
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('keenetic-metric-refresh')),
+        )
+        .onPressed!;
+
+    interaction.setActive(false);
+    await tester.pump();
+    refresh();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('keenetic-metric-refresh')), findsNothing);
+    expect(controller.refreshes, 0);
   });
 
   for (final language in ['en', 'tr']) {

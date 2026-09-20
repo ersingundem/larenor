@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_library_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
@@ -14,11 +15,40 @@ import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _movie = JellyfinItem(id: 'movie', name: 'Arrival', type: 'Movie');
 
+class _Connection extends JellyfinConnection {
+  _Connection(this.config);
+
+  JellyfinConfig config;
+
+  @override
+  Future<JellyfinConfig?> build() async => config;
+
+  void replace(JellyfinConfig value) {
+    config = value;
+    state = AsyncData(value);
+  }
+}
+
+const _accountA = JellyfinConfig(
+  baseUrl: 'https://media-a.example',
+  userId: 'a',
+  accessToken: 'test-token-a',
+  deviceId: 'tablet',
+);
+
+const _accountB = JellyfinConfig(
+  baseUrl: 'https://media-b.example',
+  userId: 'b',
+  accessToken: 'test-token-b',
+  deviceId: 'tablet',
+);
+
 Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
   VoidCallback? onLibraryRead,
+  _Connection? connection,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -26,6 +56,9 @@ Future<void> _mount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        jellyfinConnectionProvider.overrideWith(
+          () => connection ?? _Connection(_accountA),
+        ),
         jellyfinClientProvider.overrideWith((ref) => null),
         jellyfinLibraryItemsProvider('library').overrideWith((ref) async {
           onLibraryRead?.call();
@@ -92,6 +125,47 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(reads, 2);
+  });
+
+  testWidgets('account change expires the library route and old actions', (
+    tester,
+  ) async {
+    var reads = 0;
+    final connection = _Connection(_accountA);
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      onLibraryRead: () => reads++,
+      connection: connection,
+    );
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyfin-library-refresh')),
+        )
+        .onPressed!;
+    final open = tester
+        .widget<CupertinoButton>(
+          find.descendant(
+            of: find.byType(PosterCard),
+            matching: find.byType(CupertinoButton),
+          ),
+        )
+        .onPressed!;
+
+    connection.replace(_accountB);
+    await tester.pumpAndSettle();
+    refresh();
+    open();
+    await tester.pumpAndSettle();
+
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(JellyfinLibraryScreen)),
+    );
+    expect(reads, 1);
+    expect(find.text(l10n.mediaAccountChanged), findsOneWidget);
+    expect(find.byType(PosterCard), findsNothing);
+    expect(find.byType(JellyfinItemDetailScreen), findsNothing);
   });
 
   for (final language in ['en', 'tr']) {
