@@ -50,6 +50,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   bool _visible = true;
   bool _checking = false;
   bool _checked = false;
+  bool _checkScheduled = false;
   bool _disposed = false;
   int _operation = 0;
   int _commandGeneration = 0;
@@ -66,9 +67,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
     _account.addListener(_accountChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _active && _signedIn) _check();
-    });
+    _scheduleCheck();
   }
 
   @override
@@ -83,6 +82,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     }
     ModalRoute.isCurrentOf(context);
     if (!_active) clearPendingInteraction();
+    if (_active) _scheduleCheck();
   }
 
   void _visibilityChanged() {
@@ -90,6 +90,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     _visible = _ticker?.value.enabled ?? true;
     if (!_active) clearPendingInteraction();
     setState(() {});
+    if (_active) _scheduleCheck();
   }
 
   void _accountChanged() {
@@ -118,11 +119,31 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   @override
   void clearPendingInteraction() {
     _operation++;
-    _commandGeneration++;
-    _repository?.close();
-    _repository = null;
-    _checking = false;
     _update?.setVisible(false);
+    _retire();
+    _checking = false;
+    _checked = false;
+    _available = null;
+    _error = null;
+  }
+
+  @override
+  void resumeMediaSession() => _scheduleCheck();
+
+  void _scheduleCheck() {
+    if (_checkScheduled || _disposed) return;
+    _checkScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkScheduled = false;
+      if (mounted &&
+          _active &&
+          _signedIn &&
+          !_checked &&
+          !_checking &&
+          _error == null) {
+        unawaited(_check());
+      }
+    });
   }
 
   void _updated() {
@@ -240,6 +261,9 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_active && _signedIn && !_checked && !_checking && _error == null) {
+      _scheduleCheck();
+    }
     final l10n = AppLocalizations.of(context);
     final update = _update;
     final release = _available;

@@ -37,11 +37,21 @@ source reads still expose recovery choices, and callbacks bind to the captured
 runtime identity. The schedule editor's navigation-bar Save target remained 44
 dp; Save now uses the shared 48 dp keyboard/TalkBack action surface in content.
 
+The final lifecycle and state audit closed three more P2 gaps. Client Updates
+now retires retained release and installed-version evidence whenever route,
+window, account, lifecycle, or interaction authority is lost, then performs one
+fresh check after authority returns. Home Source exposes recovery and pending
+storage state as private, localized TalkBack live regions. Screen Program's
+master control is now a 60 by 48 dp keyboard button with named toggled semantics;
+loading, empty, saving, read-failure, and safe write-failure states are also
+live regions at both tablet widths and 2x text.
+
 Focused evidence:
 
 - `flutter test test/features/client_updates/client_updates_screen_test.dart test/features/home_scope/home_source_tablet_accessibility_test.dart test/features/settings/screen_program_ui_test.dart test/core/home_session_runtime_test.dart`
+- `flutter test test/features/settings/screen_program_review_test.dart`
 - `flutter analyze lib/features/client_updates/presentation/client_updates_screen.dart lib/features/home_scope/presentation/home_source_screen.dart lib/features/settings/presentation/screen_program_screen.dart test/features/client_updates/client_updates_screen_test.dart test/features/home_scope/home_source_tablet_accessibility_test.dart test/features/settings/screen_program_ui_test.dart test/core/home_session_runtime_test.dart`
 
-The four focused suites pass **61/61** after these fixes. Real update install,
+The five focused suites pass **67/67** after these fixes. Real update install,
 physical Huawei/DeX layout, keyboard and TalkBack acceptance remain manual, so
 queue progress stays 17/125 and selected-feature progress stays 0/63.

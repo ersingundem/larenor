@@ -95,6 +95,14 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
+CupertinoButton _programToggle(WidgetTester tester) =>
+    tester.widget<CupertinoButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('screen-program-enabled')),
+        matching: find.byType(CupertinoButton),
+      ),
+    );
+
 void main() {
   testWidgets('hidden settings surface rejects a retained schedule callback', (
     tester,
@@ -103,15 +111,11 @@ void main() {
     addTearDown(ticker.dispose);
     final store = _Store();
     await _mount(tester, store, ticker: ticker);
-    final change = tester
-        .widget<CupertinoSwitch>(
-          find.byKey(const ValueKey('screen-program-enabled')),
-        )
-        .onChanged!;
+    final change = _programToggle(tester).onPressed!;
 
     ticker.value = false;
     await tester.pump();
-    change(true);
+    change();
     await tester.pumpAndSettle();
 
     expect(store.writes, 0);
@@ -147,7 +151,18 @@ void main() {
             expect(headingNode.flagsCollection.isHeader, isTrue);
             expect(headingNode.flagsCollection.isButton, isFalse);
 
+            final master = find.byKey(const ValueKey('screen-program-enabled'));
+            await tester.ensureVisible(master);
+            await tester.pumpAndSettle();
+            final masterNode = tester.getSemantics(master);
+            expect(masterNode.label, l10n.screenProgramEnabled);
+            expect(masterNode.flagsCollection.isButton, isTrue);
+            expect(tester.getSize(master).width, greaterThanOrEqualTo(48));
+            expect(tester.getSize(master).height, greaterThanOrEqualTo(48));
+
             final add = find.byKey(const ValueKey('screen-program-add'));
+            await tester.ensureVisible(add);
+            await tester.pumpAndSettle();
             final addNode = tester.getSemantics(add);
             expect(addNode.label, l10n.screenProgramAdd);
             expect(addNode.flagsCollection.isButton, isTrue);
@@ -214,14 +229,26 @@ void main() {
   testWidgets(
     'opening a schedule does not write settings or issue platform commands',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final s = _Store();
-      await _mount(tester, s);
-      expect(s.writes, 0);
-      expect(
-        find.text('No time periods yet. Add one to create a weekly schedule.'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('does not lock or turn off'), findsOneWidget);
+      try {
+        await _mount(tester, s);
+        expect(s.writes, 0);
+        expect(
+          find.text(
+            'No time periods yet. Add one to create a weekly schedule.',
+          ),
+          findsOneWidget,
+        );
+        final empty = find.byKey(const ValueKey('screen-program-empty-status'));
+        expect(tester.getSemantics(empty).flagsCollection.isLiveRegion, isTrue);
+        expect(
+          find.textContaining('does not lock or turn off'),
+          findsOneWidget,
+        );
+      } finally {
+        semantics.dispose();
+      }
     },
   );
   testWidgets(
@@ -324,28 +351,38 @@ void main() {
   testWidgets('storage failure preserves prior schedule with a safe error', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final s = _Store()..fail = true;
-    await _mount(tester, s);
-    await _tap(tester, 'screen-program-enabled');
-    expect(s.program.enabled, isFalse);
-    expect(
-      find.textContaining('Your previous schedule remains in use'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('private storage'), findsNothing);
+    try {
+      await _mount(tester, s);
+      await _tap(tester, 'screen-program-enabled');
+      expect(s.program.enabled, isFalse);
+      expect(
+        find.textContaining('Your previous schedule remains in use'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('screen-program-save-error')),
+            )
+            .flagsCollection
+            .isLiveRegion,
+        isTrue,
+      );
+      expect(find.textContaining('private storage'), findsNothing);
+    } finally {
+      semantics.dispose();
+    }
   });
   testWidgets(
     'rapid captured switch callbacks serialize a single explicit save',
     (tester) async {
       final s = _Store()..pending = Completer<void>();
       await _mount(tester, s);
-      final change = tester
-          .widget<CupertinoSwitch>(
-            find.byKey(const ValueKey('screen-program-enabled')),
-          )
-          .onChanged!;
-      change(true);
-      change(true);
+      final change = _programToggle(tester).onPressed!;
+      change();
+      change();
       await tester.pump();
       expect(s.writes, 1);
       expect(s.program.enabled, isFalse);
@@ -436,12 +473,8 @@ void main() {
     await _mount(tester, s, interaction: interaction);
     final blocker = Completer<void>();
     final lock = ConfigurationWrites.run(() => blocker.future);
-    final change = tester
-        .widget<CupertinoSwitch>(
-          find.byKey(const ValueKey('screen-program-enabled')),
-        )
-        .onChanged!;
-    change(true);
+    final change = _programToggle(tester).onPressed!;
+    change();
     await tester.pump();
     interaction.setActive(false);
     await tester.pump();

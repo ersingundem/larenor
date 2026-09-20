@@ -104,10 +104,9 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
               return Column(
                 children: [
                   if (controller.failure != null)
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(l10n.homeSourceStorageError),
-                    ),
+                    _HomeSourceStatus(label: l10n.homeSourceStorageError)
+                  else if (controller.busy)
+                    _HomeSourceStatus(label: l10n.commonLoading, loading: true),
                   SettingsSection(
                     footer: Text(l10n.homeSourceHint),
                     children: [
@@ -233,4 +232,32 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
       ],
     );
   }
+}
+
+class _HomeSourceStatus extends StatelessWidget {
+  const _HomeSourceStatus({required this.label, this.loading = false});
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    key: const ValueKey('home-source-status'),
+    container: true,
+    liveRegion: true,
+    label: label,
+    excludeSemantics: true,
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          if (loading) ...[
+            const CupertinoActivityIndicator(),
+            const SizedBox(width: 12),
+          ],
+          Expanded(child: Text(label)),
+        ],
+      ),
+    ),
+  );
 }

@@ -306,6 +306,41 @@ void main() {
     },
   );
 
+  testWidgets(
+    'resume discards retained release evidence and performs one fresh check',
+    (tester) async {
+      await mount(tester);
+      expect(reads, 1);
+      expect(find.text('2.0 (20)'), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(find.text('2.0 (20)'), findsNothing);
+
+      response = http.Response(
+        jsonEncode({
+          ...update_fixture.releaseJson(),
+          'versionCode': 21,
+          'versionName': '2.1',
+          'downloadPath': '/api/v1/client/releases/21/apk',
+        }),
+        200,
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(reads, 2);
+      expect(find.text('2.0 (20)'), findsNothing);
+      expect(find.text('2.1 (21)'), findsOneWidget);
+      expect(api.downloads, 0);
+      expect(api.installs, 0);
+    },
+  );
+
   testWidgets('retained cancel cannot stop a newer download generation', (
     tester,
   ) async {

@@ -95,4 +95,27 @@ void main() {
     expect(harness.source.writes, 0);
     expect(harness.source.value, HomeSource.directLocal);
   });
+
+  testWidgets('source read failure is a safe TalkBack live state', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final harness = ScopeHarness(HomeSource.verifiedCore);
+    harness.source.readFails = true;
+    try {
+      await harness.mount(tester);
+      harness.router(tester).push('/settings/home-source');
+      await flush(tester);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(HomeSourceScreen)),
+      );
+      final status = find.byKey(const ValueKey('home-source-status'));
+      expect(tester.getSemantics(status).label, l10n.homeSourceStorageError);
+      expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
+      expect(find.textContaining('source_read_failed'), findsNothing);
+      expect(harness.source.value, HomeSource.verifiedCore);
+    } finally {
+      semantics.dispose();
+    }
+  });
 }
