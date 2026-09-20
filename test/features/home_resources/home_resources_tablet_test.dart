@@ -248,6 +248,72 @@ void main() {
     },
   );
 
+  testWidgets(
+    'account and home switch reject the previous home late SAF result',
+    (tester) async {
+      final destination = Completer<Uri?>();
+      var saveRequests = 0, transferRequests = 0;
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async {
+          transferRequests++;
+          return _transferResponse(request);
+        }),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) {
+          saveRequests++;
+          return destination.future;
+        },
+      );
+      try {
+        await harness.mount(tester, width: 1200);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        for (var attempt = 0; attempt < 20 && saveRequests == 0; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+        expect((transferRequests, saveRequests), (3, 1));
+
+        await harness.account.signOut();
+        harness.userId = '8' * 32;
+        harness.contextResponse = fixture['otherContextList']['scope'];
+        harness.response = fixture['otherContextList'];
+        await harness.signIn();
+        await flush(tester);
+        expect(find.text('İkinci ev · Salon'), findsOneWidget);
+
+        destination.complete(Uri.parse('content://synthetic/previous-home'));
+        await flush(tester);
+
+        expect(find.text('İkinci ev · Salon'), findsOneWidget);
+        expect(
+          find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+          findsNothing,
+          reason: 'the previous home receipt cannot enter the new home view',
+        );
+        expect(
+          (transferRequests, saveRequests),
+          (3, 1),
+          reason: 'an account switch never replays the old transfer',
+        );
+      } finally {
+        if (!destination.isCompleted) destination.complete(null);
+      }
+    },
+  );
+
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       for (final dark in [false, true]) {
