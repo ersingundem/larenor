@@ -18,10 +18,10 @@ Status: independent Client contract and tablet surface; F36 remains `pending`.
 
 ## Evidence and remaining integration
 
-- RED `0d3237da`: production Client types did not exist.
-- GREEN `187791ed`: authority-bound controller and responsive tablet UI passed
+- RED `208a797b`: production Client types did not exist.
+- GREEN `f283a6dd`: authority-bound controller and responsive tablet UI passed
   the initial five tests.
-- RED `4ee9cbe4`: a receipt for another task could incorrectly clear an
+- RED `16843f42`: a receipt for another task could incorrectly clear an
   uncertain operation; the exact task/revision receipt check closes that gap.
 
 The authenticated HTTP implementation, app route/AppLocalizations adapter,
