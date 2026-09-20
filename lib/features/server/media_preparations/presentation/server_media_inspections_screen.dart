@@ -248,7 +248,11 @@ class _ServerMediaInspectionsScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: AppText.headline),
+            Semantics(
+              container: true,
+              header: true,
+              child: Text(title, style: AppText.headline),
+            ),
             const SizedBox(height: 12),
             ...children,
           ],
