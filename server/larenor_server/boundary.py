@@ -42,12 +42,16 @@ class SafeBoundaryMiddleware:
 
         try:
             method = scope["method"]
-            # The one binary endpoint authenticates before consuming its own
-            # bounded/deadlined stream. Do not buffer an APK as JSON. The exact
-            # route remains protected by the release-only publishing credential.
+            # Binary endpoints authenticate before consuming their own bounded,
+            # deadlined streams. Do not buffer those payloads as JSON.
             release_upload = method == "PUT" and re.fullmatch(
                 r"/api/v1/client/releases/[1-9][0-9]{0,9}/uploads/"
                 r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/apk",
+                scope["path"],
+            )
+            product_upload = method == "PUT" and re.fullmatch(
+                r"/api/v1/home-resources/[0-9a-f]{32}/[0-9a-f]{32}/"
+                r"[0-9a-f]{32}/blob/uploads/[0-9a-f]{32}",
                 scope["path"],
             )
             maximum = MAX_JSON_BYTES if scope["path"] == "/api/v1/vault" else 8192
@@ -55,6 +59,8 @@ class SafeBoundaryMiddleware:
                 maximum = 65536
             if release_upload:
                 maximum = 512 * 1024 * 1024
+            if product_upload:
+                maximum = 256 * 1024
             if method in ("GET", "HEAD", "OPTIONS"):
                 maximum = 0
             headers = scope.get("headers", [])
@@ -70,7 +76,7 @@ class SafeBoundaryMiddleware:
                     raise ApiError("invalid_request")
                 if declared > maximum:
                     raise ApiError("payload_too_large", 413)
-            if release_upload:
+            if release_upload or product_upload:
                 await self.app(scope, receive, safe_send)
                 return
             body = bytearray()

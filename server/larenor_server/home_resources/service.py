@@ -282,6 +282,24 @@ class HomeResourceRegistry:
             expected_user_revision=expected_user_revision, cancelled=cancelled,
             consume_rate_limit=False)
 
+    def perform_authorized(self, actor, core_id, home_id, record_id, action,
+                           callback, *, expected_revision, expected_acl_revision,
+                           expected_user_revision):
+        """Run one packaged mutation in the same transaction as its authority check."""
+        if action not in {'read', 'write'} or not callable(callback):
+            raise ApiError('invalid_request')
+        with self._transaction(
+            actor, core_id, home_id, consume_rate_limit=False
+        ) as (connection, facts):
+            row, ref, data = self._target(connection, record_id)
+            self._require(
+                facts, row, ref, data, action,
+                expected_revision=expected_revision,
+                expected_acl_revision=expected_acl_revision,
+                expected_user_revision=expected_user_revision,
+            )
+            return callback(connection, facts)
+
     def create(self, actor, core_id, home_id, body):
         body = CreateRecordRequest.model_validate(body); identity = uuid.uuid4().hex
         with self._transaction(actor, core_id, home_id, admin=True, action='create', target_id=identity) as (c, facts):

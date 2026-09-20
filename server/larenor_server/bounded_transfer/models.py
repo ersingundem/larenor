@@ -43,6 +43,31 @@ class TransferHistoryResponse(BaseModel):
     receipts: list[TransferReceipt] = Field(max_length=50)
 
 
+class ProductBlobDescriptor(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    resourceId: Identity
+    serviceRevision: Revision
+    contentLength: Annotated[int, Field(ge=1, le=256 * 1024)]
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    contentType: Annotated[str, Field(min_length=1, max_length=128)]
+    createdAt: float
+    updatedAt: float
+
+
+class ProductBlobUpload(ProductBlobDescriptor):
+    requestId: Identity
+
+
+class ProductBlobResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    blob: ProductBlobDescriptor
+
+
+class ProductBlobUploadResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    blob: ProductBlobUpload
+
+
 @dataclass(frozen=True)
 class BlobDescriptor:
     """A blob exposed by trusted packaged code, never by a request path or URL."""
