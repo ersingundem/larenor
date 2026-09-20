@@ -1,3 +1,5 @@
+import base64
+import json
 import re
 import secrets
 import sqlite3
@@ -91,12 +93,16 @@ class InventoryRegistry:
         return row
 
     def _visible(self, actor_row, row, stored):
-        if (
-            actor_row["role"] != "admin"
-            and actor_row["id"] != stored.createdBy
-            and actor_row["id"] not in stored.readerIds
-        ):
+        if not self._is_visible(actor_row, stored):
             raise ApiError("not_found", 404)
+
+    @staticmethod
+    def _is_visible(actor_row, stored):
+        return (
+            actor_row["role"] == "admin"
+            or actor_row["id"] == stored.createdBy
+            or actor_row["id"] in stored.readerIds
+        )
 
     def _public(self, row, stored):
         return InventoryItem(
@@ -214,6 +220,97 @@ class InventoryRegistry:
                 f"{self.scope.homeId}:{item_id}"
             ),
         ).model_dump()
+
+    def _cursor_aad(self, actor_id):
+        return (
+            f"larenor-inventory-cursor-v1:{self.scope.coreId}:"
+            f"{self.scope.homeId}:{actor_id}"
+        ).encode("ascii")
+
+    def _encode_cursor(self, actor_id, last_id):
+        plain = json.dumps(
+            {"schemaVersion": 1, "lastId": last_id},
+            separators=(",", ":"),
+        ).encode("ascii")
+        nonce = secrets.token_bytes(12)
+        value = base64.urlsafe_b64encode(
+            nonce + self._cipher.encrypt(nonce, plain, self._cursor_aad(actor_id))
+        ).decode("ascii").rstrip("=")
+        if len(value) > 512:
+            raise ApiError("server_unavailable", 503)
+        return value
+
+    def _decode_cursor(self, actor_id, value):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,512}", value):
+            raise ApiError("invalid_request")
+        try:
+            padded = value + "=" * (-len(value) % 4)
+            raw = base64.b64decode(padded, altchars=b"-_", validate=True)
+            if base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=") != value:
+                raise ValueError("non_canonical_cursor")
+            if not 28 <= len(raw) <= 384:
+                raise ValueError("invalid_cursor_size")
+            decoded = json.loads(
+                self._cipher.decrypt(
+                    raw[:12],
+                    raw[12:],
+                    self._cursor_aad(actor_id),
+                ).decode("ascii")
+            )
+            if (
+                not isinstance(decoded, dict)
+                or set(decoded) != {"schemaVersion", "lastId"}
+                or decoded["schemaVersion"] != 1
+                or not isinstance(decoded["lastId"], str)
+                or not re.fullmatch(r"[0-9a-f]{32}", decoded["lastId"])
+            ):
+                raise ValueError("invalid_cursor_payload")
+            return decoded["lastId"]
+        except (InvalidTag, ValueError, TypeError, UnicodeError, json.JSONDecodeError):
+            raise ApiError("invalid_request") from None
+
+    def list_items(self, actor, core_id, home_id, *, limit=25, cursor=None):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ApiError("invalid_request")
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                actor_row = self._actor(connection, actor, core_id, home_id)
+                last_id = (
+                    self._decode_cursor(actor_row["id"], cursor)
+                    if cursor is not None
+                    else ""
+                )
+                self._validate_audit(connection)
+                rows = connection.execute(
+                    "SELECT * FROM inventory_items WHERE id>? ORDER BY id LIMIT ?",
+                    (last_id, schema.MAX_ITEMS + 1),
+                ).fetchall()
+                if len(rows) > schema.MAX_ITEMS:
+                    raise ValueError("inventory_capacity")
+                visible = []
+                for row in rows:
+                    stored = self._decode(row)
+                    if not self._is_visible(actor_row, stored):
+                        continue
+                    self._validate_links(connection, stored.links, missing="not_found")
+                    visible.append((row, stored))
+                    if len(visible) > limit:
+                        break
+                page = visible[:limit]
+                return {
+                    "schemaVersion": 1,
+                    "verified": True,
+                    "items": [self._public(row, stored) for row, stored in page],
+                    "nextCursor": (
+                        self._encode_cursor(actor_row["id"], page[-1][0]["id"])
+                        if len(visible) > limit
+                        else None
+                    ),
+                }
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
 
     def validate_storage(self):
         try:

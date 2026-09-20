@@ -101,6 +101,13 @@ class CreatedInventoryItemResponse(InventoryItemResponse):
     qr: InventoryQr
 
 
+class InventoryItemsPage(FrozenModel):
+    schemaVersion: Literal[1]
+    verified: Literal[True]
+    items: list[InventoryItem] = Field(max_length=100)
+    nextCursor: str | None = Field(default=None, max_length=512)
+
+
 class UpdateInventoryItem(FrozenModel):
     schemaVersion: Literal[1]
     expectedRevision: Revision
