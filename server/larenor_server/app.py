@@ -111,6 +111,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         music_assistant_task = asyncio.create_task(dispatch(
             music_assistant, "music_assistant_bootstrap_dispatch_unavailable"
         )) if music_assistant.backend is not None else None
+        music_providers = application.state.core.music_provider_setups
+        music_provider_task = asyncio.create_task(dispatch(
+            music_providers, "music_provider_setup_dispatch_unavailable"
+        )) if music_providers.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
@@ -118,6 +122,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.arr_configuration_dispatcher = arr_task
         application.state.seerr_bootstrap_dispatcher = seerr_task
         application.state.music_assistant_bootstrap_dispatcher = music_assistant_task
+        application.state.music_provider_setup_dispatcher = music_provider_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -146,6 +151,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await seerr_task
             if music_assistant_task is not None:
                 await music_assistant_task
+            if music_provider_task is not None:
+                await music_provider_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -166,6 +173,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.arr_configuration_dispatcher = None
     app.state.seerr_bootstrap_dispatcher = None
     app.state.music_assistant_bootstrap_dispatcher = None
+    app.state.music_provider_setup_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)

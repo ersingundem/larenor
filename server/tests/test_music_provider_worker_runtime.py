@@ -35,9 +35,7 @@ class Connection:
         self.calls.append((method, path, parsed, headers))
 
     def getresponse(self):
-        command = self.calls[-1][2]
-        return Response({'message_id': command['message_id'],
-                         'result': self.responses.pop(0)})
+        return Response(self.responses.pop(0))
 
     def close(self):
         pass
@@ -74,6 +72,83 @@ def test_runtime_submits_once_then_authenticates_exact_instance_readback():
                for call in calls)
     assert 'private-cookie' not in repr(action())
     assert 'private-mass-token' not in repr(action())
+
+
+def test_runtime_projects_pinned_external_step_without_exposing_upstream_metadata():
+    calls = []
+    responses = [{
+        'flow_id': 'flow-private', 'step_id': 'authenticate',
+        'type': 'external', 'title': 'private localized title',
+        'description': None, 'entries': [], 'errors': {}, 'last_step': None,
+        'url': 'https://accounts.spotify.com/authorize?state=private-state',
+        'progress_text': None, 'progress': None, 'image': None,
+        'expires_at': time.time() + 600, 'result': None, 'reason': None,
+    }]
+    runtime = MusicProviderSetupRuntime(
+        lambda _timeout: Connection(responses, calls))
+
+    result = runtime.execute(
+        action(providerDomain='spotify', command='start', flowId=None,
+               stepId=None, values={}),
+        deadline=time.monotonic() + 2)
+
+    assert result.state == 'action_required'
+    assert result.discovery.kind == 'external'
+    assert result.discovery.stepId == 'authenticate'
+    assert result.discovery.externalUrl.startswith(
+        'https://accounts.spotify.com/authorize?')
+    assert 'private localized title' not in repr(result)
+
+
+def test_runtime_projects_pinned_form_entries_and_ignores_only_known_ui_entries():
+    calls = []
+    responses = [{
+        'flow_id': 'flow-private', 'step_id': 'user', 'type': 'form',
+        'title': None, 'description': None,
+        'entries': [
+            {'key': 'unofficial_provider_note', 'type': 'alert',
+             'required': False, 'value': None},
+            {'key': 'music_user_manual_token', 'type': 'secure_string',
+             'required': False, 'value': None, 'advanced': True},
+        ],
+        'errors': {}, 'last_step': None, 'url': None,
+        'progress_text': None, 'progress': None, 'image': None,
+        'expires_at': None, 'result': None, 'reason': None,
+    }]
+    runtime = MusicProviderSetupRuntime(
+        lambda _timeout: Connection(responses, calls))
+
+    result = runtime.execute(
+        action(providerDomain='apple_music', command='start', flowId=None,
+               stepId=None, values={}),
+        deadline=time.monotonic() + 2)
+
+    assert [entry.model_dump() for entry in result.discovery.entries] == [{
+        'key': 'music_user_manual_token', 'type': 'secure_string',
+        'required': False}]
+
+
+def test_runtime_rejects_obsolete_or_unbounded_setup_step_shapes():
+    invalid = [
+        {'type': 'external', 'flow_id': 'flow-private',
+         'step_id': 'authenticate', 'external_url': 'https://accounts.spotify.com'},
+        {'type': 'form', 'flow_id': 'flow-private', 'step_id': 'user',
+         'entries': [{'key': 'secret', 'type': 'integer', 'required': True}]},
+        {'type': 'form', 'flow_id': 'flow-private', 'step_id': 'user',
+         'entries': [{'key': 'note', 'type': 'alert', 'required': True}]},
+    ]
+    for response in invalid:
+        runtime = MusicProviderSetupRuntime(
+            lambda _timeout, response=response: Connection([response], []))
+        try:
+            runtime.execute(
+                action(providerDomain='spotify', command='start', flowId=None,
+                       stepId=None, values={}),
+                deadline=time.monotonic() + 1)
+        except MusicProviderSetupRuntimeError as error:
+            assert str(error) == 'provider_setup_upstream_changed'
+        else:
+            raise AssertionError('unreviewed setup-flow shape was accepted')
 
 
 class WorkerBackend:
