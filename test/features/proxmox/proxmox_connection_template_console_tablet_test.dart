@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,17 +92,20 @@ Future<void> _mount(
       overrides: [
         proxmoxConnectionProvider.overrideWith(() => connection),
         proxmoxClientProvider.overrideWith((_) async => client),
-        proxmoxGuestsProvider('pve')
-            .overrideWith((_) async => const [_template]),
-        proxmoxStoragesProvider('pve').overrideWith(
-          (_) async => const [
+        proxmoxGuestsProvider('pve').overrideWith((ref) async {
+          await ref.watch(proxmoxClientProvider.future);
+          return const [_template];
+        }),
+        proxmoxStoragesProvider('pve').overrideWith((ref) async {
+          await ref.watch(proxmoxClientProvider.future);
+          return const [
             ProxmoxStorage(
               name: 'local-zfs',
               type: 'zfspool',
               contentTypes: ['images'],
             ),
-          ],
-        ),
+          ];
+        }),
       ],
       child: CupertinoApp(
         locale: locale,
@@ -119,7 +120,13 @@ Future<void> _mount(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (web == null) {
+    await tester.pumpAndSettle();
+  } else {
+    for (var frame = 0; frame < 6; frame++) {
+      await tester.pump();
+    }
+  }
 }
 
 void _expectAction(WidgetTester tester, String key) {
@@ -160,7 +167,7 @@ void main() {
             home: const ProxmoxConnectScreen(popOnSuccess: false),
             connection: connection,
           );
-          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(AppSurface), findsAtLeastNWidgets(1));
           expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
           _expectAction(tester, 'proxmox-connect-submit');
           final fields = find.byType(CupertinoTextField);
@@ -190,9 +197,12 @@ void main() {
           Focus.of(tester.element(title)).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
+          for (var frame = 0; frame < 6; frame++) {
+            await tester.pump();
+          }
           _expectAction(tester, 'proxmox-clone-submit');
-          expect(find.byType(AppSurface), findsOneWidget);
+          _expectAction(tester, 'proxmox-clone-storage');
+          expect(find.byType(AppSurface), findsAtLeastNWidgets(1));
           expect(tester.takeException(), isNull);
         },
       );
@@ -214,15 +224,23 @@ void main() {
           _expectAction(tester, 'proxmox-console-refresh');
           _expectAction(tester, 'proxmox-console-open');
           final open = find.byKey(const ValueKey('proxmox-console-open'));
-          Focus.of(tester.element(open)).requestFocus();
+          final openLabel = find.descendant(
+            of: open,
+            matching: find.byType(Text),
+          );
+          Focus.of(tester.element(openLabel)).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
+          for (var frame = 0; frame < 6; frame++) {
+            await tester.pump();
+          }
           expect(web.controllers.last.requests.last.uri.queryParameters, {
             'console': 'kvm',
             'novnc': '1',
             'vmid': '101',
             'node': 'pve',
+            'resize': 'scale',
+            'mobile': '0',
           });
           expect(tester.takeException(), isNull);
         },

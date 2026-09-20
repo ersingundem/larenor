@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../dashboard/domain/dashboard_website_url.dart';
 import '../../data/models/proxmox_guest.dart';
 import '../../providers/proxmox_providers.dart';
@@ -225,75 +228,82 @@ class _ProxmoxConsoleScreenState
     final l10n = AppLocalizations.of(context);
     final available = sessionAvailable && !_targetChanged;
     final controller = _controller;
-    return CupertinoPageScaffold(
-      backgroundColor: const Color(0xFF000000),
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.proxmoxConsoleTitle(widget.guest.name)),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: !available || !_visible || _preparing ? null : _prepare,
-          child: const Icon(CupertinoIcons.refresh),
-        ),
       ),
       child: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(
-                l10n.proxmoxConsoleSignInRequired,
-                style: const TextStyle(color: CupertinoColors.white),
-              ),
+              child: Text(l10n.proxmoxConsoleSignInRequired),
             ),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
+            SettingsSection(
               children: [
-                CupertinoButton(
-                  onPressed: !available || !_visible || _preparing
+                SettingsActionTile(
+                  buttonKey: const ValueKey('proxmox-console-refresh'),
+                  leading: const Icon(CupertinoIcons.refresh),
+                  title: Text(l10n.commonRefresh),
+                  onTap: !available || !_visible || _preparing
+                      ? null
+                      : _prepare,
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('proxmox-console-web-signin'),
+                  title: Text(l10n.proxmoxConsoleWebSignIn),
+                  onTap: !available || !_visible || _preparing
                       ? null
                       : () => _selectPage(true),
-                  child: Text(l10n.proxmoxConsoleWebSignIn),
                 ),
-                CupertinoButton(
-                  onPressed: !available || !_visible || _preparing
+                SettingsActionTile(
+                  buttonKey: const ValueKey('proxmox-console-open'),
+                  title: Text(l10n.proxmoxConsoleOpenSession),
+                  onTap: !available || !_visible || _preparing
                       ? null
                       : () => _selectPage(false),
-                  child: Text(l10n.proxmoxConsoleOpenSession),
                 ),
               ],
             ),
             Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (available && _visible && controller != null)
-                    WebViewWidget(
-                      key: ValueKey(_pageGeneration),
-                      controller: controller,
-                    ),
-                  if (_loading && available && _error == null)
-                    const Center(
-                      child: CupertinoActivityIndicator(
-                        color: CupertinoColors.white,
+              child: ColoredBox(
+                color: const Color(0xFF000000),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (available && _visible && controller != null)
+                      WebViewWidget(
+                        key: ValueKey(_pageGeneration),
+                        controller: controller,
                       ),
-                    ),
-                  if (!available || _error != null)
-                    Center(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            !available ? l10n.proxmoxSessionExpired : _error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: CupertinoColors.white,
+                    if (_loading && available && _error == null)
+                      const Center(
+                        child: CupertinoActivityIndicator(
+                          color: CupertinoColors.white,
+                        ),
+                      ),
+                    if (!available || _error != null)
+                      Center(
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                !available
+                                    ? l10n.proxmoxSessionExpired
+                                    : _error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: CupertinoColors.white,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
