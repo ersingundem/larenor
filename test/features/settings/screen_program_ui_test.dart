@@ -47,6 +47,7 @@ Future<void> _mount(
   WidgetTester tester,
   _Store store, {
   AppInteractionController? interaction,
+  ValueNotifier<bool>? ticker,
   Size size = const Size(600, 1000),
   double scale = 1,
   Locale locale = const Locale('en'),
@@ -57,6 +58,8 @@ Future<void> _mount(
   addTearDown(tester.view.reset);
   final controller = interaction ?? AppInteractionController();
   if (interaction == null) addTearDown(controller.dispose);
+  final tickerState = ticker ?? ValueNotifier(true);
+  if (ticker == null) addTearDown(tickerState.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [screenProgramStoreProvider.overrideWithValue(store)],
@@ -72,7 +75,12 @@ Future<void> _mount(
             child: child!,
           ),
         ),
-        home: const ScreenProgramScreen(),
+        home: ValueListenableBuilder<bool>(
+          valueListenable: tickerState,
+          child: const ScreenProgramScreen(),
+          builder: (_, enabled, child) =>
+              TickerMode(enabled: enabled, child: child!),
+        ),
       ),
     ),
   );
@@ -88,6 +96,28 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('hidden settings surface rejects a retained schedule callback', (
+    tester,
+  ) async {
+    final ticker = ValueNotifier(true);
+    addTearDown(ticker.dispose);
+    final store = _Store();
+    await _mount(tester, store, ticker: ticker);
+    final change = tester
+        .widget<CupertinoSwitch>(
+          find.byKey(const ValueKey('screen-program-enabled')),
+        )
+        .onChanged!;
+
+    ticker.value = false;
+    await tester.pump();
+    change(true);
+    await tester.pumpAndSettle();
+
+    expect(store.writes, 0);
+    expect(store.program.enabled, isFalse);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
