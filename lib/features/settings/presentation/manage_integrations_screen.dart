@@ -18,7 +18,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/integration_health_status.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/settings_service_tile.dart';
 
@@ -61,34 +61,30 @@ class _ManageIntegrationsScreenState
     final l10n = AppLocalizations.of(context);
     final reading = ref.watch(enabledServicesProvider);
 
-    return AppPageScaffold(
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(l10n.settingsManageIntegrations),
-          ),
-          SliverSafeArea(
-            top: false,
-            sliver: SliverToBoxAdapter(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1000),
-                  child: switch (reading) {
-                    AsyncData(:final value) => _serviceSections(value),
-                    AsyncError() => Column(
-                      children: [
-                        _loadFailure(),
-                        _serviceSections(const {}, choicesAvailable: false),
-                      ],
-                    ),
-                    _ => _loading(),
-                  },
-                ),
+    return ServiceRootScaffold(
+      title: l10n.settingsManageIntegrations,
+      slivers: [
+        SliverSafeArea(
+          top: false,
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: switch (reading) {
+                  AsyncData(:final value) => _serviceSections(value),
+                  AsyncError() => Column(
+                    children: [
+                      _loadFailure(),
+                      _serviceSections(const {}, choicesAvailable: false),
+                    ],
+                  ),
+                  _ => _loading(),
+                },
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

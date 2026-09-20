@@ -13,6 +13,8 @@ import 'package:larenor/features/settings/presentation/manage_integrations_scree
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Enabled extends EnabledServices {
@@ -72,7 +74,7 @@ void main() {
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
-    for (final width in [600.0, 1280.0]) {
+    for (final width in [600.0, 1200.0]) {
       testWidgets(
         'service rows share tablet chrome, focus and semantics $locale $width',
         (tester) async {
@@ -88,6 +90,26 @@ void main() {
             );
 
             expect(find.byType(AppPageScaffold), findsOneWidget);
+            expect(find.byType(ServiceRootScaffold), findsOneWidget);
+            expect(find.byType(SettingsSection), findsNWidgets(2));
+            final pageHeadings = find.bySemanticsLabel(
+              AppLocalizations.of(
+                tester.element(find.byType(ManageIntegrationsScreen)),
+              ).settingsManageIntegrations,
+            );
+            expect(pageHeadings, findsWidgets);
+            expect(
+              pageHeadings.evaluate().any((element) {
+                final node = tester.getSemantics(
+                  find.byElementPredicate(
+                    (candidate) => identical(candidate, element),
+                  ),
+                );
+                return node.flagsCollection.isHeader &&
+                    !node.flagsCollection.isButton;
+              }),
+              isTrue,
+            );
             final open = find.byKey(
               const ValueKey('integration-open-jellyfin'),
             );
@@ -128,6 +150,17 @@ void main() {
               scrollable: find.byType(Scrollable).first,
             );
             await tester.pumpAndSettle();
+            await tester.ensureVisible(open);
+            await tester.pumpAndSettle();
+            final keyboardLabel = find.descendant(
+              of: open,
+              matching: find.text('Jellyfin'),
+            );
+            Focus.of(tester.element(keyboardLabel)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(find.byType(JellyfinHomeScreen), findsOneWidget);
             expect(tester.takeException(), isNull);
           } finally {
             semantics.dispose();
