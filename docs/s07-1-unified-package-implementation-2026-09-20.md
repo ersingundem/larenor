@@ -300,3 +300,12 @@ bağlar. Music Assistant'ın katalogdaki `/tmp` sözleşmesi de aynı genel
 validator yolundan korunur. Eksik, ek veya executable niteliği değiştirilmiş
 tmpfs mutation öncesinde ya da inspect makbuzunda fail-closed olur; raw daemon
 çıktısı ve özel değerler kabul çıktısına taşınmaz.
+
+## Kapanış
+
+PR #182 headi `b0f778dcb192e25bcfdd6893c039af984266390e` üzerinde
+41 zorunlu check, unified stack ve altı bileşenin amd64/arm64 gerçek runtime
+kabulü geçti. PR, main'e `4e6236e88b505d7fc22605cbf1b29a82992fe01f`
+olarak birleşti. Bağımsız incelemede yeni P1/P2 bulgu kalmadı. S07.1 bu
+committe tamamlandı; kuyruk **18/125 (%14,4)**, özellik sayacı **0/63** oldu.
+Gerçek ev ve sağlayıcı kabulü ayrı MANUAL işleridir.
