@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/cooking_assistant/data/cooking_session_controller.dart';
-import 'package:oikos/features/cooking_assistant/domain/cooking_session.dart';
+import 'package:larenor/features/cooking_assistant/data/cooking_session_controller.dart';
+import 'package:larenor/features/cooking_assistant/domain/cooking_session.dart';
 
 final class _Gateway implements CookingSessionGateway {
   _Gateway(this.value);
@@ -87,4 +87,3 @@ void main() {
     expect(controller.activeTimerCount, 0);
   });
 }
-
