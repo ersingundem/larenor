@@ -5,7 +5,7 @@ from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin
 from ..errors import ApiError
-from .models import Response, Update
+from .models import HistoryResponse, Response, Update
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Admin = Annotated[Principal, Depends(require_admin)]
@@ -21,6 +21,12 @@ def _closed(request):
 def read(service_id: ObjectId, request: Request, actor: Admin, core: Core):
     _closed(request)
     return core.component_egress.read(actor, service_id)
+
+
+@router.get('/{service_id}/outbound-policy/history', response_model=HistoryResponse)
+def history(service_id: ObjectId, request: Request, actor: Admin, core: Core):
+    _closed(request)
+    return core.component_egress.history(actor, service_id)
 
 
 @router.put('/{service_id}/outbound-policy', response_model=Response)

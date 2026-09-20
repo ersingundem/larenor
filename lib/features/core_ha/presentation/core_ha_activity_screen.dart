@@ -69,6 +69,8 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
   final _checkpoint = TextEditingController();
   final _reauthPin = TextEditingController();
   bool _copied = false;
+  String? _copiedTrace;
+  final _expandedExplanations = <String>{};
   bool _checkingPin = false;
   String? _pendingCheckpointAction, _pinError;
   int _actionGeneration = 0;
@@ -120,12 +122,15 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
   String _source(CoreHaAttributionSource value, AppLocalizations l) =>
       switch (value) {
         CoreHaAttributionSource.coreApi => l.coreHaActivitySourceCore,
+        CoreHaAttributionSource.coreRule => l.coreHaActivitySourceRule,
         CoreHaAttributionSource.unknown => l.commonUnknown,
       };
   String _reason(CoreHaAttributionReason value, AppLocalizations l) =>
       switch (value) {
         CoreHaAttributionReason.explicitCommand =>
           l.coreHaActivityReasonExplicit,
+        CoreHaAttributionReason.explicitRuleExecution =>
+          l.coreHaActivityReasonExplicitRule,
         CoreHaAttributionReason.unknown => l.commonUnknown,
       };
   String _result(CoreHaDispatchState value, AppLocalizations l) =>
@@ -134,6 +139,21 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
         CoreHaDispatchState.accepted => l.coreHaActivityResultAccepted,
         CoreHaDispatchState.rejected => l.coreHaActivityResultRejected,
         CoreHaDispatchState.unknown => l.commonUnknown,
+      };
+
+  String _explanation(CoreHaHistoryEntry entry, AppLocalizations l) =>
+      switch ((entry.attribution.source, entry.attribution.reason)) {
+        (
+          CoreHaAttributionSource.coreApi,
+          CoreHaAttributionReason.explicitCommand,
+        ) =>
+          l.coreHaActivityExplanationExplicit,
+        (
+          CoreHaAttributionSource.coreRule,
+          CoreHaAttributionReason.explicitRuleExecution,
+        ) =>
+          l.coreHaActivityExplanationRule,
+        _ => l.coreHaActivityExplanationUnknown,
       };
 
   Widget _message(String key, String text) => Padding(
@@ -151,6 +171,25 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
       ],
     ),
   );
+
+  void _toggleExplanation(String requestId) {
+    if (!_current()) return;
+    setState(() {
+      _copiedTrace = null;
+      if (!_expandedExplanations.remove(requestId)) {
+        _expandedExplanations.add(requestId);
+      }
+    });
+  }
+
+  Future<void> _copyTrace(String requestId) async {
+    if (!_current()) return;
+    final generation = _actionGeneration;
+    await Clipboard.setData(ClipboardData(text: requestId));
+    if (_current() && generation == _actionGeneration) {
+      setState(() => _copiedTrace = requestId);
+    }
+  }
 
   void _beginCheckpointAction(String action) {
     if (!_current() || _checkingPin) return;
@@ -321,59 +360,144 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
 
   Widget _entry(CoreHaHistoryEntry entry, AppLocalizations l) {
     final receipt = entry.receipt;
-    return Semantics(
-      container: true,
-      label:
-          '${l.coreHaActivityActor}: ${receipt.actorId}. '
-          '${l.coreHaActivityAction}: ${receipt.action == CoreHaCommandAction.turnOn ? l.coreHaTurnOn : l.coreHaTurnOff}. '
-          '${l.coreHaActivitySource}: ${_source(entry.attribution.source, l)}. '
-          '${l.coreHaActivityReason}: ${_reason(entry.attribution.reason, l)}. '
-          '${l.coreHaActivityTime}: ${receipt.createdAt.toIso8601String()}. '
-          '${l.coreHaActivityResult}: ${_result(receipt.dispatchState, l)}. '
-          '${l.coreHaActivityCausalityUnknown}',
-      child: Container(
-        key: ValueKey('core-ha-activity-entry-${receipt.requestId}'),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
-            context,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: CupertinoColors.separator.resolveFrom(context),
-          ),
+    final expanded = _expandedExplanations.contains(receipt.requestId);
+    final serviceId = entry.attribution.serviceId;
+    return Container(
+      key: ValueKey('core-ha-activity-entry-${receipt.requestId}'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
+          context,
         ),
-        child: ExcludeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _result(receipt.dispatchState, l),
-                style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
-              ),
-              _line(l.coreHaActivityActor, receipt.actorId),
-              _line(
-                l.coreHaActivityAction,
-                receipt.action == CoreHaCommandAction.turnOn
-                    ? l.coreHaTurnOn
-                    : l.coreHaTurnOff,
-              ),
-              _line(
-                l.coreHaActivitySource,
-                _source(entry.attribution.source, l),
-              ),
-              _line(
-                l.coreHaActivityReason,
-                _reason(entry.attribution.reason, l),
-              ),
-              _line(l.coreHaActivityTime, receipt.createdAt.toIso8601String()),
-              _line(l.coreHaActivityResult, _result(receipt.dispatchState, l)),
-              const SizedBox(height: 8),
-              Text(l.coreHaActivityCausalityUnknown),
-            ],
-          ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: CupertinoColors.separator.resolveFrom(context),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            container: true,
+            label:
+                '${l.coreHaActivityActor}: ${receipt.actorId}. '
+                '${l.coreHaActivityAction}: ${receipt.action == CoreHaCommandAction.turnOn ? l.coreHaTurnOn : l.coreHaTurnOff}. '
+                '${l.coreHaActivitySource}: ${_source(entry.attribution.source, l)}. '
+                '${l.coreHaActivityReason}: ${_reason(entry.attribution.reason, l)}. '
+                '${l.coreHaActivityTime}: ${receipt.createdAt.toIso8601String()}. '
+                '${l.coreHaActivityResult}: ${_result(receipt.dispatchState, l)}. '
+                '${l.coreHaActivityCausalityUnknown}',
+            child: ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _result(receipt.dispatchState, l),
+                    style: CupertinoTheme.of(context)
+                        .textTheme
+                        .navTitleTextStyle,
+                  ),
+                  _line(l.coreHaActivityActor, receipt.actorId),
+                  _line(
+                    l.coreHaActivityAction,
+                    receipt.action == CoreHaCommandAction.turnOn
+                        ? l.coreHaTurnOn
+                        : l.coreHaTurnOff,
+                  ),
+                  _line(
+                    l.coreHaActivitySource,
+                    _source(entry.attribution.source, l),
+                  ),
+                  _line(
+                    l.coreHaActivityReason,
+                    _reason(entry.attribution.reason, l),
+                  ),
+                  _line(
+                    l.coreHaActivityTime,
+                    receipt.createdAt.toIso8601String(),
+                  ),
+                  _line(
+                    l.coreHaActivityResult,
+                    _result(receipt.dispatchState, l),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(l.coreHaActivityCausalityUnknown),
+                ],
+              ),
+            ),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: CoreHaButton(
+              key: ValueKey('core-ha-activity-explain-${receipt.requestId}'),
+              label: expanded
+                  ? l.coreHaActivityHideExplanation
+                  : l.coreHaActivityShowExplanation,
+              selected: expanded,
+              onPressed: _current()
+                  ? () => _toggleExplanation(receipt.requestId)
+                  : null,
+              isCurrent: _current,
+            ),
+          ),
+          if (expanded)
+            Semantics(
+              container: true,
+              child: Container(
+                key: ValueKey('core-ha-activity-details-${receipt.requestId}'),
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(_explanation(entry, l)),
+                    const SizedBox(height: 8),
+                    _line(
+                      l.coreHaActivityTrace,
+                      entry.attribution.correlationId,
+                    ),
+                    if (entry.attribution.ruleId case final ruleId?) ...[
+                      _line(l.coreHaActivityRule, ruleId),
+                      _line(
+                        l.coreHaActivityRuleRevision,
+                        '${entry.attribution.ruleRevision}',
+                      ),
+                    ],
+                    _line(
+                      l.coreHaActivityService,
+                      serviceId ?? l.coreHaActivityServiceNotRecorded,
+                    ),
+                    if (serviceId != null)
+                      _line(
+                        l.coreHaActivityServiceRevision,
+                        '${entry.attribution.serviceRevision}',
+                      ),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: CoreHaButton(
+                        key: ValueKey(
+                          'core-ha-activity-copy-${receipt.requestId}',
+                        ),
+                        label: l.coreHaActivityCopyTrace,
+                        onPressed: _current()
+                            ? () => unawaited(_copyTrace(receipt.requestId))
+                            : null,
+                        isCurrent: _current,
+                      ),
+                    ),
+                    if (_copiedTrace == receipt.requestId)
+                      Semantics(
+                        key: ValueKey(
+                          'core-ha-activity-copy-status-${receipt.requestId}',
+                        ),
+                        liveRegion: true,
+                        child: Text(l.coreHaActivityTraceCopied),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

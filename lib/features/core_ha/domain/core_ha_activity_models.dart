@@ -42,9 +42,9 @@ void _resourceRef(Object? value, HomeResourceRecord target) {
   }
 }
 
-enum CoreHaAttributionSource { coreApi, unknown }
+enum CoreHaAttributionSource { coreApi, coreRule, unknown }
 
-enum CoreHaAttributionReason { explicitCommand, unknown }
+enum CoreHaAttributionReason { explicitCommand, explicitRuleExecution, unknown }
 
 final class CoreHaAttribution {
   const CoreHaAttribution._({
@@ -53,6 +53,9 @@ final class CoreHaAttribution {
     required this.reason,
     required this.serviceId,
     required this.serviceRevision,
+    required this.ruleId,
+    required this.ruleRevision,
+    required this.executionId,
   });
 
   final String correlationId;
@@ -60,42 +63,91 @@ final class CoreHaAttribution {
   final CoreHaAttributionReason reason;
   final String? serviceId;
   final int? serviceRevision;
+  final String? ruleId;
+  final int? ruleRevision;
+  final String? executionId;
 
   factory CoreHaAttribution.fromJson(Object? raw) {
-    final value = _object(raw, {
+    if (raw is! Map) _invalid();
+    final ruleOrigin = raw['source'] == 'core_rule';
+    final keys = {
       'schemaVersion',
       'correlationId',
       'source',
       'reason',
       'serviceId',
       'serviceRevision',
-    });
+      if (ruleOrigin) ...{'ruleId', 'ruleRevision', 'executionId'},
+    };
+    final value = _object(raw, keys);
     _schema(value['schemaVersion']);
     final source = switch (value['source']) {
       'core_api' => CoreHaAttributionSource.coreApi,
+      'core_rule' => CoreHaAttributionSource.coreRule,
       'unknown' => CoreHaAttributionSource.unknown,
       _ => _invalid(),
     };
     final reason = switch (value['reason']) {
       'explicit_command_request' => CoreHaAttributionReason.explicitCommand,
+      'explicit_rule_execution' =>
+        CoreHaAttributionReason.explicitRuleExecution,
       'unknown' => CoreHaAttributionReason.unknown,
       _ => _invalid(),
     };
+    final correlationId = _id(value['correlationId']);
     final rawService = value['serviceId'];
     final rawRevision = value['serviceRevision'];
+    final rawRule = value['ruleId'];
+    final rawRuleRevision = value['ruleRevision'];
+    final rawExecution = value['executionId'];
     if ((rawService == null) != (rawRevision == null) ||
         rawRevision != null &&
             (rawRevision is! int ||
                 rawRevision < 1 ||
-                rawRevision > 9223372036854775807)) {
+                rawRevision > 9223372036854775807) ||
+        rawRuleRevision != null &&
+            (rawRuleRevision is! int ||
+                rawRuleRevision < 1 ||
+                rawRuleRevision > 9223372036854775807)) {
       _invalid();
     }
+    final serviceId = rawService == null ? null : _id(rawService);
+    final ruleId = rawRule == null ? null : _id(rawRule);
+    final executionId = rawExecution == null ? null : _id(rawExecution);
+    final valid = switch ((source, reason)) {
+      (
+        CoreHaAttributionSource.coreApi,
+        CoreHaAttributionReason.explicitCommand,
+      ) =>
+        serviceId != null &&
+            ruleId == null &&
+            rawRuleRevision == null &&
+            executionId == null,
+      (
+        CoreHaAttributionSource.coreRule,
+        CoreHaAttributionReason.explicitRuleExecution,
+      ) =>
+        serviceId != null &&
+            ruleId != null &&
+            rawRuleRevision != null &&
+            executionId == correlationId,
+      (CoreHaAttributionSource.unknown, CoreHaAttributionReason.unknown) =>
+        serviceId == null &&
+            ruleId == null &&
+            rawRuleRevision == null &&
+            executionId == null,
+      _ => false,
+    };
+    if (!valid) _invalid();
     return CoreHaAttribution._(
-      correlationId: _id(value['correlationId']),
+      correlationId: correlationId,
       source: source,
       reason: reason,
-      serviceId: rawService == null ? null : _id(rawService),
+      serviceId: serviceId,
       serviceRevision: rawRevision as int?,
+      ruleId: ruleId,
+      ruleRevision: rawRuleRevision as int?,
+      executionId: executionId,
     );
   }
 }

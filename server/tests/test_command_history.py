@@ -89,7 +89,7 @@ def test_v2_migration_preserves_existing_receipt_without_inventing_attribution(s
     counters = ha.calls, ha.command_calls
     with TestClient(create_app(server[2])) as restarted:
         with restarted.app.state.core.db.connection() as c:
-            assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] == '3'
+            assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] == '4'
         query = restarted.get(public + '/history', headers=auth(actor))
         assert query.status_code == 200
         assert query.json()['entries'] == [{'receipt': response.json()['receipt'], 'attribution': {

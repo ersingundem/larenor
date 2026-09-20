@@ -11,7 +11,7 @@ from ..dependencies import get_core, require_admin
 from ..errors import ApiError
 from ..home_resources.models import FrozenModel, Identity
 from ..models import ErrorResponse
-from .models import CommandRequest
+from .models import AttributedCommandHistory, CommandRequest
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -88,6 +88,19 @@ def history(core_id: Identity, home_id: Identity, resource_id: Identity,
     if (core_id, home_id) != (core.context.coreId, core.context.homeId):
         raise ApiError("not_found", 404)
     return core.keenetic_command_journal.history(actor, resource_id)
+
+
+@router.get(ROOT + "/history/attributed", response_model=AttributedCommandHistory)
+def attributed_history(core_id: Identity, home_id: Identity, resource_id: Identity,
+                       actor: Admin, core: Core):
+    before = core.home_resources.get(actor, core_id, home_id, resource_id)["record"]
+    if before["ref"]["kind"] != "resource":
+        raise ApiError("not_found", 404)
+    result = core.keenetic_command_journal.attributed_history(actor, before["ref"])
+    after = core.home_resources.get(actor, core_id, home_id, resource_id)["record"]
+    if any(before[field] != after[field] for field in ("ref", "revision", "aclRevision")):
+        raise ApiError("revision_conflict", 409)
+    return result
 
 
 @router.get(ROOT + "/integrity")

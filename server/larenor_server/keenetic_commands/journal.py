@@ -8,6 +8,7 @@ import sqlite3
 
 from ..errors import ApiError, StartupError
 from . import schema
+from .models import AttributedCommandEvent, AttributedCommandHistory, CommandAttribution
 
 
 def _json(value):
@@ -24,6 +25,55 @@ def state_tag(scope, chain_id, sequence, head, key=None):
     return _signed(key, b"larenor-keenetic-command-state-v1\0", [
         scope.coreId, scope.homeId, chain_id, sequence, head
     ])
+
+
+def attribution_for_event(row, payload):
+    """Return strict public provenance; old signed rows remain explicitly unknown."""
+    target = payload["target"]
+    raw = payload.get("attribution")
+    if raw is None:
+        raw = {
+            "schemaVersion": 1,
+            "correlationId": row["request_id"],
+            "actorId": row["actor_id"],
+            "source": "unknown",
+            "reason": "unknown",
+            "serviceId": target["serviceId"],
+            "serviceRevision": target["serviceRevision"],
+        }
+    value = CommandAttribution.model_validate(raw)
+    if (
+        value.correlationId != row["request_id"]
+        or value.actorId != row["actor_id"]
+        or value.serviceId != target["serviceId"]
+        or value.serviceRevision != target["serviceRevision"]
+    ):
+        raise ValueError("attribution_mismatch")
+    return value.model_dump(mode="json")
+
+
+def _attribution(actor_id, body, *, source="core_api", reason="explicit_admin_request"):
+    return CommandAttribution(
+        schemaVersion=1,
+        correlationId=body.requestId,
+        actorId=actor_id,
+        source=source,
+        reason=reason,
+        serviceId=body.target.serviceId,
+        serviceRevision=body.target.serviceRevision,
+    ).model_dump(mode="json")
+
+
+def _recovery_attribution(actor_id, request_id, target):
+    return CommandAttribution(
+        schemaVersion=1,
+        correlationId=request_id,
+        actorId=actor_id,
+        source="core_recovery",
+        reason="interrupted_after_restart",
+        serviceId=target["serviceId"],
+        serviceRevision=target["serviceRevision"],
+    ).model_dump(mode="json")
 
 
 class KeeneticCommandJournal:
@@ -94,6 +144,7 @@ class KeeneticCommandJournal:
                     or payload.get("status") != row["status"]
                 ):
                     raise ValueError()
+                attribution_for_event(row, payload)
                 latest[row["request_id"]] = payload
                 previous = expected
             if previous != state["head_hash"]:
@@ -190,7 +241,8 @@ class KeeneticCommandJournal:
                  "accepted", canonical, now, now),
             )
             payload = {"requestId": body.requestId, "action": body.action,
-                       "status": "accepted", "target": target, "code": "accepted"}
+                       "status": "accepted", "target": target, "code": "accepted",
+                       "attribution": _attribution(actor.id, body)}
             self._append(connection, actor_id=actor.id, request_id=body.requestId,
                          resource_id=body.target.resourceId, status="accepted", payload=payload,
                          verified=True)
@@ -220,7 +272,8 @@ class KeeneticCommandJournal:
             )
             target = json.loads(row["target_json"])
             payload = {"requestId": body.requestId, "action": body.action,
-                       "status": status, "target": target, "code": code}
+                       "status": status, "target": target, "code": code,
+                       "attribution": _attribution(actor.id, body)}
             self._append(connection, actor_id=actor.id, request_id=body.requestId,
                          resource_id=row["resource_id"], status=status, payload=payload,
                          verified=True)
@@ -252,6 +305,44 @@ class KeeneticCommandJournal:
             return {"events": [json.loads(row["payload_json"]) | {"sequence": row["sequence"]} for row in rows],
                     "verified": True, "headSequence": state["sequence"]}
 
+    def attributed_history(self, actor, resource_ref, limit=50):
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ApiError("invalid_request")
+        with self.db.connection() as connection:
+            self._current_admin(connection, actor)
+            self._verify(connection)
+            rows = connection.execute(
+                "SELECT * FROM keenetic_command_events WHERE resource_id=? "
+                "ORDER BY sequence LIMIT ?",
+                (resource_ref["id"], limit),
+            ).fetchall()
+            events = []
+            for sequence, row in enumerate(rows, 1):
+                payload = json.loads(row["payload_json"])
+                allowed = {"requestId", "action", "status", "target", "code"}
+                if set(payload) not in (allowed, allowed | {"attribution"}):
+                    raise ApiError("keenetic_command_integrity_failed", 503)
+                try:
+                    event = AttributedCommandEvent(
+                        schemaVersion=1,
+                        sequence=sequence,
+                        attribution=attribution_for_event(row, payload),
+                        requestId=payload["requestId"],
+                        action=payload["action"],
+                        status=payload["status"],
+                        target=payload["target"],
+                        code=payload["code"],
+                    )
+                except (KeyError, TypeError, ValueError):
+                    raise ApiError("keenetic_command_integrity_failed", 503) from None
+                events.append(event)
+            return AttributedCommandHistory(
+                schemaVersion=1,
+                ref=resource_ref,
+                events=events,
+                verified=True,
+            ).model_dump(mode="json")
+
     def integrity(self, actor):
         with self.db.connection() as connection:
             self._current_admin(connection, actor)
@@ -276,9 +367,12 @@ class KeeneticCommandJournal:
                     "UPDATE keenetic_command_records SET status='unknown',updated_at=? WHERE request_id=?",
                     (now, row["request_id"]),
                 )
+                target = json.loads(row["target_json"])
                 payload = {"requestId": row["request_id"], "action": row["action"],
-                           "status": "unknown", "target": json.loads(row["target_json"]),
-                           "code": "keenetic_command_interrupted"}
+                           "status": "unknown", "target": target,
+                           "code": "keenetic_command_interrupted",
+                           "attribution": _recovery_attribution(
+                               row["actor_id"], row["request_id"], target)}
                 self._append(connection, actor_id=row["actor_id"], request_id=row["request_id"],
                              resource_id=row["resource_id"], status="unknown", payload=payload,
                              verified=True)

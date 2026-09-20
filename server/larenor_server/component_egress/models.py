@@ -83,15 +83,68 @@ class Update(StrictModel):
 class Event(StrictModel):
     actorId: ObjectId
     serviceId: ObjectId
+    serviceRevision: Revision | None
+    correlationId: ObjectId
+    policyRevision: int = Field(ge=0, le=2**63-1)
+    source: Literal['core_api', 'unknown'] = 'core_api'
+    reason: Literal[
+        'policy_replaced',
+        'grant_missing',
+        'dispatch_authorized',
+        'probe_completed',
+        'probe_unconfirmed',
+        'unknown',
+    ]
+    command: Literal['replace_egress_policy', 'verify_service', 'unknown']
+    result: Literal[
+        'accepted', 'denied', 'authorized', 'verified', 'unconfirmed', 'unknown'
+    ]
+    timestamp: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode='after')
+    def closed_attribution(self):
+        expected = {
+            'policy_replaced': ('replace_egress_policy', 'accepted'),
+            'grant_missing': ('verify_service', 'denied'),
+            'dispatch_authorized': ('verify_service', 'authorized'),
+            'probe_completed': ('verify_service', 'verified'),
+            'probe_unconfirmed': ('verify_service', 'unconfirmed'),
+        }
+        if self.source == 'unknown':
+            if (
+                self.reason != 'unknown'
+                or self.command != 'unknown'
+                or self.result != 'unknown'
+                or self.serviceRevision is not None
+            ):
+                raise ValueError('invalid_attribution')
+        elif (
+            self.reason not in expected
+            or (self.command, self.result) != expected[self.reason]
+            or self.serviceRevision is None
+        ):
+            raise ValueError('invalid_attribution')
+        return self
+
+
+class LegacyEvent(StrictModel):
+    actorId: ObjectId
+    serviceId: ObjectId
     correlationId: ObjectId
     policyRevision: int = Field(ge=0, le=2**63-1)
     source: Literal['core_api'] = 'core_api'
-    reason: Literal['policy_replaced', 'grant_missing', 'dispatch_authorized', 'probe_completed', 'probe_unconfirmed']
+    reason: Literal[
+        'policy_replaced',
+        'grant_missing',
+        'dispatch_authorized',
+        'probe_completed',
+        'probe_unconfirmed',
+    ]
     timestamp: float = Field(allow_inf_nan=False)
 
 
 class State(StrictModel):
-    schemaVersion: Literal[1] = 1
+    schemaVersion: Literal[2] = 2
     coreId: ObjectId
     homeId: ObjectId
     policies: list[Policy] = Field(max_length=128)
@@ -104,6 +157,33 @@ class State(StrictModel):
         return self
 
 
+class LegacyState(StrictModel):
+    schemaVersion: Literal[1] = 1
+    coreId: ObjectId
+    homeId: ObjectId
+    policies: list[Policy] = Field(max_length=128)
+    events: list[LegacyEvent] = Field(max_length=256)
+
+    @model_validator(mode='after')
+    def unique(self):
+        if len({p.serviceId for p in self.policies}) != len(self.policies):
+            raise ValueError('invalid_policies')
+        return self
+
+
 class Response(StrictModel):
+    schemaVersion: Literal[2] = 2
     policy: Policy
     audit: list[Event] = Field(max_length=20)
+
+
+class ServiceRef(StrictModel):
+    id: ObjectId
+    revision: Revision
+
+
+class HistoryResponse(StrictModel):
+    schemaVersion: Literal[1] = 1
+    service: ServiceRef
+    entries: list[Event] = Field(max_length=20)
+    verified: Literal[True] = True

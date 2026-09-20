@@ -141,7 +141,7 @@ def migrate_home_assistant(c, scope, key):
                 raise ValueError()
             for sql in TABLES.values():
                 c.execute(sql)
-            c.execute("INSERT INTO metadata VALUES('home_assistant_schema','3')")
+            c.execute("INSERT INTO metadata VALUES('home_assistant_schema','4')")
             c.execute('INSERT INTO home_assistant_state VALUES(1,?)', (tag(key, scope, [], []),))
         elif marker['value'] == '1':
             legacy = {name: TABLES[name] for name in ('home_assistant_bindings', 'home_assistant_state')}
@@ -155,7 +155,7 @@ def migrate_home_assistant(c, scope, key):
             c.execute("UPDATE metadata SET value='2' WHERE key='home_assistant_schema'")
             update(c, key, scope)
         else:
-            if marker['value'] not in ('2', '3'):
+            if marker['value'] not in ('2', '3', '4'):
                 raise ValueError()
             _tables(c, actual, TABLES)
             validate(c, key, scope)
@@ -183,6 +183,11 @@ def migrate_home_assistant(c, scope, key):
             validate(c, key, scope)
             c.execute("UPDATE metadata SET value='3' WHERE key='home_assistant_schema'")
             if c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] != '3':
+                raise ValueError()
+        if marker is not None and marker['value'] in ('1', '2', '3'):
+            validate(c, key, scope)
+            c.execute("UPDATE metadata SET value='4' WHERE key='home_assistant_schema'")
+            if c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] != '4':
                 raise ValueError()
     except (ValueError, TypeError, sqlite3.Error, InvalidTag):
         raise StartupError('home_assistant_storage_invalid') from None

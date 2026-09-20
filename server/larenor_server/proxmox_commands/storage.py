@@ -9,9 +9,10 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
-from .models import PowerJournalEvent, PowerReceipt
+from .models import (AttributedPowerJournal, AttributedPowerJournalEvent,
+                     PowerCommandAttribution, PowerJournalEvent, PowerReceipt)
 from .schema import (EMPTY_HEAD, MAX_JOURNAL_EVENTS, MAX_RECEIPTS,
-                     journal_state_tag, state_tag)
+                     attribution_tag, journal_state_tag, state_tag)
 
 
 class PowerReceiptStore:
@@ -83,11 +84,60 @@ class PowerReceiptStore:
             previous = calculated
         if not hmac.compare_digest(previous, head):
             raise ValueError("invalid_journal_head")
+        self._verify_attributions(c, rows)
         return count, head
+
+    def _attribution_values(self, row, entry_hash):
+        return {
+            "sequence": row["sequence"],
+            "entryHash": entry_hash,
+            "correlationId": row["correlation_id"],
+            "actorId": row["actor_id"],
+            "source": row["source"],
+            "reason": row["reason"],
+            "serviceId": row["service_id"],
+            "serviceRevision": row["service_revision"],
+        }
+
+    def _verify_attributions(self, c, journal_rows):
+        rows = c.execute(
+            "SELECT * FROM proxmox_power_attribution ORDER BY sequence LIMIT ?",
+            (MAX_JOURNAL_EVENTS + 1,),
+        ).fetchall()
+        if len(rows) != len(journal_rows):
+            raise ValueError("invalid_attribution_count")
+        result = {}
+        for event, row in zip(journal_rows, rows, strict=True):
+            values = self._attribution_values(row, event["entry_hash"])
+            value = PowerCommandAttribution(
+                schemaVersion=1,
+                correlationId=row["correlation_id"],
+                actorId=row["actor_id"],
+                source=row["source"],
+                reason=row["reason"],
+                serviceId=row["service_id"],
+                serviceRevision=row["service_revision"],
+            )
+            if (
+                row["sequence"] != event["sequence"]
+                or value.correlationId != event["request_id"]
+                or value.actorId != event["user_id"]
+                or (
+                    value.serviceRevision is not None
+                    and value.serviceRevision != event["service_revision"]
+                )
+                or not hmac.compare_digest(
+                    row["authentication_tag"], attribution_tag(self.key, values)
+                )
+            ):
+                raise ValueError("invalid_attribution")
+            result[row["sequence"]] = value
+        return result
 
     def _append(self, c, *, resource_id, user_id, request_id, event_kind, action, state,
                 result_code, user_revision, resource_revision, acl_revision, binding_revision,
-                service_revision, status_revision, operation_ref, emitted_at):
+                service_revision, status_revision, operation_ref, emitted_at,
+                service_id=None, source="unknown", reason="unknown"):
         count, head = self._verify_journal(c)
         if count >= MAX_JOURNAL_EVENTS:
             raise ApiError("revision_conflict", 409)
@@ -105,6 +155,37 @@ class PowerReceiptStore:
         c.execute(
             "INSERT INTO proxmox_power_journal VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             tuple(values[key] for key in values) + (entry_hash,),
+        )
+        attribution = PowerCommandAttribution(
+            correlationId=request_id,
+            actorId=user_id,
+            source=source,
+            reason=reason,
+            serviceId=service_id,
+            serviceRevision=service_revision if service_id is not None else None,
+        )
+        attribution_values = {
+            "sequence": sequence,
+            "entryHash": entry_hash,
+            "correlationId": attribution.correlationId,
+            "actorId": attribution.actorId,
+            "source": attribution.source,
+            "reason": attribution.reason,
+            "serviceId": attribution.serviceId,
+            "serviceRevision": attribution.serviceRevision,
+        }
+        c.execute(
+            "INSERT INTO proxmox_power_attribution VALUES(?,?,?,?,?,?,?,?)",
+            (
+                sequence,
+                attribution.correlationId,
+                attribution.actorId,
+                attribution.source,
+                attribution.reason,
+                attribution.serviceId,
+                attribution.serviceRevision,
+                attribution_tag(self.key, attribution_values),
+            ),
         )
         c.execute(
             "UPDATE proxmox_power_journal_state SET event_count=?,head_hash=?,authentication_tag=? WHERE singleton=1",
@@ -139,7 +220,8 @@ class PowerReceiptStore:
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise ApiError("server_unavailable", 503) from None
 
-    def put(self, receipt, resource_id, user_id):
+    def put(self, receipt, resource_id, user_id, *, service_id=None,
+            source="unknown", reason="unknown"):
         receipt = PowerReceipt.model_validate(receipt)
         plain = receipt.model_dump_json().encode("utf-8")
         if len(plain) > 4096:
@@ -170,7 +252,8 @@ class PowerReceiptStore:
                     resource_revision=receipt.resourceRevision, acl_revision=receipt.aclRevision,
                     binding_revision=receipt.bindingRevision, service_revision=receipt.serviceRevision,
                     status_revision=receipt.statusRevision, operation_ref=receipt.operationRef,
-                    emitted_at=receipt.updatedAt,
+                    emitted_at=receipt.updatedAt, service_id=service_id,
+                    source=source, reason=reason,
                 )
         except ApiError:
             raise
@@ -184,11 +267,45 @@ class PowerReceiptStore:
         for row in rows:
             receipt = self._decode(row)
             if receipt.state in ("accepted", "executing"):
+                attribution = self.attribution(receipt.requestId)
+                known = attribution.serviceId is not None
                 recovered = receipt.model_copy(update={
                     "state": "unknown", "resultCode": "outcome_uncertain",
                     "updatedAt": self.settings.clock(),
                 })
-                self.put(recovered, row["resource_id"], row["user_id"])
+                self.put(
+                    recovered,
+                    row["resource_id"],
+                    row["user_id"],
+                    service_id=attribution.serviceId,
+                    source="core_recovery" if known else "unknown",
+                    reason="interrupted_after_restart" if known else "unknown",
+                )
+
+    def attribution(self, request_id):
+        try:
+            with self.db.connection() as c:
+                self._verify_journal(c)
+                row = c.execute(
+                    "SELECT a.* FROM proxmox_power_attribution a "
+                    "JOIN proxmox_power_journal j ON j.sequence=a.sequence "
+                    "WHERE j.request_id=? ORDER BY a.sequence DESC LIMIT 1",
+                    (request_id,),
+                ).fetchone()
+                if row is None:
+                    raise ApiError("not_found", 404)
+                return PowerCommandAttribution(
+                    correlationId=row["correlation_id"],
+                    actorId=row["actor_id"],
+                    source=row["source"],
+                    reason=row["reason"],
+                    serviceId=row["service_id"],
+                    serviceRevision=row["service_revision"],
+                )
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
 
     def append_preview(self, body, descriptor, user_id, event_kind):
         state, code = (("previewed", "preview_created") if event_kind == "previewed"
@@ -209,7 +326,12 @@ class PowerReceiptStore:
                     binding_revision=body.expectedBindingRevision,
                     service_revision=body.expectedServiceRevision,
                     status_revision=body.expectedStatusRevision, operation_ref=None,
-                    emitted_at=self.settings.clock(),
+                    emitted_at=self.settings.clock(), service_id=descriptor.service_id,
+                    source="core_api", reason=(
+                        "explicit_admin_preview"
+                        if event_kind == "previewed"
+                        else "explicit_admin_cancel"
+                    ),
                 )
         except ApiError:
             raise
@@ -238,6 +360,50 @@ class PowerReceiptStore:
                         emittedAt=row["emitted_at"],
                     ).model_dump())
                 return {"schemaVersion": 1, "entries": entries, "eventCount": count}
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def attributed_journal(self, resource_ref, limit):
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ApiError("invalid_request")
+        try:
+            with self.db.connection() as c:
+                self._verify_journal(c)
+                rows = c.execute(
+                    "SELECT j.*,a.correlation_id,a.actor_id,a.source,a.reason,"
+                    "a.service_id,a.service_revision AS attribution_service_revision "
+                    "FROM proxmox_power_journal j JOIN proxmox_power_attribution a "
+                    "ON a.sequence=j.sequence WHERE j.resource_id=? "
+                    "ORDER BY j.sequence DESC LIMIT ?",
+                    (resource_ref["id"], limit),
+                ).fetchall()
+                entries = []
+                for sequence, row in enumerate(reversed(rows), 1):
+                    entries.append(AttributedPowerJournalEvent(
+                        sequence=sequence,
+                        attribution=PowerCommandAttribution(
+                            correlationId=row["correlation_id"],
+                            actorId=row["actor_id"],
+                            source=row["source"],
+                            reason=row["reason"],
+                            serviceId=row["service_id"],
+                            serviceRevision=row["attribution_service_revision"],
+                        ),
+                        eventKind=row["event_kind"], requestId=row["request_id"],
+                        action=row["action"], state=row["state"],
+                        resultCode=row["result_code"], userRevision=row["user_revision"],
+                        resourceRevision=row["resource_revision"],
+                        aclRevision=row["acl_revision"],
+                        bindingRevision=row["binding_revision"],
+                        serviceRevision=row["service_revision"],
+                        statusRevision=row["status_revision"],
+                        operationRef=row["operation_ref"], emittedAt=row["emitted_at"],
+                    ))
+                return AttributedPowerJournal(
+                    ref=resource_ref, entries=entries, verified=True
+                ).model_dump(mode="json")
         except ApiError:
             raise
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
