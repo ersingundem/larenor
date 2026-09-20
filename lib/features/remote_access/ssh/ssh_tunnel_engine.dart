@@ -101,7 +101,10 @@ class DartSshTunnelEngine implements SshTunnelEngine {
         },
         onPasswordRequest: credential.kind != SshCredentialKind.password
             ? null
-            : () => trusted ? credential.secret : null,
+            : () {
+                _check(isCurrent);
+                return trusted ? credential.secret : null;
+              },
       );
       _client = client;
       await client.authenticated;
@@ -173,6 +176,15 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   late final StreamSubscription<Socket> _subscription;
   bool _closed = false;
 
+  bool _current() {
+    if (_closed) return false;
+    try {
+      return _isCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   String get localAddress => SshTunnelProfile.loopbackAddress;
   @override
@@ -181,9 +193,10 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   Future<void> get done => _completion.future;
 
   Future<void> _accept(Socket socket) async {
-    if (_closed || !_isCurrent() || _connections.length >= maxConnections) {
+    final current = _current();
+    if (!current || _connections.length >= maxConnections) {
       socket.destroy();
-      if (!_isCurrent()) closeOwner();
+      if (!current) closeOwner();
       return;
     }
     try {
@@ -193,7 +206,7 @@ class _LocalTunnelHandle implements SshTunnelHandle {
         localHost: SshTunnelProfile.loopbackAddress,
         localPort: socket.port,
       );
-      if (_closed || !_isCurrent()) {
+      if (!_current()) {
         socket.destroy();
         remote.destroy();
         closeOwner();

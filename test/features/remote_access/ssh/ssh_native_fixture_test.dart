@@ -246,6 +246,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(socketAttempts, 1);
 
+      var tunnelCurrent = true;
       final tunnelEngine = DartSshTunnelEngine();
       addTearDown(tunnelEngine.close);
       final tunnel = SshTunnelProfile.parse(
@@ -259,7 +260,10 @@ void main() {
         fixture.credential(),
         tunnel,
         verifyHost: fixture.verify,
-        isCurrent: () => true,
+        isCurrent: () {
+          if (!tunnelCurrent) throw StateError('retired fixture owner');
+          return true;
+        },
       );
       final socket = await Socket.connect(
         handle.localAddress,
@@ -269,7 +273,17 @@ void main() {
       final response = await utf8.decoder.bind(socket).join();
       expect(response, contains('200 OK'));
       expect(response, contains('Larenor tunnel fixture'));
-      handle.close();
+      tunnelCurrent = false;
+      try {
+        final retiredSocket = await Socket.connect(
+          handle.localAddress,
+          handle.localPort,
+        );
+        retiredSocket.add(const [1]);
+        await retiredSocket.done.timeout(const Duration(seconds: 5));
+      } on SocketException {
+        // The listener may retire between the TCP handshake and connect().
+      }
       await handle.done.timeout(const Duration(seconds: 5));
       await expectLater(
         Socket.connect(handle.localAddress, handle.localPort),
