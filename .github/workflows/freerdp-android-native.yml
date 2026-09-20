@@ -59,7 +59,7 @@
         },
         {
           "name": "Apply reviewed SPKI evidence patch and minimal library manifest",
-          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
+          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
         },
         {
           "name": "Build one exact native ABI with optional channels default-off",

@@ -57,6 +57,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn("freerdp_android_package.py verify-apk", product)
         patch = next(step["run"] for step in steps if "freerdp-certificate-pem.patch" in step.get("run", ""))
         self.assertIn("git apply --check", patch)
+        self.assertIn("freerdp_android_package.py\" verify-patch", patch)
         self.assertIn("<manifest", patch)
 
     def test_exact_reviewed_source_guard_runs_before_checkout_and_build(self):

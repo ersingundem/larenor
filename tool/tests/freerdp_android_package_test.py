@@ -2,7 +2,9 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import shutil
 import struct
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -16,6 +18,7 @@ from freerdp_android_package import (
     load_lock,
     package_receipt,
     verify_apk,
+    verify_certificate_patch,
     verify_install,
     verify_source,
 )
@@ -92,6 +95,61 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             receipt.write_text(json.dumps(value))
             with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
                 verify_install(aar, receipt, lock)
+
+    def test_certificate_patch_applies_inside_exact_upstream_pre_connect(self):
+        lock = load_lock()
+        fixture = ROOT / (
+            "tool/tests/fixtures/freerdp-3.31.1/android_freerdp.c"
+        )
+        self.assertEqual(
+            self._git_blob(fixture.read_bytes()),
+            lock["reviewedFiles"][
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c"
+            ],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/"
+                "android_freerdp.c"
+            )
+            source.parent.mkdir(parents=True)
+            shutil.copyfile(fixture, source)
+            with self.assertRaisesRegex(
+                PackageError, "invalid_certificate_patch"
+            ):
+                verify_certificate_patch(source)
+            subprocess.run(
+                [
+                    "git",
+                    "apply",
+                    str(ROOT / "android/freerdp-certificate-pem.patch"),
+                ],
+                cwd=root,
+                check=True,
+            )
+            verify_certificate_patch(source)
+            text = source.read_text()
+            start = text.index("static BOOL android_pre_connect")
+            marker = text.index("FreeRDP_CertificateCallbackPreferPEM")
+            subscription = text.index(
+                "int rc = PubSub_SubscribeChannelConnected", start
+            )
+            following = text.index("static BOOL android_post_connect", start)
+            self.assertLess(start, marker)
+            self.assertLess(marker, subscription)
+            self.assertLess(subscription, following)
+
+            source.write_text(
+                fixture.read_text()
+                + "\n\tif (!freerdp_settings_set_bool(settings, "
+                "FreeRDP_CertificateCallbackPreferPEM, TRUE))\n"
+                "\t\treturn FALSE;\n"
+            )
+            with self.assertRaisesRegex(
+                PackageError, "invalid_certificate_patch"
+            ):
+                verify_certificate_patch(source)
 
     def _source(self, path, lock):
         with tarfile.open(path, "w:gz") as archive:

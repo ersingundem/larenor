@@ -134,6 +134,33 @@ def _elf_machine(data):
     return struct.unpack(order + "H", data[18:20])[0]
 
 
+def verify_certificate_patch(source):
+    try:
+        text = source.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PackageError("invalid_certificate_patch") from error
+    function = text.find("static BOOL android_pre_connect(freerdp* instance)")
+    following = text.find("static BOOL android_post_connect", function + 1)
+    marker = (
+        "if (!freerdp_settings_set_bool(settings, "
+        "FreeRDP_CertificateCallbackPreferPEM, TRUE))\n\t\treturn FALSE;"
+    )
+    position = text.find(marker)
+    declaration = text.find(
+        "rdpSettings* settings = instance->context->settings;", function
+    )
+    subscription = text.find(
+        "int rc = PubSub_SubscribeChannelConnected", function
+    )
+    _require(
+        function >= 0
+        and following > function
+        and text.count(marker) == 1
+        and function < declaration < position < subscription < following,
+        "invalid_certificate_patch",
+    )
+
+
 def package_receipt(aar, abi, lock):
     _require(abi in lock["supportedAbis"], "unsupported_abi")
     _require(aar.is_file() and aar.stat().st_size <= 512 * 1024 * 1024,
@@ -212,6 +239,8 @@ def main(argv=None):
     sub.add_parser("verify-lock")
     source = sub.add_parser("verify-source")
     source.add_argument("archive", type=Path)
+    patch = sub.add_parser("verify-patch")
+    patch.add_argument("source", type=Path)
     receipt = sub.add_parser("receipt")
     receipt.add_argument("aar", type=Path)
     receipt.add_argument("--abi", required=True)
@@ -227,6 +256,8 @@ def main(argv=None):
         lock = load_lock()
         if args.command == "verify-source":
             verify_source(args.archive, lock)
+        elif args.command == "verify-patch":
+            verify_certificate_patch(args.source)
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
