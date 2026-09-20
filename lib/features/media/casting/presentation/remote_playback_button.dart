@@ -32,11 +32,13 @@ class _RemotePlaybackButtonState
     final config = ref.watch(jellyfinConnectionProvider);
     final generation = sessionGeneration;
     final id = widget.itemId;
+    final visible = TickerMode.valuesOf(context).enabled;
     return CupertinoButton(
       key: const ValueKey('media-remote-play'),
       padding: const EdgeInsets.symmetric(vertical: 12),
       onPressed:
           !widget.enabled ||
+              !visible ||
               !foreground ||
               sessionExpired ||
               _opening ||
@@ -46,6 +48,8 @@ class _RemotePlaybackButtonState
           ? null
           : () async {
               if (!sessionCurrent(generation) ||
+                  !widget.enabled ||
+                  !TickerMode.valuesOf(context).enabled ||
                   _opening ||
                   id != widget.itemId ||
                   ModalRoute.of(context)?.isCurrent != true) {

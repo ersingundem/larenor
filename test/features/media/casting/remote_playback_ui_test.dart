@@ -278,6 +278,63 @@ void main() {
     await h.unmount(tester);
   });
 
+  for (final actionKey in const [
+    'remote-playback-refresh',
+    'remote-playback-target-remote-session',
+  ]) {
+    testWidgets('offstage $actionKey cannot clear the current failure', (
+      tester,
+    ) async {
+      final h = _Harness();
+      h.api.itemError = TimeoutException('fixture preflight');
+      await h.mount(tester);
+      await h.select(tester);
+      final l10n = h.labels(tester);
+      final failure = remotePlaybackFailureLabel(
+        l10n,
+        RemotePlaybackFailure.timeout,
+      );
+      expect(find.text(failure), findsOneWidget);
+      final stale = tester
+          .widget<CupertinoButton>(find.byKey(ValueKey(actionKey)))
+          .onPressed!;
+
+      h.visible.value = false;
+      await _frames(tester);
+      stale();
+      await _frames(tester);
+      h.visible.value = true;
+      await _frames(tester);
+
+      expect(find.text(failure), findsOneWidget);
+      expect(h.api.itemReads, 1);
+      expect(h.api.commands, isEmpty);
+      await h.unmount(tester);
+    });
+  }
+
+  testWidgets('offstage playback launcher cannot open a receiver route', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester, button: true);
+    final launch = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('media-remote-play')),
+        )
+        .onPressed!;
+    h.visible.value = false;
+    await _frames(tester);
+    launch();
+    await _frames(tester);
+    h.visible.value = true;
+    await _frames(tester);
+
+    expect(find.byType(RemotePlaybackScreen), findsNothing);
+    expect(h.api.reads, 0);
+    expect(h.api.itemReads, 0);
+  });
+
   for (final invalidation in ['account', 'background', 'item']) {
     testWidgets('$invalidation change invalidates an open approval callback', (
       tester,

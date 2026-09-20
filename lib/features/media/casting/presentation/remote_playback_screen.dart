@@ -76,21 +76,23 @@ class _RemotePlaybackScreenState
     if (route?.isActive == true) route!.navigator?.removeRoute(route);
   }
 
-  bool _current(int generation, RemotePlaybackController controller) =>
+  bool _surfaceCurrent(int generation) =>
       sessionCurrent(generation) &&
       TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent == true ||
+          _confirmation?.isCurrent == true);
+
+  bool _current(int generation, RemotePlaybackController controller) =>
+      _surfaceCurrent(generation) &&
       identical(ref.read(remotePlaybackControllerProvider), controller);
 
   Future<void> _select(RemotePlaybackTarget target) async {
-    if (!foreground ||
-        sessionExpired ||
-        _preparing != null ||
-        ModalRoute.of(context)?.isCurrent != true) {
+    final generation = sessionGeneration;
+    if (!_surfaceCurrent(generation) || _preparing != null || !mounted) {
       return;
     }
     final controller = ref.read(remotePlaybackControllerProvider);
     if (controller == null) return;
-    final generation = sessionGeneration;
     final l10n = AppLocalizations.of(context);
     setState(() {
       _preparing = target.sessionId;
@@ -162,6 +164,7 @@ class _RemotePlaybackScreenState
   Widget build(BuildContext context) {
     watchMediaAccounts(jellyfinOnly: true);
     final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
     final active =
         foreground && !sessionExpired && TickerMode.valuesOf(context).enabled;
     final reading = active ? ref.watch(remotePlaybackProvider) : null;
@@ -228,10 +231,17 @@ class _RemotePlaybackScreenState
                 title: Text(l10n.commonRefresh),
                 onTap: !active || busy || snapshot?.isLoading == true
                     ? null
-                    : guardedMediaAction(() {
+                    : () {
+                        final controller = ref.read(
+                          remotePlaybackControllerProvider,
+                        );
+                        if (controller == null ||
+                            !_current(generation, controller)) {
+                          return;
+                        }
                         setState(() => _error = null);
-                        ref.read(remotePlaybackControllerProvider)?.refresh();
-                      }),
+                        controller.refresh();
+                      },
               ),
             ],
           ),

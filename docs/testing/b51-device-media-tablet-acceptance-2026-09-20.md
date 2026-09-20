@@ -30,11 +30,20 @@ the guards were added. The review also covered retained provider values, late
 preflight and power reads, hidden routes, duplicate commands, 2x overflow and
 private error text.
 
+The post-rebase pass closed three more P2 surface-authority gaps. A remote
+refresh callback retained while the target screen went offstage could clear the
+last verified failure; an offstage retained target callback could also enter
+preparation and clear that evidence. Both now require the current visible route
+or its owned confirmation route before changing state. The passive Jellyfin
+receiver launcher likewise rechecks its current `TickerMode` and enabled state,
+so a captured callback cannot open receiver discovery from a hidden tablet
+pane. None of these guards retries playback or native commands.
+
 Focused evidence:
 
 - `flutter test test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
 - `flutter analyze lib/features/media/casting/presentation/remote_playback_screen.dart lib/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart lib/features/media/local_audio/presentation/playback_power_screen.dart test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
-- Focused result: **57/57 tests passed**.
+- Focused result: **60/60 tests passed**.
 - Focused line coverage across the three accepted screens: **377/414
   (91.1%)** — Remote Playback 149/159, Jellyfin item detail 60/75, Playback
   Power 168/180.
