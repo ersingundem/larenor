@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../auth/providers/auth_providers.dart';
 import '../../../dashboard/presentation/widgets/more_info_sheet.dart';
 import '../../../health/data/integration_health.dart';
@@ -261,168 +263,140 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
     final selectedEntry = discovery?.entries
         .where((entry) => entry.id == _entryId && entry.isLoaded)
         .firstOrNull;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(l10n.musicTitle)),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: CustomScrollView(
-              key: const PageStorageKey('music-center'),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final tab in _MusicTab.values)
-                              CupertinoButton(
-                                color: _tab == tab
-                                    ? CupertinoColors.activeBlue
-                                    : null,
-                                foregroundColor: _tab == tab
-                                    ? CupertinoColors.white
-                                    : null,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                onPressed: _active
-                                    ? () {
-                                        if (_canAct(generation)) {
-                                          setState(() => _tab = tab);
-                                        }
-                                      }
-                                    : null,
-                                child: Text(switch (tab) {
-                                  _MusicTab.outputs => l10n.musicOutputs,
-                                  _MusicTab.library => l10n.musicLibrary,
-                                  _MusicTab.search => l10n.musicSearch,
-                                  _MusicTab.queue => l10n.musicQueue,
-                                }),
-                              ),
-                          ],
+    return ServiceRootScaffold(
+      title: l10n.musicTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tab in _MusicTab.values)
+                      CupertinoButton(
+                        color: _tab == tab ? CupertinoColors.activeBlue : null,
+                        foregroundColor: _tab == tab
+                            ? CupertinoColors.white
+                            : null,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
                         ),
-                        const SizedBox(height: 16),
-                        if (sessionExpired)
-                          Text(l10n.mediaRemoteAccountChanged)
-                        else if (reading?.isLoading == true)
-                          const CupertinoActivityIndicator()
-                        else if (reading?.hasError == true)
-                          Text(l10n.healthReadError)
-                        else if (discovery?.configured == false)
-                          Text(l10n.commonNotConnected),
-                        if (discovery?.issues.isNotEmpty == true)
-                          Text(l10n.musicPartial),
-                        if (discovery != null)
-                          Text(
-                            l10n.energyLastChecked(
-                              DateFormat.yMd(l10n.localeName)
-                                  .add_Hms()
-                                  .format(discovery.readAt.toLocal()),
-                            ),
-                            style: AppText.footnote,
-                          ),
-                        CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: !_active || reading?.isLoading == true
-                              ? null
-                              : () {
-                                  if (!_canAct(generation)) return;
-                                  if (_tab == _MusicTab.queue &&
-                                      discovery != null &&
-                                      selectedEntry != null) {
-                                    final query = _queueQuery(discovery);
-                                    if (query != null) {
-                                      ref
-                                          .read(
-                                            musicQueueControllerProvider(query),
-                                          )
-                                          ?.refresh();
-                                    }
-                                  }
-                                  ref.invalidate(musicDiscoveryProvider);
-                                  if (_tab == _MusicTab.library &&
-                                      discovery != null &&
-                                      selectedEntry != null) {
-                                    ref.invalidate(
-                                      musicLibraryProvider(
-                                        _libraryQuery(discovery),
-                                      ),
-                                    );
-                                  }
-                                  if (_tab == _MusicTab.search &&
-                                      discovery != null &&
-                                      selectedEntry != null &&
-                                      _submitted.isNotEmpty) {
-                                    ref.invalidate(
-                                      musicSearchProvider(
-                                        _searchQuery(discovery),
-                                      ),
-                                    );
-                                  }
-                                },
-                          child: Text(l10n.commonRefresh),
-                        ),
-                        if (_tab != _MusicTab.outputs && discovery != null) ...[
-                          CupertinoButton(
-                            padding: EdgeInsets.zero,
-                            onPressed: discovery.entries.isEmpty
-                                ? null
-                                : () => _chooseEntry(discovery),
-                            child: Text(
-                              selectedEntry?.title ?? l10n.musicChooseServer,
-                            ),
-                          ),
-                          if (discovery.assistantNotInstalled)
-                            Text(l10n.musicNoAssistant),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                if (_tab == _MusicTab.outputs)
-                  ..._outputs(context, discovery, generation),
-                if (_tab != _MusicTab.outputs &&
-                    discovery?.assistantNotInstalled == true)
-                  SliverToBoxAdapter(
-                    child: MusicPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(l10n.musicAssistantHint, style: AppText.body),
-                          const SizedBox(height: 12),
-                          Text(l10n.musicProviderHint, style: AppText.footnote),
-                        ],
+                        onPressed: _active
+                            ? () {
+                                if (_canAct(generation)) {
+                                  setState(() => _tab = tab);
+                                }
+                              }
+                            : null,
+                        child: Text(switch (tab) {
+                          _MusicTab.outputs => l10n.musicOutputs,
+                          _MusicTab.library => l10n.musicLibrary,
+                          _MusicTab.search => l10n.musicSearch,
+                          _MusicTab.queue => l10n.musicQueue,
+                        }),
                       ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (sessionExpired)
+                  Text(l10n.mediaRemoteAccountChanged)
+                else if (reading?.isLoading == true)
+                  const CupertinoActivityIndicator()
+                else if (reading?.hasError == true)
+                  Text(l10n.healthReadError)
+                else if (discovery?.configured == false)
+                  Text(l10n.commonNotConnected),
+                if (discovery?.issues.isNotEmpty == true)
+                  Text(l10n.musicPartial),
+                if (discovery != null)
+                  Text(
+                    l10n.energyLastChecked(
+                      DateFormat.yMd(l10n.localeName)
+                          .add_Hms()
+                          .format(discovery.readAt.toLocal()),
                     ),
+                    style: AppText.footnote,
                   ),
-                if (discovery != null && selectedEntry != null && _active)
-                  ...switch (_tab) {
-                    _MusicTab.library => _library(
-                      context,
-                      discovery,
-                      generation,
-                    ),
-                    _MusicTab.search => _searchView(
-                      context,
-                      discovery,
-                      generation,
-                    ),
-                    _MusicTab.queue => _queue(context, discovery, generation),
-                    _MusicTab.outputs => <Widget>[],
-                  },
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: !_active || reading?.isLoading == true
+                      ? null
+                      : () {
+                          if (!_canAct(generation)) return;
+                          if (_tab == _MusicTab.queue &&
+                              discovery != null &&
+                              selectedEntry != null) {
+                            final query = _queueQuery(discovery);
+                            if (query != null) {
+                              ref
+                                  .read(musicQueueControllerProvider(query))
+                                  ?.refresh();
+                            }
+                          }
+                          ref.invalidate(musicDiscoveryProvider);
+                          if (_tab == _MusicTab.library &&
+                              discovery != null &&
+                              selectedEntry != null) {
+                            ref.invalidate(
+                              musicLibraryProvider(_libraryQuery(discovery)),
+                            );
+                          }
+                          if (_tab == _MusicTab.search &&
+                              discovery != null &&
+                              selectedEntry != null &&
+                              _submitted.isNotEmpty) {
+                            ref.invalidate(
+                              musicSearchProvider(_searchQuery(discovery)),
+                            );
+                          }
+                        },
+                  child: Text(l10n.commonRefresh),
+                ),
+                if (_tab != _MusicTab.outputs && discovery != null) ...[
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: discovery.entries.isEmpty
+                        ? null
+                        : () => _chooseEntry(discovery),
+                    child: Text(selectedEntry?.title ?? l10n.musicChooseServer),
+                  ),
+                  if (discovery.assistantNotInstalled)
+                    Text(l10n.musicNoAssistant),
+                ],
               ],
             ),
           ),
         ),
-      ),
+        if (_tab == _MusicTab.outputs)
+          ..._outputs(context, discovery, generation),
+        if (_tab != _MusicTab.outputs &&
+            discovery?.assistantNotInstalled == true)
+          SliverToBoxAdapter(
+            child: MusicPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.musicAssistantHint, style: AppText.body),
+                  const SizedBox(height: 12),
+                  Text(l10n.musicProviderHint, style: AppText.footnote),
+                ],
+              ),
+            ),
+          ),
+        if (discovery != null && selectedEntry != null && _active)
+          ...switch (_tab) {
+            _MusicTab.library => _library(context, discovery, generation),
+            _MusicTab.search => _searchView(context, discovery, generation),
+            _MusicTab.queue => _queue(context, discovery, generation),
+            _MusicTab.outputs => <Widget>[],
+          },
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
     );
   }
 
@@ -435,50 +409,52 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
     final targets = discovery?.inventory?.targets;
     return [
       SliverToBoxAdapter(
-        child: MusicPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.musicOutputs, style: AppText.title2),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _active
-                        ? () {
-                            if (_canAct(generation)) {
-                              Navigator.of(context).push(
-                                CupertinoPageRoute<void>(
-                                  builder: (_) => const LocalAudioScreen(),
-                                ),
-                              );
-                            }
-                          }
-                        : null,
-                    child: Text(l10n.localAudioTitle),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _active
-                        ? () {
-                            if (_canAct(generation)) {
-                              Navigator.of(context).push(
-                                CupertinoPageRoute<void>(
-                                  builder: (_) => const HaPlaybackScreen(),
-                                ),
-                              );
-                            }
-                          }
-                        : null,
-                    child: Text(l10n.haMediaTitle),
-                  ),
-                ],
-              ),
-              if (targets?.isEmpty == true) Text(l10n.haMediaNoTargets),
-            ],
+        child: SettingsSection(
+          header: Semantics(
+            key: const ValueKey('music-outputs-header'),
+            container: true,
+            header: true,
+            child: Text(l10n.musicOutputs),
           ),
+          children: [
+            SettingsActionTile(
+              buttonKey: const ValueKey('music-local-audio-action'),
+              leading: const Icon(CupertinoIcons.music_note_2),
+              title: Text(l10n.localAudioTitle),
+              onTap: _active
+                  ? () {
+                      if (_canAct(generation)) {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const LocalAudioScreen(),
+                          ),
+                        );
+                      }
+                    }
+                  : null,
+            ),
+            SettingsActionTile(
+              buttonKey: const ValueKey('music-ha-playback-action'),
+              leading: const Icon(CupertinoIcons.tv),
+              title: Text(l10n.haMediaTitle),
+              onTap: _active
+                  ? () {
+                      if (_canAct(generation)) {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const HaPlaybackScreen(),
+                          ),
+                        );
+                      }
+                    }
+                  : null,
+            ),
+            if (targets?.isEmpty == true)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l10n.haMediaNoTargets),
+              ),
+          ],
         ),
       ),
       if (targets != null)

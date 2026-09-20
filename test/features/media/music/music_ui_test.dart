@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -17,7 +18,11 @@ import 'package:larenor/features/media/music/presentation/music_center_screen.da
 import 'package:larenor/features/media/music/presentation/music_playback_screen.dart';
 import 'package:larenor/features/media/music/providers/music_playback_providers.dart';
 import 'package:larenor/features/media/music/providers/music_providers.dart';
+import 'package:larenor/features/media/local_audio/presentation/local_audio_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'music_fixtures.dart';
 import 'music_playback_test.dart' show PlaybackFixture;
@@ -96,6 +101,7 @@ class _Harness {
     Size size = const Size(800, 1100),
     double scale = 1,
     Brightness brightness = Brightness.light,
+    String language = 'en',
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -120,7 +126,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: Locale(language),
           theme: CupertinoThemeData(brightness: brightness),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -169,6 +175,56 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language output actions use shared tablet semantics at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          await h.mount(tester, size: size, scale: 2, language: language);
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('music-outputs-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final localAudio = find.byKey(
+            const ValueKey('music-local-audio-action'),
+          );
+          expect(tester.getRect(localAudio).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.getSemantics(localAudio).flagsCollection.isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: localAudio, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump(const Duration(milliseconds: 400));
+          for (var i = 0; i < 6; i++) {
+            await tester.pump(Duration.zero);
+          }
+
+          expect(find.byType(LocalAudioScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
+
   testWidgets(
     'open music is read-only, MA absence is distinct from failed discovery',
     (tester) async {
@@ -269,6 +325,8 @@ void main() {
         400,
         maxScrolls: 30,
       );
+      await tester.ensureVisible(find.text('Next page'));
+      await tester.pump();
       await tester.tap(find.text('Next page'));
       await tester.pumpAndSettle();
       expect(h.reads.queries.last.offset, 25);
