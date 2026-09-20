@@ -522,7 +522,8 @@ def validate_rendered_config(rendered, expected, project_name):
         if not isinstance(actual, dict):
             raise ManagedStackCIError("unified_manifest_invalid")
         for key in ("container_name", "image", "user", "environment", "labels",
-                    "cap_drop", "cap_add", "security_opt", "restart", "logging", "init"):
+                    "cap_drop", "cap_add", "security_opt", "restart", "logging", "init",
+                    "dns"):
             if actual.get(key) != wanted.get(key):
                 raise ManagedStackCIError("unified_manifest_invalid")
         if (actual.get("privileged", False) is not False
@@ -748,6 +749,19 @@ class DockerDriver:
         )
         return status == 0
 
+    def _embedded_dns_configured(self):
+        code = ("from pathlib import Path; "
+                "lines=Path('/etc/resolv.conf').read_text().splitlines(); "
+                "assert any(line.split()==['nameserver','127.0.0.11'] "
+                "for line in lines)")
+        status, _ = _command(
+            ["/usr/bin/docker", "exec", package.CORE_NAME,
+             "/opt/larenor/.venv/bin/python", "-B", "-c", code],
+            environment=self._environment, timeout=10, output=False,
+            allow_failure=True,
+        )
+        return status == 0
+
     def _await_dns(self, name, failure_code, *, timeout, interval):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -757,9 +771,9 @@ class DockerDriver:
         raise ManagedStackCIError(failure_code)
 
     def _verify_dns(self, name, *, timeout=30, interval=2):
-        if not self._dns_probe("localhost"):
+        if not self._embedded_dns_configured():
             raise ManagedStackCIError("unified_dns_resolver_unavailable")
-        self._await_dns(package.CORE_NAME, "unified_dns_core_alias_failed",
+        self._await_dns("core", "unified_dns_core_alias_failed",
                         timeout=timeout, interval=interval)
         self._await_dns(name, "unified_dns_peer_alias_failed",
                         timeout=timeout, interval=interval)

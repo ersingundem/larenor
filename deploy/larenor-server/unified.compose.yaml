@@ -25,6 +25,9 @@
       "extra_hosts": [
         "host.docker.internal:host-gateway"
       ],
+      "dns": [
+        "127.0.0.11"
+      ],
       "networks": {
         "control": {
           "aliases": [
@@ -73,6 +76,9 @@
       ],
       "security_opt": [
         "no-new-privileges:true"
+      ],
+      "dns": [
+        "127.0.0.11"
       ],
       "environment": {
         "TZ": "Etc/UTC"
@@ -136,6 +142,9 @@
       "security_opt": [
         "no-new-privileges:true"
       ],
+      "dns": [
+        "127.0.0.11"
+      ],
       "environment": {
         "TZ": "Etc/UTC",
         "PORT": "5055"
@@ -182,6 +191,9 @@
       ],
       "security_opt": [
         "no-new-privileges:true"
+      ],
+      "dns": [
+        "127.0.0.11"
       ],
       "environment": {
         "TZ": "Etc/UTC"
@@ -236,6 +248,9 @@
       "security_opt": [
         "no-new-privileges:true"
       ],
+      "dns": [
+        "127.0.0.11"
+      ],
       "environment": {
         "TZ": "Etc/UTC"
       },
@@ -288,6 +303,9 @@
       ],
       "security_opt": [
         "no-new-privileges:true"
+      ],
+      "dns": [
+        "127.0.0.11"
       ],
       "environment": {
         "TZ": "Etc/UTC",

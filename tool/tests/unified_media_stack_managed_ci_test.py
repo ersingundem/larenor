@@ -255,6 +255,16 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         with self.assertRaisesRegex(target.ManagedStackCIError,
                                     "unified_manifest_invalid"):
             target.validate_rendered_config(rendered, expected, rendered["name"])
+        rendered = json.loads(json.dumps(expected))
+        rendered["name"] = "larenor-native-" + "f" * 32
+        rendered["services"]["larenor-core"]["build"]["context"] = str(
+            target.REPOSITORY)
+        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
+            target.REPOSITORY / "server/Dockerfile")
+        rendered["services"]["larenor-core"]["dns"] = ["8.8.8.8"]
+        with self.assertRaisesRegex(target.ManagedStackCIError,
+                                    "unified_manifest_invalid"):
+            target.validate_rendered_config(rendered, expected, rendered["name"])
 
     def test_core_runtime_wait_is_bounded_and_dns_failure_is_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -283,8 +293,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_core_runtime_unready"):
                     driver._await_core_runtime()
 
-            # Resolver, self alias, then peer alias. The peer may appear one
-            # bounded poll later during container startup.
+            # Embedded resolver config, self alias, then peer alias. The peer
+            # may appear one bounded poll later during container startup.
             with patch.object(target, "_command", side_effect=[
                     (0, b""), (0, b""), (1, b""), (0, b"")]), patch.object(
                     target.time, "monotonic", side_effect=[0, 0, 0, 0, 1]), patch.object(

@@ -105,6 +105,7 @@ class UnifiedMediaStackDeploymentTest(unittest.TestCase):
         for name in ({"larenor-core", *SERVICE_NAMES.values()}
                      - {"larenor-music-assistant"}):
             alias = "core" if name == "larenor-core" else name.removeprefix("larenor-")
+            self.assertEqual(services[name]["dns"], ["127.0.0.11"])
             self.assertEqual(services[name]["networks"], {
                 "control": {"aliases": [alias]},
             })

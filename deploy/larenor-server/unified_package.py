@@ -159,7 +159,8 @@ class UnifiedPackagePlanner:
         core = services[CORE_NAME]
         expected_core = expected_services[CORE_NAME]
         if any(core.get(key) != expected_core.get(key)
-               for key in ("container_name", "image", "user", "networks", "extra_hosts", "build")):
+               for key in ("container_name", "image", "user", "networks", "extra_hosts",
+                           "dns", "build")):
             raise PackageError("config_identity_changed")
         core_mounts = _mounts(core)
         if core_mounts != _mounts(expected_core):
@@ -181,7 +182,7 @@ class UnifiedPackagePlanner:
                     or service.get("image") != entry["repository"] + "@" + entry["indexDigest"]
                     or service.get("user") != entry["security"]["user"]
                     or any(service.get(key) != wanted.get(key)
-                           for key in ("network_mode", "networks"))):
+                           for key in ("network_mode", "networks", "dns"))):
                 raise PackageError("config_identity_changed")
             mounts = _mounts(service)
             if mounts != _mounts(wanted):
