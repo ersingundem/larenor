@@ -354,7 +354,7 @@ def validate_receipt(value, commit, selected_platform):
             or value.get("automaticRetry") is not False
             or value.get("cleanupState") != "completed"
             or not isinstance(value.get("services"), dict)
-            or tuple(value["services"]) != COMPONENTS):
+            or set(value["services"]) != set(COMPONENTS)):
         raise ManagedStackCIError("unified_characterization_evidence_invalid")
     expected = {item["serviceId"]: item for item in manifest["components"]}
     for service_id in COMPONENTS:

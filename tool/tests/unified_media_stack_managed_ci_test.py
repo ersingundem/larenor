@@ -466,6 +466,13 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                         "unified_characterization_evidence_invalid"):
                 target.verify(path, REVISION, "linux/amd64")
 
+    def test_receipt_verifier_accepts_canonical_json_key_order(self):
+        value = target.run_native(REVISION, "linux/amd64", FakeDriver())
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "receipt.json"
+            path.write_text(target._canonical(value))
+            target.verify(path, REVISION, "linux/amd64")
+
 
 if __name__ == "__main__":
     unittest.main()
