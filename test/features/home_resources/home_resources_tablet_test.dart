@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -13,6 +14,7 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/trust_evidence_card.dart';
 
 import '../../core/home_scope_fixture.dart' show flush;
 import 'home_resources_fixture.dart';
@@ -171,6 +173,80 @@ void main() {
       semantics.dispose();
     }
   });
+
+  testWidgets(
+    'background retires a verified receipt before a late SAF result',
+    (tester) async {
+      final destination = Completer<Uri?>();
+      var saveRequests = 0;
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async => _transferResponse(request)),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) {
+          saveRequests++;
+          return destination.future;
+        },
+      );
+      try {
+        await harness.mount(tester, width: 1200);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        for (var attempt = 0; attempt < 20 && saveRequests == 0; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+
+        expect(saveRequests, 1);
+        await tester.pump();
+        final trust = find.byKey(ValueKey('core-resource-transfer-trust-$id'));
+        expect(trust, findsOneWidget);
+        expect(
+          tester.widget<TrustEvidenceCard>(trust).state,
+          TrustEvidenceState.verified,
+          reason: 'the receipt is trusted while SAF owns the foreground flow',
+        );
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await flush(tester);
+        destination.complete(Uri.parse('content://synthetic/late'));
+        await flush(tester);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await flush(tester);
+
+        expect(download, findsOneWidget);
+        expect(
+          find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+          findsNothing,
+          reason: 'a late SAF completion cannot restore retired trust',
+        );
+        expect(find.textContaining('Transfer receipt verified'), findsNothing);
+        expect(
+          saveRequests,
+          1,
+          reason: 'foreground recovery never retries SAF',
+        );
+      } finally {
+        if (!destination.isCompleted) destination.complete(null);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      }
+    },
+  );
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
