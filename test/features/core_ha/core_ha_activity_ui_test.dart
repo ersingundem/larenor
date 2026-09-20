@@ -119,56 +119,58 @@ void main() {
     },
   );
 
-  testWidgets('explanation binds actor service command and result to one trace', (
-    tester,
-  ) async {
-    final harness = HaUiHarness()..role = 'member';
-    await openSnapshotActivity(tester, harness);
+  testWidgets(
+    'explanation binds actor service command and result to one trace',
+    (tester) async {
+      final harness = HaUiHarness()..role = 'member';
+      await openSnapshotActivity(tester, harness);
 
-    final requestId = '9' * 32;
-    expect(keyed('core-ha-activity-details-$requestId'), findsNothing);
-    await press(tester, 'core-ha-activity-explain-$requestId');
+      final requestId = '9' * 32;
+      expect(keyed('core-ha-activity-details-$requestId'), findsNothing);
+      await press(tester, 'core-ha-activity-explain-$requestId');
 
-    expect(keyed('core-ha-activity-details-$requestId'), findsOneWidget);
-    expect(find.text(requestId), findsOneWidget);
-    expect(find.text('2' * 32), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
-    expect(
-      find.text(
-        'Core recorded an explicit command from this actor. The trace links '
-        'the request, service and result; it does not prove a physical cause.',
-      ),
-      findsOneWidget,
-    );
-  });
+      expect(keyed('core-ha-activity-details-$requestId'), findsOneWidget);
+      expect(find.text(requestId), findsOneWidget);
+      expect(find.text('2' * 32), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(
+        find.text(
+          'Core recorded an explicit command from this actor. The trace links '
+          'the request, service and result; it does not prove a physical cause.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('unknown attribution explains that nearby events are not causes', (
-    tester,
-  ) async {
-    final harness = HaUiHarness()..role = 'member';
-    final entries =
-        harness.history['complete']['response']['entries'] as List<dynamic>;
-    final first = entries.first as Map<String, dynamic>;
-    final attribution = first['attribution'] as Map<String, dynamic>;
-    attribution
-      ..['source'] = 'unknown'
-      ..['reason'] = 'unknown'
-      ..['serviceId'] = null
-      ..['serviceRevision'] = null;
+  testWidgets(
+    'unknown attribution explains that nearby events are not causes',
+    (tester) async {
+      final harness = HaUiHarness()..role = 'member';
+      final entries =
+          harness.history['complete']['response']['entries'] as List<dynamic>;
+      final first = entries.first as Map<String, dynamic>;
+      final attribution = first['attribution'] as Map<String, dynamic>;
+      attribution
+        ..['source'] = 'unknown'
+        ..['reason'] = 'unknown'
+        ..['serviceId'] = null
+        ..['serviceRevision'] = null;
 
-    await openSnapshotActivity(tester, harness);
-    final requestId = '9' * 32;
-    await press(tester, 'core-ha-activity-explain-$requestId');
+      await openSnapshotActivity(tester, harness);
+      final requestId = '9' * 32;
+      await press(tester, 'core-ha-activity-explain-$requestId');
 
-    expect(find.text('Service not recorded'), findsOneWidget);
-    expect(
-      find.text(
-        'Core has no verified reason for this activity. Nearby events and '
-        'timestamps are not used to invent one.',
-      ),
-      findsOneWidget,
-    );
-  });
+      expect(find.text('Service not recorded'), findsOneWidget);
+      expect(
+        find.text(
+          'Core has no verified reason for this activity. Nearby events and '
+          'timestamps are not used to invent one.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('Turkish 2x tablet keyboard opens details and copies the trace', (
     tester,
@@ -199,8 +201,13 @@ void main() {
       final explain = keyed('core-ha-activity-explain-$requestId');
       await reveal(tester, explain);
       expect(tester.getRect(explain).height, greaterThanOrEqualTo(48));
-      final explainText = find.text('Neden ve işlem izi');
+      final explainText = find.descendant(
+        of: explain,
+        matching: find.text('Neden ve işlem izi'),
+      );
       Focus.of(tester.element(explainText)).requestFocus();
+      await tester.pump();
+      expect(Focus.of(tester.element(explainText)).hasPrimaryFocus, isTrue);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await flush(tester);
 
@@ -209,6 +216,8 @@ void main() {
       expect(tester.getRect(copy).height, greaterThanOrEqualTo(48));
       final copyText = find.text('İşlem izini kopyala');
       Focus.of(tester.element(copyText)).requestFocus();
+      await tester.pump();
+      expect(Focus.of(tester.element(copyText)).hasPrimaryFocus, isTrue);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await flush(tester);
 
