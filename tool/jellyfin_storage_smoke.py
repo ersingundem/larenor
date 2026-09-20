@@ -1188,11 +1188,14 @@ def _helper_base(daemon, context, binding):
         check_staged(context, binding)
 
 def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='none'):
+    target_user = getattr(target, 'containerUser', '1000:1000')
+    require(target_user in {'0:0', '1000:1000'})
     args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
         '--cgroup-parent='+daemon.container_cgroup_parent,
-        '--user='+('0:0' if bootstrap and mode in {'check', 'initialize_empty_root'}
-                   else '1000:1000')]
+        '--user='+('0:0' if bootstrap and mode in {
+            'check', 'initialize_empty_root', 'initialize_empty_root_as_root'}
+                   else target_user)]
     if mode == 'app_identity':
         require(re.fullmatch(r'container:[0-9a-f]{64}', network) is not None)
         args.append('--pid='+network)

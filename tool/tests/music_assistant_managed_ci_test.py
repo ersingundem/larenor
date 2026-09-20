@@ -67,8 +67,9 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             self.assertEqual(source.image.image.platform, platform_name)
             self.assertEqual(source.image.serviceId, "music_assistant")
             self.assertEqual(
-                [(item.serviceId, item.kind, item.target) for item in source.targets],
-                [("music_assistant", "managed_appdata", "/data")],
+                [(item.serviceId, item.kind, item.target, item.containerUser)
+                 for item in source.targets],
+                [("music_assistant", "managed_appdata", "/data", "0:0")],
             )
 
     @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")

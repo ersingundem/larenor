@@ -111,9 +111,11 @@ class UnixVolumeBootstrapEngine:
                 and resource.readOnly is True
                 and resource.containerUser == '1000:1000'
             )
+        resource = binding.resource
+        _require(resource.containerUser in {'0:0', '1000:1000'})
         return _canonical({
             'Image': image_id,
-            'User': '1000:1000',
+            'User': resource.containerUser,
             'Entrypoint': [
                 '/usr/local/bin/python', '-I',
                 '/opt/larenor/volume_bootstrap_helper.py',

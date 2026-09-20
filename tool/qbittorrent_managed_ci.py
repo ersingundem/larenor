@@ -386,11 +386,14 @@ def _build_helper(daemon, checkout_binding):
 
 def _prepare_volumes(daemon, source, helper_id):
     for target in source.targets:
-        with smoke.diagnostic_phase('initial_permissions'):
-            smoke.require(
-                smoke._helper(
-                    daemon, helper_id, 'writable', target=target)
-                == {'writable': False, 'uid': 1000, 'gid': 1000})
+        owner = tuple(int(value) for value in target.containerUser.split(':'))
+        smoke.require(owner in {(0, 0), (1000, 1000)})
+        if owner == (1000, 1000):
+            with smoke.diagnostic_phase('initial_permissions'):
+                smoke.require(
+                    smoke._helper(
+                        daemon, helper_id, 'writable', target=target)
+                    == {'writable': False, 'uid': 1000, 'gid': 1000})
         with smoke.diagnostic_phase('bootstrap_check'):
             smoke.require(
                 smoke._helper(
@@ -400,14 +403,15 @@ def _prepare_volumes(daemon, source, helper_id):
         with smoke.diagnostic_phase('bootstrap_initialize'):
             smoke.require(
                 smoke._helper(
-                    daemon, helper_id, 'initialize_empty_root',
+                    daemon, helper_id, ('initialize_empty_root_as_root'
+                        if owner == (0, 0) else 'initialize_empty_root'),
                     target=target, bootstrap=True)
                 == {'schemaVersion': 1, 'state': 'empty_initialized'})
         with smoke.diagnostic_phase('initialized_permissions'):
             smoke.require(
                 smoke._helper(
                     daemon, helper_id, 'writable', target=target)
-                == {'writable': True, 'uid': 1000, 'gid': 1000})
+                == {'writable': True, 'uid': owner[0], 'gid': owner[1]})
 
 
 def _runtime_backend(operations, binding, endpoint, volumes, catalog, policy,

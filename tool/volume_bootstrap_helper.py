@@ -22,7 +22,7 @@ import sys
 
 _ROOT = '/volume'
 _MODES = {
-    'check', 'initialize_empty_root', 'verify_root',
+    'check', 'initialize_empty_root', 'initialize_empty_root_as_root', 'verify_root',
     'prepare_media_directories', 'install_qbittorrent_config',
     'install_sonarr_config', 'install_radarr_config',
 }
@@ -381,18 +381,23 @@ def run(mode, input_stream=None):
             _prepare_media_directories(fd)
             result = 'media_directories_prepared'
         elif mode == 'verify_root':
-            _require(_metadata(before) == (1000, 1000, 0o750))
+            owner = (os.geteuid(), os.getegid())
+            _require(owner in {(0, 0), (1000, 1000)})
+            _require(_metadata(before) == (*owner, 0o750))
             result = 'root_verified'
         else:
             _require(_metadata(before) == (0, 0, 0o755) and _empty(fd))
             result = 'empty_uninitialized'
-            if mode == 'initialize_empty_root':
+            if mode in {'initialize_empty_root', 'initialize_empty_root_as_root'}:
                 _require(os.geteuid() == 0)
                 _require(_metadata(os.fstat(fd)) == (0, 0, 0o755) and _empty(fd))
+                owner = ((0, 0) if mode == 'initialize_empty_root_as_root'
+                         else (1000, 1000))
                 os.fchmod(fd, 0o750)
-                os.fchown(fd, 1000, 1000)
+                if owner != (0, 0):
+                    os.fchown(fd, *owner)
                 os.fsync(fd)
-                _require(_metadata(os.fstat(fd)) == (1000, 1000, 0o750) and _empty(fd))
+                _require(_metadata(os.fstat(fd)) == (*owner, 0o750) and _empty(fd))
                 result = 'empty_initialized'
         after = os.fstat(fd)
         _require((before.st_dev, before.st_ino) == (after.st_dev, after.st_ino))
