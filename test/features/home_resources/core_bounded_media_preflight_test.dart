@@ -55,6 +55,7 @@ Future<CoreBoundedBlob> _download(String contentType, List<int> payload) async {
       ..headers.set('x-larenor-blob-sha256', sha256.convert(payload).toString())
       ..headers.set('x-larenor-blob-content-type', contentType)
       ..headers.set('x-larenor-service-revision', 1)
+      ..headers.set('x-larenor-resume-offset', 0)
       ..headers.set('accept-ranges', 'none')
       ..contentLength = wire.length
       ..add(wire);

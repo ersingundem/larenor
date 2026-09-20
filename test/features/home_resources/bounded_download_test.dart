@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -5,6 +6,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -46,6 +48,97 @@ Future<({HttpServer server, ServerEndpoint endpoint})> loopback(
     server: server,
     endpoint: ServerEndpoint('http://127.0.0.1:${server.port}'),
   );
+}
+
+final class _InterruptedThenResumeClient extends http.BaseClient {
+  _InterruptedThenResumeClient({this.invalid});
+
+  final String? invalid;
+  final bodies = <Map<String, Object?>>[];
+  int posts = 0;
+
+  static const oldId = 'a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0';
+  static const newId = 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0';
+  static final payload = Uint8List.fromList(utf8.encode('abcdefghi'));
+  static final prefix = Uint8List.fromList(utf8.encode('abc'));
+  static final suffix = Uint8List.fromList(utf8.encode('defghi'));
+
+  Map<String, String> _headers({
+    required String trace,
+    required int framedLength,
+    required int resumeOffset,
+    required bool resumed,
+  }) => {
+    'content-type': CoreBoundedDownloadApi.wireType,
+    'content-length': '$framedLength',
+    'x-larenor-trace-id': trace,
+    'x-larenor-blob-content-length':
+        '${resumed && invalid == 'length' ? payload.length - 1 : payload.length}',
+    'x-larenor-blob-sha256': resumed && invalid == 'digest'
+        ? 'f' * 64
+        : sha256.convert(payload).toString(),
+    'x-larenor-blob-content-type': resumed && invalid == 'mime'
+        ? 'application/octet-stream'
+        : 'text/plain; charset=utf-8',
+    'x-larenor-service-revision': '4',
+    'x-larenor-resume-offset':
+        '${resumed && invalid == 'offset' ? resumeOffset + 1 : resumeOffset}',
+    'accept-ranges': 'none',
+  };
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    expect(request.method, 'POST');
+    bodies.add(
+      Map<String, Object?>.from(
+        jsonDecode(await request.finalize().bytesToString()) as Map,
+      ),
+    );
+    posts++;
+    if (posts == 1) {
+      final fullWire = Uint8List.fromList([
+        ...frame(oldId, 0, false, prefix),
+        ...frame(oldId, 1, false, suffix),
+        ...frame(oldId, 2, true, const []),
+      ]);
+      final stream = Stream<List<int>>.multi((events) {
+        events.add(frame(oldId, 0, false, prefix));
+        events.add(frame(oldId, 1, false, suffix).sublist(0, 51));
+        events.addError(const SocketException('synthetic interruption'));
+        events.close();
+      });
+      return http.StreamedResponse(
+        stream,
+        200,
+        contentLength: fullWire.length,
+        headers: _headers(
+          trace: oldId,
+          framedLength: fullWire.length,
+          resumeOffset: 0,
+          resumed: false,
+        ),
+      );
+    }
+    final responseTrace = invalid == 'trace' ? 'c' * 32 : newId;
+    final wire = Uint8List.fromList([
+      ...frame(responseTrace, 0, false, suffix),
+      ...frame(responseTrace, 1, true, const []),
+    ]);
+    return http.StreamedResponse(
+      Stream.value(wire),
+      200,
+      contentLength: wire.length,
+      headers: _headers(
+        trace: responseTrace,
+        framedLength: wire.length,
+        resumeOffset: prefix.length,
+        resumed: true,
+      ),
+    );
+  }
+
+  @override
+  void close() {}
 }
 
 void main() {
@@ -98,6 +191,7 @@ void main() {
             'text/plain; charset=utf-8',
           )
           ..headers.set('x-larenor-service-revision', 4)
+          ..headers.set('x-larenor-resume-offset', 0)
           ..headers.set('accept-ranges', 'none')
           ..contentLength = wire.length
           ..add(wire);
@@ -125,6 +219,181 @@ void main() {
       expect(result.sha256, sha256.convert(payload).toString());
       expect(result.serviceRevision, 4);
       expect(result.toString(), 'CoreBoundedBlob');
+    },
+  );
+
+  test(
+    'interrupted stream keeps complete frames and resumes with a new request',
+    () async {
+      final client = _InterruptedThenResumeClient();
+      final ids = <String>[
+        _InterruptedThenResumeClient.oldId,
+        _InterruptedThenResumeClient.newId,
+      ].iterator;
+      final api = CoreBoundedDownloadApi(
+        endpoint: ServerEndpoint('https://core.example'),
+        client: client,
+        requestId: () {
+          ids.moveNext();
+          return ids.current;
+        },
+      );
+      addTearDown(api.close);
+
+      CoreBoundedInterruptedDownload? interrupted;
+      try {
+        await api.download(
+          token: 'synthetic-token',
+          target: target(),
+          expectedUserRevision: 7,
+          expectedServiceRevision: 4,
+        );
+        fail('The synthetic stream must be interrupted.');
+      } on CoreBoundedDownloadException catch (error) {
+        expect(error.code, 'connection_failed');
+        interrupted = error.interrupted;
+      }
+      expect(interrupted, isNotNull);
+      expect(
+        interrupted!.previousRequestId,
+        _InterruptedThenResumeClient.oldId,
+      );
+      expect(interrupted.verifiedPrefix, _InterruptedThenResumeClient.prefix);
+      expect(interrupted.nextOffset, 3);
+      expect(interrupted.toString(), 'CoreBoundedInterruptedDownload');
+      expect(interrupted.toString(), isNot(contains('core.example')));
+
+      final result = await api.download(
+        token: 'synthetic-token',
+        target: target(),
+        expectedUserRevision: 7,
+        expectedServiceRevision: 4,
+        resume: interrupted,
+      );
+
+      expect(result.bytes, _InterruptedThenResumeClient.payload);
+      expect(result.requestId, _InterruptedThenResumeClient.newId);
+      expect(client.bodies, [
+        {
+          'requestId': _InterruptedThenResumeClient.oldId,
+          'expectedUserRevision': 7,
+          'expectedRevision': 1,
+          'expectedAclRevision': 2,
+          'expectedServiceRevision': 4,
+          'deadlineMs': 8000,
+        },
+        {
+          'requestId': _InterruptedThenResumeClient.newId,
+          'expectedUserRevision': 7,
+          'expectedRevision': 1,
+          'expectedAclRevision': 2,
+          'expectedServiceRevision': 4,
+          'deadlineMs': 8000,
+          'resumeRequestId': _InterruptedThenResumeClient.oldId,
+          'resumeOffset': 3,
+        },
+      ]);
+    },
+  );
+
+  for (final invalid in ['offset', 'trace', 'digest', 'mime', 'length']) {
+    test(
+      'resume rejects changed $invalid metadata before exposing bytes',
+      () async {
+        final client = _InterruptedThenResumeClient(invalid: invalid);
+        final ids = <String>[
+          _InterruptedThenResumeClient.oldId,
+          _InterruptedThenResumeClient.newId,
+        ].iterator;
+        final api = CoreBoundedDownloadApi(
+          endpoint: ServerEndpoint('https://core.example'),
+          client: client,
+          requestId: () {
+            ids.moveNext();
+            return ids.current;
+          },
+        );
+        addTearDown(api.close);
+        CoreBoundedInterruptedDownload? interrupted;
+        try {
+          await api.download(
+            token: 'synthetic-token',
+            target: target(),
+            expectedUserRevision: 7,
+            expectedServiceRevision: 4,
+          );
+        } on CoreBoundedDownloadException catch (error) {
+          interrupted = error.interrupted;
+        }
+        expect(interrupted, isNotNull);
+
+        await expectLater(
+          api.download(
+            token: 'synthetic-token',
+            target: target(),
+            expectedUserRevision: 7,
+            expectedServiceRevision: 4,
+            resume: interrupted,
+          ),
+          throwsA(
+            isA<CoreBoundedDownloadException>().having(
+              (error) => error.code,
+              'code',
+              'invalid_response',
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  test(
+    'cancel replay is bodyless and returns the same interrupted receipt',
+    () async {
+      const requestId = _InterruptedThenResumeClient.oldId;
+      var deletes = 0;
+      final api = CoreBoundedDownloadApi(
+        endpoint: ServerEndpoint('https://core.example'),
+        client: MockClient((request) async {
+          deletes++;
+          expect(request.method, 'DELETE');
+          expect(request.url.query, isEmpty);
+          expect(request.bodyBytes, isEmpty);
+          return http.Response(
+            jsonEncode({
+              'receipt': {
+                'requestId': requestId,
+                'traceId': requestId,
+                'state': 'interrupted',
+                'contentLength': 9,
+                'sha256': sha256.convert(utf8.encode('abcdefghi')).toString(),
+                'contentType': 'text/plain; charset=utf-8',
+                'serviceRevision': 4,
+                'createdAt': 10.0,
+                'updatedAt': 11.0,
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(api.close);
+
+      final first = await api.cancel(
+        token: 'synthetic-token',
+        target: target(),
+        requestId: requestId,
+      );
+      final replay = await api.cancel(
+        token: 'synthetic-token',
+        target: target(),
+        requestId: requestId,
+      );
+
+      expect(deletes, 2);
+      expect(first.sameEvidence(replay), isTrue);
+      expect(replay.state, CoreBoundedTransferState.interrupted);
     },
   );
 
@@ -168,6 +437,7 @@ void main() {
             'application/octet-stream',
           )
           ..headers.set('x-larenor-service-revision', 4)
+          ..headers.set('x-larenor-resume-offset', 0)
           ..headers.set('accept-ranges', 'none')
           ..contentLength = wire.length
           ..add(wire);
@@ -298,6 +568,7 @@ void main() {
             'application/octet-stream',
           )
           ..headers.set('x-larenor-service-revision', 4)
+          ..headers.set('x-larenor-resume-offset', 0)
           ..headers.set('accept-ranges', 'none')
           ..contentLength = data.length
           ..add(data);

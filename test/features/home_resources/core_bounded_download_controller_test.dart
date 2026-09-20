@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -55,6 +56,7 @@ http.Response _response({bool validDigest = true, int serviceRevision = 1}) {
           : 'f' * 64,
       'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
       'x-larenor-service-revision': '$serviceRevision',
+      'x-larenor-resume-offset': '0',
       'accept-ranges': 'none',
     },
   );
@@ -170,6 +172,165 @@ final class _FirstRequestGateClient extends http.BaseClient {
   }
 }
 
+final class _CancelableResumeClient extends http.BaseClient {
+  _CancelableResumeClient({this.deleteSucceeds = true});
+
+  static const firstId = 'a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0';
+  static const secondId = 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0';
+  static const finalId = 'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0';
+  static final payload = Uint8List.fromList(utf8.encode('abcdefghi'));
+  static final digest = sha256.convert(payload).toString();
+
+  final bool deleteSucceeds;
+  Completer<void>? _pendingCancel;
+  int posts = 0, deletes = 0;
+
+  Map<String, Object> receipt(String requestId, String state) => {
+    'requestId': requestId,
+    'traceId': requestId,
+    'state': state,
+    'contentLength': payload.length,
+    'sha256': digest,
+    'contentType': 'text/plain; charset=utf-8',
+    'serviceRevision': 1,
+    'createdAt': 10.0,
+    'updatedAt': 11.0,
+  };
+
+  Map<String, String> headers(
+    String trace,
+    int framedLength,
+    int resumeOffset,
+  ) => {
+    'content-type': CoreBoundedDownloadApi.wireType,
+    'content-length': '$framedLength',
+    'x-larenor-trace-id': trace,
+    'x-larenor-blob-content-length': '${payload.length}',
+    'x-larenor-blob-sha256': digest,
+    'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
+    'x-larenor-service-revision': '1',
+    'x-larenor-resume-offset': '$resumeOffset',
+    'accept-ranges': 'none',
+  };
+
+  http.StreamedResponse jsonResponse(
+    http.BaseRequest request,
+    Object value, [
+    int status = 200,
+  ]) {
+    final bytes = utf8.encode(jsonEncode(value));
+    return http.StreamedResponse(
+      Stream.value(bytes),
+      status,
+      contentLength: bytes.length,
+      headers: {'content-type': 'application/json'},
+      request: request,
+    );
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.method == 'GET' && request.url.path.endsWith('/descriptor')) {
+      return jsonResponse(request, {
+        'blob': {
+          'resourceId': '3' * 32,
+          'serviceRevision': 1,
+          'contentLength': payload.length,
+          'sha256': digest,
+          'contentType': 'text/plain; charset=utf-8',
+          'createdAt': 10.0,
+          'updatedAt': 11.0,
+        },
+      });
+    }
+    if (request.method == 'GET') {
+      if (!deleteSucceeds && deletes > 0) {
+        return jsonResponse(request, {
+          'error': {'code': 'server_error'},
+        }, 503);
+      }
+      final id = request.url.pathSegments.last;
+      return jsonResponse(request, {
+        'receipt': receipt(id, id == finalId ? 'completed' : 'interrupted'),
+      });
+    }
+    if (request.method == 'DELETE') {
+      deletes++;
+      expect(request.url.query, isEmpty);
+      expect(request.contentLength, 0);
+      final id = request.url.pathSegments.last;
+      if (!(_pendingCancel?.isCompleted ?? true)) _pendingCancel!.complete();
+      return deleteSucceeds
+          ? jsonResponse(request, {'receipt': receipt(id, 'interrupted')})
+          : jsonResponse(request, {
+              'error': {'code': 'server_error'},
+            }, 503);
+    }
+    expect(request.method, 'POST');
+    await request.finalize().drain<void>();
+    final post = ++posts;
+    if (post == 1) {
+      final full = Uint8List.fromList([
+        ..._frame(firstId, 0, false, utf8.encode('abc')),
+        ..._frame(firstId, 1, false, utf8.encode('defghi')),
+        ..._frame(firstId, 2, true, const []),
+      ]);
+      return http.StreamedResponse(
+        Stream<List<int>>.multi((events) {
+          events.add(_frame(firstId, 0, false, utf8.encode('abc')));
+          events.add(
+            _frame(firstId, 1, false, utf8.encode('defghi')).sublist(0, 51),
+          );
+          events.addError(const SocketException('synthetic interruption'));
+          events.close();
+        }),
+        200,
+        contentLength: full.length,
+        headers: headers(firstId, full.length, 0),
+        request: request,
+      );
+    }
+    if (post == 2) {
+      final full = Uint8List.fromList([
+        ..._frame(secondId, 0, false, utf8.encode('def')),
+        ..._frame(secondId, 1, false, utf8.encode('ghi')),
+        ..._frame(secondId, 2, true, const []),
+      ]);
+      final cancelled = _pendingCancel = Completer<void>();
+      return http.StreamedResponse(
+        Stream<List<int>>.multi((events) async {
+          events.add(_frame(secondId, 0, false, utf8.encode('def')));
+          await cancelled.future;
+          events.addError(const SocketException('synthetic cancel'));
+          events.close();
+        }),
+        200,
+        contentLength: full.length,
+        headers: headers(secondId, full.length, 3),
+        request: request,
+      );
+    }
+    final wire = Uint8List.fromList([
+      ..._frame(finalId, 0, false, utf8.encode('ghi')),
+      ..._frame(finalId, 1, true, const []),
+    ]);
+    return http.StreamedResponse(
+      Stream.value(wire),
+      200,
+      contentLength: wire.length,
+      headers: headers(finalId, wire.length, 6),
+      request: request,
+    );
+  }
+
+  @override
+  void close() {
+    final pending = _pendingCancel;
+    _pendingCancel = null;
+    if (pending != null && !pending.isCompleted) pending.complete();
+  }
+}
+
 HomeResourcePage _page() {
   final raw = contract();
   return HomeResourcePage.fromJson(
@@ -187,6 +348,166 @@ HomeResourcePage _writablePage() {
 }
 
 void main() {
+  testWidgets(
+    'verified interruption resumes, exact cancel readback resumes again, then publishes once',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _page(), target = page.entries.last;
+      final client = _CancelableResumeClient();
+      final requestIds = <String>[
+        _CancelableResumeClient.firstId,
+        _CancelableResumeClient.secondId,
+        _CancelableResumeClient.finalId,
+      ].iterator;
+      var saves = 0;
+      Uint8List? published;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          client: client,
+          requestId: () {
+            requestIds.moveNext();
+            return requestIds.current;
+          },
+        ),
+        CoreBoundedDownloadFileAccess(
+          save: (_, _, bytes) async {
+            saves++;
+            published = Uint8List.fromList(bytes);
+            return Uri.parse('content://synthetic/resumed');
+          },
+        ),
+        () => harness.now,
+        () => true,
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      await tester.runAsync(
+        () => controller
+            .download(
+              target,
+              userRevision: page.userRevision,
+              isCurrent: () => true,
+            )
+            .timeout(const Duration(seconds: 2)),
+      );
+      expect(controller.phase, CoreBoundedDownloadPhase.interrupted);
+      expect(controller.canResume(target, page.userRevision), isTrue);
+      expect(controller.receiptTrusted, isTrue);
+      expect(controller.providerAccepted, isFalse);
+      expect(saves, 0);
+
+      await tester.runAsync(() async {
+        final resuming = controller.resume(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        );
+        for (
+          var attempt = 0;
+          attempt < 20 && !controller.canCancel;
+          attempt++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(controller.canCancel, isTrue);
+        await controller.cancel(isCurrent: () => true);
+        await resuming;
+      });
+      expect(client.deletes, 1);
+      expect(controller.phase, CoreBoundedDownloadPhase.interrupted);
+      expect(controller.canResume(target, page.userRevision), isTrue);
+      expect(controller.receipt?.requestId, _CancelableResumeClient.secondId);
+      expect(saves, 0);
+
+      await tester.runAsync(
+        () => controller
+            .resume(
+              target,
+              userRevision: page.userRevision,
+              isCurrent: () => true,
+            )
+            .timeout(const Duration(seconds: 2)),
+      );
+      expect(controller.phase, CoreBoundedDownloadPhase.saved);
+      expect(controller.deviceResultObserved, isTrue);
+      expect(published, _CancelableResumeClient.payload);
+      expect(saves, 1);
+      expect(client.posts, 3);
+    },
+  );
+
+  testWidgets(
+    'failed cancel and readback discard partial evidence; revision retirement clears verified partial',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _page(), target = page.entries.last;
+      final client = _CancelableResumeClient(deleteSucceeds: false);
+      final requestIds = <String>[
+        _CancelableResumeClient.firstId,
+        _CancelableResumeClient.secondId,
+      ].iterator;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          client: client,
+          requestId: () {
+            requestIds.moveNext();
+            return requestIds.current;
+          },
+        ),
+        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+        () => harness.now,
+        () => true,
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      await tester.runAsync(
+        () => controller.download(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        ),
+      );
+      expect(controller.canResume(target, page.userRevision), isTrue);
+      await tester.runAsync(() async {
+        final resuming = controller.resume(
+          target,
+          userRevision: page.userRevision,
+          isCurrent: () => true,
+        );
+        for (
+          var attempt = 0;
+          attempt < 20 && !controller.canCancel;
+          attempt++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(controller.canCancel, isTrue);
+        await controller.cancel(isCurrent: () => true);
+        await resuming;
+      });
+      expect(controller.canResume(target, page.userRevision), isFalse);
+      expect(controller.receiptTrusted, isFalse);
+
+      controller.retainAuthority(page.entries, page.userRevision + 1);
+      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+      expect(controller.canResume(target, page.userRevision), isFalse);
+      controller.setVisible(false);
+      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+    },
+  );
+
   testWidgets(
     'authorized member explicitly verifies then publishes once to SAF seam',
     (tester) async {

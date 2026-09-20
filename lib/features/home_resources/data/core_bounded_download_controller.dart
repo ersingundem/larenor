@@ -25,6 +25,7 @@ final coreBoundedDownloadApiFactoryProvider =
 enum CoreBoundedDownloadPhase {
   idle,
   downloading,
+  interrupted,
   choosingDestination,
   saved,
   cancelled,
@@ -95,6 +96,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   CoreBoundedTransferReceipt? receipt;
   bool receiptTrusted = false;
   bool _serviceReachable = false;
+  CoreBoundedInterruptedDownload? _interrupted;
+  CoreBoundedTransferReceipt? _verifiedInterruption;
+  String? activeRequestId;
+  bool _cancelPending = false;
   int epoch = 0;
   bool _disposed = false, _visible = false, busy = false;
   CoreBoundedDownloadApi? _transport;
@@ -143,6 +148,24 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
 
   bool get deviceResultObserved =>
       providerAccepted && phase == CoreBoundedDownloadPhase.saved;
+
+  bool get canCancel =>
+      busy && !_cancelPending && activeRequestId != null && _transport != null;
+
+  bool canResume(HomeResourceRecord target, int? userRevision) {
+    final session = _ready, interrupted = _interrupted;
+    return !busy &&
+        interrupted != null &&
+        session?.context == target.context &&
+        session?.endpoint.baseUrl == interrupted.endpointBaseUrl &&
+        target.kind == HomeResourceKind.resource &&
+        target.context.coreId == interrupted.coreId &&
+        target.context.homeId == interrupted.homeId &&
+        target.id == interrupted.resourceId &&
+        target.revision == interrupted.expectedResourceRevision &&
+        target.aclRevision == interrupted.expectedAclRevision &&
+        userRevision == interrupted.expectedUserRevision;
+  }
 
   bool canLoadHistory(HomeResourceRecord target) =>
       !busy &&
@@ -219,6 +242,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     receipt = null;
     receiptTrusted = false;
     _serviceReachable = false;
+    _interrupted = null;
+    _verifiedInterruption = null;
+    activeRequestId = null;
+    _cancelPending = false;
     phase = CoreBoundedDownloadPhase.idle;
   }
 
@@ -588,9 +615,41 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     HomeResourceRecord target, {
     required int userRevision,
     required bool Function() isCurrent,
+  }) => _download(
+    target,
+    userRevision: userRevision,
+    isCurrent: isCurrent,
+    resume: null,
+  );
+
+  Future<void> resume(
+    HomeResourceRecord target, {
+    required int userRevision,
+    required bool Function() isCurrent,
+  }) async {
+    final interrupted = _interrupted;
+    if (interrupted == null || !canResume(target, userRevision)) return;
+    await _download(
+      target,
+      userRevision: userRevision,
+      isCurrent: isCurrent,
+      resume: interrupted,
+    );
+  }
+
+  Future<void> _download(
+    HomeResourceRecord target, {
+    required int userRevision,
+    required bool Function() isCurrent,
+    required CoreBoundedInterruptedDownload? resume,
   }) async {
     final original = _ready;
-    if (original == null || !canDownload(target, userRevision)) return;
+    if (original == null ||
+        (resume == null
+            ? !canDownload(target, userRevision)
+            : !canResume(target, userRevision))) {
+      return;
+    }
     final operation = ++epoch;
     final generation = home.account.generation;
     final homeEpoch = home.interaction.epoch;
@@ -621,6 +680,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     traceId = null;
     receipt = null;
     receiptTrusted = false;
+    _interrupted = null;
+    _verifiedInterruption = null;
+    activeRequestId = null;
+    _cancelPending = false;
     _serviceReachable = false;
     _emit();
     CoreBoundedDownloadApi? transport;
@@ -644,6 +707,15 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           if (!current()) {
             throw const CoreBoundedDownloadException('cancelled');
           }
+          if (resume != null &&
+              !resume.matches(
+                endpoint: session.endpoint,
+                target: target,
+                userRevision: userRevision,
+                descriptor: currentDescriptor,
+              )) {
+            throw const CoreBoundedDownloadException('revision_conflict');
+          }
           _serviceReachable = true;
           _emit();
           final candidate = await transport!.download(
@@ -651,6 +723,13 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
             target: target,
             expectedUserRevision: userRevision,
             expectedServiceRevision: currentDescriptor.serviceRevision,
+            resume: resume,
+            onRequestStarted: (requestId) {
+              if (current()) {
+                activeRequestId = requestId;
+                _emit();
+              }
+            },
           );
           if (!currentDescriptor.authenticatesBlob(candidate)) {
             throw const CoreBoundedDownloadException('invalid_response');
@@ -670,6 +749,32 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         } on CoreBoundedDownloadException catch (error) {
           if (error.code == 'unauthorized') {
             throw const LarenorServerException('unauthorized');
+          }
+          final interrupted = error.interrupted;
+          if (interrupted != null && current()) {
+            CoreBoundedTransferReceipt? exact = _verifiedInterruption;
+            if (exact == null) {
+              try {
+                exact = await transport!.receipt(
+                  token: session.accessToken,
+                  target: target,
+                  requestId: interrupted.previousRequestId,
+                );
+              } catch (_) {
+                exact = null;
+              }
+            }
+            if (current() &&
+                exact != null &&
+                exact.authenticatesInterrupted(interrupted)) {
+              _interrupted = interrupted;
+              receipt = exact;
+              receiptTrusted = true;
+              traceId = interrupted.previousRequestId;
+              phase = CoreBoundedDownloadPhase.interrupted;
+              _serviceReachable = true;
+              _emit();
+            }
           }
           rethrow;
         }
@@ -707,14 +812,16 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         }.contains(code)) {
           _serviceReachable = true;
         }
-        phase = switch (code) {
-          'cancelled' => CoreBoundedDownloadPhase.cancelled,
-          'unauthorized' => CoreBoundedDownloadPhase.unauthorized,
-          'forbidden' => CoreBoundedDownloadPhase.forbidden,
-          'revision_conflict' => CoreBoundedDownloadPhase.changed,
-          'late_frame' => CoreBoundedDownloadPhase.lateFrame,
-          _ => CoreBoundedDownloadPhase.failed,
-        };
+        phase = _interrupted != null
+            ? CoreBoundedDownloadPhase.interrupted
+            : switch (code) {
+                'cancelled' => CoreBoundedDownloadPhase.cancelled,
+                'unauthorized' => CoreBoundedDownloadPhase.unauthorized,
+                'forbidden' => CoreBoundedDownloadPhase.forbidden,
+                'revision_conflict' => CoreBoundedDownloadPhase.changed,
+                'late_frame' => CoreBoundedDownloadPhase.lateFrame,
+                _ => CoreBoundedDownloadPhase.failed,
+              };
       }
     } finally {
       if (identical(_transport, transport)) _transport = null;
@@ -724,7 +831,63 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           phase = CoreBoundedDownloadPhase.cancelled;
           traceId = null;
         }
+        activeRequestId = null;
+        _cancelPending = false;
         busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> cancel({required bool Function() isCurrent}) async {
+    final transport = _transport;
+    final requestId = activeRequestId;
+    final target = _boundTarget;
+    final original = _boundSession;
+    final operation = epoch;
+    if (!canCancel ||
+        transport == null ||
+        requestId == null ||
+        target == null ||
+        original == null) {
+      return;
+    }
+    bool current() {
+      try {
+        return !_disposed &&
+            epoch == operation &&
+            identical(_transport, transport) &&
+            activeRequestId == requestId &&
+            identical(home.account.session, original) &&
+            isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _cancelPending = true;
+    _emit();
+    try {
+      if (!current() ||
+          _ready?.context != target.context ||
+          _ready?.endpoint.baseUrl != original.endpoint.baseUrl) {
+        throw const LarenorServerException('cancelled');
+      }
+      // The active download owns the account session lock. Cancellation must
+      // use the exact session already bound to that operation or it deadlocks
+      // behind the stream it is intended to stop.
+      final exact = await transport.cancel(
+        token: original.accessToken,
+        target: target,
+        requestId: requestId,
+      );
+      if (current()) _verifiedInterruption = exact;
+    } catch (_) {
+      if (current()) _verifiedInterruption = null;
+    } finally {
+      transport.close();
+      if (current()) {
+        _cancelPending = false;
         _emit();
       }
     }
