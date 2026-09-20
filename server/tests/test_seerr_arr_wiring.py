@@ -16,10 +16,10 @@ from test_seerr_initial_admin import API_KEY, request, response
 
 ARR_KEY = "a" * 32
 RADARR = SeerrArrService(
-    "radarr", "larenor-" + "1" * 32, 7878, ARR_KEY, 4, "HD-1080p", "/media/movies"
+    "radarr", "larenor-" + "1" * 32, 7878, ARR_KEY, 4, "HD-1080p", "/data/movies"
 )
 SONARR = SeerrArrService(
-    "sonarr", "larenor-" + "2" * 32, 8989, "b" * 32, 5, "HD-1080p", "/media/tv"
+    "sonarr", "larenor-" + "2" * 32, 8989, "b" * 32, 4, "HD-1080p", "/data/shows"
 )
 
 
@@ -54,11 +54,21 @@ def close_aware_connection(replies):
 
 
 def discovery(service):
-    return {
-        "profiles": [{"id": service.profile_id, "name": service.profile_name}],
+    value = {
+        "profiles": [
+            {
+                "id": service.profile_id,
+                "name": service.profile_name,
+                "cutoff": 7,
+            }
+        ],
         "rootFolders": [{"id": 1, "path": service.root_path}],
-        "tags": [],
+        "tags": [{"id": 2, "label": "larenor", "extra": True}],
+        "urlBase": "",
     }
+    if service.service_id == "sonarr":
+        value["languageProfiles"] = None
+    return value
 
 
 def configured(service, identifier):
@@ -161,7 +171,7 @@ def test_reuses_a_real_close_aware_http_stream_for_both_arr_readbacks():
 @pytest.mark.parametrize(
     "payload",
     [
-        {"profiles": [], "rootFolders": [{"id": 1, "path": "/media/movies"}], "tags": []},
+        {"profiles": [], "rootFolders": [{"id": 1, "path": "/data/movies"}], "tags": []},
         {"profiles": [{"id": 4, "name": "HD-1080p"}], "rootFolders": [], "tags": []},
         {"profiles": [{"id": 4, "name": "HD-1080p", "secret": True}], "rootFolders": [], "tags": []},
         {"profiles": [{"id": True, "name": "HD-1080p"}], "rootFolders": [], "tags": []},
@@ -190,10 +200,10 @@ def test_foreign_existing_instance_fails_closed_without_overwrite():
 def test_private_input_is_strict_and_secret_safe():
     assert ARR_KEY not in repr(RADARR)
     for args in (
-        ("lidarr", RADARR.hostname, 7878, ARR_KEY, 4, "HD-1080p", "/media/movies"),
-        ("radarr", "127.0.0.1", 7878, ARR_KEY, 4, "HD-1080p", "/media/movies"),
-        ("radarr", RADARR.hostname, 8989, ARR_KEY, 4, "HD-1080p", "/media/movies"),
-        ("radarr", RADARR.hostname, 7878, ARR_KEY, 4, "HD-1080p", "/data/movies"),
+        ("lidarr", RADARR.hostname, 7878, ARR_KEY, 4, "HD-1080p", "/data/movies"),
+        ("radarr", "127.0.0.1", 7878, ARR_KEY, 4, "HD-1080p", "/data/movies"),
+        ("radarr", RADARR.hostname, 8989, ARR_KEY, 4, "HD-1080p", "/data/movies"),
+        ("radarr", RADARR.hostname, 7878, ARR_KEY, 4, "HD-1080p", "/media/movies"),
     ):
         with pytest.raises(SeerrArrWiringError, match="^invalid_seerr_arr_service$"):
             SeerrArrService(*args)

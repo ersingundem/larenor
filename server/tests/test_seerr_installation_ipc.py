@@ -43,8 +43,8 @@ def private():
                 configurationDigest="c" * 64,
                 hostname="larenor-" + identifier * 32,
                 apiKey=identifier * 32,
-                rootPath="/media/movies" if service == "radarr" else "/media/tv",
-                profileId=4 if service == "radarr" else 5,
+                rootPath="/data/movies" if service == "radarr" else "/data/shows",
+                profileId=4,
                 profileName="HD-1080p",
             )
             for service, identifier in (("radarr", "1"), ("sonarr", "2"))

@@ -28,8 +28,11 @@ from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutionResult,
 )
-from .seerr_bootstrap_models import PrivateSeerrBootstrap
-from .seerr_bootstrap_models import PrivateSeerrArrBinding
+from .seerr_bootstrap_models import (
+    PINNED_ARR_HD_1080P_PROFILE_ID,
+    PrivateSeerrArrBinding,
+    PrivateSeerrBootstrap,
+)
 from .stack_plan import verify_media_stack_plan
 
 
@@ -547,8 +550,8 @@ class SeerrBootstrapManagement:
             raise ValueError()
         bindings = []
         policy = {
-            "radarr": ("/media/movies", 4),
-            "sonarr": ("/media/tv", 5),
+            "radarr": ("/data/movies", PINNED_ARR_HD_1080P_PROFILE_ID),
+            "sonarr": ("/data/shows", PINNED_ARR_HD_1080P_PROFILE_ID),
         }
         for row in rows:
             payload = self.arr_configurations._validate_row(connection, row)

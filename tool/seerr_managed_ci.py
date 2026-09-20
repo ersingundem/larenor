@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Opt-in native Seerr start, fresh-state and restart acceptance."""
 
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
 import platform
 import re
+import secrets
 import signal
 import sys
 import threading
@@ -23,6 +24,11 @@ _DIAGNOSTIC_PHASES = {
     "helper_build": "seerr_helper_build_failed",
     "volume_prepare": "seerr_volume_prepare_failed",
     "native_lifecycle": "seerr_native_lifecycle_failed",
+    "native_convergence": "seerr_native_convergence_failed",
+    "jellyfin_peer": "seerr_jellyfin_peer_failed",
+    "arr_peers": "seerr_arr_peers_failed",
+    "bootstrap": "seerr_bootstrap_failed",
+    "restart_readback": "seerr_restart_readback_failed",
     "journal_setup": "seerr_journal_setup_failed",
     "runtime_setup": "seerr_runtime_setup_failed",
     "container_create": "seerr_container_create_failed",
@@ -40,10 +46,83 @@ _DIAGNOSTIC_CODES = frozenset(
         *_DIAGNOSTIC_PHASES.values(),
     }
 )
+_BOOTSTRAP_CODES = frozenset(
+    {
+        "invalid_seerr_bootstrap_execution",
+        "seerr_bootstrap_authority_changed",
+        "seerr_bootstrap_resources_unavailable",
+        "seerr_bootstrap_endpoint_unavailable",
+        "seerr_bootstrap_endpoint_changed",
+        "seerr_bootstrap_peer_changed",
+        "seerr_bootstrap_initial_admin_failed",
+        "seerr_bootstrap_arr_wiring_failed",
+        "seerr_bootstrap_initialization_failed",
+        "seerr_bootstrap_timeout",
+    }
+)
+_BOOTSTRAP_CAUSES = frozenset(
+    {
+        "invalid_seerr_initial_admin",
+        "seerr_initial_state_conflict",
+        "seerr_initial_admin_conflict",
+        "seerr_jellyfin_authentication_failed",
+        "seerr_session_protocol",
+        "seerr_api_key_protocol",
+        "seerr_initial_admin_protocol",
+        "seerr_initial_admin_unavailable",
+        "seerr_initial_admin_timeout",
+        "invalid_seerr_arr_wiring",
+        "invalid_seerr_arr_service",
+        "seerr_arr_conflict",
+        "seerr_arr_selection_changed",
+        "seerr_arr_protocol",
+        "seerr_arr_unavailable",
+        "seerr_arr_timeout",
+        "invalid_seerr_initialization",
+        "seerr_initialization_state_conflict",
+        "seerr_initialization_protocol",
+        "seerr_initialization_unavailable",
+        "seerr_initialization_timeout",
+    }
+)
 
 
 class SeerrManagedCIError(Exception):
     """Closed native evidence failure; private Engine data never escapes."""
+
+    def __init__(
+        self,
+        code,
+        *,
+        bootstrap_code=None,
+        cause_code=None,
+        completed_steps=None,
+    ):
+        self.bootstrap_code = (
+            bootstrap_code if bootstrap_code in _BOOTSTRAP_CODES else None
+        )
+        self.cause_code = cause_code if cause_code in _BOOTSTRAP_CAUSES else None
+        self.completed_steps = (
+            completed_steps
+            if type(completed_steps) is int and 0 <= completed_steps <= 6
+            else None
+        )
+        if self.bootstrap_code is None:
+            self.cause_code = self.completed_steps = None
+        super().__init__(code if code in _DIAGNOSTIC_CODES else "seerr_characterization_failed")
+
+    def diagnostic(self):
+        code = self.args[0]
+        if self.bootstrap_code is None:
+            return code
+        cause = self.cause_code or "none"
+        return (
+            f"{code} code={self.bootstrap_code} cause={cause} "
+            f"completed={self.completed_steps}"
+        )
+
+    def __repr__(self):
+        return f"SeerrManagedCIError({self.diagnostic()!r})"
 
 
 class _Cancelled(BaseException):
@@ -156,7 +235,7 @@ def validate_receipt(value, commit, selected):
         and re.fullmatch(r"sha256:[0-9a-f]{64}", helper_digest)
     )
     expected = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "result": "seerr_characterized",
         "serviceVersion": component.version,
         "platform": selected,
@@ -182,14 +261,80 @@ def validate_receipt(value, commit, selected):
         "containerJournalVersion": 2,
         "containerState": "seerr_container_started",
         "freshStateVerified": True,
+        "adminState": "verified",
+        "adminSessionClosed": True,
+        "arrWiringState": "verified",
+        "arrServiceIds": ["radarr", "sonarr"],
+        "initializationState": "verified",
+        "initializationChanged": True,
+        "authenticatedReadbackVerified": True,
         "restartCount": 1,
         "freshStatePersistent": True,
+        "restartIdempotent": True,
         "installAvailable": False,
     }
     require(_same(value, expected))
 
 
-def _prepare_resources(daemon, source):
+def _stack_sources(selected_platform):
+    """Project the four real services over one exact stack and policy."""
+    base = smoke.fixture_source(selected_platform)
+
+    def selected(service_id, targets):
+        image = next(
+            item
+            for item in base.plan.resources
+            if item.kind == "ensure_image" and item.serviceId == service_id
+        )
+        chosen = tuple(item for item in base.volumes.resources if targets(item))
+        return replace(base, image=image, targets=chosen, managed_targets=chosen)
+
+    sources = {
+        "jellyfin": replace(
+            base,
+            targets=base.managed_targets,
+            managed_targets=base.managed_targets,
+        ),
+        "seerr": selected(
+            "seerr",
+            lambda item: item.serviceId == "seerr"
+            and item.kind == "managed_appdata",
+        ),
+        "radarr": selected(
+            "radarr",
+            lambda item: (
+                item.serviceId == "radarr" and item.kind == "managed_appdata"
+            )
+            or item.kind == "managed_library",
+        ),
+        "sonarr": selected(
+            "sonarr",
+            lambda item: (
+                item.serviceId == "sonarr" and item.kind == "managed_appdata"
+            )
+            or item.kind == "managed_library",
+        ),
+    }
+    require(
+        tuple(sources) == ("jellyfin", "seerr", "radarr", "sonarr")
+        and len(sources["jellyfin"].targets) == 3
+        and len(sources["seerr"].targets) == 1
+        and len(sources["radarr"].targets) == 2
+        and len(sources["sonarr"].targets) == 2
+    )
+    return sources
+
+
+def _unique_targets(sources):
+    by_resource = {}
+    for source in sources.values():
+        for target in source.targets:
+            previous = by_resource.setdefault(target.resourceId, target)
+            require(previous == target)
+    return tuple(by_resource.values())
+
+
+def _prepare_resources(daemon, sources):
     from larenor_server.plugins.docker_probe import DockerEndpoint
     from larenor_server.plugins.image_preparation import JournaledImageOperations
     from larenor_server.plugins.image_resources import UnixImageEngine
@@ -201,44 +346,103 @@ def _prepare_resources(daemon, source):
     from larenor_server.plugins.volume_preparation import JournaledVolumeCreates
     from tool.media_resource_smoke import characterize_resources
 
+    base = sources["jellyfin"]
     endpoint = DockerEndpoint(str(daemon.root / "engine.sock"), owner_uid=0)
     images = UnixImageEngine(endpoint)
     characterize_resources(
         daemon.root,
-        source,
+        base,
         images,
         UnixNetworkEngine(endpoint),
         UnixNetworkCreator(endpoint),
     )
     arguments = {
-        "plan": source.plan,
-        "stack": source.stack,
-        "catalog": source.catalog,
-        "policy": source.policy,
+        "plan": base.plan,
+        "stack": base.stack,
+        "catalog": base.catalog,
+        "policy": base.policy,
     }
     cancelled = threading.Event()
     with ResourceJournal(daemon.root / "resource-journal") as journal:
-        image = JournaledImageOperations(journal, images).apply(
-            **arguments,
-            resource_id=source.image.resourceId,
-            authorize_pull=lambda: True,
-            cancelled=cancelled,
-        )
+        operations = JournaledImageOperations(journal, images)
+        image_states = ["ready"]
+        for service_id in ("seerr", "radarr", "sonarr"):
+            receipt = operations.apply(
+                **arguments,
+                resource_id=sources[service_id].image.resourceId,
+                authorize_pull=lambda: True,
+                cancelled=cancelled,
+            )
+            image_states.append(receipt.state)
     creator = UnixVolumeCreator(endpoint)
     with VolumeCreateJournal(
         daemon.root / "volume-journal", initialize=True
     ) as journal:
-        receipt = JournaledVolumeCreates(journal, creator).apply(
-            source.volumes,
-            source.stack,
-            source.catalog,
-            source.policy,
-            source.targets[0].resourceId,
-            authorize_create=lambda: True,
-            cancelled=cancelled,
+        operations = JournaledVolumeCreates(journal, creator)
+        states = {}
+        for target in _unique_targets(sources):
+            receipt = operations.apply(
+                base.volumes,
+                base.stack,
+                base.catalog,
+                base.policy,
+                target.resourceId,
+                authorize_create=lambda: True,
+                cancelled=cancelled,
+            )
+            states[target.resourceId] = receipt.state
+    require(
+        image_states == ["ready"] * 4
+        and set(states.values()) == {"observed_requires_bootstrap"}
+    )
+    seerr_target = sources["seerr"].targets[0]
+    return endpoint, [states[seerr_target.resourceId]]
+
+
+def _prepare_volumes(daemon, sources, helper_id):
+    for target in _unique_targets(sources):
+        owner = tuple(int(value) for value in target.containerUser.split(":"))
+        require(owner in {(0, 0), (1000, 1000)})
+        if owner == (1000, 1000):
+            require(
+                smoke._helper(daemon, helper_id, "writable", target=target)
+                == {"writable": False, "uid": 1000, "gid": 1000}
+            )
+        require(
+            smoke._helper(
+                daemon, helper_id, "check", target=target, bootstrap=True
+            )
+            == {"schemaVersion": 1, "state": "empty_uninitialized"}
         )
-    require(image.state == "ready" and receipt.state == "observed_requires_bootstrap")
-    return endpoint, [receipt.state]
+        require(
+            smoke._helper(
+                daemon,
+                helper_id,
+                (
+                    "initialize_empty_root_as_root"
+                    if owner == (0, 0)
+                    else "initialize_empty_root"
+                ),
+                target=target,
+                bootstrap=True,
+            )
+            == {"schemaVersion": 1, "state": "empty_initialized"}
+        )
+        require(
+            smoke._helper(daemon, helper_id, "writable", target=target)
+            == {"writable": True, "uid": owner[0], "gid": owner[1]}
+        )
+        if target.kind == "managed_library":
+            require(
+                smoke._helper(
+                    daemon,
+                    helper_id,
+                    "prepare_media_directories",
+                    target=target,
+                    bootstrap=True,
+                )
+                == {"schemaVersion": 1, "state": "media_directories_prepared"}
+            )
 
 
 @dataclass(frozen=True)
@@ -246,21 +450,34 @@ class _SeerrNativeResult:
     state: str
     fresh: bool
     persistent: bool
+    admin_state: str
+    admin_session_closed: bool
+    arr_service_ids: tuple[str, ...]
+    initialization_state: str
+    initialization_changed: bool
+    authenticated_readback: bool
+    restart_idempotent: bool
+
+    def __post_init__(self):
+        require(
+            self.state == "seerr_container_started"
+            and self.fresh is True
+            and self.persistent is True
+            and self.admin_state == "verified"
+            and self.admin_session_closed is True
+            and self.arr_service_ids == ("radarr", "sonarr")
+            and self.initialization_state == "verified"
+            and self.initialization_changed is True
+            and self.authenticated_readback is True
+            and self.restart_idempotent is True
+        )
 
 
-def _fresh_public_state(engine, binding, stack, container_id, *, deadline):
-    from larenor_server.plugins.jellyfin_startup import _StartupReader
+def _open_seerr(engine, binding, stack, container_id, *, deadline):
     from larenor_server.plugins.seerr_endpoint import (
         SeerrEndpointError,
         open_seerr_endpoint,
     )
-    from larenor_server.plugins.seerr_initial_admin import (
-        SeerrInitialAdmin,
-        SeerrInitialAdminLimits,
-        _PUBLIC_FIELDS,
-        _json,
-    )
-
     while True:
         observed = engine.inspect_container(binding.name)
         try:
@@ -276,67 +493,35 @@ def _fresh_public_state(engine, binding, stack, container_id, *, deadline):
             if error.code != "seerr_endpoint_unavailable" or time.monotonic() >= deadline:
                 raise
             time.sleep(0.2)
-    connection = opened.connection
-    try:
-        limits = SeerrInitialAdminLimits(
-            total_seconds=max(0.1, min(20.0, deadline - time.monotonic()))
-        )
-        reader = _StartupReader(connection, deadline)
-        status, _headers, raw, _closed = SeerrInitialAdmin._request(
-            connection,
-            reader,
-            deadline,
-            limits,
-            "GET",
-            "/api/v1/settings/public",
-            final=True,
-        )
-        value = _json(raw, "seerr_initial_state_conflict")
-        require(
-            status == 200
-            and type(value) is dict
-            and set(value) <= _PUBLIC_FIELDS
-            and value.get("initialized") is False
-            and value.get("applicationTitle") == "Seerr"
-        )
-        return observed
-    finally:
-        connection.close()
+    return observed, opened.connection
 
 
-def _start_verify_restart(daemon, source, endpoint, helper_id):
+@dataclass(frozen=True, repr=False)
+class _ArrPeer:
+    service_id: str
+    binding: object
+    api_key: str
+    configuration: object
+    container_id: str
+
+    def __repr__(self):
+        return f"_ArrPeer(service_id={self.service_id!r}, <private>)"
+
+
+def _binding_builder(source, endpoint, helper_id, resources, volumes, containers):
     from larenor_server.plugins.managed_container import (
         JellyfinBindingBuilder,
         JellyfinEngineReaders,
         JellyfinResourceProofBroker,
-        JournaledManagedContainerOperations,
-        ManagedWorkerJournal,
-        managed_container_matches,
     )
-    from larenor_server.plugins.resource_journal import ResourceJournal
     from larenor_server.plugins.volume_bootstrap import VolumeBootstrapVerifier
-    from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
-    from larenor_server.plugins.worker import WorkerStep
 
-    job = uuid.uuid4().hex
-    journals = ExitStack()
-    try:
-        with diagnostic_phase("journal_setup"):
-            resources = journals.enter_context(
-                ResourceJournal(daemon.root / "resource-journal")
-            )
-            volumes = journals.enter_context(
-                VolumeCreateJournal(daemon.root / "volume-journal")
-            )
-            containers = journals.enter_context(
-                ManagedWorkerJournal(
-                    daemon.root / "seerr-container-journal", initialize=True
-                )
-            )
-        with diagnostic_phase("runtime_setup"):
-            verifier = VolumeBootstrapVerifier(endpoint, helper_id, daemon.platform)
-            readers = JellyfinEngineReaders(endpoint, verifier)
-            broker = JellyfinResourceProofBroker(
+    verifier = VolumeBootstrapVerifier(endpoint, helper_id, source.plan.platform)
+    readers = JellyfinEngineReaders(endpoint, verifier)
+
+    def build(stack, service_id="jellyfin"):
+        require(service_id in {"jellyfin", "radarr", "sonarr", "seerr"})
+        broker = JellyfinResourceProofBroker(
                 source.stack,
                 source.catalog,
                 source.policy,
@@ -344,83 +529,321 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
                 volumes,
                 readers,
                 engine_identity=endpoint,
-                service_id="seerr",
+                service_id=service_id,
             )
-            builder = JellyfinBindingBuilder(
-                source.catalog,
-                source.policy,
-                containers.identity,
-                broker,
-                service_id="seerr",
-            )
-            binding = builder(source.stack)
-            engine = smoke._managed_engine(endpoint)
-            operations = JournaledManagedContainerOperations(containers, engine)
+        return JellyfinBindingBuilder(
+            source.catalog,
+            source.policy,
+            containers.identity,
+            broker,
+            service_id=service_id,
+        )(stack)
+
+    return build
+
+
+def _install_arr(daemon, source, endpoint, helper_id, service_id):
+    from larenor_server.plugins.arr_config_models import PrivateArrConfiguration
+    from larenor_server.plugins.managed_container import (
+        JournaledManagedContainerOperations,
+        ManagedWorkerJournal,
+        managed_container_matches,
+    )
+    from larenor_server.plugins.resource_journal import ResourceJournal
+    from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
+
+    private = PrivateArrConfiguration(
+        serviceId=service_id, apiKey=secrets.token_hex(16)
+    )
+    with (
+        ResourceJournal(daemon.root / "resource-journal") as resources,
+        VolumeCreateJournal(daemon.root / "volume-journal") as volumes,
+        ManagedWorkerJournal(daemon.root / "managed-container-journal") as containers,
+    ):
+        binding_builder = _binding_builder(
+            source, endpoint, helper_id, resources, volumes, containers
+        )
+        engine = smoke._managed_engine(endpoint)
+        operations = JournaledManagedContainerOperations(containers, engine)
+        backend = shared._runtime_backend(
+            operations,
+            binding_builder,
+            endpoint,
+            volumes,
+            source.catalog,
+            source.policy,
+            helper_id,
+            daemon.platform,
+        )
+        receipt = backend.install_configured_arr(
+            uuid.uuid4().hex,
+            source.stack,
+            service_id,
+            api_key=private.apiKey,
+            cancelled=threading.Event(),
+            deadline=time.monotonic() + 120,
+            gate=lambda: True,
+        )
+        binding = binding_builder(source.stack, service_id)
+        running = engine.inspect_container(receipt.container_id)
+        require(
+            receipt.state == service_id + "_container_started"
+            and receipt.service_state == service_id + "_service_verified"
+            and managed_container_matches(running, binding)
+            and running.get("State", {}).get("Running") is True
+        )
+        host = binding.payload()["specification"]["HostConfig"]
+        daemon.verify_container_resources(
+            running.get("State", {}).get("Pid"),
+            host["Memory"],
+            host["NanoCpus"],
+            host["PidsLimit"],
+        )
+        return _ArrPeer(
+            service_id,
+            binding,
+            private.apiKey,
+            receipt.configuration,
+            receipt.container_id,
+        )
+
+
+def _converge_seerr(
+    daemon, source, endpoint, helper_id, jellyfin_peer, arr_peers
+):
+    from larenor_server.plugins.managed_container import (
+        JournaledManagedContainerOperations,
+        ManagedWorkerJournal,
+        managed_container_matches,
+    )
+    from larenor_server.plugins.resource_journal import ResourceJournal
+    from larenor_server.plugins.seerr_arr_wiring import (
+        SeerrArrService,
+        SeerrArrWiring,
+    )
+    from larenor_server.plugins.seerr_bootstrap_executor import (
+        SeerrBootstrapExecutionError,
+        SeerrBootstrapExecutor,
+    )
+    from larenor_server.plugins.seerr_bootstrap_models import (
+        PINNED_ARR_HD_1080P_PROFILE_ID,
+        PrivateSeerrArrBinding,
+        PrivateSeerrBootstrap,
+    )
+    from larenor_server.plugins.seerr_initial_admin import SeerrInitialAdmin
+    from larenor_server.plugins.seerr_initialization import SeerrInitialization
+    from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
+    from larenor_server.plugins.worker import WorkerStep
+
+    job = uuid.uuid4().hex
+    with (
+        ResourceJournal(daemon.root / "resource-journal") as resources,
+        VolumeCreateJournal(daemon.root / "volume-journal") as volumes,
+        ManagedWorkerJournal(daemon.root / "managed-container-journal") as containers,
+    ):
+        binding_builder = _binding_builder(
+            source, endpoint, helper_id, resources, volumes, containers
+        )
+        engine = smoke._managed_engine(endpoint)
+        operations = JournaledManagedContainerOperations(containers, engine)
+        seerr_binding = binding_builder(source.stack, "seerr")
 
         def command(kind):
             return WorkerStep(
                 job,
-                binding.name.removeprefix("larenor-"),
+                seerr_binding.name.removeprefix("larenor-"),
                 kind,
                 uuid.uuid4().hex,
-                time.time() + 60,
+                time.time() + 120,
             )
 
-        with diagnostic_phase("container_create"):
-            created = operations.apply(command("create_container"), binding)
-            require(created.state == "succeeded" and created.container_id is not None)
-        with diagnostic_phase("container_start"):
-            started = operations.apply(command("start_container"), binding)
-            require(
-                started.state == "succeeded"
-                and started.code == "container_started"
-                and started.container_id == created.container_id
+        created = operations.apply(command("create_container"), seerr_binding)
+        require(created.state == "succeeded" and created.container_id is not None)
+        started = operations.apply(command("start_container"), seerr_binding)
+        require(
+            started.state == "succeeded"
+            and started.code == "container_started"
+            and started.container_id == created.container_id
+        )
+        _ready, ready_connection = _open_seerr(
+            engine,
+            seerr_binding,
+            source.stack,
+            started.container_id,
+            deadline=time.monotonic() + 120,
+        )
+        ready_connection.close()
+
+        private_arr = tuple(
+            PrivateSeerrArrBinding(
+                serviceId=peer.service_id,
+                configurationId=peer.configuration.resource_id,
+                configurationRevision=peer.configuration.revision,
+                resourceRevision=peer.configuration.revision,
+                serviceRevision=peer.configuration.revision,
+                configurationDigest=peer.configuration.configuration_digest,
+                hostname=peer.binding.name,
+                apiKey=peer.api_key,
+                rootPath="/data/movies" if peer.service_id == "radarr" else "/data/shows",
+                profileId=PINNED_ARR_HD_1080P_PROFILE_ID,
+                profileName="HD-1080p",
             )
-        deadline = time.monotonic() + 120
-        with diagnostic_phase("fresh_state"):
-            running = _fresh_public_state(
-                engine, binding, source.stack, started.container_id, deadline=deadline
-            )
-            require(
-                managed_container_matches(running, binding)
-                and running.get("State", {}).get("Running") is True
-            )
-        host = binding.payload()["specification"]["HostConfig"]
-        with diagnostic_phase("resource_verify"):
-            daemon.verify_container_resources(
-                running.get("State", {}).get("Pid"),
-                host["Memory"],
-                host["NanoCpus"],
-                host["PidsLimit"],
-            )
-        with diagnostic_phase("container_restart"):
-            daemon.docker(
-                ["restart", "--time=10", started.container_id],
-                timeout=30,
-                limit=128,
-            )
-        with diagnostic_phase("restart_state"):
-            restarted = _fresh_public_state(
-                engine,
-                binding,
+            for peer in arr_peers
+        )
+        private = PrivateSeerrBootstrap(
+            credential=jellyfin_peer.credential,
+            sourceBootstrapId=jellyfin_peer.binding.name.removeprefix("larenor-"),
+            sourceBootstrapRevision=1,
+            arrBindings=private_arr,
+        )
+        wiring = SeerrArrWiring()
+        initialization = SeerrInitialization()
+        try:
+            bootstrap = SeerrBootstrapExecutor(
+                operations,
+                binding_builder,
+                SeerrInitialAdmin(),
+                wiring,
+                initialization,
+            ).execute(
+                job,
                 source.stack,
-                started.container_id,
+                private,
                 deadline=time.monotonic() + 120,
+                gate=lambda: True,
             )
-            require(
-                managed_container_matches(restarted, binding)
-                and restarted.get("State", {}).get("Running") is True
+        except SeerrBootstrapExecutionError as error:
+            raise SeerrManagedCIError(
+                "seerr_bootstrap_failed",
+                bootstrap_code=error.code,
+                cause_code=error.cause_code,
+                completed_steps=len(error.completed_steps),
+            ) from None
+        require(
+            bootstrap.state == "verified"
+            and bootstrap.completed_steps
+            == (
+                "uninitialized_verified",
+                "admin_created",
+                "api_key_verified",
+                "session_destroyed",
+                "arr_wiring_verified",
+                "initialization_verified",
             )
-            daemon.verify_container_resources(
-                restarted.get("State", {}).get("Pid"),
-                host["Memory"],
-                host["NanoCpus"],
-                host["PidsLimit"],
+            and bootstrap.arr_wiring is not None
+            and bootstrap.initialization is not None
+            and bootstrap.initialization.changed is True
+        )
+        running = engine.inspect_container(seerr_binding.name)
+        require(
+            managed_container_matches(running, seerr_binding)
+            and running.get("State", {}).get("Running") is True
+        )
+        host = seerr_binding.payload()["specification"]["HostConfig"]
+        daemon.verify_container_resources(
+            running.get("State", {}).get("Pid"),
+            host["Memory"],
+            host["NanoCpus"],
+            host["PidsLimit"],
+        )
+        daemon.docker(
+            ["restart", "--time=10", started.container_id], timeout=30, limit=128
+        )
+        restarted, connection = _open_seerr(
+            engine,
+            seerr_binding,
+            source.stack,
+            started.container_id,
+            deadline=time.monotonic() + 120,
+        )
+        require(
+            managed_container_matches(restarted, seerr_binding)
+            and restarted.get("State", {}).get("Running") is True
+        )
+        services = tuple(
+            SeerrArrService(
+                peer.service_id,
+                peer.binding.name,
+                7878 if peer.service_id == "radarr" else 8989,
+                peer.api_key,
+                PINNED_ARR_HD_1080P_PROFILE_ID,
+                "HD-1080p",
+                "/data/movies" if peer.service_id == "radarr" else "/data/shows",
             )
-    finally:
-        with diagnostic_phase("journal_setup"):
-            journals.close()
-    return _SeerrNativeResult("seerr_container_started", True, True)
+            for peer in arr_peers
+        )
+        try:
+            readback = wiring.configure(
+                connection,
+                seerr_api_key=bootstrap.api_key,
+                services=services,
+                total_seconds=45,
+                close_connection=False,
+            )
+            initialized = initialization.complete(
+                connection,
+                seerr_api_key=bootstrap.api_key,
+                total_seconds=30,
+            )
+        finally:
+            connection.close()
+        require(
+            readback == bootstrap.arr_wiring
+            and initialized.state == "verified"
+            and initialized.changed is False
+        )
+        daemon.verify_container_resources(
+            restarted.get("State", {}).get("Pid"),
+            host["Memory"],
+            host["NanoCpus"],
+            host["PidsLimit"],
+        )
+        return _SeerrNativeResult(
+            "seerr_container_started",
+            True,
+            True,
+            bootstrap.state,
+            "session_destroyed" in bootstrap.completed_steps,
+            readback.service_ids,
+            initialized.state,
+            bootstrap.initialization.changed,
+            True,
+            initialized.changed is False,
+        )
+
+
+def _converge_native_stack(daemon, sources, checkout_binding):
+    with diagnostic_phase("resource_prepare"):
+        endpoint, volume_states = _prepare_resources(daemon, sources)
+    with diagnostic_phase("helper_build"):
+        helper_id, attestation = shared._build_helper(daemon, checkout_binding)
+    with diagnostic_phase("volume_prepare"):
+        _prepare_volumes(daemon, sources, helper_id)
+    peers = []
+    with diagnostic_phase("jellyfin_peer"):
+        smoke._managed_create_and_start(
+            daemon,
+            sources["jellyfin"],
+            endpoint,
+            helper_id,
+            peer_consumer=lambda peer: peers.append(peer),
+        )
+        require(len(peers) == 1)
+    with diagnostic_phase("arr_peers"):
+        arr_peers = tuple(
+            _install_arr(daemon, sources[service_id], endpoint, helper_id, service_id)
+            for service_id in ("radarr", "sonarr")
+        )
+    with diagnostic_phase("bootstrap"):
+        result = _converge_seerr(
+            daemon,
+            sources["seerr"],
+            endpoint,
+            helper_id,
+            peers[0],
+            arr_peers,
+        )
+    return attestation, volume_states, result
 
 
 def characterize(daemon, *, checkout_binding=None):
@@ -430,15 +853,12 @@ def characterize(daemon, *, checkout_binding=None):
         else checkout_binding
     )
     smoke.check_source(checkout_binding)
-    source = fixture_source(daemon.platform)
-    with diagnostic_phase("resource_prepare"):
-        endpoint, volume_states = _prepare_resources(daemon, source)
-    with diagnostic_phase("helper_build"):
-        helper_id, attestation = shared._build_helper(daemon, checkout_binding)
-    with diagnostic_phase("volume_prepare"):
-        shared._prepare_volumes(daemon, source, helper_id)
-    with diagnostic_phase("native_lifecycle"):
-        result = _start_verify_restart(daemon, source, endpoint, helper_id)
+    sources = _stack_sources(daemon.platform)
+    source = sources["seerr"]
+    with diagnostic_phase("native_convergence"):
+        attestation, volume_states, result = _converge_native_stack(
+            daemon, sources, checkout_binding
+        )
     smoke.check_source(checkout_binding)
     component = next(
         item.manifest
@@ -446,7 +866,7 @@ def characterize(daemon, *, checkout_binding=None):
         if item.manifest.serviceId == "seerr"
     )
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "result": "seerr_characterized",
         "serviceVersion": component.version,
         "platform": daemon.platform,
@@ -463,8 +883,16 @@ def characterize(daemon, *, checkout_binding=None):
         "containerJournalVersion": 2,
         "containerState": result.state,
         "freshStateVerified": result.fresh,
+        "adminState": result.admin_state,
+        "adminSessionClosed": result.admin_session_closed,
+        "arrWiringState": "verified",
+        "arrServiceIds": list(result.arr_service_ids),
+        "initializationState": result.initialization_state,
+        "initializationChanged": result.initialization_changed,
+        "authenticatedReadbackVerified": result.authenticated_readback,
         "restartCount": 1,
         "freshStatePersistent": result.persistent,
+        "restartIdempotent": result.restart_idempotent,
         "installAvailable": False,
     }
 
@@ -487,7 +915,7 @@ def run():
     try:
         for item in signals:
             signal.signal(item, cancel)
-        signal.alarm(1200)
+        signal.alarm(2400)
         with smoke.diagnostic_phase("source_capture"):
             binding = smoke.capture_source(commit)
         with owner as daemon:
@@ -551,7 +979,7 @@ def main(arguments=None):
             and error.args
             and error.args[0] in _DIAGNOSTIC_CODES
         ):
-            print(error.args[0], file=sys.stderr)
+            print(error.diagnostic(), file=sys.stderr)
         else:
             print("seerr_characterization_failed", file=sys.stderr)
     return 1

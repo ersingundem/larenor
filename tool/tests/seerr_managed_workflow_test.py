@@ -54,6 +54,42 @@ class SeerrManagedWorkflowPolicyTest(unittest.TestCase):
         )
         self.assertLess(verify, upload)
 
+    def test_runs_the_complete_convergence_flow_on_both_native_architectures(self):
+        value = self.workflow()
+        job = value["jobs"]["seerr-characterize"]
+        self.assertGreaterEqual(job["timeout-minutes"], 35)
+        native = next(step for step in job["steps"] if step.get("id") == "native")
+        self.assertGreaterEqual(native["timeout-minutes"], 32)
+        self.assertEqual(
+            native["name"],
+            "Converge Seerr admin, Arr wiring, initialization and restart",
+        )
+
+    def test_seerr_runtime_is_part_of_the_exact_source_bundle(self):
+        source = (ROOT / "tool/jellyfin_storage_smoke.py").read_text()
+        for path in (
+            ".github/workflows/seerr-managed-characterization.yml",
+            "tool/seerr_managed_ci.py",
+            "server/larenor_server/plugins/seerr_bootstrap_executor.py",
+            "server/larenor_server/plugins/seerr_bootstrap_models.py",
+            "server/larenor_server/plugins/seerr_arr_wiring.py",
+            "server/larenor_server/plugins/seerr_endpoint.py",
+            "server/larenor_server/plugins/seerr_initial_admin.py",
+            "server/larenor_server/plugins/seerr_initialization.py",
+            "server/larenor_server/plugins/arr_owned_config.py",
+            "server/larenor_server/plugins/arr_config_binding.py",
+            "server/larenor_server/plugins/arr_config_effect.py",
+            "server/larenor_server/plugins/arr_config_models.py",
+            "server/larenor_server/plugins/arr_config_runtime.py",
+            "server/larenor_server/plugins/arr_endpoint.py",
+            "server/larenor_server/plugins/arr_managed_root_folders.py",
+            "server/larenor_server/plugins/arr_managed_download_client.py",
+            "server/larenor_server/plugins/arr_bootstrap_executor.py",
+            "server/larenor_server/plugins/arr_authenticated_readback.py",
+            "server/larenor_server/plugins/qbittorrent_api_key.py",
+        ):
+            self.assertIn(repr(path), source)
+
 
 if __name__ == "__main__":
     unittest.main()

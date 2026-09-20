@@ -9,6 +9,9 @@ from .models import Digest
 from ..models import StrictModel
 
 
+PINNED_ARR_HD_1080P_PROFILE_ID = 4
+
+
 class PrivateSeerrArrBinding(StrictModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
@@ -22,7 +25,7 @@ class PrivateSeerrArrBinding(StrictModel):
     apiKey: str = Field(
         min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$", repr=False
     )
-    rootPath: str = Field(pattern=r"^/media/(movies|tv)$")
+    rootPath: str = Field(pattern=r"^/data/(movies|shows)$")
     profileId: int = Field(ge=1, le=2**31 - 1)
     profileName: str = Field(min_length=1, max_length=128)
 
@@ -59,7 +62,10 @@ class PrivateSeerrBootstrap(StrictModel):
             "sonarr",
         ):
             raise ValueError("invalid_seerr_arr_bindings")
-        expected = {"radarr": ("/media/movies", 4), "sonarr": ("/media/tv", 5)}
+        expected = {
+            "radarr": ("/data/movies", PINNED_ARR_HD_1080P_PROFILE_ID),
+            "sonarr": ("/data/shows", PINNED_ARR_HD_1080P_PROFILE_ID),
+        }
         if any(
             (item.rootPath, item.profileId) != expected[item.serviceId]
             or item.profileName != "HD-1080p"

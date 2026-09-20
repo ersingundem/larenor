@@ -57,8 +57,8 @@ class SeerrArrService:
 
     def __post_init__(self):
         expected = {
-            "radarr": (7878, "/media/movies"),
-            "sonarr": (8989, "/media/tv"),
+            "radarr": (7878, "/data/movies"),
+            "sonarr": (8989, "/data/shows"),
         }.get(self.service_id)
         if (
             expected is None
@@ -198,7 +198,10 @@ class SeerrArrWiring:
 
     @staticmethod
     def _discovery(service, value):
-        if type(value) is not dict or set(value) != {"profiles", "rootFolders", "tags"}:
+        expected_fields = {"profiles", "rootFolders", "tags", "urlBase"}
+        if service.service_id == "sonarr":
+            expected_fields.add("languageProfiles")
+        if type(value) is not dict or set(value) != expected_fields:
             raise SeerrArrWiringError("seerr_arr_selection_changed")
         profiles, roots, tags = value["profiles"], value["rootFolders"], value["tags"]
         if (
@@ -208,6 +211,9 @@ class SeerrArrWiring:
             or len(profiles) > 128
             or len(roots) > 32
             or len(tags) > 256
+            or value["urlBase"] != ""
+            or service.service_id == "sonarr"
+            and value["languageProfiles"] is not None
         ):
             raise SeerrArrWiringError("seerr_arr_selection_changed")
         try:
@@ -215,7 +221,7 @@ class SeerrArrWiring:
                 item
                 for item in profiles
                 if type(item) is dict
-                and set(item) == {"id", "name"}
+                and {"id", "name"} <= set(item)
                 and type(item["id"]) is int
                 and type(item["name"]) is str
                 and item["id"] == service.profile_id
@@ -232,9 +238,19 @@ class SeerrArrWiring:
             ]
             valid_profiles = all(
                 type(item) is dict
-                and set(item) == {"id", "name"}
+                and {"id", "name"} <= set(item)
+                and len(item) <= 32
+                and all(
+                    type(key) is str and 1 <= len(key) <= 64 for key in item
+                )
                 and type(item["id"]) is int
+                and 0 <= item["id"] <= 2**31 - 1
                 and type(item["name"]) is str
+                and 1 <= len(item["name"]) <= 128
+                and item["name"] == item["name"].strip()
+                and not any(
+                    ord(char) < 32 or ord(char) == 127 for char in item["name"]
+                )
                 for item in profiles
             )
             valid_roots = all(
@@ -244,9 +260,32 @@ class SeerrArrWiring:
                 and type(item["path"]) is str
                 for item in roots
             )
+            valid_tags = all(
+                type(item) is dict
+                and {"id", "label"} <= set(item)
+                and len(item) <= 16
+                and all(
+                    type(key) is str and 1 <= len(key) <= 64 for key in item
+                )
+                and type(item["id"]) is int
+                and 0 <= item["id"] <= 2**31 - 1
+                and type(item["label"]) is str
+                and 1 <= len(item["label"]) <= 128
+                and item["label"] == item["label"].strip()
+                and not any(
+                    ord(char) < 32 or ord(char) == 127 for char in item["label"]
+                )
+                for item in tags
+            )
         except (KeyError, TypeError, AttributeError):
             raise SeerrArrWiringError("seerr_arr_selection_changed") from None
-        if not valid_profiles or not valid_roots or len(profile_matches) != 1 or len(root_matches) != 1:
+        if (
+            not valid_profiles
+            or not valid_roots
+            or not valid_tags
+            or len(profile_matches) != 1
+            or len(root_matches) != 1
+        ):
             raise SeerrArrWiringError("seerr_arr_selection_changed")
 
     def configure(

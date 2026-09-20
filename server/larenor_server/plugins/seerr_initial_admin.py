@@ -67,7 +67,10 @@ _PUBLIC_FIELDS = frozenset(
         "plexClientIdentifier",
     }
 )
-_COOKIE_VALUE = re.compile(r"s%3A[A-Za-z0-9_-]{20,256}\.[A-Za-z0-9_-]{20,128}\Z")
+_COOKIE_VALUE = re.compile(
+    r"s%3A[A-Za-z0-9_-]{20,256}\."
+    r"(?P<signature>(?:[A-Za-z0-9_-]|%2B|%2F){20,384})\Z"
+)
 _JELLYFIN_HOST = re.compile(r"larenor-[0-9a-f]{32}\Z")
 _EXPIRES = re.compile(
     r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} "
@@ -243,8 +246,15 @@ def _session(headers):
         raise SeerrInitialAdminError("seerr_session_protocol")
     value = parts[0][len("connect.sid=") :]
     attributes = parts[1:]
+    matched = _COOKIE_VALUE.fullmatch(value)
+    decoded_signature = (
+        matched.group("signature").replace("%2B", "+").replace("%2F", "/")
+        if matched is not None
+        else ""
+    )
     if (
-        _COOKIE_VALUE.fullmatch(value) is None
+        matched is None
+        or not 20 <= len(decoded_signature) <= 128
         or "Path=/" not in attributes
         or "HttpOnly" not in attributes
         or "SameSite=Lax" not in attributes

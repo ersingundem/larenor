@@ -18,7 +18,7 @@
   "jobs": {
     "seerr-characterize": {
       "runs-on": "${{ matrix.runner }}",
-      "timeout-minutes": 25,
+      "timeout-minutes": 45,
       "strategy": {
         "fail-fast": false,
         "matrix": {
@@ -80,9 +80,9 @@
           "if": "steps.scope.outputs.run == 'true'"
         },
         {
-          "name": "Characterize Seerr fresh state and restart",
+          "name": "Converge Seerr admin, Arr wiring, initialization and restart",
           "id": "native",
-          "timeout-minutes": 22,
+          "timeout-minutes": 42,
           "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.seerr_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/seerr-managed-receipt.json\"",
           "if": "steps.scope.outputs.run == 'true'"
         },
