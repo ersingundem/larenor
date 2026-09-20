@@ -212,6 +212,21 @@ def test_runtime_setup_maps_binding_rejection_to_phase_code():
             raise ManagedContainerError("resources_untrusted")
 
 
+def test_bootstrap_diagnostic_is_allowlisted_and_secret_free():
+    module = api()
+    error = module.SeerrManagedCIError(
+        "seerr_bootstrap_failed",
+        bootstrap_code="seerr_bootstrap_arr_wiring_failed",
+        cause_code="seerr_arr_selection_changed",
+        completed_steps=4,
+    )
+    assert error.diagnostic() == (
+        "seerr_bootstrap_failed code=seerr_bootstrap_arr_wiring_failed "
+        "cause=seerr_arr_selection_changed completed=4"
+    )
+    assert "private" not in error.diagnostic()
+
+
 def test_receipt_verification_never_starts_daemon(tmp_path, monkeypatch, capsys):
     module = api()
     path = tmp_path / "receipt.json"

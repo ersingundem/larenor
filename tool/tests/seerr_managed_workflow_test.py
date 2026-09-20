@@ -71,8 +71,22 @@ class SeerrManagedWorkflowPolicyTest(unittest.TestCase):
             ".github/workflows/seerr-managed-characterization.yml",
             "tool/seerr_managed_ci.py",
             "server/larenor_server/plugins/seerr_bootstrap_executor.py",
+            "server/larenor_server/plugins/seerr_bootstrap_models.py",
+            "server/larenor_server/plugins/seerr_bootstrap_jobs.py",
             "server/larenor_server/plugins/seerr_arr_wiring.py",
+            "server/larenor_server/plugins/seerr_endpoint.py",
+            "server/larenor_server/plugins/seerr_initial_admin.py",
             "server/larenor_server/plugins/seerr_initialization.py",
+            "server/larenor_server/plugins/arr_owned_config.py",
+            "server/larenor_server/plugins/arr_config_binding.py",
+            "server/larenor_server/plugins/arr_config_effect.py",
+            "server/larenor_server/plugins/arr_config_models.py",
+            "server/larenor_server/plugins/arr_config_runtime.py",
+            "server/larenor_server/plugins/arr_endpoint.py",
+            "server/larenor_server/plugins/arr_managed_root_folders.py",
+            "server/larenor_server/plugins/arr_managed_download_client.py",
+            "server/larenor_server/plugins/arr_bootstrap_executor.py",
+            "server/larenor_server/plugins/arr_authenticated_readback.py",
         ):
             self.assertIn(repr(path), source)
 

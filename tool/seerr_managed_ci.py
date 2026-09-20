@@ -46,10 +46,83 @@ _DIAGNOSTIC_CODES = frozenset(
         *_DIAGNOSTIC_PHASES.values(),
     }
 )
+_BOOTSTRAP_CODES = frozenset(
+    {
+        "invalid_seerr_bootstrap_execution",
+        "seerr_bootstrap_authority_changed",
+        "seerr_bootstrap_resources_unavailable",
+        "seerr_bootstrap_endpoint_unavailable",
+        "seerr_bootstrap_endpoint_changed",
+        "seerr_bootstrap_peer_changed",
+        "seerr_bootstrap_initial_admin_failed",
+        "seerr_bootstrap_arr_wiring_failed",
+        "seerr_bootstrap_initialization_failed",
+        "seerr_bootstrap_timeout",
+    }
+)
+_BOOTSTRAP_CAUSES = frozenset(
+    {
+        "invalid_seerr_initial_admin",
+        "seerr_initial_state_conflict",
+        "seerr_initial_admin_conflict",
+        "seerr_jellyfin_authentication_failed",
+        "seerr_session_protocol",
+        "seerr_api_key_protocol",
+        "seerr_initial_admin_protocol",
+        "seerr_initial_admin_unavailable",
+        "seerr_initial_admin_timeout",
+        "invalid_seerr_arr_wiring",
+        "invalid_seerr_arr_service",
+        "seerr_arr_conflict",
+        "seerr_arr_selection_changed",
+        "seerr_arr_protocol",
+        "seerr_arr_unavailable",
+        "seerr_arr_timeout",
+        "invalid_seerr_initialization",
+        "seerr_initialization_state_conflict",
+        "seerr_initialization_protocol",
+        "seerr_initialization_unavailable",
+        "seerr_initialization_timeout",
+    }
+)
 
 
 class SeerrManagedCIError(Exception):
     """Closed native evidence failure; private Engine data never escapes."""
+
+    def __init__(
+        self,
+        code,
+        *,
+        bootstrap_code=None,
+        cause_code=None,
+        completed_steps=None,
+    ):
+        self.bootstrap_code = (
+            bootstrap_code if bootstrap_code in _BOOTSTRAP_CODES else None
+        )
+        self.cause_code = cause_code if cause_code in _BOOTSTRAP_CAUSES else None
+        self.completed_steps = (
+            completed_steps
+            if type(completed_steps) is int and 0 <= completed_steps <= 6
+            else None
+        )
+        if self.bootstrap_code is None:
+            self.cause_code = self.completed_steps = None
+        super().__init__(code if code in _DIAGNOSTIC_CODES else "seerr_characterization_failed")
+
+    def diagnostic(self):
+        code = self.args[0]
+        if self.bootstrap_code is None:
+            return code
+        cause = self.cause_code or "none"
+        return (
+            f"{code} code={self.bootstrap_code} cause={cause} "
+            f"completed={self.completed_steps}"
+        )
+
+    def __repr__(self):
+        return f"SeerrManagedCIError({self.diagnostic()!r})"
 
 
 class _Cancelled(BaseException):
@@ -548,7 +621,10 @@ def _converge_seerr(
         SeerrArrService,
         SeerrArrWiring,
     )
-    from larenor_server.plugins.seerr_bootstrap_executor import SeerrBootstrapExecutor
+    from larenor_server.plugins.seerr_bootstrap_executor import (
+        SeerrBootstrapExecutionError,
+        SeerrBootstrapExecutor,
+    )
     from larenor_server.plugins.seerr_bootstrap_models import (
         PrivateSeerrArrBinding,
         PrivateSeerrBootstrap,
@@ -588,6 +664,14 @@ def _converge_seerr(
             and started.code == "container_started"
             and started.container_id == created.container_id
         )
+        _ready, ready_connection = _open_seerr(
+            engine,
+            seerr_binding,
+            source.stack,
+            started.container_id,
+            deadline=time.monotonic() + 120,
+        )
+        ready_connection.close()
 
         private_arr = tuple(
             PrivateSeerrArrBinding(
@@ -599,7 +683,7 @@ def _converge_seerr(
                 configurationDigest=peer.configuration.configuration_digest,
                 hostname=peer.binding.name,
                 apiKey=peer.api_key,
-                rootPath="/media/movies" if peer.service_id == "radarr" else "/media/tv",
+                rootPath="/data/movies" if peer.service_id == "radarr" else "/data/shows",
                 profileId=4 if peer.service_id == "radarr" else 5,
                 profileName="HD-1080p",
             )
@@ -613,19 +697,27 @@ def _converge_seerr(
         )
         wiring = SeerrArrWiring()
         initialization = SeerrInitialization()
-        bootstrap = SeerrBootstrapExecutor(
-            operations,
-            binding_builder,
-            SeerrInitialAdmin(),
-            wiring,
-            initialization,
-        ).execute(
-            job,
-            source.stack,
-            private,
-            deadline=time.monotonic() + 120,
-            gate=lambda: True,
-        )
+        try:
+            bootstrap = SeerrBootstrapExecutor(
+                operations,
+                binding_builder,
+                SeerrInitialAdmin(),
+                wiring,
+                initialization,
+            ).execute(
+                job,
+                source.stack,
+                private,
+                deadline=time.monotonic() + 120,
+                gate=lambda: True,
+            )
+        except SeerrBootstrapExecutionError as error:
+            raise SeerrManagedCIError(
+                "seerr_bootstrap_failed",
+                bootstrap_code=error.code,
+                cause_code=error.cause_code,
+                completed_steps=len(error.completed_steps),
+            ) from None
         require(
             bootstrap.state == "verified"
             and bootstrap.completed_steps
@@ -675,7 +767,7 @@ def _converge_seerr(
                 peer.api_key,
                 4 if peer.service_id == "radarr" else 5,
                 "HD-1080p",
-                "/media/movies" if peer.service_id == "radarr" else "/media/tv",
+                "/data/movies" if peer.service_id == "radarr" else "/data/shows",
             )
             for peer in arr_peers
         )
@@ -886,7 +978,7 @@ def main(arguments=None):
             and error.args
             and error.args[0] in _DIAGNOSTIC_CODES
         ):
-            print(error.args[0], file=sys.stderr)
+            print(error.diagnostic(), file=sys.stderr)
         else:
             print("seerr_characterization_failed", file=sys.stderr)
     return 1

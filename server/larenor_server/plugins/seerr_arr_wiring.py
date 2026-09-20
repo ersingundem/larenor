@@ -57,8 +57,8 @@ class SeerrArrService:
 
     def __post_init__(self):
         expected = {
-            "radarr": (7878, "/media/movies"),
-            "sonarr": (8989, "/media/tv"),
+            "radarr": (7878, "/data/movies"),
+            "sonarr": (8989, "/data/shows"),
         }.get(self.service_id)
         if (
             expected is None
@@ -198,7 +198,10 @@ class SeerrArrWiring:
 
     @staticmethod
     def _discovery(service, value):
-        if type(value) is not dict or set(value) != {"profiles", "rootFolders", "tags"}:
+        expected_fields = {"profiles", "rootFolders", "tags", "urlBase"}
+        if service.service_id == "sonarr":
+            expected_fields.add("languageProfiles")
+        if type(value) is not dict or set(value) != expected_fields:
             raise SeerrArrWiringError("seerr_arr_selection_changed")
         profiles, roots, tags = value["profiles"], value["rootFolders"], value["tags"]
         if (
@@ -208,6 +211,26 @@ class SeerrArrWiring:
             or len(profiles) > 128
             or len(roots) > 32
             or len(tags) > 256
+            or value["urlBase"] != ""
+            or service.service_id == "sonarr"
+            and (
+                type(value["languageProfiles"]) is not list
+                or len(value["languageProfiles"]) > 128
+                or any(
+                    type(item) is not dict
+                    or set(item) != {"id", "name"}
+                    or type(item["id"]) is not int
+                    or not 0 <= item["id"] <= 2**31 - 1
+                    or type(item["name"]) is not str
+                    or not 1 <= len(item["name"]) <= 128
+                    or item["name"] != item["name"].strip()
+                    or any(
+                        ord(char) < 32 or ord(char) == 127
+                        for char in item["name"]
+                    )
+                    for item in value["languageProfiles"]
+                )
+            )
         ):
             raise SeerrArrWiringError("seerr_arr_selection_changed")
         try:

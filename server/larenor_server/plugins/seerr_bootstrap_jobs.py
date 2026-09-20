@@ -547,8 +547,8 @@ class SeerrBootstrapManagement:
             raise ValueError()
         bindings = []
         policy = {
-            "radarr": ("/media/movies", 4),
-            "sonarr": ("/media/tv", 5),
+            "radarr": ("/data/movies", 4),
+            "sonarr": ("/data/shows", 5),
         }
         for row in rows:
             payload = self.arr_configurations._validate_row(connection, row)

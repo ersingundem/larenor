@@ -71,7 +71,7 @@ def bound_private():
                     configurationDigest="c" * 64,
                     hostname="larenor-" + identifier * 32,
                     apiKey=identifier * 32,
-                    rootPath="/media/movies" if service == "radarr" else "/media/tv",
+                    rootPath="/data/movies" if service == "radarr" else "/data/shows",
                     profileId=4 if service == "radarr" else 5,
                     profileName="HD-1080p",
                 )
@@ -203,8 +203,8 @@ def test_production_executor_wires_exact_bound_arr_services_before_success(
     assert result.arr_wiring.instance_ids == (8, 9)
     services = calls[0][1]["services"]
     assert [(item.service_id, item.profile_id, item.root_path) for item in services] == [
-        ("radarr", 4, "/media/movies"),
-        ("sonarr", 5, "/media/tv"),
+        ("radarr", 4, "/data/movies"),
+        ("sonarr", 5, "/data/shows"),
     ]
     assert calls[0][1]["close_connection"] is False
 
