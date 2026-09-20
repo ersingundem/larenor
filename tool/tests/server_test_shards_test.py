@@ -8,6 +8,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 class ServerTestShardsTest(unittest.TestCase):
+    def test_ci_uses_four_parallel_shards_with_the_existing_runtime_bound(self):
+        workflow = (
+            Path(__file__).resolve().parents[2]
+            / ".github/workflows/server-test.yml"
+        ).read_text()
+        self.assertIn("shard: [0, 1, 2, 3]", workflow)
+        self.assertIn("--root tests --count 4", workflow)
+        self.assertIn("timeout-minutes: 15", workflow)
+        self.assertNotIn("shard: [0, 1, 2]\n", workflow)
+
     def test_partition_is_complete_disjoint_balanced_and_stable(self):
         from server_test_shards import partition_test_files
 
