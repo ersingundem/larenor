@@ -19,14 +19,17 @@ const authorityB = FairChoreAuthority(
   routeId: 'chores-b',
 );
 
-FairChoreTask task({int revision = 1, String assignee = 'ada'}) =>
-    FairChoreTask(
-      id: 'chore-1',
-      title: 'Bitkileri sula',
-      revision: revision,
-      assigneeId: assignee,
-      dueAt: DateTime.utc(2026, 9, 22, 8),
-    );
+FairChoreTask task({
+  String id = 'chore-1',
+  int revision = 1,
+  String assignee = 'ada',
+}) => FairChoreTask(
+  id: id,
+  title: 'Bitkileri sula',
+  revision: revision,
+  assigneeId: assignee,
+  dueAt: DateTime.utc(2026, 9, 22, 8),
+);
 
 class FakeFairChoreApi implements FairChoreApi {
   final listRequests = <Completer<FairChorePage>>[];
@@ -167,6 +170,34 @@ void main() {
       expect(controller.authority, isNull);
       expect(controller.tasks, isEmpty);
       expect(controller.state, FairChoreViewState.detached);
+    },
+  );
+
+  test(
+    'receipt for another task cannot confirm an uncertain command',
+    () async {
+      final api = FakeFairChoreApi()..timeoutCompletion = true;
+      final controller = FairChoreController(
+        api,
+        commandIds: () => 'complete-1',
+      );
+      final lease = controller.bind(authorityA);
+      final load = controller.load(lease);
+      api.listRequests.single.complete(FairChorePage(authorityA, [task()]));
+      await load;
+      await controller.complete(lease, task());
+      api.reconciled = FairChoreReceipt(
+        authority: authorityA,
+        commandId: 'complete-1',
+        action: FairChoreAction.completed,
+        task: task(id: 'chore-2', revision: 2),
+      );
+
+      await controller.reconcile(lease);
+
+      expect(controller.state, FairChoreViewState.error);
+      expect(controller.tasks.single.id, 'chore-1');
+      expect(controller.tasks.single.revision, 1);
     },
   );
 }
