@@ -21,7 +21,7 @@ acceptance.
 
 ## TDD evidence
 
-- RED: `2b3c1919` compiled the new tests before their production modules
+- RED: `3009cb7f` compiled the new tests before their production modules
   existed; Flutter failed on the missing cooking domain/controller/screen and
   Python failed on the missing `larenor_server.cooking` package.
 - GREEN: `uv run --project server pytest
@@ -32,7 +32,7 @@ acceptance.
 
 ## Deliberately open
 
-F33 stays pending at 17/125 and 0/63. Production Core route wiring overlaps
+F33 stays pending at 18/125 and 0/63. Production Core route wiring overlaps
 the active F31/F54 Core files and is not part of this isolated slice. Recipe
 selection, ingredient stock mutation, multiple visible timers, application
 navigation, isolated Client-to-Core E2E, CI, and Huawei/DeX device evidence
