@@ -135,9 +135,10 @@ final class CorePersonalProfilesController extends ChangeNotifier {
           api,
           session.accessToken,
           session.context!,
+          session.user.id,
           current: () => _isCurrent(operation, generation, original),
         );
-        result = await scoped.list();
+        result = await scoped.list(expectedAuthority: previous?.authority);
       });
       if (!_isCurrent(operation, generation, original) || result == null) {
         return;
@@ -168,29 +169,35 @@ final class CorePersonalProfilesController extends ChangeNotifier {
   Future<void> create(
     RemoteProfile desired, {
     required bool Function() ownerCurrent,
-  }) => _mutate((api) => api.create(desired), ownerCurrent: ownerCurrent);
+  }) => _mutate(
+    (api, before) => api.create(desired, before),
+    ownerCurrent: ownerCurrent,
+  );
 
   Future<void> update(
     CorePersonalProfile target,
     RemoteProfile desired, {
     required bool Function() ownerCurrent,
-  }) =>
-      _mutate((api) => api.update(target, desired), ownerCurrent: ownerCurrent);
+  }) => _mutate(
+    (api, before) => api.update(target, desired, before),
+    ownerCurrent: ownerCurrent,
+  );
 
   Future<void> delete(
     CorePersonalProfile target, {
     required bool Function() ownerCurrent,
   }) => _mutate(
-    (api) async {
-      await api.delete(target);
-      return null;
-    },
+    (api, before) => api.delete(target, before),
     ownerCurrent: ownerCurrent,
     deleted: target,
   );
 
   Future<void> _mutate(
-    Future<CorePersonalProfile?> Function(CorePersonalProfilesApi) action, {
+    Future<CorePersonalProfileMutation> Function(
+      CorePersonalProfilesApi,
+      CorePersonalProfilesSnapshot,
+    )
+    action, {
     required bool Function() ownerCurrent,
     CorePersonalProfile? deleted,
   }) async {
@@ -213,7 +220,7 @@ final class CorePersonalProfilesController extends ChangeNotifier {
     _emit();
     try {
       CorePersonalProfilesSnapshot? readback;
-      CorePersonalProfile? result;
+      CorePersonalProfileMutation? result;
       await account.withSession((api, session) async {
         bool current() =>
             owner() && _isCurrent(operation, generation, original);
@@ -222,32 +229,21 @@ final class CorePersonalProfilesController extends ChangeNotifier {
           api,
           session.accessToken,
           session.context!,
+          session.user.id,
           current: current,
         );
-        result = await action(scoped);
+        result = await action(scoped, before);
         // A write response alone is not current read evidence. Verify the full
         // collection before enabling another mutation.
-        readback = await scoped.list();
+        readback = await scoped.list(expectedAuthority: result!.authority);
       });
       if (!_isCurrent(operation, generation, original) ||
           !owner() ||
           readback == null) {
         return;
       }
-      final expectedCollectionDelta = deleted != null
-          ? 1
-          : before.profiles.any((item) => item.id == result?.id)
-          ? result!.revision ==
-                    before.profiles
-                        .singleWhere((item) => item.id == result!.id)
-                        .revision
-                ? 0
-                : 1
-          : 1;
-      if (before.collectionRevision >
-              9223372036854775807 - expectedCollectionDelta ||
-          readback!.collectionRevision !=
-              before.collectionRevision + expectedCollectionDelta) {
+      if (readback!.collectionRevision !=
+          result!.authority.collectionRevision) {
         throw const LarenorServerException('invalid_response');
       }
       if (deleted != null) {
@@ -255,7 +251,7 @@ final class CorePersonalProfilesController extends ChangeNotifier {
           throw const LarenorServerException('invalid_response');
         }
       } else {
-        final changed = result;
+        final changed = result!.profile;
         if (changed == null ||
             !readback!.profiles.any(
               (item) =>

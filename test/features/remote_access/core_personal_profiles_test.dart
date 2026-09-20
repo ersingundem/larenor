@@ -19,6 +19,7 @@ void main() {
       final value = CorePersonalProfilesSnapshot.fromJson(
         listJson(profileJson()),
         expectedContext: context,
+        expectedAccountId: profileAccountId,
       );
       expect(value.profiles.single.profile.name, 'Living room desktop');
       expect(value.toString(), isNot(contains('private-user')));
@@ -32,6 +33,7 @@ void main() {
         () => CorePersonalProfilesSnapshot.fromJson(
           foreign,
           expectedContext: context,
+          expectedAccountId: profileAccountId,
         ),
         throwsA(isA<LarenorServerException>()),
       );
@@ -40,6 +42,7 @@ void main() {
         () => CorePersonalProfilesSnapshot.fromJson(
           listJson(secret),
           expectedContext: context,
+          expectedAccountId: profileAccountId,
         ),
         throwsA(isA<LarenorServerException>()),
       );
@@ -85,8 +88,17 @@ void main() {
         'host',
         'port',
         'username',
+        'requestId',
+        'expectedAccountRevision',
+        'expectedCollectionRevision',
         'expectedRevision',
       });
+      expect(
+        patch.url.path,
+        '/prefix/api/v1/core-remote-profiles/'
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/'
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/$profileId',
+      );
 
       fixture.conflict = false;
       await controller.refresh();
@@ -120,6 +132,40 @@ void main() {
     controller.dispose();
     fixture.account.dispose();
   });
+
+  test(
+    'session-family and account-revision drift cannot replace verified rows',
+    () async {
+      final fixture = CoreProfilesFixture();
+      await fixture.account.initialize();
+      final controller = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      controller.setVisible(true);
+      await _settle(controller);
+      expect(controller.evidence.isFreshVerified, isTrue);
+      final retained = controller.profiles.single;
+
+      fixture.familyId = 'f' * 32;
+      fixture.record = profileJson(revision: 2, label: 'Foreign family');
+      fixture.collectionRevisionOverride = 2;
+      await controller.refresh();
+      expect(controller.profiles.single.profile.name, retained.profile.name);
+      expect(controller.evidence.isFreshVerified, isFalse);
+      expect(controller.failure, 'invalid_response');
+
+      fixture.familyId = profileFamilyId;
+      fixture.accountRevision = 2;
+      await controller.refresh();
+      expect(controller.profiles.single.profile.name, retained.profile.name);
+      expect(controller.evidence.isFreshVerified, isFalse);
+      expect(controller.failure, 'invalid_response');
+      controller.dispose();
+      fixture.account.dispose();
+    },
+  );
 
   test(
     'lost mutation response reconciles by readback after controller restart',
