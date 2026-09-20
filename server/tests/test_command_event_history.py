@@ -39,6 +39,10 @@ def test_events_preserve_pending_and_final_writes_with_stable_forward_cursor(ser
     assert client.post(public + '/commands', headers=auth(actor), json=body).json() == sent.json()
     unchanged = client.get(public + '/history/events', headers=auth(actor)).json()
     assert unchanged['headSequence'] == 2 and len(unchanged['events']) == 2
+    path = '/api/v1/home-assistant/{core_id}/{home_id}/resources/{resource_id}/history/events'
+    operation = client.get('/api/v1/openapi.json', headers=auth(actor)).json()['paths'][path]['get']
+    assert operation['responses']['200']['content']['application/json']['schema']['$ref'].endswith(
+        '/CommandEventHistoryResponse')
 
 
 def test_events_survive_restart_without_provider_io_or_replay(server, ha):
