@@ -15,6 +15,9 @@ import 'keenetic_port_forwarding_screen.dart';
 import 'keenetic_wifi_screen.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
+import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/theme/spacing.dart';
 
 class KeeneticHomeScreen extends ConsumerStatefulWidget {
@@ -163,7 +166,9 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
       } catch (_) {
         // Each card renders its own provider's failure and retry control.
       } finally {
-        if (mounted) setState(() => _refreshing = false);
+        if (mounted && _current(generation)) {
+          setState(() => _refreshing = false);
+        }
       }
     }
 
@@ -172,12 +177,15 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            onPressed: refresh,
-            child: Icon(
-              CupertinoIcons.refresh,
-              semanticLabel: l10n.commonRefresh,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _refreshing ? null : refresh,
+              child: Icon(
+                CupertinoIcons.refresh,
+                semanticLabel: l10n.commonRefresh,
+              ),
             ),
           ),
           ServiceAccountAction(
@@ -229,30 +237,44 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
                 ),
               ),
             ),
-            CupertinoListSection.insetGrouped(
-              header: Text(l10n.keeneticRouterStatus),
+            SettingsSection(
+              header: Semantics(
+                key: const ValueKey('keenetic-home-heading'),
+                container: true,
+                header: true,
+                child: Text(l10n.keeneticRouterStatus),
+              ),
               children: [
-                CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.device_laptop),
-                  title: Text(
-                    AppLocalizations.of(context).keeneticConnectedDevices,
-                  ),
-                  subtitle: Text(
-                    devices.when(
-                      data: (value) => l10n.keeneticTileDevicesOnline(
-                        value.where((device) => device.active).length,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: CupertinoListTile(
+                    key: const ValueKey('keenetic-home-devices'),
+                    leading: const Icon(CupertinoIcons.device_laptop),
+                    title: Text(l10n.keeneticConnectedDevices),
+                    subtitle: Text(
+                      devices.when(
+                        data: (value) => l10n.keeneticTileDevicesOnline(
+                          value.where((device) => device.active).length,
+                        ),
+                        loading: () => l10n.commonLoading,
+                        error: (_, _) => l10n.commonError,
                       ),
-                      loading: () => l10n.commonLoading,
-                      error: (_, _) => l10n.commonError,
                     ),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _open((_) => const KeeneticDevicesScreen()),
                   ),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _open((_) => const KeeneticDevicesScreen()),
                 ),
-                CupertinoListTile(
+                const CupertinoListTile(
+                  title: IntegrationHealthStatus(
+                    id: IntegrationId.keenetic,
+                    configured: true,
+                  ),
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('keenetic-home-wifi'),
                   leading: const Icon(CupertinoIcons.wifi),
                   title: Text(AppLocalizations.of(context).keeneticWifi),
-                  subtitle: Text(
+                  additionalInfo: Text(
                     accessPoints.when(
                       data: (value) => l10n.keeneticTileWifiUp(
                         value.where((ap) => ap.up).length,
@@ -262,15 +284,14 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
                       error: (_, _) => l10n.commonError,
                     ),
                   ),
-                  trailing: const CupertinoListTileChevron(),
                   onTap: _open((_) => const KeeneticWifiScreen()),
                 ),
-                CupertinoListTile(
+                SettingsActionTile(
+                  buttonKey: const ValueKey('keenetic-home-ports'),
                   leading: const Icon(CupertinoIcons.arrow_right_arrow_left),
                   title: Text(
                     AppLocalizations.of(context).keeneticPortForwarding,
                   ),
-                  trailing: const CupertinoListTileChevron(),
                   onTap: _open((_) => const KeeneticPortForwardingScreen()),
                 ),
               ],
