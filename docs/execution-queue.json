@@ -85,7 +85,8 @@
     "docs/core-services-ime-integration-2026-09-08.md",
     "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
     "docs/jellyfin-storage-manual-ci-2026-09-08.md",
-    "docs/s06-5-bootstrap-acceptance-2026-09-20.md"
+    "docs/s06-5-bootstrap-acceptance-2026-09-20.md",
+    "docs/s06-6-recovery-status-implementation-2026-09-20.md"
   ],
   "nodes": [
     {
@@ -849,7 +850,7 @@
       "kind": "task",
       "parent": "S06",
       "title": "Doğrulanmış sonuç, iptal ve kurtarma",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "S06.5"
       ],
@@ -857,7 +858,7 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/integrated-media-stack.md",
-        "docs/testing/s06-6-recovery-status-implementation-2026-09-20.md"
+        "docs/s06-6-recovery-status-implementation-2026-09-20.md"
       ],
       "scope": "Ev kurulumu ve fiziksel alıcı kabulü ayrı kalır.",
       "acceptance": [
@@ -870,9 +871,90 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": "Üç yerel TDD kabulü hazır; exact CI, bağımsız inceleme ve iki mimarili gerçek bileşen kabulü açık olduğundan sayaç değişmedi."
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "server/tests/test_media_recovery_status.py",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main ağacında altı servis projeksiyonu, container/authenticated sonuç ayrımı, restart-idempotence, belirsiz iptal, authority loss, stale Jellyfin readback ve bilinmeyen servis fail-closed testlerinden geçti."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s06-6-recovery-status-implementation-2026-09-20.md",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Üç kabul ölçütü bağımsız diff incelemesinden geçti; başarısız Jellyfin işinin eski readback ile verified görünmesi engellendi, secret-free sınır ve S07/MANUAL ayrımı doğrulandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35524476606",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main 8ed2f72a Android analiz/test, API35 E2E, debug APK ve dört Server shardı geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35524476556",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main 8ed2f72a Server Container test, amd64/arm64 build-smoke ve immutable manifest kapılarını geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35524476346",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main 8ed2f72a dependency, platform-policy ve secret-scan kapılarından geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35523917450",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tree-equal PR kaynağı 60ab69e6 üzerinde Jellyfin gerçek bileşen zinciri amd64/arm64 geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35523917454",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tree-equal PR kaynağı 60ab69e6 üzerinde qBittorrent gerçek bileşen zinciri amd64/arm64 geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35523917446",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tree-equal PR kaynağı 60ab69e6 üzerinde Sonarr/Radarr gerçek bileşen zinciri amd64/arm64 geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35523917610",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tree-equal PR kaynağı 60ab69e6 üzerinde Seerr gerçek bileşen zinciri amd64/arm64 geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35523917573",
+          "commit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tree-equal PR kaynağı 60ab69e6 üzerinde Music Assistant gerçek bileşen zinciri amd64/arm64 geçti."
+        }
+      ],
+      "completionCommit": "8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b",
+      "reason": null
     },
     {
       "id": "B2",

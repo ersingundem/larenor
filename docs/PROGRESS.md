@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 20 Eylül 2026 — `b38c8ab9` exact main, Seerr 3.4.1 ve Music Assistant 2.10.4 özel bootstrap zincirlerini içeriyor. Aynı ağaçtaki `f78f138c` kaynağında iki servis de amd64/arm64 native kabulünden geçti; S06.5 kapandı ve kuyruk 16/125 oldu. S08.10 olay/transfer ile ortak medya erişilebilirliği ayrı açık işlerdir.**
+**Son güncelleme: 20 Eylül 2026 — `8ed2f72a` exact main, altı yönetilen medya servisi için create/start makbuzunu authenticated sonuçtan ayıran kalıcı kurtarma görünümünü içeriyor. Aynı ağaçtaki `60ab69e6` kaynağında Android, Server, Security ve amd64/arm64 gerçek bileşen kapıları geçti; S06.6 kapandı ve kuyruk 17/125 oldu. S07 tek paket ve fiziksel ev kabulü ayrı açık işlerdir.**
 
 ```text
-Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  16/125 iş (%12,8; eşit ağırlıklı sayaç)
-S06 koordinatörü    █████████████████░░░  5/6 yazılım dilimi
+Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  17/125 iş (%13,6; eşit ağırlıklı sayaç)
+S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
@@ -17,14 +17,15 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış ortak kaynak: `f78f138c` / main `b38c8ab9`.** İki commitin
-Git ağacı aynıdır. Exact PR kaynağında Android analiz/test, API35 E2E, debug APK,
-dört Server shardı ve iki mimarili Seerr/Music Assistant karakterizasyonu geçti;
-main Security kapısı da yeşildir.
-[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35520685138) ·
-[Seerr native CI](https://github.com/ersingundem/larenor/actions/runs/35520684986) ·
-[Music Assistant native CI](https://github.com/ersingundem/larenor/actions/runs/35520685005) ·
-[main Security](https://github.com/ersingundem/larenor/actions/runs/35521463120).
+**Son tam doğrulanmış ortak kaynak: PR `60ab69e6` / main `8ed2f72a`.** İki
+commitin Git ağacı `34d31c74` ile aynıdır. Exact PR kaynağında Android
+analiz/test, API35 E2E, dört Server shardı ve Jellyfin, qBittorrent, Arr, Seerr
+ile Music Assistant amd64/arm64 karakterizasyonları geçti; aynı main ağacında
+Server Container, Android ve Security kapıları da yeşildir.
+[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35524476606) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/35524476556) ·
+[Security](https://github.com/ersingundem/larenor/actions/runs/35524476346) ·
+[iki mimarili medya kapıları](https://github.com/ersingundem/larenor/pull/180/checks).
 Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
 
 ### S06.5 özel bootstrap ve otomatik eşleştirme — kabul edildi
@@ -43,21 +44,23 @@ zincirinin amd64/arm64 gerçek süreç makbuzu üretmesi. Kısmi veya belirsiz e
 başarıya yükseltilmez. [Üç ölçüt ve exact kanıt](s06-5-bootstrap-acceptance-2026-09-20.md).
 
 Bu kapanış `installAvailable` değerini açmaz. Altı bileşenin tek dağıtımda
-paketlenmesi S07.1'de, doğrulanmış iptal/kurtarma S06.6'da; CasaOS/Proxmox,
+paketlenmesi S07.1'de; CasaOS/Proxmox,
 gerçek sağlayıcı hesabı ve HomePod/Cast kabulü MANUAL kapısında kalır. Kuyruk
 **16/125 (%12,8)**, seçili özellik kabulü **0/63**'tür.
 
-### S06.6 doğrulanmış sonuç, iptal ve kurtarma — yerel TDD tamam
+### S06.6 doğrulanmış sonuç, iptal ve kurtarma — kabul edildi
 
 Ortak yönetici görünümü, altı yönetilen medya servisi için container
 create/start makbuzunu authenticated servis sonucundan ayrı gösterir. Restart,
 iptal ve belirsiz etki kayıtları salt okunur API tarafından silinmez veya
 yeniden yürütülmez; yetki kaybı worker etkisi başlamadan kapanır ve eski oturum
-sonucu okuyamaz. [Tam üç kabul ölçütü ve açık kapılar](testing/s06-6-recovery-status-implementation-2026-09-20.md).
+sonucu okuyamaz. [Tam üç kabul ölçütü ve exact kanıt](s06-6-recovery-status-implementation-2026-09-20.md).
 
-Bu kaynak henüz exact CI ve bağımsız inceleme kanıtı taşımadığı için S06.6
-`in_progress` kalır. Kuyruk **16/125 (%12,8)** ve S06 koordinatörü **5/6**
-olarak korunur; fiziksel kurulum kanıt yerine sayılmaz.
+Exact `60ab69e6` PR ağacı ile main `8ed2f72a` ağacı aynıdır. Altı servis için
+iki mimarili native kapılar, dört Server shardı, Android ve Security geçti;
+bağımsız incelemede başarısız Jellyfin bootstrap'ının eski readback ile
+`verified` görünmesi engellendi. S06.6 `done`, kuyruk **17/125 (%13,6)** ve S06
+koordinatörü **6/6** oldu. Fiziksel kurulum kanıt yerine sayılmaz.
 
 ## Şimdi yapılan işler
 
@@ -90,8 +93,8 @@ Yerel kanıt: komut geçmişi paketi **71**, bounded transfer ve ilişkili Core
 paketleri **174**, Seerr/native araç paketleri **53 + 295**, medya widget paketi
 **8/8** geçti; security policy, compileall, gitleaks ve hedefli analiz temiz.
 Exact PR/main CI ve Seerr gerçek native makbuzları tamamlandı. Medya-özel
-protokoller ile fiziksel SAF açık olduğundan S08.10 ve B5.1 kapanmadı; S06.5'in
-kabulüyle sayaçlar **16/125 (%12,8)** ve **0/63 (%0,0)** oldu.
+protokoller ile fiziksel SAF açık olduğundan S08.10 ve B5.1 kapanmadı; S06.6'nın
+kabulüyle güncel sayaçlar **17/125 (%13,6)** ve **0/63 (%0,0)** oldu.
 
 ### F62 RDP — bounded Client yazılım dilimi
 
@@ -274,6 +277,7 @@ olarak korunuyor.
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
 | S06.5 — özel bootstrap ve otomatik eşleştirme | **Kabul edildi**; exact `f78f138c` ile aynı ağaca sahip main `b38c8ab9`. Jellyfin/qBittorrent/Arr zincirlerine ek olarak Seerr 3.4.1 ve Music Assistant 2.10.4 private bootstrap, authenticated readback ve restart akışları amd64/arm64 geçti | S06.6 doğrulanmış sonuç, iptal ve kurtarma; birleşik dağıtım S07 |
+| S06.6 — doğrulanmış sonuç, iptal ve kurtarma | **Kabul edildi**; exact PR `60ab69e6` ile aynı ağaca sahip main `8ed2f72a`. Altı servis sonucu, restart/iptal/belirsiz etki ve yetki kaybı fail-closed doğrulandı | Birleşik dağıtım S07; fiziksel ev/alıcı kabulü MANUAL |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -1821,8 +1825,8 @@ desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncel
 | Hesap, parola, oturum, rol, kullanıcı yönetimi | Larenor Server API ve veritabanında uygulandı | Gerçek sunucuya manuel kurulum |
 | Kasa ve güncelleme sürümleri | Server'da şifreli kasa ve sürüm API'leri; Client geri yükleme/güncelleme akışları mevcut | Gerçek imzalı Client yükseltmesi ve yeniden kurulum kabulü |
 | Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel/uzak testler geçti; gerçek servis kabulü ve S08 adaptör taşıması |
-| Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi, Docker API/platform kontrolü ve S06.5 private bootstrap/eşleştirme zinciri uygulandı | S06.6 sonuç/iptal/kurtarma ve S07 tek dağıtım paketi |
-| Birleşik medya hazırlığı/kontrolü | Altı bileşen planı, kalıcı kontrol, sahiplikli kaynaklar, private bootstrap ve authenticated servis readback'i; Client geçmiş/iptal | S06.6 kurtarma, S07 tek paket; fiziksel port/alıcı ağı MANUAL kapısında |
+| Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi, Docker API/platform kontrolü, private bootstrap ve doğrulanmış sonuç/iptal/kurtarma zinciri uygulandı | S07 tek dağıtım paketi |
+| Birleşik medya hazırlığı/kontrolü | Altı bileşen planı, kalıcı kontrol, sahiplikli kaynaklar, private bootstrap, authenticated readback ve ortak secret-free kurtarma görünümü; Client geçmiş/iptal | S07 tek paket; fiziksel port/alıcı ağı MANUAL kapısında |
 | Core ve ev kimliği | Server'da kalıcı, anahtarla doğrulanan kimlikler; korumalı API ve Client sözleşme okuyucusu | Client oturum/cache ve kaynak kimliklerine bağlama; çoklu ev/federasyon henüz yok |
 | HA, medya ve ağ komutları | Mevcut kontrollerin çoğu hâlâ Client adaptörlerinde | S08 ile gerçek veri ve komut akışlarını Server'a taşıma; yalnızca token saklamak bu taşıma sayılmaz |
 | Music Assistant | Yönetilen 2.10.4 motoru; private admin/token bootstrap, provider/player keşfi, kuyruk/oynatma readback ve restart iki mimaride kabul edildi. Client ayrı MA URL/tokenı istemiyor | S07 tek dağıtım ve S09 kurulum/güncelleme/geri yükleme kabulü |
