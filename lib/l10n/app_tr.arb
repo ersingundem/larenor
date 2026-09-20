@@ -1998,6 +1998,18 @@
   "coreResourceDownloadForbidden": "Bu hesabın indirme erişimi artık yok.",
   "coreResourceDownloadChanged": "Kaynak değişti. Yeniden indirmeden önce yenileyin.",
   "coreResourceDownloadFailed": "Dosya doğrulanamadı veya kaydedilemedi.",
+  "coreTransferTrustChecking": "Aktarım makbuzu doğrulanıyor",
+  "coreTransferTrustVerified": "Aktarım makbuzu doğrulandı",
+  "coreTransferTrustUnverified": "Aktarım makbuzu doğrulanmadı",
+  "coreTransferTrustVerifiedBody": "Tamamlanan makbuz ve sınırlı aktarım geçmişi bu baytlarla eşleşiyor.",
+  "coreTransferTrustUnverifiedBody": "Core bu baytlar için tamamlanmış kalıcı makbuzu doğrulayamadı. Dosyayı kullanmadan önce indirmeyi yeniden deneyin.",
+  "coreTransferTrustDetail": "Makbuz {receipt} · {bytes} bayt",
+  "@coreTransferTrustDetail": {
+    "placeholders": {
+      "receipt": {"type": "String"},
+      "bytes": {"type": "int"}
+    }
+  },
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
   "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
@@ -2366,6 +2378,20 @@
   "coreHaActivityOffline": "Core etkinliğine ulaşılamadı. Yenilemek için tekrar deneyin.",
   "coreHaActivityRetainedOffline": "Core çevrimdışı olduğu için saklanan etkinlik gösteriliyor.",
   "coreHaActivityIntegrityStale": "Bu geçmiş ve önceki bütünlük kanıtı yalnız saklanan bilgidir. Kontrol noktasına güvenmeden veya kaydetmeden önce Core üzerinden yenileyin.",
+  "coreHaEventTrustChecking": "Olay zinciri doğrulanıyor",
+  "coreHaEventTrustCheckingBody": "Core üzerindeki sınırlı ileri imleç okunuyor.",
+  "coreHaEventTrustVerified": "Olay zinciri doğrulandı",
+  "coreHaEventTrustVerifiedBody": "Core'un kalıcı olay imleci bu kaynak için güncel.",
+  "coreHaEventTrustActionRequired": "Olay zinciri yeniden doğrulanmalı",
+  "coreHaEventTrustActionRequiredBody": "Saklanan olay imleci doğrulanamadı. Bu etkinliğe güvenmeden önce yenileyin.",
+  "coreHaEventTrustRefresh": "Yenile ve doğrula",
+  "coreHaEventTrustDetail": "Baş {sequence} · Zincir {chain}",
+  "@coreHaEventTrustDetail": {
+    "placeholders": {
+      "sequence": {"type": "int"},
+      "chain": {"type": "String"}
+    }
+  },
   "coreHaActivityFailed": "Etkinlik okunamadı. Yenilemek için tekrar deneyin.",
   "coreHaActivityIntegrityForbidden": "Bu hesap geçmiş bütünlüğünü doğrulayamaz.",
   "coreHaActivityCheckpointConflict": "Kayıtlı kontrol noktası bu geçmiş zinciriyle eşleşmiyor.",

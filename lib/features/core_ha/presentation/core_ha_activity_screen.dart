@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/trust_evidence_card.dart';
 import '../../home_resources/domain/home_resource_models.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../data/core_ha_activity_controller.dart';
@@ -512,6 +513,39 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
     ];
   }
 
+  Widget _eventTrust(CoreHaActivityController c, AppLocalizations l) {
+    final chain = c.eventChainId;
+    final head = c.eventHeadSequence;
+    if (c.eventTrustCurrent && chain != null && head != null) {
+      return TrustEvidenceCard(
+        key: const ValueKey('core-ha-event-trust-verified'),
+        state: TrustEvidenceState.verified,
+        title: l.coreHaEventTrustVerified,
+        body: l.coreHaEventTrustVerifiedBody,
+        detail: l.coreHaEventTrustDetail(head, '${chain.substring(0, 8)}…'),
+      );
+    }
+    if (c.busy && c.eventTrustFailure == null) {
+      return TrustEvidenceCard(
+        key: const ValueKey('core-ha-event-trust-checking'),
+        state: TrustEvidenceState.checking,
+        title: l.coreHaEventTrustChecking,
+        body: l.coreHaEventTrustCheckingBody,
+      );
+    }
+    return TrustEvidenceCard(
+      key: const ValueKey('core-ha-event-trust-action-required'),
+      state: TrustEvidenceState.actionRequired,
+      title: l.coreHaEventTrustActionRequired,
+      body: l.coreHaEventTrustActionRequiredBody,
+      actionKey: const ValueKey('core-ha-event-trust-refresh'),
+      actionLabel: l.coreHaEventTrustRefresh,
+      onAction: c.canRefresh && _current()
+          ? () => unawaited(c.refresh())
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(coreHaActivityControllerProvider(_selection));
@@ -558,6 +592,8 @@ class _ActivityViewState extends ConsumerState<_ActivityView>
                 ),
               ),
               const SizedBox(height: 8),
+              _eventTrust(c, l),
+              const SizedBox(height: 12),
               ..._integrity(c, l),
             ]),
             coreHaBlock([

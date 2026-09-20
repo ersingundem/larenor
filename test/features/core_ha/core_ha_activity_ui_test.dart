@@ -119,6 +119,46 @@ void main() {
     },
   );
 
+  testWidgets(
+    'event chain trust is semantic and keyboard re-verification recovers it',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final harness = HaUiHarness()..role = 'member';
+      try {
+        await openSnapshotActivity(tester, harness);
+        final verified = keyed('core-ha-event-trust-verified');
+        expect(verified, findsOneWidget);
+        expect(
+          tester.getSemantics(verified).label,
+          allOf(contains('Event chain verified'), contains('Head 2')),
+        );
+
+        harness.eventChainId = 'f' * 32;
+        await press(tester, 'core-ha-activity-refresh');
+        final required = keyed('core-ha-event-trust-action-required');
+        expect(required, findsOneWidget);
+        final status = tester.getSemantics(required);
+        expect(status.flagsCollection.isLiveRegion, isTrue);
+        expect(status.label, contains('Event chain needs verification'));
+
+        final action = keyed('core-ha-event-trust-refresh');
+        await reveal(tester, action);
+        expect(tester.getRect(action).height, greaterThanOrEqualTo(44));
+        final actionText = find.text('Refresh and verify');
+        Focus.of(tester.element(actionText)).requestFocus();
+        await flush(tester);
+        expect(Focus.of(tester.element(actionText)).hasPrimaryFocus, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+
+        expect(keyed('core-ha-event-trust-verified'), findsOneWidget);
+        expect(keyed('core-ha-event-trust-action-required'), findsNothing);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
   testWidgets('PIN-protected admin compares an external checkpoint by GET', (
     tester,
   ) async {

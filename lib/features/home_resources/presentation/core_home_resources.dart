@@ -8,6 +8,7 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/trust_evidence_card.dart';
 import '../../core_ha/presentation/core_ha_screen.dart';
 import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../keenetic/core/presentation/core_keenetic_screen.dart';
@@ -58,6 +59,51 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
 
   void _resourceAuthorityChanged() =>
       _download.retainAuthority(_controller.entries, _controller.userRevision);
+
+  Widget _transferTrust(HomeResourceRecord entry, AppLocalizations l10n) {
+    final phase = _download.phase;
+    final phaseLabel = switch (phase) {
+      CoreBoundedDownloadPhase.downloading => l10n.coreResourceDownloading,
+      CoreBoundedDownloadPhase.choosingDestination =>
+        l10n.coreResourceChooseDestination,
+      CoreBoundedDownloadPhase.saved => l10n.coreResourceDownloadSaved,
+      CoreBoundedDownloadPhase.cancelled => l10n.coreResourceDownloadCancelled,
+      CoreBoundedDownloadPhase.unauthorized =>
+        l10n.coreResourceDownloadSessionLost,
+      CoreBoundedDownloadPhase.forbidden => l10n.coreResourceDownloadForbidden,
+      CoreBoundedDownloadPhase.changed => l10n.coreResourceDownloadChanged,
+      CoreBoundedDownloadPhase.lateFrame ||
+      CoreBoundedDownloadPhase.failed => l10n.coreResourceDownloadFailed,
+      CoreBoundedDownloadPhase.idle => '',
+    };
+    final receipt = _download.receipt;
+    if (_download.receiptTrusted && receipt != null) {
+      return TrustEvidenceCard(
+        key: ValueKey('core-resource-transfer-trust-${entry.id}'),
+        state: TrustEvidenceState.verified,
+        title: l10n.coreTransferTrustVerified,
+        body: '${l10n.coreTransferTrustVerifiedBody} $phaseLabel',
+        detail: l10n.coreTransferTrustDetail(
+          '${receipt.requestId.substring(0, 8)}…',
+          receipt.contentLength,
+        ),
+      );
+    }
+    if (phase == CoreBoundedDownloadPhase.downloading) {
+      return TrustEvidenceCard(
+        key: ValueKey('core-resource-transfer-trust-${entry.id}'),
+        state: TrustEvidenceState.checking,
+        title: l10n.coreTransferTrustChecking,
+        body: phaseLabel,
+      );
+    }
+    return TrustEvidenceCard(
+      key: ValueKey('core-resource-transfer-trust-${entry.id}'),
+      state: TrustEvidenceState.actionRequired,
+      title: l10n.coreTransferTrustUnverified,
+      body: '${l10n.coreTransferTrustUnverifiedBody} $phaseLabel',
+    );
+  }
 
   bool _current() =>
       mounted &&
@@ -339,35 +385,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                           ),
                           if (_download.targetId == entry.id &&
                               _download.phase != CoreBoundedDownloadPhase.idle)
-                            Semantics(
-                              liveRegion: true,
-                              child: Text(
-                                switch (_download.phase) {
-                                  CoreBoundedDownloadPhase.downloading =>
-                                    l10n.coreResourceDownloading,
-                                  CoreBoundedDownloadPhase
-                                      .choosingDestination =>
-                                    l10n.coreResourceChooseDestination,
-                                  CoreBoundedDownloadPhase.saved =>
-                                    l10n.coreResourceDownloadSaved,
-                                  CoreBoundedDownloadPhase.cancelled =>
-                                    l10n.coreResourceDownloadCancelled,
-                                  CoreBoundedDownloadPhase.unauthorized =>
-                                    l10n.coreResourceDownloadSessionLost,
-                                  CoreBoundedDownloadPhase.forbidden =>
-                                    l10n.coreResourceDownloadForbidden,
-                                  CoreBoundedDownloadPhase.changed =>
-                                    l10n.coreResourceDownloadChanged,
-                                  CoreBoundedDownloadPhase.lateFrame ||
-                                  CoreBoundedDownloadPhase.failed =>
-                                    l10n.coreResourceDownloadFailed,
-                                  CoreBoundedDownloadPhase.idle => '',
-                                },
-                                key: ValueKey(
-                                  'core-resource-download-status-${entry.id}',
-                                ),
-                              ),
-                            ),
+                            _transferTrust(entry, l10n),
                         ],
                       ],
                     ),
