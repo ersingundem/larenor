@@ -71,8 +71,8 @@ _CODES = {
     "unified_core_runtime_unready",
     "unified_dns_runtime_failed",
     "unified_dns_resolver_unavailable",
-    "unified_dns_core_alias_failed",
-    "unified_dns_peer_alias_failed",
+    "unified_dns_core_service_failed",
+    "unified_dns_peer_service_failed",
 }
 
 
@@ -689,8 +689,8 @@ class DockerDriver:
         try:
             # `compose start` only asks Engine to start containers produced by
             # the earlier create phase. On fresh GitHub-hosted daemons that
-            # path left peer aliases present in inspect metadata but absent
-            # from embedded DNS on both architectures. Re-converging the exact
+            # path left canonical service discovery absent until the project was
+            # re-converged. Re-converging the exact
             # already-created project with --no-recreate keeps container
             # identity stable while Compose activates its network endpoints.
             self._compose("up", "--detach", "--no-build", "--no-recreate",
@@ -739,7 +739,7 @@ class DockerDriver:
                 aliases = networks.get(NETWORK, {}).get("Aliases", [])
                 if network_mode != NETWORK or item["serviceId"] not in aliases:
                     raise ManagedStackCIError("unified_container_receipt_invalid")
-                self._verify_dns(item["serviceId"])
+                self._verify_dns(package.SERVICE_NAMES[item["serviceId"]])
                 dns, network = "verified", NETWORK
             values.append({
                 "serviceId": item["serviceId"], "containerName": item["containerName"],
@@ -785,9 +785,9 @@ class DockerDriver:
     def _verify_dns(self, name, *, timeout=30, interval=2):
         if not self._embedded_dns_configured():
             raise ManagedStackCIError("unified_dns_resolver_unavailable")
-        self._await_dns("core", "unified_dns_core_alias_failed",
+        self._await_dns("core", "unified_dns_core_service_failed",
                         timeout=timeout, interval=interval)
-        self._await_dns(name, "unified_dns_peer_alias_failed",
+        self._await_dns(name, "unified_dns_peer_service_failed",
                         timeout=timeout, interval=interval)
 
     def _await_core_runtime(self, *, timeout=180, interval=2):

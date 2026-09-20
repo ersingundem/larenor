@@ -114,13 +114,7 @@ class UnifiedMediaStackDeploymentTest(unittest.TestCase):
         self.assertNotIn("networks", music)
         self.assertEqual(services["larenor-core"]["extra_hosts"], [
             "host.docker.internal:host-gateway"])
-        self.assertEqual(services["larenor-core"]["links"], [
-            "larenor-jellyfin:jellyfin",
-            "larenor-seerr:seerr",
-            "larenor-sonarr:sonarr",
-            "larenor-radarr:radarr",
-            "larenor-qbittorrent:qbittorrent",
-        ])
+        self.assertNotIn("links", services["larenor-core"])
 
     def test_package_never_requests_or_serializes_interservice_secrets(self):
         document = self.load()

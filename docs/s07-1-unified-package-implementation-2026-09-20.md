@@ -279,3 +279,13 @@ sözleşmesinde exact `service:alias` çiftiyle ayrıca bağlıdır. Linkler yal
 listeye girmez. Rendered config doğrulaması link kümesini exact kaynakla
 karşılaştırır ve runtime yine Core içinden her kısa adı çözmeden `dns: verified`
 üretmez.
+
+`links` denemesi de ARM koşusunda aynı kısa alias hatasını üretti. Paket artık
+Docker Compose'un belgelenen ana keşif sözleşmesini tek kanonik adres olarak
+kullanır: Core `larenor-core`, bridge servisleri kendi exact Compose hizmet
+adları (`larenor-jellyfin`, `larenor-seerr`, `larenor-sonarr`,
+`larenor-radarr`, `larenor-qbittorrent`) ile çözülür. Kısa ağ alias'ları yalnız
+uyumluluk metadata'sıdır; kabul veya otomatik eşleştirme otoritesi değildir.
+`links` kaldırıldı. Native kapı embedded resolver'ı, kanonik Core hizmet adını
+ve her kanonik peer hizmet adını gerçek Core runtime içinden ayrı, bounded ve
+allowlist hata kodlarıyla doğrular.
