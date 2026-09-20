@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "target": {
+    "label": "Ortak aktar\u0131m",
+    "order": 0,
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "resource",
+      "id": "33333333333333333333333333333333"
+    },
+    "revision": 1,
+    "aclRevision": 1,
+    "permissions": {
+      "read": true,
+      "write": true
+    }
+  },
+  "userRevision": 2,
+  "upload": {
+    "method": "PUT",
+    "path": "/api/v1/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/33333333333333333333333333333333/blob/uploads/55555555555555555555555555555555",
+    "requestHeaders": {
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": "22",
+      "x-larenor-content-sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+      "x-larenor-expected-user-revision": "2",
+      "x-larenor-expected-resource-revision": "1",
+      "x-larenor-expected-acl-revision": "1",
+      "x-larenor-expected-service-revision": "0",
+      "x-larenor-upload-request-id": "55555555555555555555555555555555"
+    },
+    "payloadBase64": "TGFyZW5vciBvcnRhayBha3RhcsSxbQ==",
+    "status": 201,
+    "response": {
+      "blob": {
+        "resourceId": "33333333333333333333333333333333",
+        "serviceRevision": 1,
+        "contentLength": 22,
+        "sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+        "contentType": "text/plain; charset=utf-8",
+        "createdAt": 1788609600.0,
+        "updatedAt": 1788609600.0,
+        "requestId": "55555555555555555555555555555555"
+      }
+    }
+  },
+  "descriptor": {
+    "method": "GET",
+    "path": "/api/v1/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/33333333333333333333333333333333/blob/descriptor",
+    "status": 200,
+    "response": {
+      "blob": {
+        "resourceId": "33333333333333333333333333333333",
+        "serviceRevision": 1,
+        "contentLength": 22,
+        "sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+        "contentType": "text/plain; charset=utf-8",
+        "createdAt": 1788609600.0,
+        "updatedAt": 1788609600.0
+      }
+    }
+  },
+  "download": {
+    "method": "POST",
+    "path": "/api/v1/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/33333333333333333333333333333333/blob",
+    "request": {
+      "requestId": "66666666666666666666666666666666",
+      "expectedUserRevision": 2,
+      "expectedRevision": 1,
+      "expectedAclRevision": 1,
+      "expectedServiceRevision": 1,
+      "deadlineMs": 5000
+    },
+    "status": 200,
+    "responseHeaders": {
+      "content-type": "application/vnd.larenor.blob-stream.v1",
+      "content-length": "120",
+      "x-larenor-trace-id": "66666666666666666666666666666666",
+      "x-larenor-blob-content-length": "22",
+      "x-larenor-blob-sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+      "x-larenor-blob-content-type": "text/plain; charset=utf-8",
+      "x-larenor-service-revision": "1",
+      "cache-control": "no-store, no-store",
+      "accept-ranges": "none"
+    },
+    "wireBase64": "TFJCMTY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2AAAAAAAAAAAAAAAAFkxhcmVub3Igb3J0YWsgYWt0YXLEsW1MUkIxNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYAAAAAAAAAAQEAAAAA"
+  },
+  "receipt": {
+    "method": "GET",
+    "path": "/api/v1/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/33333333333333333333333333333333/blob/transfers/66666666666666666666666666666666",
+    "status": 200,
+    "response": {
+      "receipt": {
+        "requestId": "66666666666666666666666666666666",
+        "traceId": "66666666666666666666666666666666",
+        "state": "completed",
+        "contentLength": 22,
+        "sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+        "contentType": "text/plain; charset=utf-8",
+        "serviceRevision": 1,
+        "createdAt": 1788609600.0,
+        "updatedAt": 1788609600.0
+      }
+    }
+  },
+  "history": {
+    "method": "GET",
+    "path": "/api/v1/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/33333333333333333333333333333333/blob/transfers?limit=20",
+    "status": 200,
+    "response": {
+      "receipts": [
+        {
+          "requestId": "66666666666666666666666666666666",
+          "traceId": "66666666666666666666666666666666",
+          "state": "completed",
+          "contentLength": 22,
+          "sha256": "1463c8c9b67089dedda905c860d9a3c6f5037995504f653a135ea378372c2c31",
+          "contentType": "text/plain; charset=utf-8",
+          "serviceRevision": 1,
+          "createdAt": 1788609600.0,
+          "updatedAt": 1788609600.0
+        }
+      ]
+    }
+  },
+  "errors": {
+    "staleRevision": {
+      "request": {
+        "requestId": "77777777777777777777777777777777",
+        "expectedUserRevision": 2,
+        "expectedRevision": 1,
+        "expectedAclRevision": 1,
+        "expectedServiceRevision": 2,
+        "deadlineMs": 5000
+      },
+      "status": 409,
+      "response": {
+        "error": {
+          "code": "revision_conflict",
+          "message": "The saved record has changed. Read it again."
+        }
+      }
+    },
+    "range": {
+      "request": {
+        "requestId": "88888888888888888888888888888888",
+        "expectedUserRevision": 2,
+        "expectedRevision": 1,
+        "expectedAclRevision": 1,
+        "expectedServiceRevision": 1,
+        "deadlineMs": 5000
+      },
+      "status": 400,
+      "response": {
+        "error": {
+          "code": "invalid_request",
+          "message": "The request is invalid."
+        }
+      }
+    }
+  }
+}

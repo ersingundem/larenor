@@ -218,7 +218,7 @@ def test_contract_keeps_failures_content_free_and_out_of_history():
             "response": {
                 "error": {
                     "code": "revision_conflict",
-                    "message": "The referenced revision changed.",
+                    "message": "The saved record has changed. Read it again.",
                 }
             },
         },

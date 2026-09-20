@@ -148,6 +148,7 @@ void main() {
       final api = CoreBoundedDownloadApi(
         endpoint: loopback.endpoint,
         requestId: () => requestId,
+        timeout: const Duration(seconds: 5),
       );
       addTearDown(api.close);
       final target = _target(fixture);
@@ -196,6 +197,7 @@ void main() {
       final api = CoreBoundedDownloadApi(
         endpoint: loopback.endpoint,
         requestId: () => staleId,
+        timeout: const Duration(seconds: 5),
       );
       addTearDown(api.close);
 
