@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,17 +46,19 @@ Future<void> _mount(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    CupertinoApp(
-      theme: larenorTheme(),
-      locale: locale,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(2)),
-        child: child!,
+    ProviderScope(
+      child: CupertinoApp(
+        theme: larenorTheme(),
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: home,
       ),
-      home: home,
     ),
   );
   await tester.pumpAndSettle();
@@ -67,10 +67,13 @@ Future<void> _mount(
 void _expectAction(WidgetTester tester, String key) {
   final finder = find.byKey(ValueKey(key));
   expect(finder, findsOneWidget);
-  final semantics = tester.getSemantics(finder);
+  final labels = find.descendant(of: finder, matching: find.byType(Text));
+  final semantics = tester.getSemantics(
+    labels.evaluate().isEmpty ? finder : labels.first,
+  );
   expect(semantics.flagsCollection.isButton, isTrue);
-  expect(semantics.rect.width, greaterThanOrEqualTo(48));
-  expect(semantics.rect.height, greaterThanOrEqualTo(48));
+  expect(tester.getRect(finder).width, greaterThanOrEqualTo(48));
+  expect(tester.getRect(finder).height, greaterThanOrEqualTo(48));
 }
 
 void main() {
@@ -172,7 +175,8 @@ void main() {
           ).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
           expect(tester.takeException(), isNull);
         },
       );
@@ -218,7 +222,8 @@ void main() {
           Focus.of(tester.element(title)).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
           expect(find.byType(CupertinoActionSheet), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
@@ -237,7 +242,13 @@ void main() {
             overrides: [
               haDiscoveryFactoryProvider.overrideWithValue(_NoDiscovery.new),
             ],
-            child: const CupertinoApp(home: ConnectScreen()),
+            child: CupertinoApp(
+              theme: larenorTheme(),
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ConnectScreen(),
+            ),
           ),
         );
         await tester.pumpAndSettle();

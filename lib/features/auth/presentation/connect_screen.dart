@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/larenor_brand.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/rest_client.dart';
 import '../data/ha_connection_config.dart';
@@ -48,7 +50,36 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   bool _isConnecting = false;
   bool _openingBackup = false;
   int _serverNavigationEpoch = 0;
+  int _authorityEpoch = 0;
+  bool _visible = true;
   String? _errorMessage;
+
+  bool _current(int epoch) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final interaction = AppInteractionScope.maybeRead(context);
+    return mounted &&
+        epoch == _authorityEpoch &&
+        _visible &&
+        interaction?.active != false &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) {
+      _authorityEpoch++;
+      _tokenController.clear();
+      _isConnecting = false;
+      _openingBackup = false;
+    }
+    _visible = visible;
+  }
 
   @override
   void initState() {
@@ -59,17 +90,18 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   }
 
   Future<void> _startDiscovery() async {
+    final epoch = _authorityEpoch;
     try {
       _discovery.servers.listen((servers) {
-        if (!mounted) return;
+        if (!_current(epoch)) return;
         setState(() => _discovered = servers);
       });
       await _discovery.start();
       Future.delayed(const Duration(seconds: 6), () {
-        if (mounted) setState(() => _scanning = false);
+        if (_current(epoch)) setState(() => _scanning = false);
       });
     } catch (_) {
-      if (mounted) setState(() => _scanning = false);
+      if (_current(epoch)) setState(() => _scanning = false);
     }
   }
 
@@ -85,21 +117,28 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _serverNavigationEpoch++;
+    if (state != AppLifecycleState.resumed) {
+      _serverNavigationEpoch++;
+      _authorityEpoch++;
+      _tokenController.clear();
+      _isConnecting = false;
+      _openingBackup = false;
+    }
     if (mounted) setState(() {});
   }
 
-  void _selectDiscovered(DiscoveredHaServer server) {
+  void _selectDiscovered(DiscoveredHaServer server, int epoch) {
+    if (!_current(epoch)) return;
     setState(() => _urlController.text = server.baseUrl);
     _tokenFocusNode.requestFocus();
   }
 
-  Future<void> _restoreBackup() async {
-    if (_isConnecting || _openingBackup) return;
+  Future<void> _restoreBackup(int epoch) async {
+    if (!_current(epoch) || _isConnecting || _openingBackup) return;
     setState(() => _openingBackup = true);
     try {
       final pin = await ref.read(pinLockStoreProvider).read();
-      if (!mounted) return;
+      if (!mounted || !_current(epoch)) return;
       if (pin != null || ref.read(connectionConfigProvider).value != null) {
         return;
       }
@@ -109,7 +148,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         ),
       );
     } catch (_) {
-      if (mounted) {
+      if (_current(epoch)) {
         setState(
           () =>
               _errorMessage = AppLocalizations.of(context)
@@ -117,12 +156,12 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         );
       }
     } finally {
-      if (mounted) setState(() => _openingBackup = false);
+      if (_current(epoch)) setState(() => _openingBackup = false);
     }
   }
 
-  Future<void> _openServer() async {
-    if (_isConnecting || _openingBackup) return;
+  Future<void> _openServer(int authorityEpoch) async {
+    if (!_current(authorityEpoch) || _isConnecting || _openingBackup) return;
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     final epoch = _serverNavigationEpoch;
@@ -133,6 +172,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
     try {
       final pin = await ref.read(pinLockStoreProvider).read();
       if (!mounted ||
+          !_current(authorityEpoch) ||
           epoch != _serverNavigationEpoch ||
           interaction?.active == false ||
           interaction?.epoch != interactionEpoch ||
@@ -147,7 +187,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         ),
       );
     } catch (_) {
-      if (mounted) {
+      if (_current(authorityEpoch)) {
         setState(
           () =>
               _errorMessage = AppLocalizations.of(context)
@@ -155,12 +195,12 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         );
       }
     } finally {
-      if (mounted) setState(() => _openingBackup = false);
+      if (_current(authorityEpoch)) setState(() => _openingBackup = false);
     }
   }
 
-  Future<void> _connect() async {
-    if (_isConnecting || _openingBackup) return;
+  Future<void> _connect(int epoch) async {
+    if (!_current(epoch) || _isConnecting || _openingBackup) return;
     final urlInput = _urlController.text.trim();
     final tokenInput = _tokenController.text.trim();
     if (urlInput.isEmpty || tokenInput.isEmpty) {
@@ -184,10 +224,10 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
       );
       client = HaRestClient(baseUrl: config.baseUrl, token: config.token);
       await client.checkConnection();
-      if (!mounted) return;
+      if (!mounted || !_current(epoch)) return;
       await ref.read(connectionConfigProvider.notifier).signIn(config);
     } on HaApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_current(epoch)) return;
       final l10n = AppLocalizations.of(context);
       setState(
         () => _errorMessage = switch (e.statusCode) {
@@ -200,13 +240,13 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         },
       );
     } on FormatException {
-      if (mounted) {
+      if (_current(epoch)) {
         setState(
           () => _errorMessage = AppLocalizations.of(context).connectErrorUrl,
         );
       }
     } catch (_) {
-      if (!mounted) return;
+      if (!_current(epoch)) return;
       setState(
         () =>
             _errorMessage = AppLocalizations.of(context)
@@ -214,7 +254,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
       );
     } finally {
       client?.dispose();
-      if (mounted) setState(() => _isConnecting = false);
+      if (_current(epoch)) setState(() => _isConnecting = false);
     }
   }
 
@@ -222,6 +262,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final serverEpoch = _serverNavigationEpoch;
+    final authorityEpoch = _authorityEpoch;
     final pin = ref.watch(pinLockProvider);
     final connection = ref.watch(connectionConfigProvider);
     final canRestore =
@@ -230,7 +271,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
         pin.value == null &&
         connection.hasValue &&
         connection.value == null;
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
@@ -241,7 +282,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
             sliver: SliverToBoxAdapter(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
+                  constraints: const BoxConstraints(maxWidth: 780),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     child: Column(
@@ -281,39 +322,54 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
                               prefix: Text(l10n.connectTokenLabel),
                               placeholder: l10n.connectTokenPlaceholder,
                               obscureText: true,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) {
+                                if (_current(authorityEpoch)) {
+                                  _connect(authorityEpoch);
+                                }
+                              },
                             ),
                           ],
                         ),
                         if (_errorMessage != null) ...[
                           const SizedBox(height: 12),
-                          Text(
-                            _errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: CupertinoColors.systemRed.resolveFrom(
-                                context,
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: CupertinoColors.systemRed.resolveFrom(
+                                  context,
+                                ),
                               ),
                             ),
                           ),
                         ],
                         const SizedBox(height: 20),
-                        CupertinoButton.filled(
-                          onPressed: _isConnecting || _openingBackup
-                              ? null
-                              : _connect,
-                          child: _isConnecting
-                              ? const CupertinoActivityIndicator(
-                                  color: CupertinoColors.white,
-                                )
-                              : Text(l10n.commonConnect),
+                        SizedBox(
+                          width: double.infinity,
+                          child: CupertinoButton.filled(
+                            key: const ValueKey('ha-connect-submit'),
+                            minimumSize: const Size(48, 48),
+                            onPressed: _isConnecting || _openingBackup
+                                ? null
+                                : () => _connect(authorityEpoch),
+                            child: _isConnecting
+                                ? const CupertinoActivityIndicator(
+                                    color: CupertinoColors.white,
+                                  )
+                                : Text(l10n.commonConnect),
+                          ),
                         ),
                         if (canRestore) ...[
                           const SizedBox(height: 12),
                           CupertinoButton(
                             key: const ValueKey('connect-restore-backup'),
+                            minimumSize: const Size(48, 48),
                             onPressed: _isConnecting || _openingBackup
                                 ? null
-                                : _restoreBackup,
+                                : () => _restoreBackup(authorityEpoch),
                             child: Text(
                               l10n.backupConnectRestore,
                               textAlign: TextAlign.center,
@@ -323,11 +379,12 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
                         const SizedBox(height: 12),
                         CupertinoButton(
                           key: const ValueKey('connect-larenor-server'),
+                          minimumSize: const Size(48, 48),
                           onPressed: _isConnecting || _openingBackup
                               ? null
                               : () {
                                   if (serverEpoch == _serverNavigationEpoch) {
-                                    _openServer();
+                                    _openServer(authorityEpoch);
                                   }
                                 },
                           child: Text(
@@ -364,15 +421,15 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
       header: Text(l10n.commonFoundOnNetwork),
       children: [
         for (final server in _discovered)
-          CupertinoListTile(
+          SettingsActionTile(
+            buttonKey: ValueKey('ha-discovered-${server.baseUrl}'),
             leading: const IconBadge(
               icon: CupertinoIcons.house_fill,
               color: CupertinoColors.systemBlue,
             ),
             title: Text(server.name),
-            subtitle: Text(server.baseUrl),
-            trailing: const CupertinoListTileChevron(),
-            onTap: () => _selectDiscovered(server),
+            additionalInfo: Text(server.baseUrl),
+            onTap: () => _selectDiscovered(server, _authorityEpoch),
           ),
         if (_scanning && _discovered.isEmpty)
           CupertinoListTile(

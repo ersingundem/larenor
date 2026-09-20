@@ -4,6 +4,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../data/inventory_controller.dart';
 import '../data/inventory_scanner.dart';
 import '../domain/inventory_models.dart';
@@ -118,7 +121,7 @@ final class _InventoryScreenState extends State<InventoryScreen>
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoPageScaffold(
+  Widget build(BuildContext context) => AppPageScaffold(
     navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
     child: SafeArea(
       child: ListenableBuilder(
@@ -201,26 +204,31 @@ final class _InventoryScreenState extends State<InventoryScreen>
     ),
   );
 
-  Widget _entry(BuildContext context) => Semantics(
-    textField: true,
-    label: widget.strings.manualLabel,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        CupertinoTextField(
-          key: const ValueKey('inventory-manual-entry'),
-          controller: _manual,
-          focusNode: _manualFocus,
-          enabled: widget.controller.canResolve,
-          placeholder: widget.strings.manualLabel,
-          textInputAction: TextInputAction.done,
-          autocorrect: false,
-          enableSuggestions: false,
-          onSubmitted: (_) => _submit(),
-          padding: const EdgeInsets.all(16),
+  Widget _entry(BuildContext context) => SettingsSection(
+    header: Text(widget.strings.manualLabel),
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        child: Semantics(
+          textField: true,
+          label: widget.strings.manualLabel,
+          child: CupertinoTextField(
+            key: const ValueKey('inventory-manual-entry'),
+            controller: _manual,
+            focusNode: _manualFocus,
+            enabled: widget.controller.canResolve,
+            placeholder: widget.strings.manualLabel,
+            textInputAction: TextInputAction.done,
+            autocorrect: false,
+            enableSuggestions: false,
+            onSubmitted: (_) => _submit(),
+            padding: const EdgeInsets.all(16),
+          ),
         ),
-        const SizedBox(height: 12),
-        Row(
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        child: Row(
           children: [
             Expanded(
               child: Semantics(
@@ -230,6 +238,7 @@ final class _InventoryScreenState extends State<InventoryScreen>
                   key: const ValueKey('inventory-open'),
                   height: 48,
                   child: CupertinoButton.filled(
+                    minimumSize: const Size(48, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     onPressed: widget.controller.canResolve ? _submit : null,
                     child: ExcludeSemantics(child: Text(widget.strings.open)),
@@ -244,6 +253,7 @@ final class _InventoryScreenState extends State<InventoryScreen>
                   key: const ValueKey('inventory-scan'),
                   height: 48,
                   child: CupertinoButton(
+                    minimumSize: const Size(48, 48),
                     color: CupertinoColors.secondarySystemGroupedBackground
                         .resolveFrom(context),
                     onPressed: widget.scanner!.opened
@@ -262,8 +272,8 @@ final class _InventoryScreenState extends State<InventoryScreen>
             ],
           ],
         ),
-      ],
-    ),
+      ),
+    ],
   );
 
   Widget _list(BuildContext context, InventoryController controller) {
@@ -293,28 +303,12 @@ final class _InventoryScreenState extends State<InventoryScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final entry in controller.entries)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Semantics(
-              button: true,
-              selected: identical(entry, controller.selected),
-              label: '${entry.item.label}, ${widget.strings.accessVerified}',
-              child: CupertinoButton(
-                color: CupertinoColors.secondarySystemGroupedBackground
-                    .resolveFrom(context),
-                padding: const EdgeInsets.all(16),
-                alignment: AlignmentDirectional.centerStart,
-                onPressed: controller.busy
-                    ? null
-                    : () => controller.select(entry),
-                child: ExcludeSemantics(
-                  child: Text(
-                    entry.item.label,
-                    style: CupertinoTheme.of(context).textTheme.textStyle,
-                  ),
-                ),
-              ),
-            ),
+          SettingsActionTile(
+            buttonKey: ValueKey('inventory-item-${entry.item.id}'),
+            selected: identical(entry, controller.selected),
+            title: Text(entry.item.label),
+            additionalInfo: Text(widget.strings.accessVerified),
+            onTap: controller.busy ? null : () => controller.select(entry),
           ),
       ],
     );
