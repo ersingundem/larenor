@@ -86,6 +86,8 @@ def test_authority_revision_and_departed_member_fail_closed(tmp_path):
     with pytest.raises(ApiError, match="not_found"):
         chores.get(principal("ada"), task.id, core_id="core-a", home_id="home-b")
     with pytest.raises(ApiError, match="forbidden"):
+        chores.get(principal("mallory"), task.id, core_id="core-a", home_id="home-a")
+    with pytest.raises(ApiError, match="forbidden"):
         chores.defer(
             principal("baran"), task.id, core_id="core-a", home_id="home-a",
             expected_revision=1, command_id="defer-foreign", days=1,
@@ -128,6 +130,11 @@ def test_completion_is_idempotent_and_history_detects_restart_tamper(tmp_path):
         members=members,
     )
     assert replay == first
+    with pytest.raises(ApiError, match="idempotency_conflict"):
+        chores.defer(
+            principal("ada"), task.id, core_id="core-a", home_id="home-a",
+            expected_revision=2, command_id="complete-once", days=1,
+        )
     assert [event.action for event in chores.history(
         principal("ada"), task.id, core_id="core-a", home_id="home-a"
     )] == ["created", "completed"]
