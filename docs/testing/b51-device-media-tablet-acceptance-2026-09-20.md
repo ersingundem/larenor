@@ -1,8 +1,8 @@
 # B5.1 device and media tablet acceptance — 2026-09-21
 
 This slice covers Remote Playback, Jellyfin item detail and Playback Power on
-the shared tablet settings surface. It was rebased onto `origin/main`
-`02d0a6c4`; the post-rebase review retained only behavior absent from main.
+the shared tablet settings surface. The post-rebase review against current
+`origin/main` retained only behavior absent from main.
 
 ## Accepted software criteria
 
