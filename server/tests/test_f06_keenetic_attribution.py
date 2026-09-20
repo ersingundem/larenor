@@ -153,6 +153,8 @@ def test_attributed_history_rechecks_session_role_home_and_resource(server):
     )
     other_home = root.replace(app.state.core.context.homeId, "f" * 32)
     other_resource = root.replace(record["ref"]["id"], "e" * 32)
+    room = create_resource(client, pair, admin_resources, label="Network room")
+    room_path = root.replace(record["ref"]["id"], room["ref"]["id"])
     assert (
         client.get(other_home + "/history/attributed", headers=auth(pair)).status_code
         == 404
@@ -161,6 +163,10 @@ def test_attributed_history_rechecks_session_role_home_and_resource(server):
         client.get(
             other_resource + "/history/attributed", headers=auth(pair)
         ).status_code
+        == 404
+    )
+    assert (
+        client.get(room_path + "/history/attributed", headers=auth(pair)).status_code
         == 404
     )
 

@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from ..home_resources.models import FrozenModel, Identity, Revision
+from ..home_resources.models import FrozenModel, Identity, ResourceRef, Revision
 
 
 SafeTarget = Annotated[str, Field(min_length=1, max_length=128)]
@@ -115,6 +115,59 @@ class CommandReceipt(FrozenModel):
     transitions: list[Status] = Field(min_length=2, max_length=3)
 
     _code = field_validator("code")(_safe)
+
+
+class CommandAttribution(FrozenModel):
+    schemaVersion: Literal[1]
+    correlationId: Identity
+    actorId: Identity
+    source: Literal["core_api", "core_recovery", "unknown"]
+    reason: Literal[
+        "explicit_admin_request", "interrupted_after_restart", "unknown"
+    ]
+    serviceId: Identity
+    serviceRevision: Revision
+
+    @model_validator(mode="after")
+    def source_matches_reason(self):
+        expected = {
+            "core_api": "explicit_admin_request",
+            "core_recovery": "interrupted_after_restart",
+            "unknown": "unknown",
+        }[self.source]
+        if self.reason != expected:
+            raise ValueError("attribution_mismatch")
+        return self
+
+
+class AttributedCommandEvent(FrozenModel):
+    schemaVersion: Literal[1]
+    sequence: Annotated[int, Field(ge=1, le=3072)]
+    attribution: CommandAttribution
+    requestId: Identity
+    action: Action
+    status: Status
+    target: TargetState
+    code: str = Field(min_length=1, max_length=80)
+
+    _event_code = field_validator("code")(_safe)
+
+    @model_validator(mode="after")
+    def trace_matches_target(self):
+        if (
+            self.attribution.correlationId != self.requestId
+            or self.attribution.serviceId != self.target.serviceId
+            or self.attribution.serviceRevision != self.target.serviceRevision
+        ):
+            raise ValueError("attribution_mismatch")
+        return self
+
+
+class AttributedCommandHistory(FrozenModel):
+    schemaVersion: Literal[1]
+    ref: ResourceRef
+    events: list[AttributedCommandEvent] = Field(max_length=50)
+    verified: Literal[True]
 
 
 class CommandTargetDescriptor(FrozenModel):
