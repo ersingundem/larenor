@@ -105,6 +105,13 @@ def test_rotation_is_atomic_and_exactly_bound_to_core_session_worker_and_provide
     encoded = public.text + repr(receipt) + repr(observed(request))
     assert public.json()['readiness']['revision'] == 2
     assert TOKEN not in encoded and NEW_TOKEN not in encoded
+    rollback = request.model_copy(update={
+        'requestId': 'e' * 32,
+        'expectedWorkerRevision': request.expectedWorkerRevision,
+    })
+    with pytest.raises(
+            ApiError, match='^music_assistant_key_rotation_authority_changed$'):
+        app.state.core.music_assistant_core.rotate_key(actor, rollback, worker)
 
 
 class UncertainWorker:
