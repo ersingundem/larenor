@@ -23,9 +23,9 @@ def body(*, readers=()):
     return {
         "schemaVersion": 1,
         "label": "Kahve değirmeni",
-        "roomId": "2" * 32,
-        "deviceId": "3" * 32,
-        "documentIds": ["4" * 32, "5" * 32],
+        "roomId": None,
+        "deviceId": None,
+        "documentIds": [],
         "readerIds": list(readers),
     }
 
@@ -55,9 +55,9 @@ def test_stable_item_and_secret_free_qr_survive_restart_encrypted(server):
         "label": "Kahve değirmeni",
         "links": {
             "schemaVersion": 1,
-            "roomId": "2" * 32,
-            "deviceId": "3" * 32,
-            "documentIds": ["4" * 32, "5" * 32],
+            "roomId": None,
+            "deviceId": None,
+            "documentIds": [],
         },
     }
     assert all(secret not in qr["value"] for secret in (item["label"], "4" * 32, admin["accessToken"]))
