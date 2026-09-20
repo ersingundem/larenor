@@ -346,10 +346,13 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
         if (_message != null)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              _message!,
-              style: TextStyle(
-                color: CupertinoColors.systemRed.resolveFrom(context),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                _message!,
+                style: TextStyle(
+                  color: CupertinoColors.systemRed.resolveFrom(context),
+                ),
               ),
             ),
           ),
@@ -476,6 +479,12 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
                 padding: EdgeInsets.all(16),
                 child: CupertinoActivityIndicator(),
               ),
+            if (library.isLoading)
+              const Padding(
+                key: ValueKey('ambient-library-loading'),
+                padding: EdgeInsets.all(16),
+                child: Center(child: CupertinoActivityIndicator()),
+              ),
             CupertinoButton(
               onPressed: available && ids != null && ids.length < 24
                   ? () => _pick(generation)
@@ -484,10 +493,14 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
             ),
             if (library.hasError)
               Padding(
+                key: const ValueKey('ambient-library-error'),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    Text(l10n.ambientFailed),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(l10n.ambientFailed),
+                    ),
                     CupertinoButton(
                       onPressed: available
                           ? () => ref.invalidate(ambientLibraryProvider)
@@ -499,6 +512,7 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
               ),
             if (ids?.isEmpty == true)
               Padding(
+                key: const ValueKey('ambient-library-empty'),
                 padding: const EdgeInsets.all(16),
                 child: Text(l10n.ambientEmpty),
               ),

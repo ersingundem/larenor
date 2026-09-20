@@ -74,6 +74,7 @@ void main() {
     AppInteractionController? interaction,
     HomeSessionController? home,
     List<DoorStation> Function()? stationValues,
+    bool stationError = false,
   }) async {
     final scope = interaction ?? AppInteractionController();
     if (interaction == null) addTearDown(scope.dispose);
@@ -117,7 +118,11 @@ void main() {
           haRestClientProvider.overrideWithValue(rest),
           haWebSocketClientProvider.overrideWithValue(socket),
           healthMonitorProvider.overrideWithValue(monitor),
-          if (stationValues != null)
+          if (stationError)
+            doorStationsProvider.overrideWith(
+              (ref) async => throw StateError('private fixture detail'),
+            )
+          else if (stationValues != null)
             doorStationsProvider.overrideWith((ref) async => stationValues())
           else if (!setup)
             doorStationsProvider.overrideWith((ref) async => [_station]),
@@ -351,6 +356,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CupertinoTextField), findsNothing);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('empty and failed station reads remain distinct and accessible', (
+    tester,
+  ) async {
+    await mount(tester, setup: true, stationValues: () => const []);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(IntercomSettingsScreen)),
+    );
+    expect(find.byKey(const ValueKey('intercom-empty-state')), findsOneWidget);
+    expect(find.text(l10n.intercomEmpty), findsOneWidget);
+    expect(find.byKey(const ValueKey('intercom-retry-action')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+
+    await mount(tester, setup: true, stationError: true);
+    await tester.pumpAndSettle();
+    final failedL10n = AppLocalizations.of(
+      tester.element(find.byType(IntercomSettingsScreen)),
+    );
+    final failure = find.byKey(const ValueKey('intercom-error-state'));
+    expect(failure, findsOneWidget);
+    expect(tester.getSemantics(failure).label, failedL10n.intercomStale);
+    final retry = find.byKey(const ValueKey('intercom-retry-action'));
+    expect(retry, findsOneWidget);
+    expect(tester.getSize(retry).height, greaterThanOrEqualTo(48));
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('removed station rejects retained edit callback', (tester) async {

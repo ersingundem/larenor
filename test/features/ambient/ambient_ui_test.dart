@@ -30,11 +30,16 @@ final _a = 'a' * 64, _b = 'b' * 64;
 
 class _Repository extends AmbientRepository {
   List<String> ids = [];
+  Completer<List<String>>? pendingList;
+  bool failList = false;
   final reads = <String>[];
   final values = <String, Future<Uint8List>>{};
   int imports = 0, changes = 0;
   @override
-  Future<List<String>> list() async => List.of(ids);
+  Future<List<String>> list() async {
+    if (failList) throw StateError('private repository detail');
+    return pendingList?.future ?? List.of(ids);
+  }
   @override
   Future<Uint8List> readPhoto(String id) {
     reads.add(id);
@@ -171,6 +176,60 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('ambient library keeps loading empty and error states distinct', (
+    tester,
+  ) async {
+    final pending = Completer<List<String>>();
+    final repository = _Repository()..pendingList = pending;
+    await _mount(
+      tester,
+      const AmbientSettingsScreen(),
+      repository: repository,
+    );
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(AmbientSettingsScreen)),
+    );
+    await tester.scrollUntilVisible(
+      find.text(l10n.ambientPhotos),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.byKey(const ValueKey('ambient-library-loading')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsNothing);
+    expect(find.byKey(const ValueKey('ambient-library-error')), findsNothing);
+
+    pending.complete(const []);
+    await _frames(tester);
+    expect(find.byKey(const ValueKey('ambient-library-loading')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('ambient-library-empty')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+
+    await _mount(
+      tester,
+      const AmbientSettingsScreen(),
+      repository: _Repository()..failList = true,
+    );
+    final failedL10n = AppLocalizations.of(
+      tester.element(find.byType(AmbientSettingsScreen)),
+    );
+    await tester.scrollUntilVisible(
+      find.text(failedL10n.ambientPhotos),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final failure = find.byKey(const ValueKey('ambient-library-error'));
+    expect(failure, findsOneWidget);
+    expect(tester.getSemantics(failure).label, contains('could not be loaded'));
+    expect(find.byKey(const ValueKey('ambient-library-empty')), findsNothing);
+    expect(find.textContaining('private repository'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(

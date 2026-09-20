@@ -128,6 +128,14 @@ class _IntercomSettingsScreenState extends ConsumerState<IntercomSettingsScreen>
                 ),
               ],
               error: (_, _) => [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Semantics(
+                    key: const ValueKey('intercom-error-state'),
+                    liveRegion: true,
+                    child: Text(l10n.intercomStale),
+                  ),
+                ),
                 SettingsActionTile(
                   buttonKey: const ValueKey('intercom-retry-action'),
                   leading: const Icon(CupertinoIcons.refresh),
@@ -140,6 +148,14 @@ class _IntercomSettingsScreenState extends ConsumerState<IntercomSettingsScreen>
                 ),
               ],
               data: (values) => [
+                if (values.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Semantics(
+                      key: const ValueKey('intercom-empty-state'),
+                      child: Text(l10n.intercomEmpty),
+                    ),
+                  ),
                 for (final station in values)
                   SettingsActionTile(
                     buttonKey: ValueKey('intercom-station-${station.id}'),

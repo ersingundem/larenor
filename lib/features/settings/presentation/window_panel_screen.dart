@@ -184,8 +184,18 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen>
           children: [
             if (reading.isLoading)
               const Padding(
+                key: ValueKey('window-status-loading'),
                 padding: EdgeInsets.all(20),
                 child: CupertinoActivityIndicator(),
+              )
+            else if (reading.hasError)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Semantics(
+                  key: const ValueKey('window-status-error'),
+                  liveRegion: true,
+                  child: Text(l10n.windowUnknown),
+                ),
               )
             else ...[
               _WindowValue(
@@ -218,7 +228,9 @@ class _WindowPanelScreenState extends ConsumerState<WindowPanelScreen>
             SettingsActionTile(
               buttonKey: const ValueKey('window-status-refresh'),
               leading: const Icon(CupertinoIcons.refresh),
-              title: Text(l10n.commonRefresh),
+              title: Text(
+                reading.hasError ? l10n.commonRetry : l10n.commonRefresh,
+              ),
               onTap: reading.isLoading
                   ? null
                   : () {

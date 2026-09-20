@@ -33,6 +33,7 @@ Future<void> _mount(
   Size size = const Size(600, 1100),
   double scale = 1,
   Locale locale = const Locale('tr'),
+  bool snapshotError = false,
 }) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   tester.view.physicalSize = size;
@@ -43,7 +44,9 @@ Future<void> _mount(
       overrides: [
         windowProfileStoreProvider.overrideWithValue(store),
         windowPolicySnapshotProvider.overrideWith(
-          (_) => Stream.value(snapshot),
+          (_) => snapshotError
+              ? Stream.error(StateError('private platform detail'))
+              : Stream.value(snapshot),
         ),
       ],
       child: CupertinoApp(
@@ -111,6 +114,28 @@ void main() {
     expect(store.value, 'adaptive');
     expect(find.textContaining('Görünüm modu kaydedilemedi'), findsOneWidget);
     expect(find.textContaining('private storage'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('platform read failure is distinct from loading and unknown data', (
+    tester,
+  ) async {
+    final store = _Store();
+    await _mount(
+      tester,
+      store,
+      const WindowPolicySnapshot(),
+      snapshotError: true,
+    );
+    final failure = find.byKey(const ValueKey('window-status-error'));
+    expect(failure, findsOneWidget);
+    expect(
+      tester.getSemantics(failure).label,
+      contains('Pencere durumu okunamadı'),
+    );
+    expect(find.byKey(const ValueKey('window-status-loading')), findsNothing);
+    expect(find.text('Tekrar Dene'), findsOneWidget);
+    expect(find.textContaining('private platform'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
