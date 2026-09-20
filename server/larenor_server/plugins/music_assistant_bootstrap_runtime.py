@@ -20,7 +20,14 @@ from .music_assistant_core_models import AuthenticatedMusicAssistantReadback
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _CREDENTIAL = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
-_TOKEN = re.compile(r'[A-Za-z0-9_-]{10,2048}\Z')
+# Music Assistant 2.10.2 issues HS256 JWTs for both setup and long-lived
+# credentials. Keep the accepted wire shape bounded without decoding or
+# exposing any private claim bytes.
+_TOKEN = re.compile(
+    r'(?=.{32,2048}\Z)'
+    r'[A-Za-z0-9_-]{2,512}\.'
+    r'[A-Za-z0-9_-]{2,1536}\.'
+    r'[A-Za-z0-9_-]{43}\Z')
 _INFO_FIELDS = frozenset({
     'server_id', 'server_version', 'schema_version',
     'min_supported_schema_version', 'name', 'base_url', 'internal_url',
@@ -131,13 +138,15 @@ class MusicAssistantBootstrapRuntime:
             'command': command,
             'args': args,
         }, token, deadline, cancelled, gate)
-        if (status != 200 or type(value) is not dict
-                or set(value) != {'message_id', 'result'}
-                or value['message_id'] != installation_id + '-' + step):
+        # The 2.10.2 HTTP JSON-RPC adapter serializes the command result
+        # directly. Message envelopes are used by its WebSocket transport, not
+        # by POST /api. Each caller below applies the exact result validator for
+        # its command before another effect is allowed.
+        if status != 200:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_uncertain',
                 uncertain_effect=True)
-        return value['result']
+        return value
 
     @staticmethod
     def _user(value, username, expected_id=None):

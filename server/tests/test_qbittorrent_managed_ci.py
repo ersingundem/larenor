@@ -161,6 +161,31 @@ def test_characterize_projects_only_closed_native_evidence(monkeypatch):
     assert '"apiKey":' not in serialized and '"credential":' not in serialized
 
 
+def test_shared_volume_preparation_keeps_root_service_owner(monkeypatch):
+    module = api()
+    target = SimpleNamespace(containerUser='0:0', name='root-data')
+    calls = []
+
+    def helper(_daemon, _image, mode, **options):
+        calls.append((mode, options.get('bootstrap', False)))
+        if mode == 'check':
+            return {'schemaVersion': 1, 'state': 'empty_uninitialized'}
+        if mode == 'initialize_empty_root_as_root':
+            return {'schemaVersion': 1, 'state': 'empty_initialized'}
+        assert mode == 'writable'
+        return {'writable': True, 'uid': 0, 'gid': 0}
+
+    monkeypatch.setattr(module.smoke, '_helper', helper)
+    module._prepare_volumes(
+        object(), SimpleNamespace(targets=(target,)), 'sha256:' + 'f' * 64)
+
+    assert calls == [
+        ('check', True),
+        ('initialize_empty_root_as_root', True),
+        ('writable', False),
+    ]
+
+
 def test_runtime_backend_supplies_both_config_runtimes(monkeypatch):
     module = api()
     from larenor_server.plugins import arr_config_runtime

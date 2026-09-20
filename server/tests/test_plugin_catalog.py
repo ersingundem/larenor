@@ -70,6 +70,8 @@ def test_music_assistant_preserves_verified_host_network_and_ptp_profile():
     assert {(p.protocol, p.port) for p in result.network.listeners} >= {("tcp", 8095), ("tcp", 8097), ("udp", 319), ("udp", 320)}
     assert result.network.dynamicReceiverPorts is True
     assert result.security.user == "0:0" and result.security.capAdd == ("NET_BIND_SERVICE",)
+    assert [(item.target, item.sizeMiB, item.uid, item.gid, item.executable)
+            for item in result.tmpfs] == [("/tmp", 128, 0, 0, True)]
     assert result.integrationRole == "internal_engine"
     assert {(m.target, m.readOnly) for m in result.mounts} >= {("/data", False), ("/media", True)}
     assert "host_network" in result.warnings and "airplay_ptp_319_320" in result.warnings

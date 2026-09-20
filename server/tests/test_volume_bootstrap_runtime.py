@@ -22,15 +22,15 @@ from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 HELPER = 'sha256:' + '9' * 64
 
 
-def volume_intent(tmp_path, kind='managed_appdata'):
-    data = source()
+def volume_intent(tmp_path, kind='managed_appdata', service_id='jellyfin'):
+    data = source(service_id)
     resources = ResourceJournal(tmp_path / 'resources', initialize=True)
     volumes = VolumeCreateJournal(tmp_path / 'volumes', initialize=True)
-    populate(resources, volumes, data)
+    populate(resources, volumes, data, service_id)
     plan, stack, catalog, policy = data[4], data[1], data[0], data[2]
     selected = next(
         item for item in plan.resources
-        if item.serviceId == 'jellyfin' and item.kind == kind)
+        if item.serviceId == service_id and item.kind == kind)
     with volumes.locked():
         receipt = volumes.get(selected.resourceId)
         intent = volumes.bind(
@@ -287,6 +287,29 @@ def test_unix_engine_prepares_only_fixed_managed_library_directories(tmp_path):
         'VolumeOptions': {'NoCopy': True},
     }
     assert body['NetworkDisabled'] is True
+
+
+def test_unix_engine_derives_root_service_identity_from_bound_plan(tmp_path):
+    intent = volume_intent(tmp_path, service_id='music_assistant')
+    container_id = '7' * 64
+    transport = ExchangeTransport([
+        response(201, {'Id': container_id, 'Warnings': None}),
+        response(204), response(200, {'StatusCode': 0}), response(204),
+    ])
+    engine = UnixVolumeBootstrapEngine(
+        DockerEndpoint('/private/docker.sock', owner_uid=0),
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    assert engine.verify_root(
+        intent, HELPER, 'linux/arm64', cancelled=threading.Event()) is True
+    body = json.loads(transport.calls[0][2])
+    assert intent.binding.resource.containerUser == '0:0'
+    assert body['User'] == '0:0'
+    assert body['Cmd'] == ['verify_root']
+    assert body['HostConfig']['CapAdd'] == []
+    assert body['HostConfig']['Mounts'][0]['ReadOnly'] is True
 
 
 def test_directory_preparation_rejects_appdata_before_engine_dispatch(tmp_path):

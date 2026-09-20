@@ -54,23 +54,43 @@ def local(tmp_path, monkeypatch):
     monkeypatch.setattr(m, '_open_root', lambda: os.open(root, os.O_RDONLY | os.O_DIRECTORY))
     monkeypatch.setattr(m.os, 'fstat', observed)
     monkeypatch.setattr(m.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 0)
     monkeypatch.setattr(m.os, 'fchmod', chmod)
     monkeypatch.setattr(m.os, 'fchown', chown)
     monkeypatch.setattr(m.os, 'fsync', lambda fd: effects.append(('fsync',)))
     return m, root, state, effects
 
 
-def test_empty_root_changes_only_directory_metadata_then_verifies(local):
+def test_empty_root_changes_only_directory_metadata_then_verifies(local, monkeypatch):
     m, root, state, effects = local
     assert m.run('check') == {'schemaVersion': 1, 'state': 'empty_uninitialized'}
     assert effects == []
     assert m.run('initialize_empty_root') == {'schemaVersion': 1, 'state': 'empty_initialized'}
     assert effects == [('chmod', 0o750), ('chown', 1000, 1000), ('fsync',)]
     assert list(root.iterdir()) == []
+    monkeypatch.setattr(m.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 1000)
     assert m.run('verify_root') == {'schemaVersion': 1, 'state': 'root_verified'}
 
 
-@pytest.mark.parametrize('mode', ['check', 'initialize_empty_root'])
+def test_empty_root_can_remain_owned_by_fixed_root_service(local, monkeypatch):
+    m, root, state, effects = local
+    monkeypatch.setattr(m.os, 'getegid', lambda: 0)
+
+    assert m.run('initialize_empty_root_as_root') == {
+        'schemaVersion': 1, 'state': 'empty_initialized',
+    }
+    assert effects == [('chmod', 0o750), ('fsync',)]
+    assert state == {'uid': 0, 'gid': 0, 'mode': 0o750}
+    assert list(root.iterdir()) == []
+    assert m.run('verify_root') == {
+        'schemaVersion': 1, 'state': 'root_verified',
+    }
+
+
+@pytest.mark.parametrize('mode', [
+    'check', 'initialize_empty_root', 'initialize_empty_root_as_root',
+])
 @pytest.mark.parametrize('kind', ['file', 'directory', 'symlink'])
 def test_foreign_entry_never_changed_or_named(local, mode, kind):
     m, root, _, effects = local
@@ -109,9 +129,11 @@ def test_partial_metadata_failure_is_static_and_not_retried(local, monkeypatch):
     assert effects == [('chmod', 0o750)]
 
 
-def test_verify_allows_existing_app_data_without_walking_or_mutating(local):
+def test_verify_allows_existing_app_data_without_walking_or_mutating(local, monkeypatch):
     m, root, state, effects = local
     state.update(uid=1000, gid=1000, mode=0o750)
+    monkeypatch.setattr(m.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 1000)
     (root / 'app-data').write_text('existing')
     assert m.run('verify_root')['state'] == 'root_verified'
     assert effects == [] and (root / 'app-data').read_text() == 'existing'

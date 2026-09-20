@@ -67,8 +67,9 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             self.assertEqual(source.image.image.platform, platform_name)
             self.assertEqual(source.image.serviceId, "music_assistant")
             self.assertEqual(
-                [(item.serviceId, item.kind, item.target) for item in source.targets],
-                [("music_assistant", "managed_appdata", "/data")],
+                [(item.serviceId, item.kind, item.target, item.containerUser)
+                 for item in source.targets],
+                [("music_assistant", "managed_appdata", "/data", "0:0")],
             )
 
     @unittest.skipUnless(SERVER_DEPENDENCIES_AVAILABLE, "server dependencies unavailable")
@@ -150,6 +151,53 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             target._require_container_created(receipt, engine)
         self.assertEqual(str(raised.exception), "managed_create_uncertain")
         self.assertNotIn("private", repr(raised.exception))
+
+    def test_container_liveness_reduces_exit_state_to_closed_diagnostic(self):
+        class Engine:
+            value = {"State": {"Running": False, "OOMKilled": False}}
+
+            def inspect_container(self, _name):
+                return self.value
+
+        engine = Engine()
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_running(engine, "larenor-" + "a" * 32)
+        self.assertEqual(str(raised.exception), "music_assistant_container_exited")
+
+        engine.value = {"State": {"Running": False, "OOMKilled": True}}
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_running(engine, "larenor-" + "a" * 32)
+        self.assertEqual(
+            str(raised.exception), "music_assistant_container_oom_killed")
+
+    def test_container_exit_logs_reduce_to_allowlisted_diagnostics(self):
+        class Response:
+            status = 200
+            body = b"fatal: Read-only file system: /private/path"
+
+        class Engine:
+            value = b"fatal: Read-only file system: /private/path"
+
+            def _exchange(self, _method, _target):
+                Response.body = self.value
+                return Response()
+
+        engine = Engine()
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_readonly_root",
+        )
+        engine.value = b"PermissionError: [Errno 13] Permission denied: '/data/settings'"
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_data_permission_denied",
+        )
+        engine.value = b"unrecognized private upstream output"
+        self.assertEqual(
+            target._closed_exit_diagnostic(engine, "a" * 64),
+            "music_assistant_container_exited",
+        )
+        self.assertNotIn("private", target._closed_exit_diagnostic(engine, "a" * 64))
 
 
 if __name__ == "__main__":
