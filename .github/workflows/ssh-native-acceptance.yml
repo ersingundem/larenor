@@ -49,11 +49,7 @@ jobs:
           test "$actual" = "$OPENSSH_PACKAGE"
 
           fixture="$RUNNER_TEMP/larenor-ssh-native"
-          install -d -m 0700 "$fixture" "$fixture/sftp" "$fixture/http"
-          printf 'Larenor SFTP fixture\n' > "$fixture/sftp/hello.txt"
-          printf 'alpha\n' > "$fixture/sftp/alpha.txt"
-          printf 'beta\n' > "$fixture/sftp/beta.txt"
-          dd if=/dev/zero of="$fixture/sftp/large.bin" bs=1M count=1 status=none
+          install -d -m 0700 "$fixture" "$fixture/http"
           printf 'Larenor tunnel fixture\n' > "$fixture/http/index.html"
 
           ssh-keygen -q -t ed25519 -N '' -f "$fixture/host-key"
@@ -64,12 +60,18 @@ jobs:
           sudo useradd --create-home --shell /bin/bash "$fixture_user"
           sudo passwd -d "$fixture_user"
           fixture_group="$(id -gn "$fixture_user")"
+          runner_group="$(id -gn)"
+          sftp_root="/tmp/larenor-ssh-native-sftp-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          sudo install -d -m 0770 -o "$fixture_user" -g "$runner_group" "$sftp_root"
+          printf 'Larenor SFTP fixture\n' > "$sftp_root/hello.txt"
+          printf 'alpha\n' > "$sftp_root/alpha.txt"
+          printf 'beta\n' > "$sftp_root/beta.txt"
+          dd if=/dev/zero of="$sftp_root/large.bin" bs=1M count=1 status=none
           sudo install -d -m 0700 -o "$fixture_user" -g "$fixture_group" \
             "/home/$fixture_user/.ssh"
           sudo install -m 0600 -o "$fixture_user" -g "$fixture_group" \
             "$fixture/client-key.pub" "/home/$fixture_user/.ssh/authorized_keys"
           chmod 0711 "$fixture"
-          sudo chown -R "$fixture_user:$fixture_group" "$fixture/sftp"
 
           read -r ssh_port tunnel_port target_port < <(python3 - <<'PY'
           import socket
@@ -135,7 +137,7 @@ jobs:
           LARENOR_SSH_PRIVATE_KEY=$fixture/client-key
           LARENOR_SSH_HOST_KEY_TYPE=ssh-ed25519
           LARENOR_SSH_HOST_KEY_FINGERPRINT=$fingerprint
-          LARENOR_SFTP_FIXTURE_ROOT=$fixture/sftp
+          LARENOR_SFTP_FIXTURE_ROOT=$sftp_root
           LARENOR_SSH_FIXTURE_DIR=$fixture
           ENV
       - name: Validate workflow policy
@@ -181,6 +183,10 @@ jobs:
           fi
           if [ -n "$fixture" ] && [ -f "$fixture/http.pid" ]; then
             kill "$(cat "$fixture/http.pid")" 2>/dev/null || true
+          fi
+          sftp_root="${LARENOR_SFTP_FIXTURE_ROOT:-}"
+          if [[ "$sftp_root" == /tmp/larenor-ssh-native-sftp-* ]]; then
+            sudo rm -rf -- "$sftp_root"
           fi
           if [ "${{ job.status }}" != "success" ] && [ -f "$fixture/sshd.log" ]; then
             sudo tail -80 "$fixture/sshd.log"

@@ -43,6 +43,22 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             self.raw,
         )
         self.assertIn('sudo passwd -d "$fixture_user"', self.raw)
+        self.assertIn('runner_group="$(id -gn)"', self.raw)
+        self.assertIn(
+            'sftp_root="/tmp/larenor-ssh-native-sftp-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            self.raw,
+        )
+        self.assertIn(
+            'sudo install -d -m 0770 -o "$fixture_user" -g "$runner_group" "$sftp_root"',
+            self.raw,
+        )
+        self.assertIn("LARENOR_SFTP_FIXTURE_ROOT=$sftp_root", self.raw)
+        self.assertIn(
+            '[[ "$sftp_root" == /tmp/larenor-ssh-native-sftp-* ]]',
+            self.raw,
+        )
+        self.assertIn('sudo rm -rf -- "$sftp_root"', self.raw)
+        self.assertNotIn("LARENOR_SFTP_FIXTURE_ROOT=$fixture/sftp", self.raw)
         self.assertNotIn('passwd -d "$USER"', self.raw)
         self.assertIn("PasswordAuthentication no", self.raw)
         self.assertIn("AuthenticationMethods publickey", self.raw)
