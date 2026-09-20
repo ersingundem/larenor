@@ -264,3 +264,10 @@ Taze host kabulünde peer endpointleri Core ağ sandbox'ından sonra kaydolduğu
 resolver görünümü boş kalabildi. Yaşam döngüsü bu yüzden hem ilk başlatmada hem
 yeniden başlatmada altı paket servisini önce, Core'u sonra çalıştırır. Core sağlığı
 ve her kısa peer adı yine gerçek container içinden, sınırlı sürede doğrulanır.
+
+Bu sıralama `docker compose start` ile iki mimaride de inspect metadata'sını
+doğru üretmesine rağmen peer adını resolver'a kaydetmedi. Oluşturma fazı ayrı
+kalır; başlatma fazı artık aynı exact projeyi `up --detach --no-build
+--no-recreate` ile yeniden uzlaştırır. Böylece Compose ağ endpointlerini kendi
+desteklenen `up` yaşam döngüsünde etkinleştirirken container kimliği değişemez;
+kimlik eşitliği ilk start ve restart makbuzları arasında ayrıca doğrulanır.

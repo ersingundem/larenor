@@ -275,8 +275,10 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             with patch.object(driver, "_compose", return_value=(0, b"")) as compose:
                 driver.start({})
             self.assertEqual(compose.call_args_list, [
-                call("start", *target.SERVICE_NAMES.values(), timeout=180),
-                call("start", target.package.CORE_NAME, timeout=180),
+                call("up", "--detach", "--no-build", "--no-recreate",
+                     *target.SERVICE_NAMES.values(), timeout=180),
+                call("up", "--detach", "--no-build", "--no-recreate",
+                     target.package.CORE_NAME, timeout=180),
             ])
 
             with patch.object(driver, "_compose", return_value=(0, b"")) as compose:

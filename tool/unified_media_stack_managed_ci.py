@@ -687,11 +687,16 @@ class DockerDriver:
 
     def start(self, manifest):
         try:
-            # Bring every dependency endpoint online before Core gets its
-            # network sandbox. This avoids a negative embedded-DNS view when
-            # Compose starts Core before peer endpoints on fresh hosts.
-            self._compose("start", *SERVICE_NAMES.values(), timeout=180)
-            self._compose("start", package.CORE_NAME, timeout=180)
+            # `compose start` only asks Engine to start containers produced by
+            # the earlier create phase. On fresh GitHub-hosted daemons that
+            # path left peer aliases present in inspect metadata but absent
+            # from embedded DNS on both architectures. Re-converging the exact
+            # already-created project with --no-recreate keeps container
+            # identity stable while Compose activates its network endpoints.
+            self._compose("up", "--detach", "--no-build", "--no-recreate",
+                          *SERVICE_NAMES.values(), timeout=180)
+            self._compose("up", "--detach", "--no-build", "--no-recreate",
+                          package.CORE_NAME, timeout=180)
         except ManagedStackCIError:
             raise ManagedStackCIError("unified_start_runtime_failed") from None
 
