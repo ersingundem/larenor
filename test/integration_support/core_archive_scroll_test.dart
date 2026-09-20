@@ -21,9 +21,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(
-          const ValueKey('core-layout-archive-entry'),
-        ).hitTestable(),
+        find.byKey(const ValueKey('core-layout-archive-entry')).hitTestable(),
         findsNothing,
       );
 
