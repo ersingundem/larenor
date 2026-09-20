@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -24,6 +25,8 @@ import 'package:larenor/features/intercom/presentation/intercom_screen.dart';
 import 'package:larenor/features/intercom/presentation/intercom_settings_screen.dart';
 import 'package:larenor/features/intercom/providers/intercom_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/direct_home_routines_test.dart' show routinesHome;
@@ -65,6 +68,9 @@ void main() {
     bool fresh = true,
     bool setup = false,
     bool narrow = false,
+    Size? size,
+    double? scale,
+    Locale locale = const Locale('tr'),
     AppInteractionController? interaction,
     HomeSessionController? home,
   }) async {
@@ -94,8 +100,8 @@ void main() {
       session.liveConnected();
       session.readSucceeded(synchronizesLiveSnapshot: true);
     }
-    if (narrow) {
-      tester.view.physicalSize = const Size(320, 900);
+    if (narrow || size != null) {
+      tester.view.physicalSize = size ?? const Size(320, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -119,12 +125,13 @@ void main() {
           ),
         ],
         child: CupertinoApp(
-          locale: const Locale('tr'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(narrow ? 2 : 1)),
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale ?? (narrow ? 2 : 1)),
+            ),
             child: AppInteractionScope(controller: scope, child: child!),
           ),
           home: setup ? const IntercomSettingsScreen() : const IntercomScreen(),
@@ -264,6 +271,85 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'intercom setup uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await mount(
+              tester,
+              setup: true,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(IntercomSettingsScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('intercom-stations-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.intercomTitle);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final add = find.byKey(const ValueKey('intercom-add-action'));
+            final addNode = tester.getSemantics(add);
+            expect(addNode.label, l10n.intercomAdd);
+            expect(addNode.flagsCollection.isButton, isTrue);
+            expect(addNode.rect.width, greaterThanOrEqualTo(48));
+            expect(addNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: add,
+              matching: find.text(l10n.intercomAdd),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(find.text(l10n.intercomSetup), findsOneWidget);
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox());
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+  testWidgets('captured add action cannot open after lifecycle round trip', (
+    tester,
+  ) async {
+    await mount(tester, setup: true);
+    final old = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('intercom-add-action')),
+        )
+        .onPressed!;
+    for (final state in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    await tester.pump();
+    old();
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoTextField), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'old station editor Save cannot acquire new Direct store after source return',
     (tester) async {
