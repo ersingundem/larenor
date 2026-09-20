@@ -78,16 +78,17 @@ def test_links_resolve_to_exact_current_home_types_and_persisted_document(server
         valid | {"deviceId": room["ref"]["id"]},
         valid | {"documentIds": ["f" * 32]},
     ]
+    for body in invalid:
+        response = client.post(root(app) + "/items", headers=auth(admin), json=body)
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
     with app.state.core.db.transaction() as connection:
         connection.execute(
             "UPDATE bounded_blob_objects SET home_id=? WHERE resource_id=?",
             ("e" * 32, doc["ref"]["id"]),
         )
-    invalid.append(valid)
-    for body in invalid:
-        response = client.post(root(app) + "/items", headers=auth(admin), json=body)
-        assert response.status_code == 400
-        assert response.json()["error"]["code"] == "invalid_request"
+    response = client.post(root(app) + "/items", headers=auth(admin), json=valid)
+    assert response.status_code == 503
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM inventory_items").fetchone()[0] == 1
 
@@ -190,6 +191,7 @@ def test_history_is_authorized_restart_stable_and_detects_chain_or_state_tamper(
 
     with app.state.core.db.transaction() as connection:
         connection.execute("UPDATE inventory_audit SET entry_hash=? WHERE sequence=1", ("0" * 64,))
+    assert client.get(base, headers=auth(denied)).status_code == 404
     assert client.get(base, headers=auth(admin)).status_code == 503
     with pytest.raises(StartupError, match="inventory_storage_invalid"):
         with TestClient(create_app(settings)):

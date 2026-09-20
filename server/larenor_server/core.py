@@ -267,7 +267,9 @@ class CoreServices:
                 self._transfer_limits)
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
-            self.inventory = InventoryRegistry(self.db, self.auth, settings, key, self.context)
+            self.inventory = InventoryRegistry(
+                self.db, self.auth, settings, key, self.context,
+                self.home_resources, self.product_blobs)
             self.inventory.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)

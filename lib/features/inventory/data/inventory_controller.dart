@@ -115,6 +115,7 @@ final class InventoryController extends ChangeNotifier {
           ? InventoryFailure.offline
           : InventoryFailure.invalidResponse;
       selected = null;
+      _entries.clear();
     } finally {
       if (operation == _epoch && !_retired) {
         busy = false;

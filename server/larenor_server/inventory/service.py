@@ -20,8 +20,9 @@ from .models import (
 
 
 class InventoryRegistry:
-    def __init__(self, db, auth, settings, key, context):
+    def __init__(self, db, auth, settings, key, context, resources, blobs):
         self.db, self.auth, self.settings, self._key = db, auth, settings, key
+        self.resources, self.blobs = resources, blobs
         self.scope = HomeScope.model_validate(context.model_dump())
         self._cipher = AESGCM(key)
 
@@ -127,21 +128,17 @@ class InventoryRegistry:
         if links.deviceId is not None:
             expected.append((links.deviceId, "resource"))
         for identity, kind in expected:
-            row = connection.execute(
-                "SELECT kind FROM home_resource_records WHERE id=?", (identity,)
-            ).fetchone()
-            if row is None or row["kind"] != kind:
-                raise ApiError(missing, 404 if missing == "not_found" else 400)
+            self.resources.validate_reference(
+                connection, identity, kind, missing=missing
+            )
         for identity in links.documentIds:
-            row = connection.execute(
-                "SELECT o.core_id,o.home_id,r.kind FROM bounded_blob_objects o "
-                "JOIN home_resource_records r ON r.id=o.resource_id WHERE o.resource_id=?",
-                (identity,),
-            ).fetchone()
-            if row is None or row["kind"] != "resource" or (
-                row["core_id"], row["home_id"]
-            ) != (self.scope.coreId, self.scope.homeId):
-                raise ApiError(missing, 404 if missing == "not_found" else 400)
+            self.resources.validate_reference(
+                connection, identity, "resource", missing=missing
+            )
+            self.blobs.validate_reference(
+                connection, self.scope.coreId, self.scope.homeId, identity,
+                missing=missing,
+            )
 
     def _audit_state(self, connection):
         rows = connection.execute("SELECT * FROM inventory_audit_state LIMIT 2").fetchall()
@@ -290,6 +287,7 @@ class InventoryRegistry:
                 row = self._row(connection, item_id)
                 stored = self._decode(row)
                 self._visible(actor_row, row, stored)
+                self._validate_audit(connection)
                 self._validate_links(connection, stored.links, missing="not_found")
                 return {"item": self._public(row, stored)}
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):

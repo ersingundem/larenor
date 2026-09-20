@@ -232,6 +232,30 @@ class ProductBlobStore:
         except (InvalidTag, sqlite3.Error, ValueError, TypeError, OverflowError):
             raise ApiError("server_unavailable", 503) from None
 
+    def validate_reference(self, connection, core_id, home_id, resource_id, *, missing):
+        """Verify the encrypted object and its immutable upload receipt in-place."""
+        if missing not in {"invalid_request", "not_found"}:
+            raise ApiError("invalid_request")
+        row = connection.execute(
+            "SELECT * FROM bounded_blob_objects WHERE resource_id=?", (resource_id,)
+        ).fetchone()
+        if row is None:
+            raise ApiError(missing, 404 if missing == "not_found" else 400)
+        self._decode_object(row)
+        receipt = connection.execute(
+            "SELECT * FROM bounded_blob_uploads WHERE request_id=?", (row["request_id"],)
+        ).fetchone()
+        if receipt is None:
+            raise ValueError("missing_object_upload")
+        self._verify_upload(receipt)
+        if (row["core_id"], row["home_id"]) != (core_id, home_id) or any(
+            receipt[key] != row[key] for key in (
+                "core_id", "home_id", "resource_id", "service_revision",
+                "content_length", "sha256", "content_type", "created_at", "updated_at",
+            )
+        ):
+            raise ValueError("object_upload_mismatch")
+
     def replay(self, actor, core_id, home_id, resource_id, request_id, envelope):
         try:
             with self.db.connection() as connection:
