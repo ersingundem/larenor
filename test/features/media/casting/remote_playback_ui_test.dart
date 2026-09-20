@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/casting/domain/remote_playback_models.dart';
 import 'package:larenor/features/media/casting/presentation/remote_playback_button.dart';
 import 'package:larenor/features/media/casting/presentation/remote_playback_screen.dart';
@@ -10,6 +12,7 @@ import 'package:larenor/features/media/casting/providers/remote_playback_provide
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'remote_playback_fixture.dart';
 
@@ -48,6 +51,7 @@ Future<void> _frames(WidgetTester tester) async {
 
 class _Harness {
   final api = FakeRemoteApi();
+  final interaction = AppInteractionController();
   final visible = ValueNotifier(true);
   final currentItem = ValueNotifier(itemId);
   late ProviderContainer container;
@@ -57,6 +61,7 @@ class _Harness {
     bool button = false,
     Size size = const Size(600, 1100),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.physicalSize = size;
@@ -71,32 +76,38 @@ class _Harness {
       ],
     );
     addTearDown(container.dispose);
+    addTearDown(interaction.dispose);
     addTearDown(visible.dispose);
     addTearDown(currentItem.dispose);
     await container.read(jellyfinConnectionProvider.future);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: CupertinoApp(
-          locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: ValueListenableBuilder(
-            valueListenable: visible,
-            builder: (context, value, _) => TickerMode(
-              enabled: value,
-              child: ValueListenableBuilder(
-                valueListenable: currentItem,
-                builder: (context, id, _) => button
-                    ? CupertinoPageScaffold(
-                        child: Center(child: RemotePlaybackButton(itemId: id)),
-                      )
-                    : RemotePlaybackScreen(itemId: id),
+        child: AppInteractionScope(
+          controller: interaction,
+          child: CupertinoApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: ValueListenableBuilder(
+              valueListenable: visible,
+              builder: (context, value, _) => TickerMode(
+                enabled: value,
+                child: ValueListenableBuilder(
+                  valueListenable: currentItem,
+                  builder: (context, id, _) => button
+                      ? CupertinoPageScaffold(
+                          child: Center(
+                            child: RemotePlaybackButton(itemId: id),
+                          ),
+                        )
+                      : RemotePlaybackScreen(itemId: id),
+                ),
               ),
             ),
           ),
@@ -233,6 +244,164 @@ void main() {
     await h.unmount(tester);
   });
 
+  testWidgets('idle retires captured target and refresh callbacks', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    final target = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-target-remote-session')),
+        )
+        .onPressed!;
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-refresh')),
+        )
+        .onPressed!;
+    h.interaction.setActive(false);
+    h.interaction.setActive(true);
+    await _frames(tester);
+    target();
+    refresh();
+    await _frames(tester);
+    expect(h.api.itemReads, 0);
+    expect(h.api.reads, 1);
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-target-remote-session')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(h.api.itemReads, 1);
+    await h.unmount(tester);
+  });
+
+  testWidgets(
+    'idle suspends discovery and exposes only a fresh receiver snapshot after wake',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester);
+      expect(h.api.reads, 1);
+      h.interaction.setActive(false);
+      await _frames(tester);
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('remote-playback-refresh')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(find.text('Living room TV'), findsNothing);
+      await tester.pump(const Duration(minutes: 5));
+      expect(h.api.reads, 1);
+
+      h.interaction.setActive(true);
+      await _frames(tester);
+      expect(h.api.reads, 2);
+      expect(find.text('Living room TV'), findsOneWidget);
+      expect(h.api.commands, isEmpty);
+      await h.unmount(tester);
+    },
+  );
+
+  testWidgets('loading and empty discovery states are announced distinctly', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final h = _Harness();
+    h.api.targetGate = Completer<void>();
+    h.api.targets = [];
+    try {
+      await h.mount(tester);
+      final l10n = h.labels(tester);
+      final loading = find.byKey(
+        const ValueKey('remote-playback-loading-status'),
+      );
+      expect(tester.getSemantics(loading).label, l10n.commonLoading);
+      expect(tester.getSemantics(loading).flagsCollection.isLiveRegion, isTrue);
+      final evidence = find.byKey(const ValueKey('connection-evidence-status'));
+      expect(
+        tester.getSemantics(evidence).label,
+        contains(l10n.healthConnecting),
+      );
+      expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
+
+      h.api.targetGate!.complete();
+      await _frames(tester);
+      final empty = find.byKey(const ValueKey('remote-playback-empty-status'));
+      expect(tester.getSemantics(empty).label, l10n.mediaRemoteEmpty);
+      expect(tester.getSemantics(empty).flagsCollection.isLiveRegion, isTrue);
+      expect(
+        tester.getSemantics(evidence).label,
+        contains(l10n.healthReadCurrent),
+      );
+      expect(find.text(l10n.commonLoading), findsNothing);
+    } finally {
+      semantics.dispose();
+      await h.unmount(tester);
+    }
+  });
+
+  for (final actionKey in const [
+    'remote-playback-refresh',
+    'remote-playback-target-remote-session',
+  ]) {
+    testWidgets('offstage $actionKey cannot clear the current failure', (
+      tester,
+    ) async {
+      final h = _Harness();
+      h.api.itemError = TimeoutException('fixture preflight');
+      await h.mount(tester);
+      await h.select(tester);
+      final l10n = h.labels(tester);
+      final failure = remotePlaybackFailureLabel(
+        l10n,
+        RemotePlaybackFailure.timeout,
+      );
+      expect(find.text(failure), findsOneWidget);
+      final stale = tester
+          .widget<CupertinoButton>(find.byKey(ValueKey(actionKey)))
+          .onPressed!;
+
+      h.visible.value = false;
+      await _frames(tester);
+      stale();
+      await _frames(tester);
+      h.visible.value = true;
+      await _frames(tester);
+
+      expect(find.text(failure), findsOneWidget);
+      expect(h.api.itemReads, 1);
+      expect(h.api.commands, isEmpty);
+      await h.unmount(tester);
+    });
+  }
+
+  testWidgets('offstage playback launcher cannot open a receiver route', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester, button: true);
+    final launch = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('media-remote-play')),
+        )
+        .onPressed!;
+    h.visible.value = false;
+    await _frames(tester);
+    launch();
+    await _frames(tester);
+    h.visible.value = true;
+    await _frames(tester);
+
+    expect(find.byType(RemotePlaybackScreen), findsNothing);
+    expect(h.api.reads, 0);
+    expect(h.api.itemReads, 0);
+  });
+
   for (final invalidation in ['account', 'background', 'item']) {
     testWidgets('$invalidation change invalidates an open approval callback', (
       tester,
@@ -317,6 +486,7 @@ void main() {
   testWidgets(
     'discovery failure is visible and does not masquerade as empty clients',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final h = _Harness();
       h.api.targetError = TimeoutException('fixture discovery');
       await h.mount(tester);
@@ -330,6 +500,9 @@ void main() {
       expect(find.text(l10n.mediaRemoteEmpty), findsNothing);
       expect(find.text(l10n.mediaRemoteUnconfirmed), findsNothing);
       expect(find.text('Living room TV'), findsNothing);
+      final status = find.byKey(const ValueKey('connection-evidence-status'));
+      expect(tester.getSemantics(status).label, isNotEmpty);
+      expect(tester.getSemantics(status).flagsCollection.isLiveRegion, isTrue);
       await tester.pump(const Duration(minutes: 1));
       expect(h.api.reads, 1);
       expect(h.api.commands, isEmpty);
@@ -338,6 +511,7 @@ void main() {
       await _frames(tester);
       expect(h.api.reads, 2);
       expect(find.text('Living room TV'), findsOneWidget);
+      semantics.dispose();
       await h.unmount(tester);
     },
   );
@@ -460,6 +634,59 @@ void main() {
       await h.unmount(tester);
     },
   );
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'remote playback uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          try {
+            await h.mount(
+              tester,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = h.labels(tester);
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('remote-playback-devices-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.mediaRemoteDevice);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final target = find.byKey(
+              const ValueKey('remote-playback-target-remote-session'),
+            );
+            final targetNode = tester.getSemantics(target);
+            expect(targetNode.label, contains('Living room TV'));
+            expect(targetNode.flagsCollection.isButton, isTrue);
+            expect(targetNode.rect.width, greaterThanOrEqualTo(48));
+            expect(targetNode.rect.height, greaterThanOrEqualTo(48));
+
+            final targetLabel = find.descendant(
+              of: target,
+              matching: find.text('Living room TV'),
+            );
+            Focus.of(tester.element(targetLabel)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await _frames(tester);
+            await tester.pump(const Duration(milliseconds: 250));
+            expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
 
   for (final device in [
     (name: 'phone', size: const Size(320, 1000), scale: 2.0),

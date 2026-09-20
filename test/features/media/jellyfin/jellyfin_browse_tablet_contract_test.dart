@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_library_screen.dart';
@@ -10,6 +12,7 @@ import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dar
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/poster_card.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _folder = JellyfinItem(
   id: 'documentaries',
@@ -17,39 +20,63 @@ const _folder = JellyfinItem(
   type: 'Folder',
 );
 
+class _Connection extends JellyfinConnection {
+  @override
+  Future<JellyfinConfig?> build() async => const JellyfinConfig(
+    baseUrl: 'https://jellyfin.test',
+    userId: '11111111111111111111111111111111',
+    accessToken: 'first-account-token',
+    deviceId: 'tablet',
+  );
+
+  void replace() => state = const AsyncData(
+    JellyfinConfig(
+      baseUrl: 'https://jellyfin.test',
+      userId: '22222222222222222222222222222222',
+      accessToken: 'replacement-account-token',
+      deviceId: 'tablet',
+    ),
+  );
+}
+
 Future<void> _mount(
   WidgetTester tester, {
   required double width,
   required String language,
   Object? libraryError,
+  _Connection? connection,
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  Widget app = CupertinoApp(
+    theme: larenorTheme(),
+    locale: Locale(language),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: const TextScaler.linear(2)),
+      child: child!,
+    ),
+    home: const JellyfinLibraryScreen(parentId: 'library', title: 'Library'),
+  );
+  if (interaction != null) {
+    app = AppInteractionScope(controller: interaction, child: app);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (connection != null)
+          jellyfinConnectionProvider.overrideWith(() => connection),
         jellyfinClientProvider.overrideWith((ref) => null),
         jellyfinLibraryItemsProvider('library').overrideWith((ref) async {
           if (libraryError != null) throw libraryError;
           return const [_folder];
         }),
       ],
-      child: CupertinoApp(
-        theme: larenorTheme(),
-        locale: Locale(language),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(2)),
-          child: child!,
-        ),
-        home: const JellyfinLibraryScreen(
-          parentId: 'library',
-          title: 'Library',
-        ),
-      ),
+      child: app,
     ),
   );
   await tester.pumpAndSettle();
@@ -69,8 +96,77 @@ Future<void> _tabToPoster(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'idle disables Jellyfin item actions and retires captured navigation',
+    (tester) async {
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await _mount(
+        tester,
+        width: 600,
+        language: 'en',
+        interaction: interaction,
+      );
+      await _tabToPoster(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final action = find.byKey(const ValueKey('jellyfin-item-primary-action'));
+      final stale = tester.widget<CupertinoButton>(action).onPressed!;
+
+      interaction.setActive(false);
+      await tester.pump();
+      expect(tester.widget<CupertinoButton>(action).onPressed, isNull);
+      stale();
+      await tester.pumpAndSettle();
+      expect(find.byType(JellyfinLibraryScreen), findsNothing);
+
+      interaction.setActive(true);
+      await tester.pump();
+      expect(tester.widget<CupertinoButton>(action).onPressed, isNotNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'retained item action cannot open after Jellyfin account change',
+    (tester) async {
+      final connection = _Connection();
+      await _mount(tester, width: 600, language: 'en', connection: connection);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JellyfinLibraryScreen)),
+      );
+      final subscription = container.listen(
+        jellyfinConnectionProvider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await container.read(jellyfinConnectionProvider.future);
+      await _tabToPoster(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      final action = tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('jellyfin-item-primary-action')),
+          )
+          .onPressed!;
+
+      connection.replace();
+      await tester.pumpAndSettle();
+      action();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JellyfinItemDetailScreen), findsOneWidget);
+      expect(find.byType(JellyfinLibraryScreen), findsNothing);
+      expect(find.text(_folder.name), findsNothing);
+      expect(
+        find.text('The media connection changed. Open this title again.'),
+        findsOneWidget,
+      );
+    },
+  );
+
   for (final language in ['en', 'tr']) {
-    for (final width in [600.0, 1280.0]) {
+    for (final width in [600.0, 1200.0]) {
       testWidgets('Jellyfin browse drill-down uses the shared tablet surface '
           '$language $width 2x', (tester) async {
         final semantics = tester.ensureSemantics();
@@ -94,10 +190,33 @@ void main() {
           final l10n = AppLocalizations.of(
             tester.element(find.byType(JellyfinItemDetailScreen)),
           );
-          final browse = find.text(l10n.jellyfinBrowseButton);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          final heading = find.byKey(
+            const ValueKey('jellyfin-item-detail-title'),
+          );
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.label, _folder.name);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          final browse = find.byKey(
+            const ValueKey('jellyfin-item-primary-action'),
+          );
           final browseNode = tester.getSemantics(browse);
+          expect(browseNode.label, l10n.jellyfinBrowseButton);
           expect(browseNode.flagsCollection.isButton, isTrue);
+          expect(browseNode.rect.width, greaterThanOrEqualTo(48));
           expect(browseNode.rect.height, greaterThanOrEqualTo(48));
+
+          final browseLabel = find.descendant(
+            of: browse,
+            matching: find.text(l10n.jellyfinBrowseButton),
+          );
+          Focus.of(tester.element(browseLabel)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(JellyfinLibraryScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         } finally {
           semantics.dispose();

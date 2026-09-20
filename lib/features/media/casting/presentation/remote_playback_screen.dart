@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/connection_evidence_status.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
+import '../../../health/data/connection_evidence.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/presentation/health_labels.dart';
 import '../../hub/presentation/media_session_state.dart';
@@ -43,6 +46,51 @@ String remotePlaybackFailureLabel(
   RemotePlaybackFailure.busy => l10n.mediaRemoteBusy,
 };
 
+ConnectionEvidence _remotePlaybackEvidence({
+  required bool configured,
+  required bool loading,
+  required bool readFailed,
+  required RemotePlaybackSnapshot? snapshot,
+}) {
+  if (!configured || snapshot?.configured == false) {
+    return const ConnectionEvidence.none();
+  }
+  final verifiedAt = snapshot?.readAt;
+  final stage = verifiedAt == null
+      ? ConnectionEvidenceStage.saved
+      : ConnectionEvidenceStage.verified;
+  if (loading || snapshot?.isLoading == true) {
+    return verifiedAt == null
+        ? const ConnectionEvidence.connecting()
+        : ConnectionEvidence.retrying(stage: stage, lastVerifiedAt: verifiedAt);
+  }
+  if (readFailed) {
+    return ConnectionEvidence.error(stage: stage, lastVerifiedAt: verifiedAt);
+  }
+  final failure = snapshot?.failure;
+  if (failure != null) {
+    return switch (failure) {
+      RemotePlaybackFailure.authentication =>
+        ConnectionEvidence.authenticationRequired(
+          stage: stage,
+          lastVerifiedAt: verifiedAt,
+        ),
+      RemotePlaybackFailure.permission => ConnectionEvidence.permissionDenied(
+        stage: stage,
+        lastVerifiedAt: verifiedAt,
+      ),
+      RemotePlaybackFailure.transport ||
+      RemotePlaybackFailure.timeout => ConnectionEvidence.unavailable(
+        stage: stage,
+        lastVerifiedAt: verifiedAt,
+      ),
+      _ => ConnectionEvidence.error(stage: stage, lastVerifiedAt: verifiedAt),
+    };
+  }
+  if (verifiedAt != null) return ConnectionEvidence.verified(verifiedAt);
+  return const ConnectionEvidence.saved();
+}
+
 class RemotePlaybackScreen extends ConsumerStatefulWidget {
   const RemotePlaybackScreen({super.key, required this.itemId});
   final String itemId;
@@ -75,21 +123,23 @@ class _RemotePlaybackScreenState
     if (route?.isActive == true) route!.navigator?.removeRoute(route);
   }
 
-  bool _current(int generation, RemotePlaybackController controller) =>
+  bool _surfaceCurrent(int generation) =>
       sessionCurrent(generation) &&
       TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent == true ||
+          _confirmation?.isCurrent == true);
+
+  bool _current(int generation, RemotePlaybackController controller) =>
+      _surfaceCurrent(generation) &&
       identical(ref.read(remotePlaybackControllerProvider), controller);
 
   Future<void> _select(RemotePlaybackTarget target) async {
-    if (!foreground ||
-        sessionExpired ||
-        _preparing != null ||
-        ModalRoute.of(context)?.isCurrent != true) {
+    final generation = sessionGeneration;
+    if (!_surfaceCurrent(generation) || _preparing != null || !mounted) {
       return;
     }
     final controller = ref.read(remotePlaybackControllerProvider);
     if (controller == null) return;
-    final generation = sessionGeneration;
     final l10n = AppLocalizations.of(context);
     setState(() {
       _preparing = target.sessionId;
@@ -161,187 +211,182 @@ class _RemotePlaybackScreenState
   Widget build(BuildContext context) {
     watchMediaAccounts(jellyfinOnly: true);
     final l10n = AppLocalizations.of(context);
-    final active =
-        foreground && !sessionExpired && TickerMode.valuesOf(context).enabled;
+    final generation = sessionGeneration;
+    final active = _surfaceCurrent(generation);
+    final configured = ref.watch(remotePlaybackControllerProvider) != null;
     final reading = active ? ref.watch(remotePlaybackProvider) : null;
     final snapshot = reading == null || reading.isLoading || reading.hasError
         ? null
         : reading.value;
     final busy = _preparing != null || snapshot?.isBusy == true;
+    final evidence = _remotePlaybackEvidence(
+      configured: configured,
+      loading: reading?.isLoading == true,
+      readFailed: reading?.hasError == true,
+      snapshot: snapshot,
+    );
     final receipt =
         snapshot?.receipt?.itemId ==
             widget.itemId.replaceAll('-', '').toLowerCase()
         ? snapshot?.receipt
         : null;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.mediaRemoteTitle),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(CupertinoIcons.tv, size: 36),
-                        const SizedBox(height: 16),
-                        Text(l10n.mediaRemoteHint, style: AppText.body),
-                        const SizedBox(height: 16),
-                        if (sessionExpired)
-                          Text(l10n.mediaRemoteAccountChanged)
-                        else if (reading?.hasError == true)
-                          Text(l10n.healthReadError)
-                        else if (reading?.isLoading == true ||
-                            snapshot?.isLoading == true)
-                          const CupertinoActivityIndicator()
-                        else if (snapshot?.configured == false)
-                          Text(l10n.commonNotConnected)
-                        else if (snapshot != null &&
-                            snapshot.targets.isEmpty &&
-                            snapshot.failure == null)
-                          Text(l10n.mediaRemoteEmpty),
-                        if (_error != null)
-                          Text(_error!)
-                        else if (snapshot?.outcomeUnknown == true)
-                          Text(l10n.mediaRemoteUnconfirmed)
-                        else if (snapshot?.failure != null)
-                          Text(
-                            remotePlaybackFailureLabel(
-                              l10n,
-                              snapshot!.failure!,
-                            ),
-                          ),
-                        if (snapshot?.readAt != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              l10n.healthLastSuccessfulRead(
-                                DateFormat.yMd(l10n.localeName)
-                                    .add_Hms()
-                                    .format(snapshot!.readAt!.toLocal()),
-                              ),
-                              style: AppText.footnote,
-                            ),
-                          ),
-                        CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed:
-                              !active || busy || snapshot?.isLoading == true
-                              ? null
-                              : () {
-                                  setState(() => _error = null);
-                                  ref
-                                      .read(remotePlaybackControllerProvider)
-                                      ?.refresh();
-                                },
-                          child: Text(l10n.commonRefresh),
-                        ),
-                      ],
+    return ServiceRootScaffold(
+      title: l10n.mediaRemoteTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('remote-playback-devices-heading'),
+              container: true,
+              header: true,
+              child: Text(l10n.mediaRemoteDevice),
+            ),
+            footer: Text(l10n.mediaRemoteHint),
+            children: [
+              if (!sessionExpired)
+                CupertinoListTile(
+                  title: ConnectionEvidenceStatus(evidence: evidence),
+                ),
+              if (sessionExpired)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-account-status'),
+                  label: l10n.mediaRemoteAccountChanged,
+                )
+              else if (reading?.hasError == true)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-read-status'),
+                  label: l10n.healthReadError,
+                )
+              else if (reading?.isLoading == true ||
+                  snapshot?.isLoading == true)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-loading-status'),
+                  label: l10n.commonLoading,
+                  loading: true,
+                )
+              else if (snapshot?.configured == false)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-connection-status'),
+                  label: l10n.commonNotConnected,
+                )
+              else if (snapshot != null &&
+                  snapshot.targets.isEmpty &&
+                  snapshot.failure == null)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-empty-status'),
+                  label: l10n.mediaRemoteEmpty,
+                ),
+              if (_error != null)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-action-status'),
+                  label: _error!,
+                )
+              else if (snapshot?.outcomeUnknown == true)
+                _RemotePlaybackStatus(
+                  key: const ValueKey('remote-playback-action-status'),
+                  label: l10n.mediaRemoteUnconfirmed,
+                ),
+              if (snapshot?.readAt != null)
+                CupertinoListTile(
+                  title: Text(
+                    l10n.healthLastSuccessfulRead(
+                      DateFormat.yMd(l10n.localeName)
+                          .add_Hms()
+                          .format(snapshot!.readAt!.toLocal()),
                     ),
                   ),
                 ),
-                if (receipt != null)
-                  SliverToBoxAdapter(
-                    child: _Card(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(receipt.target.name, style: AppText.headline),
-                          const SizedBox(height: 8),
-                          Text(switch (receipt.status) {
-                            RemotePlaybackReceiptStatus.accepted =>
-                              l10n.mediaRemoteAccepted,
-                            RemotePlaybackReceiptStatus.observed =>
-                              l10n.mediaRemoteObserved,
-                            RemotePlaybackReceiptStatus.unconfirmed =>
-                              l10n.mediaRemoteUnconfirmed,
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (snapshot != null)
-                  SliverList.builder(
-                    itemCount: snapshot.targets.length,
-                    itemBuilder: (context, index) {
-                      final target = snapshot.targets[index];
-                      return _Card(
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed:
-                              busy ||
-                                  snapshot.failure != null ||
-                                  snapshot.isLoading ||
-                                  !active
-                              ? null
-                              : () => _select(target),
-                          child: Row(
-                            children: [
-                              const Icon(CupertinoIcons.tv),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      target.name,
-                                      style: AppText.headline.copyWith(
-                                        color: CupertinoColors.label
-                                            .resolveFrom(context),
-                                      ),
-                                    ),
-                                    Text(
-                                      target.client,
-                                      style: AppText.footnote.copyWith(
-                                        color: CupertinoColors.secondaryLabel
-                                            .resolveFrom(context),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_preparing == target.sessionId)
-                                const CupertinoActivityIndicator()
-                              else
-                                const Icon(
-                                  CupertinoIcons.chevron_forward,
-                                  size: 16,
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SettingsActionTile(
+                buttonKey: const ValueKey('remote-playback-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: !active || busy || snapshot?.isLoading == true
+                    ? null
+                    : () {
+                        final controller = ref.read(
+                          remotePlaybackControllerProvider,
+                        );
+                        if (controller == null ||
+                            !_current(generation, controller)) {
+                          return;
+                        }
+                        setState(() => _error = null);
+                        controller.refresh();
+                      },
+              ),
+            ],
+          ),
+        ),
+        if (receipt != null)
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              children: [
+                CupertinoListTile(
+                  title: Text(receipt.target.name),
+                  subtitle: Text(switch (receipt.status) {
+                    RemotePlaybackReceiptStatus.accepted =>
+                      l10n.mediaRemoteAccepted,
+                    RemotePlaybackReceiptStatus.observed =>
+                      l10n.mediaRemoteObserved,
+                    RemotePlaybackReceiptStatus.unconfirmed =>
+                      l10n.mediaRemoteUnconfirmed,
+                  }),
+                ),
               ],
             ),
           ),
-        ),
-      ),
+        if (snapshot != null)
+          SliverList.builder(
+            itemCount: snapshot.targets.length,
+            itemBuilder: (context, index) {
+              final target = snapshot.targets[index];
+              return SettingsSection(
+                children: [
+                  SettingsActionTile(
+                    buttonKey: ValueKey(
+                      'remote-playback-target-${target.sessionId}',
+                    ),
+                    leading: _preparing == target.sessionId
+                        ? const CupertinoActivityIndicator()
+                        : const Icon(CupertinoIcons.tv),
+                    title: Text(target.name),
+                    additionalInfo: Text(target.client),
+                    onTap:
+                        busy ||
+                            snapshot.failure != null ||
+                            snapshot.isLoading ||
+                            !active
+                        ? null
+                        : guardedMediaAction(() => _select(target)),
+                  ),
+                ],
+              );
+            },
+          ),
+      ],
     );
   }
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.child});
-  final Widget child;
+class _RemotePlaybackStatus extends StatelessWidget {
+  const _RemotePlaybackStatus({
+    super.key,
+    required this.label,
+    this.loading = false,
+  });
+
+  final String label;
+  final bool loading;
+
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
-        context,
-      ),
-      borderRadius: BorderRadius.circular(20),
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: label,
+    excludeSemantics: true,
+    child: CupertinoListTile(
+      title: Text(label),
+      trailing: loading ? const CupertinoActivityIndicator() : null,
     ),
-    child: child,
   );
 }
