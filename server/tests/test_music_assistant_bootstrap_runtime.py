@@ -53,7 +53,8 @@ class Connection:
 
 
 def rpc(step, result):
-    return Response({'message_id': INSTALLATION + '-' + step, 'result': result})
+    del step
+    return Response(result)
 
 
 def valid_responses():
@@ -103,6 +104,20 @@ def test_creates_internal_admin_long_token_and_verified_readback_once():
     assert PASSWORD not in repr(result)
     assert SHORT_TOKEN not in repr(result)
     assert LONG_TOKEN not in repr(result)
+
+
+def test_http_api_result_must_not_be_interpreted_as_websocket_envelope():
+    responses = valid_responses()
+    responses[1] = Response({
+        'message_id': INSTALLATION + '-long-token',
+        'result': LONG_TOKEN,
+    })
+    with pytest.raises(MusicAssistantBootstrapRuntimeError) as raised:
+        runtime(responses, []).create(
+            installation_id=INSTALLATION, username=USERNAME,
+            credential=PASSWORD, deadline=time.monotonic() + 2)
+    assert str(raised.value) == 'music_assistant_bootstrap_uncertain'
+    assert LONG_TOKEN not in str(raised.value) + repr(raised.value)
 
 
 @pytest.mark.parametrize('token', [

@@ -138,13 +138,15 @@ class MusicAssistantBootstrapRuntime:
             'command': command,
             'args': args,
         }, token, deadline, cancelled, gate)
-        if (status != 200 or type(value) is not dict
-                or set(value) != {'message_id', 'result'}
-                or value['message_id'] != installation_id + '-' + step):
+        # The 2.10.2 HTTP JSON-RPC adapter serializes the command result
+        # directly. Message envelopes are used by its WebSocket transport, not
+        # by POST /api. Each caller below applies the exact result validator for
+        # its command before another effect is allowed.
+        if status != 200:
             raise MusicAssistantBootstrapRuntimeError(
                 'music_assistant_bootstrap_uncertain',
                 uncertain_effect=True)
-        return value['result']
+        return value
 
     @staticmethod
     def _user(value, username, expected_id=None):
