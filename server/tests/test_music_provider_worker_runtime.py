@@ -35,9 +35,7 @@ class Connection:
         self.calls.append((method, path, parsed, headers))
 
     def getresponse(self):
-        command = self.calls[-1][2]
-        return Response({'message_id': command['message_id'],
-                         'result': self.responses.pop(0)})
+        return Response(self.responses.pop(0))
 
     def close(self):
         pass

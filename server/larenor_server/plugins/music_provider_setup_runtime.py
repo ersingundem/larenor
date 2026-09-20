@@ -48,13 +48,11 @@ class MusicProviderSetupRuntime:
             raw = response.read(65537)
             if response.status != 200 or len(raw) > 65536:
                 raise ValueError()
+            # Music Assistant 2.10.2 POST /api returns the command result
+            # directly; only its WebSocket transport adds result envelopes.
             parsed = json.loads(raw)
-            if (type(parsed) is not dict
-                    or parsed.get('message_id') != message_id
-                    or set(parsed) != {'message_id', 'result'}):
-                raise ValueError()
             self._check(deadline, cancelled)
-            return parsed['result']
+            return parsed
         except MusicProviderSetupRuntimeError:
             raise
         except Exception:

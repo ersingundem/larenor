@@ -52,6 +52,7 @@ _ACCEPTANCE_SOURCE_FILES = (
     "server/tests/test_music_assistant_core_wiring.py",
     "server/tests/test_music_provider_setups.py",
     "server/tests/test_music_provider_worker_runtime.py",
+    "server/tests/test_music_playback_runtime.py",
 )
 _DIAGNOSTIC_PHASES = {
     "resource_prepare": "music_assistant_resource_prepare_failed",

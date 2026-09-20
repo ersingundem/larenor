@@ -81,7 +81,7 @@
         },
         {
           "name": "Verify durable bootstrap and encrypted Core contracts",
-          "run": "PYTHONPATH=server uv run --project server --locked python -m pytest -q server/tests/test_music_assistant_bootstrap_jobs.py server/tests/test_music_assistant_bootstrap_runtime.py server/tests/test_music_assistant_core_wiring.py server/tests/test_music_provider_setups.py server/tests/test_music_provider_worker_runtime.py",
+          "run": "PYTHONPATH=server uv run --project server --locked python -m pytest -q server/tests/test_music_assistant_bootstrap_jobs.py server/tests/test_music_assistant_bootstrap_runtime.py server/tests/test_music_assistant_core_wiring.py server/tests/test_music_provider_setups.py server/tests/test_music_provider_worker_runtime.py server/tests/test_music_playback_runtime.py",
           "if": "steps.scope.outputs.run == 'true'"
         },
         {
