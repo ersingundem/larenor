@@ -21,6 +21,7 @@ import '../domain/server_models.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
 import '../providers/server_providers.dart';
 import '../services/presentation/server_services_screen.dart';
+import '../tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'server_vault_screen.dart';
 
 /// Account management is reached through SettingsGate. First-install access
@@ -619,6 +620,33 @@ class _ServerConnectionScreenState
                                             CupertinoPageRoute(
                                               builder: (_) =>
                                                   const ServerPluginsScreen(),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-tablet-fleet',
+                                  ),
+                                  leading: const Icon(
+                                    CupertinoIcons.device_phone_portrait,
+                                  ),
+                                  title: Text(l10n.serverTabletFleetTitle),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  const ServerTabletFleetScreen(),
                                             ),
                                           );
                                         })

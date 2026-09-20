@@ -329,8 +329,19 @@ class LarenorServerApi {
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
           revisionNumber < 9223372036854775807;
+      final tabletFleetRevokeQuery =
+          method == 'DELETE' &&
+          RegExp(
+            r'^/tablet-fleet/[0-9a-f]{32}/[0-9a-f]{32}/devices/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          revision != null &&
+          RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
+          revisionNumber != null &&
+          revisionNumber <= 9223372036854775807;
       if (!readQuery &&
           !forgetQuery &&
+          !tabletFleetRevokeQuery &&
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&
@@ -513,6 +524,7 @@ class LarenorServerApi {
             'media_preparation_storage_unavailable',
             'media_inspection_storage_unavailable',
             'media_archive_worker_unavailable',
+            'tablet_fleet_storage_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -544,6 +556,16 @@ class LarenorServerApi {
             'notification_not_delivered',
             'notification_event_conflict',
             'notification_limit_reached',
+            'tablet_device_changed',
+            'tablet_device_inactive',
+            'tablet_profile_changed',
+            'tablet_registration_replay',
+            'tablet_capability_unavailable',
+            'tablet_command_conflict',
+            'tablet_command_not_delivered',
+            'tablet_command_changed',
+            'tablet_limit_reached',
+            'tablet_command_limit_reached',
           }.contains(code)) {
         return code as String;
       }
