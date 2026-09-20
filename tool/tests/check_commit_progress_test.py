@@ -109,6 +109,8 @@ class CheckCommitProgressTest(unittest.TestCase):
             queue.write_text(
                 (ROOT / 'docs/execution-queue.json').read_text())
             original = check_commit_progress.expected_progress(queue)
+            self._git(repo, 'add', 'docs/execution-queue.json')
+            self._git(repo, 'commit', '-q', '-m', 'queue base')
             head = self._commit(repo, 'feature', self._message(
                 'feature commit', *original.queue, *original.feature))
             queue.write_text('{}')

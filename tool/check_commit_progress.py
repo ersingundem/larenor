@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 
 import execution_queue
 
@@ -121,6 +122,48 @@ def expected_progress(queue_path):
         (counts['featuresDone'], counts['featuresTotal']))
 
 
+def expected_progress_at(repo, head, queue_path):
+    """Read the expected queue from the immutable pull-request head tree.
+
+    GitHub checks pull requests from a synthetic merge checkout. Reading the
+    working tree there makes an unrelated main-branch queue advance invalidate
+    an otherwise current pull-request trailer. Repository-owned queue files are
+    therefore resolved from `head`; explicit external fixtures keep their
+    existing file-based behavior.
+    """
+    repo = repo.resolve()
+    queue_path = queue_path.resolve()
+    try:
+        relative = queue_path.relative_to(repo)
+    except ValueError:
+        return expected_progress(queue_path)
+    resolved = subprocess.run(
+        ['git', 'rev-parse', '--verify', '--end-of-options',
+         f'{head}^{{commit}}'],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    resolved_head = resolved.stdout.strip()
+    if (resolved.returncode != 0
+            or not re.fullmatch(r'[0-9a-f]{40}', resolved_head)):
+        raise ProgressCheckError('invalid_head_ref')
+    with tempfile.TemporaryDirectory() as directory:
+        snapshot = Path(directory) / 'execution-queue.json'
+        with snapshot.open('wb') as output:
+            completed = subprocess.run(
+                ['git', 'show', f'{resolved_head}:{relative.as_posix()}'],
+                cwd=repo,
+                stdout=output,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        if completed.returncode != 0:
+            raise ProgressCheckError('invalid_queue_ref')
+        return expected_progress(snapshot)
+
+
 def main(argv=None, stdout=None, stderr=None):
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
@@ -136,7 +179,10 @@ def main(argv=None, stdout=None, stderr=None):
         args = parser.parse_args(argv)
         entries = read_progress_entries(args.repo, args.base, args.head)
         history = [entry.values for entry in entries]
-        validate_sequence(history, expected_progress(args.queue))
+        validate_sequence(
+            history,
+            expected_progress_at(args.repo, args.head, args.queue),
+        )
         stdout.write(f'Commit ilerleme kapısı: {len(history)} commit doğrulandı.\n')
         report = format_report(entries)
         stdout.write(report)
