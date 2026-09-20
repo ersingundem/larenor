@@ -1,5 +1,7 @@
 """S08.10 resumable download, explicit cancellation, and lease cleanup."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 import uuid
 
 import pytest
@@ -229,6 +231,69 @@ def test_resume_requires_exact_interrupted_receipt_and_never_leaks_a_lease(
         with pytest.raises(ApiError, match="revision_conflict"):
             _open(app.state.core, actor, record, replay)
 
+        assert app.state.core.bounded_transfers._active == 0
+        assert not app.state.core.bounded_transfers._active_by_actor
+        assert not app.state.core.bounded_transfers._active_requests
+
+
+def test_cancel_cannot_cross_acceptance_and_active_lease_publication(
+    tmp_path, monkeypatch
+):
+    app, settings, clock, provider = fixture(
+        tmp_path, limits=TransferLimits(chunk_bytes=3)
+    )
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        identity = record["ref"]["id"]
+        provider.blobs[identity] = BlobDescriptor(
+            identity, 1, "audio/mpeg", b"abcdefghi"
+        )
+        actor = app.state.core.auth.authenticate(admin["accessToken"])
+        values = request_body(app, admin, record)
+        accepted = Event()
+        release_accept = Event()
+        cancel_reached_receipts = Event()
+        original_accept = app.state.core.bounded_transfers.receipts.accept
+        original_cancel = app.state.core.bounded_transfers.receipts.cancel
+
+        def blocked_accept(*args, **kwargs):
+            original_accept(*args, **kwargs)
+            accepted.set()
+            assert release_accept.wait(2)
+
+        def observed_cancel(*args, **kwargs):
+            cancel_reached_receipts.set()
+            return original_cancel(*args, **kwargs)
+
+        monkeypatch.setattr(
+            app.state.core.bounded_transfers.receipts, "accept", blocked_accept
+        )
+        monkeypatch.setattr(
+            app.state.core.bounded_transfers.receipts, "cancel", observed_cancel
+        )
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            opening = pool.submit(
+                _open, app.state.core, actor, record, values
+            )
+            assert accepted.wait(2)
+            cancelling = pool.submit(
+                app.state.core.bounded_transfers.cancel,
+                actor,
+                record["ref"]["coreId"],
+                record["ref"]["homeId"],
+                identity,
+                values["requestId"],
+            )
+            assert not cancel_reached_receipts.wait(0.1)
+            release_accept.set()
+            opened = opening.result(timeout=2)
+            cancelled = cancelling.result(timeout=2)
+
+        assert cancelled["receipt"]["state"] == "interrupted"
+        assert cancel_reached_receipts.is_set()
+        with pytest.raises(ApiError, match="transfer_cancelled"):
+            next(opened.frames)
         assert app.state.core.bounded_transfers._active == 0
         assert not app.state.core.bounded_transfers._active_by_actor
         assert not app.state.core.bounded_transfers._active_requests

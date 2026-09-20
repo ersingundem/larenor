@@ -291,13 +291,18 @@ class BoundedTransferService:
         remaining_chunks = math.ceil(reserved / self.limits.chunk_bytes)
         self._reserve(actor.id, reserved)
         try:
-            self.receipts.accept(actor, core_id, home_id, resource_id, body, descriptor)
+            # Publish the durable acceptance and its cancellable in-memory
+            # lease under one service lock. Otherwise DELETE could observe the
+            # receipt before the lease, mark it interrupted, and then have this
+            # open overwrite that cancellation with an active=false entry.
+            with self._lock:
+                self.receipts.accept(
+                    actor, core_id, home_id, resource_id, body, descriptor)
+                self._active_requests[body.requestId] = (
+                    actor.id, core_id, home_id, resource_id, False)
         except BaseException:
             self._release(actor.id, refund_bytes=reserved)
             raise
-        with self._lock:
-            self._active_requests[body.requestId] = (
-                actor.id, core_id, home_id, resource_id, False)
         # The caller-generated opaque request id is also the wire trace id, so
         # the accepted stream and its eventual result cannot be confused with
         # a different operation. It carries no user or resource information.
