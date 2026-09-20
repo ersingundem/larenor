@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../../dashboard/domain/tile_config.dart';
 import '../../../home_resources/domain/home_resource_models.dart';
@@ -30,8 +32,22 @@ class _CoreKeeneticWidgetPickerScreenState
   @override
   void invalidateDashboardInteraction() => _expired = true;
 
+  bool _targetCurrent(HomeResourceRecord target) {
+    final resources = ref.read(coreKeeneticDashboardResourcesProvider);
+    if (resources.isLoading || resources.hasError) return false;
+    return resources.value?.any(
+          (current) =>
+              current.context == target.context &&
+              current.id == target.id &&
+              current.kind == target.kind &&
+              current.revision == target.revision &&
+              current.aclRevision == target.aclRevision,
+        ) ==
+        true;
+  }
+
   Future<void> _select(HomeResourceRecord target) async {
-    if (_expired || _busy || _returned) return;
+    if (_expired || _busy || _returned || !_targetCurrent(target)) return;
     final generation = interactionGeneration;
     setState(() {
       _busy = true;
@@ -46,7 +62,12 @@ class _CoreKeeneticWidgetPickerScreenState
                 type: widget.tileType,
               )).future,
             );
-      if (!interactionCurrent(generation) || _expired || _returned) return;
+      if (!interactionCurrent(generation) ||
+          _expired ||
+          _returned ||
+          !_targetCurrent(target)) {
+        return;
+      }
       _returned = true;
       if (mounted && ModalRoute.of(context)?.isCurrent == true) {
         Navigator.pop(context, tile);
@@ -80,16 +101,19 @@ class _CoreKeeneticWidgetPickerScreenState
     final reading = _expired
         ? null
         : ref.watch(coreKeeneticDashboardResourcesProvider);
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l.coreKeeneticDashboardPickerTitle),
-      ),
-      child: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverToBoxAdapter(
+    return ServiceRootScaffold(
+      title: l.coreKeeneticDashboardPickerTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('core-keenetic-picker-header'),
+              header: true,
+              child: Text(l.coreKeeneticDashboardPickerTitle),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -124,49 +148,28 @@ class _CoreKeeneticWidgetPickerScreenState
                   ],
                 ),
               ),
-            ),
-            if (reading?.hasValue == true)
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList.builder(
-                  itemCount: reading!.value!.length,
-                  itemBuilder: (context, index) {
-                    final target = reading.value![index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: CupertinoButton(
-                        key: ValueKey('core-keenetic-pick-${target.id}'),
-                        minimumSize: const Size(48, 48),
-                        color: CupertinoColors.secondarySystemGroupedBackground
-                            .resolveFrom(context),
-                        onPressed: _busy
-                            ? null
-                            : dashboardAction(() => unawaited(_select(target))),
-                        child: Row(
-                          children: [
-                            const Icon(CupertinoIcons.wifi),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                target.label,
-                                style: AppText.body.copyWith(
-                                  color: CupertinoColors.label.resolveFrom(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const Icon(CupertinoIcons.chevron_forward),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
+        if (reading?.hasValue == true)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList.builder(
+              itemCount: reading!.value!.length,
+              itemBuilder: (context, index) {
+                final target = reading.value![index];
+                return SettingsActionTile(
+                  buttonKey: ValueKey('core-keenetic-pick-${target.id}'),
+                  leading: const Icon(CupertinoIcons.wifi),
+                  title: Text(target.label, style: AppText.body),
+                  onTap: _busy
+                      ? null
+                      : dashboardAction(() => unawaited(_select(target))),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

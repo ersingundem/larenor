@@ -1,9 +1,12 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/health/data/health_monitor.dart';
+import 'package:larenor/features/health/data/integration_health.dart';
 import 'package:larenor/features/health/providers/health_providers.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/media/arr/providers/lidarr_providers.dart';
@@ -21,11 +24,15 @@ import 'package:larenor/features/navigation/presentation/system_screen.dart';
 import 'package:larenor/features/navigation/providers/service_connection_providers.dart';
 import 'package:larenor/features/proxmox/data/proxmox_config.dart';
 import 'package:larenor/features/proxmox/presentation/proxmox_connect_screen.dart';
+import 'package:larenor/features/proxmox/presentation/proxmox_nodes_screen.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Enabled extends EnabledServices {
@@ -99,8 +106,11 @@ Future<GoRouter> _show(
   ProviderContainer container, {
   Widget page = const SystemScreen(),
   bool realSettingsGate = false,
+  Size size = const Size(500, 900),
+  String language = 'en',
+  double scale = 1,
 }) async {
-  tester.view.physicalSize = const Size(500, 900);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final router = GoRouter(
@@ -120,7 +130,12 @@ Future<GoRouter> _show(
           service: AppService.values.byName(state.pathParameters['service']!),
         ),
       ),
-      GoRoute(path: '/search', builder: (context, state) => const SizedBox()),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const CupertinoPageScaffold(
+          child: Center(child: Text('Global search result')),
+        ),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -128,8 +143,14 @@ Future<GoRouter> _show(
     UncontrolledProviderScope(
       container: container,
       child: CupertinoApp.router(
+        locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
         routerConfig: router,
       ),
     ),
@@ -157,15 +178,20 @@ void main() {
   testWidgets(
     'lists enabled or saved services without starting any remote client',
     (tester) async {
+      final now = DateTime.utc(2026, 9, 20, 12);
+      final monitor = HealthMonitor(now: () => now);
       final container = ProviderContainer(
         overrides: [
           enabledServicesProvider.overrideWith(
             () => _Enabled({AppService.keenetic}),
           ),
           proxmoxConnectionProvider.overrideWith(_Proxmox.new),
+          healthMonitorProvider.overrideWithValue(monitor),
+          healthClockProvider.overrideWith((ref) => Stream.value(now)),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(monitor.dispose);
       await _show(tester, container);
       expect(find.byKey(const ValueKey('system-proxmox')), findsOneWidget);
       expect(find.byKey(const ValueKey('system-keenetic')), findsOneWidget);
@@ -192,6 +218,29 @@ void main() {
         container.exists(keeneticClientProvider),
       ], everyElement(isFalse));
       expect(find.textContaining('server.invalid'), findsNothing);
+      final reachableSession = monitor.bind(
+        IntegrationId.proxmox,
+        configured: true,
+        configurationIdentity: savedProxmox,
+      );
+      reachableSession.contact();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Server responded; data not yet verified'),
+        findsOneWidget,
+      );
+      expect(monitor.read(IntegrationId.proxmox).lastContact, isNotNull);
+      monitor
+          .bind(
+            IntegrationId.proxmox,
+            configured: true,
+            configurationIdentity: savedProxmox,
+          )
+          .readSucceeded();
+      await tester.pumpAndSettle();
+      expect(monitor.read(IntegrationId.proxmox).lastSuccessfulRead, isNotNull);
+      expect(find.text('Data read successfully'), findsOneWidget);
+      expect(container.exists(proxmoxClientProvider), isFalse);
       await _close(tester, container);
     },
   );
@@ -358,4 +407,87 @@ void main() {
       await _close(tester, container);
     },
   );
+
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language system service action is accessible at ${size.width}px 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final container = ProviderContainer(
+            overrides: [
+              enabledServicesProvider.overrideWith(
+                () => _Enabled({AppService.proxmox}),
+              ),
+              proxmoxConnectionProvider.overrideWith(_Proxmox.new),
+              proxmoxNodesProvider.overrideWith((ref) async => []),
+            ],
+          );
+          addTearDown(container.dispose);
+          final router = await _show(
+            tester,
+            container,
+            size: size,
+            language: language,
+            scale: 2,
+          );
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('system-services-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final search = find.byKey(const ValueKey('global-search'));
+          expect(
+            tester.widget<CupertinoButton>(search).minimumSize,
+            const Size(48, 48),
+          );
+          expect(tester.getRect(search).width, greaterThanOrEqualTo(48));
+          final searchSemantics = tester.getSemantics(search);
+          expect(searchSemantics.flagsCollection.isButton, isTrue);
+          expect(searchSemantics.label, isNotEmpty);
+          Focus.of(
+            tester.element(
+              find.descendant(
+                of: search,
+                matching: find.byIcon(CupertinoIcons.search),
+              ),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.text('Global search result'), findsOneWidget);
+          router.pop();
+          await tester.pumpAndSettle();
+
+          final service = find.byKey(const ValueKey('system-proxmox'));
+          await tester.ensureVisible(service);
+          expect(tester.getRect(service).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(service).flagsCollection.isButton, isTrue);
+          Focus.of(
+            tester.element(
+              find.descendant(of: service, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(find.byType(ProxmoxNodesScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+          await _close(tester, container);
+        },
+      );
+    }
+  }
 }

@@ -30,22 +30,24 @@ class AppShellActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CupertinoButton(
-          key: const ValueKey('global-search'),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          onPressed: () => context.push('/search'),
-          child: Semantics(
-            label: l10n.navigationSearch,
-            child: const Icon(CupertinoIcons.search),
+        Semantics(
+          label: l10n.navigationSearch,
+          child: CupertinoButton(
+            key: const ValueKey('global-search'),
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            onPressed: () => context.push('/search'),
+            child: const ExcludeSemantics(child: Icon(CupertinoIcons.search)),
           ),
         ),
-        CupertinoButton(
-          key: const ValueKey('global-settings'),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          onPressed: () => context.push('/settings'),
-          child: Semantics(
-            label: l10n.settingsScreenTitle,
-            child: const Icon(CupertinoIcons.settings),
+        Semantics(
+          label: l10n.settingsScreenTitle,
+          child: CupertinoButton(
+            key: const ValueKey('global-settings'),
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            onPressed: () => context.push('/settings'),
+            child: const ExcludeSemantics(child: Icon(CupertinoIcons.settings)),
           ),
         ),
       ],

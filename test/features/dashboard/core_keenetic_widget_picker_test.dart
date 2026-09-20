@@ -27,6 +27,20 @@ final resource = HomeResourceRecord.fromJson({
   'aclRevision': 9,
   'permissions': {'read': true, 'write': false},
 }, expectedContext: contextId);
+final changedResource = HomeResourceRecord.fromJson({
+  'ref': {
+    'schemaVersion': 1,
+    'coreId': '1' * 32,
+    'homeId': '2' * 32,
+    'kind': 'resource',
+    'id': '3' * 32,
+  },
+  'label': 'Main router',
+  'order': 0,
+  'revision': 8,
+  'aclRevision': 9,
+  'permissions': {'read': true, 'write': false},
+}, expectedContext: contextId);
 final draft = TileConfig(
   id: 'core-router',
   type: TileType.coreKeenetic,
@@ -126,4 +140,62 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('retained choice cannot draft a changed Core resource', (
+    tester,
+  ) async {
+    var resources = [resource];
+    var draftCalls = 0;
+    final results = <TileConfig>[];
+    final container = ProviderContainer(
+      overrides: [
+        coreKeeneticDashboardResourcesProvider.overrideWith(
+          (_) async => resources,
+        ),
+        coreKeeneticDashboardDraftProvider.overrideWith((_, target) async {
+          draftCalls++;
+          return draft;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: CupertinoApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => CupertinoPageScaffold(
+              child: CupertinoButton(
+                child: const Text('Open'),
+                onPressed: () async {
+                  final value = await Navigator.of(context).push<TileConfig>(
+                    CupertinoPageRoute(
+                      builder: (_) => const CoreKeeneticWidgetPickerScreen(),
+                    ),
+                  );
+                  if (value != null) results.add(value);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final choice = find.byKey(ValueKey('core-keenetic-pick-${resource.id}'));
+    final callback = tester.widget<CupertinoButton>(choice).onPressed!;
+
+    resources = [changedResource];
+    container.invalidate(coreKeeneticDashboardResourcesProvider);
+    await tester.pumpAndSettle();
+    callback();
+    await tester.pumpAndSettle();
+
+    expect(draftCalls, 0);
+    expect(results, isEmpty);
+  });
 }

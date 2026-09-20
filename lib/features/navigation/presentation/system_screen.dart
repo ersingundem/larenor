@@ -9,6 +9,7 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/integration_health_status.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../keenetic/presentation/keenetic_home_screen.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -58,86 +59,92 @@ class SystemScreen extends ConsumerWidget {
         enabled.isLoading ||
         connections.values.any((connection) => connection.isLoading);
 
-    return AppPageScaffold(
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(l10n.navigationSystem),
-            trailing: const AppShellActions(),
+    return ServiceRootScaffold(
+      title: l10n.navigationSystem,
+      trailing: const AppShellActions(),
+      slivers: [
+        const SliverToBoxAdapter(child: _HomeAssistantHealthCard()),
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('system-wellbeing-header'),
+              header: true,
+              child: Text(l10n.wellbeingTitle),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('system-wellbeing'),
+                leading: const IconBadge(
+                  icon: CupertinoIcons.heart,
+                  color: CupertinoColors.systemPink,
+                ),
+                title: Text(l10n.wellbeingTitle),
+                onTap: () => context.push('/wellbeing'),
+              ),
+              if (!privacy.isLoading &&
+                  !privacy.hasError &&
+                  privacy.value?.reviewRequired == true)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(l10n.backupPrivacyReviewRequired),
+                ),
+            ],
           ),
-          const SliverToBoxAdapter(child: _HomeAssistantHealthCard()),
+        ),
+        if (enabled.hasError)
+          SliverToBoxAdapter(
+            child: _ConnectionMessage(
+              message: l10n.commonError,
+              onRetry: () => ref.invalidate(enabledServicesProvider),
+            ),
+          ),
+        if (services.isNotEmpty)
           SliverToBoxAdapter(
             child: SettingsSection(
+              header: Semantics(
+                key: const ValueKey('system-services-header'),
+                header: true,
+                child: Text(l10n.settingsCategoryIntegrations),
+              ),
               children: [
-                CupertinoListTile(
-                  leading: const IconBadge(
-                    icon: CupertinoIcons.heart,
-                    color: CupertinoColors.systemPink,
-                  ),
-                  title: Text(l10n.wellbeingTitle),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: () => context.push('/wellbeing'),
-                ),
-                if (!privacy.isLoading &&
-                    !privacy.hasError &&
-                    privacy.value?.reviewRequired == true)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(l10n.backupPrivacyReviewRequired),
+                for (final service in services)
+                  SettingsActionTile(
+                    buttonKey: ValueKey('system-${service.name}'),
+                    leading: hasBrandIcon(service)
+                        ? BrandIcon(service: service)
+                        : const IconBadge(
+                            icon: CupertinoIcons.wifi,
+                            color: CupertinoColors.systemGreen,
+                          ),
+                    title: Text(serviceDisplayName(service)),
+                    additionalInfo: SavedServiceHealthStatus(service: service),
+                    onTap: () => context.push('/system/${service.name}'),
                   ),
               ],
             ),
+          )
+        else if (loading)
+          const SliverFilledMessage(child: CupertinoActivityIndicator())
+        else
+          SliverFilledMessage(
+            child: _ConnectionMessage(
+              message: l10n.navigationNoServices,
+              showConfigure: true,
+            ),
           ),
-          if (enabled.hasError)
-            SliverToBoxAdapter(
-              child: _ConnectionMessage(
-                message: l10n.commonError,
-                onRetry: () => ref.invalidate(enabledServicesProvider),
-              ),
-            ),
-          if (services.isNotEmpty)
-            SliverToBoxAdapter(
-              child: SettingsSection(
-                header: Text(l10n.settingsCategoryIntegrations),
-                children: [
-                  for (final service in services)
-                    CupertinoListTile(
-                      key: ValueKey('system-${service.name}'),
-                      leading: hasBrandIcon(service)
-                          ? BrandIcon(service: service)
-                          : const IconBadge(
-                              icon: CupertinoIcons.wifi,
-                              color: CupertinoColors.systemGreen,
-                            ),
-                      title: Text(serviceDisplayName(service)),
-                      subtitle: SavedServiceHealthStatus(service: service),
-                      trailing: const CupertinoListTileChevron(),
-                      onTap: () => context.push('/system/${service.name}'),
-                    ),
-                ],
-              ),
-            )
-          else if (loading)
-            const SliverFilledMessage(child: CupertinoActivityIndicator())
-          else
-            SliverFilledMessage(
-              child: _ConnectionMessage(
-                message: l10n.navigationNoServices,
-                showConfigure: true,
-              ),
-            ),
-          if (services.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: CupertinoButton(
-                  onPressed: () => context.push('/settings'),
-                  child: Text(l10n.navigationConfigure),
+        if (services.isNotEmpty)
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              children: [
+                SettingsActionTile(
+                  buttonKey: const ValueKey('system-configure'),
+                  title: Text(l10n.navigationConfigure),
+                  onTap: () => context.push('/settings'),
                 ),
-              ),
+              ],
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -248,10 +255,15 @@ class _ConnectionMessage extends StatelessWidget {
         children: [
           Text(message, textAlign: TextAlign.center),
           if (onRetry != null)
-            CupertinoButton(onPressed: onRetry, child: Text(l10n.commonRetry)),
+            CupertinoButton(
+              minimumSize: const Size(48, 48),
+              onPressed: onRetry,
+              child: Text(l10n.commonRetry),
+            ),
           if (showConfigure)
             CupertinoButton(
               key: const ValueKey('system-configure'),
+              minimumSize: const Size(48, 48),
               onPressed: () => context.push('/settings'),
               child: Text(l10n.navigationConfigure),
             ),
