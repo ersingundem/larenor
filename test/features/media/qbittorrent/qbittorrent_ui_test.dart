@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +14,8 @@ import 'package:larenor/features/media/qbittorrent/presentation/add_torrent_shee
 import 'package:larenor/features/media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
 const _config = QbittorrentConfig(
@@ -70,6 +72,7 @@ class _Harness {
     bool tile = false,
     Size? size,
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     if (size != null) {
       tester.view.physicalSize = size;
@@ -118,6 +121,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: tile
@@ -147,6 +151,12 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.tap(finder);
   await tester.pumpAndSettle();
 }
+
+Finder _torrentRows() => find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey<String> &&
+      (widget.key! as ValueKey<String>).value.startsWith('torrent-row-'),
+);
 
 Future<void> _background(WidgetTester tester) async {
   for (final state in [
@@ -184,13 +194,13 @@ void main() {
         }),
       );
     await harness.mount(tester);
-    expect(find.byType(CupertinoListTile).evaluate().length, lessThan(50));
+    expect(_torrentRows().evaluate().length, lessThan(50));
     expect(find.textContaining('Progress is not reported.'), findsWidgets);
     expect(find.textContaining('0%'), findsNothing);
     expect(find.text('Torrent 4999'), findsNothing);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));
     await tester.pumpAndSettle();
-    expect(find.byType(CupertinoListTile).evaluate().length, lessThan(50));
+    expect(_torrentRows().evaluate().length, lessThan(50));
     expect(tester.takeException(), isNull);
   });
 
@@ -223,8 +233,8 @@ void main() {
     final harness = _Harness();
     await harness.mount(tester);
     final row = tester
-        .widget<CupertinoListTile>(find.byKey(const ValueKey('torrent-row-0')))
-        .onTap!;
+        .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+        .onPressed!;
     harness.readFails = true;
     harness.container.invalidate(qbittorrentTorrentsProvider);
     await tester.pumpAndSettle();
@@ -255,10 +265,8 @@ void main() {
       harness.mutate = (_) => pending.future;
       await harness.mount(tester);
       final row = tester
-          .widget<CupertinoListTile>(
-            find.byKey(const ValueKey('torrent-row-0')),
-          )
-          .onTap!;
+          .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+          .onPressed!;
       row();
       row();
       await tester.pumpAndSettle();
@@ -326,10 +334,8 @@ void main() {
         ..mutate = (_) async => throw http.ClientException('private-failure');
       await harness.mount(tester);
       final row = tester
-          .widget<CupertinoListTile>(
-            find.byKey(const ValueKey('torrent-row-0')),
-          )
-          .onTap!;
+          .widget<CupertinoButton>(find.byKey(const ValueKey('torrent-row-0')))
+          .onPressed!;
       await _tap(tester, 'torrent-row-0');
       await _tap(tester, 'torrent-action-pause');
       row();
@@ -341,19 +347,19 @@ void main() {
       );
       expect(
         tester
-            .widget<CupertinoListTile>(
+            .widget<CupertinoButton>(
               find.byKey(const ValueKey('torrent-row-0')),
             )
-            .onTap,
+            .onPressed,
         isNull,
       );
       await _tap(tester, 'torrent-refresh');
       expect(
         tester
-            .widget<CupertinoListTile>(
+            .widget<CupertinoButton>(
               find.byKey(const ValueKey('torrent-row-0')),
             )
-            .onTap,
+            .onPressed,
         isNotNull,
       );
       expect(tester.takeException(), isNull);
@@ -547,4 +553,62 @@ void main() {
     await _tap(tester, 'torrent-row-0');
     expect(tester.takeException(), isNull);
   });
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets('${locale.languageCode} torrent hierarchy fits '
+          '${width.toInt()}px at 2x text', (tester) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          final harness = _Harness();
+          await harness.mount(
+            tester,
+            size: Size(width, 900),
+            scale: 2,
+            locale: locale,
+          );
+          final l10n = await AppLocalizations.delegate.load(locale);
+
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          final heading = find.text(l10n.qbittorrentTileFallbackName);
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          for (final key in const [
+            'torrent-refresh',
+            'torrent-add',
+            'torrent-row-0',
+          ]) {
+            final action = find.byKey(ValueKey(key));
+            final rect = tester.getRect(action);
+            expect(rect.width, greaterThanOrEqualTo(48));
+            expect(rect.height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(action).flagsCollection.isButton,
+              isTrue,
+            );
+          }
+          expect(
+            tester.widgetList<CupertinoButton>(find.byType(CupertinoButton)),
+            everyElement(
+              predicate<CupertinoButton>(
+                (button) => (button.minimumSize?.height ?? 0) >= 48,
+              ),
+            ),
+          );
+
+          Focus.of(tester.element(find.text('Family video'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(CupertinoActionSheet), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
 }
