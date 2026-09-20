@@ -20,12 +20,26 @@ import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/theme/spacing.dart';
 
-class JellyseerrHomeScreen extends ConsumerWidget {
+class JellyseerrHomeScreen extends ConsumerStatefulWidget {
   const JellyseerrHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JellyseerrHomeScreen> createState() =>
+      _JellyseerrHomeScreenState();
+}
+
+class _JellyseerrHomeScreenState
+    extends MediaSessionState<JellyseerrHomeScreen> {
+  bool _current(int generation, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(jellyseerrConnectionProvider), reading);
+
+  @override
+  Widget build(BuildContext context) {
     final connectionAsync = ref.watch(jellyseerrConnectionProvider);
+    final generation = sessionGeneration;
 
     return connectionAsync.when(
       skipLoadingOnReload: false,
@@ -50,7 +64,13 @@ class JellyseerrHomeScreen extends ConsumerWidget {
           statusKey: const ValueKey('jellyseerr-home-status'),
           actionLabel: AppLocalizations.of(context).commonRetry,
           actionKey: const ValueKey('jellyseerr-home-retry'),
-          onAction: () => ref.invalidate(jellyseerrConnectionProvider),
+          onAction: _current(generation, connectionAsync)
+              ? () {
+                  if (_current(generation, connectionAsync)) {
+                    ref.invalidate(jellyseerrConnectionProvider);
+                  }
+                }
+              : null,
         );
       },
       data: (config) {
@@ -266,11 +286,16 @@ class _JellyseerrSearchScreenState
                 buttonKey: const ValueKey('jellyseerr-requests-action'),
                 leading: const Icon(CupertinoIcons.list_bullet),
                 title: Text(l10n.jellyseerrMyRequestsTitle),
-                onTap: () => Navigator.of(context).push(
-                  CupertinoPageRoute(
-                    builder: (_) => const JellyseerrRequestsScreen(),
-                  ),
-                ),
+                onTap: ready
+                    ? () {
+                        if (!_current(generation)) return;
+                        Navigator.of(context).push(
+                          CupertinoPageRoute(
+                            builder: (_) => const JellyseerrRequestsScreen(),
+                          ),
+                        );
+                      }
+                    : null,
               ),
             ],
           ),
