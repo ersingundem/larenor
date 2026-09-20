@@ -785,6 +785,16 @@ void main() {
         );
         await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
         await waitFor(tester, room);
+        // The notification inbox is a real Core-home destination. Its entry
+        // makes the second lazy resource row start below the viewport, so
+        // reveal that row through the production scroll surface before
+        // asserting the member projection.
+        await tester.scrollUntilVisible(
+          lamp,
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         await waitFor(tester, lamp);
         expect(core.user['role'], 'member');
         expect(find.byKey(ValueKey('home-resource-${'2' * 32}')), findsNothing);
