@@ -55,6 +55,7 @@ Map<String, Object> _receipt({String state = 'completed'}) => {
 Map<String, Object?> _events(
   HomeResourceRecord target, {
   String chain = 'e',
+  String proof = 'a',
   String actor = '9',
   int head = 2,
   int? after,
@@ -69,6 +70,9 @@ Map<String, Object?> _events(
   },
   'chainId': chain * 32,
   'headSequence': head,
+  'cursorCheckpoint': after == 2 ? proof * 64 : '0' * 64,
+  'pageCheckpoint': proof * 64,
+  'headCheckpoint': proof * 64,
   'events': after == 2
       ? <Object>[]
       : [
@@ -258,6 +262,7 @@ void main() {
       final backend = _MemoryBackend();
       final store = CoreBoundedEventCheckpointStore(backend: backend);
       var chain = 'e';
+      var proof = 'a';
       var eventActor = '8';
       var eventStatus = 200;
       final cursors = <int?>[];
@@ -278,6 +283,7 @@ void main() {
                         _events(
                           target,
                           chain: chain,
+                          proof: proof,
                           actor: eventActor,
                           after: after,
                         ),
@@ -321,6 +327,15 @@ void main() {
       expect(controller.historyHeadSequence, 2);
       expect(cursors, [null, null]);
       expect(backend.writes, 1);
+
+      proof = 'b';
+      await tester.runAsync(
+        () => controller.loadHistory(target, isCurrent: () => true),
+      );
+      expect(controller.historyPhase, CoreBoundedHistoryPhase.changed);
+      expect(controller.historyTrusted, isFalse);
+      expect(backend.writes, 1);
+      proof = 'a';
 
       controller.dispose();
       controller = build();
