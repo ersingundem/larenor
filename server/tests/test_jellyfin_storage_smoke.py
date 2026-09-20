@@ -601,18 +601,25 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
                 'PidsLimit': 512,
             }}}
     marker = Marker()
-    monkeypatch.setattr(m, '_managed_create_and_start',
-        lambda owner, actual_source, endpoint, helper_id:
-            (events.append(('managed', owner, actual_source, endpoint.path, helper_id)),
-             setattr(owner, 'managed_configured', True),
-             ('c' * 64, marker, ManagedEngine(), {
-                 'apiKeyVerified': True, 'libraryCount': 2, 'sessionClosed': True,
-             }))[-1])
+    peer = m.ManagedJellyfinPeer('a' * 64, marker, 'S' * 48, 'b' * 32)
+    received = []
+
+    def managed(owner, actual_source, endpoint, helper_id, *, peer_consumer=None):
+        events.append(('managed', owner, actual_source, endpoint.path, helper_id))
+        setattr(owner, 'managed_configured', True)
+        if peer_consumer is not None:
+            assert peer_consumer(peer) is None
+        return ('c' * 64, marker, ManagedEngine(), {
+            'apiKeyVerified': True, 'libraryCount': 2, 'sessionClosed': True,
+        })
+
+    monkeypatch.setattr(m, '_managed_create_and_start', managed)
     monkeypatch.setattr(managed_container, 'managed_container_matches',
                         lambda value, binding: binding is marker)
 
     result = m.characterize(
         docker, source=source, images=images, volumes=object(), managed=True,
+        peer_consumer=received.append,
     )
 
     assert result['containerMode'] == 'journaled_managed_v2'
@@ -629,6 +636,39 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     assert app_creates == []
     assert ['start', 'c' * 64] not in docker.calls
     assert docker.verified_pids == [4242, 4242]
+    assert received == [peer]
+
+
+def test_managed_peer_handoff_is_private_bounded_and_opt_in():
+    m = api()
+    binding = object()
+    peer = m.ManagedJellyfinPeer(
+        container_id='a' * 64,
+        binding=binding,
+        credential='S' * 48,
+        server_id='b' * 32,
+    )
+
+    assert peer.container_id == 'a' * 64
+    assert peer.binding is binding
+    assert peer.credential == 'S' * 48
+    assert peer.server_id == 'b' * 32
+    assert 'S' * 48 not in repr(peer)
+
+    for changes in (
+        {'container_id': 'bad'},
+        {'credential': 'short'},
+        {'server_id': 'bad'},
+    ):
+        with pytest.raises(m.SmokeError, match='^managed_peer_invalid$'):
+            m.ManagedJellyfinPeer(
+                container_id=changes.get('container_id', 'a' * 64),
+                binding=binding,
+                credential=changes.get('credential', 'S' * 48),
+                server_id=changes.get('server_id', 'b' * 32),
+            )
+
+
 
 
 @pytest.mark.parametrize('boundary,expected', [
