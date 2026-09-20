@@ -167,4 +167,23 @@ void main() {
       expect(retained.failure, InventoryFailure.offline);
     },
   );
+
+  // F34 Client integration keeps a bounded local page even when Core resolves
+  // more items over one valid session.
+  test('resolved inventory page is bounded to the configured limit', () async {
+    final gateway = FakeInventoryGateway();
+    final controller = InventoryController(
+      gateway: gateway,
+      context: context,
+      canReadGrants: false,
+      isCurrent: () => true,
+      maximumEntries: 2,
+    );
+    for (var index = 0; index < 3; index++) {
+      await controller.resolveManual(
+        'larenor:inventory:v1:$core:$home:$itemId',
+      );
+    }
+    expect(controller.entries.length, lessThanOrEqualTo(2));
+  });
 }
