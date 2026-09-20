@@ -62,7 +62,10 @@ void main() {
         '100,00',
       );
       await tester.pump();
-      expect(find.textContaining('33,34'), findsOneWidget);
+      expect(
+        find.textContaining('33${sample.$2.decimalSeparator}34'),
+        findsOneWidget,
+      );
       expect(
         tester.getSize(find.byKey(const ValueKey('expense-create'))).height,
         greaterThanOrEqualTo(48),
