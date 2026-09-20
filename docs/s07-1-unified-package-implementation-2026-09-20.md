@@ -258,3 +258,8 @@ Docker'ın custom-network resolver adresi `127.0.0.11` değerini Core ve beş
 bridge servisi için exact yapılandırır. Native kanıt önce Core içindeki
 `/etc/resolv.conf` kaydını, sonra `core` ağ alias'ını ve hedef peer alias'ını
 ayrı ayrı doğrular; farklı resolver adresi rendered-config aşamasında reddedilir.
+
+Taze host kabulünde peer endpointleri Core ağ sandbox'ından sonra kaydolduğunda
+resolver görünümü boş kalabildi. Yaşam döngüsü bu yüzden hem ilk başlatmada hem
+yeniden başlatmada altı paket servisini önce, Core'u sonra çalıştırır. Core sağlığı
+ve her kısa peer adı yine gerçek container içinden, sınırlı sürede doğrulanır.

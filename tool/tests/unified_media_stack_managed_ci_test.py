@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -265,6 +265,28 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         with self.assertRaisesRegex(target.ManagedStackCIError,
                                     "unified_manifest_invalid"):
             target.validate_rendered_config(rendered, expected, rendered["name"])
+
+    def test_core_starts_and_restarts_after_every_packaged_peer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            with patch.object(driver, "_compose", return_value=(0, b"")) as compose:
+                driver.start({})
+            self.assertEqual(compose.call_args_list, [
+                call("start", *target.SERVICE_NAMES.values(), timeout=180),
+                call("start", target.package.CORE_NAME, timeout=180),
+            ])
+
+            with patch.object(driver, "_compose", return_value=(0, b"")) as compose:
+                driver.restart({})
+            self.assertEqual(compose.call_args_list, [
+                call("restart", "--timeout", "30", *target.SERVICE_NAMES.values(),
+                     timeout=240),
+                call("restart", "--timeout", "30", target.package.CORE_NAME,
+                     timeout=240),
+            ])
 
     def test_core_runtime_wait_is_bounded_and_dns_failure_is_closed(self):
         with tempfile.TemporaryDirectory() as temporary:

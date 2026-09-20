@@ -687,13 +687,20 @@ class DockerDriver:
 
     def start(self, manifest):
         try:
-            self._compose("start", timeout=180)
+            # Bring every dependency endpoint online before Core gets its
+            # network sandbox. This avoids a negative embedded-DNS view when
+            # Compose starts Core before peer endpoints on fresh hosts.
+            self._compose("start", *SERVICE_NAMES.values(), timeout=180)
+            self._compose("start", package.CORE_NAME, timeout=180)
         except ManagedStackCIError:
             raise ManagedStackCIError("unified_start_runtime_failed") from None
 
     def restart(self, manifest):
         try:
-            self._compose("restart", "--timeout", "30", timeout=240)
+            self._compose("restart", "--timeout", "30", *SERVICE_NAMES.values(),
+                          timeout=240)
+            self._compose("restart", "--timeout", "30", package.CORE_NAME,
+                          timeout=240)
         except ManagedStackCIError:
             raise ManagedStackCIError("unified_restart_runtime_failed") from None
 
