@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_controller.dart';
 import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_upload_file_access.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
@@ -34,7 +35,7 @@ Uint8List _frame(
   return output.takeBytes();
 }
 
-http.Response _response({bool validDigest = true}) {
+http.Response _response({bool validDigest = true, int serviceRevision = 1}) {
   final payload = utf8.encode('verified fixture');
   final trace = 'c' * 32;
   final wire = Uint8List.fromList([
@@ -53,13 +54,13 @@ http.Response _response({bool validDigest = true}) {
           ? sha256.convert(payload).toString()
           : 'f' * 64,
       'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
-      'x-larenor-service-revision': '1',
+      'x-larenor-service-revision': '$serviceRevision',
       'accept-ranges': 'none',
     },
   );
 }
 
-Map<String, Object> _receipt({String? digest}) {
+Map<String, Object> _receipt({String? digest, int serviceRevision = 1}) {
   final payload = utf8.encode('verified fixture');
   return {
     'requestId': 'c' * 32,
@@ -68,15 +69,41 @@ Map<String, Object> _receipt({String? digest}) {
     'contentLength': payload.length,
     'sha256': digest ?? sha256.convert(payload).toString(),
     'contentType': 'text/plain; charset=utf-8',
-    'serviceRevision': 1,
+    'serviceRevision': serviceRevision,
     'createdAt': 10.0,
     'updatedAt': 11.0,
   };
 }
 
-http.Response _verifiedResponse(http.Request request, {String? digest}) {
-  if (request.method == 'POST') return _response();
-  final receipt = _receipt(digest: digest);
+http.Response _verifiedResponse(
+  http.Request request, {
+  String? digest,
+  int serviceRevision = 1,
+}) {
+  if (request.method == 'POST') {
+    return _response(serviceRevision: serviceRevision);
+  }
+  if (request.url.path.endsWith('/descriptor')) {
+    final payload = utf8.encode('verified fixture');
+    final blobIndex = request.url.pathSegments.indexOf('blob');
+    final resourceId = request.url.pathSegments[blobIndex - 1];
+    return http.Response(
+      jsonEncode({
+        'blob': {
+          'resourceId': resourceId,
+          'serviceRevision': serviceRevision,
+          'contentLength': payload.length,
+          'sha256': sha256.convert(payload).toString(),
+          'contentType': 'text/plain; charset=utf-8',
+          'createdAt': 10.0,
+          'updatedAt': 11.0,
+        },
+      }),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+  }
+  final receipt = _receipt(digest: digest, serviceRevision: serviceRevision);
   return http.Response(
     jsonEncode(
       request.url.path.endsWith('/${'c' * 32}')
@@ -151,6 +178,14 @@ HomeResourcePage _page() {
   );
 }
 
+HomeResourcePage _writablePage() {
+  final raw = contract();
+  return HomeResourcePage.fromJson(
+    raw['adminList'],
+    expectedContext: ServerContext.fromJson(raw['context']),
+  );
+}
+
 void main() {
   testWidgets(
     'authorized member explicitly verifies then publishes once to SAF seam',
@@ -169,7 +204,13 @@ void main() {
           requestId: () => 'c' * 32,
           client: MockClient((request) async {
             requests++;
-            return _verifiedResponse(request);
+            if (request.method == 'POST') {
+              expect(
+                (jsonDecode(request.body) as Map)['expectedServiceRevision'],
+                4,
+              );
+            }
+            return _verifiedResponse(request, serviceRevision: 4);
           }),
         ),
         CoreBoundedDownloadFileAccess(
@@ -200,9 +241,10 @@ void main() {
       expect(controller.phase, CoreBoundedDownloadPhase.saved);
       expect(controller.receiptTrusted, isTrue);
       expect(controller.receipt?.state, CoreBoundedTransferState.completed);
+      expect(controller.receipt?.serviceRevision, 4);
       expect(controller.traceId, 'c' * 32);
       expect(utf8.decode(published!), 'verified fixture');
-      expect((requests, saves), (2, 1));
+      expect((requests, saves), (3, 1));
       await tester.runAsync(
         () => controller.download(
           page.entries.first,
@@ -212,7 +254,7 @@ void main() {
       );
       expect(
         requests,
-        2,
+        3,
         reason: 'a room is never a binary download authority',
       );
       controller.retainAuthority(page.entries, page.userRevision + 1);
@@ -236,8 +278,11 @@ void main() {
       (endpoint) => CoreBoundedDownloadApi(
         endpoint: endpoint,
         requestId: () => 'c' * 32,
-        client: MockClient((_) async {
+        client: MockClient((request) async {
           requests++;
+          if (request.url.path.endsWith('/descriptor')) {
+            return _verifiedResponse(request);
+          }
           return _response(validDigest: false);
         }),
       ),
@@ -260,7 +305,7 @@ void main() {
       ),
     );
     expect(controller.phase, CoreBoundedDownloadPhase.failed);
-    expect((requests, saves), (1, 0));
+    expect((requests, saves), (2, 0));
   });
 
   testWidgets('cancelled SAF destination remains an explicit cancellation', (
@@ -303,7 +348,7 @@ void main() {
     );
 
     expect(controller.phase, CoreBoundedDownloadPhase.cancelled);
-    expect((requests, saves), (2, 1));
+    expect((requests, saves), (3, 1));
   });
 
   testWidgets('mismatched durable receipt never reaches SAF', (tester) async {
@@ -345,7 +390,7 @@ void main() {
 
     expect(controller.phase, CoreBoundedDownloadPhase.failed);
     expect(controller.receiptTrusted, isFalse);
-    expect((requests, saves), (2, 0));
+    expect((requests, saves), (3, 0));
   });
 
   testWidgets(
@@ -603,6 +648,139 @@ void main() {
       expect(controller.historyPhase, CoreBoundedHistoryPhase.idle);
       expect(controller.history, isEmpty);
       expect(controller.historyTargetId, isNull);
+    },
+  );
+
+  testWidgets('write-authorized picker creates the first product blob once', (
+    tester,
+  ) async {
+    final harness = ResourceHarness();
+    await harness.mount(tester);
+    await harness.signIn();
+    await flush(tester);
+    final page = _writablePage();
+    final target = page.entries.firstWhere(
+      (entry) => entry.kind == HomeResourceKind.resource,
+    );
+    final bytes = Uint8List.fromList(utf8.encode('attached document'));
+    var requests = 0;
+    final controller = CoreBoundedDownloadController(
+      harness.home(tester),
+      (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => '8' * 32,
+        client: MockClient((request) async {
+          requests++;
+          if (request.url.path.endsWith('/descriptor')) {
+            return http.Response(
+              '{"error":{"code":"not_found"}}',
+              404,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          expect(request.method, 'PUT');
+          expect(request.headers['x-larenor-expected-service-revision'], '0');
+          return http.Response(
+            jsonEncode({
+              'blob': {
+                'requestId': '8' * 32,
+                'resourceId': target.id,
+                'serviceRevision': 1,
+                'contentLength': bytes.length,
+                'sha256': sha256.convert(bytes).toString(),
+                'contentType': 'application/pdf',
+                'createdAt': 10.0,
+                'updatedAt': 10.0,
+              },
+            }),
+            201,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+      CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+      () => harness.now,
+      () => true,
+      CoreBoundedUploadFileAccess(
+        pick: () async => CoreBoundedPickedFile(
+          name: 'warranty.pdf',
+          declaredLength: bytes.length,
+          chunks: Stream.value(bytes),
+        ),
+      ),
+    );
+    addTearDown(controller.dispose);
+    controller.setVisible(true);
+
+    expect(
+      controller.canUpload(_page().entries.last, page.userRevision),
+      isFalse,
+    );
+    expect(controller.canUpload(target, page.userRevision), isTrue);
+    await tester.runAsync(
+      () => controller.chooseAndUpload(
+        target,
+        userRevision: page.userRevision,
+        isCurrent: () => true,
+      ),
+    );
+
+    expect(requests, 2);
+    expect(controller.uploadPhase, CoreBoundedUploadPhase.uploaded);
+    expect(controller.uploadRequestId, '8' * 32);
+    expect(controller.descriptor?.serviceRevision, 1);
+    expect(controller.busy, isFalse);
+  });
+
+  testWidgets(
+    'account retirement during picker return never uploads late bytes',
+    (tester) async {
+      final harness = ResourceHarness();
+      await harness.mount(tester);
+      await harness.signIn();
+      await flush(tester);
+      final page = _writablePage();
+      final target = page.entries.firstWhere(
+        (entry) => entry.kind == HomeResourceKind.resource,
+      );
+      final choice = Completer<CoreBoundedPickedFile?>();
+      var requests = 0;
+      final controller = CoreBoundedDownloadController(
+        harness.home(tester),
+        (endpoint) => CoreBoundedDownloadApi(
+          endpoint: endpoint,
+          client: MockClient((_) async {
+            requests++;
+            return http.Response('', 500);
+          }),
+        ),
+        CoreBoundedDownloadFileAccess(save: (_, _, _) async => null),
+        () => harness.now,
+        () => true,
+        CoreBoundedUploadFileAccess(pick: () => choice.future),
+      );
+      addTearDown(controller.dispose);
+      controller.setVisible(true);
+
+      final future = controller.chooseAndUpload(
+        target,
+        userRevision: page.userRevision,
+        isCurrent: () => true,
+      );
+      await tester.pump();
+      expect(controller.uploadPhase, CoreBoundedUploadPhase.choosingSource);
+      await harness.account.signOut();
+      choice.complete(
+        CoreBoundedPickedFile(
+          name: 'late.pdf',
+          declaredLength: 1,
+          chunks: Stream.value(Uint8List.fromList([1])),
+        ),
+      );
+      await tester.runAsync(() => future);
+
+      expect(requests, 0);
+      expect(controller.uploadPhase, CoreBoundedUploadPhase.idle);
     },
   );
 

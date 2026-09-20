@@ -14,9 +14,9 @@ import 'home_resources_fixture.dart';
 HomeResourceRecord _target() {
   final fixture = contract();
   return HomeResourcePage.fromJson(
-    fixture['memberList'],
+    fixture['adminList'],
     expectedContext: ServerContext.fromJson(fixture['context']),
-  ).entries.last;
+  ).entries.firstWhere((entry) => entry.kind == HomeResourceKind.resource);
 }
 
 Future<({HttpServer server, ServerEndpoint endpoint})> _loopback(
@@ -82,19 +82,38 @@ void main() {
       );
       expect(request.uri.query, isEmpty);
       expect(request.headers.value('authorization'), 'Bearer token');
-      expect(request.headers.value('content-type'), 'text/plain; charset=utf-8');
+      expect(
+        request.headers.value('content-type'),
+        'text/plain; charset=utf-8',
+      );
       expect(request.headers.value('content-length'), '7');
       expect(request.headers.value('x-larenor-upload-request-id'), requestId);
-      expect(request.headers.value('x-larenor-content-sha256'), sha256.convert(payload).toString());
+      expect(
+        request.headers.value('x-larenor-content-sha256'),
+        sha256.convert(payload).toString(),
+      );
       expect(request.headers.value('x-larenor-expected-user-revision'), '7');
-      expect(request.headers.value('x-larenor-expected-resource-revision'), '1');
+      expect(
+        request.headers.value('x-larenor-expected-resource-revision'),
+        '1',
+      );
       expect(request.headers.value('x-larenor-expected-acl-revision'), '2');
       expect(request.headers.value('x-larenor-expected-service-revision'), '4');
-      expect(await request.fold<List<int>>(<int>[], (all, part) => all..addAll(part)), payload);
+      expect(
+        await request.fold<List<int>>(
+          <int>[],
+          (all, part) => all..addAll(part),
+        ),
+        payload,
+      );
       request.response
         ..statusCode = 200
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'blob': {'requestId': requestId, ..._descriptor(revision: 5)}}));
+        ..write(
+          jsonEncode({
+            'blob': {'requestId': requestId, ..._descriptor(revision: 5)},
+          }),
+        );
       await request.response.close();
     });
     addTearDown(() => fixture.server.close(force: true));
@@ -118,7 +137,10 @@ void main() {
 
     expect(result.requestId, requestId);
     expect(result.descriptor.serviceRevision, 5);
-    expect(result.descriptor.authenticates(result.sourceDigest, payload.length), isTrue);
+    expect(
+      result.descriptor.authenticates(result.sourceDigest, payload.length),
+      isTrue,
+    );
   });
 
   test('descriptor and upload reject malformed or stale envelopes', () async {
@@ -131,7 +153,9 @@ void main() {
         ..headers.contentType = ContentType.json
         ..write(
           request.method == 'GET'
-              ? jsonEncode({'blob': {..._descriptor(), 'privatePath': '/secret'}})
+              ? jsonEncode({
+                  'blob': {..._descriptor(), 'privatePath': '/secret'},
+                })
               : '{"error":{"code":"revision_conflict","message":"secret"}}',
         );
       await request.response.close();
@@ -142,7 +166,13 @@ void main() {
 
     await expectLater(
       api.descriptor(token: 'token', target: _target()),
-      throwsA(isA<CoreBoundedDownloadException>().having((e) => e.code, 'code', 'invalid_response')),
+      throwsA(
+        isA<CoreBoundedDownloadException>().having(
+          (e) => e.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
     );
     await expectLater(
       api.upload(
@@ -165,29 +195,40 @@ void main() {
     expect(calls, 2);
   });
 
-  test('file selection is bounded, copied and maps a closed MIME set', () async {
-    final original = Uint8List.fromList([1, 2, 3]);
-    final access = CoreBoundedUploadFileAccess(
-      pick: () async => CoreBoundedPickedFile(
-        name: 'manual.PDF',
-        declaredLength: 3,
-        chunks: Stream.value(original),
-      ),
-    );
+  test(
+    'file selection is bounded, copied and maps a closed MIME set',
+    () async {
+      final original = Uint8List.fromList([1, 2, 3]);
+      final access = CoreBoundedUploadFileAccess(
+        pick: () async => CoreBoundedPickedFile(
+          name: 'manual.PDF',
+          declaredLength: 3,
+          chunks: Stream.value(original),
+        ),
+      );
 
-    final selected = await access.pick();
-    original[0] = 9;
+      final selected = await access.pick();
+      original[0] = 9;
 
-    expect(selected!.filename, 'manual.PDF');
-    expect(selected.contentType, 'application/pdf');
-    expect(selected.bytes, [1, 2, 3]);
-    expect(selected.toString(), 'CoreBoundedUploadSource');
-  });
+      expect(selected!.filename, 'manual.PDF');
+      expect(selected.contentType, 'application/pdf');
+      expect(selected.bytes, [1, 2, 3]);
+      expect(selected.toString(), 'CoreBoundedUploadSource');
+    },
+  );
 
   test('file selection rejects changed, empty and oversized sources', () async {
     for (final picked in [
-      CoreBoundedPickedFile(name: 'a.bin', declaredLength: 2, chunks: Stream.value(Uint8List.fromList([1]))),
-      CoreBoundedPickedFile(name: 'a.bin', declaredLength: 0, chunks: const Stream.empty()),
+      CoreBoundedPickedFile(
+        name: 'a.bin',
+        declaredLength: 2,
+        chunks: Stream.value(Uint8List.fromList([1])),
+      ),
+      CoreBoundedPickedFile(
+        name: 'a.bin',
+        declaredLength: 0,
+        chunks: const Stream.empty(),
+      ),
       CoreBoundedPickedFile(
         name: 'a.bin',
         declaredLength: CoreBoundedDownloadApi.maxBlobBytes + 1,
