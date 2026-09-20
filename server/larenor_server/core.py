@@ -48,6 +48,7 @@ from .plugins.music_provider_commands import MusicProviderCommandManagement
 from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
+from .plugins.media_recovery_status import MediaRecoveryStatusManagement
 from .plugins.media_archive_core import MediaArchiveHealthManagement
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
@@ -344,6 +345,10 @@ class CoreServices:
             self.music_retained_status = MusicRetainedStatusManagement(
                 self.db, self.media_installations, self.music_assistant_core,
                 self.music_provider_setups)
+            self.media_recovery_status = MediaRecoveryStatusManagement(
+                self.db, self.media_installations, self.media_service_bootstraps,
+                self.qbittorrent_configurations, self.arr_configurations,
+                self.seerr_bootstraps, self.music_assistant_bootstraps)
             self.music_playback = MusicPlaybackManagement(
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)

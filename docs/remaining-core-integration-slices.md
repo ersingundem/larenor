@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**9 Eylül 2026 · Durum: S06 ilk iki dilim, kaynak temelinin 6/6 alt adımı ve S06.4 yürütme kapısı kabul edildi; S06.5 özel bootstrap çalışıyor.** Bu belge yeni özellik seçimi
+**20 Eylül 2026 · Durum: S06.5 özel bootstrap kabul edildi; S06.6 doğrulanmış sonuç ve kurtarma durumu yerel TDD aşamasında.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -21,8 +21,8 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | 2 | **Uygulandı, test/yayın kapıları geçti:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
 | 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md), **6/6 kabul** | Saf plan/journal, imaj, appdata, volume ve özel ağ kaynakları exact `4021391` iki mimarili native makbuzla kabul edildi; makbuz kurulum veya sağlık değildir |
 | 4 | **Kabul edildi:** dar, süreli kurulum adımlarının API/işçiye bağlanması | Exact PR20 `2b9166b`: şifreli API, ayrı IPC, taze typed kaynak kanıtı, portsuz Jellyfin binding, journal/runtime ve native create/start; tam Android/Server/Security CI yeşil |
-| 5 | **Devam ediyor:** özel bootstrap ve otomatik servis eşleştirmesi | Server üretimli şifreli niyet ve URL/IP kabul etmeyen tek-stream Jellyfin startup protokolü yerelde hazır; exact container/private-network bağlantısı ile adres/anahtar/kütüphane geri okuması açık |
-| 6 | Tamamlama, iptal ve kurtarma | Create/start makbuzu yerine doğrulanmış servis sonucu; iptal/hata veriyi otomatik silmez. İki mimarili geçici Linux CI'da gerçek bileşen kabulü |
+| 5 | **Kabul edildi:** özel bootstrap ve otomatik servis eşleştirmesi | Seerr 3.4.1 ve Music Assistant 2.10.4 dahil şifreli private bootstrap, authenticated readback, restart ve amd64/arm64 native kabulü |
+| 6 | **Yerel TDD tamam, CI açık:** tamamlama, iptal ve kurtarma | [Ortak secret-free sonuç görünümü](s06-6-recovery-status-implementation-2026-09-20.md) create/start ile servis doğrulamasını ayırır; iptal/belirsiz etki silinmez veya otomatik tekrarlanmaz. Exact iki mimarili CI bekleniyor |
 
 Sadece `/version` okumak çalışma yetkisini, mount geçerliliğini, portu veya
 HomePod keşfini doğrulamaz. Bütünleşik Music Assistant ve medya motorlarının
