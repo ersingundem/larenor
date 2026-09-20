@@ -14,6 +14,30 @@ from server_ci_scope import decide_scope, git_changed_files, is_server_relevant
 
 
 class ServerCiScopeTest(unittest.TestCase):
+    def test_native_characterization_policy_only_changes_reuse_server_evidence(self):
+        paths = (
+            ".github/workflows/arr-managed-characterization.yml",
+            ".github/workflows/jellyfin-managed-characterization.yml",
+            ".github/workflows/music-assistant-managed-characterization.yml",
+            ".github/workflows/qbittorrent-managed-characterization.yml",
+            ".github/workflows/seerr-managed-characterization.yml",
+            "tool/native_ci_scope.py",
+            "tool/tests/native_ci_scope_test.py",
+        )
+
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(is_server_relevant(path))
+        self.assertEqual(
+            decide_scope(
+                event_name="pull_request",
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                changed_files=lambda *_args: paths,
+            ),
+            (False, "server-inputs-unchanged"),
+        )
+
     def test_flutter_ui_and_documentation_only_changes_reuse_server_evidence(self):
         for paths in (
             ("lib/features/home/home_screen.dart", "test/features/home_test.dart"),
