@@ -449,7 +449,10 @@ void main() {
         expect(
           tester
               .widget<CupertinoSwitch>(
-                find.byKey(const ValueKey('screen-program-enabled')),
+                find.descendant(
+                  of: find.byKey(const ValueKey('screen-program-enabled')),
+                  matching: find.byType(CupertinoSwitch),
+                ),
               )
               .value,
           isTrue,
