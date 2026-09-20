@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,7 +14,51 @@ class _NoDiscovery extends HaDiscoveryService {
   Future<void> start() async {}
 }
 
+class _LateDiscovery extends HaDiscoveryService {
+  final _servers = StreamController<List<DiscoveredHaServer>>.broadcast();
+
+  @override
+  Stream<List<DiscoveredHaServer>> get servers => _servers.stream;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  void emit() => _servers.add(const []);
+
+  Future<void> close() => _servers.close();
+}
+
 void main() {
+  testWidgets('disposed discovery and timeout callbacks are retired', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    final discovery = _LateDiscovery();
+    addTearDown(discovery.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          haDiscoveryFactoryProvider.overrideWithValue(() => discovery),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ConnectScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    discovery.emit();
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(tester.takeException(), isNull);
+  });
+
   for (final lang in ['en', 'tr']) {
     testWidgets('malformed URL recovers the connect form in $lang', (
       tester,

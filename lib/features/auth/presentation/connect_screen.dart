@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,6 +46,8 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   final _tokenFocusNode = FocusNode();
 
   late final HaDiscoveryService _discovery;
+  StreamSubscription<List<DiscoveredHaServer>>? _discoverySubscription;
+  Timer? _discoveryTimeout;
   List<DiscoveredHaServer> _discovered = [];
   bool _scanning = true;
 
@@ -55,10 +59,10 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   String? _errorMessage;
 
   bool _current(int epoch) {
+    if (!mounted) return false;
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     final interaction = AppInteractionScope.maybeRead(context);
-    return mounted &&
-        epoch == _authorityEpoch &&
+    return epoch == _authorityEpoch &&
         _visible &&
         interaction?.active != false &&
         (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
@@ -92,12 +96,14 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
   Future<void> _startDiscovery() async {
     final epoch = _authorityEpoch;
     try {
-      _discovery.servers.listen((servers) {
+      _discoverySubscription = _discovery.servers.listen((servers) {
         if (!_current(epoch)) return;
         setState(() => _discovered = servers);
       });
       await _discovery.start();
-      Future.delayed(const Duration(seconds: 6), () {
+      if (!_current(epoch)) return;
+      _discoveryTimeout?.cancel();
+      _discoveryTimeout = Timer(const Duration(seconds: 6), () {
         if (_current(epoch)) setState(() => _scanning = false);
       });
     } catch (_) {
@@ -107,8 +113,12 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen>
 
   @override
   void dispose() {
+    _authorityEpoch++;
+    _visible = false;
     WidgetsBinding.instance.removeObserver(this);
-    _discovery.stop();
+    _discoveryTimeout?.cancel();
+    unawaited(_discoverySubscription?.cancel());
+    unawaited(_discovery.stop());
     _urlController.dispose();
     _tokenController.dispose();
     _tokenFocusNode.dispose();
