@@ -1,6 +1,10 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 
 class EntityPickerScreen extends StatefulWidget {
@@ -41,39 +45,64 @@ class _EntityPickerScreenState extends State<EntityPickerScreen> {
               .toList();
 
     final l10n = AppLocalizations.of(context);
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.entityPickerTitle),
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: CupertinoSearchTextField(
-                onChanged: (value) => setState(() => _query = value),
-              ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(Gap.md),
+                  child: CupertinoSearchTextField(
+                    key: const ValueKey('entity-picker-search'),
+                    placeholder: l10n.commonSearch,
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: Insets.emptyState,
+                            child: Text(
+                              widget.emptyMessage ?? l10n.entityPickerEmpty,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: Insets.page,
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final entity = filtered[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: Gap.sm),
+                              child: SettingsSection(
+                                margin: EdgeInsets.zero,
+                                children: [
+                                  SettingsActionTile(
+                                    buttonKey: ValueKey(
+                                      'entity-picker-${entity.entityId}',
+                                    ),
+                                    title: Text(entity.friendlyName),
+                                    additionalInfo: Text(entity.entityId),
+                                    onTap: () =>
+                                        Navigator.of(context).pop(entity),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        widget.emptyMessage ?? l10n.entityPickerEmpty,
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final entity = filtered[index];
-                        return CupertinoListTile(
-                          title: Text(entity.friendlyName),
-                          subtitle: Text(entity.entityId),
-                          onTap: () => Navigator.of(context).pop(entity),
-                        );
-                      },
-                    ),
-            ),
-          ],
+          ),
         ),
       ),
     );

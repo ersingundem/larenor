@@ -1090,6 +1090,12 @@
   "dashboardCardDefault": "Varsayılan",
   "dashboardMoveUp": "Yukarı taşı",
   "dashboardMoveDown": "Aşağı taşı",
+  "dashboardReorder": "{name} sırasını değiştir",
+  "@dashboardReorder": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "dashboardEditHint": "Kartları sıralayın ve boyutlarını seçin. Bu önizlemeler cihazları çalıştırmaz. Değişiklikler bu cihazda kaydedilir.",
   "dashboardEditFailed": "Düzen kaydedilemedi. Yeniden yükleyip tekrar deneyin.",
   "dashboardCardHidden": "Gizli",

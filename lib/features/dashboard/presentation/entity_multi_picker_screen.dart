@@ -3,6 +3,9 @@ import 'package:flutter/cupertino.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/spacing.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import 'tiles/entity_icons.dart';
 
@@ -58,89 +61,138 @@ class _EntityMultiPickerScreenState extends State<EntityMultiPickerScreen> {
               )
               .toList();
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(widget.title),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          // Disabled until something is picked, so the button never
-          // pretends an empty selection is a valid action.
-          onPressed: _selected.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(_selected.toList()),
-          child: Text(
-            _selected.isEmpty
-                ? l10n.commonAdd
-                : l10n.entityPickerAddCount(_selected.length),
-          ),
-        ),
-      ),
+    return AppPageScaffold(
+      navigationBar: CupertinoNavigationBar(middle: Text(widget.title)),
       child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(Gap.md),
-              child: CupertinoSearchTextField(
-                placeholder: l10n.commonSearch,
-                onChanged: (value) => setState(() => _query = value),
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: Insets.emptyState,
-                        child: Text(
-                          widget.emptyMessage ?? l10n.entityPickerEmpty,
-                          textAlign: TextAlign.center,
-                          style: AppText.emptyStateBody.copyWith(
-                            color: CupertinoColors.secondaryLabel.resolveFrom(
-                              context,
-                            ),
-                          ),
-                        ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Column(
+              children: [
+                SettingsSection(
+                  children: [
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('entity-multi-picker-add'),
+                      leading: const Icon(CupertinoIcons.add_circled),
+                      title: Text(
+                        _selected.isEmpty
+                            ? l10n.commonAdd
+                            : l10n.entityPickerAddCount(_selected.length),
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final entity = filtered[index];
-                        final picked = _selected.contains(entity.entityId);
-                        return CupertinoListTile(
-                          leading: Icon(
-                            iconForEntity(entity),
-                            color: CupertinoColors.secondaryLabel.resolveFrom(
-                              context,
+                      onTap: _selected.isEmpty
+                          ? null
+                          : () => Navigator.of(context).pop(_selected.toList()),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Gap.md),
+                  child: CupertinoSearchTextField(
+                    key: const ValueKey('entity-multi-picker-search'),
+                    placeholder: l10n.commonSearch,
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+                const SizedBox(height: Gap.md),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: Insets.emptyState,
+                            child: Text(
+                              widget.emptyMessage ?? l10n.entityPickerEmpty,
+                              textAlign: TextAlign.center,
+                              style: AppText.emptyStateBody.copyWith(
+                                color: CupertinoColors.secondaryLabel
+                                    .resolveFrom(context),
+                              ),
                             ),
                           ),
-                          title: Text(entity.friendlyName),
-                          subtitle: Text(entity.entityId),
-                          trailing: picked
-                              ? Icon(
-                                  CupertinoIcons.checkmark_circle_fill,
-                                  color: CupertinoTheme.of(context)
-                                      .primaryColor,
-                                )
-                              : Icon(
-                                  CupertinoIcons.circle,
-                                  color: CupertinoColors.tertiaryLabel
-                                      .resolveFrom(context),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Gap.md,
+                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final entity = filtered[index];
+                            final picked = _selected.contains(entity.entityId);
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: Gap.sm),
+                              child: Semantics(
+                                key: ValueKey(
+                                  'entity-multi-picker-${entity.entityId}',
                                 ),
-                          onTap: () => setState(() {
-                            if (picked) {
-                              _selected.remove(entity.entityId);
-                            } else {
-                              _selected.add(entity.entityId);
-                            }
-                          }),
-                        );
-                      },
-                    ),
+                                button: true,
+                                selected: picked,
+                                label:
+                                    '${entity.friendlyName}, ${entity.entityId}',
+                                child: CupertinoButton(
+                                  minimumSize: const Size.fromHeight(48),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: Gap.md,
+                                    vertical: Gap.sm,
+                                  ),
+                                  color: CupertinoColors
+                                      .secondarySystemGroupedBackground
+                                      .resolveFrom(context),
+                                  onPressed: () => setState(() {
+                                    if (picked) {
+                                      _selected.remove(entity.entityId);
+                                    } else {
+                                      _selected.add(entity.entityId);
+                                    }
+                                  }),
+                                  child: ExcludeSemantics(
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          iconForEntity(entity),
+                                          color: CupertinoColors.secondaryLabel
+                                              .resolveFrom(context),
+                                        ),
+                                        const SizedBox(width: Gap.md),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(entity.friendlyName),
+                                              Text(
+                                                entity.entityId,
+                                                style: TextStyle(
+                                                  color: CupertinoColors
+                                                      .secondaryLabel
+                                                      .resolveFrom(context),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          picked
+                                              ? CupertinoIcons
+                                                    .checkmark_circle_fill
+                                              : CupertinoIcons.circle,
+                                          color: picked
+                                              ? CupertinoTheme.of(context)
+                                                    .primaryColor
+                                              : CupertinoColors.tertiaryLabel
+                                                    .resolveFrom(context),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

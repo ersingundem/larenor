@@ -1421,6 +1421,12 @@
   "dashboardCardDefault": "Default",
   "dashboardMoveUp": "Move up",
   "dashboardMoveDown": "Move down",
+  "dashboardReorder": "Reorder {name}",
+  "@dashboardReorder": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "dashboardEditHint": "Arrange cards and choose their sizes. These previews do not control devices. Changes are saved on this device.",
   "dashboardEditFailed": "The layout could not be saved. Reload it and try again.",
   "dashboardCardHidden": "Hidden",
