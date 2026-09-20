@@ -538,7 +538,16 @@ class LarenorServerApi {
             'media_installation_changed',
             'media_archive_authority_changed',
             'media_archive_snapshot_stale',
+            'notification_subscription_changed',
+            'notification_subscription_inactive',
+            'notification_registration_replay',
+            'notification_not_delivered',
+            'notification_event_conflict',
+            'notification_limit_reached',
           }.contains(code)) {
+        return code as String;
+      }
+      if (status == 503 && code == 'notification_storage_unavailable') {
         return code as String;
       }
     } catch (_) {

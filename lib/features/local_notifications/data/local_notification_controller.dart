@@ -239,11 +239,17 @@ class LocalNotificationController extends ChangeNotifier {
         for (final event in more ? events : const <LocalNotificationEvent>[])
           event.sequence: event,
       };
+      final identities = <String, int>{
+        for (final event in merged.values) event.id: event.sequence,
+      };
       for (final event in page.events) {
         final before = merged[event.sequence];
-        if (before != null && !before.sameEnvelope(event)) {
+        final previousSequence = identities[event.id];
+        if ((before != null && !before.sameEnvelope(event)) ||
+            (previousSequence != null && previousSequence != event.sequence)) {
           throw const LarenorServerException('invalid_response');
         }
+        identities[event.id] = event.sequence;
         merged[event.sequence] =
             before?.readState == LocalNotificationReadState.read
             ? event.asRead()
@@ -312,12 +318,27 @@ class LocalNotificationController extends ChangeNotifier {
     notifyListeners();
     try {
       _transport = apiFactory(original.endpoint);
-      await LocalNotificationApi(
+      final api = LocalNotificationApi(
         _transport!,
         original,
         isCurrent: current,
-      ).acknowledge(bound, target);
+      );
+      await api.acknowledge(bound, target);
       if (!current()) return false;
+      final readback = await api.pull(
+        bound,
+        after: target.sequence - 1,
+        limit: 1,
+      );
+      if (!current()) return false;
+      if (readback.events.length != 1 ||
+          readback.events.single.sequence != target.sequence ||
+          !readback.events.single.sameEnvelope(target) ||
+          readback.events.single.delivery !=
+              LocalNotificationDelivery.delivered ||
+          readback.events.single.readState != LocalNotificationReadState.read) {
+        throw const LarenorServerException('invalid_response');
+      }
       events = List.unmodifiable(
         events.map(
           (event) => identical(event, target) ? event.asRead() : event,
