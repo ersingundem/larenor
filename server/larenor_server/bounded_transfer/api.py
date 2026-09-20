@@ -150,6 +150,16 @@ def receipt(core_id: Identity, home_id: Identity, record_id: Identity,
         actor, core_id, home_id, record_id, request_id)
 
 
+@router.delete(PATH + "/transfers/{request_id}",
+               response_model=TransferReceiptResponse)
+def cancel_transfer(core_id: Identity, home_id: Identity, record_id: Identity,
+                    request_id: Identity, request: Request, actor: Ready,
+                    core: Core):
+    _closed_read(request, history=False)
+    return core.bounded_transfers.cancel(
+        actor, core_id, home_id, record_id, request_id)
+
+
 @router.get(PATH + "/transfers", response_model=TransferHistoryResponse)
 def history(core_id: Identity, home_id: Identity, record_id: Identity,
             request: Request, actor: Ready, core: Core):
@@ -213,6 +223,8 @@ async def download(core_id: Identity, home_id: Identity, record_id: Identity,
         expected_acl_revision=body.expectedAclRevision,
         expected_service_revision=body.expectedServiceRevision,
         deadline_ms=body.deadlineMs,
+        resume_request_id=body.resumeRequestId,
+        resume_offset=body.resumeOffset,
         cancelled=lambda: disconnected,
     )
 
@@ -238,6 +250,7 @@ async def download(core_id: Identity, home_id: Identity, record_id: Identity,
         "X-Larenor-Blob-Sha256": metadata.sha256,
         "X-Larenor-Blob-Content-Type": metadata.content_type,
         "X-Larenor-Service-Revision": str(metadata.service_revision),
+        "X-Larenor-Resume-Offset": str(metadata.resume_offset),
         "Cache-Control": "no-store",
         "Accept-Ranges": "none",
     })

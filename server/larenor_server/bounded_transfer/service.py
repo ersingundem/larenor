@@ -40,6 +40,7 @@ class TransferMetadata:
     sha256: str
     content_type: str
     service_revision: int
+    resume_offset: int
 
 
 class _Frames(Iterator[bytes]):
@@ -54,7 +55,7 @@ class _Frames(Iterator[bytes]):
         self._metadata = metadata
         self._deadline = deadline
         self._cancelled = cancelled
-        self._offset = 0
+        self._offset = metadata.resume_offset
         self._sequence = 0
         self._closed = False
 
@@ -65,7 +66,8 @@ class _Frames(Iterator[bytes]):
         if self._closed:
             raise StopIteration
         try:
-            if self._cancelled():
+            if self._cancelled() or self._service._is_cancelled(
+                    self._body.requestId):
                 raise ApiError("transfer_cancelled", 408)
             if self._service.clock() >= self._deadline:
                 raise ApiError("request_timeout", 408)
@@ -99,7 +101,8 @@ class _Frames(Iterator[bytes]):
                 self._service.receipts.finish(
                     self._body.requestId, "completed" if completed else "interrupted")
             finally:
-                self._service._release(self._actor.id)
+                self._service._release(
+                    self._actor.id, request_id=self._body.requestId)
 
 
 @dataclass
@@ -124,6 +127,7 @@ class BoundedTransferService:
         self._active = 0
         self._active_by_actor: dict[str, int] = {}
         self._actor_quota: dict[str, tuple[int, int]] = {}
+        self._active_requests: dict[str, tuple[str, str, str, str, bool]] = {}
 
     @staticmethod
     def python_arguments(values: dict) -> dict:
@@ -135,6 +139,8 @@ class BoundedTransferService:
             "expected_acl_revision": body.expectedAclRevision,
             "expected_service_revision": body.expectedServiceRevision,
             "deadline_ms": body.deadlineMs,
+            "resume_request_id": body.resumeRequestId,
+            "resume_offset": body.resumeOffset,
         }
 
     def _descriptor(self, resource_id: str) -> BlobDescriptor:
@@ -194,8 +200,14 @@ class BoundedTransferService:
                 if value[0] >= window - 1
             }
 
-    def _release(self, actor_id: str, *, refund_bytes=0) -> None:
+    def _release(self, actor_id: str, *, request_id=None, refund_bytes=0) -> None:
         with self._lock:
+            # Retire the externally cancellable lease even if a defensive
+            # duplicate close observes counters that have already reached 0.
+            # This keeps cancellation state bounded and prevents a stale
+            # request id from affecting a later operation.
+            if request_id is not None:
+                self._active_requests.pop(request_id, None)
             count = self._active_by_actor.get(actor_id, 0)
             if count < 1 or self._active < 1:
                 return
@@ -211,11 +223,31 @@ class BoundedTransferService:
                     self._actor_quota[actor_id] = (
                         window, max(0, used - refund_bytes))
 
+    def _is_cancelled(self, request_id: str) -> bool:
+        with self._lock:
+            active = self._active_requests.get(request_id)
+            return active is not None and active[4]
+
+    def cancel(self, actor, core_id, home_id, resource_id, request_id):
+        self.registry.get(actor, core_id, home_id, resource_id)
+        with self._lock:
+            active = self._active_requests.get(request_id)
+            if active is not None:
+                owner, active_core, active_home, active_resource, _ = active
+                if ((owner != actor.id and actor.role != "admin")
+                        or (active_core, active_home, active_resource)
+                        != (core_id, home_id, resource_id)):
+                    raise ApiError("not_found", 404)
+                self._active_requests[request_id] = (*active[:4], True)
+        return self.receipts.cancel(actor, resource_id, request_id)
+
     def open(self, actor, core_id: str, home_id: str, resource_id: str, *,
              request_id: str,
              expected_user_revision: int, expected_revision: int,
              expected_acl_revision: int, expected_service_revision: int,
-             deadline_ms: int, cancelled: Callable[[], bool]) -> OpenTransfer:
+             deadline_ms: int, cancelled: Callable[[], bool],
+             resume_request_id: str | None = None,
+             resume_offset: int = 0) -> OpenTransfer:
         body = TransferRequest(
             requestId=request_id,
             expectedUserRevision=expected_user_revision,
@@ -223,6 +255,8 @@ class BoundedTransferService:
             expectedAclRevision=expected_acl_revision,
             expectedServiceRevision=expected_service_revision,
             deadlineMs=deadline_ms,
+            resumeRequestId=resume_request_id,
+            resumeOffset=resume_offset,
         )
         if cancelled():
             raise ApiError("transfer_cancelled", 408)
@@ -245,15 +279,25 @@ class BoundedTransferService:
         chunks = math.ceil(length / self.limits.chunk_bytes)
         if length > self.limits.max_blob_bytes or chunks > self.limits.max_chunks:
             raise ApiError("payload_too_large", 413)
+        if body.resumeOffset > length:
+            raise ApiError("revision_conflict", 409)
+        if body.resumeRequestId is not None:
+            self.receipts.authorize_resume(
+                actor, core_id, home_id, resource_id, body, descriptor)
         self._revalidate(
             actor, (core_id, home_id), resource_id, body, descriptor,
             cancelled=False)
-        self._reserve(actor.id, length)
+        reserved = length - body.resumeOffset
+        remaining_chunks = math.ceil(reserved / self.limits.chunk_bytes)
+        self._reserve(actor.id, reserved)
         try:
             self.receipts.accept(actor, core_id, home_id, resource_id, body, descriptor)
         except BaseException:
-            self._release(actor.id, refund_bytes=length)
+            self._release(actor.id, refund_bytes=reserved)
             raise
+        with self._lock:
+            self._active_requests[body.requestId] = (
+                actor.id, core_id, home_id, resource_id, False)
         # The caller-generated opaque request id is also the wire trace id, so
         # the accepted stream and its eventual result cannot be confused with
         # a different operation. It carries no user or resource information.
@@ -261,10 +305,11 @@ class BoundedTransferService:
         metadata = TransferMetadata(
             trace_id=trace,
             content_length=length,
-            framed_length=length + FRAME.size * (chunks + 1),
+            framed_length=reserved + FRAME.size * (remaining_chunks + 1),
             sha256=hashlib.sha256(descriptor.content).hexdigest(),
             content_type=descriptor.content_type,
             service_revision=descriptor.service_revision,
+            resume_offset=body.resumeOffset,
         )
         frames = _Frames(
             self, actor, (core_id, home_id), resource_id, body, descriptor,

@@ -34,6 +34,7 @@ def _selected_headers(response):
         "x-larenor-blob-sha256",
         "x-larenor-blob-content-type",
         "x-larenor-service-revision",
+        "x-larenor-resume-offset",
         "cache-control",
         "accept-ranges",
     )
