@@ -72,6 +72,35 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('captured metric refresh cannot cross controller authority', (
+    tester,
+  ) async {
+    final old = _Controller();
+    final replacement = _Controller();
+    addTearDown(old.dispose);
+    addTearDown(replacement.dispose);
+    await _mount(tester, language: 'en', width: 600, controller: old);
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('keenetic-metric-refresh')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(KeeneticMetricDetailScreen)),
+    );
+    container.updateOverrides([
+      keeneticConnectionProvider.overrideWith(_Connection.new),
+      keeneticTelemetryControllerProvider.overrideWithValue(replacement),
+    ]);
+    await tester.pumpAndSettle();
+
+    refresh();
+    await tester.pump();
+
+    expect(old.refreshes, 0);
+    expect(replacement.refreshes, 0);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$language metric refresh is accessible at ${width}px 2x', (

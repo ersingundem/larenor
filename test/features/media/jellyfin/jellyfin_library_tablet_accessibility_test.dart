@@ -18,6 +18,7 @@ Future<void> _mount(
   WidgetTester tester, {
   required String language,
   required double width,
+  VoidCallback? onLibraryRead,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -26,8 +27,10 @@ Future<void> _mount(
     ProviderScope(
       overrides: [
         jellyfinClientProvider.overrideWith((ref) => null),
-        jellyfinLibraryItemsProvider('library')
-            .overrideWith((ref) async => const [_movie]),
+        jellyfinLibraryItemsProvider('library').overrideWith((ref) async {
+          onLibraryRead?.call();
+          return const [_movie];
+        }),
       ],
       child: CupertinoApp(
         locale: Locale(language),
@@ -62,6 +65,35 @@ Future<void> _tabToPoster(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('captured library refresh cannot cross result authority', (
+    tester,
+  ) async {
+    var reads = 0;
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      onLibraryRead: () => reads++,
+    );
+    expect(reads, 1);
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('jellyfin-library-refresh')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(JellyfinLibraryScreen)),
+    );
+    container.invalidate(jellyfinLibraryItemsProvider('library'));
+    await tester.pumpAndSettle();
+    expect(reads, 2);
+
+    refresh();
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$language library action is accessible at ${width}px 2x', (
