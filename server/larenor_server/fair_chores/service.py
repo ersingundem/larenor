@@ -216,13 +216,31 @@ class FairChoreStore:
     def get(
         self, actor: Principal, task_id: str, *, core_id: str, home_id: str,
     ) -> ChoreTask:
-        del actor
         with self.database.connection() as connection:
-            return self._load(connection, task_id, core_id, home_id)
+            task = self._load(connection, task_id, core_id, home_id)
+            self._assert_current(connection, task)
+            self._authorize_read(actor, task)
+            return task
+
+    @staticmethod
+    def _authorize_read(actor: Principal, task: ChoreTask) -> None:
+        if actor.role != "admin" and actor.id not in task.member_order:
+            raise ApiError("forbidden", 403)
+
+    def _assert_current(
+        self, connection: sqlite3.Connection, task: ChoreTask,
+    ) -> None:
+        self._verified_history(connection, task.id)
+        row = connection.execute(
+            "SELECT receipt_json FROM fair_chore_events WHERE task_id=? "
+            "ORDER BY sequence DESC LIMIT 1", (task.id,),
+        ).fetchone()
+        if row is None or self._receipt(row["receipt_json"]).task != task:
+            raise StartupError("fair_chore_history_invalid")
 
     def _replay(
         self, connection: sqlite3.Connection, task: ChoreTask,
-        command_id: str, actor: Principal,
+        command_id: str, actor: Principal, expected_action: str,
     ) -> ChoreReceipt | None:
         row = connection.execute(
             "SELECT actor_id,receipt_json FROM fair_chore_events WHERE task_id=? AND command_id=?",
@@ -233,7 +251,10 @@ class FairChoreStore:
         if row["actor_id"] != actor.id and actor.role != "admin":
             raise ApiError("forbidden", 403)
         self._verified_history(connection, task.id)
-        return self._receipt(row["receipt_json"])
+        receipt = self._receipt(row["receipt_json"])
+        if receipt.action != expected_action:
+            raise ApiError("idempotency_conflict", 409)
+        return receipt
 
     @staticmethod
     def _next_assignee(task: ChoreTask, members: HouseholdMembers) -> str:
@@ -256,7 +277,8 @@ class FairChoreStore:
             raise ApiError("invalid_request", 400)
         with self.database.transaction() as connection:
             task = self._load(connection, task_id, core_id, home_id)
-            replay = self._replay(connection, task, command_id, actor)
+            self._assert_current(connection, task)
+            replay = self._replay(connection, task, command_id, actor, "completed")
             if replay is not None:
                 return replay
             if task.revision != expected_revision:
@@ -303,7 +325,8 @@ class FairChoreStore:
             raise ApiError("invalid_request", 400)
         with self.database.transaction() as connection:
             task = self._load(connection, task_id, core_id, home_id)
-            replay = self._replay(connection, task, command_id, actor)
+            self._assert_current(connection, task)
+            replay = self._replay(connection, task, command_id, actor, "deferred")
             if replay is not None:
                 return replay
             if task.revision != expected_revision:
@@ -362,7 +385,8 @@ class FairChoreStore:
     def history(
         self, actor: Principal, task_id: str, *, core_id: str, home_id: str,
     ) -> tuple[ChoreEvent, ...]:
-        del actor
         with self.database.connection() as connection:
             task = self._load(connection, task_id, core_id, home_id)
-            return self._verified_history(connection, task.id)
+            events = self._verified_history(connection, task.id)
+            self._authorize_read(actor, task)
+            return events
