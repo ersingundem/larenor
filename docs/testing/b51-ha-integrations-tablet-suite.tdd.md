@@ -32,7 +32,7 @@ acceptance remain separate.
   send an old `flow_id` through a replacement account's client. GREEN binds
   the complete handler/start/submit/poll chain to its original client and
   interaction epoch; old callbacks neither render nor send.
-- Final focused run passed **23/23** suite tests across the four files named in
+- Final focused run passed **26/26** suite tests across the four files named in
   the matrix. The existing admin workflow regression also passed. Focused
   `flutter analyze` completed with no issues.
 
