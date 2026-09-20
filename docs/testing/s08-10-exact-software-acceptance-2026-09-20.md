@@ -53,6 +53,23 @@ software-only acceptance gap remains in the S08.10 matrix on this composition.
 The focused runs have no skips. The Server run emits only upstream
 Starlette/httpx and AnyIO deprecation warnings.
 
+## Independent authority and lifecycle review
+
+The integration pass found and closed two Client trust gaps before publication:
+
+- migrated Server chains may contain an `accepted` baseline followed by the
+  restart recovery result; the Client now accepts that exact baseline shape
+  instead of rejecting a valid upgrade history;
+- a member checkpoint now rejects every event whose actor differs from the
+  active session user, while the administrator view keeps its documented
+  multi-actor scope.
+
+The focused checkpoint suite covers both regressions together with scope,
+rollback, chain replacement, lifecycle retirement, restart cursor reuse, and
+failed-proof trust clearing. All three tests pass and targeted static analysis
+is clean. Queue and selected-feature counters remain unchanged until the
+closing sequence below completes.
+
 ## Required closing sequence
 
 S08.10 remains `pending`, with counters fixed at `15/125` and `0/63`, until all
