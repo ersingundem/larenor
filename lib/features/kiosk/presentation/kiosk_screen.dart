@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/kiosk_models.dart';
@@ -281,10 +282,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
         _current(sessionGeneration) && !_pending && !_loading && !_mustRefresh;
     String truth(bool? value) =>
         value == null ? l.commonUnknown : (value ? l.commonYes : l.commonNo);
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           l.kioskTitle,
@@ -316,7 +314,11 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     ),
                   if (snapshot?.supported == true) ...[
                     SettingsSection(
-                      header: Text(l.kioskState),
+                      header: Semantics(
+                        container: true,
+                        header: true,
+                        child: Text(l.kioskState),
+                      ),
                       footer: Text(l.kioskExternalHint),
                       children: [
                         _row(l.kioskState, switch (snapshot!.lockState) {
@@ -386,6 +388,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     ),
                   CupertinoButton(
                     key: const ValueKey('kiosk-refresh'),
+                    minimumSize: const Size(48, 48),
                     onPressed:
                         !_pending && !_loading && _current(sessionGeneration)
                         ? _refresh
@@ -393,7 +396,11 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     child: Text(l.commonRefresh),
                   ),
                   SettingsSection(
-                    header: Text(l.kioskRecovery),
+                    header: Semantics(
+                      container: true,
+                      header: true,
+                      child: Text(l.kioskRecovery),
+                    ),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -416,6 +423,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
         width: double.infinity,
         child: CupertinoButton(
           key: ValueKey('kiosk-${action.name}'),
+          minimumSize: const Size.fromHeight(48),
           onPressed: enabled ? () => _act(action) : null,
           child: Text(_actionLabel(l, action), textAlign: TextAlign.center),
         ),

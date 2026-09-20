@@ -11,6 +11,7 @@ import 'package:larenor/features/kiosk/providers/kiosk_providers.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 
 class _Pin extends PinLockStore {
   String? value = '1234';
@@ -97,6 +98,7 @@ Future<void> _mount(
   ValueNotifier<bool>? visibility,
   Size size = const Size(600, 1000),
   double scale = 1,
+  Locale locale = const Locale('en'),
 }) async {
   final active = interaction ?? AppInteractionController();
   if (interaction == null) addTearDown(active.dispose);
@@ -110,6 +112,7 @@ Future<void> _mount(
         pinLockStoreProvider.overrideWithValue(pin),
       ],
       child: CupertinoApp(
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {
@@ -393,19 +396,63 @@ void main() {
     expect(find.textContaining('private device'), findsNothing);
     expect(find.text('Recovery and device setup'), findsOneWidget);
   });
-  for (final size in [const Size(320, 640), const Size(1366, 1024)]) {
-    testWidgets(
-      'grouped kiosk controls and confirmation fit $size at 200% text',
-      (t) async {
-        final api = _Api();
-        await _mount(t, api, _Pin(), size: size, scale: 2);
-        expect(t.takeException(), isNull);
-        await tap(t, 'kiosk-enter');
-        expect(t.takeException(), isNull);
-        await confirm(t);
-        expect(api.writes, 1);
-        expect(t.takeException(), isNull);
-      },
-    );
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        '${locale.languageCode} kiosk hierarchy fits ${width.toInt()}px at 200% text',
+        (t) async {
+          final semantics = t.ensureSemantics();
+          try {
+            final api = _Api();
+            await _mount(
+              t,
+              api,
+              _Pin(),
+              size: Size(width, 1000),
+              scale: 2,
+              locale: locale,
+            );
+            final context = t.element(find.byType(KioskScreen));
+            final l10n = AppLocalizations.of(context);
+            expect(find.byType(AppSurface), findsOneWidget);
+            expect(
+              t
+                  .getSemantics(find.text(l10n.kioskState).first)
+                  .flagsCollection
+                  .isHeader,
+              isTrue,
+            );
+            expect(
+              t
+                  .getSemantics(find.text(l10n.kioskRecovery))
+                  .flagsCollection
+                  .isHeader,
+              isTrue,
+            );
+            for (final key in [
+              'kiosk-exit',
+              'kiosk-enter',
+              'kiosk-allowApp',
+              'kiosk-removeApp',
+              'kiosk-restorePowerMenu',
+              'kiosk-refresh',
+            ]) {
+              final action = find.byKey(ValueKey(key));
+              await t.ensureVisible(action);
+              await t.pump();
+              expect(t.getSize(action).height, greaterThanOrEqualTo(48));
+            }
+            expect(t.takeException(), isNull);
+            await tap(t, 'kiosk-enter');
+            expect(t.takeException(), isNull);
+            await confirm(t);
+            expect(api.writes, 1);
+            expect(t.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
   }
 }
