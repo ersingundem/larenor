@@ -385,6 +385,39 @@ class HomeAssistantAdapter:
             return {'schemaVersion': 1, 'ref': ref.model_dump(), 'entries': entries[:limit],
                     'nextBefore': entries[limit - 1]['receipt']['requestId'] if len(entries) > limit else None}
 
+    def command_events(self, actor, core, home, resource, *, after=None, limit=25):
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ApiError('invalid_request')
+        if after is not None and (type(after) is not int or not 1 <= after <= command_chain.MAX_ENTRIES):
+            raise ApiError('invalid_request')
+        with self._tx(actor, core, home) as (c, facts):
+            _, ref, _, _ = self._target(c, facts, resource)
+            state, rows = command_chain.event_rows(c, self._key, self.resources.scope)
+            events = []
+            for row in rows:
+                value = self._decode_command(row)
+                if value.receipt.ref != ref or (facts.role != 'admin' and value.receipt.actorId != actor.id):
+                    continue
+                # The cursor is monotonic within this authorized view. Exposing
+                # the global chain position would reveal hidden actors/resources.
+                events.append({'sequence': len(events) + 1, 'kind': row['kind'],
+                    'attribution': value.attribution.model_dump(), 'receipt': value.receipt.model_dump()})
+            head_sequence = len(events)
+            if after is not None:
+                position = next((i for i, value in enumerate(events)
+                                 if value['sequence'] == after), None)
+                if position is None:
+                    raise ApiError('not_found', 404)
+                events = events[position + 1:]
+            page = events[:limit]
+            view = [state['chain_id'], ref.id, 'admin' if facts.role == 'admin' else actor.id]
+            chain_id = hmac.new(self._key, b'larenor-command-view-chain-v1\0' +
+                json.dumps(view, separators=(',', ':')).encode('ascii'), hashlib.sha256).hexdigest()[:32]
+            return {'schemaVersion': 1, 'ref': ref.model_dump(), 'chainId': chain_id,
+                    'headSequence': head_sequence, 'events': page,
+                    'nextAfter': page[-1]['sequence'] if len(events) > limit else None,
+                    'verified': True}
+
     def verify_history(self, actor, core, home, *, checkpoint=None):
         with self._tx(actor, core, home, admin=True) as (c, _):
             return {'verification': command_chain.checkpoint(c, self._key, self.resources.scope, checkpoint)}

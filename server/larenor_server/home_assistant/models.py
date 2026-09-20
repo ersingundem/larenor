@@ -192,5 +192,22 @@ class CommandHistoryResponse(FrozenModel):
     nextBefore: Identity | None
 
 
+class CommandHistoryEvent(FrozenModel):
+    sequence: Annotated[int, Field(ge=1, le=2048)]
+    kind: Literal['baseline', 'command_write']
+    attribution: CommandAttribution
+    receipt: CommandReceipt
+
+
+class CommandEventHistoryResponse(FrozenModel):
+    schemaVersion: Literal[1] = 1
+    ref: ResourceRef
+    chainId: Identity
+    headSequence: Annotated[int, Field(ge=0, le=2048)]
+    events: list[CommandHistoryEvent] = Field(max_length=50)
+    nextAfter: Annotated[int, Field(ge=1, le=2048)] | None
+    verified: Literal[True] = True
+
+
 class CommandResponse(FrozenModel):
     receipt: CommandReceipt

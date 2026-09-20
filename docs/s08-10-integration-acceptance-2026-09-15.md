@@ -10,7 +10,7 @@ mevcut kabul sınırını ve sonraki parçaların kanıtını ayırır; yeni `do
 | Parça | Mevcut davranış | Açık bağı |
 | --- | --- | --- |
 | HA komut sonucu | Kaynak kapsamlı, şifreli/idempotent komut makbuzu; `pending`, `accepted`, `rejected`, `unknown`, ayrı provider kabulü ve gözlenen sonuç. Aynı `requestId` yeniden yazılmaz. | Son durum tek başına olay sırasını veya fiziksel etkiyi kanıtlamaz. |
-| HA geçmişi | Kaynak ve aktör yetkisiyle sayfalı `/history`, admin için ayrı HMAC zinciri/checkpoint doğrulaması; Client'da aynı ev bağlamına bağlı etkinlik ekranı. | Kaynak olaylarının sıra/kopuş/tekrar izlenmesi ve yenileme başarısızken eski doğrulamanın yeni kanıt sayılmaması. |
+| HA geçmişi | Kaynak ve aktör yetkisiyle sayfalı `/history`; `pending → final` yazımlarını koruyan, yetkili görünüme özel zincir kimliği ve ileri sıra cursor'ı sunan `/history/events`; admin için ayrı HMAC zinciri/checkpoint doğrulaması. Client'da aynı ev bağlamına bağlı etkinlik ekranı. | Client'ın yeni olay cursor'ını ve zincir değişimini kalıcı güven durumu ile birleştirmesi; yenileme başarısızken eski doğrulamanın yeni kanıt sayılmaması. |
 | Sınırlı indirme | Ayrı `POST /blob` binary akışı; kaynak/user/ACL/service revision, 32 hex iz kimliği, sıralı frame, boş son frame, uzunluk ve SHA-256. Client tam doğrulamadan sonra Android SAF hedefini açar. | Gerçek ürün sağlayıcıları ve ayarları, kalıcı makbuz, ayrı upload/media protokolü, fiziksel SAF. |
 
 Client artık her kullanıcı başlatmalı indirme için kriptografik rastgele 128 bit
@@ -19,6 +19,15 @@ geri verir; Client farklı bir trace taşıyan yanıtı hiçbir byte yayımlamad
 reddeder. Böylece başlangıç ve doğrulanmış indirme sonucu aynı işlem kimliğine
 bağlanır. Kalıcı transfer makbuzu, restart sonrası tekrar ayrımı ve geçmiş API'si
 hala açık olduğundan S08.10 kabulü ve sayaçlar değişmez.
+
+Komut olay okuması değiştirilebilir güncel komut satırını olaymış gibi tekrar
+yorumlamaz. Şifreli append zincirindeki başlangıç ve sonuç snapshot'larını sıra
+ile döndürür; cursor yalnız çağıranın o kaynakta görmeye yetkili olduğu görünüm
+içinde artar. Global zincir konumu, başka aktör veya başka kaynak sayısı
+sızdırılmaz. Aynı istek yeniden gönderildiğinde yeni olay üretilmez; okuma
+restart sonrasında provider çağrısı veya komut replay'i yapmaz. Bu Server dilimi
+olay sıra/tekrar temelini tamamlar; Client cursor/checkpoint bağlama ve kalıcı
+transfer makbuzu açık olduğundan S08.10 henüz kapanmaz.
 
 İlk indirme sağlayıcısı üretimde boş kalır. Sunucuda hazırlanan medya kataloğu
 veya bir dosya yolunun varlığı, yetkili binary sağlayıcı kurulmuş olduğu
