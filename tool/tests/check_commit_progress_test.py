@@ -98,6 +98,26 @@ class CheckCommitProgressTest(unittest.TestCase):
 
             self.assertEqual([entry.commit for entry in entries], [head])
 
+    def test_expected_progress_is_owned_by_the_pr_head_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            self._git(repo, 'init', '-q')
+            self._git(repo, 'config', 'user.name', 'Larenor Test')
+            self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+            queue = repo / 'docs/execution-queue.json'
+            queue.parent.mkdir()
+            queue.write_text(
+                (ROOT / 'docs/execution-queue.json').read_text())
+            original = check_commit_progress.expected_progress(queue)
+            head = self._commit(repo, 'feature', self._message(
+                'feature commit', *original.queue, *original.feature))
+            queue.write_text('{}')
+
+            expected = check_commit_progress.expected_progress_at(
+                repo, head, queue)
+
+            self.assertEqual(expected, original)
+
     def test_rejects_disconnected_histories(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
