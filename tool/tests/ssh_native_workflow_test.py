@@ -30,6 +30,7 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         )
         self.assertIn('flutter-version: "3.47.2"', self.raw)
         self.assertIn("flutter pub get --enforce-lockfile", self.raw)
+        self.assertIn("flutter gen-l10n", self.raw)
 
     def test_fixture_is_private_bounded_and_runs_exact_native_suite(self):
         self.assertIn("PasswordAuthentication no", self.raw)

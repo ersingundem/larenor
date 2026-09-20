@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -162,7 +161,7 @@ void main() {
       );
       expect(utf8.decode(hello), 'Larenor SFTP fixture\n');
 
-      final uploadPath = '${fixture.root}/upload-${pid}.txt';
+      final uploadPath = '${fixture.root}/upload-$pid.txt';
       final upload = Uint8List.fromList(utf8.encode('bounded upload'));
       await transport.upload(
         uploadPath,
