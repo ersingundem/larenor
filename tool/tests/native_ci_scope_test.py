@@ -188,24 +188,28 @@ class NativeCiScopeTest(unittest.TestCase):
                 )
                 self.assertEqual(scope["outputs"]["run"], "${{ steps.scope.outputs.run }}")
                 self.assertEqual(job["needs"], "native-scope")
-                self.assertNotIn("if", job)
-                self.assertEqual(
-                    job["runs-on"],
-                    "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
-                )
                 self.assertFalse(any(step.get("id") == "scope" for step in job["steps"]))
-                self.assertNotIn("if", job["steps"][0])
-                for step in job["steps"][1:]:
-                    expected = (
-                        "always() && needs.native-scope.outputs.run == 'true'"
-                        if step.get("id") == "cleanup"
-                        else "needs.native-scope.outputs.run == 'true'"
-                    )
+                if acceptance is None:
+                    self.assertNotIn("if", job)
                     self.assertEqual(
-                        step.get("if"),
-                        expected,
+                        job["runs-on"],
+                        "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
                     )
-                if acceptance is not None:
+                    self.assertNotIn("if", job["steps"][0])
+                    for step in job["steps"][1:]:
+                        expected = (
+                            "always() && needs.native-scope.outputs.run == 'true'"
+                            if step.get("id") == "cleanup"
+                            else "needs.native-scope.outputs.run == 'true'"
+                        )
+                        self.assertEqual(step.get("if"), expected)
+                else:
+                    self.assertEqual(
+                        job["if"],
+                        "needs.native-scope.outputs.run == 'true'",
+                    )
+                    self.assertEqual(job["runs-on"], "${{ matrix.runner }}")
+                    self.assertTrue(all("if" not in step for step in job["steps"]))
                     self.assertEqual(acceptance["if"], "always()")
                     self.assertEqual(acceptance["needs"], ["native-scope", job_name])
                     self.assertEqual(acceptance["runs-on"], "ubuntu-24.04")
