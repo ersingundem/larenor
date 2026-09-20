@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/cooking_assistant/data/cooking_timers_controller.dart';
+import 'package:larenor/features/cooking_assistant/data/cooking_timers_storage.dart';
 import 'package:larenor/features/cooking_assistant/domain/cooking_timer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final class _Clock implements CookingTimerClock {
   _Clock({required this.wall, required this.monotonic});
@@ -39,6 +41,29 @@ final class _Notifications implements CookingTimerNotifications {
 }
 
 void main() {
+  test('shared storage preserves exact revision across app restart', () async {
+    SharedPreferences.setMockInitialValues({});
+    final value = CookingTimer(
+      id: 'timer-1',
+      accountId: 'account-a',
+      recipeSessionId: 'recipe-session',
+      label: 'Oven',
+      deadlineWall: const Duration(hours: 20),
+      revision: 1,
+      notified: false,
+      acknowledged: false,
+    );
+    await SharedPreferencesCookingTimerStore().write(value, expectedRevision: 0);
+
+    final restored = await SharedPreferencesCookingTimerStore().read(
+      'account-a',
+      'recipe-session',
+    );
+    expect(restored, hasLength(1));
+    expect(restored.single.revision, 1);
+    expect(restored.single.deadlineWall, const Duration(hours: 20));
+  });
+
   test('multiple timers use monotonic time and restore exact deadlines', () async {
     final store = _Store();
     final clock = _Clock(
@@ -60,8 +85,10 @@ void main() {
     clock.wall += const Duration(days: 2); // wall clock edits do not affect this run
     clock.monotonic += const Duration(minutes: 2);
 
-    expect(controller.remaining(controller.timers[0]), const Duration(minutes: 8));
-    expect(controller.remaining(controller.timers[1]), const Duration(minutes: 1));
+    final oven = controller.timers.singleWhere((timer) => timer.label == 'Oven');
+    final sauce = controller.timers.singleWhere((timer) => timer.label == 'Sauce');
+    expect(controller.remaining(oven), const Duration(minutes: 8));
+    expect(controller.remaining(sauce), const Duration(minutes: 1));
 
     final restartedClock = _Clock(
       wall: const Duration(hours: 100, minutes: 4),
@@ -75,8 +102,14 @@ void main() {
       isCurrent: () => true,
     );
     await restored.restore();
-    expect(restored.remaining(restored.timers[0]), const Duration(minutes: 6));
-    expect(restored.remaining(restored.timers[1]), Duration.zero);
+    expect(
+      restored.remaining(restored.timers.singleWhere((timer) => timer.label == 'Oven')),
+      const Duration(minutes: 6),
+    );
+    expect(
+      restored.remaining(restored.timers.singleWhere((timer) => timer.label == 'Sauce')),
+      Duration.zero,
+    );
   });
 
   test('finish notification and acknowledge are idempotent', () async {
