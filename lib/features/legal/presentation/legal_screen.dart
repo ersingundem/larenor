@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 
 const larenorSourceUrl = 'https://github.com/ersingundem/larenor';
@@ -53,21 +55,29 @@ class _LegalScreenState extends State<LegalScreen> {
             child: ListView(
               children: [
                 SettingsSection(
+                  header: Semantics(
+                    container: true,
+                    header: true,
+                    child: Text(l10n.legalSource),
+                  ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(Gap.xl),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(l10n.legalLicenseSummary),
-                          const SizedBox(height: 12),
+                          Gap.vMd,
                           const Text(
                             'Copyright © 2026 Ersin Gündem and Larenor contributors',
                           ),
-                          const SizedBox(height: 16),
-                          Text(l10n.legalSource),
+                          Gap.vLg,
                           const Text(larenorSourceUrl),
                           CupertinoButton(
+                            key: const ValueKey('legal-copy-source'),
+                            minimumSize: const Size(48, 48),
+                            alignment: AlignmentDirectional.centerStart,
+                            padding: EdgeInsets.zero,
                             onPressed: () async {
                               await Clipboard.setData(
                                 const ClipboardData(text: larenorSourceUrl),
@@ -89,6 +99,7 @@ class _LegalScreenState extends State<LegalScreen> {
                       _row(
                         title,
                         () => _open(title, () => rootBundle.loadString(asset)),
+                        buttonKey: ValueKey('legal-document-$asset'),
                       ),
                   ],
                 ),
@@ -97,7 +108,7 @@ class _LegalScreenState extends State<LegalScreen> {
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(Gap.xl),
                         child: Text(l10n.legalLoadError),
                       );
                     }
@@ -106,7 +117,11 @@ class _LegalScreenState extends State<LegalScreen> {
                     }
                     if (snapshot.data!.isEmpty) return const SizedBox.shrink();
                     return SettingsSection(
-                      header: Text(l10n.legalThirdParty),
+                      header: Semantics(
+                        container: true,
+                        header: true,
+                        child: Text(l10n.legalThirdParty),
+                      ),
                       children: [
                         for (final entry in snapshot.data!)
                           _row(
@@ -130,17 +145,12 @@ class _LegalScreenState extends State<LegalScreen> {
     );
   }
 
-  Widget _row(String title, VoidCallback onTap) => CupertinoButton(
-    alignment: Alignment.centerLeft,
-    onPressed: onTap,
-    child: Row(
-      children: [
-        Expanded(child: Text(title)),
-        const SizedBox(width: 12),
-        const Icon(CupertinoIcons.chevron_forward, size: 16),
-      ],
-    ),
-  );
+  Widget _row(String title, VoidCallback onTap, {Key? buttonKey}) =>
+      SettingsActionTile(
+        buttonKey: buttonKey,
+        title: Text(title),
+        onTap: onTap,
+      );
 }
 
 class _LicenseDocument extends StatefulWidget {
@@ -175,7 +185,7 @@ class _LicenseDocumentState extends State<_LicenseDocument> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 780),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(Gap.xxl),
                 child: Text(
                   snapshot.data!,
                   style: const TextStyle(fontSize: 14, height: 1.5),

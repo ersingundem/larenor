@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/legal/presentation/legal_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +51,9 @@ void main() {
       expect(find.text(larenorSourceUrl), findsOneWidget);
       expect(tester.takeException(), isNull);
       final row = find.text('Larenor — GNU AGPL v3');
-      await tester.scrollUntilVisible(row, 250);
+      await tester.scrollUntilVisible(row, 250, maxScrolls: 20);
+      await tester.ensureVisible(row);
+      await tester.pump();
       await tester.runAsync(() async {
         await tester.tap(row);
         await tester.pumpAndSettle();
@@ -62,4 +65,86 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets(
+        '${locale.languageCode} legal hierarchy fits ${width.toInt()}px tablets',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            CupertinoApp(
+              locale: locale,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const LegalScreen(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final l10n = await AppLocalizations.delegate.load(locale);
+          final source = find.text(l10n.legalSource);
+          expect(source, findsOneWidget);
+          expect(tester.getSemantics(source).flagsCollection.isHeader, isTrue);
+          expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(9));
+          expect(
+            tester.getSize(find.byType(ListView)).width,
+            width > 780 ? 780 : width,
+          );
+          expect(
+            tester
+                .getSize(find.byKey(const ValueKey('legal-copy-source')))
+                .height,
+            greaterThanOrEqualTo(48),
+          );
+          final copy = tester.getSemantics(
+            find.byKey(const ValueKey('legal-copy-source')),
+          );
+          expect(copy.flagsCollection.isButton, isTrue);
+          expect(copy.flagsCollection.isHeader, isFalse);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
+
+  testWidgets('document rows keep independent tap and keyboard activation', (
+    tester,
+  ) async {
+    await tester.runAsync(() => rootBundle.loadString('LICENSE'));
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: LegalScreen(),
+      ),
+    );
+    await tester.pump();
+    final row = find.byKey(const ValueKey('legal-document-LICENSE'));
+    await tester.ensureVisible(row);
+    await tester.pump();
+    final navigator = Navigator.of(tester.element(row));
+    await tester.tap(row);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(navigator.canPop(), isTrue);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(navigator.canPop(), isTrue);
+    expect(tester.takeException(), isNull);
+  });
 }
