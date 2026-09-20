@@ -62,7 +62,9 @@ class HaUiHarness {
   };
   String role = 'admin';
   int snapshotReads = 0, previewCount = 0;
-  int historyReads = 0, integrityReads = 0, historyStatus = 200;
+  int historyReads = 0, eventReads = 0, integrityReads = 0, historyStatus = 200;
+  int eventHead = 2, eventStatus = 200;
+  String eventChainId = 'e' * 32;
   int integritySequence = 2;
   String integrityHead = 'b' * 64;
   String integrityCheckpoint = 'eyJjaGFpbiI6InN5bnRoZXRpYyJ9.fixture';
@@ -71,7 +73,10 @@ class HaUiHarness {
   bool bound = false, uncertainConfirm = false;
   String snapshotStep = 'snapshotOff';
   final adapterRequests = <http.Request>[];
-  Completer<http.Response>? pendingSnapshot, pendingConfirm, pendingHistory;
+  Completer<http.Response>? pendingSnapshot,
+      pendingConfirm,
+      pendingHistory,
+      pendingEvent;
   Duration elapsed = Duration.zero;
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -116,6 +121,39 @@ class HaUiHarness {
         request.headers['authorization'],
         refreshes.isEven ? 'Bearer ${'a' * 43}' : 'Bearer ${'c' * 43}',
       );
+      if (request.url.path.endsWith('/history/events')) {
+        eventReads++;
+        if (eventStatus != 200) {
+          return json({
+            'error': {'code': 'server_unavailable'},
+          }, eventStatus);
+        }
+        final after =
+            int.tryParse(request.url.queryParameters['after'] ?? '') ?? 0;
+        final limit = int.parse(request.url.queryParameters['limit']!);
+        final end = (after + limit).clamp(0, eventHead);
+        final source = history['complete']['response']['entries'] as List;
+        final events = <Object>[];
+        for (var sequence = after + 1; sequence <= end; sequence++) {
+          final entry = source[(sequence - 1) % source.length] as Map;
+          events.add({
+            'sequence': sequence,
+            'kind': sequence == 1 ? 'baseline' : 'command_write',
+            'attribution': entry['attribution'],
+            'receipt': entry['receipt'],
+          });
+        }
+        return pendingEvent?.future ??
+            json({
+              'schemaVersion': 1,
+              'ref': history['complete']['response']['ref'],
+              'chainId': eventChainId,
+              'headSequence': eventHead,
+              'events': events,
+              'nextAfter': end < eventHead ? end : null,
+              'verified': true,
+            });
+      }
       if (request.url.path.endsWith('/history')) {
         historyReads++;
         if (historyStatus != 200) {
@@ -365,6 +403,20 @@ class HaUiHarness {
         pendingHistory!.complete(json(history['complete']['response']));
       }
       pendingHistory = null;
+      if (pendingEvent?.isCompleted == false) {
+        pendingEvent!.complete(
+          json({
+            'schemaVersion': 1,
+            'ref': history['complete']['response']['ref'],
+            'chainId': eventChainId,
+            'headSequence': 0,
+            'events': const [],
+            'nextAfter': null,
+            'verified': true,
+          }),
+        );
+      }
+      pendingEvent = null;
       if (pendingContext?.isCompleted == false) {
         pendingContext!.complete(json(contextResponse));
       }

@@ -2319,6 +2319,18 @@
   "coreResourceDownloadForbidden": "This account no longer has download access.",
   "coreResourceDownloadChanged": "The resource changed. Refresh before downloading again.",
   "coreResourceDownloadFailed": "The file could not be verified or saved.",
+  "coreTransferTrustChecking": "Verifying transfer receipt",
+  "coreTransferTrustVerified": "Transfer receipt verified",
+  "coreTransferTrustUnverified": "Transfer receipt not verified",
+  "coreTransferTrustVerifiedBody": "The completed receipt and bounded transfer history match these bytes.",
+  "coreTransferTrustUnverifiedBody": "Core could not confirm a completed durable receipt for these bytes. Retry the download before using the file.",
+  "coreTransferTrustDetail": "Receipt {receipt} · {bytes} bytes",
+  "@coreTransferTrustDetail": {
+    "placeholders": {
+      "receipt": {"type": "String"},
+      "bytes": {"type": "int"}
+    }
+  },
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
   "arrRemoveConnection": "Remove saved connection",
   "wellbeingReloadSettings": "Read saved settings again",
@@ -2694,6 +2706,20 @@
   "coreHaActivityOffline": "Core activity could not be reached. Refresh to try again.",
   "coreHaActivityRetainedOffline": "Showing retained activity because Core is offline.",
   "coreHaActivityIntegrityStale": "This history and its previous integrity proof are retained only. Refresh from Core before trusting or saving a checkpoint.",
+  "coreHaEventTrustChecking": "Verifying event chain",
+  "coreHaEventTrustCheckingBody": "Reading the bounded forward cursor from Core.",
+  "coreHaEventTrustVerified": "Event chain verified",
+  "coreHaEventTrustVerifiedBody": "Core's durable event cursor is current for this resource.",
+  "coreHaEventTrustActionRequired": "Event chain needs verification",
+  "coreHaEventTrustActionRequiredBody": "The retained event cursor could not be confirmed. Refresh before trusting this activity.",
+  "coreHaEventTrustRefresh": "Refresh and verify",
+  "coreHaEventTrustDetail": "Head {sequence} · Chain {chain}",
+  "@coreHaEventTrustDetail": {
+    "placeholders": {
+      "sequence": {"type": "int"},
+      "chain": {"type": "String"}
+    }
+  },
   "coreHaActivityFailed": "Activity could not be read. Refresh to try again.",
   "coreHaActivityIntegrityForbidden": "This account cannot verify history integrity.",
   "coreHaActivityCheckpointConflict": "The saved checkpoint does not match this history chain.",

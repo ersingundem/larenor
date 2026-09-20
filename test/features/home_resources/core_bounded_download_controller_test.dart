@@ -59,6 +59,37 @@ http.Response _response({bool validDigest = true}) {
   );
 }
 
+Map<String, Object> _receipt({String? digest}) {
+  final payload = utf8.encode('verified fixture');
+  return {
+    'requestId': 'c' * 32,
+    'traceId': 'c' * 32,
+    'state': 'completed',
+    'contentLength': payload.length,
+    'sha256': digest ?? sha256.convert(payload).toString(),
+    'contentType': 'text/plain; charset=utf-8',
+    'serviceRevision': 1,
+    'createdAt': 10.0,
+    'updatedAt': 11.0,
+  };
+}
+
+http.Response _verifiedResponse(http.Request request, {String? digest}) {
+  if (request.method == 'POST') return _response();
+  final receipt = _receipt(digest: digest);
+  return http.Response(
+    jsonEncode(
+      request.url.path.endsWith('/${'c' * 32}')
+          ? {'receipt': receipt}
+          : {
+              'receipts': [receipt],
+            },
+    ),
+    200,
+    headers: {'content-type': 'application/json'},
+  );
+}
+
 final class _PendingClient extends http.BaseClient {
   final sent = Completer<void>();
   final release = Completer<void>();
@@ -109,8 +140,7 @@ void main() {
           requestId: () => 'c' * 32,
           client: MockClient((request) async {
             requests++;
-            expect(request.method, 'POST');
-            return _response();
+            return _verifiedResponse(request);
           }),
         ),
         CoreBoundedDownloadFileAccess(
@@ -139,9 +169,11 @@ void main() {
       );
 
       expect(controller.phase, CoreBoundedDownloadPhase.saved);
+      expect(controller.receiptTrusted, isTrue);
+      expect(controller.receipt?.state, CoreBoundedTransferState.completed);
       expect(controller.traceId, 'c' * 32);
       expect(utf8.decode(published!), 'verified fixture');
-      expect((requests, saves), (1, 1));
+      expect((requests, saves), (3, 1));
       await tester.runAsync(
         () => controller.download(
           page.entries.first,
@@ -151,9 +183,13 @@ void main() {
       );
       expect(
         requests,
-        1,
+        3,
         reason: 'a room is never a binary download authority',
       );
+      controller.retainAuthority(page.entries, page.userRevision + 1);
+      expect(controller.phase, CoreBoundedDownloadPhase.idle);
+      expect(controller.receiptTrusted, isFalse);
+      expect(controller.receipt, isNull);
     },
   );
 
@@ -212,9 +248,9 @@ void main() {
       (endpoint) => CoreBoundedDownloadApi(
         endpoint: endpoint,
         requestId: () => 'c' * 32,
-        client: MockClient((_) async {
+        client: MockClient((request) async {
           requests++;
-          return _response();
+          return _verifiedResponse(request);
         }),
       ),
       CoreBoundedDownloadFileAccess(
@@ -238,7 +274,49 @@ void main() {
     );
 
     expect(controller.phase, CoreBoundedDownloadPhase.cancelled);
-    expect((requests, saves), (1, 1));
+    expect((requests, saves), (3, 1));
+  });
+
+  testWidgets('mismatched durable receipt never reaches SAF', (tester) async {
+    final harness = ResourceHarness();
+    await harness.mount(tester);
+    await harness.signIn();
+    await flush(tester);
+    final page = _page(), target = page.entries.last;
+    var requests = 0, saves = 0;
+    final controller = CoreBoundedDownloadController(
+      harness.home(tester),
+      (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async {
+          requests++;
+          return _verifiedResponse(request, digest: 'f' * 64);
+        }),
+      ),
+      CoreBoundedDownloadFileAccess(
+        save: (_, _, _) async {
+          saves++;
+          return Uri.parse('content://must-not-run');
+        },
+      ),
+      () => harness.now,
+      () => true,
+    );
+    addTearDown(controller.dispose);
+    controller.setVisible(true);
+
+    await tester.runAsync(
+      () => controller.download(
+        target,
+        userRevision: page.userRevision,
+        isCurrent: () => true,
+      ),
+    );
+
+    expect(controller.phase, CoreBoundedDownloadPhase.failed);
+    expect(controller.receiptTrusted, isFalse);
+    expect((requests, saves), (3, 0));
   });
 
   testWidgets(

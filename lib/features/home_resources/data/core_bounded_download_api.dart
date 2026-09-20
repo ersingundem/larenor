@@ -20,6 +20,7 @@ final class CoreBoundedDownloadException implements Exception {
 final class CoreBoundedBlob {
   CoreBoundedBlob._({
     required Uint8List bytes,
+    required this.requestId,
     required this.traceId,
     required this.contentType,
     required this.sha256,
@@ -27,10 +28,121 @@ final class CoreBoundedBlob {
   }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
 
   final Uint8List bytes;
-  final String traceId, contentType, sha256;
+  final String requestId, traceId, contentType, sha256;
   final int serviceRevision;
   @override
   String toString() => 'CoreBoundedBlob';
+}
+
+enum CoreBoundedTransferState { accepted, completed, interrupted }
+
+final class CoreBoundedTransferReceipt {
+  const CoreBoundedTransferReceipt._({
+    required this.requestId,
+    required this.traceId,
+    required this.state,
+    required this.contentLength,
+    required this.sha256,
+    required this.contentType,
+    required this.serviceRevision,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String requestId, traceId, sha256, contentType;
+  final CoreBoundedTransferState state;
+  final int contentLength, serviceRevision;
+  final double createdAt, updatedAt;
+
+  factory CoreBoundedTransferReceipt.fromJson(Object? raw) {
+    const keys = {
+      'requestId',
+      'traceId',
+      'state',
+      'contentLength',
+      'sha256',
+      'contentType',
+      'serviceRevision',
+      'createdAt',
+      'updatedAt',
+    };
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        !keys.every(raw.containsKey)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final requestId = raw['requestId'];
+    final traceId = raw['traceId'];
+    final length = raw['contentLength'];
+    final digest = raw['sha256'];
+    final type = raw['contentType'];
+    final revision = raw['serviceRevision'];
+    final created = raw['createdAt'];
+    final updated = raw['updatedAt'];
+    final state = switch (raw['state']) {
+      'accepted' => CoreBoundedTransferState.accepted,
+      'completed' => CoreBoundedTransferState.completed,
+      'interrupted' => CoreBoundedTransferState.interrupted,
+      _ => null,
+    };
+    if (requestId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        traceId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(traceId) ||
+        traceId != requestId ||
+        length is! int ||
+        length < 0 ||
+        length > CoreBoundedDownloadApi.maxBlobBytes ||
+        digest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+        type is! String ||
+        type.isEmpty ||
+        type.length > 128 ||
+        !RegExp(r'^[A-Za-z0-9!#$&^_.+\-/;= ]{1,128}$').hasMatch(type) ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 9223372036854775807 ||
+        created is! double ||
+        !created.isFinite ||
+        created < 0 ||
+        updated is! double ||
+        !updated.isFinite ||
+        updated < created ||
+        state == null) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedTransferReceipt._(
+      requestId: requestId,
+      traceId: traceId,
+      state: state,
+      contentLength: length,
+      sha256: digest,
+      contentType: type,
+      serviceRevision: revision,
+      createdAt: created,
+      updatedAt: updated,
+    );
+  }
+
+  bool sameAs(CoreBoundedTransferReceipt other) =>
+      requestId == other.requestId &&
+      traceId == other.traceId &&
+      state == other.state &&
+      contentLength == other.contentLength &&
+      sha256 == other.sha256 &&
+      contentType == other.contentType &&
+      serviceRevision == other.serviceRevision &&
+      createdAt == other.createdAt &&
+      updatedAt == other.updatedAt;
+
+  bool authenticates(CoreBoundedBlob blob) =>
+      state == CoreBoundedTransferState.completed &&
+      requestId == blob.requestId &&
+      traceId == blob.traceId &&
+      contentLength == blob.bytes.length &&
+      sha256 == blob.sha256 &&
+      contentType == blob.contentType &&
+      serviceRevision == blob.serviceRevision;
 }
 
 /// Consumes only the packaged Core v1 bounded stream. It never retries, ranges,
@@ -164,6 +276,179 @@ final class CoreBoundedDownloadApi {
     }
   }
 
+  void _target(HomeResourceRecord target) {
+    if (target.kind != HomeResourceKind.resource) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+  }
+
+  String _transferPath(HomeResourceRecord target) =>
+      '/home-resources/${target.context.coreId}/${target.context.homeId}/${target.id}/blob/transfers';
+
+  Future<Object?> _readJson({
+    required String token,
+    required String path,
+    Map<String, String>? query,
+  }) async {
+    if (_closed) throw const CoreBoundedDownloadException('cancelled');
+    final abort = Completer<void>();
+    _pending.add(abort);
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    try {
+      var uri = endpoint.api(path);
+      if (query != null) uri = uri.replace(queryParameters: query);
+      final request = http.AbortableRequest(
+        'GET',
+        uri,
+        abortTrigger: abort.future,
+      );
+      request.headers
+        ..['authorization'] = 'Bearer $token'
+        ..['accept'] = 'application/json';
+      final response = await _client.send(request).timeout(timeout);
+      if (_closed || abort.isCompleted) {
+        throw const CoreBoundedDownloadException('cancelled');
+      }
+      if (response.statusCode != 200) {
+        await response.stream.listen((_) {}).cancel();
+        throw CoreBoundedDownloadException(switch (response.statusCode) {
+          401 => 'unauthorized',
+          403 => 'forbidden',
+          404 => 'not_found',
+          408 => 'timeout',
+          409 => 'revision_conflict',
+          429 => 'rate_limited',
+          _ => response.statusCode >= 500 ? 'server_error' : 'failed',
+        });
+      }
+      if (response.headers['content-type']?.split(';').first.trim() !=
+          'application/json') {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.stream.timeout(timeout)) {
+        if (_closed || abort.isCompleted) {
+          throw const CoreBoundedDownloadException('cancelled');
+        }
+        if (bytes.length + chunk.length > 64 * 1024) {
+          throw const CoreBoundedDownloadException('invalid_response');
+        }
+        bytes.add(chunk);
+      }
+      try {
+        return decodeServerJson(utf8.decode(bytes.takeBytes()));
+      } on FormatException {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+    } on CoreBoundedDownloadException {
+      rethrow;
+    } on TimeoutException {
+      throw const CoreBoundedDownloadException('timeout');
+    } on http.RequestAbortedException {
+      throw CoreBoundedDownloadException(_closed ? 'cancelled' : 'timeout');
+    } catch (_) {
+      throw CoreBoundedDownloadException(
+        _closed
+            ? 'cancelled'
+            : abort.isCompleted
+            ? 'timeout'
+            : 'connection_failed',
+      );
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      _pending.remove(abort);
+    }
+  }
+
+  Future<CoreBoundedTransferReceipt> receipt({
+    required String token,
+    required HomeResourceRecord target,
+    required String requestId,
+  }) async {
+    _target(target);
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    final raw = await _readJson(
+      token: token,
+      path: '${_transferPath(target)}/$requestId',
+    );
+    if (raw is! Map || raw.length != 1 || !raw.containsKey('receipt')) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final value = CoreBoundedTransferReceipt.fromJson(raw['receipt']);
+    if (value.requestId != requestId) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return value;
+  }
+
+  Future<List<CoreBoundedTransferReceipt>> history({
+    required String token,
+    required HomeResourceRecord target,
+    int limit = 50,
+  }) async {
+    _target(target);
+    if (limit < 1 || limit > 50) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    final raw = await _readJson(
+      token: token,
+      path: _transferPath(target),
+      query: {'limit': '$limit'},
+    );
+    if (raw is! Map ||
+        raw.length != 1 ||
+        !raw.containsKey('receipts') ||
+        raw['receipts'] is! List ||
+        (raw['receipts'] as List).length > 50) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final values = List<CoreBoundedTransferReceipt>.unmodifiable(
+      (raw['receipts'] as List).map(CoreBoundedTransferReceipt.fromJson),
+    );
+    final ids = <String>{};
+    for (var index = 0; index < values.length; index++) {
+      final value = values[index];
+      if (!ids.add(value.requestId)) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      if (index == 0) continue;
+      final previous = values[index - 1];
+      final order = previous.createdAt.compareTo(value.createdAt);
+      if (order < 0 ||
+          order == 0 && previous.requestId.compareTo(value.requestId) <= 0) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+    }
+    return values;
+  }
+
+  Future<CoreBoundedTransferReceipt> verifyCompleted({
+    required String token,
+    required HomeResourceRecord target,
+    required CoreBoundedBlob blob,
+  }) async {
+    final exact = await receipt(
+      token: token,
+      target: target,
+      requestId: blob.requestId,
+    );
+    final retained = await history(token: token, target: target);
+    final matches = retained.where(
+      (value) => value.requestId == blob.requestId,
+    );
+    if (!exact.authenticates(blob) ||
+        matches.length != 1 ||
+        !matches.single.sameAs(exact)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return exact;
+  }
+
   _Metadata _metadata(
     http.StreamedResponse response,
     int expectedRevision,
@@ -262,6 +547,7 @@ final class CoreBoundedDownloadApi {
     }
     return CoreBoundedBlob._(
       bytes: content,
+      requestId: metadata.traceId,
       traceId: metadata.traceId,
       contentType: metadata.contentType,
       sha256: metadata.digest,

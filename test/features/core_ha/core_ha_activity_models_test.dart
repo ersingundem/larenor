@@ -38,6 +38,32 @@ Map<String, dynamic> verificationJson({bool compared = false}) => {
   'causalityVerified': false,
 };
 
+Map<String, dynamic> eventHistoryJson({
+  String? chainId,
+  int headSequence = 2,
+  List<int> sequences = const [1, 2],
+  int? nextAfter,
+}) {
+  final source = historyContract()['complete']['response']['entries'] as List;
+  return {
+    'schemaVersion': 1,
+    'ref': historyContract()['complete']['response']['ref'],
+    'chainId': chainId ?? 'c' * 32,
+    'headSequence': headSequence,
+    'events': [
+      for (var index = 0; index < sequences.length; index++)
+        {
+          'sequence': sequences[index],
+          'kind': index == 0 ? 'baseline' : 'command_write',
+          'attribution': source[index % source.length]['attribution'],
+          'receipt': source[index % source.length]['receipt'],
+        },
+    ],
+    'nextAfter': nextAfter,
+    'verified': true,
+  };
+}
+
 Matcher failure([String code = 'invalid_response']) => throwsA(
   isA<LarenorServerException>().having((error) => error.code, 'code', code),
 );
@@ -55,6 +81,36 @@ void main() {
     expect(first.receipt.providerAccepted, isTrue);
     expect(first.receipt.observationMatchesTarget, isTrue);
     expect(page.nextBefore, isNull);
+  });
+
+  test('event page binds a verified forward cursor to its resource', () {
+    final page = CoreHaEventHistoryPage.fromJson(
+      eventHistoryJson(nextAfter: 2),
+      target: historyTarget(),
+    );
+    expect(page.chainId, 'c' * 32);
+    expect(page.headSequence, 2);
+    expect(page.events.map((event) => event.sequence), [1, 2]);
+    expect(page.events.first.kind, CoreHaHistoryEventKind.baseline);
+    expect(page.nextAfter, 2);
+    expect(page.verified, isTrue);
+  });
+
+  test('event page rejects gaps, false proof, bad cursor and extra data', () {
+    final mutations = <void Function(Map<String, dynamic>)>[
+      (value) => (value['events'] as List)[1]['sequence'] = 3,
+      (value) => value['verified'] = false,
+      (value) => value['nextAfter'] = 1,
+      (value) => value['private'] = true,
+    ];
+    for (final mutate in mutations) {
+      final value = eventHistoryJson(nextAfter: 2);
+      mutate(value);
+      expect(
+        () => CoreHaEventHistoryPage.fromJson(value, target: historyTarget()),
+        failure(),
+      );
+    }
   });
 
   test('history rejects forged attribution, order, cursor and extra data', () {

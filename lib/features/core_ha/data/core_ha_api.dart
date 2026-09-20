@@ -161,6 +161,24 @@ final class CoreHaApi {
         _check();
         return CoreHaHistoryPage.fromJson(raw, target: target);
       });
+  Future<CoreHaEventHistoryPage> eventHistory({
+    int? after,
+    int limit = CoreHaEventHistoryPage.maximumPageSize,
+  }) => _operation(() async {
+    if (limit < 1 ||
+        limit > CoreHaEventHistoryPage.maximumPageSize ||
+        after != null && (after < 1 || after > 2048)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final raw = await _transport.request(
+      'GET',
+      '$_path/history/events',
+      token: _token,
+      queryParameters: {'after': ?after?.toString(), 'limit': '$limit'},
+    );
+    _check();
+    return CoreHaEventHistoryPage.fromJson(raw, target: target);
+  });
   Future<CoreHaHistoryVerification> verifyHistory({
     String? checkpoint,
   }) => _operation(() async {

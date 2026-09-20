@@ -168,6 +168,115 @@ final class CoreHaHistoryPage {
   }
 }
 
+enum CoreHaHistoryEventKind { baseline, commandWrite }
+
+final class CoreHaHistoryEvent {
+  const CoreHaHistoryEvent._({
+    required this.sequence,
+    required this.kind,
+    required this.entry,
+  });
+
+  final int sequence;
+  final CoreHaHistoryEventKind kind;
+  final CoreHaHistoryEntry entry;
+  CoreHaAttribution get attribution => entry.attribution;
+  CoreHaCommandReceipt get receipt => entry.receipt;
+
+  factory CoreHaHistoryEvent.fromJson(
+    Object? raw, {
+    required HomeResourceRecord target,
+  }) {
+    final value = _object(raw, {'sequence', 'kind', 'attribution', 'receipt'});
+    final sequence = value['sequence'];
+    if (sequence is! int || sequence < 1 || sequence > 2048) _invalid();
+    final kind = switch (value['kind']) {
+      'baseline' => CoreHaHistoryEventKind.baseline,
+      'command_write' => CoreHaHistoryEventKind.commandWrite,
+      _ => _invalid(),
+    };
+    return CoreHaHistoryEvent._(
+      sequence: sequence,
+      kind: kind,
+      entry: CoreHaHistoryEntry.fromJson({
+        'attribution': value['attribution'],
+        'receipt': value['receipt'],
+      }, target: target),
+    );
+  }
+}
+
+final class CoreHaEventHistoryPage {
+  const CoreHaEventHistoryPage._({
+    required this.chainId,
+    required this.headSequence,
+    required this.events,
+    required this.nextAfter,
+  });
+
+  static const maximumPageSize = 50;
+  final String chainId;
+  final int headSequence;
+  final List<CoreHaHistoryEvent> events;
+  final int? nextAfter;
+  bool get verified => true;
+
+  factory CoreHaEventHistoryPage.fromJson(
+    Object? raw, {
+    required HomeResourceRecord target,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'ref',
+      'chainId',
+      'headSequence',
+      'events',
+      'nextAfter',
+      'verified',
+    });
+    _schema(value['schemaVersion']);
+    _resourceRef(value['ref'], target);
+    final head = value['headSequence'];
+    final rawEvents = value['events'];
+    if (head is! int ||
+        head < 0 ||
+        head > 2048 ||
+        rawEvents is! List ||
+        rawEvents.length > maximumPageSize ||
+        value['verified'] != true) {
+      _invalid();
+    }
+    final events = List<CoreHaHistoryEvent>.unmodifiable(
+      rawEvents.map(
+        (event) => CoreHaHistoryEvent.fromJson(event, target: target),
+      ),
+    );
+    for (var index = 0; index < events.length; index++) {
+      final sequence = events[index].sequence;
+      if (sequence > head ||
+          index > 0 && sequence != events[index - 1].sequence + 1) {
+        _invalid();
+      }
+    }
+    final cursor = value['nextAfter'];
+    if (cursor != null &&
+        (cursor is! int ||
+            cursor < 1 ||
+            cursor > 2048 ||
+            events.isEmpty ||
+            cursor != events.last.sequence)) {
+      _invalid();
+    }
+    if (head == 0 && events.isNotEmpty) _invalid();
+    return CoreHaEventHistoryPage._(
+      chainId: _id(value['chainId']),
+      headSequence: head,
+      events: events,
+      nextAfter: cursor as int?,
+    );
+  }
+}
+
 final class CoreHaHistoryVerification {
   const CoreHaHistoryVerification._({
     required this.chainId,

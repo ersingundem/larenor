@@ -1,11 +1,20 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_download_api.dart';
+import 'package:larenor/features/home_resources/data/core_bounded_download_file_access.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/trust_evidence_card.dart';
 
 import '../../core/home_scope_fixture.dart' show flush;
 import 'home_resources_fixture.dart';
@@ -30,7 +39,281 @@ Future<void> loadFonts(WidgetTester tester) async {
   fontsLoaded = true;
 }
 
+Uint8List _transferFrame(
+  String trace,
+  int sequence,
+  bool finalFrame,
+  List<int> payload,
+) {
+  final output = BytesBuilder(copy: false)
+    ..add(ascii.encode('LRB1'))
+    ..add(ascii.encode(trace));
+  final fields = ByteData(13)
+    ..setUint64(0, sequence)
+    ..setUint8(8, finalFrame ? 1 : 0)
+    ..setUint32(9, payload.length);
+  output
+    ..add(fields.buffer.asUint8List())
+    ..add(payload);
+  return output.takeBytes();
+}
+
+http.Response _transferResponse(http.Request request) {
+  final trace = 'c' * 32;
+  final payload = utf8.encode('tablet trust fixture');
+  final digest = sha256.convert(payload).toString();
+  final receipt = {
+    'requestId': trace,
+    'traceId': trace,
+    'state': 'completed',
+    'contentLength': payload.length,
+    'sha256': digest,
+    'contentType': 'application/octet-stream',
+    'serviceRevision': 1,
+    'createdAt': 10.0,
+    'updatedAt': 11.0,
+  };
+  if (request.method == 'GET') {
+    return http.Response(
+      jsonEncode(
+        request.url.path.endsWith(trace)
+            ? {'receipt': receipt}
+            : {
+                'receipts': [receipt],
+              },
+      ),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+  }
+  final wire = Uint8List.fromList([
+    ..._transferFrame(trace, 0, false, payload),
+    ..._transferFrame(trace, 1, true, const []),
+  ]);
+  return http.Response.bytes(
+    wire,
+    200,
+    headers: {
+      'content-type': CoreBoundedDownloadApi.wireType,
+      'content-length': '${wire.length}',
+      'x-larenor-trace-id': trace,
+      'x-larenor-blob-content-length': '${payload.length}',
+      'x-larenor-blob-sha256': digest,
+      'x-larenor-blob-content-type': 'application/octet-stream',
+      'x-larenor-service-revision': '1',
+      'accept-ranges': 'none',
+    },
+  );
+}
+
 void main() {
+  testWidgets('tablet resource exposes durable transfer trust semantically', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    var saved = 0;
+    final fixture = contract();
+    final record = (fixture['memberList']['entries'] as List).last as Map;
+    final id = (record['ref'] as Map)['id'] as String;
+    final harness = ResourceHarness();
+    harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+      endpoint: endpoint,
+      requestId: () => 'c' * 32,
+      client: MockClient((request) async => _transferResponse(request)),
+    );
+    harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+      save: (_, _, _) async {
+        saved++;
+        return Uri.parse('content://synthetic/tablet');
+      },
+    );
+    try {
+      await harness.mount(tester, width: 1200);
+      await harness.signIn();
+      await flush(tester);
+      final download = find.byKey(ValueKey('core-resource-download-$id'));
+      await tester.ensureVisible(download);
+      await tester.tap(download);
+      await flush(tester);
+      for (var attempt = 0; attempt < 20 && saved == 0; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+      }
+      await flush(tester);
+
+      final trust = find.byKey(ValueKey('core-resource-transfer-trust-$id'));
+      expect(trust, findsOneWidget);
+      expect(tester.getSemantics(trust).flagsCollection.isLiveRegion, isTrue);
+      expect(
+        tester.getSemantics(trust).label,
+        allOf(
+          contains('Transfer receipt verified'),
+          contains('tablet trust fixture'.length.toString()),
+        ),
+      );
+      expect(saved, 1);
+
+      final changed = jsonDecode(jsonEncode(fixture['memberList'])) as Map;
+      changed['userRevision'] = 8;
+      changed['snapshot'] = 'f' * 64;
+      harness.response = changed;
+      final refresh = find.byKey(const ValueKey('home-resources-refresh'));
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await flush(tester);
+
+      expect(
+        find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+        findsNothing,
+        reason: 'old receipt trust cannot survive a newer ACL snapshot',
+      );
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets(
+    'background retires a verified receipt before a late SAF result',
+    (tester) async {
+      final destination = Completer<Uri?>();
+      var saveRequests = 0;
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async => _transferResponse(request)),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) {
+          saveRequests++;
+          return destination.future;
+        },
+      );
+      try {
+        await harness.mount(tester, width: 1200);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        for (var attempt = 0; attempt < 20 && saveRequests == 0; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+
+        expect(saveRequests, 1);
+        await tester.pump();
+        final trust = find.byKey(ValueKey('core-resource-transfer-trust-$id'));
+        expect(trust, findsOneWidget);
+        expect(
+          tester.widget<TrustEvidenceCard>(trust).state,
+          TrustEvidenceState.verified,
+          reason: 'the receipt is trusted while SAF owns the foreground flow',
+        );
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await flush(tester);
+        destination.complete(Uri.parse('content://synthetic/late'));
+        await flush(tester);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await flush(tester);
+
+        expect(download, findsOneWidget);
+        expect(
+          find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+          findsNothing,
+          reason: 'a late SAF completion cannot restore retired trust',
+        );
+        expect(find.textContaining('Transfer receipt verified'), findsNothing);
+        expect(
+          saveRequests,
+          1,
+          reason: 'foreground recovery never retries SAF',
+        );
+      } finally {
+        if (!destination.isCompleted) destination.complete(null);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'account and home switch reject the previous home late SAF result',
+    (tester) async {
+      final destination = Completer<Uri?>();
+      var saveRequests = 0, transferRequests = 0;
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async {
+          transferRequests++;
+          return _transferResponse(request);
+        }),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) {
+          saveRequests++;
+          return destination.future;
+        },
+      );
+      try {
+        await harness.mount(tester, width: 1200);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        for (var attempt = 0; attempt < 20 && saveRequests == 0; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+        expect((transferRequests, saveRequests), (3, 1));
+
+        await harness.account.signOut();
+        harness.userId = '8' * 32;
+        harness.contextResponse = fixture['otherContextList']['scope'];
+        harness.response = fixture['otherContextList'];
+        await harness.signIn();
+        await flush(tester);
+        expect(find.text('İkinci ev · Salon'), findsOneWidget);
+
+        destination.complete(Uri.parse('content://synthetic/previous-home'));
+        await flush(tester);
+
+        expect(find.text('İkinci ev · Salon'), findsOneWidget);
+        expect(
+          find.byKey(ValueKey('core-resource-transfer-trust-$id')),
+          findsNothing,
+          reason: 'the previous home receipt cannot enter the new home view',
+        );
+        expect(
+          (transferRequests, saveRequests),
+          (3, 1),
+          reason: 'an account switch never replays the old transfer',
+        );
+      } finally {
+        if (!destination.isCompleted) destination.complete(null);
+      }
+    },
+  );
+
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       for (final dark in [false, true]) {
