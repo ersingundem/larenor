@@ -46,6 +46,7 @@ class MusicProviderSetupManagement:
         self.installations, self.music_core = installations, music_core
         self.backend = backend
         self._cipher = AESGCM(key)
+        self.music_core.attach_provider_setups(self)
 
     @staticmethod
     def _identity(value):

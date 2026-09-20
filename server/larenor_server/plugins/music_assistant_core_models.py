@@ -52,6 +52,61 @@ class MusicAssistantCoreReadinessResponse(StrictModel):
     readiness: MusicAssistantCoreReadiness
 
 
+class MusicAssistantKeyRotationRequest(StrictModel):
+    """Private Core request. Credentials are deliberately absent."""
+
+    requestId: ObjectId
+    coreId: ObjectId
+    homeId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+    expectedWorkerRevision: Revision
+    providerSetupId: ObjectId
+    expectedProviderRevision: Revision
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+
+    @field_validator('providerInstanceId')
+    @classmethod
+    def safe_provider_instance(cls, value):
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None:
+            raise ValueError('invalid_music_assistant_key_rotation')
+        return value
+
+
+class AuthenticatedMusicAssistantKeyRotationReadback(StrictModel):
+    """Worker-only authenticated result; never registered in HTTP models."""
+
+    requestId: ObjectId
+    readback: AuthenticatedMusicAssistantReadback = Field(repr=False)
+    previousTokenRetired: bool
+
+
+class PrivateMusicAssistantKeyRotationAction(StrictModel):
+    request: MusicAssistantKeyRotationRequest
+    phase: Literal['preparing', 'activated']
+    currentToken: str = Field(min_length=1, max_length=2048, repr=False)
+    replacementToken: str | None = Field(
+        default=None, min_length=1, max_length=2048, repr=False)
+
+
+class MusicAssistantKeyRotationReceipt(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    installationRevision: Revision
+    workerRevision: Revision
+    providerSetupId: ObjectId
+    providerRevision: Revision
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+    state: Literal['retired']
+
+
+class _StoredMusicAssistantKeyRotation(StrictModel):
+    request: MusicAssistantKeyRotationRequest
+    previous: '_StoredMusicAssistantCore' = Field(repr=False)
+    replacement: AuthenticatedMusicAssistantReadback | None = Field(
+        default=None, repr=False)
+
+
 class _StoredMusicAssistantCore(AuthenticatedMusicAssistantReadback):
     homeAssistant: MusicAssistantPeer
     jellyfin: MusicAssistantPeer
