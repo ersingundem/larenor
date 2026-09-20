@@ -212,13 +212,17 @@ class _LocalTunnelHandle implements SshTunnelHandle {
   void _closeOwned() {
     if (_closed) return;
     _closed = true;
-    unawaited(_subscription.cancel());
-    unawaited(_server.close());
+    final listenerClosed = _subscription.cancel();
+    final serverClosed = _server.close().then<void>((_) {});
     for (final connection in _connections.toList()) {
       connection.close();
     }
     _connections.clear();
-    if (!_completion.isCompleted) _completion.complete();
+    unawaited(
+      Future.wait<void>([listenerClosed, serverClosed]).whenComplete(() {
+        if (!_completion.isCompleted) _completion.complete();
+      }),
+    );
   }
 
   @override

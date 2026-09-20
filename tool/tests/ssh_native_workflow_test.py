@@ -17,7 +17,7 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             r"ssh-native-acceptance:\s*\n\s+runs-on: ubuntu-24\.04",
         )
         self.assertIn('OPENSSH_PACKAGE: "1:9.6p1-3ubuntu13.19"', self.raw)
-        self.assertIn('openssh-server="$OPENSSH_PACKAGE"', self.raw)
+        self.assertIn('"openssh-server=$OPENSSH_PACKAGE"', self.raw)
         self.assertIn("dpkg-query", self.raw)
         self.assertIn("127.0.0.1", self.raw)
 

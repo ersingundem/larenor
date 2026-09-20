@@ -112,15 +112,17 @@ void main() {
       );
       final output = BytesBuilder(copy: false);
       final errors = BytesBuilder(copy: false);
-      final stdoutDone = channel.stdout.listen(output.add).asFuture<void>();
-      final stderrDone = channel.stderr.listen(errors.add).asFuture<void>();
+      final stdout = channel.stdout.listen(output.add);
+      final stderr = channel.stderr.listen(errors.add);
       channel.write(
         Uint8List.fromList(
-          utf8.encode("printf 'Larenor İstanbul\\n'; stty size; exit\\n"),
+          utf8.encode("printf 'Larenor İstanbul\\n'; stty size; exit\n"),
         ),
       );
-      await Future.wait([channel.done, stdoutDone, stderrDone])
-          .timeout(const Duration(seconds: 15));
+      await channel.done.timeout(const Duration(seconds: 15));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await stdout.cancel();
+      await stderr.cancel();
       final transcript = utf8.decode([
         ...output.takeBytes(),
         ...errors.takeBytes(),
