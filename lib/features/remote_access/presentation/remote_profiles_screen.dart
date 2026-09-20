@@ -19,6 +19,7 @@ import '../ssh/ssh_terminal_panel.dart';
 import '../ssh/ssh_tunnel_panel.dart';
 import '../rdp/rdp_session_panel.dart';
 import '../vnc/vnc_session_panel.dart';
+import 'personal_session_boundary.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -40,6 +41,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _user = TextEditingController();
   AppInteractionController? _interaction;
   ProviderContainer? _container;
+  PersonalRemoteAccount? _account;
   RemoteProfilesStore? _store;
   RemoteProfilesSnapshot? _snapshot;
   RemoteProfile? _selected;
@@ -118,9 +120,13 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     _terminal = false;
     _sftp = false;
     _tunnel = false;
+    _rdp = false;
+    _vnc = false;
     _terminalCurrent = null;
     _sftpCurrent = null;
     _tunnelCurrent = null;
+    _rdpCurrent = null;
+    _vncCurrent = null;
     _generation++;
     _snapshot = null;
     _selected = null;
@@ -172,6 +178,60 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     return () {
       if (retired) return false;
       return !(retired = !_current(generation));
+    };
+  }
+
+  bool Function()? _sessionAction(PersonalSessionResource resource) {
+    final profile = _selected;
+    final snapshot = _snapshot;
+    final route = ModalRoute.of(context);
+    final account = _account;
+    if (profile == null ||
+        snapshot == null ||
+        route == null ||
+        account == null) {
+      return null;
+    }
+    final action = _action();
+    final lease = PersonalSessionLease.capture(
+      account: account,
+      routeIdentity: route,
+      profile: profile,
+      profileRevision: snapshot.revision,
+      resource: resource,
+      issuedAt: DateTime.now(),
+    );
+    if (lease == null) return null;
+    return () {
+      try {
+        final selected = _selected;
+        final currentSnapshot = _snapshot;
+        final currentRoute = ModalRoute.of(context);
+        final allowed =
+            action() &&
+            selected != null &&
+            currentSnapshot != null &&
+            currentRoute != null &&
+            lease.isCurrent(
+              account: ref.read(personalRemoteAccountProvider),
+              routeIdentity: currentRoute,
+              profileId: selected.id,
+              profileRevision: currentSnapshot.revision,
+              resource: resource,
+              now: DateTime.now(),
+              gateCurrent: widget.gateCurrent(),
+              foreground: _resumed && _nativeFocused,
+              interactionActive: _interaction?.active != false,
+              routeCurrent:
+                  currentRoute.isCurrent &&
+                  TickerMode.valuesOf(context).enabled,
+            );
+        if (!allowed) lease.retire();
+        return allowed;
+      } catch (_) {
+        lease.retire();
+        return false;
+      }
     };
   }
 
@@ -329,11 +389,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final store = ref.watch(remoteProfilesStoreProvider);
+    final account = ref.watch(personalRemoteAccountProvider);
     if (_store != null && !identical(store, _store)) {
       _retired = true;
       _invalidate();
     }
     _store = store;
+    if (_account != null && !identical(account, _account)) {
+      _retired = true;
+      _invalidate();
+    }
+    _account = account;
     ref.listen(windowPolicySnapshotProvider, (previous, next) {
       final w = next.value;
       if (next.isLoading ||
@@ -595,6 +661,33 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                           ),
                         ),
                         Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                          child: Semantics(
+                            key: const ValueKey(
+                              'personal-session-boundary-status',
+                            ),
+                            container: true,
+                            label:
+                                '${l.remoteAccessPersonalProfile}. ${l.remoteAccessPersonalSessionPolicy}',
+                            child: ExcludeSemantics(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l.remoteAccessPersonalProfile,
+                                    style: CupertinoTheme.of(context)
+                                        .textTheme
+                                        .textStyle
+                                        .copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(l.remoteAccessPersonalSessionPolicy),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
                           padding: const EdgeInsets.all(20),
                           child: Text(
                             selected.protocol == RemoteProtocol.ssh
@@ -632,32 +725,52 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                               selected.username.isNotEmpty) ...[
                             action('remote-ssh-open', l.sshTitle, () {
                               _generation++;
-                              _terminalCurrent = _action();
-                              setState(() => _terminal = true);
+                              _terminalCurrent = _sessionAction(
+                                PersonalSessionResource.sshTerminal,
+                              );
+                              if (_terminalCurrent != null) {
+                                setState(() => _terminal = true);
+                              }
                             }),
                             action('remote-sftp-open', l.sftpTitle, () {
                               _generation++;
-                              _sftpCurrent = _action();
-                              setState(() => _sftp = true);
+                              _sftpCurrent = _sessionAction(
+                                PersonalSessionResource.sftpFiles,
+                              );
+                              if (_sftpCurrent != null) {
+                                setState(() => _sftp = true);
+                              }
                             }),
                             action('remote-tunnel-open', l.sshTunnelTitle, () {
                               _generation++;
-                              _tunnelCurrent = _action();
-                              setState(() => _tunnel = true);
+                              _tunnelCurrent = _sessionAction(
+                                PersonalSessionResource.sshTunnel,
+                              );
+                              if (_tunnelCurrent != null) {
+                                setState(() => _tunnel = true);
+                              }
                             }),
                           ],
                           if (selected.protocol == RemoteProtocol.rdp &&
                               selected.username.isNotEmpty)
                             action('remote-rdp-open', l.rdpTitle, () {
                               _generation++;
-                              _rdpCurrent = _action();
-                              setState(() => _rdp = true);
+                              _rdpCurrent = _sessionAction(
+                                PersonalSessionResource.desktop,
+                              );
+                              if (_rdpCurrent != null) {
+                                setState(() => _rdp = true);
+                              }
                             }),
                           if (selected.protocol == RemoteProtocol.vnc)
                             action('remote-vnc-open', l.vncTitle, () {
                               _generation++;
-                              _vncCurrent = _action();
-                              setState(() => _vnc = true);
+                              _vncCurrent = _sessionAction(
+                                PersonalSessionResource.desktop,
+                              );
+                              if (_vncCurrent != null) {
+                                setState(() => _vnc = true);
+                              }
                             }),
                           action(
                             'remote-copy',
