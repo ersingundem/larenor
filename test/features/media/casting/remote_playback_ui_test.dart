@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/casting/domain/remote_playback_models.dart';
@@ -10,6 +11,7 @@ import 'package:larenor/features/media/casting/providers/remote_playback_provide
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'remote_playback_fixture.dart';
 
@@ -57,6 +59,7 @@ class _Harness {
     bool button = false,
     Size size = const Size(600, 1100),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.physicalSize = size;
@@ -78,7 +81,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -460,6 +463,59 @@ void main() {
       await h.unmount(tester);
     },
   );
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'remote playback uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          try {
+            await h.mount(
+              tester,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = h.labels(tester);
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('remote-playback-devices-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.mediaRemoteDevice);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final target = find.byKey(
+              const ValueKey('remote-playback-target-remote-session'),
+            );
+            final targetNode = tester.getSemantics(target);
+            expect(targetNode.label, contains('Living room TV'));
+            expect(targetNode.flagsCollection.isButton, isTrue);
+            expect(targetNode.rect.width, greaterThanOrEqualTo(48));
+            expect(targetNode.rect.height, greaterThanOrEqualTo(48));
+
+            final targetLabel = find.descendant(
+              of: target,
+              matching: find.text('Living room TV'),
+            );
+            Focus.of(tester.element(targetLabel)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await _frames(tester);
+            await tester.pump(const Duration(milliseconds: 250));
+            expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
 
   for (final device in [
     (name: 'phone', size: const Size(320, 1000), scale: 2.0),
