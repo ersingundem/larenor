@@ -50,7 +50,7 @@
     },
     "seerr-characterize": {
       "needs": "native-scope",
-      "runs-on": "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
+      "runs-on": "${{ matrix.runner }}",
       "timeout-minutes": 45,
       "strategy": {
         "fail-fast": false,
@@ -84,41 +84,34 @@
             "ref": "${{ github.sha }}",
             "persist-credentials": false,
             "fetch-depth": 0
-          },
-          "if": "needs.native-scope.outputs.run == 'true'"
+          }
         },
         {
           "name": "Require owned cgroup runtime",
-          "run": "test -x /usr/bin/systemd-run\ntest -x /usr/bin/systemctl\ntest -x /usr/bin/unshare\ntest -x /usr/bin/dockerd\nsystemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\"\ncase \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac\ntest \"$systemd_major\" -ge 254\ntest \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs\ntest -r /sys/fs/cgroup/cgroup.controllers",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "test -x /usr/bin/systemd-run\ntest -x /usr/bin/systemctl\ntest -x /usr/bin/unshare\ntest -x /usr/bin/dockerd\nsystemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\"\ncase \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac\ntest \"$systemd_major\" -ge 254\ntest \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs\ntest -r /sys/fs/cgroup/cgroup.controllers"
         },
         {
           "name": "Prepare pinned isolated Python tooling",
-          "run": "python3 -m venv \"$RUNNER_TEMP/seerr-managed-ci-tools\"\n\"$RUNNER_TEMP/seerr-managed-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n{\n  echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/seerr-managed-venv\"\n  echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/seerr-managed-python\"\n} >> \"$GITHUB_ENV\"\necho \"$RUNNER_TEMP/seerr-managed-ci-tools/bin\" >> \"$GITHUB_PATH\"",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "python3 -m venv \"$RUNNER_TEMP/seerr-managed-ci-tools\"\n\"$RUNNER_TEMP/seerr-managed-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n{\n  echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/seerr-managed-venv\"\n  echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/seerr-managed-python\"\n} >> \"$GITHUB_ENV\"\necho \"$RUNNER_TEMP/seerr-managed-ci-tools/bin\" >> \"$GITHUB_PATH\""
         },
         {
           "name": "Install reviewed dependency lock",
           "working-directory": "server",
-          "run": "uv sync --locked --python 3.12.14",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "uv sync --locked --python 3.12.14"
         },
         {
           "name": "Check installed dependency consistency",
-          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\"",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\""
         },
         {
           "name": "Converge Seerr admin, Arr wiring, initialization and restart",
           "id": "native",
           "timeout-minutes": 42,
-          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.seerr_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/seerr-managed-receipt.json\"",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.seerr_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/seerr-managed-receipt.json\""
         },
         {
           "name": "Verify exact source and Seerr receipt",
-          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.seerr_managed_ci --verify-receipt \"$RUNNER_TEMP/seerr-managed-receipt.json\"",
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.seerr_managed_ci --verify-receipt \"$RUNNER_TEMP/seerr-managed-receipt.json\""
         },
         {
           "name": "Preserve required public Seerr receipt",
@@ -128,8 +121,29 @@
             "path": "${{ runner.temp }}/seerr-managed-receipt.json",
             "if-no-files-found": "error",
             "retention-days": 14
+          }
+        }
+      ],
+      "if": "needs.native-scope.outputs.run == 'true'"
+    },
+    "native-acceptance": {
+      "name": "seerr-native-acceptance",
+      "if": "always()",
+      "needs": [
+        "native-scope",
+        "seerr-characterize"
+      ],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "steps": [
+        {
+          "name": "Require the scoped native result",
+          "env": {
+            "RUN_NATIVE": "${{ needs.native-scope.outputs.run }}",
+            "SCOPE_RESULT": "${{ needs.native-scope.result }}",
+            "MATRIX_RESULT": "${{ needs.seerr-characterize.result }}"
           },
-          "if": "needs.native-scope.outputs.run == 'true'"
+          "run": "test \"$SCOPE_RESULT\" = success\ncase \"$RUN_NATIVE:$MATRIX_RESULT\" in\n  true:success|false:skipped) ;;\n  *) exit 1 ;;\nesac"
         }
       ]
     }
