@@ -4,7 +4,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_item_detail_screen.dart';
 import 'widgets/jellyfin_poster.dart';
@@ -13,7 +16,7 @@ import 'widgets/jellyfin_poster.dart';
 /// item (Movie/Episode) or a container (Series/Season/folder) both push
 /// [JellyfinItemDetailScreen], which then either offers Play or a further
 /// "Browse" step into this same screen — a simple recursive drill-down.
-class JellyfinLibraryScreen extends ConsumerWidget {
+class JellyfinLibraryScreen extends ConsumerStatefulWidget {
   const JellyfinLibraryScreen({
     super.key,
     required this.parentId,
@@ -24,67 +27,137 @@ class JellyfinLibraryScreen extends ConsumerWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(jellyfinLibraryItemsProvider(parentId));
+  ConsumerState<JellyfinLibraryScreen> createState() =>
+      _JellyfinLibraryScreenState();
+}
 
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(title)),
-      child: SafeArea(
-        child: itemsAsync.when(
-          loading: () => _LibraryStatus(
-            label: AppLocalizations.of(context).commonLoading,
-            loading: true,
+class _JellyfinLibraryScreenState
+    extends MediaSessionState<JellyfinLibraryScreen> {
+  bool _current(int generation, Object reading) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(
+        ref.read(jellyfinLibraryItemsProvider(widget.parentId)),
+        reading,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccounts(jellyfinOnly: true);
+    final l10n = AppLocalizations.of(context);
+    final exposed =
+        foreground &&
+        interactionActive &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+    if (!exposed || sessionExpired) {
+      return ServiceRootScaffold(
+        title: widget.title,
+        slivers: [
+          SliverFilledMessage(
+            child: sessionExpired
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      l10n.mediaAccountChanged,
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : const SizedBox.expand(),
           ),
-          error: (_, _) => _LibraryStatus(
-            label: AppLocalizations.of(context).mediaErrorUnreachable,
+        ],
+      );
+    }
+    final provider = jellyfinLibraryItemsProvider(widget.parentId);
+    final itemsAsync = ref.watch(provider);
+    final generation = sessionGeneration;
+    final active = _current(generation, itemsAsync);
+
+    return ServiceRootScaffold(
+      title: widget.title,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('jellyfin-library-header'),
+              header: true,
+              child: Text(widget.title),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('jellyfin-library-refresh'),
+                title: Text(l10n.commonRefresh),
+                onTap: active
+                    ? () {
+                        if (_current(generation, itemsAsync)) {
+                          ref.invalidate(provider);
+                        }
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        itemsAsync.when(
+          loading: () => SliverFilledMessage(
+            child: _LibraryStatus(label: l10n.commonLoading, loading: true),
+          ),
+          error: (_, _) => SliverFilledMessage(
+            child: _LibraryStatus(label: l10n.mediaErrorUnreachable),
           ),
           data: (items) {
             if (items.isEmpty) {
-              return _LibraryStatus(
-                label: AppLocalizations.of(context).jellyfinLibraryEmpty,
+              return SliverFilledMessage(
+                child: _LibraryStatus(label: l10n.jellyfinLibraryEmpty),
               );
             }
-            return LayoutBuilder(
+            return SliverLayoutBuilder(
               builder: (context, constraints) {
                 const spacing = 12.0;
                 const maxWidth = 140.0;
-                final usableWidth = constraints.maxWidth - spacing * 2;
+                final usableWidth = constraints.crossAxisExtent - spacing * 2;
                 final columns = math.max(
                   1,
                   (usableWidth / (maxWidth + spacing)).ceil(),
                 );
                 final posterWidth =
                     (usableWidth - spacing * (columns - 1)) / columns;
-                return GridView.builder(
+                return SliverPadding(
                   padding: const EdgeInsets.all(12),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisSpacing: spacing,
-                    crossAxisSpacing: spacing,
-                    mainAxisExtent: JellyfinPoster.heightFor(
-                      posterWidth,
-                      context,
-                    ),
-                  ),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return JellyfinPoster(
-                      item: item,
-                      width: double.infinity,
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => JellyfinItemDetailScreen(item: item),
-                        ),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: spacing,
+                      crossAxisSpacing: spacing,
+                      mainAxisExtent: JellyfinPoster.heightFor(
+                        posterWidth,
+                        context,
                       ),
-                    );
-                  },
+                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final item = items[index];
+                      return JellyfinPoster(
+                        item: item,
+                        width: double.infinity,
+                        onTap: () {
+                          if (!_current(generation, itemsAsync)) return;
+                          Navigator.of(context).push(
+                            CupertinoPageRoute(
+                              builder: (_) =>
+                                  JellyfinItemDetailScreen(item: item),
+                            ),
+                          );
+                        },
+                      );
+                    }, childCount: items.length),
+                  ),
                 );
               },
             );
           },
         ),
-      ),
+      ],
     );
   }
 }
