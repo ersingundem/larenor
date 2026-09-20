@@ -104,24 +104,32 @@ class HaResult extends StatelessWidget {
   }
 }
 
-Future<bool> confirmHaAction(BuildContext context, String request) async {
+Future<bool> confirmHaAction(
+  BuildContext context,
+  String request, {
+  ValueChanged<Route<bool>?>? onRoute,
+}) async {
   final l10n = AppLocalizations.of(context);
-  return await showCupertinoDialog<bool>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: Text(l10n.haConfirmRun),
-          content: Text(request),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel),
-            ),
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.haRun),
-            ),
-          ],
+  final route = CupertinoDialogRoute<bool>(
+    context: context,
+    builder: (context) => CupertinoAlertDialog(
+      title: Text(l10n.haConfirmRun),
+      content: Text(request),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.commonCancel),
         ),
-      ) ??
-      false;
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(l10n.haRun),
+        ),
+      ],
+    ),
+  );
+  onRoute?.call(route);
+  final result = await Navigator.of(context).push(route);
+  await route.completed;
+  onRoute?.call(null);
+  return result ?? false;
 }

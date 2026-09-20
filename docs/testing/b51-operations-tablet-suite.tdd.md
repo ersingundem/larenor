@@ -11,13 +11,14 @@ underlying actions.
 2. **Energy & Maintenance:** real energy-range and maintenance-scope controls
    remain actionable from the keyboard and expose at least 48 dp targets.
 3. **Home Assistant Tools:** the real API Run action executes from the keyboard,
-   exposes request/result semantics, and keeps the shared service hierarchy.
+   exposes request/result semantics, and rejects results or live events after an
+   account, lifecycle, route, or exact client-authority change.
 
 All three surfaces retain English and Turkish coverage at 600 and 1200 logical
 pixels with 2x text scaling, TalkBack headers, and actual action semantics. The
-combined focused run passed **35 tests**; owned source and test analysis, diff,
+combined focused run passed **38 tests**; owned source and test analysis, diff,
 progress, patch-equivalence, and merge-tree checks passed.
 
 This package is one B5.1 consistency slice. It does not close the whole design
 program or change queue/selected-feature counts; the accepted baseline remains
-**16/125** and **0/63**.
+**17/125** and **0/63**.

@@ -187,7 +187,12 @@ class _EnergyMaintenanceScreenState
                             CupertinoButton(
                               padding: EdgeInsets.zero,
                               minimumSize: const Size(48, 48),
-                              onPressed: !active || state?.isRefreshing == true
+                              onPressed:
+                                  !active ||
+                                      connection.isLoading ||
+                                      (!connection.hasError &&
+                                          controller == null) ||
+                                      state?.isRefreshing == true
                                   ? null
                                   : () {
                                       if (connection.hasError) {
@@ -259,8 +264,9 @@ class _EnergyMaintenanceScreenState
                                         )
                                       : CupertinoColors.tertiarySystemFill
                                             .resolveFrom(context),
-                                  onPressed: () =>
-                                      setState(() => _scope = scope),
+                                  onPressed: !active || !configured
+                                      ? null
+                                      : () => setState(() => _scope = scope),
                                   child: Text(
                                     scope == MaintenanceScope.selected
                                         ? l10n.maintenanceSelected

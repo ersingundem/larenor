@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:larenor/features/auth/data/ha_connection_config.dart';
+import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/data/rest_client.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_tools_screen.dart';
@@ -16,8 +20,12 @@ Widget app(
   HaRestClient client, {
   Locale locale = const Locale('en'),
   double textScale = 1,
+  ConnectionConfig Function()? connection,
 }) => ProviderScope(
-  overrides: [haRestClientProvider.overrideWith((ref) => client)],
+  overrides: [
+    if (connection != null) connectionConfigProvider.overrideWith(connection),
+    haRestClientProvider.overrideWith((ref) => client),
+  ],
   child: CupertinoApp(
     locale: locale,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -27,9 +35,35 @@ Widget app(
           .copyWith(textScaler: TextScaler.linear(textScale)),
       child: child!,
     ),
-    home: HaToolScreen(tool: tool),
+    home: connection == null
+        ? HaToolScreen(tool: tool)
+        : Consumer(
+            builder: (context, ref, _) {
+              final configured = ref.watch(connectionConfigProvider);
+              return configured.isLoading
+                  ? const CupertinoPageScaffold(
+                      child: CupertinoActivityIndicator(),
+                    )
+                  : HaToolScreen(tool: tool);
+            },
+          ),
   ),
 );
+
+class _Connection extends ConnectionConfig {
+  @override
+  Future<HaConnectionConfig?> build() async => const HaConnectionConfig(
+    baseUrl: 'http://ha.test',
+    token: 'synthetic-token',
+  );
+
+  void rotate() => state = const AsyncData(
+    HaConnectionConfig(
+      baseUrl: 'http://new-ha.test',
+      token: 'new-synthetic-token',
+    ),
+  );
+}
 
 Future<void> tabTo(WidgetTester tester, Key key) async {
   for (var index = 0; index < 16; index++) {
@@ -115,6 +149,89 @@ void main() {
     expect(requests, 0);
     expect(find.textContaining('relative Home Assistant'), findsOneWidget);
   });
+
+  for (final invalidation in ['account', 'background', 'route']) {
+    testWidgets(
+      '$invalidation change rejects an in-flight result and expires old actions',
+      (tester) async {
+        final response = Completer<http.Response>();
+        var requests = 0;
+        final client = HaRestClient(
+          baseUrl: 'http://ha.test',
+          token: 'test',
+          httpClient: MockClient((request) {
+            requests++;
+            return response.future;
+          }),
+        );
+        addTearDown(client.dispose);
+        await tester.pumpWidget(
+          app(HaTool.api, client, connection: _Connection.new),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(CupertinoButton, 'Run'));
+        await tester.pump();
+        expect(requests, 1);
+
+        if (invalidation == 'account') {
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(HaToolScreen)),
+          );
+          (container.read(connectionConfigProvider.notifier) as _Connection)
+              .rotate();
+          await tester.pump();
+        } else if (invalidation == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.paused,
+          );
+          await tester.pump();
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+          await tester.pump();
+        } else {
+          final context = tester.element(find.byType(HaToolScreen));
+          final navigator = Navigator.of(context);
+          unawaited(
+            navigator.push<void>(
+              CupertinoPageRoute(
+                builder: (_) =>
+                    const CupertinoPageScaffold(child: Text('Covering route')),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          navigator.pop();
+          await tester.pumpAndSettle();
+        }
+
+        response.complete(http.Response('{"private":"old-account"}', 200));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('old-account'), findsNothing);
+        expect(
+          tester
+              .widget<CupertinoButton>(
+                find.byKey(const ValueKey('ha-primary-action')),
+              )
+              .onPressed,
+          isNull,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {

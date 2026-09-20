@@ -8,7 +8,10 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/spacing.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../ha_client/data/ha_api_exception.dart';
+import '../../ha_client/data/rest_client.dart';
 import '../../ha_client/data/ws_client.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../settings/presentation/panes/settings_nav_row.dart';
@@ -75,7 +78,7 @@ class HaToolScreen extends ConsumerStatefulWidget {
   ConsumerState<HaToolScreen> createState() => _HaToolScreenState();
 }
 
-class _HaToolScreenState extends ConsumerState<HaToolScreen> {
+class _HaToolScreenState extends DashboardEditState<HaToolScreen> {
   final _entity = TextEditingController();
   final _start = TextEditingController(
     text: DateTime.now()
@@ -95,6 +98,9 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
   bool _error = false;
   bool _busy = false;
   bool _live = false;
+  bool _expired = false;
+  Route<bool>? _dialog;
+  bool? _wasVisible, _wasCurrent;
   HaSubscription? _subscription;
   StreamSubscription<dynamic>? _listener;
   final _messages = <dynamic>[];
@@ -113,13 +119,50 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
     }
   }
 
-  Future<void> _startStream(Map<String, dynamic> command) async {
-    final ws = ref.read(haWebSocketClientProvider);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    final current = ModalRoute.isCurrentOf(context) ?? true;
+    if ((_wasVisible == true && !visible) ||
+        (_wasCurrent == true && !current && _dialog == null)) {
+      interactionGeneration++;
+      invalidateDashboardInteraction();
+    }
+    _wasVisible = visible;
+    _wasCurrent = current;
+  }
+
+  @override
+  void invalidateDashboardInteraction() {
+    _expired = true;
+    _busy = false;
+    _result = null;
+    unawaited(_stopStream());
+    final route = _dialog;
+    _dialog = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+  }
+
+  bool _valid(int generation) => !_expired && interactionCurrent(generation);
+
+  bool _restCurrent(int generation, HaRestClient client) =>
+      _valid(generation) && identical(ref.read(haRestClientProvider), client);
+
+  bool _wsCurrent(int generation, HaWebSocketClient client) =>
+      _valid(generation) &&
+      identical(ref.read(haWebSocketClientProvider), client);
+
+  Future<void> _startStream(
+    Map<String, dynamic> command,
+    int generation,
+    HaWebSocketClient? ws,
+  ) async {
     if (ws == null) {
       throw StateError(AppLocalizations.of(context).haDisconnected);
     }
     final subscription = await ws.subscribeCommand(command);
-    if (!mounted) {
+    if (!_wsCurrent(generation, ws)) {
       await subscription.cancel();
       return;
     }
@@ -127,7 +170,10 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
     _messages.clear();
     _listener = subscription.events.listen(
       (event) {
-        if (!mounted) return;
+        if (!_wsCurrent(generation, ws)) {
+          unawaited(_stopStream());
+          return;
+        }
         setState(() {
           _messages.insert(0, event);
           if (_messages.length > 50) _messages.removeLast();
@@ -135,7 +181,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
         });
       },
       onError: (Object error) {
-        if (mounted) {
+        if (_wsCurrent(generation, ws)) {
           setState(() {
             _error = true;
             _result = '$error';
@@ -143,7 +189,9 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
         }
       },
       onDone: () {
-        if (mounted) setState(() => _subscription = null);
+        if (_wsCurrent(generation, ws)) {
+          setState(() => _subscription = null);
+        }
       },
     );
   }
@@ -167,8 +215,29 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // This is an operational HA surface, so account changes are part of its
+    // authority rather than an optional dashboard preview dependency.
+    final authority = ref.watch(connectionConfigProvider);
+    if (authority.hasValue) watchDashboardAccount();
+    ref.listen(haRestClientProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          interactionGeneration++;
+          invalidateDashboardInteraction();
+        });
+      }
+    });
+    ref.listen(haWebSocketClientProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          interactionGeneration++;
+          invalidateDashboardInteraction();
+        });
+      }
+    });
     final l10n = AppLocalizations.of(context);
     final tool = widget.tool;
+    final canInteract = _valid(interactionGeneration);
     return ServiceRootScaffold(
       title: haToolTitle(tool, l10n),
       slivers: [
@@ -188,6 +257,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_expired) HaHint(l10n.dashboardWidgetPickerExpired),
                     if ({
                       HaTool.history,
                       HaTool.logbook,
@@ -196,17 +266,17 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                       HaTextInput(
                         label: l10n.haEntityIds,
                         controller: _entity,
-                        readOnly: _busy,
+                        readOnly: _busy || !canInteract,
                       ),
                       HaTextInput(
                         label: l10n.haStart,
                         controller: _start,
-                        readOnly: _busy,
+                        readOnly: _busy || !canInteract,
                       ),
                       HaTextInput(
                         label: l10n.haEnd,
                         controller: _end,
-                        readOnly: _busy,
+                        readOnly: _busy || !canInteract,
                       ),
                     ],
                     if (tool == HaTool.events ||
@@ -215,7 +285,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                         title: Text(l10n.haLive),
                         trailing: CupertinoSwitch(
                           value: _live,
-                          onChanged: _busy
+                          onChanged: _busy || !canInteract
                               ? null
                               : (value) => setState(() => _live = value),
                         ),
@@ -224,6 +294,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                         HaTextInput(
                           label: l10n.haEventType,
                           controller: _eventType,
+                          readOnly: _busy || !canInteract,
                         ),
                     ],
                     if (tool == HaTool.templates)
@@ -231,7 +302,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                         label: l10n.haTemplate,
                         controller: _template,
                         lines: 6,
-                        readOnly: _busy,
+                        readOnly: _busy || !canInteract,
                       ),
                     if (tool == HaTool.api) ...[
                       HaHint(l10n.haApiHint),
@@ -245,7 +316,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                             'WebSocket': Text('WebSocket'),
                           },
                           onValueChanged: (v) {
-                            if (_busy) return;
+                            if (_busy || !canInteract) return;
                             setState(() {
                               _protocol = v!;
                               _body.text = _protocol == 'REST'
@@ -273,7 +344,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                                 color: _method == method
                                     ? CupertinoTheme.of(context).primaryColor
                                     : null,
-                                onPressed: _busy
+                                onPressed: _busy || !canInteract
                                     ? null
                                     : () => setState(() => _method = method),
                                 child: Text(
@@ -290,7 +361,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                         HaTextInput(
                           label: l10n.haEndpoint,
                           controller: _endpoint,
-                          readOnly: _busy,
+                          readOnly: _busy || !canInteract,
                         ),
                       ],
                       if (_protocol == 'WebSocket' || _method != 'GET')
@@ -298,7 +369,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                           label: l10n.haBody,
                           controller: _body,
                           lines: 6,
-                          readOnly: _busy,
+                          readOnly: _busy || !canInteract,
                         ),
                       if (_protocol == 'REST') HaHint(l10n.haStateHint),
                     ],
@@ -306,16 +377,20 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
                       CupertinoButton(
                         key: const ValueKey('ha-stop-listening'),
                         minimumSize: const Size(48, 48),
-                        onPressed: () async {
-                          await _stopStream();
-                          if (mounted) setState(() {});
-                        },
+                        onPressed: !canInteract
+                            ? null
+                            : () async {
+                                final generation = interactionGeneration;
+                                if (!_valid(generation)) return;
+                                await _stopStream();
+                                if (_valid(generation)) setState(() {});
+                              },
                         child: Text(l10n.haStopListening),
                       ),
                     CupertinoButton.filled(
                       key: const ValueKey('ha-primary-action'),
                       minimumSize: const Size(48, 48),
-                      onPressed: _busy ? null : _run,
+                      onPressed: _busy || !canInteract ? null : _run,
                       child: _busy
                           ? const CupertinoActivityIndicator()
                           : Text(tool == HaTool.api ? l10n.haRun : l10n.haRead),
@@ -337,6 +412,8 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
   }
 
   Future<void> _run() async {
+    final generation = interactionGeneration;
+    if (!_valid(generation) || _busy) return;
     final l10n = AppLocalizations.of(context);
     final client = ref.read(haRestClientProvider);
     if (client == null) {
@@ -353,7 +430,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
     });
     try {
       await _stopStream();
-      if (!mounted) return;
+      if (!_restCurrent(generation, client)) return;
       final ids = _entity.text
           .split(',')
           .map((s) => s.trim())
@@ -408,11 +485,16 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
           if (check['result'] == 'invalid') _error = true;
         case HaTool.events:
           if (_live) {
-            await _startStream({
-              'type': 'subscribe_events',
-              if (_eventType.text.trim().isNotEmpty)
-                'event_type': _eventType.text.trim(),
-            });
+            await _startStream(
+              {
+                'type': 'subscribe_events',
+                if (_eventType.text.trim().isNotEmpty)
+                  'event_type': _eventType.text.trim(),
+              },
+              generation,
+              ref.read(haWebSocketClientProvider),
+            );
+            if (!_restCurrent(generation, client)) return;
             result = _messages.isEmpty ? l10n.haListening : [..._messages];
           } else {
             result = await client.getEvents();
@@ -421,14 +503,17 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
           final body = _protocol == 'REST' && _method == 'GET'
               ? <String, dynamic>{}
               : parseJsonObject(_body.text);
+          if (!_restCurrent(generation, client) || !mounted) return;
           if (_protocol == 'REST') {
             if (_method != 'GET' &&
                 !await confirmHaAction(
                   context,
                   '$_method ${_endpoint.text}\n${jsonEncode(body)}',
+                  onRoute: (route) => _dialog = route,
                 )) {
               return;
             }
+            if (!_restCurrent(generation, client)) return;
             result = await client.requestText(
               _method,
               _endpoint.text.trim(),
@@ -440,20 +525,30 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
               /* Text endpoints are valid too. */
             }
           } else {
-            if (!await confirmHaAction(context, jsonEncode(body))) return;
+            if (!await confirmHaAction(
+              context,
+              jsonEncode(body),
+              onRoute: (route) => _dialog = route,
+            )) {
+              return;
+            }
+            if (!_restCurrent(generation, client)) return;
             final ws = ref.read(haWebSocketClientProvider);
             if (ws == null) throw StateError(l10n.haDisconnected);
             if (_live) {
-              await _startStream(body);
+              await _startStream(body, generation, ws);
+              if (!_wsCurrent(generation, ws)) return;
               result = _messages.isEmpty ? l10n.haListening : [..._messages];
             } else {
               result = await ws.sendCommand(body);
             }
           }
       }
-      if (mounted) setState(() => _result = result ?? l10n.haSuccess);
+      if (_restCurrent(generation, client)) {
+        setState(() => _result = result ?? l10n.haSuccess);
+      }
     } catch (error) {
-      if (mounted) {
+      if (_restCurrent(generation, client)) {
         setState(() {
           _error = true;
           _result = error is HaApiException && error.statusCode == 404
@@ -462,7 +557,7 @@ class _HaToolScreenState extends ConsumerState<HaToolScreen> {
         });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_restCurrent(generation, client)) setState(() => _busy = false);
     }
   }
 }
