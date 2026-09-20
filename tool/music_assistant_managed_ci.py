@@ -69,6 +69,9 @@ _DIAGNOSTIC_CODES = frozenset(
         "music_assistant_characterization_evidence_invalid",
         "music_assistant_characterization_cancelled",
         "music_assistant_characterization_failed",
+        "music_assistant_container_exited",
+        "music_assistant_container_oom_killed",
+        "music_assistant_info_unreachable",
         *_CONTAINER_CREATE_DIAGNOSTICS,
         *_DIAGNOSTIC_PHASES.values(),
     }
@@ -330,7 +333,19 @@ class _MusicAssistantNativeResult:
     token_persistent: bool
 
 
-def _public_info(*, deadline):
+def _require_running(engine, name):
+    value = engine.inspect_container(name)
+    state = value.get("State") if type(value) is dict else None
+    if type(state) is not dict or state.get("Running") is not True:
+        code = (
+            "music_assistant_container_oom_killed"
+            if type(state) is dict and state.get("OOMKilled") is True
+            else "music_assistant_container_exited"
+        )
+        raise MusicAssistantManagedCIError(code)
+
+
+def _public_info(*, deadline, engine, name):
     import http.client
     from larenor_server.plugins.music_assistant_bootstrap_runtime import (
         MusicAssistantBootstrapRuntime,
@@ -360,9 +375,10 @@ def _public_info(*, deadline):
             raise MusicAssistantManagedCIError(
                 "music_assistant_fresh_state_failed") from None
         except Exception:
+            _require_running(engine, name)
             if time.monotonic() >= deadline:
                 raise MusicAssistantManagedCIError(
-                    "music_assistant_fresh_state_failed") from None
+                    "music_assistant_info_unreachable") from None
             time.sleep(0.25)
         finally:
             if connection is not None:
@@ -462,7 +478,11 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
                 and started.code == "container_started"
                 and started.container_id == created.container_id)
         with diagnostic_phase("fresh_state"):
-            server_id = _public_info(deadline=time.monotonic() + 120)
+            server_id = _public_info(
+                deadline=time.monotonic() + 120,
+                engine=engine,
+                name=binding.name,
+            )
             running = engine.inspect_container(binding.name)
             require(
                 managed_container_matches(running, binding)

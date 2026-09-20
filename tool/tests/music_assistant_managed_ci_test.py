@@ -151,6 +151,24 @@ class MusicAssistantManagedCITest(unittest.TestCase):
         self.assertEqual(str(raised.exception), "managed_create_uncertain")
         self.assertNotIn("private", repr(raised.exception))
 
+    def test_container_liveness_reduces_exit_state_to_closed_diagnostic(self):
+        class Engine:
+            value = {"State": {"Running": False, "OOMKilled": False}}
+
+            def inspect_container(self, _name):
+                return self.value
+
+        engine = Engine()
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_running(engine, "larenor-" + "a" * 32)
+        self.assertEqual(str(raised.exception), "music_assistant_container_exited")
+
+        engine.value = {"State": {"Running": False, "OOMKilled": True}}
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_running(engine, "larenor-" + "a" * 32)
+        self.assertEqual(
+            str(raised.exception), "music_assistant_container_oom_killed")
+
 
 if __name__ == "__main__":
     unittest.main()
