@@ -9,7 +9,7 @@ from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin
 from .discovery_models import TargetDiscoveryPage
-from .models import ConfirmRequest, PreviewRequest
+from .models import AttributedPowerJournal, ConfirmRequest, PreviewRequest
 
 
 router = APIRouter(tags=["Proxmox power authority"])
@@ -126,6 +126,13 @@ def result(core_id: str, home_id: str, resource_id: str, request_id: str,
 def journal(core_id: str, home_id: str, resource_id: str, principal: Admin,
             core: Core, limit: int = 50):
     return core.proxmox_power.journal(principal, core_id, home_id, resource_id, limit)
+
+
+@router.get(PREFIX + "/journal/attributed", response_model=AttributedPowerJournal)
+def attributed_journal(core_id: str, home_id: str, resource_id: str,
+                       principal: Admin, core: Core, limit: int = 50):
+    return core.proxmox_power.attributed_journal(
+        principal, core_id, home_id, resource_id, limit)
 
 
 @router.get(PREFIX + "/journal/integrity")

@@ -368,9 +368,17 @@ class ProxmoxPowerAuthority:
             raise ApiError("revision_conflict", 409)
         started = self.settings.clock()
         accepted = self._receipt(pending, "accepted", "accepted", current, started)
-        self.store.put(accepted, resource_id, actor.id)
+        self.store.put(
+            accepted, resource_id, actor.id,
+            service_id=pending.descriptor.service_id,
+            source="core_api", reason="explicit_admin_confirmation",
+        )
         executing = self._receipt(pending, "executing", "executing", current, started)
-        self.store.put(executing, resource_id, actor.id)
+        self.store.put(
+            executing, resource_id, actor.id,
+            service_id=pending.descriptor.service_id,
+            source="core_api", reason="explicit_admin_confirmation",
+        )
 
         def guard(*, descriptor=True):
             if self.settings.clock() * 1000 > started * 1000 + body.deadlineMs:
@@ -431,7 +439,11 @@ class ProxmoxPowerAuthority:
             observed = self.provider.resolve(resource_id)
             final = current if not isinstance(observed, ProxmoxGuestDescriptor) else observed
             receipt = self._receipt(pending, "unknown", "outcome_uncertain", final, started)
-        self.store.put(receipt, resource_id, actor.id)
+        self.store.put(
+            receipt, resource_id, actor.id,
+            service_id=pending.descriptor.service_id,
+            source="core_api", reason="explicit_admin_confirmation",
+        )
         return {"receipt": receipt.model_dump()}
 
     def _receipt(self, pending, state, code, descriptor, created, *, operation_ref=None):
@@ -470,6 +482,21 @@ class ProxmoxPowerAuthority:
             raise ApiError("forbidden", 403)
         self.registry.get(actor, core_id, home_id, resource_id)
         return self.store.journal(resource_id, limit)
+
+    def attributed_journal(self, actor, core_id, home_id, resource_id, limit):
+        if actor.role != "admin":
+            raise ApiError("forbidden", 403)
+        before = self.registry.get(actor, core_id, home_id, resource_id)["record"]
+        if before["ref"]["kind"] != "resource":
+            raise ApiError("not_found", 404)
+        result = self.store.attributed_journal(before["ref"], limit)
+        after = self.registry.get(actor, core_id, home_id, resource_id)["record"]
+        if any(
+            before[field] != after[field]
+            for field in ("ref", "revision", "aclRevision")
+        ):
+            raise ApiError("revision_conflict", 409)
+        return result
 
     def journal_integrity(self, actor, core_id, home_id, resource_id):
         if actor.role != "admin":

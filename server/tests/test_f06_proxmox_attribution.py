@@ -159,6 +159,31 @@ def test_restart_is_factual_while_legacy_attribution_remains_unknown(tmp_path):
         assert recovery["attribution"]["serviceId"] == "s" * 32
         assert "nearby" not in json.dumps(events).lower()
 
+    # A database from the release before attribution has journal rows but no
+    # attribution schema. Migration preserves the signed facts and marks every
+    # unrecorded cause unknown instead of deriving it from current bindings.
+    with restarted.state.core.db.transaction() as connection:
+        connection.execute("DROP TABLE proxmox_power_attribution")
+        connection.execute(
+            "DELETE FROM metadata WHERE key='proxmox_power_attribution_schema'"
+        )
+    migrated = create_app(
+        settings,
+        proxmox_guest_provider=Provider(provider.descriptor),
+        proxmox_power_executor=Executor(Provider(provider.descriptor)),
+    )
+    with TestClient(migrated) as client:
+        response = client.get(
+            base(record) + "/journal/attributed", headers=auth(admin)
+        )
+        assert response.status_code == 200, response.text
+        assert all(
+            row["attribution"]["source"] == "unknown"
+            and row["attribution"]["reason"] == "unknown"
+            and row["attribution"]["serviceId"] is None
+            for row in response.json()["entries"]
+        )
+
 
 def test_attributed_journal_is_scope_isolated_and_tamper_evident(tmp_path):
     app, settings, clock, provider, _ = fixture(tmp_path)

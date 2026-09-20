@@ -2,7 +2,9 @@ from dataclasses import dataclass
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ..home_resources.models import ResourceRef
 
 
 Identity = Annotated[str, Field(min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")]
@@ -108,6 +110,63 @@ class PowerJournalEvent(StrictModel):
     statusRevision: Revision
     operationRef: str | None
     emittedAt: float
+
+
+class PowerCommandAttribution(StrictModel):
+    schemaVersion: Literal[1] = 1
+    correlationId: Identity
+    actorId: Identity
+    source: Literal["core_api", "core_recovery", "unknown"]
+    reason: Literal[
+        "explicit_admin_preview",
+        "explicit_admin_cancel",
+        "explicit_admin_confirmation",
+        "interrupted_after_restart",
+        "unknown",
+    ]
+    serviceId: OpaqueIdentity | None
+    serviceRevision: Revision | None
+
+    @model_validator(mode="after")
+    def closed_origin(self):
+        allowed = {
+            "core_api": {
+                "explicit_admin_preview",
+                "explicit_admin_cancel",
+                "explicit_admin_confirmation",
+            },
+            "core_recovery": {"interrupted_after_restart"},
+            "unknown": {"unknown"},
+        }
+        if self.reason not in allowed[self.source]:
+            raise ValueError("attribution_mismatch")
+        if (self.serviceId is None) != (self.serviceRevision is None):
+            raise ValueError("service_mismatch")
+        if self.source != "unknown" and self.serviceId is None:
+            raise ValueError("service_required")
+        return self
+
+
+class AttributedPowerJournalEvent(PowerJournalEvent):
+    attribution: PowerCommandAttribution
+
+    @model_validator(mode="after")
+    def trace_matches_event(self):
+        if self.attribution.correlationId != self.requestId:
+            raise ValueError("trace_mismatch")
+        if (
+            self.attribution.serviceRevision is not None
+            and self.attribution.serviceRevision != self.serviceRevision
+        ):
+            raise ValueError("service_mismatch")
+        return self
+
+
+class AttributedPowerJournal(StrictModel):
+    schemaVersion: Literal[1] = 1
+    ref: ResourceRef
+    entries: list[AttributedPowerJournalEvent] = Field(max_length=50)
+    verified: Literal[True]
 
 
 @dataclass(frozen=True)
