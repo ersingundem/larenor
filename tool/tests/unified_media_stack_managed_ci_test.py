@@ -1,0 +1,171 @@
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[2]
+TARGET = ROOT / "tool/unified_media_stack_managed_ci.py"
+SPEC = importlib.util.spec_from_file_location("unified_media_stack_managed_ci", TARGET)
+target = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(target)
+REVISION = "a" * 40
+COMPONENTS = (
+    "jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_assistant",
+)
+
+
+class FakeDriver:
+    def __init__(self, *, missing=None, fail_at=None):
+        self.calls = []
+        self.missing = missing
+        self.fail_at = fail_at
+        self.config_digest = "b" * 64
+        self.ownership_digest = "c" * 64
+        self.requirements = None
+
+    def _call(self, name):
+        self.calls.append(name)
+        if self.fail_at == name:
+            raise RuntimeError("private adapter details")
+
+    def config(self, path, revision):
+        self._call("config")
+        raw = Path(path).read_text().replace(
+            "${LARENOR_SOURCE_REVISION:?exact source revision required}", revision,
+        ).replace("${LARENOR_SOURCE_REVISION}", revision)
+        return json.loads(raw)
+
+    def prepare_owned(self, manifest):
+        self._call("prepare_owned")
+        self.requirements = manifest["directoryRequirements"]
+
+    def inspect(self, path):
+        self._call("inspect")
+        item = next(value for value in self.requirements if value["path"] == path)
+        return {"kind": "directory", "ownerUid": item["ownerUid"], "mode": 0o700,
+                "device": 7, "availableMiB": 100_000}
+
+    def pull(self, manifest):
+        self._call("pull")
+        return [{"serviceId": item["serviceId"], "image": item["image"], "state": "pulled"}
+                for item in manifest["components"]]
+
+    def create(self, manifest):
+        self._call("create")
+
+    def start(self, manifest):
+        self._call("start")
+
+    def receipts(self, manifest, phase):
+        self._call("receipts:" + phase)
+        values = []
+        for index, item in enumerate(manifest["components"]):
+            if item["serviceId"] == self.missing:
+                continue
+            values.append({
+                "serviceId": item["serviceId"], "containerName": item["containerName"],
+                "image": item["image"], "containerId": format(index + 1, "064x"),
+                "state": "running", "dns": "host_network" if item["serviceId"] == "music_assistant" else "verified",
+                "network": "host" if item["serviceId"] == "music_assistant" else "larenor-server-control-v1",
+                "mounts": [{"target": mount["target"], "readOnly": mount["readOnly"]}
+                           for mount in item["mounts"]],
+            })
+        return values
+
+    def restart(self, manifest):
+        self._call("restart")
+
+    def authenticated_readiness(self, service_id):
+        self._call("readiness:" + service_id)
+        return {"serviceId": service_id, "state": "not_verified",
+                "code": "bootstrap_authority_not_available"}
+
+    def cleanup(self):
+        self.calls.append("cleanup")
+
+
+class UnifiedMediaStackManagedCITest(unittest.TestCase):
+    def test_native_chain_is_exact_on_both_architectures_and_secret_free(self):
+        for platform_name in ("linux/amd64", "linux/arm64"):
+            driver = FakeDriver()
+            value = target.run_native(REVISION, platform_name, driver)
+            target.validate_receipt(value, REVISION, platform_name)
+            self.assertEqual(driver.calls[:4], ["config", "prepare_owned", "inspect", "inspect"])
+            self.assertEqual(driver.calls.count("inspect"), 10)
+            self.assertEqual(driver.calls[12:18], [
+                "pull", "create", "start", "receipts:initial", "restart", "receipts:restart",
+            ])
+            self.assertEqual(driver.calls[-7:-1], ["readiness:" + item for item in COMPONENTS])
+            self.assertEqual(driver.calls[-1], "cleanup")
+            self.assertEqual(value["lifecycle"], ["config", "pull", "create", "start", "restart"])
+            self.assertEqual(value["containerState"], "verified")
+            self.assertEqual(value["serviceState"], "not_verified")
+            self.assertFalse(value["automaticRetry"])
+            encoded = json.dumps(value, sort_keys=True).lower()
+            self.assertNotRegex(encoded, r"token|password|credential|authorization|/var/lib")
+
+    def test_missing_or_ambiguous_service_fails_closed_and_always_cleans_owned_state(self):
+        for driver in (FakeDriver(missing="seerr"), FakeDriver(fail_at="restart")):
+            with self.assertRaises(target.ManagedStackCIError) as raised:
+                target.run_native(REVISION, "linux/amd64", driver)
+            self.assertIn(str(raised.exception), {
+                "unified_container_receipt_invalid", "unified_native_runtime_failed",
+            })
+            self.assertEqual(driver.calls[-1], "cleanup")
+            self.assertNotIn("private", str(raised.exception))
+
+    def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            receipt = Path(temporary) / "ownership.json"
+            operation_id = "d" * 32
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1, "operationId": operation_id,
+                "sourceCommit": REVISION, "root": str(root),
+            }))
+            root.mkdir()
+            (root / target.MARKER).write_text(operation_id + "\n")
+            (root / "data").mkdir()
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                target.cleanup_owned(receipt, REVISION)
+            self.assertFalse(root.exists())
+            self.assertEqual(command.call_count, 1)
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                target.cleanup_owned(receipt, REVISION)
+            command.assert_not_called()
+
+            root.mkdir()
+            (root / target.MARKER).write_text("e" * 32 + "\n")
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_cleanup_not_owned"):
+                    target.cleanup_owned(receipt, REVISION)
+            self.assertTrue(root.exists())
+            command.assert_not_called()
+
+    def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):
+        value = target.run_native(REVISION, "linux/amd64", FakeDriver())
+        for changed in (
+            value | {"privateToken": "never"},
+            value | {"serviceState": "verified"},
+            value | {"cleanupState": "planned"},
+            value | {"acceptanceSourceHashes": {}},
+        ):
+            with self.assertRaises(target.ManagedStackCIError):
+                target.validate_receipt(changed, REVISION, "linux/amd64")
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "receipt.json"
+            path.write_text('{"schemaVersion":1,"schemaVersion":1}')
+            with self.assertRaisesRegex(target.ManagedStackCIError,
+                                        "unified_characterization_evidence_invalid"):
+                target.verify(path, REVISION, "linux/amd64")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -60,3 +60,32 @@ uygular:
 akışı ve fail-closed sınırları kanıtlar. Gerçek Docker adaptörü, dizinleri atomik
 hazırlayan sahiplik işlemi ve iki mimarili kurulum/restart kabulü hâlâ açık
 olduğundan S07.1 `pending` ve sayaçlar değişmeden kalır.
+
+## Üçüncü üç kriter — iki mimarili native paket kabulü
+
+Yeni manuel `Unified Media Stack Native Acceptance` workflow'u yalnız exact
+`main` revision'ında, Larenor'a ayrılmış self-hosted Linux amd64 ve arm64
+runner'larında çalışır. Üç ek kabul şunlardır:
+
+1. Exact Compose tanımı her mimaride `config --quiet` ve canonical config digest
+   kontrolünden sonra pinned upstream image'ları pull eder, aynı revision'dan
+   Core image'ını build eder ve `create → start → restart` zincirini tamamlar.
+   Hareketli action/tool yoktur; checkout ve artifact action'ları commit SHA'ya,
+   uv/Python ise exact sürüme bağlıdır.
+2. Altı bileşenin exact image ve container kimliği, bind target/read-only
+   eşlemesi, control ağı/host-network istisnası ve gerçek Docker DNS alias'ı hem
+   ilk start hem restart sonrasında doğrulanır. Raw container kimliği yalnız
+   digest olarak yayınlanır. Paket kabulü S06.5 bootstrap authority'sini
+   üretmediği için authenticated readiness ayrı ve dürüst biçimde
+   `not_verified` raporlanır; çalışan container servis doğrulaması sayılmaz.
+3. Public receipt yalnız allowlist alanları taşır; environment, host path, log,
+   URL veya gizli değer içermez. Native yürütücü sabit root/container/network'te
+   önceden var olan kaynağı sahiplenmez. Her sonuç yolunda cleanup çalışır ve
+   yalnız private ownership receipt ile root marker aynıysa oluşturulan
+   container, ağ ve dizinler kaldırılır. Eksik/çift/belirsiz servis, değişmiş
+   topoloji veya cleanup sahiplik kaybı fail-closed olur.
+
+Yerel ortamda Docker ve bu iki self-hosted runner bulunmadığından gerçek native
+workflow sonucu henüz yoktur. Policy ve fake-engine testleri yürütücü sırasını,
+receipt doğrulamasını, belirsiz servis reddini ve sahiplikli cleanup'ı kanıtlar;
+S07.1 bu yüzden `pending` ve sayaçlar değişmeden kalır.

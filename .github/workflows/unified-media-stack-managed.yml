@@ -1,0 +1,70 @@
+{
+  "name": "Unified Media Stack Native Acceptance",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {"contents": "read"},
+  "concurrency": {
+    "group": "unified-media-stack-native-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "unified-media-stack-native": {
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 45,
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {"runner": ["self-hosted", "linux", "x64", "larenor-native"], "platform": "linux/amd64"},
+            {"runner": ["self-hosted", "linux", "arm64", "larenor-native"], "platform": "linux/arm64"}
+          ]
+        }
+      },
+      "env": {"EXPECTED_PLATFORM": "${{ matrix.platform }}"},
+      "steps": [
+        {
+          "name": "Require trusted exact main on the owned runner",
+          "run": "test \"$GITHUB_EVENT_NAME\" = workflow_dispatch\ntest \"$GITHUB_REF\" = refs/heads/main\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = self-hosted\ncase \"$EXPECTED_PLATFORM:$RUNNER_ARCH\" in linux/amd64:X64|linux/arm64:ARM64) ;; *) exit 1;; esac"
+        },
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"ref": "${{ github.sha }}", "persist-credentials": false, "fetch-depth": 0}
+        },
+        {
+          "name": "Install exact Python toolchain",
+          "run": "python3 -m venv \"$RUNNER_TEMP/unified-stack-bootstrap\"\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python install 3.12.14\npython_bin=\"$(\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python find 3.12.14)\"\ntest -x \"$python_bin\"\necho \"UNIFIED_STACK_PYTHON=$python_bin\" >> \"$GITHUB_ENV\""
+        },
+        {
+          "name": "Verify planner and native policy contracts",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test"
+        },
+        {
+          "name": "Run exact unified stack lifecycle",
+          "id": "native",
+          "timeout-minutes": 38,
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\""
+        },
+        {
+          "name": "Remove only receipt-owned containers, network and directories",
+          "id": "cleanup",
+          "if": "always()",
+          "run": "sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  /usr/bin/python3 -B -m tool.unified_media_stack_managed_ci --cleanup-owned \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\""
+        },
+        {
+          "name": "Verify bounded public native receipt",
+          "id": "verify",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-platform \"$EXPECTED_PLATFORM\""
+        },
+        {
+          "name": "Preserve verified secret-free unified stack receipt",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "unified-media-stack-${{ github.sha }}-${{ runner.arch }}",
+            "path": "${{ runner.temp }}/unified-stack-public-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}

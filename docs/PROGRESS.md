@@ -76,7 +76,12 @@ pull/up önüne koyar; altı servisin image/container receipt'lerini authenticat
 readback durumundan ayırır. Readback başarısızlığı çalışan container'ı servis
 olarak doğrulamaz ve otomatik retry başlatmaz.
 
-Docker CLI, iki mimarili gerçek süreç kabulü, sahiplikli dizin hazırlığı,
+Üçüncü yerel dilim, trusted `main` için self-hosted Linux amd64/arm64 native
+matrisini ekler. Exact config/pull/build/create/start/restart zinciri, iki aşamalı
+container-DNS-mount-network receipt'i, authenticated readiness ayrımı ve yalnız
+ownership receipt ile çalışan `always()` cleanup fail-closed test edildi.
+
+Gerçek iki mimarili workflow sonucu, S06.5 authority aktarımı, production
 installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
 `pending` kalır.
 Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
