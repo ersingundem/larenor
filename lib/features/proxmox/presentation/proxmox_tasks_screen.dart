@@ -360,52 +360,63 @@ class _TaskLogScreenState extends ProxmoxSessionState<_TaskLogScreen> {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.proxmoxTaskLogTitle),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _loading || !sessionAvailable ? null : _refresh,
-          child: const Icon(CupertinoIcons.refresh),
-        ),
       ),
       child: SafeArea(
         child: !sessionAvailable
             ? Center(child: Text(l10n.proxmoxSessionExpired))
-            : _lines == null && _loading
-            ? const Center(child: CupertinoActivityIndicator())
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text(
-                    '${widget.task.type}${widget.task.resourceId?.isNotEmpty == true ? ' · ${widget.task.resourceId}' : ''}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  SettingsSection(
+                    margin: EdgeInsets.zero,
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('proxmox-task-log-refresh'),
+                        leading: const Icon(CupertinoIcons.refresh),
+                        title: Text(l10n.commonRefresh),
+                        onTap: _loading || !sessionAvailable ? null : _refresh,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  if (_status != null)
+                  const SizedBox(height: Gap.lg),
+                  if (_lines == null && _loading)
+                    const Center(child: CupertinoActivityIndicator())
+                  else ...[
                     Text(
-                      _status!.isRunning
-                          ? l10n.proxmoxTaskRunning
-                          : _status!.isSuccess
-                          ? l10n.proxmoxTaskSucceeded
-                          : l10n.commonError,
+                      '${widget.task.type}${widget.task.resourceId?.isNotEmpty == true ? ' · ${widget.task.resourceId}' : ''}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: const TextStyle(color: CupertinoColors.systemRed),
+                    const SizedBox(height: 8),
+                    if (_status != null)
+                      Text(
+                        _status!.isRunning
+                            ? l10n.proxmoxTaskRunning
+                            : _status!.isSuccess
+                            ? l10n.proxmoxTaskSucceeded
+                            : l10n.commonError,
+                      ),
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: CupertinoColors.systemRed,
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    SelectableText(
+                      _lines?.isNotEmpty == true
+                          ? _lines!.join('\n')
+                          : l10n.proxmoxTaskNoLog,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
                     ),
-                  const SizedBox(height: 20),
-                  SelectableText(
-                    _lines?.isNotEmpty == true
-                        ? _lines!.join('\n')
-                        : l10n.proxmoxTaskNoLog,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
+                  ],
                 ],
               ),
       ),

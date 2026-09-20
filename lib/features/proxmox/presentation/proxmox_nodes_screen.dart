@@ -166,7 +166,11 @@ class _NodesList extends ConsumerWidget {
                   operational ? l10n.settingsScreenTitle : l10n.commonSignOut,
                 ),
                 onTap: operational
-                    ? () => context.push('/settings')
+                    ? () {
+                        if (context.mounted && current()) {
+                          context.push('/settings');
+                        }
+                      }
                     : () async {
                         if (!context.mounted || !current()) return;
                         final accountNow = ref.read(proxmoxConnectionProvider);
@@ -275,10 +279,14 @@ class _NodeRow extends ConsumerWidget {
       onTap: () {
         if (!context.mounted || !current()) return;
         final accountNow = ref.read(proxmoxConnectionProvider);
+        final nodesNow = ref.read(proxmoxNodesProvider);
         if (!context.mounted ||
             accountNow.isLoading ||
             accountNow.hasError ||
             accountNow.value == null ||
+            nodesNow.isLoading ||
+            nodesNow.hasError ||
+            nodesNow.value?.contains(node) != true ||
             !sameHealthConfiguration(account.value, accountNow.value)) {
           return;
         }

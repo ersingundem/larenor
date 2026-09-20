@@ -2,14 +2,17 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/direct_home_access.dart';
 import 'package:larenor/features/proxmox/data/models/proxmox_node.dart';
 import 'package:larenor/features/proxmox/data/proxmox_config.dart';
 import 'package:larenor/features/proxmox/presentation/proxmox_nodes_screen.dart';
+import 'package:larenor/features/proxmox/presentation/proxmox_node_detail_screen.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
+import 'package:larenor/shared/widgets/operational_service_scope.dart';
 
 const _config = ProxmoxConfig(
   host: 'pve.test',
@@ -123,4 +126,76 @@ void main() {
       });
     }
   }
+
+  testWidgets('captured node action rejects a removed provider item', (
+    tester,
+  ) async {
+    var nodes = const [ProxmoxNode(name: 'pve-node', status: 'online')];
+    final container = ProviderContainer(
+      overrides: [
+        proxmoxConnectionProvider.overrideWith(_Connection.new),
+        proxmoxNodesProvider.overrideWith((_) async => nodes),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final oldAction = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('proxmox-node-pve-node')),
+        )
+        .onPressed!;
+    nodes = const [];
+    container.invalidate(proxmoxNodesProvider);
+    await tester.pump();
+    oldAction();
+    await tester.pumpAndSettle();
+    expect(find.byType(ProxmoxNodeDetailScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('old operational settings action retires on interaction loss', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          proxmoxConnectionProvider.overrideWith(_Connection.new),
+          proxmoxNodesProvider.overrideWith(
+            (_) async => const [
+              ProxmoxNode(name: 'pve-node', status: 'online'),
+            ],
+          ),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => AppInteractionScope(
+            controller: interaction,
+            child: OperationalServiceScope(child: child!),
+          ),
+          home: const ProxmoxNodesScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final oldAction = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('service-account-action')),
+        )
+        .onPressed!;
+    interaction.setActive(false);
+    await tester.pump();
+    oldAction();
+    await tester.pumpAndSettle();
+    expect(find.byType(ProxmoxNodesScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

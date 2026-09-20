@@ -130,6 +130,9 @@ void main() {
       await tester.tap(find.text('backup'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      final refresh = find.byKey(const ValueKey('proxmox-task-log-refresh'));
+      expect(tester.getRect(refresh).height, greaterThanOrEqualTo(48));
+      expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
       expect(requests.where((path) => path.endsWith('/status')), hasLength(1));
       await tester.pumpWidget(const SizedBox());
       status.complete(
