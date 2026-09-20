@@ -2,6 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../data/models/proxmox_guest.dart';
 import '../data/models/proxmox_storage.dart';
 import '../providers/proxmox_providers.dart';
@@ -76,7 +79,7 @@ class _ProxmoxCreateGuestScreenState
         : null;
     final lease = captureSession();
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           AppLocalizations.of(context).proxmoxCreateFromTemplateTitle,
@@ -112,15 +115,17 @@ class _ProxmoxCreateGuestScreenState
                   return ListView(
                     children: [
                       const SizedBox(height: 16),
-                      CupertinoListSection.insetGrouped(
+                      SettingsSection(
                         children: [
                           for (final template in templates)
-                            CupertinoListTile(
+                            SettingsActionTile(
+                              buttonKey: ValueKey(
+                                'proxmox-template-${template.node}-${template.type.name}-${template.vmid}',
+                              ),
                               title: Text(template.name),
-                              subtitle: Text(
+                              additionalInfo: Text(
                                 '${proxmoxGuestTypeLabel(context, template.type)} #${template.vmid}',
                               ),
-                              trailing: const CupertinoListTileChevron(),
                               onTap: _opening || lease == null
                                   ? null
                                   : () => _openTemplate(lease, template),
@@ -361,7 +366,7 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
         !_pickingStorage &&
         !_needsReview;
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           AppLocalizations.of(context).proxmoxCloneTitle(widget.template.name),
@@ -376,7 +381,7 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
                   const SizedBox(height: 16),
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     children: [
                       CupertinoTextFormFieldRow(
                         controller: _idController,
@@ -454,7 +459,8 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
                           _storage ??= targetable.isEmpty
                               ? null
                               : targetable.first;
-                          return CupertinoListTile(
+                          return SettingsActionTile(
+                            buttonKey: const ValueKey('proxmox-clone-storage'),
                             title: Text(
                               AppLocalizations.of(context).proxmoxStorageLabel,
                             ),
@@ -462,7 +468,6 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
                               _storage?.name ??
                                   AppLocalizations.of(context).commonNone,
                             ),
-                            trailing: const CupertinoListTileChevron(),
                             onTap: !_fullClone || !enabled || targetable.isEmpty
                                 ? null
                                 : () => _pickStorage(lease, targetable),
@@ -472,23 +477,32 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
                     ],
                   ),
                   if (_status != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(_status!, textAlign: TextAlign.center),
+                    Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(_status!, textAlign: TextAlign.center),
+                      ),
                     ),
                   if (_error != null || _needsReview)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        _needsReview
-                            ? AppLocalizations.of(context).proxmoxActionUnknown
-                            : _error!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: CupertinoColors.systemRed.resolveFrom(context),
+                    Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          _needsReview
+                              ? AppLocalizations.of(context)
+                                    .proxmoxActionUnknown
+                              : _error!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CupertinoColors.systemRed.resolveFrom(
+                              context,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -497,13 +511,18 @@ class _CloneFormScreenState extends ProxmoxSessionState<_CloneFormScreen> {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    child: CupertinoButton.filled(
-                      onPressed: enabled ? () => _submit(lease) : null,
-                      child: _cloning
-                          ? const CupertinoActivityIndicator(
-                              color: CupertinoColors.white,
-                            )
-                          : Text(AppLocalizations.of(context).commonCreate),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: CupertinoButton.filled(
+                        key: const ValueKey('proxmox-clone-submit'),
+                        minimumSize: const Size(48, 48),
+                        onPressed: enabled ? () => _submit(lease) : null,
+                        child: _cloning
+                            ? const CupertinoActivityIndicator(
+                                color: CupertinoColors.white,
+                              )
+                            : Text(AppLocalizations.of(context).commonCreate),
+                      ),
                     ),
                   ),
                 ],

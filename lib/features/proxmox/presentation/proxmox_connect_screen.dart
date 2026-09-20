@@ -7,6 +7,7 @@ import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/discovery/lan_discovery_section.dart';
 import '../../../shared/discovery/service_signatures.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../data/proxmox_credentials_store.dart';
@@ -268,7 +269,7 @@ class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
     ref.watch(directHomeAccessProvider);
     final l10n = AppLocalizations.of(context);
     if (!_access.isCurrent) {
-      return CupertinoPageScaffold(
+      return AppPageScaffold(
         child: Center(child: Text(l10n.mediaErrorUnreachable)),
       );
     }
@@ -281,12 +282,12 @@ class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
       _clearFields();
     }
     if (reading.isLoading && !_connecting) {
-      return const CupertinoPageScaffold(
+      return const AppPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       );
     }
     if (reading.hasError && !_recovery) {
-      return CupertinoPageScaffold(
+      return AppPageScaffold(
         child: Center(child: Text(l10n.mediaErrorUnreachable)),
       );
     }
@@ -294,12 +295,12 @@ class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
     final active = _current(generation);
     final connection = ref.read(proxmoxConnectionProvider.notifier);
     final store = ref.read(proxmoxCredentialsStoreProvider);
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Proxmox VE')),
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 780),
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -349,6 +350,12 @@ class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
                       enabled: active && !_connecting,
                       prefix: _label(l10n.mediaPasswordLabel),
                       obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (active && !_connecting) {
+                          _connect(generation, connection);
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -372,28 +379,38 @@ class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: CupertinoColors.systemRed.resolveFrom(context),
+                      ),
                     ),
                   ),
                 ],
                 const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: _connecting || !active
-                      ? null
-                      : () => _connect(generation, connection),
-                  child: _connecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : Text(l10n.commonConnect),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    key: const ValueKey('proxmox-connect-submit'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _connect(generation, connection),
+                    child: _connecting
+                        ? const CupertinoActivityIndicator(
+                            color: CupertinoColors.white,
+                          )
+                        : Text(l10n.commonConnect),
+                  ),
                 ),
                 if (_recovery) ...[
                   const SizedBox(height: 12),
                   CupertinoButton(
+                    key: const ValueKey('proxmox-connect-remove'),
+                    minimumSize: const Size(48, 48),
                     onPressed: _connecting || !active
                         ? null
                         : () => _clear(generation, store),
