@@ -45,3 +45,13 @@ etiket taraması MANUAL'dır. Server tarafında printable label yönetim akış�
 Android export/share hedefi, exact-head CI ve B3/B5 kuyruk bağımlılıkları F34
 kapanışından önce tamamlanmalıdır. Kuyruk **16/125**, seçili özellik kabulü
 **0/63** kalır.
+
+## Güncel saldırgan inceleme ve taban
+
+Dal, S06.6 kapanışını içeren `67261f69` main tabanına yeniden bağlandı. Bozuk
+veya yabancı QR sonrası önceki seçili öğe/liste kanıtı artık tutulmaz; kamera
+oluşturma hatası güvenli manuel girişe düşer ve kapatılmış stream'e gelen geç
+error callback'i yutulur. Inventory ve izole Core HTTP paketi **17/17**, Server
+paketi **7/7** geçti; hedefli analiz temizdir. Güncel taban **17/125** ve
+**0/63**'tür. Kalıcı Core list/cursor API'si, Android export/share ve fiziksel
+kamera kabulü hâlâ açık olduğundan F34 `pending` kalır.
