@@ -123,6 +123,11 @@ void main() {
 
       expect(find.byType(JellyfinItemDetailScreen), findsOneWidget);
       expect(find.byType(JellyfinLibraryScreen), findsNothing);
+      expect(find.text(_folder.name), findsNothing);
+      expect(
+        find.text('The media connection changed. Open this title again.'),
+        findsOneWidget,
+      );
     },
   );
 

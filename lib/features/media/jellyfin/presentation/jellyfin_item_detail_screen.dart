@@ -6,6 +6,7 @@ import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_library_screen.dart';
@@ -13,16 +14,63 @@ import 'jellyfin_series_screen.dart';
 import 'player/jellyfin_player_screen.dart';
 import '../../casting/presentation/remote_playback_button.dart';
 
-class JellyfinItemDetailScreen extends ConsumerWidget {
+class JellyfinItemDetailScreen extends ConsumerStatefulWidget {
   const JellyfinItemDetailScreen({super.key, required this.item});
 
   final JellyfinItem item;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JellyfinItemDetailScreen> createState() =>
+      _JellyfinItemDetailScreenState();
+}
+
+class _JellyfinItemDetailScreenState
+    extends MediaSessionState<JellyfinItemDetailScreen> {
+  void _open(JellyfinItem item, int generation) {
+    if (!sessionCurrent(generation) ||
+        sessionExpired ||
+        !TickerMode.valuesOf(context).enabled ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        item != widget.item) {
+      return;
+    }
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (_) => item.isPlayable
+            ? JellyfinPlayerScreen(item: item)
+            : item.type == 'Series'
+            ? JellyfinSeriesScreen(series: item)
+            : JellyfinLibraryScreen(parentId: item.id, title: item.name),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccounts(jellyfinOnly: true);
+    final item = widget.item;
     final client = ref.watch(jellyfinClientProvider);
     final imageUrl = client?.imageUrl(item.id);
     final l10n = AppLocalizations.of(context);
+    if (sessionExpired) {
+      return ServiceRootScaffold(
+        title: l10n.mediaHubTitle,
+        slivers: [
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              children: [
+                CupertinoListTile(title: Text(l10n.mediaAccountChanged)),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    final generation = sessionGeneration;
+    final active =
+        foreground &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
     final metadata = [
       item.seriesName,
       item.productionYear?.toString(),
@@ -84,23 +132,12 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
                       ? l10n.jellyfinPlayButton
                       : l10n.jellyfinBrowseButton,
                 ),
-                onTap: () => Navigator.of(context).push(
-                  CupertinoPageRoute(
-                    builder: (_) => item.isPlayable
-                        ? JellyfinPlayerScreen(item: item)
-                        : item.type == 'Series'
-                        ? JellyfinSeriesScreen(series: item)
-                        : JellyfinLibraryScreen(
-                            parentId: item.id,
-                            title: item.name,
-                          ),
-                  ),
-                ),
+                onTap: active ? () => _open(item, generation) : null,
               ),
               if (item.isPlayable)
                 ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 48),
-                  child: RemotePlaybackButton(itemId: item.id),
+                  child: RemotePlaybackButton(itemId: item.id, enabled: active),
                 ),
             ],
           ),
