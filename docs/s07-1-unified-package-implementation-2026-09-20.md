@@ -63,9 +63,10 @@ olduğundan S07.1 `pending` ve sayaçlar değişmeden kalır.
 
 ## Üçüncü üç kriter — iki mimarili native paket kabulü
 
-Yeni manuel `Unified Media Stack Native Acceptance` workflow'u yalnız exact
-`main` revision'ında, Larenor'a ayrılmış self-hosted Linux amd64 ve arm64
-runner'larında çalışır. Üç ek kabul şunlardır:
+Yeni `Unified Media Stack Native Acceptance` workflow'u ilgili pull request
+değişikliklerinde ve manuel exact `main` çalıştırmalarında GitHub-hosted Linux
+amd64 ve arm64 runner'larında çalışır. İlgisiz değişikliklerde aynı required
+check adları hızlı native-scope sonucu üretir. Üç ek kabul şunlardır:
 
 1. Exact Compose tanımı her mimaride `config --quiet` ve canonical config digest
    kontrolünden sonra pinned upstream image'ları pull eder, aynı revision'dan
@@ -85,10 +86,10 @@ runner'larında çalışır. Üç ek kabul şunlardır:
    container, ağ ve dizinler kaldırılır. Eksik/çift/belirsiz servis, değişmiş
    topoloji veya cleanup sahiplik kaybı fail-closed olur.
 
-Yerel ortamda Docker ve bu iki self-hosted runner bulunmadığından gerçek native
-workflow sonucu henüz yoktur. Policy ve fake-engine testleri yürütücü sırasını,
-receipt doğrulamasını, belirsiz servis reddini ve sahiplikli cleanup'ı kanıtlar;
-S07.1 bu yüzden `pending` ve sayaçlar değişmeden kalır.
+Gerçek GitHub-hosted amd64/arm64 workflow sonucu henüz yoktur. Policy ve
+fake-engine testleri otomatik PR tetikleyicisini, fail-open scope kararını,
+yürütücü sırasını, receipt doğrulamasını, belirsiz servis reddini ve sahiplikli
+cleanup'ı kanıtlar; S07.1 bu yüzden `pending` ve sayaçlar değişmeden kalır.
 
 ## Saldırgan paket incelemesi
 

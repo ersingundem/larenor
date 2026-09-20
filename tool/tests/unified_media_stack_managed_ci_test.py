@@ -88,6 +88,39 @@ class FakeDriver:
 
 
 class UnifiedMediaStackManagedCITest(unittest.TestCase):
+    def launch_environment(self, **changed):
+        value = {
+            "EXPECTED_PLATFORM": "linux/amd64", "RUNNER_ARCH": "X64",
+            "RUNNER_ENVIRONMENT": "github-hosted", "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REF": "refs/heads/main", "GITHUB_BASE_REF": "",
+            "PR_HEAD_REPOSITORY": "", "GITHUB_REPOSITORY": "ersingundem/larenor",
+            "GITHUB_SHA": REVISION, "GITHUB_WORKFLOW_SHA": REVISION,
+            "CI": "true", "GITHUB_ACTIONS": "true",
+        }
+        value.update(changed)
+        return value
+
+    def test_launch_accepts_hosted_main_or_same_repository_pull_request_only(self):
+        with patch.object(target.platform, "machine", return_value="x86_64"), patch.object(
+                target.platform, "system", return_value="Linux"), patch.object(
+                target.os, "geteuid", return_value=0):
+            self.assertEqual(target.validate_launch(self.launch_environment()), "linux/amd64")
+            pull_request = self.launch_environment(
+                GITHUB_EVENT_NAME="pull_request", GITHUB_REF="refs/pull/181/merge",
+                GITHUB_BASE_REF="main", PR_HEAD_REPOSITORY="ersingundem/larenor",
+            )
+            self.assertEqual(target.validate_launch(pull_request), "linux/amd64")
+            for changed in (
+                {"RUNNER_ENVIRONMENT": "self-hosted"},
+                {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/181/merge",
+                 "GITHUB_BASE_REF": "main", "PR_HEAD_REPOSITORY": "foreign/fork"},
+                {"GITHUB_WORKFLOW_SHA": "b" * 40},
+            ):
+                with self.subTest(changed=changed):
+                    with self.assertRaisesRegex(target.ManagedStackCIError,
+                                                "unified_launch_invalid"):
+                        target.validate_launch(self.launch_environment(**changed))
+
     def test_native_chain_is_exact_on_both_architectures_and_secret_free(self):
         for platform_name in ("linux/amd64", "linux/arm64"):
             driver = FakeDriver()

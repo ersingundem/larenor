@@ -27,6 +27,11 @@ RELEVANT_PATTERNS = (
     "tool/arr_managed_ci.py",
     "tool/seerr_managed_ci.py",
     "tool/music_assistant_managed_ci.py",
+    ".github/workflows/unified-media-stack-managed.yml",
+    "deploy/larenor-server/unified.compose.yaml",
+    "deploy/larenor-server/unified_package.py",
+    "tool/unified_media_stack_managed_ci.py",
+    "tool/tests/unified_media_stack_*",
     "tool/volume_bootstrap_helper.py",
     "tool/media_resource_smoke.py",
 )

@@ -12,19 +12,49 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
     def workflow(self):
         return json.loads(WORKFLOW.read_text())
 
-    def test_manual_self_hosted_native_matrix_is_closed_and_exact(self):
+    def policy_errors(self, value):
+        errors = []
+        if value.get("on") != {
+                "workflow_dispatch": {}, "pull_request": {"branches": ["main"]}}:
+            errors.append("automatic_pull_request_required")
+        text = json.dumps(value)
+        if "self-hosted" in text:
+            errors.append("self_hosted_forbidden")
+        job = value.get("jobs", {}).get("unified-media-stack-native", {})
+        matrix = job.get("strategy", {}).get("matrix", {}).get("include", [])
+        if matrix != [
+                {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
+                {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"}]:
+            errors.append("hosted_native_matrix_required")
+        if "native-scope" not in value.get("jobs", {}) or job.get("needs") != "native-scope":
+            errors.append("native_scope_required")
+        return errors
+
+    def test_automatic_github_hosted_native_matrix_is_closed_and_exact(self):
         value = self.workflow()
-        self.assertEqual(value["on"], {"workflow_dispatch": {}})
+        self.assertEqual(self.policy_errors(value), [])
         self.assertEqual(value["permissions"], {"contents": "read"})
+        scope = value["jobs"]["native-scope"]
+        self.assertEqual(scope["name"], "unified-stack-native-scope")
+        self.assertEqual(scope["runs-on"], "ubuntu-24.04")
         job = value["jobs"]["unified-media-stack-native"]
-        self.assertEqual(job["runs-on"], "${{ matrix.runner }}")
-        self.assertEqual(job["strategy"], {"fail-fast": False, "matrix": {"include": [
-            {"runner": ["self-hosted", "linux", "x64", "larenor-native"],
-             "platform": "linux/amd64"},
-            {"runner": ["self-hosted", "linux", "arm64", "larenor-native"],
-             "platform": "linux/arm64"},
-        ]}})
+        self.assertEqual(job["name"], "unified-stack-native (${{ matrix.platform }})")
+        self.assertEqual(
+            job["runs-on"],
+            "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
+        )
+        self.assertFalse(job["strategy"]["fail-fast"])
         self.assertGreaterEqual(job["timeout-minutes"], 35)
+
+    def test_policy_rejects_manual_only_and_self_hosted_regressions(self):
+        value = self.workflow()
+        manual = json.loads(json.dumps(value))
+        manual["on"] = {"workflow_dispatch": {}}
+        self.assertIn("automatic_pull_request_required", self.policy_errors(manual))
+        self_hosted = json.loads(json.dumps(value))
+        self_hosted["jobs"]["unified-media-stack-native"]["strategy"]["matrix"]["include"][0]["runner"] = [
+            "self-hosted", "linux", "x64", "larenor-native"]
+        self.assertIn("self_hosted_forbidden", self.policy_errors(self_hosted))
 
     def test_exact_chain_verification_artifact_and_always_cleanup_are_ordered(self):
         value = self.workflow()
@@ -37,7 +67,10 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertLess(native, cleanup)
         self.assertLess(cleanup, verify)
         self.assertLess(verify, upload)
-        self.assertEqual(steps[cleanup]["if"], "always()")
+        self.assertEqual(
+            steps[cleanup]["if"],
+            "always() && needs.native-scope.outputs.run == 'true'",
+        )
         self.assertIn("--cleanup-owned", steps[cleanup]["run"])
         self.assertIn("--run-native", steps[native]["run"])
         self.assertIn("--verify-receipt", steps[verify]["run"])
@@ -68,7 +101,8 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         text = json.dumps(value)
         self.assertIn("uv==0.12.10", text)
         self.assertIn("python install 3.12.14", text)
-        self.assertIn("RUNNER_ENVIRONMENT=self-hosted", text)
+        self.assertIn("RUNNER_ENVIRONMENT=github-hosted", text)
+        self.assertNotIn("self-hosted", text)
         self.assertNotIn("sudo -E", text)
 
 

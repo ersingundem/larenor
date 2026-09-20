@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native, opt-in acceptance for the exact unified media stack package.
 
-The workflow is manual and runs only on owned self-hosted runners. This tool
+The workflow runs on GitHub-hosted Linux amd64 and arm64 runners. This tool
 never publishes credentials, environment, URLs, host paths, logs or raw Docker
 identifiers. A fresh fixed root and project are required; cleanup is allowed
 only when a private ownership receipt and root marker agree.
@@ -130,14 +130,29 @@ def validate_launch(environment=None):
     selected = {"x86_64": "linux/amd64", "amd64": "linux/amd64",
                 "aarch64": "linux/arm64", "arm64": "linux/arm64"}.get(machine)
     expected_arch = {"linux/amd64": "X64", "linux/arm64": "ARM64"}.get(selected)
+    event = env.get("GITHUB_EVENT_NAME")
+    repository = env.get("GITHUB_REPOSITORY")
+    manual = (
+        event == "workflow_dispatch"
+        and env.get("GITHUB_REF") == "refs/heads/main"
+        and env.get("GITHUB_BASE_REF", "") == ""
+        and env.get("PR_HEAD_REPOSITORY", "") == ""
+    )
+    pull_request = (
+        event == "pull_request"
+        and re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", env.get("GITHUB_REF", ""))
+        and env.get("GITHUB_BASE_REF") == "main"
+        and env.get("PR_HEAD_REPOSITORY") == repository
+    )
     if not (
-        selected is not None
+        platform.system() == "Linux"
+        and os.geteuid() == 0
+        and selected is not None
         and env.get("EXPECTED_PLATFORM") == selected
         and env.get("RUNNER_ARCH") == expected_arch
-        and env.get("RUNNER_ENVIRONMENT") == "self-hosted"
-        and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-        and env.get("GITHUB_REF") == "refs/heads/main"
-        and env.get("GITHUB_REPOSITORY") == "ersingundem/larenor"
+        and env.get("RUNNER_ENVIRONMENT") == "github-hosted"
+        and (manual or pull_request)
+        and repository == "ersingundem/larenor"
         and env.get("GITHUB_WORKFLOW_SHA") == env.get("GITHUB_SHA")
         and env.get("CI") == "true" and env.get("GITHUB_ACTIONS") == "true"
     ):
