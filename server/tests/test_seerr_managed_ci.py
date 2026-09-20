@@ -165,6 +165,18 @@ def test_characterize_closes_unexpected_native_lifecycle_failures(monkeypatch):
         module.characterize(daemon, checkout_binding=binding)
 
 
+def test_runtime_setup_maps_binding_rejection_to_phase_code():
+    module = api()
+    from larenor_server.plugins.managed_container import ManagedContainerError
+
+    with pytest.raises(
+        module.SeerrManagedCIError,
+        match="^seerr_runtime_setup_failed$",
+    ):
+        with module.diagnostic_phase("runtime_setup"):
+            raise ManagedContainerError("resources_untrusted")
+
+
 def test_receipt_verification_never_starts_daemon(tmp_path, monkeypatch, capsys):
     module = api()
     path = tmp_path / "receipt.json"

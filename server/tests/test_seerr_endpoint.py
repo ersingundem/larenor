@@ -45,7 +45,7 @@ def build(container_journal_id="4" * 32):
                 3,
                 image.image.configDigest,
                 json.dumps(
-                    {"Env": ["PATH=/usr/bin"], "Volumes": {"/app/config": {}}},
+                    {"Env": ["PATH=/usr/bin"]},
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode(),
@@ -91,12 +91,12 @@ def build(container_journal_id="4" * 32):
     return stack, binding, observed
 
 
-def test_seerr_builder_mounts_only_owned_appdata_without_public_port():
+def test_seerr_builder_accepts_official_image_without_declared_volume():
     _stack, binding, observed = build()
     body = json.loads(binding.specification)
     assert {item.target for item in binding.mounts} == {"/app/config"}
     assert "PortBindings" not in body["HostConfig"]
-    assert set(json.loads(binding.image_configuration)["Volumes"]) == {"/app/config"}
+    assert "Volumes" not in json.loads(binding.image_configuration)
     assert managed_container_matches(observed, binding)
 
 

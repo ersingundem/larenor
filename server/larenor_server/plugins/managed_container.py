@@ -686,9 +686,16 @@ def _configuration(raw, targets):
         if selected_targets == {'/data'}
         else {'/config'}
     )
-    if (type(volumes) is not dict or set(volumes) != expected
+    # The pinned upstream Seerr image does not declare Docker Volumes even
+    # though its supported persistent path is /app/config. The catalog and
+    # resource proof still bind that exact path; retain the verified image
+    # configuration verbatim so subsequent image/container reconciliation is
+    # fail closed against the actual upstream metadata.
+    undeclared_seerr_volume = selected_targets == {'/app/config'} and volumes is None
+    if (not undeclared_seerr_volume and (
+            type(volumes) is not dict or set(volumes) != expected
             or not set(volumes) <= set(targets) or any(
-            item not in (None, {}) for item in volumes.values())):
+                item not in (None, {}) for item in volumes.values()))):
         raise ValueError()
     labels = value.get('Labels') or {}
     if type(labels) is not dict or any(type(key) is not str or type(item) is not str
