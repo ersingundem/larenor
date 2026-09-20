@@ -54,6 +54,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   final bool Function() windowCurrent;
   CoreBoundedDownloadPhase phase = CoreBoundedDownloadPhase.idle;
   String? targetId, traceId;
+  CoreBoundedTransferReceipt? receipt;
+  bool receiptTrusted = false;
   int epoch = 0;
   bool _disposed = false, _visible = false, busy = false;
   CoreBoundedDownloadApi? _transport;
@@ -136,6 +138,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     busy = false;
     targetId = null;
     traceId = null;
+    receipt = null;
+    receiptTrusted = false;
     _boundSession = null;
     _boundTarget = null;
     _boundUserRevision = null;
@@ -175,9 +179,12 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     _boundTarget = target;
     _boundUserRevision = userRevision;
     traceId = null;
+    receipt = null;
+    receiptTrusted = false;
     _emit();
     try {
       CoreBoundedBlob? blob;
+      CoreBoundedTransferReceipt? verifiedReceipt;
       await home.account.withSession((_, session) async {
         if (!current() ||
             session.context != target.context ||
@@ -187,7 +194,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         }
         _transport = apiFactory(session.endpoint);
         try {
-          blob = await _transport!.download(
+          final candidate = await _transport!.download(
             token: session.accessToken,
             target: target,
             expectedUserRevision: userRevision,
@@ -195,6 +202,18 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
             // provider discovery remains outside this bounded slice.
             expectedServiceRevision: 1,
           );
+          if (!current()) {
+            throw const CoreBoundedDownloadException('cancelled');
+          }
+          verifiedReceipt = await _transport!.verifyCompleted(
+            token: session.accessToken,
+            target: target,
+            blob: candidate,
+          );
+          if (!current()) {
+            throw const CoreBoundedDownloadException('cancelled');
+          }
+          blob = candidate;
         } on CoreBoundedDownloadException catch (error) {
           if (error.code == 'unauthorized') {
             throw const LarenorServerException('unauthorized');
@@ -202,7 +221,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           rethrow;
         }
       });
-      if (!current() || blob == null) return;
+      if (!current() || blob == null || verifiedReceipt == null) return;
+      receipt = verifiedReceipt;
+      receiptTrusted = true;
       traceId = blob!.traceId;
       phase = CoreBoundedDownloadPhase.choosingDestination;
       _emit();
@@ -213,6 +234,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           : CoreBoundedDownloadPhase.cancelled;
     } catch (error) {
       if (current()) {
+        receipt = null;
+        receiptTrusted = false;
         final code = switch (error) {
           CoreBoundedDownloadException e => e.code,
           LarenorServerException e => e.code,

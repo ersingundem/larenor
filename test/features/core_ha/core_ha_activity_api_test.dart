@@ -98,4 +98,44 @@ void main() {
     );
     expect(calls, 0);
   });
+
+  test('event history uses only canonical bounded forward cursors', () async {
+    final requests = <http.Request>[];
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://synthetic.invalid/prefix'),
+      client: MockClient((request) async {
+        requests.add(request);
+        return jsonResponse(
+          eventHistoryJson(
+            headSequence: 2,
+            sequences: request.url.queryParameters.containsKey('after')
+                ? const [2]
+                : const [1],
+            nextAfter: request.url.queryParameters.containsKey('after')
+                ? null
+                : 1,
+          ),
+        );
+      }),
+    );
+    addTearDown(transport.close);
+    final api = CoreHaApi(
+      transport,
+      'fixture_token',
+      historyTarget(),
+      isCurrent: () => true,
+    );
+
+    final first = await api.eventHistory(limit: 1);
+    final second = await api.eventHistory(after: first.nextAfter, limit: 1);
+
+    expect(second.events.single.sequence, 2);
+    expect(requests.map((request) => request.method), everyElement('GET'));
+    expect(requests[0].url.queryParameters, {'limit': '1'});
+    expect(requests[1].url.queryParameters, {'after': '1', 'limit': '1'});
+    expect(requests[0].url.path, endsWith('/history/events'));
+    await expectLater(api.eventHistory(after: 0), failure('invalid_request'));
+    await expectLater(api.eventHistory(limit: 51), failure('invalid_request'));
+    expect(requests, hasLength(2));
+  });
 }

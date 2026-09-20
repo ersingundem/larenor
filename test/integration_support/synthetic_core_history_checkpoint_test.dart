@@ -27,15 +27,22 @@ final class _HistoryCoreFixture {
   final Map<String, dynamic> contract, history;
   final methods = <String>[];
   final authorization = <String?>[];
-  int historyReads = 0, verificationReads = 0, rejected = 0, restarts = 0;
+  int historyReads = 0,
+      eventReads = 0,
+      verificationReads = 0,
+      rejected = 0,
+      restarts = 0;
   int sequence = 2;
   String chainId = 'c' * 32, headHash = 'd' * 64;
+  String eventChainId = 'e' * 32;
+  int eventHead = 2, eventStatus = 200;
   String checkpoint = 'checkpoint-2';
   final acceptedCheckpoints = <String>{'checkpoint-2'};
   String role = 'admin';
   bool unauthorized = false;
   _ProofMode proofMode = _ProofMode.sound;
   Completer<void>? verificationGate;
+  Completer<void>? eventGate;
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
   int get port => server.port;
@@ -46,6 +53,7 @@ final class _HistoryCoreFixture {
       '/api/v1/home-assistant/$coreId/$homeId/resources/$resourceId/history';
   String get verificationPath =>
       '/api/v1/admin/home-assistant/$coreId/$homeId/history/verification';
+  String get eventPath => '$historyPath/events';
 
   static Future<_HistoryCoreFixture> start() async {
     final fixture = _HistoryCoreFixture._(
@@ -62,6 +70,7 @@ final class _HistoryCoreFixture {
 
   void advance() {
     sequence++;
+    eventHead++;
     headHash = sequence.isEven ? 'd' * 64 : 'e' * 64;
     checkpoint = 'checkpoint-$sequence';
     acceptedCheckpoints.add(checkpoint);
@@ -152,6 +161,56 @@ final class _HistoryCoreFixture {
         return;
       }
       await _reply(request, 200, history['complete']['response']);
+      return;
+    }
+    if (path == eventPath && request.method == 'GET') {
+      eventReads++;
+      final pairs = request.uri.queryParametersAll;
+      if (pairs.keys.any((key) => !{'limit', 'after'}.contains(key)) ||
+          pairs.values.any((values) => values.length != 1)) {
+        rejected++;
+        await _reply(request, 400, {
+          'error': {'code': 'invalid_request'},
+        });
+        return;
+      }
+      final gate = eventGate;
+      if (gate != null) await gate.future;
+      if (eventStatus != 200) {
+        await _reply(request, eventStatus, {
+          'error': {'code': 'server_unavailable'},
+        });
+        return;
+      }
+      final after =
+          int.tryParse(request.uri.queryParameters['after'] ?? '') ?? 0;
+      final limit =
+          int.tryParse(request.uri.queryParameters['limit'] ?? '') ?? 50;
+      final source = history['complete']['response']['entries'] as List;
+      final end = (after + limit).clamp(0, eventHead);
+      final events = <Object>[];
+      for (
+        var eventSequence = after + 1;
+        eventSequence <= end;
+        eventSequence++
+      ) {
+        final entry = source[(eventSequence - 1) % source.length] as Map;
+        events.add({
+          'sequence': eventSequence,
+          'kind': eventSequence == 1 ? 'baseline' : 'command_write',
+          'attribution': entry['attribution'],
+          'receipt': entry['receipt'],
+        });
+      }
+      await _reply(request, 200, {
+        'schemaVersion': 1,
+        'ref': history['complete']['response']['ref'],
+        'chainId': eventChainId,
+        'headSequence': eventHead,
+        'events': events,
+        'nextAfter': end < eventHead ? end : null,
+        'verified': true,
+      });
       return;
     }
     if (path == verificationPath && request.method == 'GET') {
@@ -464,6 +523,80 @@ void main() {
         expect(unauthorized.controller!.checkpointAlarm, isNull);
       } finally {
         await unauthorized.close();
+      }
+    },
+  );
+
+  test(
+    'event trust rejects chain replacement, rollback, and failed refresh',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      try {
+        await journey.start();
+        final controller = journey.controller!;
+        expect(controller.eventTrustCurrent, isTrue);
+        expect(controller.eventChainId, 'e' * 32);
+        expect(controller.eventHeadSequence, 2);
+
+        journey.fixture.eventChainId = 'f' * 32;
+        await journey.refresh();
+        expect(controller.eventTrustCurrent, isFalse);
+        expect(controller.eventChainId, isNull);
+
+        journey.fixture.eventChainId = 'e' * 32;
+        await journey.refresh();
+        expect(controller.eventTrustCurrent, isTrue);
+        journey.fixture.eventHead = 1;
+        await journey.refresh();
+        expect(controller.eventTrustCurrent, isFalse);
+
+        journey.fixture.eventHead = 2;
+        await journey.refresh();
+        expect(controller.eventTrustCurrent, isTrue);
+        journey.fixture.eventStatus = 503;
+        await journey.refresh();
+        expect(controller.eventTrustCurrent, isFalse);
+        expect(controller.eventChainId, isNull);
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
+  test(
+    'account, home, and late responses erase retained event trust',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      try {
+        await journey.start();
+        final controller = journey.controller!;
+        expect(controller.eventTrustCurrent, isTrue);
+        journey.fixture.eventGate = Completer<void>();
+        final before = journey.fixture.eventReads;
+        final pending = controller.refresh();
+        while (journey.fixture.eventReads <= before) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        await journey.account.signOut();
+        expect(controller.eventTrustCurrent, isFalse);
+        journey.fixture.eventGate!.complete();
+        await pending;
+        expect(controller.eventTrustCurrent, isFalse);
+        expect(controller.eventChainId, isNull);
+        expect(controller.entries, isEmpty);
+      } finally {
+        await journey.close();
+      }
+
+      final homeChange = _Journey(await _HistoryCoreFixture.start());
+      try {
+        await homeChange.start();
+        expect(homeChange.controller!.eventTrustCurrent, isTrue);
+        await homeChange.home.choose(HomeSource.directLocal);
+        expect(homeChange.controller!.eventTrustCurrent, isFalse);
+        expect(homeChange.controller!.eventChainId, isNull);
+      } finally {
+        await homeChange.close();
       }
     },
   );

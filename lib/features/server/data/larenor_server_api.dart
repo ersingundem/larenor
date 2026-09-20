@@ -231,6 +231,23 @@ class LarenorServerApi {
               _ => false,
             },
           );
+      final homeAssistantEvents =
+          method == 'GET' &&
+          RegExp(
+            r'^/home-assistant/[0-9a-f]{32}/[0-9a-f]{32}/resources/[0-9a-f]{32}/history/events$',
+          ).hasMatch(path) &&
+          queryParameters.entries.every((entry) {
+            final number = int.tryParse(entry.value);
+            if (number == null ||
+                !RegExp(r'^[1-9][0-9]{0,3}$').hasMatch(entry.value)) {
+              return false;
+            }
+            return switch (entry.key) {
+              'limit' => number <= 50,
+              'after' => number <= 2048,
+              _ => false,
+            };
+          });
       final homeAssistantVerification =
           method == 'GET' &&
           RegExp(
@@ -299,6 +316,7 @@ class LarenorServerApi {
           !homeResourcesQuery &&
           !keeneticDetailsQuery &&
           !homeAssistantHistory &&
+          !homeAssistantEvents &&
           !homeAssistantVerification &&
           !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');

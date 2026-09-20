@@ -48,6 +48,9 @@ class CoreHaActivityController extends ChangeNotifier {
   CoreHaTrustedCheckpoint? trustedCheckpoint;
   String? nextBefore, failure, integrityFailure, checkpointFailure;
   String? checkpointAlarm;
+  String? eventChainId, eventTrustFailure;
+  int? eventHeadSequence;
+  bool eventTrustCurrent = false;
   bool busy = false, loaded = false, stale = false, truncated = false;
   bool checkpointLoaded = false, trustedCompared = false;
   bool _disposed = false,
@@ -138,6 +141,10 @@ class CoreHaActivityController extends ChangeNotifier {
     integrityFailure = null;
     checkpointFailure = null;
     checkpointAlarm = null;
+    eventChainId = null;
+    eventHeadSequence = null;
+    eventTrustFailure = null;
+    eventTrustCurrent = false;
     loaded = false;
     stale = false;
     truncated = false;
@@ -253,6 +260,48 @@ class CoreHaActivityController extends ChangeNotifier {
   Future<void> refresh() => _load(more: false);
   Future<void> loadMore() => _load(more: true);
 
+  Future<({String chainId, int headSequence})> _eventTrust(
+    CoreHaApi api, {
+    required String? retainedChain,
+    required int? retainedHead,
+  }) async {
+    var after = retainedHead == null || retainedHead == 0 ? null : retainedHead;
+    var expected = after ?? 0;
+    String? chain;
+    int? head;
+    while (true) {
+      final page = await api.eventHistory(after: after);
+      chain ??= page.chainId;
+      head ??= page.headSequence;
+      if (page.chainId != chain || page.headSequence != head) {
+        throw const LarenorServerException('invalid_response');
+      }
+      if (retainedChain != null &&
+          (page.chainId != retainedChain ||
+              retainedHead == null ||
+              page.headSequence < retainedHead)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      if (page.events.isNotEmpty) {
+        if (page.events.first.sequence != expected + 1) {
+          throw const LarenorServerException('invalid_response');
+        }
+        expected = page.events.last.sequence;
+      }
+      final next = page.nextAfter;
+      if (next == null) {
+        if (expected != page.headSequence) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return (chainId: page.chainId, headSequence: page.headSequence);
+      }
+      if (next != expected || next >= page.headSequence) {
+        throw const LarenorServerException('invalid_response');
+      }
+      after = next;
+    }
+  }
+
   Future<void> _load({required bool more}) async {
     if (!canRefresh || more && !canLoadMore) return;
     final operation = ++_epoch,
@@ -263,6 +312,10 @@ class CoreHaActivityController extends ChangeNotifier {
         oldTrustedCompared = trustedCompared,
         oldCheckpointFailure = checkpointFailure,
         oldCheckpointAlarm = checkpointAlarm,
+        oldEventChain = eventChainId,
+        oldEventHead = eventHeadSequence,
+        oldEventTrust = eventTrustCurrent,
+        oldEventFailure = eventTrustFailure,
         cursor = more ? nextBefore : null;
     busy = true;
     failure = null;
@@ -270,6 +323,7 @@ class CoreHaActivityController extends ChangeNotifier {
     if (!more) {
       checkpointFailure = null;
       checkpointAlarm = null;
+      eventTrustFailure = null;
     }
     _attempted = true;
     _emit();
@@ -278,6 +332,24 @@ class CoreHaActivityController extends ChangeNotifier {
         operation,
         (api) => api.history(before: cursor, limit: pageSize),
       );
+      var nextEventChain = oldEventChain;
+      var nextEventHead = oldEventHead;
+      var nextEventTrust = oldEventTrust;
+      var nextEventFailure = oldEventFailure;
+      if (!more) {
+        final event = await _session(
+          operation,
+          (api) => _eventTrust(
+            api,
+            retainedChain: oldEventTrust ? oldEventChain : null,
+            retainedHead: oldEventTrust ? oldEventHead : null,
+          ),
+        );
+        nextEventChain = event.chainId;
+        nextEventHead = event.headSequence;
+        nextEventTrust = true;
+        nextEventFailure = null;
+      }
       CoreHaHistoryVerification? proof = oldVerification;
       String? proofFailure;
       var pin = oldTrusted;
@@ -364,6 +436,10 @@ class CoreHaActivityController extends ChangeNotifier {
       trustedCompared = comparedTrusted;
       checkpointFailure = pinFailure;
       checkpointAlarm = alarm;
+      eventChainId = nextEventChain;
+      eventHeadSequence = nextEventHead;
+      eventTrustCurrent = nextEventTrust;
+      eventTrustFailure = nextEventFailure;
       nextBefore = page.nextBefore;
       truncated = combined.length == cap && page.nextBefore != null;
       if (truncated) nextBefore = null;
@@ -378,6 +454,17 @@ class CoreHaActivityController extends ChangeNotifier {
         trustedCompared = oldTrustedCompared;
         checkpointFailure = oldCheckpointFailure;
         checkpointAlarm = oldCheckpointAlarm;
+        if (more) {
+          eventChainId = oldEventChain;
+          eventHeadSequence = oldEventHead;
+          eventTrustCurrent = oldEventTrust;
+          eventTrustFailure = oldEventFailure;
+        } else {
+          eventChainId = null;
+          eventHeadSequence = null;
+          eventTrustCurrent = false;
+          eventTrustFailure = _failure(error);
+        }
         failure = _failure(error);
         stale = oldEntries.isNotEmpty;
         loaded = oldEntries.isNotEmpty;
