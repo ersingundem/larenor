@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 20 Eylül 2026 — `d7730045` exact main üzerinde Android, dört parçalı Server Container ve Security kapıları geçti; Client beta `100000541` yayımlandı. S08.10 olay/transfer, Seerr native kabulü ve ortak medya erişilebilirliği sıradaki toplu adayda yerel olarak hazırlanıyor; CI kabul edilene kadar sayaç değişmedi.**
+**Son güncelleme: 20 Eylül 2026 — `b38c8ab9` exact main, Seerr 3.4.1 ve Music Assistant 2.10.4 özel bootstrap zincirlerini içeriyor. Aynı ağaçtaki `f78f138c` kaynağında iki servis de amd64/arm64 native kabulünden geçti; S06.5 kapandı ve kuyruk 16/125 oldu. S08.10 olay/transfer ile ortak medya erişilebilirliği ayrı açık işlerdir.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  15/125 iş (%12; eşit ağırlıklı sayaç)
-S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
+Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  16/125 iş (%12,8; eşit ağırlıklı sayaç)
+S06 koordinatörü    █████████████████░░░  5/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
@@ -17,15 +17,35 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `d7730045` / beta `100000541`.**
-[PR147](https://github.com/ersingundem/larenor/pull/147) Server testlerini dört
-dengeli parçaya ayırdı. Aynı exact main commitinde Android analiz/test, API35
-E2E, imzalı release APK, dört Server shardı ve Security geçti; içerik-bağlı
-`client-beta-v100000541` yayımlandı.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/35492243586) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/35492243631) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/35492243512).
-Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
+**Son tam doğrulanmış ortak kaynak: `f78f138c` / main `b38c8ab9`.** İki commitin
+Git ağacı aynıdır. Exact PR kaynağında Android analiz/test, API35 E2E, debug APK,
+dört Server shardı ve iki mimarili Seerr/Music Assistant karakterizasyonu geçti;
+main Security kapısı da yeşildir.
+[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35520685138) ·
+[Seerr native CI](https://github.com/ersingundem/larenor/actions/runs/35520684986) ·
+[Music Assistant native CI](https://github.com/ersingundem/larenor/actions/runs/35520685005) ·
+[main Security](https://github.com/ersingundem/larenor/actions/runs/35521463120).
+Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
+
+### S06.5 özel bootstrap ve otomatik eşleştirme — kabul edildi
+
+Exact `f78f138c` kaynak ağacı ile main `b38c8ab9` ağacı aynıdır. Bu kaynakta
+Seerr 3.4.1, ilk yöneticiden Jellyfin ve Sonarr/Radarr eşleştirmesine, resmi
+initialize çağrısından authenticated readback ve restart'a kadar amd64/arm64
+gerçek konteynerlerde geçti. Music Assistant 2.10.4 de Core iç yöneticisi,
+uzun ömürlü entegrasyon anahtarı, onboarding, provider/player keşfi, playback
+readback ve restart zincirini iki mimaride tamamladı.
+
+Kabul üç yazılım ölçütüne bağlıdır: sırların yalnız şifreli Core kaydı ve UID
+denetimli private IPC'de kalması; servisler arası adres/anahtar/kütüphane
+eşleştirmesinin authenticated readback ile doğrulanması; sabit exact-source
+zincirinin amd64/arm64 gerçek süreç makbuzu üretmesi. Kısmi veya belirsiz etki
+başarıya yükseltilmez. [Üç ölçüt ve exact kanıt](s06-5-bootstrap-acceptance-2026-09-20.md).
+
+Bu kapanış `installAvailable` değerini açmaz. Altı bileşenin tek dağıtımda
+paketlenmesi S07.1'de, doğrulanmış iptal/kurtarma S06.6'da; CasaOS/Proxmox,
+gerçek sağlayıcı hesabı ve HomePod/Cast kabulü MANUAL kapısında kalır. Kuyruk
+**16/125 (%12,8)**, seçili özellik kabulü **0/63**'tür.
 
 ## Şimdi yapılan işler
 
@@ -57,10 +77,9 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 Yerel kanıt: komut geçmişi paketi **71**, bounded transfer ve ilişkili Core
 paketleri **174**, Seerr/native araç paketleri **53 + 295**, medya widget paketi
 **8/8** geçti; security policy, compileall, gitleaks ve hedefli analiz temiz.
-Exact PR/main CI, Seerr gerçek native makbuzları, medya-özel protokoller ve
-fiziksel SAF açık olduğundan
-S06.5, S08.10 ve B5.1 kapanmadı; sayaçlar **15/125 (%12,0)** ve **0/63 (%0,0)**
-kaldı.
+Exact PR/main CI ve Seerr gerçek native makbuzları tamamlandı. Medya-özel
+protokoller ile fiziksel SAF açık olduğundan S08.10 ve B5.1 kapanmadı; S06.5'in
+kabulüyle sayaçlar **16/125 (%12,8)** ve **0/63 (%0,0)** oldu.
 
 ### F62 RDP — bounded Client yazılım dilimi
 
@@ -242,7 +261,7 @@ olarak korunuyor.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin ve qBittorrent native kabulü geçti. Sonarr/Radarr download-client bağlantısı PR56, Seerr private temel PR57 ve executor/worker IPC PR58 ile ana dalda. Seerr journal-bound konteyner kurulum işi yerelde yeşil | Şifreli kalıcı Seerr bootstrap işi, Sonarr/Radarr/kütüphane/initialize eşleştirmesi ve iki mimarili native kabul; ardından Music Assistant |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Kabul edildi**; exact `f78f138c` ile aynı ağaca sahip main `b38c8ab9`. Jellyfin/qBittorrent/Arr zincirlerine ek olarak Seerr 3.4.1 ve Music Assistant 2.10.4 private bootstrap, authenticated readback ve restart akışları amd64/arm64 geçti | S06.6 doğrulanmış sonuç, iptal ve kurtarma; birleşik dağıtım S07 |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -1774,8 +1793,10 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 
 **Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya
 elle API bağlantısı yapılmayacak. Bileşenler Larenor Server'a dahil olacak;
-Client yalnız Larenor hesabı/API'si ve kullanıcı ayarlarını sunacak. Bu otomasyon
-henüz tamamlanmadı. [Güncel bütünleşik medya planı](integrated-media-stack.md).
+Client yalnız Larenor hesabı/API'si ve kullanıcı ayarlarını sunacak. Özel
+bootstrap ve otomatik eşleştirme temeli S06.5 ile kabul edildi; birleşik dağıtım,
+güncelleme ve geri yükleme S07–S09'da sürüyor.
+[Güncel bütünleşik medya planı](integrated-media-stack.md).
 
 **Platform anlatımı:** Larenor Client tablet öncelikli Android uygulamasıdır.
 DeX ayrı bir uygulama değil; aynı uygulamanın değişken pencere ve harici ekran
@@ -1788,18 +1809,19 @@ desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncel
 | Hesap, parola, oturum, rol, kullanıcı yönetimi | Larenor Server API ve veritabanında uygulandı | Gerçek sunucuya manuel kurulum |
 | Kasa ve güncelleme sürümleri | Server'da şifreli kasa ve sürüm API'leri; Client geri yükleme/güncelleme akışları mevcut | Gerçek imzalı Client yükseltmesi ve yeniden kurulum kabulü |
 | Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel/uzak testler geçti; gerçek servis kabulü ve S08 adaptör taşıması |
-| Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi ve açık politikayla Docker API/platform kontrolü uygulandı | Port ve alıcı ağı `unknown`; medya kurma/başlatma ve otomatik eşleştirme henüz yok |
-| Birleşik medya hazırlığı/kontrolü | Altı bileşen planı, kalıcı kontrol, toplam disk ve ayrı daemon bağlamı sonuçları; Client geçmiş/iptal | Kaynak hazırlığı ve özel bootstrap; port/alıcı ağı `unknown`, kurulum kapalı |
+| Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi, Docker API/platform kontrolü ve S06.5 private bootstrap/eşleştirme zinciri uygulandı | S06.6 sonuç/iptal/kurtarma ve S07 tek dağıtım paketi |
+| Birleşik medya hazırlığı/kontrolü | Altı bileşen planı, kalıcı kontrol, sahiplikli kaynaklar, private bootstrap ve authenticated servis readback'i; Client geçmiş/iptal | S06.6 kurtarma, S07 tek paket; fiziksel port/alıcı ağı MANUAL kapısında |
 | Core ve ev kimliği | Server'da kalıcı, anahtarla doğrulanan kimlikler; korumalı API ve Client sözleşme okuyucusu | Client oturum/cache ve kaynak kimliklerine bağlama; çoklu ev/federasyon henüz yok |
 | HA, medya ve ağ komutları | Mevcut kontrollerin çoğu hâlâ Client adaptörlerinde | S08 ile gerçek veri ve komut akışlarını Server'a taşıma; yalnızca token saklamak bu taşıma sayılmaz |
-| Music Assistant | Client müzik ekranı, eski MA-only paket ve Server token/sürüm kontrolü var; ev sunucusuna kurulmadı | Tek Larenor kurulumu içinde dahili motor; Client üzerinden sağlayıcı/oynatıcı yönetimi, ayrı MA URL/token girişi olmaması |
-| HomePod / AirPlay | Music Assistant üzerinden hedef kapsamda; keşif, eşleştirme, kuyruk, ses ve oynatma akışları tamamlanıp doğrulanacak | Sağlayıcı oturumları, aynı ağda keşif/eşleştirme, gerçek ses/grup/yeniden bağlanma testleri |
+| Music Assistant | Yönetilen 2.10.4 motoru; private admin/token bootstrap, provider/player keşfi, kuyruk/oynatma readback ve restart iki mimaride kabul edildi. Client ayrı MA URL/tokenı istemiyor | S07 tek dağıtım ve S09 kurulum/güncelleme/geri yükleme kabulü |
+| HomePod / AirPlay | Music Assistant player keşfi, revision-bound komut ve authenticated sonuç zinciri yazılım testleriyle hazır | Gerçek sağlayıcı oturumu, aynı ağda HomePod keşfi, ses/grup/yeniden bağlanma MANUAL kabulü |
 
-**Backend taşıması henüz tamamlanmadı; Music Assistant şu anda Larenor Server
-tarafından kurulmuş/yönetilen bir servis değil.** Eski
-`deploy/larenor-server/compose.yaml` yalnızca Music Assistant bileşenini çalıştırır;
-Python Larenor Server API'sinin yerini tutmaz. Ortak pakette bu isim ayrımı
-düzeltilecek. Ayrıntı: [Music Assistant kurulum planı](music-assistant-deployment.md).
+**Music Assistant'ın yönetilen Core yazılım zinciri tamamlandı; birleşik Larenor
+Server dağıtımı henüz tamamlanmadı.** `deploy/larenor-server/compose.yaml` ve
+Core katalog/runtime yolları sabit 2.10.4 motorunu aynı ürün kapsamında yönetir;
+S07 bütün bileşenleri tek kurulum ve ayar yüzeyinde birleştirecek. Ayrıntı:
+[S06.5 kabulü](s06-5-bootstrap-acceptance-2026-09-20.md) ve
+[Music Assistant kurulum planı](music-assistant-deployment.md).
 HomePod için upstream [AirPlay desteği](https://www.music-assistant.io/player-support/airplay/)
 mevcuttur; Larenor üzerinden gerçek cihaz uyumluluğu henüz doğrulanmadı.
 
@@ -1825,9 +1847,9 @@ kabul işleri aşağıda ayrıca tutulur.
 | Sunucu bileşenleri önizlemesi | Altı sabitlenmiş katalog kaydı, yönetici/oturum/katalog revizyonuna bağlı şifreli ve süreli önizlemeler; Client gereksinim ekranı. Kurulum düğmesi veya çalışan kurulum API'si yok |
 | Kalıcı gereksinim işleri | Yönetici oluşturma/geçmiş/olay/iptal API'leri, şifreli plan/sonuç, belirsiz isteği aynı kimlikle kurtarma, restart ve güncel yetki denetimi. `succeeded` inceleme tamamlandı demektir; bütün kontrollerin geçtiği veya kurulum yapıldığı anlamına gelmez |
 | Birleşik medya hazırlığı | Altı sabitlenmiş bileşen için tek kalıcı plan ve toplam istenen kaynak bütçesi; yönetici oluşturma/geçmiş/iptal, restart ve idempotence. Katalog değişse de geçmiş okunur; `installAvailable=false`. Jellyfin ortak kütüphaneyi yalnız salt okunur kullanır |
-| Birleşik medya kontrolü | Toplam disk bütçesi, ayrı daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; kaynak ayırma/servis kurma yok |
-| Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
-| Dar kurulum yürütme kapısı | Yöneticiye açık şifreli kalıcı istek/geçmiş/iptal API'si; güncel actor/session/Core/ev/preparation/inspection/catalog kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması için ayrı UID denetimli Unix IPC. Tek-endpoint production image/volume/network reader ve ayrı managed-v2 native kabul workflow'u hazır; paketli bootstrap/mutasyon worker runtime'ı ve gerçek kurulum henüz yok; `installAvailable=false` |
+| Birleşik medya kontrolü | Toplam disk bütçesi, daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; sahiplikli kaynak hazırlığı ile private servis bootstrap'ı ayrı doğrulanır |
+| Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Mutasyon ayrı retained installation worker yetkisine bağlıdır |
+| Dar kurulum yürütme kapısı | Güncel actor/session/Core/ev/preparation/inspection/catalog kapıları; Jellyfin, qBittorrent, Arr, Seerr ve Music Assistant için journal-bound private bootstrap, authenticated readback, restart ve belirsiz sonuç ayrımı. S06.5 native kabul edildi; ürün kurulumu S07/S09 tamamlanana kadar `installAvailable=false` |
 | Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
 | Düzenli GitHub temizliği | Geliştirme/bakım takibi içinde günlük 03.15 sonrası kontrol ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
