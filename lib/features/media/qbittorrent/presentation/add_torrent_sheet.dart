@@ -40,10 +40,12 @@ class TorrentFileAccess {
     );
     if (file == null) return null;
     final name = file.name;
+    final length = await file.length();
     if (name.length > 255 ||
         !name.toLowerCase().endsWith('.torrent') ||
         name.contains(RegExp(r'[/\\\x00-\x1f\x7f"]')) ||
-        await file.length() > maxBytes) {
+        length == null ||
+        length > maxBytes) {
       throw const TorrentFileException();
     }
     final bytes = BytesBuilder(copy: false);

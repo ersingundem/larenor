@@ -123,12 +123,12 @@ dependencies {
     implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
     // Official stable AndroidX release; keep all Media3 modules in lockstep.
-    val media3Version = "1.11.0"
+    val media3Version = "1.11.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
 }

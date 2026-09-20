@@ -6,7 +6,7 @@ import 'package:larenor/features/home_scope/presentation/core_layout_archive_fil
 
 final class _File extends PlatformFile {
   _File(this.size, this.chunks, {this.filename = 'rooms.larenor-core-layout'});
-  final int size;
+  final int? size;
   final List<Uint8List> chunks;
   final String filename;
   int reads = 0;
@@ -17,9 +17,9 @@ final class _File extends PlatformFile {
   @override
   Never get xFile => throw UnsupportedError('not used');
   @override
-  Future<int> length() async => size;
+  Future<int?> length() async => size;
   @override
-  int lengthSync() => size;
+  int? lengthSync() => size;
   @override
   Future<Uint8List> readAsBytes() async => throw UnsupportedError('not used');
   @override
@@ -64,7 +64,12 @@ void main() {
       expect(file.reads, 0);
     });
   }
-  for (final size in [-1, 0, CoreLayoutArchiveFileAccess.maxFileBytes + 1]) {
+  for (final size in [
+    null,
+    -1,
+    0,
+    CoreLayoutArchiveFileAccess.maxFileBytes + 1,
+  ]) {
     test('invalid declared length $size before stream', () async {
       final file = _File(size, [Uint8List(1)]);
       await expectLater(

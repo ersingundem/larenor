@@ -36,7 +36,7 @@ class CoreLayoutArchiveFileAccess {
         throw const CoreLayoutArchiveFileException();
       }
       final length = await file.length();
-      if (length <= 0 || length > maxFileBytes) {
+      if (length == null || length <= 0 || length > maxFileBytes) {
         throw const CoreLayoutArchiveFileException();
       }
       final bytes = BytesBuilder(copy: false);
