@@ -1,8 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 
 import 'remote_profiles_ui_fixture.dart';
 
@@ -124,6 +127,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('held session launch retires when the PIN authority changes', (
+    tester,
+  ) async {
+    final ui = RemoteUi();
+    await ui.mount(tester, pin: true);
+    await ui.edit(tester);
+    await ui.save(tester);
+    await ui.openFirst(tester);
+    final old = held(tester, 'remote-ssh-open');
+    final container = ProviderScope.containerOf(
+      tester.element(key('remote-ssh-open')),
+      listen: false,
+    );
+
+    await container.read(pinLockProvider.notifier).setPin('5678');
+    await tester.pumpAndSettle();
+    old();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SshTerminalPanel), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final protocol in ['rdp', 'vnc']) {
     testWidgets('$protocol panel does not revive after lifecycle return', (
