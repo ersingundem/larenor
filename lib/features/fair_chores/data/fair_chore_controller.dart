@@ -24,18 +24,24 @@ class FairChoreLease {
 }
 
 class _PendingCommand {
-  const _PendingCommand(this.id, this.action);
+  const _PendingCommand(
+    this.id,
+    this.action,
+    this.taskId,
+    this.expectedRevision,
+  );
 
   final String id;
   final FairChoreAction action;
+  final String taskId;
+  final int expectedRevision;
 }
 
 class FairChoreController extends ChangeNotifier {
-  FairChoreController(this._api, {required String Function() commandIds})
-    : _commandIds = commandIds;
+  FairChoreController(this._api, {required this.commandIds});
 
   final FairChoreApi _api;
-  final String Function() _commandIds;
+  final String Function() commandIds;
   FairChoreAuthority? _authority;
   List<FairChoreTask> _tasks = const [];
   FairChoreViewState _state = FairChoreViewState.detached;
@@ -112,7 +118,9 @@ class FairChoreController extends ChangeNotifier {
   ) =>
       receipt.authority == lease.authority &&
       receipt.commandId == pending.id &&
-      receipt.action == pending.action;
+      receipt.action == pending.action &&
+      receipt.task.id == pending.taskId &&
+      receipt.task.revision == pending.expectedRevision + 1;
 
   void _accept(FairChoreReceipt receipt) {
     _tasks = List.unmodifiable([
@@ -153,7 +161,12 @@ class FairChoreController extends ChangeNotifier {
       _set(FairChoreViewState.error);
       return;
     }
-    final pending = _PendingCommand(_commandIds(), action);
+    final pending = _PendingCommand(
+      commandIds(),
+      action,
+      task.id,
+      task.revision,
+    );
     _pending = pending;
     _set(FairChoreViewState.busy);
     try {
