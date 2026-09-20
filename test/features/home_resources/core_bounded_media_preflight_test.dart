@@ -116,7 +116,7 @@ void main() {
       'text/plain; charset=utf-8; name=page.html': utf8.encode('safe'),
       'text/plain; charset=iso-8859-9': [0xff],
       'text/plain': [0xc3, 0x28],
-      'application/json': utf8.encode('{"duplicate":1,"duplicate":2}'),
+      'application/json': utf8.encode('{"broken":'),
     };
 
     for (final entry in cases.entries) {
