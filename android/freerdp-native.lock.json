@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "engineRevision": "freerdp-3.31.1-63b948ca",
+  "source": {
+    "version": "3.31.1",
+    "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
+    "url": "https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz",
+    "sha256": "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
+  },
+  "reviewedFiles": {
+    "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java": "c8de7e1a37889a3abd2227cd4a2b83e960290290",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/CMakeLists.txt": "1123f8515a55c7aaea3663c0cb3097079fc8c0c4",
+    "client/Android/Studio/freeRDPCore/build.gradle": "a9337c8ef86497c0b6a5c9c29ded943b84cd2317",
+    "client/Android/Studio/gradle/wrapper/gradle-wrapper.properties": "a9db11550c6202b666ed9c44cafdc6726fd5b264"
+  },
+  "toolchain": {
+    "java": "17",
+    "androidPlatform": "37.0",
+    "androidBuildTools": "37.0.0",
+    "ndk": "29.0.13113456",
+    "cmake": "4.1.2",
+    "gradle": "9.6.1"
+  },
+  "supportedAbis": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "jniSchema": 1,
+  "defaultChannels": [],
+  "requiredLibraries": [
+    "libfreerdp-android.so",
+    "libfreerdp-client3.so",
+    "libfreerdp3.so",
+    "libwinpr3.so"
+  ]
+}
