@@ -41,7 +41,12 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         receipt = next(step["run"] for step in steps if " receipt " in step.get("run", ""))
         self.assertIn("freerdp-3.31.1.tar.gz", verify)
         self.assertIn("freerdp_android_package.py verify-source", verify)
-        for exact in ("NDK_VERSION=29.0.13113456", "CMAKE_VERSION=4.1.2", "VERSION_NAME=3.31.1"):
+        for exact in (
+            "NDK_VERSION=29.0.13113456",
+            "CMAKE_VERSION=4.1.2",
+            "VERSION_NAME=3.31.1",
+            "VERSION_CODE=3031001",
+        ):
             self.assertIn(exact, build)
         for disabled in ("WITH_FFMPEG=OFF", "WITH_OPENH264=OFF", "WITH_OPUS=OFF"):
             self.assertIn(disabled, build)
