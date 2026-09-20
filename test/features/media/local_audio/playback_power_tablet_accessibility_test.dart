@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/local_audio/presentation/playback_power_screen.dart';
 import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -10,17 +11,22 @@ import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'local_audio_ui_fixture.dart';
 
-Widget _tabletApp(Locale locale) => CupertinoApp(
-  locale: locale,
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-  supportedLocales: AppLocalizations.supportedLocales,
-  builder: (context, child) => MediaQuery(
-    data: MediaQuery.of(context)
-        .copyWith(textScaler: const TextScaler.linear(2)),
-    child: child!,
-  ),
-  home: const PlaybackPowerScreen(),
-);
+Widget _tabletApp(Locale locale, {AppInteractionController? interaction}) {
+  final app = CupertinoApp(
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: const TextScaler.linear(2)),
+      child: child!,
+    ),
+    home: const PlaybackPowerScreen(),
+  );
+  return interaction == null
+      ? app
+      : AppInteractionScope(controller: interaction, child: app);
+}
 
 void main() {
   for (final locale in const [Locale('en'), Locale('tr')]) {
@@ -97,4 +103,66 @@ void main() {
       });
     }
   }
+
+  testWidgets('idle retires captured native power settings callback', (
+    tester,
+  ) async {
+    final bridge = FakeLocalAudioBridge();
+    final interaction = AppInteractionController();
+    addTearDown(bridge.events.close);
+    addTearDown(interaction.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [localAudioBridgeProvider.overrideWithValue(bridge)],
+        child: _tabletApp(const Locale('en'), interaction: interaction),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final battery = find.byKey(const ValueKey('local-audio-open-battery'));
+    final stale = tester.widget<CupertinoButton>(battery).onPressed!;
+    interaction.setActive(false);
+    interaction.setActive(true);
+    await tester.pump();
+    stale();
+    await tester.pumpAndSettle();
+    expect(bridge.batteryOpens, 0);
+    tester.widget<CupertinoButton>(battery).onPressed!();
+    await tester.pumpAndSettle();
+    expect(bridge.batteryOpens, 1);
+  });
+
+  testWidgets('bridge replacement retires captured native settings callback', (
+    tester,
+  ) async {
+    final oldBridge = FakeLocalAudioBridge();
+    final newBridge = FakeLocalAudioBridge();
+    final container = ProviderContainer(
+      overrides: [localAudioBridgeProvider.overrideWithValue(oldBridge)],
+    );
+    addTearDown(oldBridge.events.close);
+    addTearDown(newBridge.events.close);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: _tabletApp(const Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final battery = find.byKey(const ValueKey('local-audio-open-battery'));
+    final stale = tester.widget<CupertinoButton>(battery).onPressed!;
+    container.updateOverrides([
+      localAudioBridgeProvider.overrideWithValue(newBridge),
+    ]);
+    await tester.pump();
+    stale();
+    await tester.pumpAndSettle();
+    expect(oldBridge.batteryOpens, 0);
+    expect(newBridge.batteryOpens, 0);
+    expect(oldBridge.powerReads, 1);
+    expect(newBridge.powerReads, 1);
+    tester.widget<CupertinoButton>(battery).onPressed!();
+    await tester.pumpAndSettle();
+    expect(newBridge.batteryOpens, 1);
+  });
 }

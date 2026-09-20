@@ -4,10 +4,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../data/local_audio_bridge.dart';
 import '../domain/local_audio_models.dart';
 import '../providers/local_audio_providers.dart';
 
@@ -28,6 +30,8 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   bool _foreground = true;
   bool _visible = true;
   ValueListenable<TickerModeData>? _ticker;
+  AppInteractionController? _interaction;
+  int? _interactionEpoch;
 
   @override
   void initState() {
@@ -44,11 +48,39 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final next = TickerMode.getValuesNotifier(context);
-    if (identical(next, _ticker)) return;
-    _ticker?.removeListener(_visibilityChanged);
-    _ticker = next;
-    _visible = next.value.enabled;
-    next.addListener(_visibilityChanged);
+    if (!identical(next, _ticker)) {
+      _ticker?.removeListener(_visibilityChanged);
+      _ticker = next;
+      _visible = next.value.enabled;
+      next.addListener(_visibilityChanged);
+    }
+    final interaction = AppInteractionScope.maybeOf(context);
+    if (!identical(interaction, _interaction)) {
+      final hadInteraction = _interaction != null;
+      _interaction?.removeListener(_interactionChanged);
+      _interaction = interaction;
+      _interactionEpoch = interaction?.epoch;
+      interaction?.addListener(_interactionChanged);
+      if (hadInteraction) _expireAuthority(notify: false);
+    }
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      _expireAuthority();
+      return;
+    }
+    setState(() {});
+  }
+
+  void _expireAuthority({bool notify = true}) {
+    _generation++;
+    _reading = false;
+    _opening = false;
+    if (notify && mounted) setState(() {});
   }
 
   void _visibilityChanged() {
@@ -79,6 +111,7 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.removeListener(_visibilityChanged);
+    _interaction?.removeListener(_interactionChanged);
     super.dispose();
   }
 
@@ -86,14 +119,20 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
       mounted &&
       _foreground &&
       _visible &&
+      _interaction?.active != false &&
+      identical(_interaction, AppInteractionScope.maybeRead(context)) &&
+      _interaction?.epoch == _interactionEpoch &&
       ModalRoute.of(context)?.isCurrent == true;
 
-  Future<void> _refresh([int? authority]) async {
+  Future<void> _refresh({int? authority, LocalAudioBridge? bridge}) async {
+    final currentBridge = ref.read(localAudioBridgeProvider);
     if (!_active ||
         _reading ||
-        (authority != null && authority != _generation)) {
+        (authority != null && authority != _generation) ||
+        (bridge != null && !identical(bridge, currentBridge))) {
       return;
     }
+    final owner = bridge ?? currentBridge;
     final generation = _generation;
     setState(() {
       _reading = true;
@@ -101,23 +140,36 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
       _status = null;
     });
     try {
-      final result = await ref.read(localAudioBridgeProvider).readPowerStatus();
-      if (_active && generation == _generation) {
+      final result = await owner.readPowerStatus();
+      if (_active &&
+          generation == _generation &&
+          identical(owner, ref.read(localAudioBridgeProvider))) {
         setState(() => _status = result);
       }
     } catch (_) {
-      if (_active && generation == _generation) {
+      if (_active &&
+          generation == _generation &&
+          identical(owner, ref.read(localAudioBridgeProvider))) {
         setState(() => _error = AppLocalizations.of(context).healthReadError);
       }
     } finally {
-      if (mounted && generation == _generation) {
+      if (mounted &&
+          generation == _generation &&
+          identical(owner, ref.read(localAudioBridgeProvider))) {
         setState(() => _reading = false);
       }
     }
   }
 
-  Future<void> _open(bool battery, int authority) async {
-    if (!_active || _opening || authority != _generation) {
+  Future<void> _open(
+    bool battery,
+    int authority,
+    LocalAudioBridge bridge,
+  ) async {
+    if (!_active ||
+        _opening ||
+        authority != _generation ||
+        !identical(bridge, ref.read(localAudioBridgeProvider))) {
       return;
     }
     setState(() {
@@ -126,7 +178,6 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
     });
     final generation = _generation;
     try {
-      final bridge = ref.read(localAudioBridgeProvider);
       final opened = await (battery
           ? bridge.openBatterySettings()
           : bridge.openNotificationSettings());
@@ -155,6 +206,22 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final bridge = ref.watch(localAudioBridgeProvider);
+    ref.listen(localAudioBridgeProvider, (previous, next) {
+      if (previous == null || identical(previous, next) || !mounted) return;
+      setState(() {
+        _generation++;
+        _reading = false;
+        _opening = false;
+        _status = null;
+        _error = null;
+      });
+      if (_active) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_refresh(bridge: next));
+        });
+      }
+    });
     final generation = _generation;
     final supported = _status?.supported == true;
     String flag(bool? value) => value == null
@@ -212,7 +279,7 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
                   leading: const Icon(CupertinoIcons.battery_100),
                   title: Text(l10n.localAudioOpenBattery),
                   onTap: _active && !_opening
-                      ? () => _open(true, generation)
+                      ? () => _open(true, generation, bridge)
                       : null,
                 ),
                 SettingsActionTile(
@@ -220,7 +287,7 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
                   leading: const Icon(CupertinoIcons.bell),
                   title: Text(l10n.localAudioOpenNotifications),
                   onTap: _active && !_opening
-                      ? () => _open(false, generation)
+                      ? () => _open(false, generation, bridge)
                       : null,
                 ),
               ],
@@ -228,7 +295,9 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
                 buttonKey: const ValueKey('local-audio-power-refresh'),
                 leading: const Icon(CupertinoIcons.refresh),
                 title: Text(l10n.commonRefresh),
-                onTap: _active && !_reading ? () => _refresh(generation) : null,
+                onTap: _active && !_reading
+                    ? () => _refresh(authority: generation, bridge: bridge)
+                    : null,
               ),
             ],
           ),

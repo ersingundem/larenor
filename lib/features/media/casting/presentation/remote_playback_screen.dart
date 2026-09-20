@@ -228,10 +228,10 @@ class _RemotePlaybackScreenState
                 title: Text(l10n.commonRefresh),
                 onTap: !active || busy || snapshot?.isLoading == true
                     ? null
-                    : () {
+                    : guardedMediaAction(() {
                         setState(() => _error = null);
                         ref.read(remotePlaybackControllerProvider)?.refresh();
-                      },
+                      }),
               ),
             ],
           ),
@@ -276,7 +276,7 @@ class _RemotePlaybackScreenState
                             snapshot.isLoading ||
                             !active
                         ? null
-                        : () => _select(target),
+                        : guardedMediaAction(() => _select(target)),
                   ),
                 ],
               );

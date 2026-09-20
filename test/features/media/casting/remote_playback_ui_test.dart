@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/casting/domain/remote_playback_models.dart';
 import 'package:larenor/features/media/casting/presentation/remote_playback_button.dart';
 import 'package:larenor/features/media/casting/presentation/remote_playback_screen.dart';
@@ -50,6 +51,7 @@ Future<void> _frames(WidgetTester tester) async {
 
 class _Harness {
   final api = FakeRemoteApi();
+  final interaction = AppInteractionController();
   final visible = ValueNotifier(true);
   final currentItem = ValueNotifier(itemId);
   late ProviderContainer container;
@@ -74,32 +76,38 @@ class _Harness {
       ],
     );
     addTearDown(container.dispose);
+    addTearDown(interaction.dispose);
     addTearDown(visible.dispose);
     addTearDown(currentItem.dispose);
     await container.read(jellyfinConnectionProvider.future);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: CupertinoApp(
-          locale: locale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: ValueListenableBuilder(
-            valueListenable: visible,
-            builder: (context, value, _) => TickerMode(
-              enabled: value,
-              child: ValueListenableBuilder(
-                valueListenable: currentItem,
-                builder: (context, id, _) => button
-                    ? CupertinoPageScaffold(
-                        child: Center(child: RemotePlaybackButton(itemId: id)),
-                      )
-                    : RemotePlaybackScreen(itemId: id),
+        child: AppInteractionScope(
+          controller: interaction,
+          child: CupertinoApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: ValueListenableBuilder(
+              valueListenable: visible,
+              builder: (context, value, _) => TickerMode(
+                enabled: value,
+                child: ValueListenableBuilder(
+                  valueListenable: currentItem,
+                  builder: (context, id, _) => button
+                      ? CupertinoPageScaffold(
+                          child: Center(
+                            child: RemotePlaybackButton(itemId: id),
+                          ),
+                        )
+                      : RemotePlaybackScreen(itemId: id),
+                ),
               ),
             ),
           ),
@@ -233,6 +241,40 @@ void main() {
     h.api.playGate!.complete();
     await _frames(tester);
     expect(find.text(h.labels(tester).mediaRemoteAccepted), findsOneWidget);
+    await h.unmount(tester);
+  });
+
+  testWidgets('idle retires captured target and refresh callbacks', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    final target = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-target-remote-session')),
+        )
+        .onPressed!;
+    final refresh = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-refresh')),
+        )
+        .onPressed!;
+    h.interaction.setActive(false);
+    h.interaction.setActive(true);
+    await _frames(tester);
+    target();
+    refresh();
+    await _frames(tester);
+    expect(h.api.itemReads, 0);
+    expect(h.api.reads, 1);
+
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('remote-playback-target-remote-session')),
+        )
+        .onPressed!();
+    await _frames(tester);
+    expect(h.api.itemReads, 1);
     await h.unmount(tester);
   });
 
