@@ -56,11 +56,20 @@ _DIAGNOSTIC_PHASES = {
     "container_restart": "music_assistant_container_restart_failed",
     "restart_state": "music_assistant_restart_state_failed",
 }
+_CONTAINER_CREATE_DIAGNOSTICS = frozenset({
+    *smoke._MANAGED_CREATE_DIAGNOSTICS,
+    "managed_create_preflight_failed",
+    "managed_create_uncertain",
+    "managed_create_resource_conflict",
+    "managed_create_expired",
+    "managed_create_receipt_invalid",
+})
 _DIAGNOSTIC_CODES = frozenset(
     {
         "music_assistant_characterization_evidence_invalid",
         "music_assistant_characterization_cancelled",
         "music_assistant_characterization_failed",
+        *_CONTAINER_CREATE_DIAGNOSTICS,
         *_DIAGNOSTIC_PHASES.values(),
     }
 )
@@ -187,6 +196,20 @@ def _same(left, right):
             _same(item, value) for item, value in zip(left, right)
         )
     return left == right
+
+
+def _require_container_created(receipt, engine):
+    if (
+        getattr(receipt, "state", None) == "succeeded"
+        and getattr(receipt, "container_id", None) is not None
+    ):
+        return receipt
+    diagnostic = smoke._managed_create_receipt_failure(
+        receipt, getattr(engine, "managed_create_diagnostic", None)
+    )
+    if diagnostic not in _CONTAINER_CREATE_DIAGNOSTICS:
+        diagnostic = "managed_create_receipt_invalid"
+    raise MusicAssistantManagedCIError(diagnostic)
 
 
 def validate_receipt(value, commit, selected):
@@ -431,7 +454,7 @@ def _start_verify_restart(daemon, source, endpoint, helper_id):
 
         with diagnostic_phase("container_create"):
             created = operations.apply(command("create_container"), binding)
-            require(created.state == "succeeded" and created.container_id is not None)
+            _require_container_created(created, engine)
         with diagnostic_phase("container_start"):
             started = operations.apply(command("start_container"), binding)
             require(

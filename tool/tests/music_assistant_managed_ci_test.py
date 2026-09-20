@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 import unittest
 
@@ -120,6 +121,25 @@ class MusicAssistantManagedCITest(unittest.TestCase):
             str(raised.exception),
             "music_assistant_characterization_evidence_invalid",
         )
+
+    def test_container_create_failure_preserves_only_closed_diagnostic(self):
+        receipt = SimpleNamespace(
+            state="uncertain",
+            code="engine_operation_uncertain",
+            container_id=None,
+        )
+        engine = SimpleNamespace(
+            managed_create_diagnostic="managed_create_cgroup_rejected",
+        )
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_container_created(receipt, engine)
+        self.assertEqual(str(raised.exception), "managed_create_cgroup_rejected")
+
+        engine.managed_create_diagnostic = "private /runner/path token=secret"
+        with self.assertRaises(target.MusicAssistantManagedCIError) as raised:
+            target._require_container_created(receipt, engine)
+        self.assertEqual(str(raised.exception), "managed_create_uncertain")
+        self.assertNotIn("private", repr(raised.exception))
 
 
 if __name__ == "__main__":
