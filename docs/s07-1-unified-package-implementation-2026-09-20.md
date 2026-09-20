@@ -289,3 +289,14 @@ uyumluluk metadata'sıdır; kabul veya otomatik eşleştirme otoritesi değildir
 `links` kaldırıldı. Native kapı embedded resolver'ı, kanonik Core hizmet adını
 ve her kanonik peer hizmet adını gerçek Core runtime içinden ayrı, bounded ve
 allowlist hata kodlarıyla doğrular.
+
+Son exact DNS maskesi `0000111111`, çalışan Jellyfin/Seerr ile yeniden başlayan
+LinuxServer Sonarr/Radarr/qBittorrent sınırını ayırdı. Bu üç image non-root
+`1000:1000` çalışırken LinuxServer'ın belgelenen yazılabilir ve executable
+`/run` gereksinimi canonical Compose'a taşınmamıştı. Paket artık katalogdaki
+exact tmpfs sözleşmesini (`/run` ve noexec `/tmp`; boyut, uid/gid ve mode dahil)
+Compose, manifest, Docker/CasaOS bundle ve runtime inspect makbuzunda birlikte
+bağlar. Music Assistant'ın katalogdaki `/tmp` sözleşmesi de aynı genel
+validator yolundan korunur. Eksik, ek veya executable niteliği değiştirilmiş
+tmpfs mutation öncesinde ya da inspect makbuzunda fail-closed olur; raw daemon
+çıktısı ve özel değerler kabul çıktısına taşınmaz.

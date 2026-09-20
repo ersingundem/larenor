@@ -112,6 +112,72 @@ def _mounts(service):
     return sorted(result, key=lambda item: (item["source"], item["target"]))
 
 
+def _tmpfs(service):
+    """Return the security-relevant tmpfs contract in one normalized shape."""
+    values = service.get("tmpfs", [])
+    if not isinstance(values, list):
+        raise PackageError("config_identity_changed")
+    result = []
+    for value in values:
+        if not isinstance(value, str) or ":" not in value:
+            raise PackageError("config_identity_changed")
+        target, raw_options = value.split(":", 1)
+        _absolute_posix_path(target)
+        options = raw_options.split(",")
+        if len(options) != len(set(options)):
+            raise PackageError("config_identity_changed")
+        flags = {item for item in options if "=" not in item}
+        pairs = {}
+        for item in options:
+            if "=" not in item:
+                continue
+            key, option = item.split("=", 1)
+            if key in pairs:
+                raise PackageError("config_identity_changed")
+            pairs[key] = option
+        if (flags not in ({"rw", "nosuid", "nodev", "exec"},
+                          {"rw", "nosuid", "nodev", "noexec"})
+                or set(pairs) != {"size", "uid", "gid", "mode"}
+                or pairs["mode"] != "1777"
+                or not re.fullmatch(r"[0-9]+m|[0-9]+", pairs["size"])
+                or not re.fullmatch(r"[0-9]+", pairs["uid"])
+                or not re.fullmatch(r"[0-9]+", pairs["gid"])):
+            raise PackageError("config_identity_changed")
+        raw_size = int(pairs["size"].removesuffix("m"))
+        size_mib = raw_size if pairs["size"].endswith("m") else raw_size // 1048576
+        if (size_mib <= 0 or (not pairs["size"].endswith("m")
+                             and raw_size != size_mib * 1048576)):
+            raise PackageError("config_identity_changed")
+        result.append({
+            "target": target, "sizeMiB": size_mib,
+            "uid": int(pairs["uid"]), "gid": int(pairs["gid"]),
+            "executable": "exec" in flags,
+        })
+    if len({item["target"] for item in result}) != len(result):
+        raise PackageError("config_identity_changed")
+    return sorted(result, key=lambda item: item["target"])
+
+
+def _catalog_tmpfs(entry):
+    values = entry.get("tmpfs")
+    if not isinstance(values, list):
+        raise PackageError("config_invalid")
+    result = []
+    for item in values:
+        if (not isinstance(item, dict) or set(item) != {
+                "target", "sizeMiB", "uid", "gid", "executable"}
+                or type(item.get("sizeMiB")) is not int or item["sizeMiB"] <= 0
+                or type(item.get("uid")) is not int or not 0 <= item["uid"] <= 2147483647
+                or type(item.get("gid")) is not int or not 0 <= item["gid"] <= 2147483647
+                or type(item.get("executable")) is not bool):
+            raise PackageError("config_invalid")
+        target = _absolute_posix_path(item.get("target"))
+        result.append({**item, "target": target})
+    if len({item["target"] for item in result}) != len(result):
+        raise PackageError("config_invalid")
+    return sorted(result, key=lambda item: item["target"])
+
+
 class UnifiedPackagePlanner:
     def __init__(self, *, compose_path, catalog_path):
         self._compose_path = Path(compose_path)
@@ -163,7 +229,7 @@ class UnifiedPackagePlanner:
                            "links", "dns", "build")):
             raise PackageError("config_identity_changed")
         core_mounts = _mounts(core)
-        if core_mounts != _mounts(expected_core):
+        if core_mounts != _mounts(expected_core) or _tmpfs(core) != _tmpfs(expected_core):
             raise PackageError("config_identity_changed")
         core_projection = {
             "containerName": CORE_NAME,
@@ -185,7 +251,8 @@ class UnifiedPackagePlanner:
                            for key in ("network_mode", "networks", "dns"))):
                 raise PackageError("config_identity_changed")
             mounts = _mounts(service)
-            if mounts != _mounts(wanted):
+            tmpfs = _tmpfs(service)
+            if mounts != _mounts(wanted) or tmpfs != _catalog_tmpfs(entry):
                 raise PackageError("config_identity_changed")
             environment = service.get("environment", {})
             if (not isinstance(environment, dict)
@@ -199,6 +266,7 @@ class UnifiedPackagePlanner:
                 "networkMode": service.get("network_mode", "bridge"),
                 "networks": service.get("networks", []),
                 "mounts": mounts,
+                "tmpfs": tmpfs,
             })
 
         requirements = self._directory_requirements(core_projection, components, catalog)
@@ -276,6 +344,9 @@ class UnifiedPackagePlanner:
         for service_id in COMPONENTS:
             name = SERVICE_NAMES[service_id]
             service = services[name]
+            tmpfs = _tmpfs(service)
+            if tmpfs != _catalog_tmpfs(catalog[service_id]):
+                raise PackageError("manifest_invalid")
             wanted_components.append({
                 "serviceId": service_id,
                 "containerName": name,
@@ -284,6 +355,7 @@ class UnifiedPackagePlanner:
                 "networkMode": service.get("network_mode", "bridge"),
                 "networks": service.get("networks", []),
                 "mounts": _mounts(service),
+                "tmpfs": tmpfs,
             })
         if (manifest["core"] != wanted_core
                 or manifest["components"] != wanted_components

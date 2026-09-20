@@ -72,6 +72,7 @@ class FakeDriver:
                 "network": "host" if item["serviceId"] == "music_assistant" else "larenor-server-control-v1",
                 "mounts": [{"target": mount["target"], "readOnly": mount["readOnly"]}
                            for mount in item["mounts"]],
+                "tmpfs": item["tmpfs"],
             })
         return values
 
@@ -182,6 +183,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         changed = json.loads(json.dumps(resolved))
         changed["services"]["larenor-seerr"]["command"] = ["unsafe-override"]
         drifts.append(changed)
+        changed = json.loads(json.dumps(resolved))
+        changed["services"]["larenor-sonarr"]["tmpfs"] = []
+        drifts.append(changed)
         for changed in drifts:
             with self.subTest(changed=changed["services"]["larenor-seerr"]):
                 with self.assertRaisesRegex(target.ManagedStackCIError,
@@ -238,6 +242,58 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                         side_effect=target.ManagedStackCIError("unified_native_runtime_failed")):
                     with self.assertRaisesRegex(target.ManagedStackCIError, code):
                         method()
+
+    def test_container_receipt_binds_catalog_tmpfs_and_rejects_runtime_drift(self):
+        manifest = target.expected_manifest(REVISION)
+
+        def inspected(item, *, drift=False):
+            tmpfs = {
+                entry["target"]: "rw,nosuid,nodev,"
+                + ("exec" if entry["executable"] else "noexec")
+                + f',size={entry["sizeMiB"] * 1048576},uid={entry["uid"]},'
+                  f'gid={entry["gid"]},mode=1777'
+                for entry in item["tmpfs"]
+            }
+            if drift and "/run" in tmpfs:
+                tmpfs["/run"] = tmpfs["/run"].replace(",exec,", ",noexec,")
+            host = item["serviceId"] == "music_assistant"
+            return json.dumps([{
+                "Id": "a" * 64,
+                "Config": {"Image": item["image"]},
+                "State": {"Running": True},
+                "Mounts": [{
+                    "Type": "bind", "Source": entry["source"],
+                    "Destination": entry["target"], "RW": not entry["readOnly"],
+                } for entry in item["mounts"]],
+                "HostConfig": {
+                    "NetworkMode": "host" if host else target.NETWORK,
+                    "Tmpfs": tmpfs,
+                },
+                "NetworkSettings": {"Networks": {} if host else {
+                    target.NETWORK: {"Aliases": [item["serviceId"]]},
+                }},
+            }]).encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            values = iter((0, inspected(item)) for item in manifest["components"])
+            with patch.object(driver, "_await_core_runtime"), patch.object(
+                    driver, "_verify_dns_peers"), patch.object(
+                    target, "_command", side_effect=lambda *_args, **_kwargs: next(values)):
+                receipts = driver.receipts(manifest, "initial")
+            self.assertEqual(receipts[2]["tmpfs"], manifest["components"][2]["tmpfs"])
+
+            values = iter((0, inspected(item, drift=item["serviceId"] == "sonarr"))
+                          for item in manifest["components"])
+            with patch.object(driver, "_await_core_runtime"), patch.object(
+                    driver, "_verify_dns_peers"), patch.object(
+                    target, "_command", side_effect=lambda *_args, **_kwargs: next(values)):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_container_receipt_invalid"):
+                    driver.receipts(manifest, "initial")
 
     def test_rendered_network_aliases_are_explicit_and_exact(self):
         revision = REVISION

@@ -183,6 +183,10 @@
       "security_opt": [
         "no-new-privileges:true"
       ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
+      ],
       "environment": {
         "TZ": "Etc/UTC"
       },
@@ -236,6 +240,10 @@
       "security_opt": [
         "no-new-privileges:true"
       ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
+      ],
       "environment": {
         "TZ": "Etc/UTC"
       },
@@ -288,6 +296,10 @@
       ],
       "security_opt": [
         "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+        "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777"
       ],
       "environment": {
         "TZ": "Etc/UTC",
@@ -343,6 +355,9 @@
       ],
       "security_opt": [
         "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,exec,size=128m,uid=0,gid=0,mode=1777"
       ],
       "environment": {
         "LOG_LEVEL": "warning"

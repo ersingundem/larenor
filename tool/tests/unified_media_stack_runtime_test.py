@@ -112,6 +112,12 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
         self.assertEqual(preview["sourceRevision"], REVISION)
         self.assertRegex(preview["manifestDigest"], r"^[a-f0-9]{64}$")
         self.assertEqual(tuple(x["serviceId"] for x in preview["components"]), COMPONENTS)
+        tmpfs = {item["serviceId"]: item["tmpfs"] for item in preview["components"]}
+        self.assertEqual([item["target"] for item in tmpfs["sonarr"]], ["/run", "/tmp"])
+        self.assertTrue(tmpfs["sonarr"][0]["executable"])
+        self.assertFalse(tmpfs["sonarr"][1]["executable"])
+        self.assertEqual(tmpfs["radarr"], tmpfs["sonarr"])
+        self.assertEqual(tmpfs["qbittorrent"], tmpfs["sonarr"])
         self.assertEqual(preview["directoryRequirements"], sorted(
             preview["directoryRequirements"], key=lambda item: item["path"]))
         encoded = json.dumps(preview, sort_keys=True)
@@ -135,6 +141,14 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(package.PackageError, "manifest_invalid"):
             self.planner.preflight(changed_manifest, HostFacts(
                 changed_manifest["directoryRequirements"]))
+        changed_manifest = json.loads(json.dumps(preview))
+        changed_manifest["components"][2]["tmpfs"] = []
+        body = dict(changed_manifest)
+        body.pop("manifestDigest")
+        changed_manifest["manifestDigest"] = package._digest(body)
+        with self.assertRaisesRegex(package.PackageError, "manifest_invalid"):
+            self.planner.preflight(changed_manifest, HostFacts(
+                changed_manifest["directoryRequirements"]))
 
     def test_trusted_compose_rejects_noncanonical_paths_and_out_of_range_ids(self):
         original = json.loads(
@@ -146,6 +160,8 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
                 {"target": "/app/../foreign"}),
             lambda value: value["services"]["larenor-seerr"].update(
                 {"user": "1000:2147483648"}),
+            lambda value: value["services"]["larenor-sonarr"].update(
+                {"tmpfs": ["/run:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=1777"]}),
         )
         for mutate in mutations:
             with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as directory:

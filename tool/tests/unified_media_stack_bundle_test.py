@@ -90,6 +90,11 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                     self.assertNotIn("ports", service)
                 if service.get("network_mode") == "host":
                     self.assertEqual(name, "larenor-music-assistant")
+            for name in ("larenor-sonarr", "larenor-radarr", "larenor-qbittorrent"):
+                self.assertEqual(compose["services"][name]["tmpfs"], [
+                    "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",
+                    "/tmp:rw,nosuid,nodev,noexec,size=128m,uid=1000,gid=1000,mode=1777",
+                ])
         casaos = first["casaOsCompose"]["x-casaos"]
         self.assertEqual(casaos["main"], "larenor-core")
         self.assertEqual(casaos["architectures"], ["amd64", "arm64"])
@@ -108,6 +113,8 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                 {"ports": ["5055:5055"]}),
             lambda item: item["dockerCompose"]["services"]["larenor-jellyfin"].update(
                 {"image": "ghcr.io/jellyfin/jellyfin:latest"}),
+            lambda item: item["casaOsCompose"]["services"]["larenor-sonarr"].update(
+                {"tmpfs": []}),
         ):
             changed = copy.deepcopy(first)
             mutate(changed)

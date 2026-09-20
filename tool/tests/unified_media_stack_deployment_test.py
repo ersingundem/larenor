@@ -78,6 +78,13 @@ class UnifiedMediaStackDeploymentTest(unittest.TestCase):
                 services[compose_name].get("init", False),
                 entry["security"]["init"],
             )
+            expected_tmpfs = [
+                item["target"] + ":rw,nosuid,nodev,"
+                + ("exec" if item["executable"] else "noexec")
+                + f',size={item["sizeMiB"]}m,uid={item["uid"]},gid={item["gid"]},mode=1777'
+                for item in entry["tmpfs"]
+            ]
+            self.assertEqual(services[compose_name].get("tmpfs", []), expected_tmpfs)
 
     def test_names_network_and_owned_bindings_are_deterministic(self):
         document = self.load()

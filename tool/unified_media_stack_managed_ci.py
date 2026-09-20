@@ -204,7 +204,7 @@ def _container_receipts(values, manifest):
     for value in values:
         if not isinstance(value, dict) or set(value) != {
                 "serviceId", "containerName", "image", "containerId", "state",
-                "dns", "network", "mounts"}:
+                "dns", "network", "mounts", "tmpfs"}:
             raise ManagedStackCIError("unified_container_receipt_invalid")
         service_id = value.get("serviceId")
         wanted = expected.get(service_id)
@@ -220,7 +220,8 @@ def _container_receipts(values, manifest):
                 or value.get("state") != "running"
                 or value.get("dns") != wanted_dns
                 or value.get("network") != wanted_network
-                or value.get("mounts") != wanted_mounts):
+                or value.get("mounts") != wanted_mounts
+                or value.get("tmpfs") != wanted["tmpfs"]):
             raise ManagedStackCIError("unified_container_receipt_invalid")
         result[service_id] = value
     if tuple(result) != COMPONENTS:
@@ -246,6 +247,7 @@ def _public_container(value):
         "dns": value["dns"],
         "network": value["network"],
         "mounts": value["mounts"],
+        "tmpfs": value["tmpfs"],
     }
 
 
@@ -371,7 +373,7 @@ def validate_receipt(value, commit, selected_platform):
             container = service[phase]
             if (not isinstance(container, dict) or set(container) != {
                     "containerName", "containerIdentityDigest", "state", "dns",
-                    "network", "mounts"}
+                    "network", "mounts", "tmpfs"}
                     or container.get("containerName") != expected[service_id]["containerName"]
                     or not re.fullmatch(r"[a-f0-9]{64}", container.get("containerIdentityDigest", ""))
                     or container.get("state") != "running"
@@ -379,7 +381,8 @@ def validate_receipt(value, commit, selected_platform):
                         "host_network" if service_id == "music_assistant" else "verified")
                     or container.get("network") != (
                         "host" if service_id == "music_assistant" else NETWORK)
-                    or container.get("mounts") != wanted_mounts):
+                    or container.get("mounts") != wanted_mounts
+                    or container.get("tmpfs") != expected[service_id]["tmpfs"]):
                 raise ManagedStackCIError("unified_characterization_evidence_invalid")
         if (service["initialContainerReceipt"]["containerIdentityDigest"]
                 != service["restartContainerReceipt"]["containerIdentityDigest"]
@@ -418,6 +421,13 @@ def _config_mounts(service):
         result.append({"source": item.get("source"), "target": item.get("target"),
                        "readOnly": item.get("read_only", False)})
     return sorted(result, key=lambda item: (str(item["source"]), str(item["target"])))
+
+
+def _config_tmpfs(service):
+    try:
+        return package._tmpfs(service)
+    except Exception:
+        raise ManagedStackCIError("unified_manifest_invalid") from None
 
 
 def _config_networks(service):
@@ -536,6 +546,7 @@ def validate_rendered_config(rendered, expected, project_name):
                 or actual.get("command") is not None
                 or actual.get("entrypoint") is not None
                 or _config_mounts(actual) != _config_mounts(wanted)
+                or _config_tmpfs(actual) != _config_tmpfs(wanted)
                 or _config_ports(actual) != _config_ports(wanted)
                 or _config_extra_hosts(actual) != _config_extra_hosts(wanted)):
             raise ManagedStackCIError("unified_manifest_invalid")
@@ -723,6 +734,7 @@ class DockerDriver:
                 current = _duplicate_safe(raw.decode("utf-8"))[0]
                 mounts = current["Mounts"]
                 network_mode = current["HostConfig"]["NetworkMode"]
+                observed_tmpfs = current["HostConfig"].get("Tmpfs") or {}
                 networks = current["NetworkSettings"]["Networks"]
             except (UnicodeError, ValueError, json.JSONDecodeError, KeyError, IndexError, TypeError):
                 raise ManagedStackCIError("unified_container_receipt_invalid") from None
@@ -731,6 +743,15 @@ class DockerDriver:
             actual_mounts = {(entry.get("Source"), entry.get("Destination"), entry.get("RW"))
                              for entry in mounts if entry.get("Type") == "bind"}
             if actual_mounts != expected_mounts or current.get("Config", {}).get("Image") != item["image"]:
+                raise ManagedStackCIError("unified_container_receipt_invalid")
+            try:
+                normalized_tmpfs = package._tmpfs({
+                    "tmpfs": [target + ":" + options
+                              for target, options in observed_tmpfs.items()],
+                })
+            except Exception:
+                raise ManagedStackCIError("unified_container_receipt_invalid") from None
+            if normalized_tmpfs != item["tmpfs"]:
                 raise ManagedStackCIError("unified_container_receipt_invalid")
             if current.get("State", {}).get("Running") is not True:
                 raise ManagedStackCIError("unified_container_receipt_invalid")
@@ -752,6 +773,7 @@ class DockerDriver:
                 "dns": dns, "network": network,
                 "mounts": [{"target": entry["target"], "readOnly": entry["readOnly"]}
                            for entry in item["mounts"]],
+                "tmpfs": normalized_tmpfs,
             })
         self._verify_dns_peers(bridge_peers)
         return values
