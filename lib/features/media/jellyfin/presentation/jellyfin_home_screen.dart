@@ -12,6 +12,7 @@ import 'widgets/jellyfin_poster.dart';
 import '../../../../shared/widgets/section_header.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/operational_service_scope.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 
 class JellyfinHomeScreen extends ConsumerWidget {
   const JellyfinHomeScreen({super.key});
@@ -23,8 +24,11 @@ class JellyfinHomeScreen extends ConsumerWidget {
     return connectionAsync.when(
       skipLoadingOnReload: false,
       skipLoadingOnRefresh: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => ServiceRouteStatusScaffold(
+        title: 'Jellyfin',
+        label: AppLocalizations.of(context).commonLoading,
+        statusKey: const ValueKey('jellyfin-home-status'),
+        loading: true,
       ),
       error: (error, _) =>
           error is DirectHomeAccessException &&
@@ -33,10 +37,13 @@ class JellyfinHomeScreen extends ConsumerWidget {
                 'write_unconfirmed',
               }.contains(error.code)
           ? const JellyfinConnectScreen()
-          : CupertinoPageScaffold(
-              child: Center(
-                child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-              ),
+          : ServiceRouteStatusScaffold(
+              title: 'Jellyfin',
+              label: AppLocalizations.of(context).mediaErrorUnreachable,
+              statusKey: const ValueKey('jellyfin-home-status'),
+              actionLabel: AppLocalizations.of(context).commonRetry,
+              actionKey: const ValueKey('jellyfin-home-retry'),
+              onAction: () => ref.invalidate(jellyfinConnectionProvider),
             ),
       data: (config) {
         if (config == null) return const JellyfinConnectScreen();

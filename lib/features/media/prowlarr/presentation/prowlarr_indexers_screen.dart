@@ -6,6 +6,7 @@ import '../../../../core/direct_home_access.dart';
 import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../../../shared/theme/spacing.dart';
 
 class ProwlarrIndexersScreen extends ConsumerWidget {
@@ -18,8 +19,11 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
     return connectionAsync.when(
       skipLoadingOnReload: false,
       skipLoadingOnRefresh: false,
-      loading: () => const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      loading: () => ServiceRouteStatusScaffold(
+        title: 'Prowlarr',
+        label: AppLocalizations.of(context).commonLoading,
+        statusKey: const ValueKey('prowlarr-indexers-status'),
+        loading: true,
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
@@ -29,10 +33,13 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
             }.contains(error.code)) {
           return const ProwlarrConnectScreen();
         }
-        return CupertinoPageScaffold(
-          child: Center(
-            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-          ),
+        return ServiceRouteStatusScaffold(
+          title: 'Prowlarr',
+          label: AppLocalizations.of(context).mediaErrorUnreachable,
+          statusKey: const ValueKey('prowlarr-indexers-status'),
+          actionLabel: AppLocalizations.of(context).commonRetry,
+          actionKey: const ValueKey('prowlarr-indexers-retry'),
+          onAction: () => ref.invalidate(prowlarrConnectionProvider),
         );
       },
       data: (config) {

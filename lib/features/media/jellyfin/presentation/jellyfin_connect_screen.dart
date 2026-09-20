@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/direct_home_access.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
@@ -256,13 +257,25 @@ class _JellyfinConnectScreenState
         }.contains((state.error as DirectHomeAccessException).code);
     if (!_access.isCurrent || state.hasError && !pending) {
       _stopDiscovery();
-      return CupertinoPageScaffold(
-        child: Center(child: Text(l10n.mediaErrorUnreachable)),
+      return ServiceRouteStatusScaffold(
+        title: 'Jellyfin',
+        label: l10n.mediaErrorUnreachable,
+        statusKey: const ValueKey('jellyfin-connect-status'),
+        actionLabel: _access.isCurrent ? l10n.commonRetry : null,
+        actionKey: _access.isCurrent
+            ? const ValueKey('jellyfin-connect-retry')
+            : null,
+        onAction: _access.isCurrent
+            ? () => ref.invalidate(jellyfinConnectionProvider)
+            : null,
       );
     }
     if (state.isLoading) {
-      return const CupertinoPageScaffold(
-        child: Center(child: CupertinoActivityIndicator()),
+      return ServiceRouteStatusScaffold(
+        title: 'Jellyfin',
+        label: l10n.commonLoading,
+        statusKey: const ValueKey('jellyfin-connect-status'),
+        loading: true,
       );
     }
     if (!_initialized) {

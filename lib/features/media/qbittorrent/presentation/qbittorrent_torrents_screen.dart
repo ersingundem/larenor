@@ -5,8 +5,10 @@ import 'package:qbittorrent_api/qbittorrent_api.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/direct_home_access.dart';
 import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/operational_service_scope.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../../health/data/action_receipt.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/action_providers.dart';
@@ -329,24 +331,39 @@ class _QbittorrentTorrentsScreenState
       );
     }
     final l10n = AppLocalizations.of(context);
-    if (!foreground || sessionExpired || !_access.isCurrent) {
-      return CupertinoPageScaffold(
-        child: !foreground
-            ? const SizedBox.expand()
-            : Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(l10n.mediaAccountChanged),
-                ),
-              ),
+    if (!foreground) {
+      return const AppPageScaffold(child: SizedBox.expand());
+    }
+    if (sessionExpired || !_access.isCurrent) {
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.mediaAccountChanged,
+        statusKey: const ValueKey('qbittorrent-torrents-status'),
       );
     }
     final error = connection.error;
     final recovery =
         error is DirectHomeAccessException &&
         {'pending_mutation', 'write_unconfirmed'}.contains(error.code);
-    if (!connection.isLoading &&
-        OperationalServiceScope.maybeOf(context) == null &&
+    if (connection.isLoading) {
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.commonLoading,
+        statusKey: const ValueKey('qbittorrent-torrents-status'),
+        loading: true,
+      );
+    }
+    if (connection.hasError && !recovery) {
+      return ServiceRouteStatusScaffold(
+        title: 'qBittorrent',
+        label: l10n.mediaErrorUnreachable,
+        statusKey: const ValueKey('qbittorrent-torrents-status'),
+        actionLabel: l10n.commonRetry,
+        actionKey: const ValueKey('qbittorrent-torrents-retry'),
+        onAction: () => ref.invalidate(qbittorrentConnectionProvider),
+      );
+    }
+    if (OperationalServiceScope.maybeOf(context) == null &&
         (recovery || !connection.hasError && connection.value == null)) {
       return QbittorrentConnectScreen(
         key: ValueKey(recovery),

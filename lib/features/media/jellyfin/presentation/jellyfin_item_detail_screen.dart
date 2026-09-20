@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_library_screen.dart';
@@ -19,8 +20,10 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
     final client = ref.watch(jellyfinClientProvider);
     final imageUrl = client?.imageUrl(item.id);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(item.name)),
+    return AppPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_status_label.dart';
 
@@ -11,31 +12,30 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requestsAsync = ref.watch(jellyseerrMyRequestsProvider);
+    final l10n = AppLocalizations.of(context);
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text(AppLocalizations.of(context).jellyseerrMyRequestsTitle),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => ref.invalidate(jellyseerrMyRequestsProvider),
-          child: const Icon(CupertinoIcons.refresh),
+        middle: Text(l10n.jellyseerrMyRequestsTitle),
+        trailing: Semantics(
+          label: l10n.commonRefresh,
+          child: CupertinoButton(
+            key: const ValueKey('jellyseerr-requests-refresh'),
+            padding: EdgeInsets.zero,
+            minimumSize: const Size.square(48),
+            onPressed: () => ref.invalidate(jellyseerrMyRequestsProvider),
+            child: const ExcludeSemantics(child: Icon(CupertinoIcons.refresh)),
+          ),
         ),
       ),
       child: SafeArea(
         child: requestsAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
-            ),
-          ),
+          loading: () =>
+              _RequestsStatus(label: l10n.commonLoading, loading: true),
+          error: (_, _) => _RequestsStatus(label: l10n.mediaErrorUnreachable),
           data: (requests) {
             if (requests.isEmpty) {
-              return Center(
-                child: Text(
-                  AppLocalizations.of(context).jellyseerrNoRequestsYet,
-                ),
-              );
+              return _RequestsStatus(label: l10n.jellyseerrNoRequestsYet);
             }
             return ListView(
               children: [
@@ -63,4 +63,27 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _RequestsStatus extends StatelessWidget {
+  const _RequestsStatus({required this.label, this.loading = false});
+
+  final String label;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Semantics(
+      key: const ValueKey('jellyseerr-requests-status'),
+      label: label,
+      liveRegion: true,
+      excludeSemantics: true,
+      child: loading
+          ? const CupertinoActivityIndicator()
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(label, textAlign: TextAlign.center),
+            ),
+    ),
+  );
 }
