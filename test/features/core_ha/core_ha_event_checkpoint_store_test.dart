@@ -59,7 +59,10 @@ void main() {
     expect(first.headSequence, 2);
     expect(first.revision, 1);
     expect(await store.read(scope, isCurrent: () => true), first);
-    expect(await store.read(_scope(actor: 'other'), isCurrent: () => true), isNull);
+    expect(
+      await store.read(_scope(actor: 'other'), isCurrent: () => true),
+      isNull,
+    );
 
     final advanced = await store.advance(
       scope,
@@ -132,46 +135,48 @@ void main() {
     expect(replaced.revision, 2);
   });
 
-  test('retirement and malformed records fail closed without a write', () async {
-    final backend = _MemoryBackend();
-    final store = CoreHaEventCheckpointStore(backend: backend);
-    final scope = _scope();
-    var current = true;
-    backend.afterRead = () async => current = false;
-    await expectLater(
-      store.advance(
-        scope,
-        before: null,
-        chainId: 'd' * 32,
-        headSequence: 1,
-        isCurrent: () => current,
-      ),
-      throwsA(
-        isA<CoreHaEventCheckpointException>().having(
-          (error) => error.code,
-          'code',
-          'retired',
+  test(
+    'retirement and malformed records fail closed without a write',
+    () async {
+      final backend = _MemoryBackend();
+      final store = CoreHaEventCheckpointStore(backend: backend);
+      final scope = _scope();
+      var current = true;
+      backend.afterRead = () async => current = false;
+      await expectLater(
+        store.advance(
+          scope,
+          before: null,
+          chainId: 'd' * 32,
+          headSequence: 1,
+          isCurrent: () => current,
         ),
-      ),
-    );
-    expect(backend.writes, 0);
+        throwsA(
+          isA<CoreHaEventCheckpointException>().having(
+            (error) => error.code,
+            'code',
+            'retired',
+          ),
+        ),
+      );
+      expect(backend.writes, 0);
 
-    current = true;
-    backend.afterRead = null;
-    backend.values[CoreHaEventCheckpointStore.storageKey(scope)] = jsonEncode({
-      'version': 1,
-      'chainId': 'forged',
-    });
-    await expectLater(
-      store.read(scope, isCurrent: () => true),
-      throwsA(
-        isA<CoreHaEventCheckpointException>().having(
-          (error) => error.code,
-          'code',
-          'invalid_record',
+      current = true;
+      backend.afterRead = null;
+      backend.values[CoreHaEventCheckpointStore.storageKey(scope)] = jsonEncode(
+        {'version': 1, 'chainId': 'forged'},
+      );
+      await expectLater(
+        store.read(scope, isCurrent: () => true),
+        throwsA(
+          isA<CoreHaEventCheckpointException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_record',
+          ),
         ),
-      ),
-    );
-    expect(backend.writes, 0);
-  });
+      );
+      expect(backend.writes, 0);
+    },
+  );
 }
