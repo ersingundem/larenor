@@ -117,8 +117,8 @@ void _expectAction(WidgetTester tester, String key) {
   final finder = find.byKey(ValueKey(key));
   expect(finder, findsOneWidget);
   final rect = tester.getRect(finder);
-  expect(rect.width, greaterThanOrEqualTo(48));
-  expect(rect.height, greaterThanOrEqualTo(48));
+  expect(rect.width, greaterThanOrEqualTo(48), reason: key);
+  expect(rect.height, greaterThanOrEqualTo(48), reason: key);
   expect(tester.getSemantics(finder).flagsCollection.isButton, isTrue);
 }
 

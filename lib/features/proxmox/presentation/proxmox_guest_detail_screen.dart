@@ -7,6 +7,8 @@ import '../providers/proxmox_providers.dart';
 import 'console/proxmox_console_screen.dart';
 import 'widgets/proxmox_field_label.dart';
 import 'widgets/proxmox_usage_bar.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import 'proxmox_session_guard.dart';
 import 'proxmox_mutation_support.dart';
@@ -203,7 +205,7 @@ class _ProxmoxGuestDetailScreenState
         !_openingConsole &&
         !_needsReview;
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(guest.name)),
       child: SafeArea(
         child: !_available
@@ -318,12 +320,12 @@ class _ProxmoxGuestDetailScreenState
                           AppLocalizations.of(context).proxmoxConsoleHeader,
                         ),
                         children: [
-                          CupertinoListTile(
+                          SettingsActionTile(
+                            buttonKey: const ValueKey('proxmox-guest-console'),
                             leading: const Icon(CupertinoIcons.desktopcomputer),
                             title: Text(
                               AppLocalizations.of(context).proxmoxOpenConsole,
                             ),
-                            trailing: const CupertinoListTileChevron(),
                             onTap:
                                 enabled && guest.isRunning && !guest.isTemplate
                                 ? () => _openConsole(lease)
@@ -352,6 +354,8 @@ class _ProxmoxGuestDetailScreenState
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: CupertinoButton.filled(
+                          key: const ValueKey('proxmox-guest-save'),
+                          minimumSize: const Size.fromHeight(48),
                           onPressed: enabled ? () => _save(lease) : null,
                           child: _saving
                               ? const CupertinoActivityIndicator(
