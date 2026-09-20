@@ -123,8 +123,26 @@ class _CamerasScreenState extends MediaSessionState<CamerasScreen> {
                           fit: StackFit.expand,
                           children: [
                             CameraSnapshot(entityId: camera.entityId),
+                            DecoratedBox(
+                              key: ValueKey(
+                                'camera-label-scrim-${camera.entityId}',
+                              ),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0x00000000),
+                                    Color(0x14000000),
+                                    Color(0xCC000000),
+                                  ],
+                                  stops: [0.35, 0.62, 1],
+                                ),
+                              ),
+                            ),
                             Positioned(
                               left: 8,
+                              right: 8,
                               bottom: 8,
                               child: Text(
                                 camera.friendlyName,

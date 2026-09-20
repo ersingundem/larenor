@@ -127,6 +127,15 @@ void main() {
           tester.widget<CupertinoButton>(camera).minimumSize,
           const Size(48, 48),
         );
+        final scrim = tester.widget<DecoratedBox>(
+          find.byKey(const ValueKey('camera-label-scrim-camera.entry')),
+        );
+        final gradient = (scrim.decoration as BoxDecoration).gradient;
+        expect(gradient, isA<LinearGradient>());
+        expect(
+          (gradient! as LinearGradient).colors.last,
+          const Color(0xCC000000),
+        );
         expect(tester.getSemantics(camera).flagsCollection.isButton, isTrue);
         Focus.of(
           tester.element(
