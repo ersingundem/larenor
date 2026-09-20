@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -17,7 +18,11 @@ import 'package:larenor/features/media/music/presentation/music_center_screen.da
 import 'package:larenor/features/media/music/presentation/music_playback_screen.dart';
 import 'package:larenor/features/media/music/providers/music_playback_providers.dart';
 import 'package:larenor/features/media/music/providers/music_providers.dart';
+import 'package:larenor/features/media/local_audio/presentation/local_audio_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'music_fixtures.dart';
 import 'music_playback_test.dart' show PlaybackFixture;
@@ -96,6 +101,7 @@ class _Harness {
     Size size = const Size(800, 1100),
     double scale = 1,
     Brightness brightness = Brightness.light,
+    String language = 'en',
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -120,7 +126,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: Locale(language),
           theme: CupertinoThemeData(brightness: brightness),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -169,6 +175,72 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language output actions use shared tablet semantics at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          await h.mount(tester, size: size, scale: 2, language: language);
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(MusicCenterScreen)),
+          );
+          for (final label in [
+            l10n.musicOutputs,
+            l10n.musicLibrary,
+            l10n.musicSearch,
+            l10n.musicQueue,
+          ]) {
+            expect(
+              tester
+                  .getRect(find.widgetWithText(CupertinoButton, label).first)
+                  .height,
+              greaterThanOrEqualTo(48),
+            );
+          }
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('music-outputs-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final localAudio = find.byKey(
+            const ValueKey('music-local-audio-action'),
+          );
+          expect(tester.getRect(localAudio).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.getSemantics(localAudio).flagsCollection.isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: localAudio, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump(const Duration(milliseconds: 400));
+          for (var i = 0; i < 6; i++) {
+            await tester.pump(Duration.zero);
+          }
+
+          expect(find.byType(LocalAudioScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
+
   testWidgets(
     'open music is read-only, MA absence is distinct from failed discovery',
     (tester) async {
@@ -256,6 +328,34 @@ void main() {
     );
   }
   testWidgets(
+    'catalog refresh blocks a retained item callback until the source is current',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester);
+      await h.library(tester);
+      final button = tester.widget<CupertinoButton>(
+        find
+            .ancestor(
+              of: find.text('Song 0'),
+              matching: find.byType(CupertinoButton),
+            )
+            .first,
+      );
+      final query = h.reads.queries.last;
+      h.reads.libraryGate = Completer<Object?>();
+      h.container.invalidate(musicLibraryProvider(query));
+      await tester.pump();
+
+      button.onPressed!();
+      await tester.pump();
+
+      expect(find.byType(MusicPlaybackScreen), findsNothing);
+      expect(h.fixture.api.calls, 0);
+      h.reads.libraryGate!.complete(musicLibrary(query));
+      await tester.pumpAndSettle();
+    },
+  );
+  testWidgets(
     'library paging is explicit, lazy, bounded, and resets for media type',
     (tester) async {
       final h = _Harness();
@@ -269,6 +369,8 @@ void main() {
         400,
         maxScrolls: 30,
       );
+      await tester.ensureVisible(find.text('Next page'));
+      await tester.pump();
       await tester.tap(find.text('Next page'));
       await tester.pumpAndSettle();
       expect(h.reads.queries.last.offset, 25);
@@ -287,6 +389,7 @@ void main() {
   testWidgets(
     'search sends only submitted query and refuses stale retained submit callback',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final h = _Harness();
       await h.mount(tester);
       await h.library(tester);
@@ -295,6 +398,15 @@ void main() {
       await tester.enterText(
         find.byKey(const ValueKey('music-search-field')),
         'Song',
+      );
+      final field = find.byKey(const ValueKey('music-search-field'));
+      expect(tester.getRect(field).height, greaterThanOrEqualTo(48));
+      expect(tester.getSemantics(field).flagsCollection.isTextField, isTrue);
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('music-search-semantics')))
+            .label,
+        contains('Search music'),
       );
       await tester.pump(const Duration(seconds: 1));
       expect(h.reads.searchReads, 0);
@@ -308,6 +420,7 @@ void main() {
       callback();
       await tester.pumpAndSettle();
       expect(h.reads.searchReads, 1);
+      semantics.dispose();
     },
   );
   testWidgets('queue overview polls only its visible selected output', (

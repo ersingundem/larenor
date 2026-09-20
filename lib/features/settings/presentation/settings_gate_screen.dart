@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
@@ -440,59 +443,74 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
 
   Widget _buildPinEntry(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        // Deliberately a middle title even though Settings itself uses a
-        // large one: this is a lock screen, not the destination.
-        middle: Text(l10n.settingsScreenTitle),
-      ),
-      child: SafeArea(
-        child: Center(
+    return ServiceRootScaffold(
+      title: l10n.settingsScreenTitle,
+      slivers: [
+        SliverFilledMessage(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 280),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.lock_fill,
-                    size: 40,
-                    color: CupertinoTheme.of(context).primaryColor,
-                  ),
-                  const SizedBox(height: 16),
-                  CupertinoTextField(
-                    controller: _controller,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    autofocus: true,
-                    placeholder: l10n.settingsGatePinPlaceholder,
-                    enabled: !_checking,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    onSubmitted: (_) => _submit(l10n),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _error!,
-                      style: TextStyle(
-                        color: CupertinoColors.systemRed.resolveFrom(context),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  CupertinoButton.filled(
-                    onPressed: _checking ? null : () => _submit(l10n),
-                    child: Text(l10n.settingsGateUnlockButton),
-                  ),
-                ],
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SettingsSection(
+              header: Semantics(
+                key: const ValueKey('settings-pin-header'),
+                container: true,
+                header: true,
+                child: Text(l10n.settingsScreenTitle),
               ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                  child: Column(
+                    children: [
+                      Icon(
+                        CupertinoIcons.lock_fill,
+                        size: 40,
+                        color: CupertinoTheme.of(context).primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: CupertinoTextField(
+                          key: const ValueKey('settings-pin-field'),
+                          controller: _controller,
+                          obscureText: true,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          autofocus: true,
+                          placeholder: l10n.settingsGatePinPlaceholder,
+                          enabled: !_checking,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          onSubmitted: (_) => _submit(l10n),
+                        ),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _error!,
+                            style: TextStyle(
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('settings-pin-submit'),
+                  leading: const Icon(CupertinoIcons.lock_open),
+                  title: Text(l10n.settingsGateUnlockButton),
+                  onTap: _checking ? null : () => _submit(l10n),
+                ),
+              ],
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 

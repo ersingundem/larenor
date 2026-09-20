@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/configuration_writes.dart';
@@ -25,6 +26,9 @@ import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/features/today/providers/today_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _config = HaConnectionConfig(
   baseUrl: 'http://home.invalid:8123',
@@ -139,6 +143,7 @@ class _Harness {
     bool home = false,
     Size size = const Size(800, 1100),
     double scale = 1,
+    String language = 'en',
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -172,7 +177,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -231,6 +236,56 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language widget gallery uses shared tablet actions at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final harness = _Harness();
+          await harness.mount(tester, size: size, scale: 2, language: language);
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsWidgets);
+          expect(find.byType(SettingsActionTile), findsWidgets);
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('widget-picker-types-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final today = find.byKey(const ValueKey('widget-kind-today'));
+          await tester.scrollUntilVisible(
+            today,
+            240,
+            scrollable: find.byType(Scrollable).first,
+          );
+          expect(tester.getRect(today).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(today).flagsCollection.isButton, isTrue);
+          Focus.of(
+            tester.element(
+              find.descendant(of: today, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(harness.results, hasLength(1));
+          expect(harness.results.single.type, TileType.today);
+          expect(harness.results.single.width, 3);
+          expect(harness.results.single.height, 2);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
+
   test('website parser rejects credentials, ambiguous syntax and controls', () {
     for (final url in [
       'https://user:password@example.com',
@@ -559,21 +614,32 @@ void main() {
   testWidgets('website input validates without creating a webview', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final h = _Harness();
     await h.mount(tester, initialType: TileType.webview);
-    await tester.enterText(
-      find.byKey(const ValueKey('widget-website-url')),
-      'https://user:secret@example.com',
+    final url = find.byKey(const ValueKey('widget-website-url'));
+    final settings = find.byKey(const ValueKey('widget-website-settings'));
+    final add = find.byKey(const ValueKey('widget-website-add'));
+    expect(tester.getRect(url).height, greaterThanOrEqualTo(48));
+    expect(tester.getSemantics(url).flagsCollection.isTextField, isTrue);
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('widget-website-url-semantics')),
+          )
+          .label,
+      contains('Website URL'),
     );
-    await _tap(tester, find.byKey(const ValueKey('widget-website-add')));
+    expect(tester.getRect(settings).height, greaterThanOrEqualTo(48));
+    expect(tester.getRect(add).height, greaterThanOrEqualTo(48));
+    await tester.enterText(url, 'https://user:secret@example.com');
+    await _tap(tester, add);
     expect(h.results, isEmpty);
-    await tester.enterText(
-      find.byKey(const ValueKey('widget-website-url')),
-      'https://example.com/page',
-    );
-    await _tap(tester, find.byKey(const ValueKey('widget-website-add')));
+    await tester.enterText(url, 'https://example.com/page');
+    await _tap(tester, add);
     expect(h.results.single.url, 'https://example.com/page');
     expect(h.container.exists(entitiesProvider), isFalse);
+    semantics.dispose();
   });
   for (final size in [const Size(320, 900), const Size(1440, 1100)]) {
     testWidgets('gallery and device rows fit $size at 2x text', (tester) async {
