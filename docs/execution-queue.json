@@ -980,11 +980,14 @@
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/s07-1-unified-package-implementation-2026-09-20.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
-        "Tek Larenor kurulumu, sürüm/lisans/mimari ve dahili motor yaşam döngüsü doğrulanır; eski CasaOS container/verisine sahiplik alınmaz."
+        "Tek Larenor dağıtım tanımı Core ile katalogdaki altı sabit bileşeni exact OCI index digest, sürüm, lisans ve iki mimari metadatasıyla içerir.",
+        "Container ve DNS adları, ortak control ağı ve Larenor sahiplik kökü altındaki bind source/target eşlemeleri deterministiktir; Music Assistant host-network istisnası açıktır.",
+        "Paket kullanıcıdan servisler arası URL, API tokenı, parola veya credential kopyalamasını istemez ve serileştirilmiş tanım secret girdisi taşımaz."
       ],
       "requiredEvidence": [
         "test",
@@ -993,7 +996,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "İlk üç paket kriteri yerel TDD ile hazır; Docker Compose, sahiplikli kurulum yöneticisi, worker yaşam döngüsü ve amd64/arm64 gerçek kabulü açık olduğundan sayaç değişmedi."
     },
     {
       "id": "S07.2",

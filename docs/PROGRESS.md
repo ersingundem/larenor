@@ -62,6 +62,19 @@ bağımsız incelemede başarısız Jellyfin bootstrap'ının eski readback ile
 `verified` görünmesi engellendi. S06.6 `done`, kuyruk **17/125 (%13,6)** ve S06
 koordinatörü **6/6** oldu. Fiziksel kurulum kanıt yerine sayılmaz.
 
+### S07.1 birleşik paket — ilk üç kriter yerelde hazır
+
+Yeni [birleşik paket tanımı](../deploy/larenor-server/unified.compose.yaml),
+Larenor Core ile altı sabit medya bileşenini tek projede toplar. Katalog OCI
+index digest'leri, sürüm/lisans/source revision etiketleri, sabit ad/ağ/bind
+eşlemeleri ve secret-free environment sözleşmesi odaklı testlerle doğrulandı.
+[Kriterler ve açık kapılar](s07-1-unified-package-implementation-2026-09-20.md).
+
+Docker CLI, iki mimarili gerçek süreç kabulü, sahiplikli dizin hazırlığı,
+installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
+`pending` kalır.
+Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
+
 ## Şimdi yapılan işler
 
 ### Beşinci toplu aday — olay, transfer, Seerr ve ortak medya eylemi
