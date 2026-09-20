@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tool"))
 
+import native_ci_scope as target
 from native_ci_scope import decide_scope, is_relevant, patterns_for_workflow
 
 
@@ -54,6 +57,47 @@ class NativeCiScopeTest(unittest.TestCase):
         ):
             with self.subTest(value=value):
                 self.assertIsNone(patterns_for_workflow(value))
+
+    def test_cli_routes_inventory_change_to_music_only_and_unknown_fails_open(self):
+        base = "a" * 40
+        head = "b" * 40
+        common = {
+            "GITHUB_EVENT_NAME": "pull_request",
+            "PR_BASE_SHA": base,
+            "PR_HEAD_SHA": head,
+        }
+        cases = (
+            ("arr-managed-characterization.yml", "false", "native-inputs-unchanged"),
+            ("music-assistant-managed-characterization.yml", "true", "native-input-changed"),
+            ("unknown.yml", "true", "native-workflow-unknown"),
+        )
+        for workflow, expected_run, reason in cases:
+            with self.subTest(workflow=workflow), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary) / "output"
+                summary = Path(temporary) / "summary"
+                environment = {
+                    **common,
+                    "GITHUB_WORKFLOW_REF": (
+                        "ersingundem/larenor/.github/workflows/"
+                        + workflow
+                        + "@refs/pull/185/merge"
+                    ),
+                }
+                with patch.dict(target.os.environ, environment, clear=True), patch.object(
+                    sys,
+                    "argv",
+                    ["native_ci_scope.py", "--github-output", str(output),
+                     "--summary", str(summary)],
+                ), patch.object(
+                    target,
+                    "git_changed_files",
+                    return_value=("server/larenor_server/app.py",),
+                ):
+                    self.assertEqual(target.main(), 0)
+                self.assertEqual(
+                    output.read_text().splitlines(),
+                    [f"run={expected_run}", f"reason={reason}"],
+                )
 
     def test_relevant_inputs_cover_server_and_each_native_tool(self):
         for path in (

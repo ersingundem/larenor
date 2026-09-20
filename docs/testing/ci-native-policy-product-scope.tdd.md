@@ -20,7 +20,7 @@ The RED policy tests first demonstrated both Android and Server false positives.
 The GREEN implementation uses an exact native-policy allowlist rather than a
 broad workflow, `deploy/**` or `tool/**` exception. Unknown, malformed or foreign
 workflow refs fail open and `tool/native_ci_scope.py` changes still repeat every
-component matrix. Nineteen Android, Server, and native-scope policy tests pass;
+component matrix. Twenty Android, Server, and native-scope policy tests pass;
 compile, diff, progress, and merge-tree checks are clean.
 This optimization does not change queue or selected-feature completion; the
 accepted `2169dd6f` baseline is **17/125** and **0/63**.
