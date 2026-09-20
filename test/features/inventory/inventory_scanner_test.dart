@@ -66,6 +66,7 @@ void main() {
       await controller.open();
       await controller.onLifecycle(AppLifecycleState.paused);
       expect(platform.sessions[0].closes, 1);
+      await controller.onLifecycle(AppLifecycleState.resumed);
       await controller.open();
       await controller.onRotation();
       expect(platform.sessions[1].closes, 1);

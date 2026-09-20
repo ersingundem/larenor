@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/inventory_controller.dart';
+import '../data/inventory_scanner.dart';
 import '../domain/inventory_models.dart';
 
 /// Localized copy supplied by the route's AppLocalizations adapter.
@@ -26,11 +28,43 @@ final class InventoryStrings {
     required this.offline,
     required this.stale,
     required this.invalidResponse,
+    required this.required,
+    required this.scan,
+    required this.closeScanner,
+    required this.cameraDenied,
+    required this.cameraUnavailable,
   });
+
+  factory InventoryStrings.fromLocalizations(AppLocalizations l) =>
+      InventoryStrings(
+        title: l.inventoryTitle,
+        manualLabel: l.inventoryManualLabel,
+        open: l.inventoryOpen,
+        emptyTitle: l.inventoryEmptyTitle,
+        emptyBody: l.inventoryEmptyBody,
+        room: l.inventoryRoom,
+        device: l.inventoryDevice,
+        documents: l.inventoryDocuments,
+        grants: l.inventoryGrants,
+        audit: l.inventoryAudit,
+        loading: l.inventoryLoading,
+        accessVerified: l.inventoryAccessVerified,
+        invalidQr: l.inventoryInvalidQr,
+        foreignQr: l.inventoryForeignQr,
+        offline: l.inventoryOffline,
+        stale: l.inventoryStale,
+        invalidResponse: l.inventoryInvalidResponse,
+        required: l.inventoryRequired,
+        scan: l.inventoryScan,
+        closeScanner: l.inventoryCloseScanner,
+        cameraDenied: l.inventoryCameraDenied,
+        cameraUnavailable: l.inventoryCameraUnavailable,
+      );
   final String title, manualLabel, open, emptyTitle, emptyBody;
   final String room, device, documents, grants, audit;
   final String loading, accessVerified;
   final String invalidQr, foreignQr, offline, stale, invalidResponse;
+  final String required, scan, closeScanner, cameraDenied, cameraUnavailable;
 }
 
 final class InventoryScreen extends StatefulWidget {
@@ -38,20 +72,40 @@ final class InventoryScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.strings,
+    this.scanner,
   });
   final InventoryController controller;
   final InventoryStrings strings;
+  final InventoryScannerController? scanner;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-final class _InventoryScreenState extends State<InventoryScreen> {
+final class _InventoryScreenState extends State<InventoryScreen>
+    with WidgetsBindingObserver {
   final _manual = TextEditingController();
   final _manualFocus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(widget.scanner?.onLifecycle(state));
+  }
+
+  @override
+  void didChangeMetrics() {
+    unawaited(widget.scanner?.onRotation());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _manual.dispose();
     _manualFocus.dispose();
     super.dispose();
@@ -68,7 +122,10 @@ final class _InventoryScreenState extends State<InventoryScreen> {
     navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
     child: SafeArea(
       child: ListenableBuilder(
-        listenable: widget.controller,
+        listenable: Listenable.merge([
+          widget.controller,
+          if (widget.scanner != null) widget.scanner!,
+        ]),
         builder: (context, _) {
           final controller = widget.controller;
           return LayoutBuilder(
@@ -82,6 +139,27 @@ final class _InventoryScreenState extends State<InventoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _entry(context),
+                    if (widget.scanner?.opened == true) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        key: const ValueKey('inventory-camera-preview'),
+                        height: 320,
+                        child: widget.scanner!.preview,
+                      ),
+                    ],
+                    if (widget.scanner?.failure case final cameraFailure?)
+                      Semantics(
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            cameraFailure ==
+                                    InventoryCameraFailure.permissionDenied
+                                ? widget.strings.cameraDenied
+                                : widget.strings.cameraUnavailable,
+                          ),
+                        ),
+                      ),
                     if (controller.busy)
                       Semantics(
                         liveRegion: true,
@@ -142,18 +220,47 @@ final class _InventoryScreenState extends State<InventoryScreen> {
           padding: const EdgeInsets.all(16),
         ),
         const SizedBox(height: 12),
-        Semantics(
-          button: true,
-          label: widget.strings.open,
-          child: SizedBox(
-            key: const ValueKey('inventory-open'),
-            height: 48,
-            child: CupertinoButton.filled(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              onPressed: widget.controller.canResolve ? _submit : null,
-              child: ExcludeSemantics(child: Text(widget.strings.open)),
+        Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: widget.strings.open,
+                child: SizedBox(
+                  key: const ValueKey('inventory-open'),
+                  height: 48,
+                  child: CupertinoButton.filled(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    onPressed: widget.controller.canResolve ? _submit : null,
+                    child: ExcludeSemantics(child: Text(widget.strings.open)),
+                  ),
+                ),
+              ),
             ),
-          ),
+            if (widget.scanner != null) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  key: const ValueKey('inventory-scan'),
+                  height: 48,
+                  child: CupertinoButton(
+                    color: CupertinoColors.secondarySystemGroupedBackground
+                        .resolveFrom(context),
+                    onPressed: widget.scanner!.opened
+                        ? () => unawaited(widget.scanner!.close())
+                        : widget.scanner!.canOpen
+                        ? () => unawaited(widget.scanner!.open())
+                        : null,
+                    child: Text(
+                      widget.scanner!.opened
+                          ? widget.strings.closeScanner
+                          : widget.strings.scan,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     ),

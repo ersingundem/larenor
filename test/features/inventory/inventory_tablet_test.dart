@@ -24,6 +24,11 @@ const en = InventoryStrings(
   offline: 'Core is offline',
   stale: 'Session changed; result discarded',
   invalidResponse: 'Unverified Core response',
+  required: 'Verified Core connection required',
+  scan: 'Scan QR',
+  closeScanner: 'Close camera',
+  cameraDenied: 'Camera permission denied',
+  cameraUnavailable: 'Camera unavailable',
 );
 const tr = InventoryStrings(
   title: 'Ev envanteri',
@@ -43,6 +48,11 @@ const tr = InventoryStrings(
   offline: 'Core çevrimdışı',
   stale: 'Oturum değişti; sonuç kullanılmadı',
   invalidResponse: 'Doğrulanmamış Core yanıtı',
+  required: 'Doğrulanmış Core bağlantısı gerekli',
+  scan: 'QR tara',
+  closeScanner: 'Kamerayı kapat',
+  cameraDenied: 'Kamera izni verilmedi',
+  cameraUnavailable: 'Kamera kullanılamıyor',
 );
 
 void main() {

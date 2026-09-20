@@ -88,6 +88,17 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                               SettingsSection(
                                 children: [
                                   const HomePeopleEntry(),
+                                  if (controller.account.context != null)
+                                    SettingsActionTile(
+                                      title: Text(l10n.inventoryTitle),
+                                      onTap: !current()
+                                          ? null
+                                          : () {
+                                              if (current()) {
+                                                context.push('/inventory');
+                                              }
+                                            },
+                                    ),
                                   if (controller.failure == null &&
                                       !controller.busy)
                                     SettingsActionTile(

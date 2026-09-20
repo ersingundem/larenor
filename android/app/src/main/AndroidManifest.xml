@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
     <!-- User-requested, signature-verified self-updates still require the
          Android installer confirmation; no silent installer is used. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>

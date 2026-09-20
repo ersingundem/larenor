@@ -13,10 +13,12 @@ final class InventoryController extends ChangeNotifier {
     required this.context,
     required this.canReadGrants,
     required this.isCurrent,
-  });
+    this.maximumEntries = 25,
+  }) : assert(maximumEntries >= 1 && maximumEntries <= 100);
   final InventoryGateway gateway;
   final ServerContext context;
   final bool canReadGrants;
+  final int maximumEntries;
   final bool Function() isCurrent;
   final List<InventoryDetail> _entries = [];
   int _epoch = 0;
@@ -99,6 +101,9 @@ final class InventoryController extends ChangeNotifier {
       );
       _entries.removeWhere((entry) => entry.item.id == item.id);
       _entries.insert(0, detail);
+      if (_entries.length > maximumEntries) {
+        _entries.removeRange(maximumEntries, _entries.length);
+      }
       selected = detail;
     } catch (error) {
       if (!current()) {
