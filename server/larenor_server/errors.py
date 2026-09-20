@@ -13,6 +13,17 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'tablet_device_changed': 'The managed tablet changed. Read it again.',
+    'tablet_device_inactive': 'This managed tablet is revoked.',
+    'tablet_registration_replay': 'This tablet registration belongs to a different request.',
+    'tablet_profile_changed': 'The managed tablet profile changed. Read it again.',
+    'tablet_capability_unavailable': 'This tablet does not advertise the required management capability.',
+    'tablet_command_conflict': 'This tablet command key belongs to a different command.',
+    'tablet_command_changed': 'The tablet command result changed. Read it again.',
+    'tablet_command_not_delivered': 'Poll this tablet command before completing it.',
+    'tablet_limit_reached': 'The managed tablet limit has been reached.',
+    'tablet_command_limit_reached': 'The managed tablet command limit has been reached.',
+    'tablet_fleet_storage_unavailable': 'The managed tablet registry is unavailable.',
     'notification_subscription_changed': 'The notification subscription changed. Read it again.',
     'notification_subscription_inactive': 'The notification subscription is not active.',
     'notification_registration_replay': 'This registration identifier belongs to a different request.',
