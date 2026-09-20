@@ -14,6 +14,33 @@ from android_ci_scope import decide_scope, is_android_relevant
 
 
 class AndroidCiScopeTest(unittest.TestCase):
+    def test_native_characterization_policy_only_changes_reuse_android_evidence(self):
+        paths = (
+            '.github/workflows/arr-managed-characterization.yml',
+            '.github/workflows/jellyfin-managed-characterization.yml',
+            '.github/workflows/music-assistant-managed-characterization.yml',
+            '.github/workflows/qbittorrent-managed-characterization.yml',
+            '.github/workflows/seerr-managed-characterization.yml',
+            '.github/workflows/unified-media-stack-managed.yml',
+            'deploy/larenor-server/.env.example',
+            'deploy/larenor-server/unified.compose.yaml',
+            'deploy/larenor-server/unified_package.py',
+            'deploy/larenor-server/deployment_bundle.py',
+            'tool/native_ci_scope.py',
+            'tool/tests/native_ci_scope_test.py',
+            'tool/unified_media_stack_managed_ci.py',
+            'tool/tests/unified_media_stack_runtime_test.py',
+        )
+
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(is_android_relevant(path))
+        self.assertEqual(decide_scope(
+            event_name='pull_request', base_sha='a' * 40,
+            head_sha='b' * 40,
+            changed_files=lambda *_args: paths,
+        ), (False, 'android-inputs-unchanged'))
+
     def test_server_and_documentation_only_changes_reuse_android_evidence(self):
         for paths in (
             ('server/larenor_server/app.py', 'server/tests/test_app.py'),

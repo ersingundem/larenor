@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tool"))
 
-from native_ci_scope import decide_scope, is_relevant
+import native_ci_scope as target
+from native_ci_scope import decide_scope, is_relevant, patterns_for_workflow
 
 
 WORKFLOWS = {
@@ -22,6 +25,84 @@ WORKFLOWS = {
 
 
 class NativeCiScopeTest(unittest.TestCase):
+    def test_each_workflow_repeats_only_its_observable_native_inputs(self):
+        repository = "ersingundem/larenor/.github/workflows/"
+        refs = {
+            name: patterns_for_workflow(repository + name + "@refs/pull/185/merge")
+            for name in WORKFLOWS
+        }
+        self.assertTrue(all(patterns is not None for patterns in refs.values()))
+        inventory = "server/larenor_server/inventory/service.py"
+        self.assertTrue(all(not is_relevant(inventory, patterns) for patterns in refs.values()))
+        app = "server/larenor_server/app.py"
+        self.assertTrue(is_relevant(app, refs["music-assistant-managed-characterization.yml"]))
+        self.assertTrue(all(
+            not is_relevant(app, patterns)
+            for name, patterns in refs.items()
+            if name != "music-assistant-managed-characterization.yml"
+        ))
+        qbittorrent = "tool/qbittorrent_managed_ci.py"
+        self.assertFalse(is_relevant(qbittorrent, refs["jellyfin-managed-characterization.yml"]))
+        self.assertTrue(all(
+            is_relevant(qbittorrent, patterns)
+            for name, patterns in refs.items()
+            if name != "jellyfin-managed-characterization.yml"
+        ))
+        shared_models = "server/larenor_server/plugins/models.py"
+        self.assertTrue(all(
+            is_relevant(shared_models, patterns) for patterns in refs.values()
+        ))
+
+    def test_unknown_or_malformed_workflow_reference_has_no_skip_authority(self):
+        for value in (
+            "", "unknown.yml", "owner/repo/.github/workflows/unknown.yml@refs/heads/main",
+            "other/larenor/.github/workflows/arr-managed-characterization.yml@refs/heads/main",
+            "owner/repo/.github/workflows/../arr-managed-characterization.yml@refs/heads/main",
+        ):
+            with self.subTest(value=value):
+                self.assertIsNone(patterns_for_workflow(value))
+
+    def test_cli_routes_inventory_change_to_music_only_and_unknown_fails_open(self):
+        base = "a" * 40
+        head = "b" * 40
+        common = {
+            "GITHUB_EVENT_NAME": "pull_request",
+            "PR_BASE_SHA": base,
+            "PR_HEAD_SHA": head,
+        }
+        cases = (
+            ("arr-managed-characterization.yml", "false", "native-inputs-unchanged"),
+            ("music-assistant-managed-characterization.yml", "true", "native-input-changed"),
+            ("unknown.yml", "true", "native-workflow-unknown"),
+        )
+        for workflow, expected_run, reason in cases:
+            with self.subTest(workflow=workflow), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary) / "output"
+                summary = Path(temporary) / "summary"
+                environment = {
+                    **common,
+                    "GITHUB_WORKFLOW_REF": (
+                        "ersingundem/larenor/.github/workflows/"
+                        + workflow
+                        + "@refs/pull/185/merge"
+                    ),
+                }
+                with patch.dict(target.os.environ, environment, clear=True), patch.object(
+                    sys,
+                    "argv",
+                    ["native_ci_scope.py", "--github-output", str(output),
+                     "--summary", str(summary)],
+                ), patch.object(
+                    target,
+                    "git_changed_files",
+                    return_value=("server/larenor_server/app.py",),
+                ):
+                    self.assertEqual(target.main(), 0)
+                self.assertEqual(
+                    output.read_text().splitlines(),
+                    [f"run={expected_run}", f"reason={reason}"],
+                )
+
     def test_relevant_inputs_cover_server_and_each_native_tool(self):
         for path in (
             "server/larenor_server/app.py",
