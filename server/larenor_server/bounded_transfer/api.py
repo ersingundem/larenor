@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from starlette.responses import StreamingResponse
 
 from ..auth import Principal
@@ -9,7 +9,7 @@ from ..dependencies import get_core, require_ready_user
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import TransferRequest
+from .models import TransferHistoryResponse, TransferReceiptResponse, TransferRequest
 from .service import WIRE_TYPE
 
 
@@ -18,6 +18,21 @@ Ready = Annotated[Principal, Depends(require_ready_user)]
 router = APIRouter(tags=["Bounded resource transfer"], responses={
     status: {"model": ErrorResponse} for status in (400, 401, 403, 404, 408, 409, 413, 429, 503)})
 PATH = "/home-resources/{core_id}/{home_id}/{record_id}/blob"
+
+
+@router.get(PATH + "/transfers/{request_id}", response_model=TransferReceiptResponse)
+def receipt(core_id: Identity, home_id: Identity, record_id: Identity,
+            request_id: Identity, actor: Ready, core: Core):
+    return core.bounded_transfers.receipt(
+        actor, core_id, home_id, record_id, request_id)
+
+
+@router.get(PATH + "/transfers", response_model=TransferHistoryResponse)
+def history(core_id: Identity, home_id: Identity, record_id: Identity,
+            actor: Ready, core: Core,
+            limit: Annotated[int, Query(ge=1, le=50)] = 50):
+    return core.bounded_transfers.history(
+        actor, core_id, home_id, record_id, limit)
 
 
 @router.post(PATH)

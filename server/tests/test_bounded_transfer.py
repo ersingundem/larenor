@@ -151,6 +151,7 @@ def test_stream_aborts_without_success_frame_after_cancel_deadline_auth_loss_or_
             next(opened.frames)
         opened.close()
 
+        values = request_body(app, admin, record, deadline_ms=20)
         opened = app.state.core.bounded_transfers.open(
             actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,
             **app.state.core.bounded_transfers.python_arguments(values), cancelled=lambda: False)
@@ -160,6 +161,7 @@ def test_stream_aborts_without_success_frame_after_cancel_deadline_auth_loss_or_
             next(opened.frames)
         opened.close(); clock.now -= .021
 
+        values = request_body(app, admin, record, deadline_ms=20)
         opened = app.state.core.bounded_transfers.open(
             actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,
             **app.state.core.bounded_transfers.python_arguments(values), cancelled=lambda: False)
@@ -202,12 +204,14 @@ def test_size_actor_quota_and_one_active_stream_are_bounded(tmp_path):
             actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,
             **app.state.core.bounded_transfers.python_arguments(values), cancelled=lambda: False)
         with pytest.raises(ApiError, match="rate_limited"):
+            concurrent = request_body(app, admin, record)
             app.state.core.bounded_transfers.open(
                 actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,
-                **app.state.core.bounded_transfers.python_arguments(values), cancelled=lambda: False)
+                **app.state.core.bounded_transfers.python_arguments(concurrent), cancelled=lambda: False)
         first.close()
         provider.blobs[identity] = BlobDescriptor(identity, 1, "application/octet-stream", b"12345")
         with pytest.raises(ApiError, match="rate_limited"):
+            over_quota = request_body(app, admin, record)
             app.state.core.bounded_transfers.open(
                 actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,
-                **app.state.core.bounded_transfers.python_arguments(values), cancelled=lambda: False)
+                **app.state.core.bounded_transfers.python_arguments(over_quota), cancelled=lambda: False)
