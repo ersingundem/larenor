@@ -65,4 +65,3 @@ def test_step_bounds_and_payload_limits_are_closed(tmp_path):
     )
     with pytest.raises(ApiError, match="invalid_request"):
         sessions.move(actor("account-a"), created.id, expected_revision=1, step=1)
-
