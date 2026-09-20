@@ -518,6 +518,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           isCurrent: checkpointCurrent,
         );
         var cursor = retained?.headSequence;
+        var expectedCursorCheckpoint = retained?.headCheckpoint;
         CoreBoundedTransferEventPage? first;
         final eventReceipts = <String, CoreBoundedTransferReceipt>{};
         while (true) {
@@ -526,6 +527,10 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
             target: target,
             after: cursor == 0 ? null : cursor,
           );
+          if (expectedCursorCheckpoint != null &&
+              page.cursorCheckpoint != expectedCursorCheckpoint) {
+            throw const CoreBoundedEventCheckpointException('rollback');
+          }
           if (first == null) {
             first = page;
             if (retained != null && retained.chainId != page.chainId) {
@@ -535,7 +540,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
               throw const CoreBoundedEventCheckpointException('rollback');
             }
           } else if (page.chainId != first.chainId ||
-              page.headSequence != first.headSequence) {
+              page.headSequence != first.headSequence ||
+              page.headCheckpoint != first.headCheckpoint) {
             throw const CoreBoundedDownloadException('invalid_response');
           }
           for (final event in page.events) {
@@ -547,6 +553,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           }
           if (page.nextAfter == null) break;
           cursor = page.nextAfter;
+          expectedCursorCheckpoint = page.pageCheckpoint;
         }
         for (final receipt in loaded!) {
           final eventReceipt = eventReceipts[receipt.requestId];
@@ -560,6 +567,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           before: retained,
           chainId: first.chainId,
           headSequence: first.headSequence,
+          headCheckpoint: first.headCheckpoint,
           isCurrent: checkpointCurrent,
         );
         verifiedChain = proof.chainId;

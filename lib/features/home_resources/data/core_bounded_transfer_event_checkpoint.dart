@@ -79,20 +79,23 @@ final class CoreBoundedEventCheckpoint {
     required this.scope,
     required this.chainId,
     required this.headSequence,
+    required this.headCheckpoint,
     required this.verifiedAt,
     required this.revision,
   });
 
   final CoreBoundedEventCheckpointScope scope;
   final String chainId;
+  final String headCheckpoint;
   final int headSequence, revision;
   final DateTime verifiedAt;
 
   Map<String, Object> toJson() => {
-    'version': 1,
+    'version': 2,
     ...scope.toJson(),
     'chainId': chainId,
     'headSequence': headSequence,
+    'headCheckpoint': headCheckpoint,
     'verifiedAt': verifiedAt.toUtc().toIso8601String(),
     'revision': revision,
   };
@@ -103,12 +106,20 @@ final class CoreBoundedEventCheckpoint {
       other.scope == scope &&
       other.chainId == chainId &&
       other.headSequence == headSequence &&
+      other.headCheckpoint == headCheckpoint &&
       other.verifiedAt == verifiedAt &&
       other.revision == revision;
 
   @override
   int get hashCode =>
-      Object.hash(scope, chainId, headSequence, verifiedAt, revision);
+      Object.hash(
+        scope,
+        chainId,
+        headSequence,
+        headCheckpoint,
+        verifiedAt,
+        revision,
+      );
 }
 
 /// Device-local bounded-transfer event-chain anchor.
@@ -122,7 +133,7 @@ final class CoreBoundedEventCheckpointStore {
   }) : _backend = backend ?? SecureCoreBoundedEventCheckpointBackend(),
        _clock = clock ?? DateTime.now;
 
-  static const _prefix = 'core_bounded_event_checkpoint_v1';
+  static const _prefix = 'core_bounded_event_checkpoint_v2';
   static const _maximumRawBytes = 4096;
   final CoreBoundedEventCheckpointBackend _backend;
   final DateTime Function() _clock;
@@ -184,13 +195,14 @@ final class CoreBoundedEventCheckpointStore {
         'role',
         'chainId',
         'headSequence',
+        'headCheckpoint',
         'verifiedAt',
         'revision',
       };
       if (value is! Map ||
           value.length != fields.length ||
           value.keys.any((key) => !fields.contains(key)) ||
-          value['version'] != 1) {
+          value['version'] != 2) {
         _fail('invalid_record');
       }
       final role = switch (value['role']) {
@@ -216,6 +228,7 @@ final class CoreBoundedEventCheckpointStore {
       );
       final chain = value['chainId'];
       final head = value['headSequence'];
+      final headCheckpoint = value['headCheckpoint'];
       final rawVerifiedAt = value['verifiedAt'];
       final revision = value['revision'];
       if (scope != expected ||
@@ -224,6 +237,8 @@ final class CoreBoundedEventCheckpointStore {
           head is! int ||
           head < 0 ||
           head > 2048 ||
+          headCheckpoint is! String ||
+          !RegExp(r'^[0-9a-f]{64}$').hasMatch(headCheckpoint) ||
           rawVerifiedAt is! String ||
           revision is! int ||
           revision < 1 ||
@@ -238,6 +253,7 @@ final class CoreBoundedEventCheckpointStore {
         scope: scope,
         chainId: chain,
         headSequence: head,
+        headCheckpoint: headCheckpoint,
         verifiedAt: verifiedAt,
         revision: revision,
       );
@@ -265,6 +281,7 @@ final class CoreBoundedEventCheckpointStore {
     required CoreBoundedEventCheckpoint? before,
     required String chainId,
     required int headSequence,
+    required String headCheckpoint,
     required bool Function() isCurrent,
   }) {
     final check = _guard(isCurrent), key = storageKey(scope);
@@ -272,6 +289,7 @@ final class CoreBoundedEventCheckpointStore {
       if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(chainId) ||
           headSequence < 0 ||
           headSequence > 2048 ||
+          !RegExp(r'^[0-9a-f]{64}$').hasMatch(headCheckpoint) ||
           before != null && before.scope != scope) {
         _fail('invalid_proof');
       }
@@ -280,13 +298,17 @@ final class CoreBoundedEventCheckpointStore {
       if (current != null) {
         if (current.chainId != chainId) _fail('chain_changed');
         if (headSequence < current.headSequence) _fail('rollback');
-        if (headSequence == current.headSequence) return current;
+        if (headSequence == current.headSequence) {
+          if (headCheckpoint != current.headCheckpoint) _fail('rollback');
+          return current;
+        }
         if (current.revision >= 0x1fffffffffffff) _fail('limit');
       }
       final next = CoreBoundedEventCheckpoint._(
         scope: scope,
         chainId: chainId,
         headSequence: headSequence,
+        headCheckpoint: headCheckpoint,
         verifiedAt: _clock().toUtc(),
         revision: (current?.revision ?? 0) + 1,
       );

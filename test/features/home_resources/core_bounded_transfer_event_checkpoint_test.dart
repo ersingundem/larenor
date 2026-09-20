@@ -159,6 +159,8 @@ void main() {
     for (final mutation
         in <Map<String, Object?> Function(Map<String, Object?>)>{
           (value) => {...value, 'chainId': 'bad'},
+          (value) => {...value, 'headCheckpoint': 'bad'},
+          (value) => {...value, 'pageCheckpoint': 'b' * 64},
           (value) => {
             ...value,
             'ref': {...value['ref'] as Map, 'id': 'f' * 32},
@@ -217,6 +219,7 @@ void main() {
       before: null,
       chainId: 'e' * 32,
       headSequence: 2,
+      headCheckpoint: 'a' * 64,
       isCurrent: () => true,
     );
     expect(await store.read(scope, isCurrent: () => true), first);
@@ -229,11 +232,30 @@ void main() {
           before: first,
           chainId: proof.$1,
           headSequence: proof.$2,
+          headCheckpoint: 'a' * 64,
           isCurrent: () => true,
         ),
         throwsA(isA<CoreBoundedEventCheckpointException>()),
       );
     }
+    expect(backend.writes, 1);
+    await expectLater(
+      store.advance(
+        scope,
+        before: first,
+        chainId: 'e' * 32,
+        headSequence: 2,
+        headCheckpoint: 'b' * 64,
+        isCurrent: () => true,
+      ),
+      throwsA(
+        isA<CoreBoundedEventCheckpointException>().having(
+          (error) => error.code,
+          'code',
+          'rollback',
+        ),
+      ),
+    );
     expect(backend.writes, 1);
 
     var current = true;

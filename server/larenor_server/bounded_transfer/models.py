@@ -8,6 +8,7 @@ from ..home_resources.models import ResourceRef
 
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
 Identity = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
+Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
 class TransferRequest(BaseModel):
@@ -68,6 +69,9 @@ class TransferEventHistoryResponse(BaseModel):
     ref: ResourceRef
     chainId: Identity
     headSequence: Annotated[int, Field(ge=0, le=2048)]
+    cursorCheckpoint: Digest
+    pageCheckpoint: Digest
+    headCheckpoint: Digest
     events: list[TransferEvent] = Field(max_length=50)
     nextAfter: Annotated[int, Field(ge=1, le=2048)] | None
     verified: Literal[True] = True
