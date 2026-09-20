@@ -115,7 +115,7 @@ def test_qr_resolution_hides_foreign_or_unauthorized_items_and_dispatches_nothin
     for malformed in ("broken", qr["value"] + ":extra", qr["value"].upper()):
         response = client.post(resolve, headers=auth(allowed), json={**qr, "value": malformed})
         assert response.status_code == 400
-    assert client.patch(path, headers=auth(admin), json={}).status_code == 405
+    assert client.patch(path, headers=auth(admin), json={}).status_code == 400
     assert client.delete(path, headers=auth(admin)).status_code == 405
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM home_assistant_commands").fetchone()[0] == 0

@@ -70,7 +70,8 @@ def resolved_fixture(server):
 def test_links_resolve_to_exact_current_home_types_and_persisted_document(server):
     app, client, admin, room, device, doc = resolved_fixture(server)
     valid = item_body(room, device, doc["ref"]["id"])
-    assert client.post(root(app) + "/items", headers=auth(admin), json=valid).status_code == 201
+    created = client.post(root(app) + "/items", headers=auth(admin), json=valid)
+    assert created.status_code == 201
 
     invalid = [
         valid | {"roomId": device["ref"]["id"]},
@@ -89,6 +90,14 @@ def test_links_resolve_to_exact_current_home_types_and_persisted_document(server
         assert response.json()["error"]["code"] == "invalid_request"
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM inventory_items").fetchone()[0] == 1
+
+    value = scope(app)
+    removed = client.delete(
+        f'/api/v1/admin/home-resources/{value["coreId"]}/{value["homeId"]}/{room["ref"]["id"]}',
+        headers=auth(admin), params={"expectedRevision": 1, "expectedAclRevision": 1})
+    assert removed.status_code == 204
+    item_id = created.json()["item"]["ref"]["id"]
+    assert client.get(root(app) + "/items/" + item_id, headers=auth(admin)).status_code == 404
 
 
 def test_admin_grants_and_updates_are_closed_revision_controlled_and_revocable(server):

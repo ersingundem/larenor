@@ -20,10 +20,16 @@ from .models import (
 
 
 class InventoryRegistry:
-    def __init__(self, db, auth, key, context):
-        self.db, self.auth = db, auth
+    def __init__(self, db, auth, settings, key, context):
+        self.db, self.auth, self.settings, self._key = db, auth, settings, key
         self.scope = HomeScope.model_validate(context.model_dump())
         self._cipher = AESGCM(key)
+
+    @staticmethod
+    def _next(revision):
+        if revision >= 2**63 - 1:
+            raise ApiError("revision_conflict", 409)
+        return revision + 1
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
@@ -102,6 +108,106 @@ class InventoryRegistry:
             links=stored.links,
         ).model_dump()
 
+    def _save(self, connection, item_id, revision, created_by, stored):
+        plain = StoredInventoryItem.model_validate(stored).model_dump_json().encode("utf-8")
+        if len(plain) > 32752:
+            raise ApiError("invalid_request")
+        nonce = secrets.token_bytes(12)
+        connection.execute(
+            "INSERT INTO inventory_items VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+            "revision=excluded.revision,nonce=excluded.nonce,ciphertext=excluded.ciphertext",
+            (item_id, revision, created_by, nonce,
+             self._cipher.encrypt(nonce, plain, self._aad(item_id, revision, created_by))),
+        )
+
+    def _validate_links(self, connection, links, *, missing="invalid_request"):
+        expected = []
+        if links.roomId is not None:
+            expected.append((links.roomId, "room"))
+        if links.deviceId is not None:
+            expected.append((links.deviceId, "resource"))
+        for identity, kind in expected:
+            row = connection.execute(
+                "SELECT kind FROM home_resource_records WHERE id=?", (identity,)
+            ).fetchone()
+            if row is None or row["kind"] != kind:
+                raise ApiError(missing, 404 if missing == "not_found" else 400)
+        for identity in links.documentIds:
+            row = connection.execute(
+                "SELECT o.core_id,o.home_id,r.kind FROM bounded_blob_objects o "
+                "JOIN home_resource_records r ON r.id=o.resource_id WHERE o.resource_id=?",
+                (identity,),
+            ).fetchone()
+            if row is None or row["kind"] != "resource" or (
+                row["core_id"], row["home_id"]
+            ) != (self.scope.coreId, self.scope.homeId):
+                raise ApiError(missing, 404 if missing == "not_found" else 400)
+
+    def _audit_state(self, connection):
+        rows = connection.execute("SELECT * FROM inventory_audit_state LIMIT 2").fetchall()
+        if len(rows) != 1:
+            raise ValueError("invalid_inventory_audit")
+        state = rows[0]
+        if (state["singleton"] != 1 or type(state["sequence"]) is not int or
+                not 0 <= state["sequence"] <= schema.MAX_AUDIT or
+                not re.fullmatch(r"[0-9a-f]{64}", state["head_hash"] or "") or
+                not re.fullmatch(r"[0-9a-f]{64}", state["authentication_tag"] or "") or
+                not secrets.compare_digest(
+                    state["authentication_tag"],
+                    schema.state_tag(self._key, self.scope, state["sequence"], state["head_hash"]),
+                )):
+            raise ValueError("invalid_inventory_audit")
+        return state
+
+    def _validate_audit(self, connection):
+        state = self._audit_state(connection)
+        previous = "0" * 64
+        rows = connection.execute(
+            "SELECT * FROM inventory_audit ORDER BY sequence LIMIT ?", (schema.MAX_AUDIT + 1,)
+        ).fetchall()
+        if len(rows) != state["sequence"] or len(rows) > schema.MAX_AUDIT:
+            raise ValueError("invalid_inventory_audit")
+        for expected, row in enumerate(rows, 1):
+            if (row["sequence"] != expected or row["action"] not in
+                    {"create", "update", "grant", "revoke"} or
+                    not re.fullmatch(r"[0-9a-f]{32}", row["item_id"] or "") or
+                    not re.fullmatch(r"[0-9a-f]{32}", row["actor_id"] or "") or
+                    type(row["item_revision"]) is not int or row["item_revision"] < 1 or
+                    type(row["created_at"]) not in (int, float) or
+                    row["previous_hash"] != previous):
+                raise ValueError("invalid_inventory_audit")
+            expected_hash = schema.entry_hash(
+                self._key, self.scope, expected, row["item_id"], row["action"],
+                row["actor_id"], row["item_revision"], row["created_at"], previous,
+            )
+            if not secrets.compare_digest(row["entry_hash"], expected_hash):
+                raise ValueError("invalid_inventory_audit")
+            previous = expected_hash
+        if state["head_hash"] != previous:
+            raise ValueError("invalid_inventory_audit")
+        return rows
+
+    def _append_audit(self, connection, item_id, action, actor_id, revision):
+        state = self._audit_state(connection)
+        if state["sequence"] >= schema.MAX_AUDIT:
+            raise ApiError("revision_conflict", 409)
+        sequence = state["sequence"] + 1
+        created_at = self.settings.clock()
+        head = schema.entry_hash(
+            self._key, self.scope, sequence, item_id, action, actor_id, revision,
+            created_at, state["head_hash"],
+        )
+        connection.execute(
+            "INSERT INTO inventory_audit VALUES(?,?,?,?,?,?,?,?)",
+            (sequence, item_id, action, actor_id, revision, created_at,
+             state["head_hash"], head),
+        )
+        connection.execute(
+            "UPDATE inventory_audit_state SET sequence=?,head_hash=?,authentication_tag=? "
+            "WHERE singleton=1",
+            (sequence, head, schema.state_tag(self._key, self.scope, sequence, head)),
+        )
+
     def _qr(self, item_id):
         return InventoryQr(
             schemaVersion=1,
@@ -124,6 +230,7 @@ class InventoryRegistry:
                     stored = self._decode(row)
                     if stored.createdBy != row["created_by"]:
                         raise ValueError("creator_mismatch")
+                self._validate_audit(connection)
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise StartupError("inventory_storage_invalid") from None
 
@@ -135,6 +242,7 @@ class InventoryRegistry:
                 actor_row = self._actor(connection, actor, core_id, home_id)
                 if actor_row["role"] != "admin":
                     raise ApiError("forbidden", 403)
+                self._validate_audit(connection)
                 count = connection.execute(
                     "SELECT COUNT(*) FROM inventory_items"
                 ).fetchone()[0]
@@ -161,28 +269,15 @@ class InventoryRegistry:
                     deviceId=body.deviceId,
                     documentIds=body.documentIds,
                 )
+                self._validate_links(connection, links)
                 stored = StoredInventoryItem(
                     label=body.label,
                     links=links,
                     readerIds=body.readerIds,
                     createdBy=actor.id,
                 )
-                plain = stored.model_dump_json().encode("utf-8")
-                if len(plain) > 32752:
-                    raise ApiError("invalid_request")
-                nonce = secrets.token_bytes(12)
-                connection.execute(
-                    "INSERT INTO inventory_items VALUES(?,?,?,?,?)",
-                    (
-                        item_id,
-                        1,
-                        actor.id,
-                        nonce,
-                        self._cipher.encrypt(
-                            nonce, plain, self._aad(item_id, 1, actor.id)
-                        ),
-                    ),
-                )
+                self._save(connection, item_id, 1, actor.id, stored)
+                self._append_audit(connection, item_id, "create", actor.id, 1)
                 row = self._row(connection, item_id)
                 return {"item": self._public(row, stored), "qr": self._qr(item_id)}
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
@@ -195,6 +290,7 @@ class InventoryRegistry:
                 row = self._row(connection, item_id)
                 stored = self._decode(row)
                 self._visible(actor_row, row, stored)
+                self._validate_links(connection, stored.links, missing="not_found")
                 return {"item": self._public(row, stored)}
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise ApiError("server_unavailable", 503) from None
@@ -211,3 +307,98 @@ class InventoryRegistry:
         if (qr_core, qr_home) != (core_id, home_id):
             raise ApiError("not_found", 404)
         return self.get(actor, core_id, home_id, item_id)
+
+    def update(self, actor, core_id, home_id, item_id, value):
+        from .models import UpdateInventoryItem
+        body = UpdateInventoryItem.model_validate(value)
+        try:
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
+                actor_row = self._actor(connection, actor, core_id, home_id)
+                if actor_row["role"] != "admin":
+                    raise ApiError("forbidden", 403)
+                self._validate_audit(connection)
+                row = self._row(connection, item_id)
+                if row["revision"] != body.expectedRevision:
+                    raise ApiError("revision_conflict", 409)
+                stored = self._decode(row)
+                links = InventoryLinks(schemaVersion=1, roomId=body.roomId,
+                    deviceId=body.deviceId, documentIds=body.documentIds)
+                self._validate_links(connection, links)
+                if (stored.label, stored.links) != (body.label, links):
+                    revision = self._next(row["revision"])
+                    stored = StoredInventoryItem(label=body.label, links=links,
+                        readerIds=stored.readerIds, createdBy=stored.createdBy)
+                    self._save(connection, item_id, revision, row["created_by"], stored)
+                    self._append_audit(connection, item_id, "update", actor.id, revision)
+                    row = self._row(connection, item_id)
+                return {"item": self._public(row, stored)}
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def grants(self, actor, core_id, home_id, item_id):
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                actor_row = self._actor(connection, actor, core_id, home_id)
+                if actor_row["role"] != "admin":
+                    raise ApiError("forbidden", 403)
+                self._validate_audit(connection)
+                row = self._row(connection, item_id)
+                stored = self._decode(row)
+                return {"schemaVersion": 1, "itemRevision": row["revision"],
+                    "grants": [{"schemaVersion": 1, "subjectId": value}
+                               for value in sorted(stored.readerIds)]}
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def set_grant(self, actor, core_id, home_id, item_id, subject_id, value, *, revoke=False):
+        from .models import SetInventoryGrant
+        body = SetInventoryGrant.model_validate(value)
+        try:
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
+                actor_row = self._actor(connection, actor, core_id, home_id)
+                if actor_row["role"] != "admin":
+                    raise ApiError("forbidden", 403)
+                self._validate_audit(connection)
+                row = self._row(connection, item_id)
+                if row["revision"] != body.expectedRevision:
+                    raise ApiError("revision_conflict", 409)
+                stored = self._decode(row)
+                readers = set(stored.readerIds)
+                if not revoke:
+                    subject = connection.execute(
+                        "SELECT disabled,must_change_password FROM users WHERE id=?", (subject_id,)
+                    ).fetchone()
+                    if subject is None or subject["disabled"] or subject["must_change_password"]:
+                        raise ApiError("not_found", 404)
+                    readers.add(subject_id)
+                else:
+                    readers.discard(subject_id)
+                ordered = sorted(readers)
+                if ordered != sorted(stored.readerIds):
+                    revision = self._next(row["revision"])
+                    stored = StoredInventoryItem(label=stored.label, links=stored.links,
+                        readerIds=ordered, createdBy=stored.createdBy)
+                    self._save(connection, item_id, revision, row["created_by"], stored)
+                    self._append_audit(connection, item_id,
+                        "revoke" if revoke else "grant", actor.id, revision)
+                    row = self._row(connection, item_id)
+                return {"item": self._public(row, stored)}
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def history(self, actor, core_id, home_id, item_id):
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                actor_row = self._actor(connection, actor, core_id, home_id)
+                item_row = self._row(connection, item_id)
+                stored = self._decode(item_row)
+                self._visible(actor_row, item_row, stored)
+                rows = self._validate_audit(connection)
+                return {"schemaVersion": 1, "verified": True, "entries": [
+                    {"schemaVersion": 1, "sequence": row["sequence"],
+                     "action": row["action"], "actorId": row["actor_id"],
+                     "itemRevision": row["item_revision"], "createdAt": row["created_at"]}
+                    for row in rows if row["item_id"] == item_id
+                ][-100:]}
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None

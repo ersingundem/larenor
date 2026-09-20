@@ -99,3 +99,55 @@ class InventoryItemResponse(FrozenModel):
 
 class CreatedInventoryItemResponse(InventoryItemResponse):
     qr: InventoryQr
+
+
+class UpdateInventoryItem(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Revision
+    label: str = Field(min_length=1, max_length=120)
+    roomId: Identity | None
+    deviceId: Identity | None
+    documentIds: list[Identity] = Field(max_length=16)
+
+    _version = field_validator("schemaVersion", mode="before")(CreateInventoryItem.integer_version.__func__)
+    _label = field_validator("label")(CreateInventoryItem.safe_label.__func__)
+
+    @field_validator("documentIds")
+    @classmethod
+    def unique_documents(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("duplicate_document")
+        return value
+
+
+class SetInventoryGrant(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Revision
+
+    _version = field_validator("schemaVersion", mode="before")(CreateInventoryItem.integer_version.__func__)
+
+
+class InventoryGrant(FrozenModel):
+    schemaVersion: Literal[1]
+    subjectId: Identity
+
+
+class InventoryGrantsResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    itemRevision: Revision
+    grants: list[InventoryGrant] = Field(max_length=64)
+
+
+class InventoryAuditEntry(FrozenModel):
+    schemaVersion: Literal[1]
+    sequence: int = Field(ge=1, le=2**63 - 1)
+    action: Literal["create", "update", "grant", "revoke"]
+    actorId: Identity
+    itemRevision: Revision
+    createdAt: float
+
+
+class InventoryHistoryResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    verified: Literal[True]
+    entries: list[InventoryAuditEntry] = Field(max_length=100)
