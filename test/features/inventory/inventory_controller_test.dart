@@ -158,6 +158,22 @@ void main() {
       );
       await retained.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
       expect(retained.entries, hasLength(1));
+      await retained.resolveManual('broken');
+      expect(retained.entries, isEmpty);
+      expect(retained.selected, isNull);
+      expect(retained.failure, InventoryFailure.invalidQr);
+
+      await retained.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
+      expect(retained.entries, hasLength(1));
+      await retained.resolveScanned(
+        'larenor:inventory:v1:$core:${'9' * 32}:$itemId',
+      );
+      expect(retained.entries, isEmpty);
+      expect(retained.selected, isNull);
+      expect(retained.failure, InventoryFailure.foreignQr);
+
+      await retained.resolveManual('larenor:inventory:v1:$core:$home:$itemId');
+      expect(retained.entries, hasLength(1));
       retainedGateway.failure = const LarenorServerException(
         'connection_failed',
       );
