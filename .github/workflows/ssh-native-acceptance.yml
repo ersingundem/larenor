@@ -58,8 +58,18 @@ jobs:
 
           ssh-keygen -q -t ed25519 -N '' -f "$fixture/host-key"
           ssh-keygen -q -t ed25519 -N "$LARENOR_SSH_KEY_PASSPHRASE" -f "$fixture/client-key"
-          cp "$fixture/client-key.pub" "$fixture/authorized_keys"
-          chmod 0600 "$fixture/host-key" "$fixture/client-key" "$fixture/authorized_keys"
+          chmod 0600 "$fixture/host-key" "$fixture/client-key"
+
+          fixture_user="larenor-fixture"
+          sudo useradd --create-home --shell /bin/bash "$fixture_user"
+          sudo passwd -d "$fixture_user"
+          fixture_group="$(id -gn "$fixture_user")"
+          sudo install -d -m 0700 -o "$fixture_user" -g "$fixture_group" \
+            "/home/$fixture_user/.ssh"
+          sudo install -m 0600 -o "$fixture_user" -g "$fixture_group" \
+            "$fixture/client-key.pub" "/home/$fixture_user/.ssh/authorized_keys"
+          chmod 0711 "$fixture"
+          sudo chown -R "$fixture_user:$fixture_group" "$fixture/sftp"
 
           read -r ssh_port tunnel_port target_port < <(python3 - <<'PY'
           import socket
@@ -80,7 +90,7 @@ jobs:
           ListenAddress 127.0.0.1
           HostKey $fixture/host-key
           PidFile $fixture/sshd.pid
-          AuthorizedKeysFile $fixture/authorized_keys
+          AuthorizedKeysFile .ssh/authorized_keys
           AuthenticationMethods publickey
           PubkeyAuthentication yes
           PasswordAuthentication no
@@ -90,7 +100,7 @@ jobs:
           PermitRootLogin no
           PermitTTY yes
           StrictModes no
-          AllowUsers $USER
+          AllowUsers $fixture_user
           AllowTcpForwarding local
           GatewayPorts no
           X11Forwarding no
@@ -121,7 +131,7 @@ jobs:
           LARENOR_SSH_FIXTURE_PORT=$ssh_port
           LARENOR_SSH_TUNNEL_PORT=$tunnel_port
           LARENOR_SSH_TARGET_PORT=$target_port
-          LARENOR_SSH_FIXTURE_USER=$USER
+          LARENOR_SSH_FIXTURE_USER=$fixture_user
           LARENOR_SSH_PRIVATE_KEY=$fixture/client-key
           LARENOR_SSH_HOST_KEY_TYPE=ssh-ed25519
           LARENOR_SSH_HOST_KEY_FINGERPRINT=$fingerprint
@@ -173,5 +183,5 @@ jobs:
             kill "$(cat "$fixture/http.pid")" 2>/dev/null || true
           fi
           if [ "${{ job.status }}" != "success" ] && [ -f "$fixture/sshd.log" ]; then
-            tail -80 "$fixture/sshd.log"
+            sudo tail -80 "$fixture/sshd.log"
           fi

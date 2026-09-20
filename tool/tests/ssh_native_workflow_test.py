@@ -37,7 +37,15 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         )
 
     def test_fixture_is_private_bounded_and_runs_exact_native_suite(self):
+        self.assertIn('fixture_user="larenor-fixture"', self.raw)
+        self.assertIn(
+            'sudo useradd --create-home --shell /bin/bash "$fixture_user"',
+            self.raw,
+        )
+        self.assertIn('sudo passwd -d "$fixture_user"', self.raw)
+        self.assertNotIn('passwd -d "$USER"', self.raw)
         self.assertIn("PasswordAuthentication no", self.raw)
+        self.assertIn("AuthenticationMethods publickey", self.raw)
         self.assertIn("PermitRootLogin no", self.raw)
         self.assertIn("AllowTcpForwarding local", self.raw)
         self.assertIn("MaxSessions 4", self.raw)
@@ -48,6 +56,9 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         self.assertIn("ssh_tunnel_panel_test.dart", self.raw)
         self.assertNotRegex(self.raw, r"\$\{\{\s*secrets\.")
         self.assertNotIn("0.0.0.0", self.raw)
+
+    def test_failure_diagnostics_can_read_root_owned_sshd_log(self):
+        self.assertIn('sudo tail -80 "$fixture/sshd.log"', self.raw)
 
     def test_android_host_contract_is_built_and_inspected(self):
         self.assertIn("flutter build apk --debug --target-platform android-arm64 --no-pub", self.raw)
