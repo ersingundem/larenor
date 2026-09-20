@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -23,6 +26,8 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   bool _opening = false;
   int _generation = 0;
   bool _foreground = true;
+  bool _visible = true;
+  ValueListenable<TickerModeData>? _ticker;
 
   @override
   void initState() {
@@ -36,11 +41,35 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = TickerMode.getValuesNotifier(context);
+    if (identical(next, _ticker)) return;
+    _ticker?.removeListener(_visibilityChanged);
+    _ticker = next;
+    _visible = next.value.enabled;
+    next.addListener(_visibilityChanged);
+  }
+
+  void _visibilityChanged() {
+    if (!mounted) return;
+    final visible = _ticker?.value.enabled ?? true;
+    if (visible == _visible) return;
+    _visible = visible;
+    _generation++;
+    _reading = false;
+    _opening = false;
+    setState(() {});
+    if (visible && _foreground) unawaited(_refresh());
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     setState(() {
       _foreground = state == AppLifecycleState.resumed;
       _generation++;
       _reading = false;
+      _opening = false;
     });
     if (_foreground) _refresh();
   }
@@ -49,14 +78,22 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
   void dispose() {
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
+    _ticker?.removeListener(_visibilityChanged);
     super.dispose();
   }
 
   bool get _active =>
-      mounted && _foreground && TickerMode.valuesOf(context).enabled;
+      mounted &&
+      _foreground &&
+      _visible &&
+      ModalRoute.of(context)?.isCurrent == true;
 
-  Future<void> _refresh() async {
-    if (!_active || _reading) return;
+  Future<void> _refresh([int? authority]) async {
+    if (!_active ||
+        _reading ||
+        (authority != null && authority != _generation)) {
+      return;
+    }
     final generation = _generation;
     setState(() {
       _reading = true;
@@ -79,8 +116,8 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
     }
   }
 
-  Future<void> _open(bool battery) async {
-    if (!_active || _opening || ModalRoute.of(context)?.isCurrent != true) {
+  Future<void> _open(bool battery, int authority) async {
+    if (!_active || _opening || authority != _generation) {
       return;
     }
     setState(() {
@@ -109,13 +146,16 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
         );
       }
     } finally {
-      if (mounted) setState(() => _opening = false);
+      if (mounted && generation == _generation) {
+        setState(() => _opening = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final generation = _generation;
     final supported = _status?.supported == true;
     String flag(bool? value) => value == null
         ? l10n.commonUnknown
@@ -171,20 +211,24 @@ class _PlaybackPowerScreenState extends ConsumerState<PlaybackPowerScreen>
                   buttonKey: const ValueKey('local-audio-open-battery'),
                   leading: const Icon(CupertinoIcons.battery_100),
                   title: Text(l10n.localAudioOpenBattery),
-                  onTap: _active && !_opening ? () => _open(true) : null,
+                  onTap: _active && !_opening
+                      ? () => _open(true, generation)
+                      : null,
                 ),
                 SettingsActionTile(
                   buttonKey: const ValueKey('local-audio-open-notifications'),
                   leading: const Icon(CupertinoIcons.bell),
                   title: Text(l10n.localAudioOpenNotifications),
-                  onTap: _active && !_opening ? () => _open(false) : null,
+                  onTap: _active && !_opening
+                      ? () => _open(false, generation)
+                      : null,
                 ),
               ],
               SettingsActionTile(
                 buttonKey: const ValueKey('local-audio-power-refresh'),
                 leading: const Icon(CupertinoIcons.refresh),
                 title: Text(l10n.commonRefresh),
-                onTap: _active && !_reading ? _refresh : null,
+                onTap: _active && !_reading ? () => _refresh(generation) : null,
               ),
             ],
           ),
