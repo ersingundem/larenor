@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,8 @@ import 'proxmox_transport_security_test.dart' show fixtureConfig;
 import 'package:larenor/features/proxmox/presentation/proxmox_tasks_screen.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'proxmox_providers_test.dart' show ControlledConnection;
 
@@ -23,6 +26,24 @@ const _app = CupertinoApp(
   locale: Locale('en'),
   home: ProxmoxTasksScreen(nodeName: 'pve'),
 );
+
+Widget _tabletApp(Locale locale) => CupertinoApp(
+  locale: locale,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context)
+        .copyWith(textScaler: const TextScaler.linear(2)),
+    child: child!,
+  ),
+  home: const ProxmoxTasksScreen(nodeName: 'pve'),
+);
+
+Future<void> frames(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.pump();
+  }
+}
 
 void main() {
   testWidgets('slow task-list reads do not overlap or poll in background', (
@@ -109,6 +130,9 @@ void main() {
       await tester.tap(find.text('backup'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      final refresh = find.byKey(const ValueKey('proxmox-task-log-refresh'));
+      expect(tester.getRect(refresh).height, greaterThanOrEqualTo(48));
+      expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
       expect(requests.where((path) => path.endsWith('/status')), hasLength(1));
       await tester.pumpWidget(const SizedBox());
       status.complete(
@@ -124,4 +148,83 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1200.0]) {
+      testWidgets('${locale.languageCode} task hierarchy fits '
+          '${width.toInt()}px at 2x text', (tester) async {
+        final semantics = tester.ensureSemantics();
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        var reads = 0;
+        try {
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                proxmoxConnectionProvider.overrideWith(
+                  ControlledConnection.new,
+                ),
+                proxmoxTasksProvider('pve').overrideWith((_) async {
+                  reads++;
+                  return const [
+                    ProxmoxTask(
+                      upid: 'UPID:pve:fixture',
+                      type: 'backup',
+                      resourceId: 'vm-100',
+                    ),
+                  ];
+                }),
+              ],
+              child: _tabletApp(locale),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final l10n = await AppLocalizations.delegate.load(locale);
+
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          final heading = find.byKey(
+            const ValueKey('proxmox-tasks-section-title'),
+          );
+          final headingNode = tester.getSemantics(heading);
+          expect(headingNode.label, l10n.proxmoxTasksTitle);
+          expect(headingNode.flagsCollection.isHeader, isTrue);
+          expect(headingNode.flagsCollection.isButton, isFalse);
+
+          for (final key in const [
+            'proxmox-tasks-refresh',
+            'proxmox-task-UPID:pve:fixture',
+          ]) {
+            final action = find.byKey(ValueKey(key));
+            final rect = tester.getRect(action);
+            expect(rect.width, greaterThanOrEqualTo(48));
+            expect(rect.height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(action).flagsCollection.isButton,
+              isTrue,
+            );
+          }
+          expect(
+            tester.widgetList<CupertinoButton>(find.byType(CupertinoButton)),
+            everyElement(
+              predicate<CupertinoButton>(
+                (button) => (button.minimumSize?.height ?? 0) >= 48,
+              ),
+            ),
+          );
+
+          Focus.of(tester.element(find.text(l10n.commonRefresh)))
+              .requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await frames(tester);
+          expect(reads, 2);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
 }

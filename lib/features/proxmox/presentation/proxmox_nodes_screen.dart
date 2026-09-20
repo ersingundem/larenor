@@ -2,8 +2,10 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/spacing.dart';
 import '../../../core/direct_home_access.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../data/models/proxmox_node.dart';
@@ -13,6 +15,8 @@ import 'proxmox_node_detail_screen.dart';
 import 'proxmox_session_guard.dart';
 import 'widgets/proxmox_usage_bar.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
 import '../../health/data/health_configuration.dart';
 
@@ -126,76 +130,107 @@ class _NodesList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final nodesAsync = ref.watch(proxmoxNodesProvider);
     final account = ref.watch(proxmoxConnectionProvider);
+    final l10n = AppLocalizations.of(context);
+    final operational = OperationalServiceScope.isOperational(context);
 
     return ServiceRootScaffold(
       title: 'Proxmox VE',
-      leading: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () {
-          if (context.mounted && current()) {
-            ref.invalidate(proxmoxNodesProvider);
-          }
-        },
-        child: const Icon(CupertinoIcons.refresh),
-      ),
-      trailing: ServiceAccountAction(
-        onSignOut: () async {
-          if (!context.mounted || !current()) return;
-          final accountNow = ref.read(proxmoxConnectionProvider);
-          if (accountNow.isLoading ||
-              accountNow.hasError ||
-              !sameHealthConfiguration(account.value, accountNow.value)) {
-            return;
-          }
-          await ref
-              .read(proxmoxConnectionProvider.notifier)
-              .signOut(isCurrent: current);
-        },
-      ),
-      slivers: nodesAsync.when(
-        skipLoadingOnRefresh: false,
-        skipLoadingOnReload: false,
-        loading: () => const [
-          SliverFilledMessage(child: CupertinoActivityIndicator()),
-        ],
-        error: (error, _) => [
-          SliverFilledMessage(
-            child: Text(AppLocalizations.of(context).healthReadError),
-          ),
-        ],
-        data: (nodes) {
-          if (nodes.isEmpty) {
-            return [
-              SliverFilledMessage(
-                child: Text(AppLocalizations.of(context).proxmoxTileNoNodes),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('proxmox-nodes-section-title'),
+              container: true,
+              header: true,
+              child: const Text('Proxmox VE'),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('proxmox-nodes-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: () {
+                  if (context.mounted && current()) {
+                    ref.invalidate(proxmoxNodesProvider);
+                  }
+                },
               ),
-            ];
-          }
-          return [
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverList.builder(
-                itemCount: nodes.length,
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: CupertinoColors.secondarySystemGroupedBackground
-                          .resolveFrom(context),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: _NodeRow(
-                      key: ValueKey(nodes[index].name),
-                      node: nodes[index],
-                      current: current,
+              SettingsActionTile(
+                buttonKey: const ValueKey('service-account-action'),
+                leading: Icon(
+                  operational
+                      ? CupertinoIcons.settings
+                      : CupertinoIcons.square_arrow_right,
+                ),
+                title: Text(
+                  operational ? l10n.settingsScreenTitle : l10n.commonSignOut,
+                ),
+                onTap: operational
+                    ? () {
+                        if (context.mounted && current()) {
+                          context.push('/settings');
+                        }
+                      }
+                    : () async {
+                        if (!context.mounted || !current()) return;
+                        final accountNow = ref.read(proxmoxConnectionProvider);
+                        if (accountNow.isLoading ||
+                            accountNow.hasError ||
+                            !sameHealthConfiguration(
+                              account.value,
+                              accountNow.value,
+                            )) {
+                          return;
+                        }
+                        await ref
+                            .read(proxmoxConnectionProvider.notifier)
+                            .signOut(isCurrent: current);
+                      },
+              ),
+            ],
+          ),
+        ),
+        ...nodesAsync.when(
+          skipLoadingOnRefresh: false,
+          skipLoadingOnReload: false,
+          loading: () => const [
+            SliverFilledMessage(child: CupertinoActivityIndicator()),
+          ],
+          error: (error, _) => [
+            SliverFilledMessage(child: Text(l10n.healthReadError)),
+          ],
+          data: (nodes) {
+            if (nodes.isEmpty) {
+              return [
+                SliverFilledMessage(child: Text(l10n.proxmoxTileNoNodes)),
+              ];
+            }
+            return [
+              SliverPadding(
+                padding: Insets.page,
+                sliver: SliverList.builder(
+                  itemCount: nodes.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: Gap.sm),
+                    child: SettingsSection(
+                      margin: EdgeInsets.zero,
+                      children: [
+                        _NodeRow(
+                          key: ValueKey(
+                            'proxmox-node-${nodes[index].name}-row',
+                          ),
+                          node: nodes[index],
+                          current: current,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ];
-        },
-      ),
+            ];
+          },
+        ),
+      ],
     );
   }
 }
@@ -209,7 +244,8 @@ class _NodeRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(proxmoxConnectionProvider);
-    return CupertinoListTile(
+    return SettingsActionTile(
+      buttonKey: ValueKey('proxmox-node-${node.name}'),
       leading: Icon(
         node.isOnline
             ? CupertinoIcons.checkmark_seal_fill
@@ -223,34 +259,34 @@ class _NodeRow extends ConsumerWidget {
             : CupertinoColors.secondaryLabel.resolveFrom(context),
       ),
       title: Text(node.name),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Row(
-          children: [
-            Expanded(
-              child: ProxmoxUsageBar(
-                label: 'CPU',
-                fraction: node.isOnline ? node.cpuFraction : null,
-              ),
+      additionalInfo: Row(
+        children: [
+          Expanded(
+            child: ProxmoxUsageBar(
+              label: 'CPU',
+              fraction: node.isOnline ? node.cpuFraction : null,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ProxmoxUsageBar(
-                label: 'RAM',
-                fraction: node.isOnline ? node.memFraction : null,
-              ),
+          ),
+          const SizedBox(width: Gap.md),
+          Expanded(
+            child: ProxmoxUsageBar(
+              label: 'RAM',
+              fraction: node.isOnline ? node.memFraction : null,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      trailing: const CupertinoListTileChevron(),
       onTap: () {
         if (!context.mounted || !current()) return;
         final accountNow = ref.read(proxmoxConnectionProvider);
+        final nodesNow = ref.read(proxmoxNodesProvider);
         if (!context.mounted ||
             accountNow.isLoading ||
             accountNow.hasError ||
             accountNow.value == null ||
+            nodesNow.isLoading ||
+            nodesNow.hasError ||
+            nodesNow.value?.contains(node) != true ||
             !sameHealthConfiguration(account.value, accountNow.value)) {
           return;
         }

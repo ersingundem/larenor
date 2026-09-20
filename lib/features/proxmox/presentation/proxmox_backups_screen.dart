@@ -2,6 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../data/models/proxmox_backup.dart';
 import '../data/models/proxmox_guest.dart';
 import '../providers/proxmox_providers.dart';
@@ -172,77 +175,68 @@ class _ProxmoxBackupsScreenState
         guestsAsync == null || guestsAsync.isLoading || guestsAsync.hasError
         ? null
         : guestsAsync.value;
+    final l10n = AppLocalizations.of(context);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(widget.storageName),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed:
-              _backingUp ||
-                  _needsReview ||
-                  lease == null ||
-                  guests?.isNotEmpty != true
-              ? null
-              : () => _backUpNow(lease, guests!),
-          child: _sent
-              ? const CupertinoActivityIndicator()
-              : const Icon(CupertinoIcons.add),
-        ),
-      ),
-      child: SafeArea(
-        child: !_available
-            ? Center(
-                child: Text(AppLocalizations.of(context).proxmoxSessionExpired),
-              )
-            : Column(
-                children: [
-                  if (_message != null || _needsReview)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        _needsReview
-                            ? AppLocalizations.of(context).proxmoxActionUnknown
-                            : _message!,
-                      ),
-                    ),
-                  Expanded(
-                    child: backupsAsync!.when(
-                      skipLoadingOnRefresh: false,
-                      skipLoadingOnReload: false,
-                      skipError: false,
-                      loading: () =>
-                          const Center(child: CupertinoActivityIndicator()),
-                      error: (error, _) => Center(
-                        child: Text(
-                          AppLocalizations.of(context).healthReadError,
-                        ),
-                      ),
-                      data: (backups) {
-                        if (backups.isEmpty) {
-                          return Center(
-                            child: Text(
-                              AppLocalizations.of(context).proxmoxNoBackups,
-                            ),
-                          );
-                        }
-                        return ListView(
-                          children: [
-                            const SizedBox(height: 16),
-                            CupertinoListSection.insetGrouped(
-                              children: [
-                                for (final backup in backups)
-                                  _BackupRow(backup: backup),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
+    return ServiceRootScaffold(
+      title: widget.storageName,
+      slivers: [
+        if (!_available)
+          SliverFilledMessage(child: Text(l10n.proxmoxSessionExpired))
+        else ...[
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Semantics(
+                key: const ValueKey('proxmox-backups-action-title'),
+                container: true,
+                header: true,
+                child: Text(l10n.proxmoxBackUpNowTitle),
               ),
-      ),
+              footer: _message == null && !_needsReview
+                  ? null
+                  : Text(_needsReview ? l10n.proxmoxActionUnknown : _message!),
+              children: [
+                SettingsActionTile(
+                  buttonKey: const ValueKey('proxmox-backup-now-action'),
+                  leading: _sent
+                      ? const CupertinoActivityIndicator()
+                      : const Icon(CupertinoIcons.add),
+                  title: Text(l10n.proxmoxBackUpNowTitle),
+                  onTap:
+                      _backingUp ||
+                          _needsReview ||
+                          lease == null ||
+                          guests?.isNotEmpty != true
+                      ? null
+                      : () => _backUpNow(lease, guests!),
+                ),
+              ],
+            ),
+          ),
+          ...backupsAsync!.when(
+            skipLoadingOnRefresh: false,
+            skipLoadingOnReload: false,
+            skipError: false,
+            loading: () => const [
+              SliverFilledMessage(child: CupertinoActivityIndicator()),
+            ],
+            error: (error, _) => [
+              SliverFilledMessage(child: Text(l10n.healthReadError)),
+            ],
+            data: (backups) => [
+              if (backups.isEmpty)
+                SliverFilledMessage(child: Text(l10n.proxmoxNoBackups))
+              else
+                SliverToBoxAdapter(
+                  child: SettingsSection(
+                    children: [
+                      for (final backup in backups) _BackupRow(backup: backup),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
