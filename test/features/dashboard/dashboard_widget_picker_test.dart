@@ -614,21 +614,32 @@ void main() {
   testWidgets('website input validates without creating a webview', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final h = _Harness();
     await h.mount(tester, initialType: TileType.webview);
-    await tester.enterText(
-      find.byKey(const ValueKey('widget-website-url')),
-      'https://user:secret@example.com',
+    final url = find.byKey(const ValueKey('widget-website-url'));
+    final settings = find.byKey(const ValueKey('widget-website-settings'));
+    final add = find.byKey(const ValueKey('widget-website-add'));
+    expect(tester.getRect(url).height, greaterThanOrEqualTo(48));
+    expect(tester.getSemantics(url).flagsCollection.isTextField, isTrue);
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey('widget-website-url-semantics')),
+          )
+          .label,
+      contains('Website URL'),
     );
-    await _tap(tester, find.byKey(const ValueKey('widget-website-add')));
+    expect(tester.getRect(settings).height, greaterThanOrEqualTo(48));
+    expect(tester.getRect(add).height, greaterThanOrEqualTo(48));
+    await tester.enterText(url, 'https://user:secret@example.com');
+    await _tap(tester, add);
     expect(h.results, isEmpty);
-    await tester.enterText(
-      find.byKey(const ValueKey('widget-website-url')),
-      'https://example.com/page',
-    );
-    await _tap(tester, find.byKey(const ValueKey('widget-website-add')));
+    await tester.enterText(url, 'https://example.com/page');
+    await _tap(tester, add);
     expect(h.results.single.url, 'https://example.com/page');
     expect(h.container.exists(entitiesProvider), isFalse);
+    semantics.dispose();
   });
   for (final size in [const Size(320, 900), const Size(1440, 1100)]) {
     testWidgets('gallery and device rows fit $size at 2x text', (tester) async {

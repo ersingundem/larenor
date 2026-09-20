@@ -187,6 +187,22 @@ void main() {
           expect(find.byType(ServiceRootScaffold), findsOneWidget);
           expect(find.byType(SettingsSection), findsWidgets);
           expect(find.byType(SettingsActionTile), findsWidgets);
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(MusicCenterScreen)),
+          );
+          for (final label in [
+            l10n.musicOutputs,
+            l10n.musicLibrary,
+            l10n.musicSearch,
+            l10n.musicQueue,
+          ]) {
+            expect(
+              tester
+                  .getRect(find.widgetWithText(CupertinoButton, label).first)
+                  .height,
+              greaterThanOrEqualTo(48),
+            );
+          }
           expect(
             tester
                 .getSemantics(
@@ -312,6 +328,34 @@ void main() {
     );
   }
   testWidgets(
+    'catalog refresh blocks a retained item callback until the source is current',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester);
+      await h.library(tester);
+      final button = tester.widget<CupertinoButton>(
+        find
+            .ancestor(
+              of: find.text('Song 0'),
+              matching: find.byType(CupertinoButton),
+            )
+            .first,
+      );
+      final query = h.reads.queries.last;
+      h.reads.libraryGate = Completer<Object?>();
+      h.container.invalidate(musicLibraryProvider(query));
+      await tester.pump();
+
+      button.onPressed!();
+      await tester.pump();
+
+      expect(find.byType(MusicPlaybackScreen), findsNothing);
+      expect(h.fixture.api.calls, 0);
+      h.reads.libraryGate!.complete(musicLibrary(query));
+      await tester.pumpAndSettle();
+    },
+  );
+  testWidgets(
     'library paging is explicit, lazy, bounded, and resets for media type',
     (tester) async {
       final h = _Harness();
@@ -345,6 +389,7 @@ void main() {
   testWidgets(
     'search sends only submitted query and refuses stale retained submit callback',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final h = _Harness();
       await h.mount(tester);
       await h.library(tester);
@@ -353,6 +398,15 @@ void main() {
       await tester.enterText(
         find.byKey(const ValueKey('music-search-field')),
         'Song',
+      );
+      final field = find.byKey(const ValueKey('music-search-field'));
+      expect(tester.getRect(field).height, greaterThanOrEqualTo(48));
+      expect(tester.getSemantics(field).flagsCollection.isTextField, isTrue);
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('music-search-semantics')))
+            .label,
+        contains('Search music'),
       );
       await tester.pump(const Duration(seconds: 1));
       expect(h.reads.searchReads, 0);
@@ -366,6 +420,7 @@ void main() {
       callback();
       await tester.pumpAndSettle();
       expect(h.reads.searchReads, 1);
+      semantics.dispose();
     },
   );
   testWidgets('queue overview polls only its visible selected output', (

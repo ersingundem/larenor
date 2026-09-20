@@ -369,17 +369,25 @@ class _DashboardWidgetPickerScreenState
                 const SizedBox(height: 12),
                 Text(l10n.webPanelSessionHint),
                 const SizedBox(height: 20),
-                CupertinoTextField(
-                  key: const ValueKey('widget-website-url'),
-                  controller: _website,
-                  keyboardType: TextInputType.url,
-                  autocorrect: false,
-                  placeholder: 'https://example.com',
-                  onChanged: (_) {
-                    if (_invalidWebsite) {
-                      setState(() => _invalidWebsite = false);
-                    }
-                  },
+                Semantics(
+                  key: const ValueKey('widget-website-url-semantics'),
+                  label: l10n.dashboardWebsiteUrlTitle,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: CupertinoTextField(
+                      key: const ValueKey('widget-website-url'),
+                      controller: _website,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      placeholder: 'https://example.com',
+                      padding: const EdgeInsets.all(14),
+                      onChanged: (_) {
+                        if (_invalidWebsite) {
+                          setState(() => _invalidWebsite = false);
+                        }
+                      },
+                    ),
+                  ),
                 ),
                 if (_invalidWebsite)
                   Padding(
@@ -389,6 +397,7 @@ class _DashboardWidgetPickerScreenState
                 const SizedBox(height: 16),
                 CupertinoButton(
                   key: const ValueKey('widget-website-settings'),
+                  minimumSize: const Size(48, 48),
                   onPressed: _openingKeenetic
                       ? null
                       : dashboardAction(_websiteSettings),
@@ -396,6 +405,7 @@ class _DashboardWidgetPickerScreenState
                 ),
                 CupertinoButton.filled(
                   key: const ValueKey('widget-website-add'),
+                  minimumSize: const Size(48, 48),
                   onPressed: dashboardAction(() {
                     final url = dashboardWebsiteUrl(_website.text);
                     if (url == null) {
@@ -458,6 +468,7 @@ class _DashboardWidgetPickerScreenState
               children: [
                 _message(l10n.dashboardWidgetPickerUnavailable),
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   onPressed: dashboardAction(
                     () => ref.invalidate(entitiesProvider),
                   ),
@@ -502,8 +513,13 @@ class _DashboardWidgetPickerScreenState
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: CupertinoSearchTextField(
-                onChanged: (value) => setState(() => _query = value),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: CupertinoSearchTextField(
+                  key: const ValueKey('widget-entity-search'),
+                  placeholder: l10n.commonSearch,
+                  onChanged: (value) => setState(() => _query = value),
+                ),
               ),
             ),
           ),

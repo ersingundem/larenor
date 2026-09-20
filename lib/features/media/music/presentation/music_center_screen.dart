@@ -114,6 +114,42 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
       _active &&
       ModalRoute.of(context)?.isCurrent == true;
 
+  bool _selectionCurrent(MusicCatalogSelection selection) {
+    final discovery = ref.read(musicDiscoveryProvider);
+    if (discovery.isLoading || discovery.hasError) return false;
+    final currentDiscovery = discovery.value;
+    if (currentDiscovery == null ||
+        !identical(
+          currentDiscovery.accountGeneration,
+          selection.accountGeneration,
+        ) ||
+        !currentDiscovery.entries.any(
+          (entry) => entry.id == selection.configEntryId && entry.isLoaded,
+        )) {
+      return false;
+    }
+    if (selection.libraryQuery case final query?) {
+      final state = ref.read(musicLibraryProvider(query));
+      if (state.isLoading || state.hasError) return false;
+      final read = state.value;
+      if (read?.failure != null ||
+          read?.value?.items.any((item) => identical(item, selection.item)) !=
+              true) {
+        return false;
+      }
+    } else {
+      final state = ref.read(musicSearchProvider(selection.searchQuery!));
+      if (state.isLoading || state.hasError) return false;
+      final read = state.value;
+      if (read?.failure != null ||
+          read?.value?.items.any((item) => identical(item, selection.item)) !=
+              true) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<String?> _selectRoute(WidgetBuilder builder) async {
     final route = CupertinoModalPopupRoute<String>(
       builder: builder,
@@ -133,9 +169,10 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
   ) async {
     if (!_canAct(generation) || _openingPlayback) return;
     if (!identical(
-      ref.read(musicAccountGenerationProvider),
-      selection.accountGeneration,
-    )) {
+          ref.read(musicAccountGenerationProvider),
+          selection.accountGeneration,
+        ) ||
+        !_selectionCurrent(selection)) {
       return;
     }
     setState(() => _openingPlayback = true);
@@ -278,6 +315,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
                   children: [
                     for (final tab in _MusicTab.values)
                       CupertinoButton(
+                        minimumSize: const Size(48, 48),
                         color: _tab == tab ? CupertinoColors.activeBlue : null,
                         foregroundColor: _tab == tab
                             ? CupertinoColors.white
@@ -323,6 +361,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
                     style: AppText.footnote,
                   ),
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   padding: EdgeInsets.zero,
                   onPressed: !_active || reading?.isLoading == true
                       ? null
@@ -359,6 +398,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
                 ),
                 if (_tab != _MusicTab.outputs && discovery != null) ...[
                   CupertinoButton(
+                    minimumSize: const Size(48, 48),
                     padding: EdgeInsets.zero,
                     onPressed: discovery.entries.isEmpty
                         ? null
@@ -496,6 +536,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
                     style: AppText.footnote,
                   ),
                   CupertinoButton(
+                    minimumSize: const Size(48, 48),
                     padding: EdgeInsets.zero,
                     onPressed: !_active || !target.enabled || !target.available
                         ? null
@@ -585,6 +626,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
             children: [
               for (final type in MusicMediaType.values)
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
@@ -620,6 +662,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
             children: [
               if (_offset > 0)
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   onPressed: reading.isLoading
                       ? null
                       : () {
@@ -633,6 +676,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
                 ),
               if (page?.mayHaveMore == true && _offset < 1000000)
                 CupertinoButton(
+                  minimumSize: const Size(48, 48),
                   onPressed: reading.isLoading
                       ? null
                       : () {
@@ -675,16 +719,24 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-              CupertinoTextField(
-                key: const ValueKey('music-search-field'),
-                controller: _search,
-                maxLength: 256,
-                placeholder: l10n.musicSearchPlaceholder,
-                textInputAction: TextInputAction.search,
-                onSubmitted: submit,
-                padding: const EdgeInsets.all(14),
+              Semantics(
+                key: const ValueKey('music-search-semantics'),
+                label: l10n.musicSearch,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: CupertinoTextField(
+                    key: const ValueKey('music-search-field'),
+                    controller: _search,
+                    maxLength: 256,
+                    placeholder: l10n.musicSearchPlaceholder,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: submit,
+                    padding: const EdgeInsets.all(14),
+                  ),
+                ),
               ),
               CupertinoButton(
+                minimumSize: const Size(48, 48),
                 onPressed: () => submit(_search.text),
                 child: Text(l10n.musicSearch),
               ),
@@ -744,6 +796,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
             children: [
               Text(l10n.musicQueueHint, style: AppText.body),
               CupertinoButton(
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
                 onPressed: () => _chooseQueue(discovery),
                 child: Text(target?.name ?? l10n.musicChooseOutput),
@@ -799,6 +852,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
           final item = items[index];
           return MusicPanel(
             child: CupertinoButton(
+              minimumSize: const Size(48, 48),
               padding: EdgeInsets.zero,
               alignment: Alignment.centerLeft,
               onPressed: !_active || _openingPlayback
