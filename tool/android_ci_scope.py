@@ -31,8 +31,14 @@ SAFE_SKIP_PATTERNS = (
     '.github/workflows/qbittorrent-managed-characterization.yml',
     '.github/workflows/seerr-managed-characterization.yml',
     '.github/workflows/unified-media-stack-managed.yml',
+    'deploy/larenor-server/.env.example',
+    'deploy/larenor-server/unified.compose.yaml',
+    'deploy/larenor-server/unified_package.py',
+    'deploy/larenor-server/deployment_bundle.py',
     'tool/native_ci_scope.py',
     'tool/tests/native_ci_scope_test.py',
+    'tool/unified_media_stack_managed_ci.py',
+    'tool/tests/unified_media_stack_*',
 )
 
 
