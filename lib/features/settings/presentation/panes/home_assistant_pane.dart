@@ -25,6 +25,11 @@ class HomeAssistantPane extends StatelessWidget {
       title: l10n.settingsCategoryHomeAssistant,
       children: [
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('home-assistant-tools-header'),
+            header: true,
+            child: Text(l10n.haTools),
+          ),
           footer: Text(l10n.haFrontendHint),
           children: [
             SettingsNavRow(
@@ -34,6 +39,7 @@ class HomeAssistantPane extends StatelessWidget {
               builder: (_) => const HaActionsScreen(),
             ),
             SettingsNavRow(
+              key: const ValueKey('home-assistant-tools-action'),
               icon: CupertinoIcons.chevron_left_slash_chevron_right,
               color: CupertinoColors.systemIndigo,
               title: l10n.haTools,
@@ -48,6 +54,11 @@ class HomeAssistantPane extends StatelessWidget {
           ],
         ),
         SettingsSection(
+          header: Semantics(
+            key: const ValueKey('home-assistant-management-header'),
+            header: true,
+            child: Text(l10n.settingsCategoryHomeAssistant),
+          ),
           children: [
             SettingsNavRow(
               icon: CupertinoIcons.cube_box,
