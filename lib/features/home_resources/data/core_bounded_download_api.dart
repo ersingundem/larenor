@@ -170,6 +170,8 @@ final class CoreBoundedBlobUploadResult {
 
 enum CoreBoundedTransferState { accepted, completed, interrupted }
 
+enum CoreBoundedTransferEventKind { baseline, accepted, result }
+
 /// Public, content-free proof retained by Core for one bounded transfer.
 final class CoreBoundedTransferReceipt {
   const CoreBoundedTransferReceipt._({
@@ -278,6 +280,158 @@ final class CoreBoundedTransferReceipt {
       sha256 == blob.sha256 &&
       contentType == blob.contentType &&
       serviceRevision == blob.serviceRevision;
+
+  bool sameEvidence(CoreBoundedTransferReceipt other) =>
+      requestId == other.requestId &&
+      traceId == other.traceId &&
+      state == other.state &&
+      contentLength == other.contentLength &&
+      sha256 == other.sha256 &&
+      contentType == other.contentType &&
+      serviceRevision == other.serviceRevision &&
+      createdAt == other.createdAt &&
+      updatedAt == other.updatedAt;
+}
+
+final class CoreBoundedTransferEvent {
+  const CoreBoundedTransferEvent._(
+    this.sequence,
+    this.kind,
+    this.actorId,
+    this.receipt,
+  );
+
+  factory CoreBoundedTransferEvent.fromJson(Object? raw) {
+    const keys = {'sequence', 'kind', 'actorId', 'receipt'};
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        !keys.every(raw.containsKey)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final sequence = raw['sequence'];
+    final actorId = raw['actorId'];
+    final kind = switch (raw['kind']) {
+      'baseline' => CoreBoundedTransferEventKind.baseline,
+      'accepted' => CoreBoundedTransferEventKind.accepted,
+      'result' => CoreBoundedTransferEventKind.result,
+      _ => null,
+    };
+    final receipt = CoreBoundedTransferReceipt.fromJson(raw['receipt']);
+    if (sequence is! int ||
+        sequence < 1 ||
+        sequence > 2048 ||
+        actorId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(actorId) ||
+        kind == null ||
+        kind == CoreBoundedTransferEventKind.accepted &&
+            receipt.state != CoreBoundedTransferState.accepted ||
+        kind == CoreBoundedTransferEventKind.result &&
+            receipt.state == CoreBoundedTransferState.accepted ||
+        kind == CoreBoundedTransferEventKind.baseline &&
+            receipt.state == CoreBoundedTransferState.accepted) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    return CoreBoundedTransferEvent._(sequence, kind, actorId, receipt);
+  }
+
+  final int sequence;
+  final CoreBoundedTransferEventKind kind;
+  final String actorId;
+  final CoreBoundedTransferReceipt receipt;
+
+  @override
+  String toString() => 'CoreBoundedTransferEvent';
+}
+
+final class CoreBoundedTransferEventPage {
+  const CoreBoundedTransferEventPage._(
+    this.chainId,
+    this.headSequence,
+    this.events,
+    this.nextAfter,
+  );
+
+  factory CoreBoundedTransferEventPage.fromJson(
+    Object? raw, {
+    required HomeResourceRecord target,
+    required int? after,
+    required int limit,
+  }) {
+    const keys = {
+      'schemaVersion',
+      'ref',
+      'chainId',
+      'headSequence',
+      'events',
+      'nextAfter',
+      'verified',
+    };
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        !keys.every(raw.containsKey)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final ref = raw['ref'];
+    const refKeys = {'schemaVersion', 'coreId', 'homeId', 'kind', 'id'};
+    final chainId = raw['chainId'];
+    final head = raw['headSequence'];
+    final values = raw['events'];
+    final next = raw['nextAfter'];
+    if (raw['schemaVersion'] is! int ||
+        raw['schemaVersion'] != 1 ||
+        raw['verified'] is! bool ||
+        raw['verified'] != true ||
+        ref is! Map ||
+        ref.length != refKeys.length ||
+        !refKeys.every(ref.containsKey) ||
+        ref['schemaVersion'] is! int ||
+        ref['schemaVersion'] != 1 ||
+        ref['coreId'] != target.context.coreId ||
+        ref['homeId'] != target.context.homeId ||
+        ref['kind'] != 'resource' ||
+        ref['id'] != target.id ||
+        chainId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(chainId) ||
+        head is! int ||
+        head < 0 ||
+        head > 2048 ||
+        values is! List ||
+        values.length > limit ||
+        next != null && (next is! int || next < 1 || next > 2048)) {
+      throw const CoreBoundedDownloadException('invalid_response');
+    }
+    final events = List<CoreBoundedTransferEvent>.unmodifiable(
+      values.map(CoreBoundedTransferEvent.fromJson),
+    );
+    var expected = (after ?? 0) + 1;
+    for (final event in events) {
+      if (event.sequence != expected || event.sequence > head) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+      expected++;
+    }
+    if (events.isEmpty) {
+      if (next != null || head != (after ?? 0)) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+    } else {
+      final last = events.last.sequence;
+      if (next == null && last != head ||
+          next != null &&
+              (events.length != limit || next != last || next >= head)) {
+        throw const CoreBoundedDownloadException('invalid_response');
+      }
+    }
+    return CoreBoundedTransferEventPage._(chainId, head, events, next as int?);
+  }
+
+  final String chainId;
+  final int headSequence;
+  final List<CoreBoundedTransferEvent> events;
+  final int? nextAfter;
+
+  @override
+  String toString() => 'CoreBoundedTransferEventPage';
 }
 
 /// Consumes only the packaged Core v1 bounded stream. It never retries, ranges,
@@ -703,6 +857,31 @@ final class CoreBoundedDownloadApi {
       }
     }
     return values;
+  }
+
+  Future<CoreBoundedTransferEventPage> eventHistory({
+    required String token,
+    required HomeResourceRecord target,
+    int? after,
+    int limit = 50,
+  }) async {
+    _target(target);
+    if (limit < 1 ||
+        limit > 50 ||
+        after != null && (after < 1 || after > 2048)) {
+      throw const CoreBoundedDownloadException('invalid_request');
+    }
+    final raw = await _readJson(
+      token: token,
+      path: '${_transferPath(target)}/events',
+      query: {if (after != null) 'after': '$after', 'limit': '$limit'},
+    );
+    return CoreBoundedTransferEventPage.fromJson(
+      raw,
+      target: target,
+      after: after,
+      limit: limit,
+    );
   }
 
   Future<CoreBoundedTransferReceipt> verifyCompleted({

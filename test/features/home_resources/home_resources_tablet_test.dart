@@ -656,10 +656,28 @@ void main() {
                 () => Future<void>.delayed(const Duration(milliseconds: 20)),
               );
               await flush(tester);
+              final receiptKey = ValueKey(
+                'core-resource-transfer-receipt-${'c' * 32}',
+              );
+              for (var attempt = 0; attempt < 30; attempt++) {
+                if (find.byKey(receiptKey).evaluate().isNotEmpty) break;
+                await tester.pump(const Duration(milliseconds: 10));
+                await tester.runAsync(
+                  () => Future<void>.delayed(const Duration(milliseconds: 5)),
+                );
+              }
+              await flush(tester);
+              expect(find.byKey(receiptKey), findsOneWidget);
               expect(
                 find.byKey(
-                  ValueKey('core-resource-transfer-receipt-${'c' * 32}'),
+                  ValueKey(
+                    'core-resource-transfer-history-verified-${unicode['ref']['id'] as String}',
+                  ),
                 ),
+                findsOneWidget,
+              );
+              expect(
+                find.text(l10n.coreResourceTransferHistoryVerified(2)),
                 findsOneWidget,
               );
               expect(

@@ -18,6 +18,7 @@ import '../data/home_resources_controller.dart';
 import '../data/core_bounded_download_api.dart';
 import '../data/core_bounded_download_controller.dart';
 import '../data/core_bounded_download_file_access.dart';
+import '../data/core_bounded_transfer_event_checkpoint.dart';
 import '../data/core_bounded_upload_file_access.dart';
 import '../domain/home_resource_models.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
@@ -56,6 +57,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       ref.read(homeResourcesClockProvider),
       _current,
       ref.read(coreBoundedUploadFileAccessProvider),
+      CoreBoundedEventCheckpointStore(),
     );
     _controller.addListener(_resourceAuthorityChanged);
   }
@@ -479,15 +481,37 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                                 ),
                                 CoreBoundedHistoryPhase.ready
                                     when _download.history.isEmpty =>
-                                  Text(
-                                    l10n.coreResourceTransferHistoryEmpty,
-                                    key: ValueKey(
-                                      'core-resource-transfer-history-empty-${entry.id}',
-                                    ),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l10n.coreResourceTransferHistoryVerified(
+                                          _download.historyHeadSequence ?? 0,
+                                        ),
+                                        key: ValueKey(
+                                          'core-resource-transfer-history-verified-${entry.id}',
+                                        ),
+                                      ),
+                                      Text(
+                                        l10n.coreResourceTransferHistoryEmpty,
+                                        key: ValueKey(
+                                          'core-resource-transfer-history-empty-${entry.id}',
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 CoreBoundedHistoryPhase.ready => Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Text(
+                                      l10n.coreResourceTransferHistoryVerified(
+                                        _download.historyHeadSequence ?? 0,
+                                      ),
+                                      key: ValueKey(
+                                        'core-resource-transfer-history-verified-${entry.id}',
+                                      ),
+                                    ),
                                     for (final receipt in _download.history)
                                       Padding(
                                         key: ValueKey(

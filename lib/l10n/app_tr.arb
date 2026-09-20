@@ -2015,6 +2015,10 @@
   "coreResourceUploadFailed": "Dosya okunamadı, doğrulanamadı veya kaydedilemedi.",
   "coreResourceTransferHistory": "Aktarım geçmişini görüntüle",
   "coreResourceTransferHistoryLoading": "Doğrulanmış aktarım geçmişi yükleniyor…",
+  "coreResourceTransferHistoryVerified": "Olay zinciri doğrulandı · imleç {sequence}.",
+  "@coreResourceTransferHistoryVerified": {
+    "placeholders": {"sequence": {"type": "int"}}
+  },
   "coreResourceTransferHistoryEmpty": "Henüz aktarım makbuzu yok.",
   "coreResourceTransferAccepted": "Aktarım kabul edildi",
   "coreResourceTransferCompleted": "Aktarım tamamlandı",

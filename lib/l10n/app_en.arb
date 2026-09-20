@@ -2336,6 +2336,10 @@
   "coreResourceUploadFailed": "The file could not be read, verified, or stored.",
   "coreResourceTransferHistory": "View transfer history",
   "coreResourceTransferHistoryLoading": "Loading verified transfer history…",
+  "coreResourceTransferHistoryVerified": "Event chain verified · cursor {sequence}.",
+  "@coreResourceTransferHistoryVerified": {
+    "placeholders": {"sequence": {"type": "int"}}
+  },
   "coreResourceTransferHistoryEmpty": "No transfer receipts yet.",
   "coreResourceTransferAccepted": "Transfer accepted",
   "coreResourceTransferCompleted": "Transfer completed",
