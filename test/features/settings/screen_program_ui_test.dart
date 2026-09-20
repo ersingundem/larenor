@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -11,6 +12,8 @@ import 'package:larenor/features/settings/presentation/screen_program_screen.dar
 import 'package:larenor/features/settings/providers/screen_program_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _Store implements ScreenProgramStore {
   _Store([ScreenProgram? initial])
@@ -85,6 +88,63 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'screen program uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final store = _Store();
+          try {
+            await _mount(
+              tester,
+              store,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ScreenProgramScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('screen-program-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.screenProgramTitle);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final add = find.byKey(const ValueKey('screen-program-add'));
+            final addNode = tester.getSemantics(add);
+            expect(addNode.label, l10n.screenProgramAdd);
+            expect(addNode.flagsCollection.isButton, isTrue);
+            expect(addNode.rect.width, greaterThanOrEqualTo(48));
+            expect(addNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: add,
+              matching: find.text(l10n.screenProgramAdd),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const ValueKey('screen-rule-name')),
+              findsOneWidget,
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   testWidgets(
     'opening a schedule does not write settings or issue platform commands',
     (tester) async {

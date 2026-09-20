@@ -5,9 +5,12 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/screen_program.dart';
 import '../providers/screen_program_provider.dart';
+import 'panes/settings_nav_row.dart';
 
 String _time(int minutes) =>
     '${(minutes ~/ 60).toString().padLeft(2, '0')}:${(minutes % 60).toString().padLeft(2, '0')}';
@@ -180,30 +183,47 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
         : reading.value;
     final epoch = sessionGeneration;
     final enabled = _current(epoch) && !_saving;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
-          l10n.screenProgramTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 740),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(l10n.screenProgramHint, style: AppText.body),
-                  const SizedBox(height: 12),
-                  if (reading.isLoading)
-                    const Center(child: CupertinoActivityIndicator())
-                  else if (program == null)
-                    Text(l10n.screenProgramSaveFailed)
-                  else ...[
+    return SettingsPaneScaffold(
+      title: l10n.screenProgramTitle,
+      children: [
+        SettingsSection(
+          header: Semantics(
+            key: const ValueKey('screen-program-heading'),
+            container: true,
+            header: true,
+            child: Text(l10n.screenProgramTitle),
+          ),
+          footer: Text(l10n.screenProgramHint),
+          children: [
+            if (reading.isLoading)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CupertinoActivityIndicator()),
+              )
+            else if (program == null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l10n.screenProgramSaveFailed),
+              )
+            else ...[
+              if (program.rules.length < ScreenProgram.maxRules)
+                Semantics(
+                  container: true,
+                  child: SettingsActionTile(
+                    buttonKey: const ValueKey('screen-program-add'),
+                    leading: const Icon(CupertinoIcons.add_circled),
+                    title: Text(l10n.screenProgramAdd),
+                    onTap: enabled ? () => _edit(program) : null,
+                  ),
+                ),
+              if (program.rules.isNotEmpty)
+                for (var index = 0; index < program.rules.length; index++)
+                  _ruleCard(program, index, enabled),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     MergeSemantics(
                       child: Row(
                         children: [
@@ -231,38 +251,42 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
                       ),
                     ),
                     Text(l10n.screenProgramDefault, style: AppText.footnote),
-                    const SizedBox(height: 16),
-                    if (program.rules.isEmpty) Text(l10n.screenProgramEmpty),
-                    for (var index = 0; index < program.rules.length; index++)
-                      _ruleCard(program, index, enabled),
-                    if (program.rules.length < ScreenProgram.maxRules)
-                      CupertinoButton(
-                        key: const ValueKey('screen-program-add'),
-                        onPressed: enabled ? () => _edit(program) : null,
-                        child: Text(l10n.screenProgramAdd),
-                      ),
                   ],
-                  if (_saving)
-                    const Center(child: CupertinoActivityIndicator()),
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: TextStyle(
-                        color: CupertinoColors.systemRed.resolveFrom(context),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  Text(l10n.screenProgramPriority, style: AppText.footnote),
-                  const SizedBox(height: 12),
-                  Text(l10n.screenProgramLocalTime, style: AppText.footnote),
-                  const SizedBox(height: 12),
-                  Text(l10n.screenProgramLimit, style: AppText.footnote),
-                ],
+                ),
+              ),
+              if (program.rules.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(l10n.screenProgramEmpty),
+                ),
+            ],
+          ],
+        ),
+        if (_saving)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              _error!,
+              style: TextStyle(
+                color: CupertinoColors.systemRed.resolveFrom(context),
               ),
             ),
           ),
+        SettingsSection(
+          footer: Text(l10n.screenProgramLimit),
+          children: [
+            CupertinoListTile(
+              title: Text(l10n.screenProgramPriority),
+              subtitle: Text(l10n.screenProgramLocalTime),
+            ),
+          ],
         ),
-      ),
+      ],
     );
   }
 
