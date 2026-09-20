@@ -79,6 +79,41 @@ class CheckCommitProgressTest(unittest.TestCase):
             self.assertEqual(len(values), 3)
             self.assertEqual(values[-1].queue, (14, 125))
 
+    def test_checks_pr_commits_when_the_base_branch_advances(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            self._git(repo, 'init', '-q')
+            self._git(repo, 'config', 'user.name', 'Larenor Test')
+            self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+            self._commit(repo, 'root', 'base')
+            self._git(repo, 'checkout', '-q', '-b', 'feature')
+            head = self._commit(repo, 'feature', self._message(
+                'feature commit', 14, 125, 0, 63))
+            self._git(repo, 'checkout', '-q', '-')
+            base = self._commit(repo, 'main', self._message(
+                'concurrent main commit', 14, 125, 0, 63))
+
+            entries = check_commit_progress.read_progress_entries(
+                repo, base, head)
+
+            self.assertEqual([entry.commit for entry in entries], [head])
+
+    def test_rejects_disconnected_histories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            self._git(repo, 'init', '-q')
+            self._git(repo, 'config', 'user.name', 'Larenor Test')
+            self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+            base = self._commit(repo, 'base', 'base')
+            self._git(repo, 'checkout', '-q', '--orphan', 'disconnected')
+            head = self._commit(repo, 'head', self._message(
+                'disconnected commit', 14, 125, 0, 63))
+
+            with self.assertRaisesRegex(
+                    check_commit_progress.ProgressCheckError,
+                    '^invalid_commit_range$'):
+                check_commit_progress.read_progress(repo, base, head)
+
     def test_reports_each_commit_progress_without_commit_message(self):
         entries = [
             check_commit_progress.ProgressEntry(

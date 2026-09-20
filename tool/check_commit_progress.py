@@ -71,13 +71,16 @@ def validate_sequence(history, expected):
 
 
 def read_progress_entries(repo, base, head):
-    ancestor = subprocess.run(
-        ['git', 'merge-base', '--is-ancestor', base, head], cwd=repo,
-        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if ancestor.returncode != 0:
+    common = subprocess.run(
+        ['git', 'merge-base', base, head], cwd=repo, check=False, text=True,
+        capture_output=True)
+    merge_bases = common.stdout.splitlines()
+    if common.returncode != 0 or len(merge_bases) != 1:
         raise ProgressCheckError('invalid_commit_range')
+    merge_base = merge_bases[0]
     commits = subprocess.run(
-        ['git', 'rev-list', '--reverse', '--topo-order', f'{base}..{head}'],
+        ['git', 'rev-list', '--reverse', '--topo-order',
+         f'{merge_base}..{head}'],
         cwd=repo, check=True, text=True, capture_output=True).stdout.splitlines()
     history = []
     for commit in commits:

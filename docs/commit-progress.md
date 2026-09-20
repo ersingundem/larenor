@@ -47,3 +47,8 @@ the pull request head to match the validated queue. Direct commits and commits
 from parallel branches therefore follow the same visible rule. Its GitHub
 Actions summary also lists every short commit ID with both percentages, so the
 progress attached to each commit is visible without opening commit messages.
+
+The proposed range begins at the pull request's merge base. A concurrent squash
+merge can advance `main` without invalidating an otherwise independent branch;
+only commits unique to the pull request are checked. Repositories with no common
+history are still rejected.
