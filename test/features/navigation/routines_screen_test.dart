@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,9 @@ import 'package:larenor/features/ha_client/data/rest_client.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/navigation/presentation/routines_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _fixtures = [
   HaEntity(
@@ -60,8 +64,11 @@ Future<void> _show(
   WidgetTester tester,
   _Entities entities, {
   List<String>? requests,
+  Size size = const Size(500, 900),
+  String language = 'en',
+  double scale = 1,
 }) async {
-  tester.view.physicalSize = const Size(500, 900);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final rest = HaRestClient(
@@ -95,8 +102,14 @@ Future<void> _show(
         haRestClientProvider.overrideWith((ref) => rest),
       ],
       child: CupertinoApp.router(
+        locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
         routerConfig: router,
       ),
     ),
@@ -266,8 +279,58 @@ void main() {
       ],
     );
     await _show(tester, entities);
-    expect(find.byType(CupertinoListTile).evaluate().length, lessThan(30));
+    expect(find.byType(SettingsActionTile).evaluate().length, lessThan(30));
     expect(find.text('Routine 0000'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language routine action is accessible at ${size.width}px 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final entities = _Entities();
+          await _show(
+            tester,
+            entities,
+            size: size,
+            language: language,
+            scale: 2,
+          );
+
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsOneWidget);
+          expect(find.byType(SettingsActionTile), findsNWidgets(2));
+          expect(
+            tester
+                .getSemantics(
+                  find.byKey(const ValueKey('routines-controls-header')),
+                )
+                .flagsCollection
+                .isHeader,
+            isTrue,
+          );
+
+          final routine = find.byKey(const ValueKey('routine-scene.evening'));
+          await tester.ensureVisible(routine);
+          expect(tester.getRect(routine).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(routine).flagsCollection.isButton, isTrue);
+          Focus.of(
+            tester.element(
+              find.descendant(of: routine, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+
+          expect(find.text('Review scene.evening'), findsOneWidget);
+          expect(entities.toggles, 0);
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
+  }
 }
