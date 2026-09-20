@@ -26,6 +26,7 @@ RELEVANT_PATTERNS = (
     "tool/qbittorrent_managed_ci.py",
     "tool/arr_managed_ci.py",
     "tool/seerr_managed_ci.py",
+    "tool/music_assistant_managed_ci.py",
     "tool/volume_bootstrap_helper.py",
     "tool/media_resource_smoke.py",
 )

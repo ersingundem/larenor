@@ -341,7 +341,7 @@ class _RuntimeBackend:
             raise ValueError('music_assistant_bootstrap_authority_changed')
         result = self.music_assistant_bootstrap.create(
             installation_id=installation_id, username=username,
-            credential=credential, deadline=deadline)
+            credential=credential, deadline=deadline, gate=gate)
         if gate() is not True:
             raise ValueError('music_assistant_bootstrap_authority_changed')
         return result

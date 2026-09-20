@@ -149,6 +149,34 @@ def test_cancel_and_invalid_input_send_nothing():
     assert calls == []
 
 
+def test_revoked_authority_stops_before_the_next_private_mutation():
+    calls = []
+    allowed = True
+
+    class RevokingResponse(Response):
+        def read(self, limit):
+            nonlocal allowed
+            value = super().read(limit)
+            allowed = False
+            return value
+
+    responses = valid_responses()
+    responses[0] = RevokingResponse(json.loads(responses[0].raw))
+
+    with pytest.raises(
+            MusicAssistantBootstrapRuntimeError,
+            match='^music_assistant_bootstrap_cancelled$') as raised:
+        runtime(responses, calls).create(
+            installation_id=INSTALLATION, username=USERNAME,
+            credential=PASSWORD, deadline=time.monotonic() + 2,
+            gate=lambda: allowed)
+
+    assert raised.value.uncertain_effect is True
+    assert len(calls) == 1
+    assert calls[0][1] == '/setup'
+    assert PASSWORD not in repr(raised.value)
+
+
 def test_setup_transport_failure_is_uncertain_and_secret_free_without_retry():
     calls = []
     target = MusicAssistantBootstrapRuntime(

@@ -131,6 +131,13 @@ class SeerrBootstrapManagement:
                         payload is not None and payload.arrInstanceIds is not None
                     ),
                     "initialized": bool(payload is not None and payload.initialized),
+                    "readback": (
+                        None if payload is None or not payload.initialized else {
+                            "arrServiceIds": ["radarr", "sonarr"],
+                            "arrInstanceIds": list(payload.arrInstanceIds),
+                            "initializationChanged": payload.initializationChanged,
+                        }
+                    ),
                     "createdAt": utc(row["created_at"]),
                     "updatedAt": utc(row["updated_at"]),
                 }

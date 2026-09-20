@@ -55,7 +55,7 @@ def queued(server, backend=None):
 
 
 def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server):
-    app, _client, settings, _ = server
+    app, client, settings, _ = server
     pair, record, backend = queued(server)
     terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
     assert terminal == record | {
@@ -65,6 +65,11 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
         "convergencePhase": "verified",
         "arrWired": True,
         "initialized": True,
+        "readback": {
+            "arrServiceIds": ["radarr", "sonarr"],
+            "arrInstanceIds": [7, 8],
+            "initializationChanged": True,
+        },
     }
     assert len(backend.calls) == 1
     job, plan, private, _deadline, _gate = backend.calls[0]
@@ -80,7 +85,21 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
         ciphertext = connection.execute(
             "SELECT ciphertext FROM media_seerr_bootstraps WHERE id=?", (record["id"],)
         ).fetchone()[0]
-    assert API_KEY.encode() not in ciphertext
+        installation_revision = connection.execute(
+            "SELECT installation_revision FROM media_seerr_bootstraps WHERE id=?",
+            (record["id"],),
+        ).fetchone()[0]
+    assert all(value not in ciphertext for value in (
+        API_KEY.encode(), b"arrInstanceIds", b"initializationChanged"))
+    repeated = client.post(BASE, headers=auth(pair), json={
+        "requestId": record["requestId"],
+        "installationId": record["installationId"],
+        "expectedInstallationRevision": installation_revision,
+        "sourceBootstrapId": record["sourceBootstrapId"],
+        "expectedSourceBootstrapRevision": record["sourceBootstrapRevision"],
+    })
+    assert repeated.json() == {"bootstrap": terminal}
+    assert API_KEY not in repeated.text
     assert app.state.core.seerr_bootstraps.tick() is None
     from fastapi.testclient import TestClient
     from larenor_server.app import create_app
@@ -90,6 +109,13 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
         assert reopened.get(
             BASE + "/" + record["id"], headers=auth(pair)
         ).json()["bootstrap"] == terminal
+        assert reopened.post(BASE, headers=auth(pair), json={
+            "requestId": record["requestId"],
+            "installationId": record["installationId"],
+            "expectedInstallationRevision": installation_revision,
+            "sourceBootstrapId": record["sourceBootstrapId"],
+            "expectedSourceBootstrapRevision": record["sourceBootstrapRevision"],
+        }).json() == {"bootstrap": terminal}
         assert restarted.state.core.seerr_bootstraps.tick() is None
 
 
@@ -132,6 +158,11 @@ def test_final_transaction_rechecks_authority_before_persisting_success(server):
     assert terminal["errorCode"] == "seerr_bootstrap_authority_changed"
     assert terminal["convergencePhase"] == "verified"
     assert terminal["arrWired"] is True and terminal["initialized"] is True
+    assert terminal["readback"] == {
+        "arrServiceIds": ["radarr", "sonarr"],
+        "arrInstanceIds": [7, 8],
+        "initializationChanged": True,
+    }
     assert app.state.core.seerr_bootstraps.tick() is None
 
 
@@ -203,6 +234,7 @@ def test_initialization_uncertainty_persists_partial_arr_phase_across_restart(se
         "errorCode": "seerr_bootstrap_initialization_failed",
         "convergencePhase": "initialize",
         "arrWired": True,
+        "readback": None,
     }
     assert terminal["initialized"] is False and len(backend.calls) == 1
     assert API_KEY not in repr(terminal) + failure.__repr__()

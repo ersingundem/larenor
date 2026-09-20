@@ -238,7 +238,8 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     *_MANAGED_CREATE_DIAGNOSTICS, 'managed_create_preflight_failed',
     'managed_create_uncertain', 'managed_create_resource_conflict',
     'managed_create_expired', 'managed_create_receipt_invalid',
-    'managed_resource_limits_unverified',
+    'managed_resource_limits_unverified', 'managed_peer_invalid',
+    'managed_peer_handoff_failed',
     'bootstrap_create_failed', 'bootstrap_start_failed', 'bootstrap_wait_failed',
     'bootstrap_result_failed', 'bootstrap_cleanup_failed',
     'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
@@ -1583,7 +1584,34 @@ def _managed_library_readback_matches(libraries):
         return False
 
 
-def _managed_create_and_start(daemon, source, endpoint, helper_id):
+@dataclass(frozen=True, repr=False)
+class ManagedJellyfinPeer:
+    """Private native peer material retained only inside one owned fixture."""
+
+    container_id: str
+    binding: object
+    credential: str
+    server_id: str
+
+    def __post_init__(self):
+        if (
+            type(self.container_id) is not str
+            or _CONTAINER_ID.fullmatch(self.container_id) is None
+            or self.binding is None
+            or type(self.credential) is not str
+            or not 32 <= len(self.credential) <= 128
+            or re.fullmatch(r'[A-Za-z0-9_-]+', self.credential) is None
+            or type(self.server_id) is not str
+            or re.fullmatch(r'[0-9a-f]{32}', self.server_id) is None
+        ):
+            raise SmokeError('managed_peer_invalid')
+
+    def __repr__(self):
+        return 'ManagedJellyfinPeer(<private>)'
+
+
+def _managed_create_and_start(
+        daemon, source, endpoint, helper_id, *, peer_consumer=None):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
         JellyfinBindingBuilder, JellyfinEngineReaders, JellyfinResourceProofBroker,
@@ -1668,6 +1696,9 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
             before = _health(
                 daemon, helper_id, start.container_id, wizard_completed=False,
             )
+            private = PrivateMediaServiceBootstrap(
+                credential=secrets.token_urlsafe(48),
+            )
             try:
                 bootstrap = JellyfinBootstrapExecutor(
                     operations, lambda _stack: binding,
@@ -1675,9 +1706,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                     JellyfinManagedLibraries(),
                 ).execute(
                     job_id, source.stack,
-                    PrivateMediaServiceBootstrap(
-                        credential=secrets.token_urlsafe(48),
-                    ),
+                    private,
                     deadline=time.monotonic() + 90,
                     gate=lambda: True,
                 )
@@ -1692,6 +1721,21 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                     'bootstrap_wiring_verify_failed')
             require(bootstrap.readback.completed_steps[-1:] == ('session_closed',),
                     'bootstrap_readback_logout_failed')
+        if peer_consumer is not None:
+            try:
+                if not callable(peer_consumer) or peer_consumer(
+                    ManagedJellyfinPeer(
+                        start.container_id,
+                        binding,
+                        private.credential,
+                        bootstrap.readback.server_id,
+                    )
+                ) is not None:
+                    raise ValueError()
+            except SmokeError:
+                raise
+            except Exception:
+                raise SmokeError('managed_peer_handoff_failed') from None
         return start.container_id, binding, engine, {
             'apiKeyVerified': True,
             'libraryCount': 2,
@@ -1701,7 +1745,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
 
 @diagnostic_phase('characterization')
 def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None,
-                 managed=False):
+                 managed=False, peer_consumer=None):
     """The real consumer: appdata plus managed library, bootstrap and restart.
 
     Optional objects are private offline-test seams, not CLI/runtime inputs.
@@ -1718,6 +1762,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     images = UnixImageEngine(endpoint) if images is None else images
     volumes = UnixVolumeCreator(endpoint) if volumes is None else volumes
     require(type(managed) is bool)
+    if peer_consumer is not None and (managed is not True or not callable(peer_consumer)):
+        raise SmokeError('managed_peer_invalid')
     if managed:
         from larenor_server.plugins.network_effects import UnixNetworkCreator
         from larenor_server.plugins.network_transport import UnixNetworkEngine
@@ -1783,10 +1829,15 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     managed_binding = managed_engine = managed_readback = None
     with diagnostic_phase('container_create'):
         if managed:
-            (container_id, managed_binding, managed_engine,
-             managed_readback) = _managed_create_and_start(
-                daemon, source, endpoint, helper_id,
-            )
+            arguments = (daemon, source, endpoint, helper_id)
+            if peer_consumer is None:
+                (container_id, managed_binding, managed_engine,
+                 managed_readback) = _managed_create_and_start(*arguments)
+            else:
+                (container_id, managed_binding, managed_engine,
+                 managed_readback) = _managed_create_and_start(
+                    *arguments, peer_consumer=peer_consumer,
+                )
         else:
             name = 'larenor-jellyfin-'+source.stack.preparationId
             args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
