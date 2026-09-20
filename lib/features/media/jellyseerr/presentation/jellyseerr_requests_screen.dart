@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_status_label.dart';
 
@@ -14,33 +16,49 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
     final requestsAsync = ref.watch(jellyseerrMyRequestsProvider);
     final l10n = AppLocalizations.of(context);
 
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.jellyseerrMyRequestsTitle),
-        trailing: Semantics(
-          label: l10n.commonRefresh,
-          child: CupertinoButton(
-            key: const ValueKey('jellyseerr-requests-refresh'),
-            padding: EdgeInsets.zero,
-            minimumSize: const Size.square(48),
-            onPressed: () => ref.invalidate(jellyseerrMyRequestsProvider),
-            child: const ExcludeSemantics(child: Icon(CupertinoIcons.refresh)),
+    return ServiceRootScaffold(
+      title: l10n.jellyseerrMyRequestsTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('jellyseerr-requests-section-title'),
+              container: true,
+              header: true,
+              child: Text(l10n.jellyseerrMyRequestsTitle),
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('jellyseerr-requests-refresh'),
+                leading: const Icon(CupertinoIcons.refresh),
+                title: Text(l10n.commonRefresh),
+                onTap: () => ref.invalidate(jellyseerrMyRequestsProvider),
+              ),
+            ],
           ),
         ),
-      ),
-      child: SafeArea(
-        child: requestsAsync.when(
-          loading: () =>
-              _RequestsStatus(label: l10n.commonLoading, loading: true),
-          error: (_, _) => _RequestsStatus(label: l10n.mediaErrorUnreachable),
+        ...requestsAsync.when(
+          loading: () => [
+            SliverFilledMessage(
+              child: _RequestsStatus(label: l10n.commonLoading, loading: true),
+            ),
+          ],
+          error: (_, _) => [
+            SliverFilledMessage(
+              child: _RequestsStatus(label: l10n.mediaErrorUnreachable),
+            ),
+          ],
           data: (requests) {
             if (requests.isEmpty) {
-              return _RequestsStatus(label: l10n.jellyseerrNoRequestsYet);
+              return [
+                SliverFilledMessage(
+                  child: _RequestsStatus(label: l10n.jellyseerrNoRequestsYet),
+                ),
+              ];
             }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
-                CupertinoListSection.insetGrouped(
+            return [
+              SliverToBoxAdapter(
+                child: SettingsSection(
                   children: [
                     for (final request in requests)
                       CupertinoListTile(
@@ -56,11 +74,11 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
                       ),
                   ],
                 ),
-              ],
-            );
+              ),
+            ];
           },
         ),
-      ),
+      ],
     );
   }
 }
