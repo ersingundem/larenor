@@ -253,11 +253,12 @@ kontrolleri değişmez. Rendered config ve runtime inspect exact kısa alias'ı,
 Core içi resolver ise gerçek erişilebilirliği ayrı ayrı doğrular.
 
 Son GitHub-hosted Docker kabulü, container kendi adının `/etc/hosts` üzerinden
-çözülmesinin embedded DNS kanıtı olmadığını gösterdi. Canonical paket artık
-Docker'ın custom-network resolver adresi `127.0.0.11` değerini Core ve beş
-bridge servisi için exact yapılandırır. Native kanıt önce Core içindeki
-`/etc/resolv.conf` kaydını, sonra `core` ağ alias'ını ve hedef peer alias'ını
-ayrı ayrı doğrular; farklı resolver adresi rendered-config aşamasında reddedilir.
+çözülmesinin embedded DNS kanıtı olmadığını gösterdi. Canonical paket custom
+bridge üzerindeki Docker tarafından yönetilen resolver'ı kullanır ve kullanıcı
+tanımlı bir `dns` override'ını kabul etmez. Native kanıt önce Core içindeki
+otomatik `/etc/resolv.conf` kaydını, sonra `core` ağ alias'ını ve hedef peer
+alias'ını ayrı ayrı doğrular; rendered config üzerindeki resolver override'ı
+başlatmadan önce reddedilir.
 
 Taze host kabulünde peer endpointleri Core ağ sandbox'ından sonra kaydolduğunda
 resolver görünümü boş kalabildi. Yaşam döngüsü bu yüzden hem ilk başlatmada hem
