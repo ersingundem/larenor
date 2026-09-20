@@ -38,6 +38,10 @@ route, lifecycle and one-resource lease gates before opening a connection.
   Core/home identity instead of retaining a synthetic stale tag.
 - Related authentication, administration, Core context and home-resource
   regression: **129 passed** on the current base.
+- The current main base includes the F31 meal-plan schema. Both independent
+  migrations, routers, repositories and historical fixture teardown paths are
+  retained; the focused profile, Core-context and admin-migration suite is
+  **48/48 PASS** after the conflict review.
 - Python compile, execution queue validation, diff check and gitleaks are
   recorded with the wrapper commit.
 
