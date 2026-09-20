@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -11,6 +11,7 @@ from .models import (
     CreateInventoryItem,
     CreatedInventoryItemResponse,
     InventoryItemResponse,
+    InventoryItemsPage,
     InventoryGrantsResponse,
     InventoryHistoryResponse,
     InventoryQr,
@@ -41,6 +42,24 @@ def create_item(
     core: Core,
 ):
     return core.inventory.create(actor, core_id, home_id, body)
+
+
+@router.get(ROOT + "/items", response_model=InventoryItemsPage)
+def list_items(
+    core_id: Identity,
+    home_id: Identity,
+    actor: Ready,
+    core: Core,
+    limit: int = Query(default=25, ge=1, le=100),
+    cursor: str | None = Query(default=None, min_length=1, max_length=512),
+):
+    return core.inventory.list_items(
+        actor,
+        core_id,
+        home_id,
+        limit=limit,
+        cursor=cursor,
+    )
 
 
 @router.get(ROOT + "/items/{item_id}", response_model=InventoryItemResponse)

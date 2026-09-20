@@ -9,13 +9,48 @@ abstract interface class InventoryGateway {
   Future<InventoryGrants> grants(InventoryItem item);
 }
 
+abstract interface class InventoryCatalogGateway {
+  Future<InventoryPage> list({int limit = 25, String? cursor});
+}
+
 /// Read-only F34 transport. It exposes no inventory or device mutation method.
-final class InventoryApi implements InventoryGateway {
+final class InventoryApi implements InventoryGateway, InventoryCatalogGateway {
   const InventoryApi(this._api, this._token, this._context);
   final LarenorServerApi _api;
   final String _token;
   final ServerContext _context;
   String get _root => '/inventory/${_context.coreId}/${_context.homeId}';
+
+  @override
+  Future<InventoryPage> list({int limit = 25, String? cursor}) {
+    if (limit < 1 || limit > 100) {
+      throw ArgumentError.value(limit, 'limit');
+    }
+    if (cursor != null &&
+        (cursor.isEmpty ||
+            cursor.length > 512 ||
+            !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cursor))) {
+      throw ArgumentError.value(cursor, 'cursor');
+    }
+    return _list(limit: limit, cursor: cursor);
+  }
+
+  Future<InventoryPage> _list({required int limit, String? cursor}) async =>
+      InventoryPage.fromResponse(
+        await _api.request(
+          'GET',
+          '$_root/items',
+          token: _token,
+          queryParameters: {
+            'limit': '$limit',
+            ...switch (cursor) {
+              null => const <String, String>{},
+              final value => {'cursor': value},
+            },
+          },
+        ),
+        expected: _context,
+      );
 
   @override
   Future<InventoryItem> resolve(InventoryQr qr) async {
@@ -68,7 +103,8 @@ final class InventoryApi implements InventoryGateway {
 
 /// Refresh-aware route-owned gateway. Every read revalidates the account and
 /// exact Core/home authority before using the captured endpoint.
-final class InventoryAccountGateway implements InventoryGateway {
+final class InventoryAccountGateway
+    implements InventoryGateway, InventoryCatalogGateway {
   InventoryAccountGateway({
     required this.account,
     required this.context,
@@ -113,6 +149,9 @@ final class InventoryAccountGateway implements InventoryGateway {
   @override
   Future<InventoryGrants> grants(InventoryItem item) async =>
       (await _authorized()).grants(item);
+  @override
+  Future<InventoryPage> list({int limit = 25, String? cursor}) async =>
+      (await _authorized()).list(limit: limit, cursor: cursor);
 
   void close() {
     if (_closed) return;

@@ -88,7 +88,14 @@ final class InventoryItem {
     required ServerContext expected,
   }) {
     final response = _object(raw, {'item'});
-    final value = _object(response['item'], {
+    return InventoryItem.fromJson(response['item'], expected: expected);
+  }
+
+  factory InventoryItem.fromJson(
+    Object? raw, {
+    required ServerContext expected,
+  }) {
+    final value = _object(raw, {
       'schemaVersion',
       'ref',
       'revision',
@@ -133,6 +140,47 @@ final class InventoryItem {
   final InventoryLinks links;
   @override
   String toString() => 'InventoryItem';
+}
+
+final class InventoryPage {
+  const InventoryPage._(this.verified, this.items, this.nextCursor);
+
+  factory InventoryPage.fromResponse(
+    Object? raw, {
+    required ServerContext expected,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'verified',
+      'items',
+      'nextCursor',
+    });
+    if (value['schemaVersion'] != 1 || value['verified'] != true) _invalid();
+    final source = value['items'];
+    if (source is! List || source.length > 100) _invalid();
+    final items = source
+        .map((item) => InventoryItem.fromJson(item, expected: expected))
+        .toList(growable: false);
+    final ids = items.map((item) => item.id).toList(growable: false);
+    final sorted = [...ids]..sort();
+    if (ids.toSet().length != ids.length || sorted.join() != ids.join()) {
+      _invalid();
+    }
+    final cursor = value['nextCursor'];
+    if (cursor != null &&
+        (cursor is! String ||
+            cursor.isEmpty ||
+            cursor.length > 512 ||
+            !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(cursor))) {
+      _invalid();
+    }
+    if (cursor != null && items.isEmpty) _invalid();
+    return InventoryPage._(true, List.unmodifiable(items), cursor as String?);
+  }
+
+  final bool verified;
+  final List<InventoryItem> items;
+  final String? nextCursor;
 }
 
 final class InventoryGrants {
