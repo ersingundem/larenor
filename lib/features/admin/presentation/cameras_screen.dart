@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,79 +20,98 @@ class CamerasScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entitiesProvider);
 
-    return AppPageScaffold(
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(largeTitle: Text(l10n.settingsCameras)),
-          entitiesAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CupertinoActivityIndicator()),
+    return ServiceRootScaffold(
+      title: l10n.settingsCameras,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Semantics(
+              key: const ValueKey('cameras-controls-header'),
+              header: true,
+              child: Text(l10n.settingsCameras),
             ),
-            error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
-            ),
-            data: (entities) {
-              final cameras =
-                  entities.values.where((e) => e.domain == 'camera').toList()
-                    ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
-              if (cameras.isEmpty) {
-                return SliverFillRemaining(
-                  child: Center(child: Text(l10n.camerasScreenEmpty)),
-                );
-              }
-              return SliverSafeArea(
-                top: false,
-                sliver: SliverPadding(
-                  padding: const EdgeInsets.all(12),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.3,
-                        ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final camera = cameras[index];
-                      return GestureDetector(
-                        onTap: () => Navigator.of(context).push(
-                          CupertinoPageRoute(
-                            builder: (_) => CameraViewerScreen(
-                              entityId: camera.entityId,
-                              title: camera.friendlyName,
-                            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('cameras-refresh-action'),
+                title: Text(l10n.commonRefresh),
+                onTap: () => ref.invalidate(entitiesProvider),
+              ),
+            ],
+          ),
+        ),
+        entitiesAsync.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: Center(child: Text(l10n.adminLoadError(error.toString()))),
+          ),
+          data: (entities) {
+            final cameras =
+                entities.values.where((e) => e.domain == 'camera').toList()
+                  ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
+            if (cameras.isEmpty) {
+              return SliverFillRemaining(
+                child: Center(child: Text(l10n.camerasScreenEmpty)),
+              );
+            }
+            return SliverSafeArea(
+              top: false,
+              sliver: SliverPadding(
+                padding: const EdgeInsets.all(12),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.3,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final camera = cameras[index];
+                    return CupertinoButton(
+                      key: ValueKey('camera-${camera.entityId}'),
+                      minimumSize: const Size(48, 48),
+                      padding: EdgeInsets.zero,
+                      borderRadius: BorderRadius.circular(12),
+                      onPressed: () => Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => CameraViewerScreen(
+                            entityId: camera.entityId,
+                            title: camera.friendlyName,
                           ),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CameraSnapshot(entityId: camera.entityId),
-                              Positioned(
-                                left: 8,
-                                bottom: 8,
-                                child: Text(
-                                  camera.friendlyName,
-                                  style: TextStyle(
-                                    color: CupertinoColors.white,
-                                    fontSize: AppText.caption1.fontSize,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CameraSnapshot(entityId: camera.entityId),
+                            Positioned(
+                              left: 8,
+                              bottom: 8,
+                              child: Text(
+                                camera.friendlyName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: CupertinoColors.white,
+                                  fontSize: AppText.caption1.fontSize,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      );
-                    }, childCount: cameras.length),
-                  ),
+                      ),
+                    );
+                  }, childCount: cameras.length),
                 ),
-              );
-            },
-          ),
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
