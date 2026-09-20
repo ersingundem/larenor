@@ -1,11 +1,16 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/today_widget_settings_screen.dart';
+import 'package:larenor/features/today/domain/today_daily_summary.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/service_root_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _tile = TileConfig(
   id: 'today',
@@ -67,12 +72,15 @@ Future<List<TileConfig>> _mount(
 
 void main() {
   for (final language in ['en', 'tr']) {
-    for (final size in [const Size(600, 900), const Size(1280, 900)]) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
       testWidgets(
         '$language edits Today context at ${size.width}px with 2x text',
         (tester) async {
           final semantics = tester.ensureSemantics();
           final results = await _mount(tester, size: size, language: language);
+          expect(find.byType(ServiceRootScaffold), findsOneWidget);
+          expect(find.byType(SettingsSection), findsNWidgets(3));
+          expect(find.byType(SettingsActionTile), findsOneWidget);
           final title = tester.getSemantics(
             find.byKey(const ValueKey('today-widget-title')),
           );
@@ -92,14 +100,47 @@ void main() {
           expect(shoppingNode.flagsCollection.isHeader, isFalse);
           expect(shoppingNode.flagsCollection.isButton, isTrue);
           expect(shoppingNode.flagsCollection.isSelected, ui.Tristate.isTrue);
-          await tester.tap(
-            find.byKey(const ValueKey('today-widget-section-calendar')),
+          for (final kind in TodayDailySummaryKind.values) {
+            expect(
+              tester
+                  .getRect(
+                    find.byKey(ValueKey('today-widget-section-${kind.name}')),
+                  )
+                  .shortestSide,
+              greaterThanOrEqualTo(48),
+            );
+          }
+
+          final calendar = find.byKey(
+            const ValueKey('today-widget-section-calendar'),
           );
+          final calendarLabel = find.descendant(
+            of: calendar,
+            matching: find.byType(Text),
+          );
+          Focus.of(tester.element(calendarLabel)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          expect(
+            tester.getSemantics(calendar).flagsCollection.isSelected,
+            ui.Tristate.isTrue,
+          );
+
+          final save = find.byKey(const ValueKey('today-widget-save'));
+          expect(tester.getRect(save).shortestSide, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(save).flagsCollection.isButton, isTrue);
           await tester.enterText(
             find.byKey(const ValueKey('today-widget-query')),
             'dişçi',
           );
-          await tester.testTextInput.receiveAction(TextInputAction.done);
+          Focus.of(
+            tester.element(
+              find.descendant(of: save, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pumpAndSettle();
 
           expect(results, hasLength(1));

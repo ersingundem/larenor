@@ -2,8 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
-import '../../../shared/theme/typography.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../today/domain/today_daily_summary.dart';
 import '../../today/presentation/today_daily_summary_card.dart';
 import '../domain/tile_config.dart';
@@ -75,101 +76,119 @@ class _TodayWidgetSettingsScreenState
     watchDashboardAccount();
     final l10n = AppLocalizations.of(context);
     final generation = interactionGeneration;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.todayTitle),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => closeDashboardModal(context),
-          child: Text(l10n.commonCancel),
-        ),
+    return ServiceRootScaffold(
+      title: l10n.todayTitle,
+      trailing: CupertinoButton(
+        key: const ValueKey('today-widget-cancel'),
+        minimumSize: const Size(48, 48),
+        padding: EdgeInsets.zero,
+        onPressed: () => closeDashboardModal(context),
+        child: Text(l10n.commonCancel),
       ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 780),
-            child: _expired
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(l10n.dashboardWidgetPickerExpired),
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      Semantics(
+      slivers: [
+        if (_expired)
+          SliverFilledMessage(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(l10n.dashboardWidgetPickerExpired),
+            ),
+          )
+        else
+          SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 780),
+                child: Column(
+                  children: [
+                    SettingsSection(
+                      header: Semantics(
                         key: const ValueKey('today-widget-title'),
                         container: true,
                         header: true,
-                        child: Text(l10n.todayTitle, style: AppText.title2),
+                        child: Text(l10n.todayTitle),
                       ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final kind in TodayDailySummaryKind.values)
-                            Semantics(
-                              key: ValueKey(
-                                'today-widget-section-${kind.name}',
-                              ),
-                              button: true,
-                              selected: kind == _kind,
-                              label: todaySummaryTitle(l10n, kind),
-                              child: CupertinoButton(
-                                minimumSize: const Size(48, 48),
-                                color: kind == _kind
-                                    ? CupertinoTheme.of(context).primaryColor
-                                    : CupertinoColors
-                                          .tertiarySystemGroupedBackground
-                                          .resolveFrom(context),
-                                onPressed: dashboardAction(
-                                  () => setState(() => _kind = kind),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final kind in TodayDailySummaryKind.values)
+                                Semantics(
+                                  key: ValueKey(
+                                    'today-widget-section-${kind.name}',
+                                  ),
+                                  button: true,
+                                  selected: kind == _kind,
+                                  label: todaySummaryTitle(l10n, kind),
+                                  child: CupertinoButton(
+                                    minimumSize: const Size(48, 48),
+                                    color: kind == _kind
+                                        ? CupertinoTheme.of(context)
+                                              .primaryColor
+                                        : CupertinoColors
+                                              .tertiarySystemGroupedBackground
+                                              .resolveFrom(context),
+                                    onPressed: dashboardAction(
+                                      () => setState(() => _kind = kind),
+                                    ),
+                                    child: ExcludeSemantics(
+                                      child: Text(
+                                        todaySummaryTitle(l10n, kind),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                child: ExcludeSemantics(
-                                  child: Text(todaySummaryTitle(l10n, kind)),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Semantics(
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SettingsSection(
+                      header: Semantics(
                         key: const ValueKey('today-widget-search-title'),
                         container: true,
                         header: true,
-                        child: Text(l10n.commonSearch, style: AppText.headline),
+                        child: Text(l10n.commonSearch),
                       ),
-                      const SizedBox(height: 8),
-                      CupertinoSearchTextField(
-                        key: const ValueKey('today-widget-query'),
-                        controller: _query,
-                        placeholder: l10n.commonSearch,
-                        onSubmitted: (_) => _save(generation),
-                        onChanged: (value) {
-                          final clean = _clean(value);
-                          if (clean == value) return;
-                          _query.value = TextEditingValue(
-                            text: clean,
-                            selection: TextSelection.collapsed(
-                              offset: clean.length,
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      CupertinoButton.filled(
-                        key: const ValueKey('today-widget-save'),
-                        minimumSize: const Size(48, 48),
-                        onPressed: dashboardAction(() => _save(generation)),
-                        child: Text(l10n.commonSave),
-                      ),
-                    ],
-                  ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: CupertinoSearchTextField(
+                            key: const ValueKey('today-widget-query'),
+                            controller: _query,
+                            placeholder: l10n.commonSearch,
+                            onSubmitted: (_) => _save(generation),
+                            onChanged: (value) {
+                              final clean = _clean(value);
+                              if (clean == value) return;
+                              _query.value = TextEditingValue(
+                                text: clean,
+                                selection: TextSelection.collapsed(
+                                  offset: clean.length,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    SettingsSection(
+                      children: [
+                        SettingsActionTile(
+                          buttonKey: const ValueKey('today-widget-save'),
+                          title: Text(l10n.commonSave),
+                          onTap: dashboardAction(() => _save(generation)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
