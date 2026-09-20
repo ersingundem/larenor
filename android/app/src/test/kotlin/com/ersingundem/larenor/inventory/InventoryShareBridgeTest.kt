@@ -9,6 +9,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -21,6 +22,17 @@ import java.nio.ByteBuffer
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class InventoryShareBridgeTest {
+    @Before
+    fun clearFileProviderCache() {
+        // FileProvider caches roots process-wide while Robolectric gives every
+        // test a fresh data directory. Clear that Android-process singleton so
+        // each test resolves paths against its own isolated application root.
+        val field = FileProvider::class.java.getDeclaredField("sCache")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (field.get(null) as MutableMap<String, *>).clear()
+    }
+
     private class Messenger : BinaryMessenger {
         override fun send(channel: String, message: ByteBuffer?) {}
         override fun send(
