@@ -33,7 +33,7 @@ routes, provider reads, action receipts, file picker flow, and service writes.
 | Jellyseerr | Search and request writes retain the exact-client, receipt, replay-blocking, and account guards. Retry and My Requests navigation are bound to the exact connection result and current media session, so retained callbacks cannot cross accounts. |
 | qBittorrent | List refresh, add/import, pause, resume, and delete continue through the authenticated client, bounded modal, action receipt, and delete-files-off contract. An error-state retry retained across account replacement cannot invalidate the replacement account. |
 
-The branch is rebased on `origin/main` at `ff42e12d`. Merge-tree checks against
+The branch is rebased on `origin/main` at `43fa2a44`. Merge-tree checks against
 `codex/s072-auto-media-flow` and `codex/s073-music-client-tablet` are required
 before handoff so the shared media shell and Core contracts can land in either
 order. This acceptance slice remains recorded at product progress `17/125` and
