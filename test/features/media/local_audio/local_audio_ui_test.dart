@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -165,6 +166,61 @@ void main() {
       );
     }
   }
+
+  testWidgets('audio format selection is visible beyond color and announced', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final h = _Harness();
+    await h.mount(tester, scale: 2);
+    final mp3 = find.byKey(const ValueKey('local-audio-format-audio/mpeg'));
+    final m4a = find.byKey(const ValueKey('local-audio-format-audio/mp4'));
+    await tester.scrollUntilVisible(
+      mp3,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(
+      tester.getSemantics(mp3).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      tester.getSemantics(m4a).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
+    );
+    expect(
+      find.descendant(
+        of: mp3,
+        matching: find.byIcon(CupertinoIcons.check_mark),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(m4a);
+    await _frames(tester);
+    await tester.tap(m4a);
+    await _frames(tester);
+
+    expect(
+      tester.getSemantics(mp3).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
+    );
+    expect(
+      tester.getSemantics(m4a).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    expect(
+      find.descendant(
+        of: m4a,
+        matching: find.byIcon(CupertinoIcons.check_mark),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+    await h.unmount(tester);
+  });
 
   testWidgets('current source identity accompanies all native controls', (
     tester,

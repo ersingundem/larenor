@@ -467,24 +467,43 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                                 'audio/flac': 'FLAC',
                                 'audio/wav': 'WAV',
                               }.entries)
-                                CupertinoButton(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
+                                Semantics(
+                                  key: ValueKey(
+                                    'local-audio-format-${entry.key}',
                                   ),
-                                  color: _mime == entry.key
-                                      ? CupertinoColors.activeBlue
-                                      : null,
-                                  foregroundColor: _mime == entry.key
-                                      ? CupertinoColors.white
-                                      : null,
-                                  onPressed: ready
-                                      ? guarded(
-                                          () =>
-                                              setState(() => _mime = entry.key),
-                                        )
-                                      : null,
-                                  child: Text(entry.value),
+                                  selected: _mime == entry.key,
+                                  child: CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    color: _mime == entry.key
+                                        ? CupertinoColors.activeBlue
+                                        : null,
+                                    foregroundColor: _mime == entry.key
+                                        ? CupertinoColors.white
+                                        : null,
+                                    onPressed: ready
+                                        ? guarded(
+                                            () => setState(
+                                              () => _mime = entry.key,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (_mime == entry.key) ...[
+                                          const Icon(
+                                            CupertinoIcons.check_mark,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                        Text(entry.value),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
