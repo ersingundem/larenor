@@ -2,7 +2,7 @@
 
 **5 Eylül 2026 · Kullanıcı onayıyla uygulama sürüyor.**
 
-**Son ürün kararı (5 Eylül):** Music Assistant ve medya uygulamaları tek Larenor Server kurulumuna dahil olacak; servisler arası API bağlantıları otomatik kurulacak. Client yalnız Larenor hesabı ve kullanıcı ayarlarını sunacak. [Kapsam ve kabul ölçütleri](integrated-media-stack.md). Eski ayrı servis kurulum notları bu hedefin tamamlandığını göstermez.
+**Son ürün kararı (5 Eylül):** Music Assistant ve medya uygulamaları tek Larenor Server kurulumuna dahil olacak; servisler arası API bağlantıları otomatik kurulacak. Client yalnız Larenor hesabı ve kullanıcı ayarlarını sunacak. S06.5 özel bootstrap yazılım kabulü tamamlandı; ortak paket ve tek kurulum S07'de sürüyor. [Kapsam ve kabul ölçütleri](integrated-media-stack.md) · [S06.5 kabulü](s06-5-bootstrap-acceptance-2026-09-20.md). Eski ayrı servis kurulum notları bu hedefin tamamlandığını göstermez.
 
 **Güncel takip:** [Yapılanlar, aktif işler ve kalan kuyruk](PROGRESS.md). Bu plan ayrıntılı kapsamı ve önceki teslimlerin kanıtını saklar; en son çalışma durumu takip dosyasındadır.
 
@@ -28,8 +28,8 @@ son ortak tablet tasarımı, README ve manuel cihaz kabulü en sonda kalır.
 - [x] 7. Enerji ve bakım özeti — HA saat diliminde kayıtlı sayaç/istatistikler, pil/çevrimdışı/bakım listesi ve Proxmox kapasitesi; telefon/tablet testleri ve birleşik paket geçti. Fiziksel cihaz kabulü bekliyor.
 - [x] 8. Keenetic internet/IP/hız/uptime ve diğer cihazlar için seçilebilir canlı kartlar — beş Keenetic ölçümü, ortak widget seçici ve geçmiş/hava durumu/WebView yaşam döngüsü tamamlandı. Bilinmeyen değerler sıfır sayılmıyor; firmware ve gerçek ağ kabulü bekliyor.
 - [ ] 9. Medya hedefleri: Chromecast/Apple TV — aynı kullanıcıya ait Jellyfin TV oturumuna gönderme ve HA medya kaynağı → yetenek doğrulanan Cast/Apple ses hedefi yolu uygulandı. HA kaynağında 60 veri/akış/UI testi geçti. Apple TV video ve fiziksel alıcı kabulü ayrıca bekliyor.
-- [ ] 10. Spotify/Apple Music ve HomePod — HA üzerinden Music Assistant kütüphane/arama/kuyruk/oynatma istemcisi uygulandı. Sunucu **Larenor Server** adıyla en sonda manuel kurulacak: CasaOS Docker veya Proxmox üzerinde ayrı Linux VM. Sağlayıcı yetkilendirme ve gerçek HomePod kabulü bekliyor; otomatik canlı kurulum yapılmıyor. Üyelik doğrudan SDK bağlantısı sayılmıyor.
-- [ ] 11. Uygulama içinde müzik merkezi — yerel dört sekmeli ekran, sayfalı katalog, açık arama, kuyruk özeti, kaynak/hedef onayı ve çıktı kontrolleri uygulandı. Tam Music Assistant sunucu motoru Android APK içinde çalışmıyor; harici motor gereksinimi açık gösteriliyor.
+- [ ] 10. Spotify/Apple Music ve HomePod — Music Assistant 2.10.4, Larenor tarafından yönetilen Core bileşeni olarak private bootstrap, şifreli provider kurulum işi, player keşfi ve playback readback yollarıyla amd64/arm64 native kabulünden geçti. Ortak Larenor Server paketleme S07'de; sağlayıcı hesabı ve gerçek HomePod kabulü MANUAL kapısında bekliyor. Üyelik doğrudan SDK bağlantısı sayılmıyor.
+- [ ] 11. Uygulama içinde müzik merkezi — yerel dört sekmeli ekran, sayfalı katalog, açık arama, kuyruk özeti, kaynak/hedef onayı ve çıktı kontrolleri uygulandı. Client ayrı Music Assistant URL/tokenı istemez; yönetilen motor Core içinde çalışır. Tek kurulum, güncelleme ve geri yükleme yüzeyi S07/S09'da tamamlanacak.
 - [ ] 12. Kilit ekranı/arka plan/güç — Android Media3/MediaSessionService, yerel ses bilgisi/kontrolleri, tek oynatıcı ve Jellyfin video geçişi, güç ayarları uygulandı; 37 Dart ve 14 native test geçti. Seçili yerel kapak görseli eklendi; Media3 listener/timeline üzerinden ham metadata sızması giderildi. Gerçek cihazda ekran kapalı oynatma, OEM güç yönetimi ve kilit ekranı kabulü bekliyor.
 - [ ] 13. Samsung DeX — kısa/değişken pencere, kaydırılabilir kenar çubuğu, Ctrl+K/Ctrl+1–4 oda koruması ve native insets/profil gözlemi uygulandı. Widget/native testleri geçti; dock, harici dokunmatik monitör ve gerçek OEM kabulü bekliyor. [Uygulama](window-panel-implementation-2026-09-05.md).
 - [ ] 14. Kişisel sağlık/tartı — PIN/özel pencere koruması, ayrı Ölçümler/Kaynaklar ekranı, bounded read-only Health Connect ve açık HA kişi/sensör eşlemesi uygulandı. Özel varlıklar ortak ekranlardan gizlenir; v2 yedeklerde gizleme politikası korunur. Huawei geliştirici onayı ve gerçek cihaz izin kabulü bekliyor; Apple Health için kullanıcı kontrollü Server/Home Assistant aktarım köprüsü açık. Android minimum API 26 oldu. [Uygulama](wellbeing-implementation-2026-09-05.md).
@@ -341,8 +341,11 @@ varsayılmamalı. Araştırmada yeni servis kurulmadı ve hesap bağlanmadı.
 
 ## Son kullanıcı açıklamaları
 
-- Music Assistant sunucusu **kurulu değil**. Spotify, Apple Music ve YouTube Music
-  üyelikleri mevcut. “Hepsi evet” yanıtı sunucu kurulumu olarak yorumlanmamalı.
+- Ev sunucusunda Music Assistant **henüz kurulu değil**. Yönetilen Music
+  Assistant 2.10.4 yazılım zinciri iki mimarili disposable CI'da kabul edildi;
+  bu kanıt CasaOS/Proxmox kurulumu sayılmaz. Spotify, Apple Music ve YouTube
+  Music üyelikleri mevcut. “Hepsi evet” yanıtı canlı sunucu kurulumu olarak
+  yorumlanmamalı.
 - Kullanıcı müzik merkezi ve mümkünse sunucu işlevlerinin uygulama içinde
   çalışmasını istiyor. Yalnız harici sunucuya istemci eklenmesi bu talebin tümünü
   karşılamaz; Android/platform/DRM desteği doğrulanıp sınırlar açıkça raporlanmalı.

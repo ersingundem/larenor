@@ -1,10 +1,10 @@
-F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **15/125 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **16/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | Grup | İş | Biten | Çalışılan | CI | Kullanıcı |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 7 | 1 | 0 | 0 |
+| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 8 | 0 | 0 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 8 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |
@@ -36,8 +36,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | S06.3e | Sahiplikli özel kontrol ağı | Kanıtla tamamlandı | — |
 | S06.3f | Kaynak makbuzu ve iki mimarili kabul | Kanıtla tamamlandı | — |
 | S06.4 | Dar kurulum adımlarını API ve işçiye bağlama | Kanıtla tamamlandı | — |
-| S06.5 | Özel bootstrap ve otomatik servis eşleştirme temeli | Çalışılıyor | — |
-| S06.6 | Doğrulanmış sonuç, iptal ve kurtarma | Bekliyor | S06.5 |
+| S06.5 | Özel bootstrap ve otomatik servis eşleştirme temeli | Kanıtla tamamlandı | — |
+| S06.6 | Doğrulanmış sonuç, iptal ve kurtarma | Bekliyor | — |
 | S07.1 | Altı bileşen ve dahili Music Assistant paketleme | Bekliyor | B1 |
 | S07.2 | İndirme, istek ve kütüphane otomatik eşleştirmesi | Bekliyor | S07.1 |
 | S07.3 | Müzik sağlayıcı, kuyruk ve alıcı Server API’si | Bekliyor | S07.1 |
