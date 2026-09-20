@@ -11,7 +11,9 @@ final class _Gateway implements IngredientDeductionGateway {
   IngredientDeductionReceipt? retained;
 
   @override
-  Future<IngredientDeductionReceipt> commit(IngredientDeductionPreview preview) async {
+  Future<IngredientDeductionReceipt> commit(
+    IngredientDeductionPreview preview,
+  ) async {
     commits++;
     if (delay) return pending.future;
     return retained ??= IngredientDeductionReceipt(
@@ -23,7 +25,8 @@ final class _Gateway implements IngredientDeductionGateway {
   }
 
   @override
-  Future<IngredientDeductionReceipt?> receipt(String idempotencyKey) async => retained;
+  Future<IngredientDeductionReceipt?> receipt(String idempotencyKey) async =>
+      retained;
 }
 
 IngredientDeductionDraft draft() => const IngredientDeductionDraft(
@@ -50,11 +53,19 @@ void main() {
     expect(
       () => IngredientDeductionPreview.fromDraft(
         IngredientDeductionDraft(
-          accountId: 'account-a', recipeSessionId: 'session-1',
-          recipeRevision: 7, completedStep: 2, stepRevision: 4,
+          accountId: 'account-a',
+          recipeSessionId: 'session-1',
+          recipeRevision: 7,
+          completedStep: 2,
+          stepRevision: 4,
           expectedPantryRevision: 12,
-          items: List.generate(101, (index) => IngredientDeductionItem(
-            stockItemId: 'item-$index', quantityMicros: 1)),
+          items: List.generate(
+            101,
+            (index) => IngredientDeductionItem(
+              stockItemId: 'item-$index',
+              quantityMicros: 1,
+            ),
+          ),
         ),
       ),
       throwsFormatException,
@@ -74,25 +85,31 @@ void main() {
     expect(controller.receipt?.pantryRevision, 13);
   });
 
-  test('stale late receipt is discarded and never replayed automatically', () async {
-    var current = true;
-    final gateway = _Gateway()..delay = true;
-    final controller = IngredientDeductionController(
-      gateway: gateway,
-      preview: IngredientDeductionPreview.fromDraft(draft()),
-      isCurrent: () => current,
-    );
-    final operation = controller.confirm();
-    current = false;
-    gateway.pending.complete(IngredientDeductionReceipt(
-      idempotencyKey: controller.preview.idempotencyKey,
-      accountId: 'account-a', pantryRevision: 13,
-      applied: controller.preview.items,
-    ));
-    expect(await operation, isFalse);
-    expect(controller.receipt, isNull);
-    expect(gateway.commits, 1);
-    expect(await controller.confirm(), isFalse);
-    expect(gateway.commits, 1);
-  });
+  test(
+    'stale late receipt is discarded and never replayed automatically',
+    () async {
+      var current = true;
+      final gateway = _Gateway()..delay = true;
+      final controller = IngredientDeductionController(
+        gateway: gateway,
+        preview: IngredientDeductionPreview.fromDraft(draft()),
+        isCurrent: () => current,
+      );
+      final operation = controller.confirm();
+      current = false;
+      gateway.pending.complete(
+        IngredientDeductionReceipt(
+          idempotencyKey: controller.preview.idempotencyKey,
+          accountId: 'account-a',
+          pantryRevision: 13,
+          applied: controller.preview.items,
+        ),
+      );
+      expect(await operation, isFalse);
+      expect(controller.receipt, isNull);
+      expect(gateway.commits, 1);
+      expect(await controller.confirm(), isFalse);
+      expect(gateway.commits, 1);
+    },
+  );
 }
