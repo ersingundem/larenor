@@ -10,6 +10,7 @@ import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/core_ha/data/core_ha_activity_controller.dart';
 import 'package:larenor/features/core_ha/data/core_ha_api.dart';
 import 'package:larenor/features/core_ha/data/core_ha_checkpoint_store.dart';
+import 'package:larenor/features/core_ha/data/core_ha_event_checkpoint_store.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
@@ -43,6 +44,7 @@ final class _HistoryCoreFixture {
   _ProofMode proofMode = _ProofMode.sound;
   Completer<void>? verificationGate;
   Completer<void>? eventGate;
+  final eventAfter = <int?>[];
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
   int get port => server.port;
@@ -184,6 +186,7 @@ final class _HistoryCoreFixture {
       }
       final after =
           int.tryParse(request.uri.queryParameters['after'] ?? '') ?? 0;
+      eventAfter.add(after == 0 ? null : after);
       final limit =
           int.tryParse(request.uri.queryParameters['limit'] ?? '') ?? 50;
       final source = history['complete']['response']['entries'] as List;
@@ -293,6 +296,18 @@ final class _CheckpointMemory implements CoreHaCheckpointBackend {
   }
 }
 
+final class _EventCheckpointMemory implements CoreHaEventCheckpointBackend {
+  final values = <String, String>{};
+  int writes = 0;
+  @override
+  Future<String?> read(String key) async => values[key];
+  @override
+  Future<void> write(String key, String value) async {
+    writes++;
+    values[key] = value;
+  }
+}
+
 final class _Journey {
   _Journey(this.fixture);
   final _HistoryCoreFixture fixture;
@@ -305,6 +320,7 @@ final class _Journey {
   late final home = HomeSessionController(store: _Source(), account: account);
   final owner = ValueNotifier(0);
   final checkpointBackend = _CheckpointMemory();
+  final eventCheckpointBackend = _EventCheckpointMemory();
   bool current = true;
   CoreHaActivityController? controller;
 
@@ -337,6 +353,9 @@ final class _Journey {
       owner,
       verifyIntegrity: true,
       checkpointStore: CoreHaCheckpointStore(backend: checkpointBackend),
+      eventCheckpointStore: CoreHaEventCheckpointStore(
+        backend: eventCheckpointBackend,
+      ),
       checkpointProtected: true,
     )..setVisible(true);
     await settle();
@@ -528,6 +547,72 @@ void main() {
   );
 
   test(
+    'event cursor survives controller restart and only advances after proof',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      try {
+        await journey.start();
+        expect(journey.eventCheckpointBackend.writes, 1);
+        expect(journey.fixture.eventAfter, [null]);
+
+        journey.controller!.dispose();
+        journey.fixture.advance();
+        journey.controller = CoreHaActivityController(
+          journey.home,
+          journey.target,
+          journey.api,
+          DateTime.now,
+          () => journey.current,
+          journey.owner,
+          verifyIntegrity: true,
+          checkpointStore: CoreHaCheckpointStore(
+            backend: journey.checkpointBackend,
+          ),
+          eventCheckpointStore: CoreHaEventCheckpointStore(
+            backend: journey.eventCheckpointBackend,
+          ),
+          checkpointProtected: true,
+        )..setVisible(true);
+        await journey.settle();
+
+        expect(journey.fixture.eventAfter.last, 2);
+        expect(journey.controller!.eventHeadSequence, 3);
+        expect(journey.eventCheckpointBackend.writes, 2);
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
+  test(
+    'failed refresh revokes current trust but retains the persisted cursor',
+    () async {
+      final journey = _Journey(await _HistoryCoreFixture.start());
+      try {
+        await journey.start();
+        expect(journey.controller!.eventTrustCurrent, isTrue);
+        expect(journey.eventCheckpointBackend.writes, 1);
+        journey.fixture.eventStatus = 503;
+        await journey.refresh();
+        expect(journey.controller!.eventTrustCurrent, isFalse);
+        expect(journey.controller!.eventChainId, isNull);
+        expect(journey.eventCheckpointBackend.writes, 1);
+
+        journey.fixture
+          ..eventStatus = 200
+          ..advance();
+        await journey.refresh();
+        expect(journey.fixture.eventAfter.last, 2);
+        expect(journey.controller!.eventTrustCurrent, isTrue);
+        expect(journey.controller!.eventHeadSequence, 3);
+        expect(journey.eventCheckpointBackend.writes, 2);
+      } finally {
+        await journey.close();
+      }
+    },
+  );
+
+  test(
     'event trust rejects chain replacement, rollback, and failed refresh',
     () async {
       final journey = _Journey(await _HistoryCoreFixture.start());
@@ -571,6 +656,7 @@ void main() {
         await journey.start();
         final controller = journey.controller!;
         expect(controller.eventTrustCurrent, isTrue);
+        final writes = journey.eventCheckpointBackend.writes;
         journey.fixture.eventGate = Completer<void>();
         final before = journey.fixture.eventReads;
         final pending = controller.refresh();
@@ -584,6 +670,7 @@ void main() {
         expect(controller.eventTrustCurrent, isFalse);
         expect(controller.eventChainId, isNull);
         expect(controller.entries, isEmpty);
+        expect(journey.eventCheckpointBackend.writes, writes);
       } finally {
         await journey.close();
       }
