@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-20",
+  "updatedAt": "2026-09-21",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -86,7 +86,8 @@
     "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
     "docs/jellyfin-storage-manual-ci-2026-09-08.md",
     "docs/s06-5-bootstrap-acceptance-2026-09-20.md",
-    "docs/s06-6-recovery-status-implementation-2026-09-20.md"
+    "docs/s06-6-recovery-status-implementation-2026-09-20.md",
+    "docs/s07-1-unified-package-acceptance-2026-09-21.md"
   ],
   "nodes": [
     {
@@ -973,7 +974,7 @@
       "kind": "task",
       "parent": "S07",
       "title": "Altı bileşen ve dahili Music Assistant paketleme",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B1"
       ],
@@ -981,7 +982,8 @@
       "sources": [
         "docs/integrated-media-stack.md",
         "docs/PROGRESS.md",
-        "docs/s07-1-unified-package-implementation-2026-09-20.md"
+        "docs/s07-1-unified-package-implementation-2026-09-20.md",
+        "docs/s07-1-unified-package-acceptance-2026-09-21.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
@@ -1003,9 +1005,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": "İlk on iki paket kriteri yerel TDD ile hazır; gerçek GitHub-hosted amd64/arm64 native workflow sonucu, S06.5 authority aktarımı, production worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan sayaç değişmedi."
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s07-1-unified-package-acceptance-2026-09-21.md",
+          "commit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact main üzerinde unified bundle/deployment/runtime/managed-CI/workflow/native-scope 34/34 PASS; canonical secret-free paket, fail-closed preflight ve private owned cleanup sınırları doğrulandı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s07-1-unified-package-implementation-2026-09-20.md",
+          "commit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız kapanış incelemesi altı bileşen, deterministic package, iki mimarili receipt ve secret-free otomatik wiring kapsamını temiz buldu; kalan CI engeli sonradan tamamen geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538623984",
+          "commit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Unified stack gerçek Docker create/start/restart, mount/network/DNS ve container kimliği GitHub-hosted linux/amd64 ve linux/arm64 üzerinde geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538624142",
+          "commit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android statik analiz, Flutter shardları, Server shardları, emulator journeys ve debug APK aynı head üzerinde geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538624021",
+          "commit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Dependency, platform-policy ve secret-scan kapıları aynı head üzerinde geçti; PR #182 toplam 41 success ve sıfır pending/failure ile birleşti."
+        }
+      ],
+      "completionCommit": "4e6236e88b505d7fc22605cbf1b29a82992fe01f",
+      "reason": "PR #182 ana dala alındı. Tek secret-free paket, fail-closed kurulum sınırı ve GitHub-hosted amd64/arm64 gerçek yaşam döngüsü test/review/CI kanıtları tamamlandı. Gerçek ev, sağlayıcı ve oynatıcı kabulü MANUAL işlerinde ayrı izlenir."
     },
     {
       "id": "S07.2",

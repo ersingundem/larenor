@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 20 Eylül 2026 — `8ed2f72a` exact main, altı yönetilen medya servisi için create/start makbuzunu authenticated sonuçtan ayıran kalıcı kurtarma görünümünü içeriyor. Aynı ağaçtaki `60ab69e6` kaynağında Android, Server, Security ve amd64/arm64 gerçek bileşen kapıları geçti; S06.6 kapandı ve kuyruk 17/125 oldu. S07 tek paket ve fiziksel ev kabulü ayrı açık işlerdir.**
+**Son güncelleme: 21 Eylül 2026 — `4e6236e8` main, Larenor Core ile altı yönetilen medya/müzik bileşenini tek canonical pakette birleştirdi. PR #182 üzerinde 41 zorunlu kapı ile unified stack ve altı bileşenin amd64/arm64 gerçek Docker kabulü geçti; S07.1 kapandı ve kuyruk 18/125 oldu. Fiziksel ev ve sağlayıcı kabulü ayrı manuel işlerdir.**
 
 ```text
-Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  17/125 iş (%13,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  18/125 iş (%14,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,16 +17,28 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış ortak kaynak: PR `60ab69e6` / main `8ed2f72a`.** İki
-commitin Git ağacı `34d31c74` ile aynıdır. Exact PR kaynağında Android
-analiz/test, API35 E2E, dört Server shardı ve Jellyfin, qBittorrent, Arr, Seerr
-ile Music Assistant amd64/arm64 karakterizasyonları geçti; aynı main ağacında
-Server Container, Android ve Security kapıları da yeşildir.
-[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35524476606) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/35524476556) ·
-[Security](https://github.com/ersingundem/larenor/actions/runs/35524476346) ·
-[iki mimarili medya kapıları](https://github.com/ersingundem/larenor/pull/180/checks).
+**Son tam doğrulanmış kabul kaynağı: PR `b0f778dc` / main `4e6236e8`.**
+PR kaynağında Android analiz/test, API35 E2E, dört Server shardı, unified stack
+ve altı medya/müzik bileşeninin amd64/arm64 gerçek runtime kapıları geçti.
+[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35538624142) ·
+[Security](https://github.com/ersingundem/larenor/actions/runs/35538624021) ·
+[iki mimarili unified stack](https://github.com/ersingundem/larenor/actions/runs/35538623984) ·
+[PR #182 kapıları](https://github.com/ersingundem/larenor/pull/182/checks).
 Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
+
+### S07.1 tek Larenor medya/müzik paketi — kabul edildi
+
+Core, Jellyfin, Seerr, Sonarr, Radarr, qBittorrent ve Music Assistant aynı
+canonical Compose/bundle tanımında; exact digest, volume, tmpfs, ağ ve DNS
+kimlikleriyle paketlendi. Dahili servis URL/token/parolaları kullanıcı ayarı
+değildir. Owned path ve runtime receipt sınırları belirsiz sonucu başarı
+saymadan kapanır.
+
+PR #182 headinde 41 zorunlu check ile unified stack ve altı bileşenin gerçek
+amd64/arm64 Docker kabulü geçti; main `4e6236e8` üzerinde S07.1 kapandı.
+[Üç kabul grubu ve exact kanıt](s07-1-unified-package-acceptance-2026-09-21.md).
+Kuyruk **18/125 (%14,4)**, seçili özellik sayacı **0/63**'tür. CasaOS/Proxmox,
+sağlayıcı hesabı ve HomePod/Cast kabulü MANUAL kapılarında kalır.
 
 ### S06.5 özel bootstrap ve otomatik eşleştirme — kabul edildi
 
@@ -61,43 +73,6 @@ iki mimarili native kapılar, dört Server shardı, Android ve Security geçti;
 bağımsız incelemede başarısız Jellyfin bootstrap'ının eski readback ile
 `verified` görünmesi engellendi. S06.6 `done`, kuyruk **17/125 (%13,6)** ve S06
 koordinatörü **6/6** oldu. Fiziksel kurulum kanıt yerine sayılmaz.
-
-### S07.1 birleşik paket — ilk üç kriter yerelde hazır
-
-Yeni [birleşik paket tanımı](../deploy/larenor-server/unified.compose.yaml),
-Larenor Core ile altı sabit medya bileşenini tek projede toplar. Katalog OCI
-index digest'leri, sürüm/lisans/source revision etiketleri, sabit ad/ağ/bind
-eşlemeleri ve secret-free environment sözleşmesi odaklı testlerle doğrulandı.
-[Kriterler ve açık kapılar](s07-1-unified-package-implementation-2026-09-20.md).
-
-İkinci yerel dilim, Compose `config` çıktısından deterministic ve secret-free
-kurulum manifesti üretir; owned directory sahiplik/izin/kapasite preflight'ını
-pull/up önüne koyar; altı servisin image/container receipt'lerini authenticated
-readback durumundan ayırır. Readback başarısızlığı çalışan container'ı servis
-olarak doğrulamaz ve otomatik retry başlatmaz.
-
-Üçüncü yerel dilim, ilgili pull request değişiklikleri ve trusted `main` için
-GitHub-hosted Linux amd64/arm64 native matrisini ekler. İlgisiz değişiklikler
-sabit required check adlarıyla hızlı scope reuse alır. Exact
-config/pull/build/create/start/restart zinciri, iki aşamalı
-container-DNS-mount-network receipt'i, authenticated readiness ayrımı ve yalnız
-ownership receipt ile çalışan scoped `always()` cleanup fail-closed test edildi.
-
-Gerçek iki mimarili workflow sonucu, S06.5 authority aktarımı, production
-installation worker yaşam döngüsü ve B1 bağımlılığı açık olduğundan S07.1
-`pending` kalır.
-
-Dördüncü yerel dilim, aynı canonical Compose tanımından CasaOS ve genel
-Docker Compose/Proxmox bundle'ı üretir. Tek public giriş Core portudur; altı
-servisin exact digest'i ve Music Assistant discovery istisnası korunur.
-Secret-free `.env.example` yalnız data root, timezone, locale ve Core portunu
-açar. Install/upgrade preflight owned path, mimari, disk ile backup/rollback
-hedeflerini salt okunur ve fail-closed raporlar; hiçbir daemon mutation yapmaz.
-Dar saldırgan inceleme data root/ara dizin symlink boşluğunu ve canonical olmayan
-port metnini RED testlerle kapattı; Compose/CasaOS/digest ve public-port sınırları
-ayrıca değişiklik regresyonlarıyla doğrulandı.
-Gerçek iki mimari CI kanıtı gelmeden S07.1 ve sayaçlar değişmez.
-Kuyruk **16/125 (%12,8)**, seçili özellik kabulü **0/63** olarak korunur.
 
 ## Şimdi yapılan işler
 
