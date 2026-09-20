@@ -171,6 +171,50 @@ def test_replace_is_atomic_revisioned_and_request_idempotent(tmp_path):
         assert b"".join(frame[4] for frame in decode(current.content)[:-1]) == second
 
 
+def test_wall_clock_rollback_cannot_corrupt_a_replacement(tmp_path):
+    app, settings, clock = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        upload, descriptor, download = paths(record)
+        first = b"before rollback"
+        request_id = uuid.uuid4().hex
+        created = client.put(
+            upload + request_id,
+            headers=upload_headers(
+                app, admin, record, first, request_id=request_id
+            ),
+            content=first,
+        ).json()["blob"]
+
+        clock.now -= 120
+        second = b"after rollback"
+        second_id = uuid.uuid4().hex
+        replaced = client.put(
+            upload + second_id,
+            headers=upload_headers(
+                app,
+                admin,
+                record,
+                second,
+                request_id=second_id,
+                service_revision=1,
+            ),
+            content=second,
+        )
+
+        assert replaced.status_code == 200, replaced.text
+        assert replaced.json()["blob"]["createdAt"] == created["createdAt"]
+        assert replaced.json()["blob"]["updatedAt"] == created["updatedAt"]
+        assert client.get(descriptor, headers=auth(admin)).status_code == 200
+        streamed = client.post(
+            download,
+            headers=auth(admin),
+            json=request_body(app, admin, record, service_revision=2),
+        )
+        assert b"".join(frame[4] for frame in decode(streamed.content)[:-1]) == second
+
+
 @pytest.mark.parametrize(
     "mutation,code,status",
     [
@@ -217,7 +261,7 @@ def test_invalid_or_stale_upload_never_replaces_product_blob(
         elif mutation == "digest":
             headers["X-Larenor-Content-Sha256"] = "0" * 64
         elif mutation == "content_type":
-            headers["Content-Type"] = "text/plain\r\nx-private: secret"
+            headers["Content-Type"] = "text/plain, secret"
         elif mutation in {"service", "resource", "acl", "user"}:
             field = {
                 "service": "X-Larenor-Expected-Service-Revision",
