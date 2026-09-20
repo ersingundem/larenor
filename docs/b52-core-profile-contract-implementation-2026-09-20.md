@@ -32,10 +32,23 @@ route, lifecycle and one-resource lease gates before opening a connection.
 
 - Core remote profile API/security suite: **17 passed** with **90%** focused
   line coverage (442 statements; 80% gate).
+- Core context and v1 migration regression joined to that suite: **48 passed**.
+  The v1 fixture removes every post-v1 profile table and marker before
+  migration, so the new authenticated state is rebuilt against the migrated
+  Core/home identity instead of retaining a synthetic stale tag.
 - Related authentication, administration, Core context and home-resource
-  regression: **141 passed**.
+  regression: **129 passed** on the current base.
 - Python compile, execution queue validation, diff check and gitleaks are
   recorded with the wrapper commit.
+
+## Client dependency
+
+This Server contract is cleanly mergeable with PR #223 at head `17858e38`:
+the two changes own disjoint files and a three-way merge-tree has no conflict.
+PR #223 remains the required Client-side proof for device-local profile
+separation plus PIN, background, idle, route and bounded-resource retirement.
+This branch must not claim B5.2 completion or open its dependent PR until that
+Client boundary has merged.
 
 Physical targets, Client synchronization, multi-Core discovery and S08.11
 central search remain separate acceptance gates, so roadmap counters do not
