@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/direct_home_access.dart';
+import '../../../health/data/integration_health.dart';
+import '../../hub/presentation/media_session_state.dart';
+import '../data/bazarr_client.dart';
 import '../data/models/bazarr_wanted_item.dart';
 import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
@@ -52,16 +55,33 @@ class BazarrHomeScreen extends ConsumerWidget {
   }
 }
 
-class _BazarrWantedScaffold extends ConsumerWidget {
+class _BazarrWantedScaffold extends ConsumerStatefulWidget {
   const _BazarrWantedScaffold();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BazarrWantedScaffold> createState() =>
+      _BazarrWantedScaffoldState();
+}
+
+class _BazarrWantedScaffoldState
+    extends MediaSessionState<_BazarrWantedScaffold> {
+  bool _current(int generation, Object movies, Object episodes) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(bazarrMissingMoviesProvider), movies) &&
+      identical(ref.read(bazarrMissingEpisodesProvider), episodes);
+
+  @override
+  Widget build(BuildContext context) {
+    watchMediaAccount(IntegrationId.bazarr, bazarrConnectionProvider);
     final moviesAsync = ref.watch(bazarrMissingMoviesProvider);
     final episodesAsync = ref.watch(bazarrMissingEpisodesProvider);
     final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
 
     void refresh() {
+      if (!_current(generation, moviesAsync, episodesAsync)) return;
       ref.invalidate(bazarrMissingMoviesProvider);
       ref.invalidate(bazarrMissingEpisodesProvider);
     }
@@ -124,8 +144,10 @@ class _WantedSection extends ConsumerWidget {
       error: (error, _) => Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          AppLocalizations.of(context)
-              .bazarrLoadSectionError(title, error.toString()),
+          AppLocalizations.of(context).bazarrLoadSectionError(
+            title,
+            AppLocalizations.of(context).actionFailed,
+          ),
         ),
       ),
       data: (items) {
@@ -152,13 +174,18 @@ class _WantedRow extends ConsumerStatefulWidget {
   ConsumerState<_WantedRow> createState() => _WantedRowState();
 }
 
-class _WantedRowState extends ConsumerState<_WantedRow> {
+class _WantedRowState extends MediaSessionState<_WantedRow> {
   bool _searching = false;
 
-  Future<void> _searchFirstMissing() async {
-    final client = ref.read(bazarrClientProvider);
+  bool _current(int generation, BazarrClient client) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true &&
+      identical(ref.read(bazarrClientProvider), client);
+
+  Future<void> _searchFirstMissing(BazarrClient client, int generation) async {
     final language = widget.item.missingLanguages.firstOrNull;
-    if (client == null || language == null) return;
+    if (_searching || !_current(generation, client) || language == null) return;
 
     setState(() => _searching = true);
     try {
@@ -175,17 +202,19 @@ class _WantedRowState extends ConsumerState<_WantedRow> {
           language: language.code,
         );
       }
-      widget.onChanged();
+      if (_current(generation, client)) widget.onChanged();
     } catch (_) {
       // Row simply won't update; user can retry.
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (_current(generation, client)) setState(() => _searching = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final client = ref.watch(bazarrClientProvider);
+    final generation = sessionGeneration;
     final languages = widget.item.missingLanguages
         .map((l) => l.label)
         .join(', ');
@@ -210,9 +239,13 @@ class _WantedRowState extends ConsumerState<_WantedRow> {
           Text(l10n.commonSearch),
         ],
       ),
-      onTap: _searching || widget.item.missingLanguages.isEmpty
+      onTap:
+          _searching ||
+              client == null ||
+              widget.item.missingLanguages.isEmpty ||
+              !_current(generation, client)
           ? null
-          : _searchFirstMissing,
+          : () => _searchFirstMissing(client, generation),
     );
   }
 }

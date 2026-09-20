@@ -36,6 +36,19 @@ const _indexer = ProwlarrIndexer(
   },
 );
 
+final _currentProwlarrClient =
+    NotifierProvider<_CurrentProwlarrClient, ProwlarrClient?>(
+      _CurrentProwlarrClient.new,
+    );
+ProwlarrClient? _initialProwlarrClient;
+
+class _CurrentProwlarrClient extends Notifier<ProwlarrClient?> {
+  @override
+  ProwlarrClient? build() => _initialProwlarrClient;
+
+  void replace(ProwlarrClient value) => state = value;
+}
+
 class _Connection extends ProwlarrConnection {
   @override
   Future<ProwlarrConfig?> build() async {
@@ -86,11 +99,15 @@ void main() {
     final replacementClient = client(replacementRequests);
     addTearDown(oldClient.dispose);
     addTearDown(replacementClient.dispose);
+    _initialProwlarrClient = oldClient;
+    addTearDown(() => _initialProwlarrClient = null);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           prowlarrConnectionProvider.overrideWith(_Connection.new),
-          prowlarrClientProvider.overrideWith((_) => oldClient),
+          prowlarrClientProvider.overrideWith(
+            (ref) => ref.watch(_currentProwlarrClient),
+          ),
           prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
         ],
         child: _tabletApp(const Locale('en')),
@@ -103,11 +120,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ProwlarrIndexersScreen)),
     );
-    container.updateOverrides([
-      prowlarrConnectionProvider.overrideWith(_Connection.new),
-      prowlarrClientProvider.overrideWith((_) => replacementClient),
-      prowlarrIndexersProvider.overrideWith((_) async => const [_indexer]),
-    ]);
+    container.read(_currentProwlarrClient.notifier).replace(replacementClient);
     await tester.pumpAndSettle();
 
     toggle(false);

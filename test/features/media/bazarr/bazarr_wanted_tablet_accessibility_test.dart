@@ -27,6 +27,19 @@ const _movie = BazarrWantedItem(
   missingLanguages: [BazarrMissingLanguage(code: 'en', name: 'English')],
 );
 
+final _currentBazarrClient =
+    NotifierProvider<_CurrentBazarrClient, BazarrClient?>(
+      _CurrentBazarrClient.new,
+    );
+BazarrClient? _initialBazarrClient;
+
+class _CurrentBazarrClient extends Notifier<BazarrClient?> {
+  @override
+  BazarrClient? build() => _initialBazarrClient;
+
+  void replace(BazarrClient value) => state = value;
+}
+
 class _Connection extends BazarrConnection {
   @override
   Future<BazarrConfig?> build() async {
@@ -64,11 +77,15 @@ void main() {
     final replacementClient = client(replacementRequests);
     addTearDown(oldClient.dispose);
     addTearDown(replacementClient.dispose);
+    _initialBazarrClient = oldClient;
+    addTearDown(() => _initialBazarrClient = null);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           bazarrConnectionProvider.overrideWith(_Connection.new),
-          bazarrClientProvider.overrideWith((_) => oldClient),
+          bazarrClientProvider.overrideWith(
+            (ref) => ref.watch(_currentBazarrClient),
+          ),
           bazarrMissingMoviesProvider.overrideWith((_) async => const [_movie]),
           bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
         ],
@@ -84,12 +101,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(BazarrHomeScreen)),
     );
-    container.updateOverrides([
-      bazarrConnectionProvider.overrideWith(_Connection.new),
-      bazarrClientProvider.overrideWith((_) => replacementClient),
-      bazarrMissingMoviesProvider.overrideWith((_) async => const [_movie]),
-      bazarrMissingEpisodesProvider.overrideWith((_) async => const []),
-    ]);
+    container.read(_currentBazarrClient.notifier).replace(replacementClient);
     await tester.pumpAndSettle();
 
     search();
