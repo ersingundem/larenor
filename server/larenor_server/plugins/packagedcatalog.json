@@ -879,7 +879,7 @@
           "sizeMiB": 128,
           "uid": 0,
           "gid": 0,
-          "executable": false
+          "executable": true
         }
       ],
       "environment": [

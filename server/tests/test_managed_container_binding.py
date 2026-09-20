@@ -162,7 +162,7 @@ def test_music_assistant_binding_is_fixed_digest_host_network_and_owned_data_onl
     assert body['HostConfig']['CapAdd'] == ['NET_BIND_SERVICE']
     assert body['HostConfig']['CapDrop'] == ['ALL']
     assert body['HostConfig']['Tmpfs'] == {
-        '/tmp': 'rw,nosuid,nodev,noexec,size=128m,uid=0,gid=0,mode=1777'}
+        '/tmp': 'rw,nosuid,nodev,exec,size=128m,uid=0,gid=0,mode=1777'}
     assert 'PortBindings' not in body['HostConfig'] and 'ExposedPorts' not in body
     assert [(mount.target, mount.read_only) for mount in binding.mounts] == [
         ('/data', False)]
