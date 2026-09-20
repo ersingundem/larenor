@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,8 @@ import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import '../server/server_account_test.dart' as account_fixture;
 import 'client_updates_test.dart' as update_fixture;
@@ -35,6 +38,7 @@ void main() {
     bool login = true,
     Size size = const Size(900, 1000),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     // Construct the controller's serial-write Future in this widget test's
     // async zone, not the outer setUp zone.
@@ -87,7 +91,7 @@ void main() {
           ),
         ],
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -112,6 +116,58 @@ void main() {
     await tester.ensureVisible(target);
     await tester.tap(target);
     await tester.pumpAndSettle();
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'client updates uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await mount(
+              tester,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ClientUpdatesScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('client-updates-status-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.clientUpdatesStatus);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final check = find.byKey(const ValueKey('updates-check'));
+            final checkNode = tester.getSemantics(check);
+            expect(checkNode.label, l10n.clientUpdatesCheck);
+            expect(checkNode.flagsCollection.isButton, isTrue);
+            expect(checkNode.rect.width, greaterThanOrEqualTo(48));
+            expect(checkNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: check,
+              matching: find.text(l10n.clientUpdatesCheck),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(reads, 2);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
   }
 
   testWidgets(
