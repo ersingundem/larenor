@@ -12,6 +12,7 @@ import '../../../ambient/presentation/ambient_settings_screen.dart';
 import '../../../kiosk/presentation/kiosk_screen.dart';
 import '../../../web_panel/presentation/web_panel_data_screen.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../media/local_audio/presentation/playback_power_screen.dart';
 import '../window_panel_screen.dart';
 import '../screen_program_screen.dart';
@@ -33,7 +34,11 @@ class DisplayPane extends ConsumerWidget {
       title: l10n.settingsCategoryDisplay,
       children: [
         SettingsSection(
-          header: Text(l10n.settingsSectionDisplay),
+          header: Semantics(
+            key: const ValueKey('display-settings-header'),
+            header: true,
+            child: Text(l10n.settingsSectionDisplay),
+          ),
           children: [
             SettingsNavRow(
               icon: CupertinoIcons.photo_on_rectangle,
@@ -60,27 +65,27 @@ class DisplayPane extends ConsumerWidget {
               title: l10n.kioskTitle,
               builder: (_) => const KioskScreen(),
             ),
-            CupertinoListTile(
+            SettingsActionTile(
+              buttonKey: const ValueKey('display-playback-power-action'),
               leading: const IconBadge(
                 icon: CupertinoIcons.music_note_2,
                 color: CupertinoColors.systemPurple,
               ),
               title: Text(l10n.localAudioPowerTitle),
-              trailing: const CupertinoListTileChevron(),
               onTap: () => Navigator.of(context).push(
                 CupertinoPageRoute<void>(
                   builder: (_) => const PlaybackPowerScreen(),
                 ),
               ),
             ),
-            CupertinoListTile(
+            SettingsActionTile(
+              buttonKey: const ValueKey('display-appearance-action'),
               leading: const IconBadge(
                 icon: CupertinoIcons.circle_lefthalf_fill,
                 color: CupertinoColors.systemIndigo,
               ),
               title: Text(l10n.settingsAppearance),
               additionalInfo: Text(_appearanceLabel(l10n, appearance)),
-              trailing: const CupertinoListTileChevron(),
               onTap: () => _showAppearancePicker(context, ref, appearance),
             ),
             CupertinoListTile(
