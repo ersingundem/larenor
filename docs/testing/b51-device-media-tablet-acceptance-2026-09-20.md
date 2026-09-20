@@ -25,4 +25,3 @@ Focused evidence:
 
 - `flutter test test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
 - `flutter analyze lib/features/media/casting/presentation/remote_playback_screen.dart lib/features/media/jellyfin/presentation/jellyfin_item_detail_screen.dart lib/features/media/local_audio/presentation/playback_power_screen.dart test/features/media/casting/remote_playback_ui_test.dart test/features/media/jellyfin/jellyfin_browse_tablet_contract_test.dart test/features/media/local_audio/playback_power_tablet_accessibility_test.dart test/features/media/local_audio/local_audio_ui_test.dart`
-
