@@ -11,6 +11,8 @@ import 'proxmox_tasks_screen.dart';
 import 'proxmox_session_guard.dart';
 import 'widgets/proxmox_guest_row.dart';
 import 'widgets/proxmox_usage_bar.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 
 class ProxmoxNodeDetailScreen extends ConsumerStatefulWidget {
@@ -38,7 +40,7 @@ class _ProxmoxNodeDetailScreenState
   Widget build(BuildContext context) {
     watchProxmoxSession();
     if (!sessionAvailable) {
-      return CupertinoPageScaffold(
+      return AppPageScaffold(
         navigationBar: CupertinoNavigationBar(middle: Text(nodeName)),
         child: SafeArea(
           child: Center(
@@ -68,30 +70,9 @@ class _ProxmoxNodeDetailScreenState
       ref.invalidate(proxmoxStoragesProvider(nodeName));
     }
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(nodeName),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: refresh,
-              child: const Icon(CupertinoIcons.refresh),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => open(
-                ProxmoxCreateGuestScreen(
-                  nodeName: nodeName,
-                  sourceCurrent: captureProxmoxRouteSource(ref),
-                ),
-              ),
-              child: const Icon(CupertinoIcons.add),
-            ),
-          ],
-        ),
-      ),
+    final l10n = AppLocalizations.of(context);
+    return AppPageScaffold(
+      navigationBar: CupertinoNavigationBar(middle: Text(nodeName)),
       child: SafeArea(
         child: guestsAsync.when(
           skipLoadingOnRefresh: false,
@@ -109,12 +90,27 @@ class _ProxmoxNodeDetailScreenState
                 const SizedBox(height: 16),
                 SettingsSection(
                   children: [
-                    CupertinoListTile(
-                      leading: const Icon(CupertinoIcons.clock),
-                      title: Text(
-                        AppLocalizations.of(context).proxmoxTasksTitle,
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('proxmox-node-refresh'),
+                      leading: const Icon(CupertinoIcons.refresh),
+                      title: Text(l10n.commonRefresh),
+                      onTap: refresh,
+                    ),
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('proxmox-node-add'),
+                      leading: const Icon(CupertinoIcons.add),
+                      title: Text(l10n.proxmoxCreateFromTemplateTitle),
+                      onTap: () => open(
+                        ProxmoxCreateGuestScreen(
+                          nodeName: nodeName,
+                          sourceCurrent: captureProxmoxRouteSource(ref),
+                        ),
                       ),
-                      trailing: const CupertinoListTileChevron(),
+                    ),
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('proxmox-node-tasks'),
+                      leading: const Icon(CupertinoIcons.clock),
+                      title: Text(l10n.proxmoxTasksTitle),
                       onTap: () => open(
                         ProxmoxTasksScreen(
                           nodeName: nodeName,
@@ -198,19 +194,31 @@ class _StorageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoListTile(
+    if (!storage.supportsBackups) {
+      return CupertinoListTile(
+        leading: const Icon(CupertinoIcons.archivebox),
+        title: Text(storage.name),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: ProxmoxUsageBar(
+            label: storage.type,
+            fraction: storage.usedFraction,
+          ),
+        ),
+      );
+    }
+    return SettingsActionTile(
+      buttonKey: ValueKey('proxmox-storage-${storage.name}'),
+      leading: const Icon(CupertinoIcons.archivebox),
       title: Text(storage.name),
-      subtitle: Padding(
+      additionalInfo: Padding(
         padding: const EdgeInsets.only(top: 6),
         child: ProxmoxUsageBar(
           label: storage.type,
           fraction: storage.usedFraction,
         ),
       ),
-      trailing: storage.supportsBackups
-          ? const CupertinoListTileChevron()
-          : null,
-      onTap: storage.supportsBackups ? onOpen : null,
+      onTap: onOpen,
     );
   }
 }
