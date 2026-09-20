@@ -25,6 +25,7 @@ Future<void> _mount(
   required String language,
   required double width,
   required void Function() onBuild,
+  List<KeeneticDevice> Function()? devices,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -36,15 +37,16 @@ Future<void> _mount(
         keeneticClientProvider.overrideWith((ref) async => null),
         keeneticDevicesProvider.overrideWith((ref) async {
           onBuild();
-          return const [
-            KeeneticDevice(
-              mac: 'AA:BB:CC:DD:EE:01',
-              name: 'Living room tablet',
-              ip: '192.168.1.40',
-              active: true,
-              registered: true,
-            ),
-          ];
+          return devices?.call() ??
+              const [
+                KeeneticDevice(
+                  mac: 'AA:BB:CC:DD:EE:01',
+                  name: 'Living room tablet',
+                  ip: '192.168.1.40',
+                  active: true,
+                  registered: true,
+                ),
+              ];
         }),
       ],
       child: CupertinoApp(
@@ -64,6 +66,44 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('removed Keenetic device rejects retained open callback', (
+    tester,
+  ) async {
+    var devices = const [
+      KeeneticDevice(
+        mac: 'AA:BB:CC:DD:EE:01',
+        name: 'Living room tablet',
+        ip: '192.168.1.40',
+        active: true,
+        registered: true,
+      ),
+    ];
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      onBuild: () {},
+      devices: () => devices,
+    );
+    final open = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('keenetic-device-AA:BB:CC:DD:EE:01')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(KeeneticDevicesScreen)),
+    );
+    devices = const [];
+    container.invalidate(keeneticDevicesProvider);
+    await tester.pumpAndSettle();
+
+    open();
+    await tester.pumpAndSettle();
+
+    expect(find.text('AA:BB:CC:DD:EE:01'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(

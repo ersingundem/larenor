@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,6 +117,35 @@ void main() {
           );
           expect(tester.getSemantics(field).label, contains(label));
         }
+        final zoom = find.byKey(const ValueKey('web-settings-zoom'));
+        if (zoom.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(
+            zoom,
+            160,
+            scrollable: find
+                .byWidgetPredicate(
+                  (widget) =>
+                      widget is Scrollable &&
+                      widget.axisDirection == AxisDirection.down,
+                )
+                .first,
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(tester.getSize(zoom), const Size(60, 48));
+        expect(tester.getSemantics(zoom).label, contains(l10n.webPanelZoom));
+        expect(
+          tester.getSemantics(zoom).flagsCollection.isToggled,
+          ui.Tristate.isTrue,
+        );
+        Focus.of(tester.element(zoom)).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(
+          tester.getSemantics(zoom).flagsCollection.isToggled,
+          ui.Tristate.isFalse,
+        );
         final save = find.byKey(const ValueKey('web-settings-save'));
         if (save.evaluate().isEmpty) {
           await tester.scrollUntilVisible(

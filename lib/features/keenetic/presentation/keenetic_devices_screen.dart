@@ -72,6 +72,15 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
     ref.invalidate(keeneticDevicesProvider);
   }
 
+  KeeneticDevice? _currentDevice(KeeneticDevice captured) {
+    final devices = ref.read(keeneticDevicesProvider);
+    if (devices.isLoading || devices.hasError) return null;
+    for (final device in devices.value ?? const <KeeneticDevice>[]) {
+      if (identical(device, captured)) return device;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     watchKeeneticSession();
@@ -194,12 +203,14 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                         ),
                         onTap: () {
                           if (!keeneticCurrent(generation)) return;
+                          final current = _currentDevice(device);
+                          if (current == null) return;
                           final source = captureKeeneticSource();
                           if (source == null) return;
                           Navigator.of(context).push(
                             CupertinoPageRoute<void>(
                               builder: (_) => _DeviceDetails(
-                                device: device,
+                                device: current,
                                 sourceCurrent: source,
                               ),
                             ),

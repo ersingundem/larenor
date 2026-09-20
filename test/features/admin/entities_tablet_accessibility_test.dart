@@ -26,6 +26,18 @@ class _Registry extends EntityRegistry {
   }
 }
 
+class _MutableRegistry extends EntityRegistry {
+  static const entry = HaRegistryEntry(
+    entityId: 'light.entry',
+    originalName: 'Entry light',
+  );
+
+  @override
+  Future<List<HaRegistryEntry>> build() async => const [entry];
+
+  void replace(List<HaRegistryEntry> entries) => state = AsyncData(entries);
+}
+
 Future<void> _mount(
   WidgetTester tester, {
   required String language,
@@ -54,6 +66,40 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('removed registry entity rejects retained open callback', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [entityRegistryProvider.overrideWith(_MutableRegistry.new)],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const EntitiesScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final open = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('entity-light.entry')),
+        )
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(EntitiesScreen)),
+    );
+    (container.read(entityRegistryProvider.notifier) as _MutableRegistry)
+        .replace(const []);
+    await tester.pump();
+
+    open();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RegistryEditorScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$language entity refresh is accessible at ${width}px 2x', (

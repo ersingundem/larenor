@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/app_interaction_scope.dart';
@@ -336,21 +337,55 @@ class _WebPanelSettingsState
                           horizontal: 16,
                           vertical: 8,
                         ),
-                        child: MergeSemantics(
-                          child: Row(
-                            children: [
-                              Expanded(child: Text(l10n.webPanelZoom)),
-                              CupertinoSwitch(
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(l10n.webPanelZoom)),
+                            FocusableActionDetector(
+                              shortcuts: const {
+                                SingleActivator(LogicalKeyboardKey.enter):
+                                    ActivateIntent(),
+                                SingleActivator(LogicalKeyboardKey.space):
+                                    ActivateIntent(),
+                              },
+                              actions: {
+                                ActivateIntent: CallbackAction<ActivateIntent>(
+                                  onInvoke: (_) {
+                                    if (_valid(generation)) {
+                                      setState(() => _zoom = !_zoom);
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              },
+                              child: Semantics(
                                 key: const ValueKey('web-settings-zoom'),
-                                value: _zoom,
-                                onChanged: (value) {
+                                container: true,
+                                label: l10n.webPanelZoom,
+                                toggled: _zoom,
+                                onTap: () {
                                   if (_valid(generation)) {
-                                    setState(() => _zoom = value);
+                                    setState(() => _zoom = !_zoom);
                                   }
                                 },
+                                child: SizedBox(
+                                  width: 60,
+                                  height: 48,
+                                  child: Center(
+                                    child: ExcludeSemantics(
+                                      child: CupertinoSwitch(
+                                        value: _zoom,
+                                        onChanged: (value) {
+                                          if (_valid(generation)) {
+                                            setState(() => _zoom = value);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                       Padding(
