@@ -32,6 +32,7 @@ class _Actions implements TodayActions {
     TodayTodoList list,
     String summary, {
     required bool Function() current,
+    String? idempotencyKey,
     String? dueDate,
     DateTime? dueAt,
     String? description,

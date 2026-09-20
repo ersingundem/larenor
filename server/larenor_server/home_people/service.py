@@ -249,6 +249,26 @@ class HomePeopleRegistry:
                           expected_acl_revision=expected_acl_revision, expected_user_revision=expected_user_revision,
                           cancelled=cancelled)
 
+    def authorize_connection(self, connection, actor, record_id, action, *,
+                             expected_revision, expected_acl_revision):
+        """Recheck one person inside another Core service's write transaction."""
+        user = connection.execute(
+            'SELECT id,revision,role,disabled,must_change_password '
+            'FROM users WHERE id=?', (actor.id,)
+        ).fetchone()
+        if user is None or user['disabled'] or user['must_change_password']:
+            raise ApiError('invalid_session', 401)
+        facts = ActorFacts(
+            userId=user['id'], revision=user['revision'], role=user['role'],
+            disabled=False, mustChangePassword=False, sessionCurrent=True,
+        )
+        row, ref, data = self._target(connection, record_id)
+        self._require(
+            facts, row, ref, data, action,
+            expected_revision=expected_revision,
+            expected_acl_revision=expected_acl_revision,
+        )
+
     def create(self, actor, core_id, home_id, body):
         body = CreatePersonRequest.model_validate(body); identity = uuid.uuid4().hex
         with self._transaction(actor, core_id, home_id, admin=True, action='create', target_id=identity) as (c, facts):

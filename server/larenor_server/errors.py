@@ -136,6 +136,7 @@ MESSAGES = {
     'keenetic_command_unavailable': 'The Keenetic command state source is unavailable.',
     'keenetic_command_integrity_failed': 'The Keenetic command history could not be verified.',
     'idempotency_conflict': 'This request conflicts with an existing command.',
+    'operation_replay': 'This completed operation belongs to an older state. Read the current state.',
 }
 
 

@@ -40,6 +40,7 @@ class TodayActions {
     TodayTodoList list,
     String summary, {
     required bool Function() current,
+    String? idempotencyKey,
     String? dueDate,
     DateTime? dueAt,
     String? description,
@@ -47,6 +48,7 @@ class TodayActions {
     list,
     summary,
     current: current,
+    idempotencyKey: idempotencyKey,
     dueDate: dueDate,
     dueAt: dueAt,
     description: description,
@@ -56,19 +58,30 @@ class TodayActions {
     TodayTodoList list,
     String summary, {
     bool Function()? current,
+    String? idempotencyKey,
     String? dueDate,
     DateTime? dueAt,
     String? description,
   }) async {
     if (!list.canAdd) throw const TodayException('unsupported_add');
     final title = _summary(summary);
+    if (idempotencyKey != null &&
+        (!RegExp(r'^[0-9a-f]{64}$').hasMatch(idempotencyKey) ||
+            description != null ||
+            !list.canSetDescription)) {
+      throw const TodayException('unsupported_idempotency');
+    }
+    final marker = idempotencyKey == null
+        ? null
+        : 'Larenor F31 v1 $idempotencyKey';
     final fields = _fields(
       list,
       dueDate: dueDate,
       dueAt: dueAt,
-      description: description,
+      description: marker ?? description,
     );
     final beforeIds = <String>{};
+    var alreadyVerified = false;
     await _mutate<List<TodayTodoItem>>(
       target: list.entityId,
       action: 'todo.add_item',
@@ -76,16 +89,33 @@ class TodayActions {
       prepare: () async {
         final before = await repository.readTodoItems(list.entityId);
         beforeIds.addAll(before.map((item) => item.uid).whereType<String>());
+        if (marker != null) {
+          final matches = before
+              .where((item) => item.description == marker)
+              .toList(growable: false);
+          if (matches.length > 1 ||
+              matches.any((item) => item.summary != title)) {
+            throw const TodayException('ambiguous_idempotency');
+          }
+          alreadyVerified =
+              matches.length == 1 &&
+              matches.single.status == TodayTodoStatus.needsAction;
+        }
       },
-      send: () => repository.callService('todo', 'add_item', {
-        'item': title,
-        ...fields,
-      }, entityId: list.entityId),
+      send: () async {
+        if (alreadyVerified) return;
+        await repository.callService('todo', 'add_item', {
+          'item': title,
+          ...fields,
+        }, entityId: list.entityId);
+      },
       read: () => repository.readTodoItems(list.entityId),
       confirms: (items) => items.any(
         (item) =>
             item.canIdentify &&
-            !beforeIds.contains(item.uid) &&
+            (marker != null
+                ? item.description == marker
+                : !beforeIds.contains(item.uid)) &&
             item.summary == title &&
             item.status == TodayTodoStatus.needsAction &&
             _matchesFields(item, fields),
