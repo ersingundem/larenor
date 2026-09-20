@@ -1,6 +1,6 @@
 # F06 atfedilebilir işlem açıklaması — kabul incelemesi
 
-**İncelenen taban:** `b9027f95d562092089321cd3f006c809fb3851a5`
+**İncelenen taban:** `8ed2f72ab6b0dd64eb82246b5f5b184734a91f9b`
 **Karar tarihi:** 20 Eylül 2026
 **Karar:** Kod dilimi yerel incelemeden geçti; F06 henüz kabul edilmedi.
 
@@ -40,9 +40,10 @@ head'i doğrulamadan kapanış commit'i atılamaz.
 - Rule Client modeli ve sunumu:
   `core_ha_activity_models_test.dart` + `core_ha_activity_ui_test.dart`,
   **26/26 PASS**.
-- S08.10 birleşmesinden sonraki exact-main rebase sırasında ortak sentetik Core
-  fixture'ındaki event ve history alanları birlikte korundu; odak Server paketi
-  **12/12**, birleşik Client HTTP/model/UI paketi **36/36 PASS** verdi.
+- S08.10 ve S06.6 birleşmelerinden sonraki exact-main rebase sırasında ortak
+  sentetik Core fixture'ındaki event ve history alanları birlikte korundu; odak
+  Server paketi **12/12**, birleşik Client HTTP/model/UI paketi **36/36 PASS**
+  verdi.
 - Önceki birleşik regresyon aynı kod diliminde Server **450/450**, Client
   `core_ha` **252/252 PASS** verdi; pahalı paketlerin tamamı kaynak değişmediği
   için tekrarlanmadı.
