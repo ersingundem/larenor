@@ -32,13 +32,20 @@ class SettingsSection extends StatelessWidget {
     final style = AppText.footnote.copyWith(
       color: CupertinoColors.secondaryLabel.resolveFrom(context),
     );
+    final styledHeader = switch (header) {
+      null => null,
+      final Semantics semantics when semantics.properties.header == true =>
+        DefaultTextStyle(style: style, child: semantics),
+      final Widget value => DefaultTextStyle(
+        style: style,
+        child: Semantics(container: true, header: true, child: value),
+      ),
+    };
 
     return CupertinoListSection.insetGrouped(
       backgroundColor: CupertinoColors.transparent,
       margin: margin,
-      header: header == null
-          ? null
-          : DefaultTextStyle(style: style, child: header!),
+      header: styledHeader,
       footer: footer == null
           ? null
           : DefaultTextStyle(style: style, child: footer!),
