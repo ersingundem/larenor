@@ -52,6 +52,8 @@ class ResourceRule:
             raise ValueError("invalid_resource_rule") from None
         if (
             not _identifier(self.id)
+            or not isinstance(self.timezone, str)
+            or len(self.timezone) > 128
             or not _positive_revision(self.revision)
             or type(self.capacity) is not int
             or not 1 <= self.capacity <= MAX_CAPACITY
@@ -90,6 +92,7 @@ class ReservationAuthority:
             or not 1 <= len(self.member_ids) <= 128
             or len(set(self.member_ids)) != len(self.member_ids)
             or any(not _identifier(item) for item in self.member_ids)
+            or not isinstance(self.resource, ResourceRule)
             or any(item not in self.member_ids for item in self.resource.member_ids)
         ):
             raise ValueError("invalid_reservation_authority")
@@ -201,7 +204,11 @@ class ReservationStore:
             "resourceRevision": authority.resource.revision,
             "expectedCalendarRevision": authority.calendar_revision,
         }
-        if any(value.get(key) != expected_value for key, expected_value in expected.items()):
+        if any(
+            type(value.get(key)) is not type(expected_value)
+            or value.get(key) != expected_value
+            for key, expected_value in expected.items()
+        ):
             raise ApiError("authority_changed", 409)
 
     @staticmethod
@@ -216,7 +223,11 @@ class ReservationStore:
             parsed = datetime.fromisoformat(value[:-1])
         except ValueError:
             raise ApiError("invalid_request", 400) from None
-        if parsed.tzinfo is not None or parsed.microsecond:
+        if (
+            parsed.tzinfo is not None
+            or parsed.microsecond
+            or parsed.isoformat(timespec="seconds") != value[:-1]
+        ):
             raise ApiError("invalid_request", 400)
         return parsed.replace(tzinfo=UTC)
 
@@ -252,6 +263,8 @@ class ReservationStore:
         if count > 1 and step * (count - 1) > timedelta(days=MAX_RECURRENCE_DAYS):
             raise ApiError("invalid_request", 400)
         fold = value.get("fold")
+        if fold is not None and type(fold) is not int:
+            raise ApiError("invalid_request", 400)
         zone = ZoneInfo(rule.timezone)
         occurrences = []
         for index in range(count):
@@ -289,6 +302,13 @@ class ReservationStore:
             hashlib.sha256,
         ).hexdigest()
 
+    def _fingerprint(self, domain: bytes, value: bytes) -> str:
+        return hmac.new(
+            self._audit_key,
+            b"larenor-resource-reservation-" + domain + b"-v1\0" + value,
+            hashlib.sha256,
+        ).hexdigest()
+
     def _state(self, connection: sqlite3.Connection, authority: ReservationAuthority) -> sqlite3.Row | None:
         row = connection.execute(
             "SELECT * FROM resource_reservation_state WHERE core_id=? AND home_id=? AND resource_id=?",
@@ -307,7 +327,9 @@ class ReservationStore:
         try:
             aad = f'{row["core_id"]}\0{row["home_id"]}\0{row["resource_id"]}\0{row["id"]}'.encode()
             raw = self._cipher.decrypt(row["nonce"], row["ciphertext"], aad)
-            if hashlib.sha256(raw).hexdigest() != row["payload_hash"]:
+            if not hmac.compare_digest(
+                self._fingerprint(b"payload", raw), row["payload_hash"]
+            ):
                 raise ValueError
             value = json.loads(raw)
             occurrences = tuple(Occurrence(**item) for item in value.pop("occurrences"))
@@ -488,7 +510,7 @@ class ReservationStore:
         if value["action"] != "create" or not _identifier(value["commandId"]):
             raise ApiError("invalid_request", 400)
         occurrences = self._local_occurrences(value, authority.resource)
-        request_hash = hashlib.sha256(command_bytes).hexdigest()
+        request_hash = self._fingerprint(b"request", command_bytes)
         with self.database.transaction() as connection:
             _, reservations = self._verified(connection, authority)
             replay = self._find_replay(connection, authority, value["commandId"])
@@ -552,7 +574,7 @@ class ReservationStore:
                 (
                     reservation_id, authority.core_id, authority.home_id,
                     authority.resource.id, 1, nonce, self._cipher.encrypt(nonce, raw, aad),
-                    hashlib.sha256(raw).hexdigest(), request_hash, now,
+                    self._fingerprint(b"payload", raw), request_hash, now,
                 ),
             )
             event_id, revision = self._insert_event(
@@ -603,7 +625,7 @@ class ReservationStore:
             or not _identifier(value["reservationId"])
         ):
             raise ApiError("invalid_request", 400)
-        request_hash = hashlib.sha256(command_bytes).hexdigest()
+        request_hash = self._fingerprint(b"request", command_bytes)
         with self.database.transaction() as connection:
             _, reservations = self._verified(connection, authority)
             replay = self._find_replay(connection, authority, value["commandId"])
@@ -648,12 +670,18 @@ class ReservationStore:
     ) -> tuple[int, tuple[ReservationEvent, ...], dict[str, Reservation]]:
         self._authorize(actor, authority)
         with self.database.connection() as connection:
-            events, reservations = self._verified(connection, authority)
-            state = self._state(connection, authority)
-            revision = authority.calendar_revision if state is None else state["revision"]
-            if revision != authority.calendar_revision:
-                raise ApiError("authority_changed", 409)
-            return revision, events, reservations
+            connection.execute("BEGIN")
+            try:
+                events, reservations = self._verified(connection, authority)
+                state = self._state(connection, authority)
+                revision = (
+                    authority.calendar_revision if state is None else state["revision"]
+                )
+                if revision != authority.calendar_revision:
+                    raise ApiError("authority_changed", 409)
+                return revision, events, reservations
+            finally:
+                connection.rollback()
 
     def history(
         self,

@@ -215,6 +215,16 @@ def test_exact_authority_idempotency_conflict_cancel_and_audit(tmp_path):
             ).replace(b'"accountRevision":9', b'"accountRevision":8'),
             authority=authority(calendar_revision=8),
         )
+    with pytest.raises(ApiError, match="authority_changed"):
+        reservations.create(
+            actor("ada"),
+            command_bytes=create_bytes(
+                command_id="reserve-float-revision",
+                local_start="2026-11-02T10:00:00",
+                expected_calendar_revision=8,
+            ).replace(b'"coreRevision":3', b'"coreRevision":3.0'),
+            authority=authority(calendar_revision=8),
+        )
 
     denied_cancel = cancel_bytes(
         command_id="cancel-denied",
