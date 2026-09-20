@@ -271,3 +271,11 @@ kalır; başlatma fazı artık aynı exact projeyi `up --detach --no-build
 --no-recreate` ile yeniden uzlaştırır. Böylece Compose ağ endpointlerini kendi
 desteklenen `up` yaşam döngüsünde etkinleştirirken container kimliği değişemez;
 kimlik eşitliği ilk start ve restart makbuzları arasında ayrıca doğrulanır.
+
+`up --no-recreate` ARM kabulünde de ilk peer adını resolver'a taşımadı. Core'un
+eriştiği beş bridge servisi bu nedenle Compose'un desteklenen `links`
+sözleşmesinde exact `service:alias` çiftiyle ayrıca bağlıdır. Linkler yalnız aynı
+`control` ağındaki sabit servisleri kapsar; host-network Music Assistant bu
+listeye girmez. Rendered config doğrulaması link kümesini exact kaynakla
+karşılaştırır ve runtime yine Core içinden her kısa adı çözmeden `dns: verified`
+üretmez.

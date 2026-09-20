@@ -160,7 +160,7 @@ class UnifiedPackagePlanner:
         expected_core = expected_services[CORE_NAME]
         if any(core.get(key) != expected_core.get(key)
                for key in ("container_name", "image", "user", "networks", "extra_hosts",
-                           "dns", "build")):
+                           "links", "dns", "build")):
             raise PackageError("config_identity_changed")
         core_mounts = _mounts(core)
         if core_mounts != _mounts(expected_core):

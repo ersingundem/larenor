@@ -25,6 +25,13 @@
       "extra_hosts": [
         "host.docker.internal:host-gateway"
       ],
+      "links": [
+        "larenor-jellyfin:jellyfin",
+        "larenor-seerr:seerr",
+        "larenor-sonarr:sonarr",
+        "larenor-radarr:radarr",
+        "larenor-qbittorrent:qbittorrent"
+      ],
       "networks": {
         "control": {
           "aliases": [

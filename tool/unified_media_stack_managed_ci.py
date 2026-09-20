@@ -523,7 +523,7 @@ def validate_rendered_config(rendered, expected, project_name):
             raise ManagedStackCIError("unified_manifest_invalid")
         for key in ("container_name", "image", "user", "environment", "labels",
                     "cap_drop", "cap_add", "security_opt", "restart", "logging", "init",
-                    "dns"):
+                    "links", "dns"):
             if actual.get(key) != wanted.get(key):
                 raise ManagedStackCIError("unified_manifest_invalid")
         if (actual.get("privileged", False) is not False
