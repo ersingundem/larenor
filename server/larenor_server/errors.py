@@ -96,6 +96,7 @@ MESSAGES = {
     'media_flow_authority_changed': 'The managed media flow sources changed. Read them again.',
     'media_flow_snapshot_stale': 'The managed media flow snapshot is out of date.',
     'media_flow_snapshot_replayed': 'The managed media flow snapshot was superseded.',
+    'media_flow_effect_uncertain': 'The managed media flow effect could not be verified.',
     'media_flow_storage_unavailable': 'The managed media flow state is unavailable.',
     'seerr_installation_changed': 'The managed Seerr installation changed. Read it again.',
     'seerr_bootstrap_source_changed': 'The verified Jellyfin bootstrap changed. Read it again.',
