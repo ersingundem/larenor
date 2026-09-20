@@ -80,7 +80,9 @@ class ManagedStackCIError(Exception):
     """A bounded diagnostic whose text is always an allowlisted code."""
 
     def __init__(self, code):
-        safe = code if code in _CODES else "unified_native_runtime_failed"
+        safe = code if (code in _CODES or re.fullmatch(
+            r"unified_dns_peers_failed_[01]{10}", str(code))) else (
+                "unified_native_runtime_failed")
         self.code = safe
         super().__init__(safe)
 
@@ -712,6 +714,7 @@ class DockerDriver:
     def receipts(self, manifest, phase):
         self._await_core_runtime()
         values = []
+        bridge_peers = []
         for item in manifest["components"]:
             _, raw = _command(["/usr/bin/docker", "container", "inspect",
                                item["containerName"]], environment=self._environment,
@@ -739,7 +742,8 @@ class DockerDriver:
                 aliases = networks.get(NETWORK, {}).get("Aliases", [])
                 if network_mode != NETWORK or item["serviceId"] not in aliases:
                     raise ManagedStackCIError("unified_container_receipt_invalid")
-                self._verify_dns(package.SERVICE_NAMES[item["serviceId"]])
+                bridge_peers.append((
+                    item["serviceId"], package.SERVICE_NAMES[item["serviceId"]]))
                 dns, network = "verified", NETWORK
             values.append({
                 "serviceId": item["serviceId"], "containerName": item["containerName"],
@@ -749,6 +753,7 @@ class DockerDriver:
                 "mounts": [{"target": entry["target"], "readOnly": entry["readOnly"]}
                            for entry in item["mounts"]],
             })
+        self._verify_dns_peers(bridge_peers)
         return values
 
     def _dns_probe(self, name):
@@ -760,6 +765,31 @@ class DockerDriver:
             allow_failure=True,
         )
         return status == 0
+
+    def _dns_peer_mask(self, peers):
+        names = [name for pair in peers for name in pair]
+        if len(names) != 10 or any(not isinstance(name, str) or not name for name in names):
+            raise ManagedStackCIError("unified_manifest_invalid")
+        code = (
+            "import socket,sys; bits=[]; "
+            "exec(\"for name in sys.argv[1:]:\\n try:\\n  "
+            "socket.getaddrinfo(name,None); bits.append('0')\\n except OSError:\\n  "
+            "bits.append('1')\"); "
+            "print(''.join(bits))"
+        )
+        status, raw = _command(
+            ["/usr/bin/docker", "exec", package.CORE_NAME,
+             "/opt/larenor/.venv/bin/python", "-B", "-c", code, *names],
+            environment=self._environment, timeout=10, output=True,
+            allow_failure=True,
+        )
+        try:
+            mask = raw.decode("ascii", "strict").strip()
+        except UnicodeError:
+            raise ManagedStackCIError("unified_dns_runtime_failed") from None
+        if status != 0 or not re.fullmatch(r"[01]{10}", mask):
+            raise ManagedStackCIError("unified_dns_runtime_failed")
+        return mask
 
     def _embedded_dns_configured(self):
         code = ("from pathlib import Path; "
@@ -782,13 +812,19 @@ class DockerDriver:
             time.sleep(interval)
         raise ManagedStackCIError(failure_code)
 
-    def _verify_dns(self, name, *, timeout=30, interval=2):
+    def _verify_dns_peers(self, peers, *, timeout=30, interval=2):
         if not self._embedded_dns_configured():
             raise ManagedStackCIError("unified_dns_resolver_unavailable")
         self._await_dns("core", "unified_dns_core_service_failed",
                         timeout=timeout, interval=interval)
-        self._await_dns(name, "unified_dns_peer_service_failed",
-                        timeout=timeout, interval=interval)
+        deadline = time.monotonic() + timeout
+        mask = "1" * 10
+        while time.monotonic() < deadline:
+            mask = self._dns_peer_mask(peers)
+            if mask == "0" * 10:
+                return
+            time.sleep(interval)
+        raise ManagedStackCIError("unified_dns_peers_failed_" + mask)
 
     def _await_core_runtime(self, *, timeout=180, interval=2):
         """Wait for the package's public Core health check without reading logs."""

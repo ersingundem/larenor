@@ -317,31 +317,45 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_core_runtime_unready"):
                     driver._await_core_runtime()
 
-            # Embedded resolver config, canonical Core service name, then canonical
-            # peer service name. The peer may appear one bounded poll later.
+            peers = [
+                ("jellyfin", "larenor-jellyfin"),
+                ("seerr", "larenor-seerr"),
+                ("sonarr", "larenor-sonarr"),
+                ("radarr", "larenor-radarr"),
+                ("qbittorrent", "larenor-qbittorrent"),
+            ]
+            # Embedded resolver config and the Core alias are checked before one
+            # bounded probe reports all short/canonical peer-name pairs.
             with patch.object(target, "_command", side_effect=[
-                    (0, b""), (0, b""), (1, b""), (0, b"")]), patch.object(
+                    (0, b""), (0, b""), (0, b"1000000000\n"),
+                    (0, b"0000000000\n")]), patch.object(
                     target.time, "monotonic", side_effect=[0, 0, 0, 0, 1]), patch.object(
                     target.time, "sleep") as sleep:
-                driver._verify_dns("larenor-jellyfin", timeout=5, interval=1)
+                driver._verify_dns_peers(peers, timeout=5, interval=1)
             sleep.assert_called_once_with(1)
 
             for responses, code in (
                 ([(1, b"")], "unified_dns_resolver_unavailable"),
                 ([(0, b""), (1, b"")], "unified_dns_core_service_failed"),
-                ([(0, b""), (0, b""), (1, b"")], "unified_dns_peer_service_failed"),
+                ([(0, b""), (0, b""), (0, b"1010101010\n")],
+                 "unified_dns_peers_failed_1010101010"),
             ):
                 monotonic = {
                     "unified_dns_resolver_unavailable": [],
                     "unified_dns_core_service_failed": [0, 0, 1],
-                    "unified_dns_peer_service_failed": [0, 0, 0, 0, 1],
+                    "unified_dns_peers_failed_1010101010": [0, 0, 0, 0, 1],
                 }[code]
                 with self.subTest(code=code), patch.object(
                         target, "_command", side_effect=responses), patch.object(
                         target.time, "monotonic", side_effect=monotonic), patch.object(
                         target.time, "sleep"):
                     with self.assertRaisesRegex(target.ManagedStackCIError, code):
-                        driver._verify_dns("larenor-jellyfin", timeout=1, interval=1)
+                        driver._verify_dns_peers(peers, timeout=1, interval=1)
+
+            with patch.object(target, "_command", return_value=(0, b"short\n")):
+                with self.assertRaisesRegex(target.ManagedStackCIError,
+                                            "unified_dns_runtime_failed"):
+                    driver._dns_peer_mask(peers)
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
