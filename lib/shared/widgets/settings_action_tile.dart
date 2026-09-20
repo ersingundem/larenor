@@ -7,12 +7,14 @@ class SettingsActionTile extends StatelessWidget {
     super.key,
     required this.title,
     required this.onTap,
+    this.buttonKey,
     this.leading,
     this.additionalInfo,
     this.selected,
   });
 
   final Widget title;
+  final Key? buttonKey;
   final Widget? leading;
   final Widget? additionalInfo;
   final bool? selected;
@@ -33,6 +35,7 @@ class SettingsActionTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(4),
         child: CupertinoButton(
+          key: buttonKey,
           minimumSize: const Size(48, 48),
           padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 10, 6),
           borderRadius: BorderRadius.circular(6),

@@ -20,19 +20,46 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/integration_health_status.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../../shared/widgets/settings_service_tile.dart';
 
 /// Every optional service in one place: toggle it on/off and inspect the last
 /// observed data read. Disabling a service keeps its saved credentials.
-class ManageIntegrationsScreen extends ConsumerWidget {
+class ManageIntegrationsScreen extends ConsumerStatefulWidget {
   const ManageIntegrationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final enabled = ref.watch(enabledServicesProvider).value ?? const {};
+  ConsumerState<ManageIntegrationsScreen> createState() =>
+      _ManageIntegrationsScreenState();
+}
 
-    void toggle(AppService service, bool value) =>
-        ref.read(enabledServicesProvider.notifier).setEnabled(service, value);
+class _ManageIntegrationsScreenState
+    extends ConsumerState<ManageIntegrationsScreen> {
+  AppService? _saving;
+  bool _saveFailed = false;
+
+  Future<void> _toggle(AppService service, bool value) async {
+    if (_saving != null || ModalRoute.of(context)?.isCurrent != true) return;
+    setState(() {
+      _saving = service;
+      _saveFailed = false;
+    });
+    try {
+      await ref
+          .read(enabledServicesProvider.notifier)
+          .setEnabled(service, value);
+    } catch (_) {
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        setState(() => _saveFailed = true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final reading = ref.watch(enabledServicesProvider);
 
     return AppPageScaffold(
       child: CustomScrollView(
@@ -42,167 +69,282 @@ class ManageIntegrationsScreen extends ConsumerWidget {
           ),
           SliverSafeArea(
             top: false,
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: 16),
-                SettingsSection(
-                  header: Text(l10n.settingsSectionMediaServices),
-                  children: [
-                    _ServiceRow(
-                      icon: CupertinoIcons.play_rectangle,
-                      color: CupertinoColors.systemPurple,
-                      service: AppService.jellyfin,
-                      title: 'Jellyfin',
-                      enabled: enabled.contains(AppService.jellyfin),
-                      onToggle: (v) => toggle(AppService.jellyfin, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const JellyfinHomeScreen(),
-                        ),
-                      ),
+            sliver: SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1000),
+                  child: switch (reading) {
+                    AsyncData(:final value) => _serviceSections(value),
+                    AsyncError() => Column(
+                      children: [
+                        _loadFailure(),
+                        _serviceSections(const {}, choicesAvailable: false),
+                      ],
                     ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.search,
-                      color: CupertinoColors.systemBlue,
-                      service: AppService.jellyseerr,
-                      title: 'Jellyseerr',
-                      enabled: enabled.contains(AppService.jellyseerr),
-                      onToggle: (v) => toggle(AppService.jellyseerr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const JellyseerrHomeScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.tv,
-                      color: CupertinoColors.systemIndigo,
-                      service: AppService.sonarr,
-                      title: 'Sonarr',
-                      enabled: enabled.contains(AppService.sonarr),
-                      onToggle: (v) => toggle(AppService.sonarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const SonarrScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.film,
-                      color: CupertinoColors.systemYellow,
-                      service: AppService.radarr,
-                      title: 'Radarr',
-                      enabled: enabled.contains(AppService.radarr),
-                      onToggle: (v) => toggle(AppService.radarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const RadarrScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.music_note,
-                      color: CupertinoColors.systemGreen,
-                      service: AppService.lidarr,
-                      title: 'Lidarr',
-                      enabled: enabled.contains(AppService.lidarr),
-                      onToggle: (v) => toggle(AppService.lidarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const LidarrScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.book,
-                      color: CupertinoColors.systemOrange,
-                      service: AppService.readarr,
-                      title: 'Readarr',
-                      enabled: enabled.contains(AppService.readarr),
-                      onToggle: (v) => toggle(AppService.readarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const ReadarrScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.captions_bubble,
-                      color: CupertinoColors.systemTeal,
-                      service: AppService.bazarr,
-                      title: 'Bazarr',
-                      enabled: enabled.contains(AppService.bazarr),
-                      onToggle: (v) => toggle(AppService.bazarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const BazarrHomeScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.dot_radiowaves_left_right,
-                      color: CupertinoColors.systemOrange,
-                      service: AppService.prowlarr,
-                      title: 'Prowlarr',
-                      enabled: enabled.contains(AppService.prowlarr),
-                      onToggle: (v) => toggle(AppService.prowlarr, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const ProwlarrIndexersScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.arrow_down_circle,
-                      color: CupertinoColors.systemBlue,
-                      service: AppService.qbittorrent,
-                      title: 'qBittorrent',
-                      enabled: enabled.contains(AppService.qbittorrent),
-                      onToggle: (v) => toggle(AppService.qbittorrent, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const QbittorrentTorrentsScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
+                    _ => _loading(),
+                  },
                 ),
-                SettingsSection(
-                  header: Text(l10n.settingsSectionInfrastructure),
-                  children: [
-                    _ServiceRow(
-                      icon: CupertinoIcons.square_stack_3d_up,
-                      color: CupertinoColors.systemOrange,
-                      service: AppService.proxmox,
-                      title: 'Proxmox',
-                      enabled: enabled.contains(AppService.proxmox),
-                      onToggle: (v) => toggle(AppService.proxmox, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const ProxmoxNodesScreen(),
-                        ),
-                      ),
-                    ),
-                    _ServiceRow(
-                      icon: CupertinoIcons.wifi,
-                      color: CupertinoColors.systemGreen,
-                      service: AppService.keenetic,
-                      title: 'Keenetic',
-                      enabled: enabled.contains(AppService.keenetic),
-                      onToggle: (v) => toggle(AppService.keenetic, v),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const KeeneticHomeScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ]),
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _loading() {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Semantics(
+        liveRegion: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CupertinoActivityIndicator(),
+            const SizedBox(height: 12),
+            Text(l10n.commonLoading),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadFailure() {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Semantics(
+        liveRegion: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(CupertinoIcons.exclamationmark_triangle, size: 28),
+            const SizedBox(height: 12),
+            Text(l10n.commonError),
+            const SizedBox(height: 6),
+            Text(
+              l10n.settingsIntegrationsLoadFailed,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            CupertinoButton.filled(
+              onPressed: () => ref.invalidate(enabledServicesProvider),
+              child: Text(l10n.commonRetry),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _serviceSections(
+    Set<AppService> enabled, {
+    bool choicesAvailable = true,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final saving = _saving;
+    void toggle(AppService service, bool value) => _toggle(service, value);
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        if (_saveFailed)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                l10n.settingsIntegrationsSaveFailed,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: CupertinoColors.systemRed.resolveFrom(context),
+                ),
+              ),
+            ),
+          ),
+        SettingsSection(
+          header: Text(l10n.settingsSectionMediaServices),
+          children: [
+            _ServiceRow(
+              icon: CupertinoIcons.play_rectangle,
+              color: CupertinoColors.systemPurple,
+              service: AppService.jellyfin,
+              title: 'Jellyfin',
+              enabled: enabled.contains(AppService.jellyfin),
+              busy: saving == AppService.jellyfin,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.jellyfin, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const JellyfinHomeScreen()),
+              ),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.search,
+              color: CupertinoColors.systemBlue,
+              service: AppService.jellyseerr,
+              title: 'Jellyseerr',
+              enabled: enabled.contains(AppService.jellyseerr),
+              busy: saving == AppService.jellyseerr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.jellyseerr, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => const JellyseerrHomeScreen(),
+                ),
+              ),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.tv,
+              color: CupertinoColors.systemIndigo,
+              service: AppService.sonarr,
+              title: 'Sonarr',
+              enabled: enabled.contains(AppService.sonarr),
+              busy: saving == AppService.sonarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.sonarr, v)
+                  : null,
+              onTap: () => Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const SonarrScreen())),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.film,
+              color: CupertinoColors.systemYellow,
+              service: AppService.radarr,
+              title: 'Radarr',
+              enabled: enabled.contains(AppService.radarr),
+              busy: saving == AppService.radarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.radarr, v)
+                  : null,
+              onTap: () => Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const RadarrScreen())),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.music_note,
+              color: CupertinoColors.systemGreen,
+              service: AppService.lidarr,
+              title: 'Lidarr',
+              enabled: enabled.contains(AppService.lidarr),
+              busy: saving == AppService.lidarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.lidarr, v)
+                  : null,
+              onTap: () => Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const LidarrScreen())),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.book,
+              color: CupertinoColors.systemOrange,
+              service: AppService.readarr,
+              title: 'Readarr',
+              enabled: enabled.contains(AppService.readarr),
+              busy: saving == AppService.readarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.readarr, v)
+                  : null,
+              onTap: () => Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const ReadarrScreen())),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.captions_bubble,
+              color: CupertinoColors.systemTeal,
+              service: AppService.bazarr,
+              title: 'Bazarr',
+              enabled: enabled.contains(AppService.bazarr),
+              busy: saving == AppService.bazarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.bazarr, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const BazarrHomeScreen()),
+              ),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.dot_radiowaves_left_right,
+              color: CupertinoColors.systemOrange,
+              service: AppService.prowlarr,
+              title: 'Prowlarr',
+              enabled: enabled.contains(AppService.prowlarr),
+              busy: saving == AppService.prowlarr,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.prowlarr, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => const ProwlarrIndexersScreen(),
+                ),
+              ),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.arrow_down_circle,
+              color: CupertinoColors.systemBlue,
+              service: AppService.qbittorrent,
+              title: 'qBittorrent',
+              enabled: enabled.contains(AppService.qbittorrent),
+              busy: saving == AppService.qbittorrent,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.qbittorrent, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => const QbittorrentTorrentsScreen(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        SettingsSection(
+          header: Text(l10n.settingsSectionInfrastructure),
+          children: [
+            _ServiceRow(
+              icon: CupertinoIcons.square_stack_3d_up,
+              color: CupertinoColors.systemOrange,
+              service: AppService.proxmox,
+              title: 'Proxmox',
+              enabled: enabled.contains(AppService.proxmox),
+              busy: saving == AppService.proxmox,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.proxmox, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const ProxmoxNodesScreen()),
+              ),
+            ),
+            _ServiceRow(
+              icon: CupertinoIcons.wifi,
+              color: CupertinoColors.systemGreen,
+              service: AppService.keenetic,
+              title: 'Keenetic',
+              enabled: enabled.contains(AppService.keenetic),
+              busy: saving == AppService.keenetic,
+              toggleVisible: choicesAvailable,
+              onToggle: saving == null && choicesAvailable
+                  ? (v) => toggle(AppService.keenetic, v)
+                  : null,
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const KeeneticHomeScreen()),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+      ],
     );
   }
 }
@@ -216,14 +358,18 @@ class _ServiceRow extends StatelessWidget {
     required this.onToggle,
     required this.onTap,
     required this.service,
+    this.busy = false,
+    this.toggleVisible = true,
   });
 
   final IconData icon;
   final Color color;
   final String title;
   final bool enabled;
-  final ValueChanged<bool> onToggle;
+  final ValueChanged<bool>? onToggle;
   final VoidCallback onTap;
+  final bool busy;
+  final bool toggleVisible;
 
   /// When a real vendored logo exists for this service, that logo is shown
   /// via [BrandIcon] instead of the generic [icon]/[color] pair.
@@ -232,14 +378,19 @@ class _ServiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = this.service;
-    return CupertinoListTile(
+    return SettingsServiceTile(
       leading: hasBrandIcon(service)
           ? BrandIcon(service: service)
           : IconBadge(icon: icon, color: color),
-      title: Text(title),
-      subtitle: SavedServiceHealthStatus(service: service),
-      trailing: CupertinoSwitch(value: enabled, onChanged: onToggle),
-      onTap: onTap,
+      title: title,
+      additionalInfo: SavedServiceHealthStatus(service: service),
+      enabled: enabled,
+      busy: busy,
+      toggleVisible: toggleVisible,
+      openKey: ValueKey('integration-open-${service.name}'),
+      toggleKey: ValueKey('integration-toggle-${service.name}'),
+      onOpen: onTap,
+      onToggle: onToggle,
     );
   }
 }

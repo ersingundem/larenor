@@ -345,6 +345,8 @@
   "settingsSectionIntegrations": "INTEGRATIONS",
   "settingsIntegrationsFooter": "Only services you've turned on and connected show up here — manage them all from Manage Integrations.",
   "settingsManageIntegrations": "Manage Integrations",
+  "settingsIntegrationsLoadFailed": "Integration choices could not be loaded.",
+  "settingsIntegrationsSaveFailed": "The integration choice could not be saved. Your previous setting remains in use.",
   "settingsIdleAfterTitle": "Idle after",
   "settingsSetPinTitle": "Set PIN",
   "settingsPinPlaceholder": "4–12 digits",
