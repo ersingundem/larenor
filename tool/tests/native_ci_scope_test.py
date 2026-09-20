@@ -153,6 +153,7 @@ class NativeCiScopeTest(unittest.TestCase):
                 value = json.loads((ROOT / ".github/workflows" / filename).read_text())
                 scope = value["jobs"]["native-scope"]
                 job = value["jobs"][job_name]
+                acceptance = value["jobs"]["native-acceptance"]
                 checkout = next(
                     step
                     for step in scope["steps"]
@@ -179,18 +180,24 @@ class NativeCiScopeTest(unittest.TestCase):
                 )
                 self.assertEqual(scope["outputs"]["run"], "${{ steps.scope.outputs.run }}")
                 self.assertEqual(job["needs"], "native-scope")
-                self.assertNotIn("if", job)
                 self.assertEqual(
-                    job["runs-on"],
-                    "${{ needs.native-scope.outputs.run == 'true' && matrix.runner || 'ubuntu-24.04' }}",
+                    job["if"],
+                    "needs.native-scope.outputs.run == 'true'",
                 )
+                self.assertEqual(job["runs-on"], "${{ matrix.runner }}")
                 self.assertFalse(any(step.get("id") == "scope" for step in job["steps"]))
-                self.assertNotIn("if", job["steps"][0])
-                for step in job["steps"][1:]:
-                    self.assertEqual(
-                        step.get("if"),
-                        "needs.native-scope.outputs.run == 'true'",
-                    )
+                self.assertTrue(all("if" not in step for step in job["steps"]))
+                self.assertEqual(acceptance["if"], "always()")
+                self.assertEqual(acceptance["needs"], ["native-scope", job_name])
+                self.assertEqual(acceptance["runs-on"], "ubuntu-24.04")
+                gate = acceptance["steps"][0]
+                self.assertEqual(gate["env"]["RUN_NATIVE"],
+                                 "${{ needs.native-scope.outputs.run }}")
+                self.assertEqual(gate["env"]["SCOPE_RESULT"],
+                                 "${{ needs.native-scope.result }}")
+                self.assertEqual(gate["env"]["MATRIX_RESULT"],
+                                 "${{ needs." + job_name + ".result }}")
+                self.assertIn("true:success|false:skipped", gate["run"])
 
 
 if __name__ == "__main__":
