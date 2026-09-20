@@ -10,7 +10,7 @@ void main() {
     'archive journey discovers its Home Source entry in a small 2x viewport',
     (tester) async {
       final app = ArchiveHarness();
-      await app.mount(tester, width: 420, height: 400, scale: 2);
+      await app.mount(tester, width: 420, height: 320, scale: 2);
       await tester.enterText(find.byType(CupertinoTextField), '1234');
       await tester.tap(find.text('Unlock'));
       await flush(tester);
@@ -18,6 +18,12 @@ void main() {
       expect(find.byType(HomeSourceScreen), findsOneWidget);
       expect(
         find.byKey(const ValueKey('core-layout-archive-entry')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const ValueKey('core-layout-archive-entry'),
+        ).hitTestable(),
         findsNothing,
       );
 
