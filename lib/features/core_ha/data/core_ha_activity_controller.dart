@@ -11,6 +11,7 @@ import '../../server/domain/server_models.dart';
 import '../domain/core_ha_activity_models.dart';
 import 'core_ha_api.dart';
 import 'core_ha_checkpoint_store.dart';
+import 'core_ha_event_checkpoint_store.dart';
 
 /// Read-only, route-owned history. It never dispatches or replays a command.
 class CoreHaActivityController extends ChangeNotifier {
@@ -23,6 +24,7 @@ class CoreHaActivityController extends ChangeNotifier {
     this.owner, {
     required this.verifyIntegrity,
     required this.checkpointStore,
+    required this.eventCheckpointStore,
     required this.checkpointProtected,
     this.pageSize = 25,
   }) {
@@ -40,6 +42,7 @@ class CoreHaActivityController extends ChangeNotifier {
   final Listenable owner;
   final bool verifyIntegrity;
   final CoreHaCheckpointStore checkpointStore;
+  final CoreHaEventCheckpointStore eventCheckpointStore;
   final bool checkpointProtected;
   final int pageSize;
 
@@ -254,8 +257,11 @@ class CoreHaActivityController extends ChangeNotifier {
     return result;
   }
 
-  String _failure(Object error) =>
-      error is LarenorServerException ? error.code : 'connection_failed';
+  String _failure(Object error) => error is LarenorServerException
+      ? error.code
+      : error is CoreHaEventCheckpointException
+      ? error.code
+      : 'connection_failed';
 
   Future<void> refresh() => _load(more: false);
   Future<void> loadMore() => _load(more: true);
@@ -276,11 +282,12 @@ class CoreHaActivityController extends ChangeNotifier {
       if (page.chainId != chain || page.headSequence != head) {
         throw const LarenorServerException('invalid_response');
       }
+      if (retainedChain != null && page.chainId != retainedChain) {
+        throw const LarenorServerException('chain_changed');
+      }
       if (retainedChain != null &&
-          (page.chainId != retainedChain ||
-              retainedHead == null ||
-              page.headSequence < retainedHead)) {
-        throw const LarenorServerException('invalid_response');
+          (retainedHead == null || page.headSequence < retainedHead)) {
+        throw const LarenorServerException('rollback');
       }
       if (page.events.isNotEmpty) {
         if (page.events.first.sequence != expected + 1) {
@@ -337,13 +344,47 @@ class CoreHaActivityController extends ChangeNotifier {
       var nextEventTrust = oldEventTrust;
       var nextEventFailure = oldEventFailure;
       if (!more) {
+        final session = _ready;
+        if (session == null) {
+          throw const LarenorServerException('cancelled');
+        }
+        final eventScope = CoreHaEventCheckpointScope(
+          context: target.context,
+          resourceId: target.id,
+          actorId: session.user.id,
+          role: session.user.role,
+        );
+        bool eventStoreCurrent() {
+          final active = _ready;
+          return _epoch == operation &&
+              _sourceCurrent &&
+              active != null &&
+              active.context == session.context &&
+              active.user.id == session.user.id &&
+              active.user.role == session.user.role &&
+              active.endpoint.baseUrl == session.endpoint.baseUrl;
+        }
+
+        final retained = await eventCheckpointStore.read(
+          eventScope,
+          isCurrent: eventStoreCurrent,
+        );
+        final replaceChain = oldEventFailure == 'chain_changed';
         final event = await _session(
           operation,
           (api) => _eventTrust(
             api,
-            retainedChain: oldEventTrust ? oldEventChain : null,
-            retainedHead: oldEventTrust ? oldEventHead : null,
+            retainedChain: replaceChain ? null : retained?.chainId,
+            retainedHead: replaceChain ? null : retained?.headSequence,
           ),
+        );
+        await eventCheckpointStore.advance(
+          eventScope,
+          before: retained,
+          chainId: event.chainId,
+          headSequence: event.headSequence,
+          allowChainReplacement: replaceChain,
+          isCurrent: eventStoreCurrent,
         );
         nextEventChain = event.chainId;
         nextEventHead = event.headSequence;

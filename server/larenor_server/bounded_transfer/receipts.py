@@ -6,7 +6,7 @@ import re
 import sqlite3
 
 from ..errors import ApiError, StartupError
-from . import schema
+from . import events, schema
 
 
 _IDENTITY = re.compile(r"^[0-9a-f]{32}$")
@@ -65,6 +65,8 @@ class TransferReceipts:
                     raise ValueError("receipt_limit")
                 for old in rows:
                     self._verify(old)
+                events.validate(connection, self.key)
+                for old in rows:
                     if old["state"] == "accepted":
                         row = dict(old)
                         row["state"], row["updated_at"] = (
@@ -75,6 +77,8 @@ class TransferReceipts:
                             "UPDATE bounded_transfer_receipts SET state=?,updated_at=?,authentication_tag=? WHERE request_id=?",
                             (row["state"], row["updated_at"], self._tag(row), row["request_id"]),
                         )
+                        events.append(connection, self.key, row, kind="result")
+                events.validate(connection, self.key)
         except (sqlite3.Error, ValueError, TypeError):
             raise StartupError("bounded_transfer_storage_invalid") from None
 
@@ -112,6 +116,7 @@ class TransferReceipts:
                 "INSERT INTO bounded_transfer_receipts VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 tuple(row.values()),
             )
+            events.append(connection, self.key, row, kind="accepted")
 
     def reject_existing(self, actor, core_id, home_id, resource_id, body):
         """Fail before provider access when an opaque operation id is already durable."""
@@ -150,6 +155,7 @@ class TransferReceipts:
                     "UPDATE bounded_transfer_receipts SET state=?,updated_at=?,authentication_tag=? WHERE request_id=?",
                     (state, row["updated_at"], self._tag(row), request_id),
                 )
+                events.append(connection, self.key, row, kind="result")
         except (sqlite3.Error, ValueError, TypeError):
             raise ApiError("server_unavailable", 503) from None
 
@@ -189,3 +195,20 @@ class TransferReceipts:
             for row in rows:
                 self._verify(row)
             return {"receipts": [self._public(row) for row in rows]}
+
+    def events(self, actor, resource_id, ref, *, after, limit):
+        try:
+            with self.db.connection() as connection:
+                return events.history(
+                    connection,
+                    self.key,
+                    actor,
+                    resource_id,
+                    ref,
+                    after=after,
+                    limit=limit,
+                )
+        except ApiError:
+            raise
+        except (sqlite3.Error, ValueError, TypeError, OverflowError):
+            raise ApiError("server_unavailable", 503) from None

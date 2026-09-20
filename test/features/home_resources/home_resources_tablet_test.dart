@@ -69,7 +69,7 @@ http.Response _transferResponse(http.Request request) {
     'state': 'completed',
     'contentLength': payload.length,
     'sha256': digest,
-    'contentType': 'application/octet-stream',
+    'contentType': 'text/plain; charset=utf-8',
     'serviceRevision': 1,
     'createdAt': 10.0,
     'updatedAt': 11.0,
@@ -83,7 +83,7 @@ http.Response _transferResponse(http.Request request) {
             'serviceRevision': 1,
             'contentLength': payload.length,
             'sha256': digest,
-            'contentType': 'application/octet-stream',
+            'contentType': 'text/plain; charset=utf-8',
             'createdAt': 10.0,
             'updatedAt': 11.0,
           },
@@ -117,7 +117,7 @@ http.Response _transferResponse(http.Request request) {
       'x-larenor-trace-id': trace,
       'x-larenor-blob-content-length': '${payload.length}',
       'x-larenor-blob-sha256': digest,
-      'x-larenor-blob-content-type': 'application/octet-stream',
+      'x-larenor-blob-content-type': 'text/plain; charset=utf-8',
       'x-larenor-service-revision': '1',
       'accept-ranges': 'none',
     },
@@ -168,6 +168,10 @@ void main() {
         tester.getSemantics(trust).label,
         allOf(
           contains('Transfer receipt verified'),
+          contains('Request: registered'),
+          contains('Service: reachable'),
+          contains('Provider: accepted'),
+          contains('Device result: saved'),
           contains('tablet trust fixture'.length.toString()),
         ),
       );
@@ -191,6 +195,59 @@ void main() {
       semantics.dispose();
     }
   });
+
+  testWidgets(
+    'provider acceptance is not presented as device success after SAF cancel',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final fixture = contract();
+      final record = (fixture['memberList']['entries'] as List).last as Map;
+      final id = (record['ref'] as Map)['id'] as String;
+      final harness = ResourceHarness();
+      harness.boundedDownloadApiFactory = (endpoint) => CoreBoundedDownloadApi(
+        endpoint: endpoint,
+        requestId: () => 'c' * 32,
+        client: MockClient((request) async => _transferResponse(request)),
+      );
+      harness.boundedDownloadFileAccess = CoreBoundedDownloadFileAccess(
+        save: (_, _, _) async => null,
+      );
+      try {
+        await harness.mount(tester, width: 600);
+        await harness.signIn();
+        await flush(tester);
+        final download = find.byKey(ValueKey('core-resource-download-$id'));
+        await tester.ensureVisible(download);
+        await tester.tap(download);
+        for (
+          var attempt = 0;
+          attempt < 20 && find.text('Transfer incomplete').evaluate().isEmpty;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+        }
+
+        final trust = find.byKey(ValueKey('core-resource-transfer-trust-$id'));
+        expect(trust, findsOneWidget);
+        expect(
+          tester.getSemantics(trust).label,
+          allOf(
+            contains('Transfer incomplete'),
+            contains('Request: registered'),
+            contains('Service: reachable'),
+            contains('Provider: accepted'),
+            contains('Device result: not saved'),
+            isNot(contains('Transfer receipt verified')),
+          ),
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 
   testWidgets(
     'background retires a verified receipt before a late SAF result',
@@ -232,8 +289,8 @@ void main() {
         expect(trust, findsOneWidget);
         expect(
           tester.widget<TrustEvidenceCard>(trust).state,
-          TrustEvidenceState.verified,
-          reason: 'the receipt is trusted while SAF owns the foreground flow',
+          TrustEvidenceState.checking,
+          reason: 'provider acceptance is not a device save result',
         );
 
         tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
@@ -599,10 +656,28 @@ void main() {
                 () => Future<void>.delayed(const Duration(milliseconds: 20)),
               );
               await flush(tester);
+              final receiptKey = ValueKey(
+                'core-resource-transfer-receipt-${'c' * 32}',
+              );
+              for (var attempt = 0; attempt < 30; attempt++) {
+                if (find.byKey(receiptKey).evaluate().isNotEmpty) break;
+                await tester.pump(const Duration(milliseconds: 10));
+                await tester.runAsync(
+                  () => Future<void>.delayed(const Duration(milliseconds: 5)),
+                );
+              }
+              await flush(tester);
+              expect(find.byKey(receiptKey), findsOneWidget);
               expect(
                 find.byKey(
-                  ValueKey('core-resource-transfer-receipt-${'c' * 32}'),
+                  ValueKey(
+                    'core-resource-transfer-history-verified-${unicode['ref']['id'] as String}',
+                  ),
                 ),
+                findsOneWidget,
+              );
+              expect(
+                find.text(l10n.coreResourceTransferHistoryVerified(2)),
                 findsOneWidget,
               );
               expect(

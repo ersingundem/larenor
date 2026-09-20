@@ -18,6 +18,7 @@ import '../data/home_resources_controller.dart';
 import '../data/core_bounded_download_api.dart';
 import '../data/core_bounded_download_controller.dart';
 import '../data/core_bounded_download_file_access.dart';
+import '../data/core_bounded_transfer_event_checkpoint.dart';
 import '../data/core_bounded_upload_file_access.dart';
 import '../domain/home_resource_models.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
@@ -56,6 +57,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       ref.read(homeResourcesClockProvider),
       _current,
       ref.read(coreBoundedUploadFileAccessProvider),
+      CoreBoundedEventCheckpointStore(),
     );
     _controller.addListener(_resourceAuthorityChanged);
   }
@@ -80,31 +82,51 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       CoreBoundedDownloadPhase.idle => '',
     };
     final receipt = _download.receipt;
-    if (_download.receiptTrusted && receipt != null) {
-      return TrustEvidenceCard(
-        key: ValueKey('core-resource-transfer-trust-${entry.id}'),
-        state: TrustEvidenceState.verified,
-        title: l10n.coreTransferTrustVerified,
-        body: '${l10n.coreTransferTrustVerifiedBody} $phaseLabel',
-        detail: l10n.coreTransferTrustDetail(
-          '${receipt.requestId.substring(0, 8)}…',
-          receipt.contentLength,
-        ),
-      );
-    }
-    if (phase == CoreBoundedDownloadPhase.downloading) {
-      return TrustEvidenceCard(
-        key: ValueKey('core-resource-transfer-trust-${entry.id}'),
-        state: TrustEvidenceState.checking,
-        title: l10n.coreTransferTrustChecking,
-        body: phaseLabel,
-      );
-    }
+    final complete = _download.deviceResultObserved;
+    final checking =
+        phase == CoreBoundedDownloadPhase.downloading ||
+        phase == CoreBoundedDownloadPhase.choosingDestination;
+    final evidence = [
+      l10n.coreTransferEvidenceIntentRegistered,
+      _download.serviceReachable
+          ? l10n.coreTransferEvidenceServiceReachable
+          : l10n.coreTransferEvidenceServiceUnverified,
+      _download.providerAccepted
+          ? l10n.coreTransferEvidenceProviderAccepted
+          : l10n.coreTransferEvidenceProviderUnverified,
+      complete
+          ? l10n.coreTransferEvidenceDeviceSaved
+          : l10n.coreTransferEvidenceDeviceMissing,
+    ].join('\n');
+    final body = switch ((complete, _download.providerAccepted)) {
+      (true, _) => l10n.coreTransferTrustVerifiedBody,
+      (false, true) => l10n.coreTransferTrustIncompleteBody,
+      _ when checking => l10n.coreTransferTrustCheckingBody,
+      _ => l10n.coreTransferTrustUnverifiedBody,
+    };
     return TrustEvidenceCard(
       key: ValueKey('core-resource-transfer-trust-${entry.id}'),
-      state: TrustEvidenceState.actionRequired,
-      title: l10n.coreTransferTrustUnverified,
-      body: '${l10n.coreTransferTrustUnverifiedBody} $phaseLabel',
+      state: complete
+          ? TrustEvidenceState.verified
+          : checking
+          ? TrustEvidenceState.checking
+          : TrustEvidenceState.actionRequired,
+      title: complete
+          ? l10n.coreTransferTrustVerified
+          : checking
+          ? phase == CoreBoundedDownloadPhase.choosingDestination
+                ? l10n.coreTransferTrustAwaitingDevice
+                : l10n.coreTransferTrustChecking
+          : _download.providerAccepted
+          ? l10n.coreTransferTrustIncomplete
+          : l10n.coreTransferTrustUnverified,
+      body: '$body $phaseLabel\n$evidence',
+      detail: receipt == null
+          ? null
+          : l10n.coreTransferTrustDetail(
+              '${receipt.requestId.substring(0, 8)}…',
+              receipt.contentLength,
+            ),
     );
   }
 
@@ -459,15 +481,37 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                                 ),
                                 CoreBoundedHistoryPhase.ready
                                     when _download.history.isEmpty =>
-                                  Text(
-                                    l10n.coreResourceTransferHistoryEmpty,
-                                    key: ValueKey(
-                                      'core-resource-transfer-history-empty-${entry.id}',
-                                    ),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l10n.coreResourceTransferHistoryVerified(
+                                          _download.historyHeadSequence ?? 0,
+                                        ),
+                                        key: ValueKey(
+                                          'core-resource-transfer-history-verified-${entry.id}',
+                                        ),
+                                      ),
+                                      Text(
+                                        l10n.coreResourceTransferHistoryEmpty,
+                                        key: ValueKey(
+                                          'core-resource-transfer-history-empty-${entry.id}',
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 CoreBoundedHistoryPhase.ready => Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Text(
+                                      l10n.coreResourceTransferHistoryVerified(
+                                        _download.historyHeadSequence ?? 0,
+                                      ),
+                                      key: ValueKey(
+                                        'core-resource-transfer-history-verified-${entry.id}',
+                                      ),
+                                    ),
                                     for (final receipt in _download.history)
                                       Padding(
                                         key: ValueKey(

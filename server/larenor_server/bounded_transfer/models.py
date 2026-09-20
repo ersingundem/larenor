@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..home_resources.models import ResourceRef
+
 
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
 Identity = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
@@ -41,6 +43,25 @@ class TransferReceiptResponse(BaseModel):
 class TransferHistoryResponse(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
     receipts: list[TransferReceipt] = Field(max_length=50)
+
+
+class TransferEvent(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    sequence: Annotated[int, Field(ge=1, le=2048)]
+    kind: Literal["baseline", "accepted", "result"]
+    actorId: Identity
+    receipt: TransferReceipt
+
+
+class TransferEventHistoryResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    schemaVersion: Literal[1] = 1
+    ref: ResourceRef
+    chainId: Identity
+    headSequence: Annotated[int, Field(ge=0, le=2048)]
+    events: list[TransferEvent] = Field(max_length=50)
+    nextAfter: Annotated[int, Field(ge=1, le=2048)] | None
+    verified: Literal[True] = True
 
 
 class ProductBlobDescriptor(BaseModel):

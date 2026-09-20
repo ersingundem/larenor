@@ -13,7 +13,8 @@ from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import (ProductBlobResponse, ProductBlobUploadResponse,
-                     TransferHistoryResponse, TransferReceiptResponse, TransferRequest)
+                     TransferEventHistoryResponse, TransferHistoryResponse,
+                     TransferReceiptResponse, TransferRequest)
 from .service import WIRE_TYPE
 
 
@@ -45,6 +46,23 @@ def _closed_read(request: Request, *, history: bool) -> int:
     if not 1 <= limit <= 50 or str(limit) != raw:
         raise ApiError("invalid_request", 400)
     return limit
+
+
+def _event_read(request: Request):
+    if len(request.headers.getlist("authorization")) != 1:
+        raise ApiError("invalid_request", 400)
+    values = {}
+    for key, raw in request.query_params.multi_items():
+        if key not in {"after", "limit"} or key in values:
+            raise ApiError("invalid_request", 400)
+        if not raw.isascii() or not raw.isdecimal() or raw.startswith("0"):
+            raise ApiError("invalid_request", 400)
+        value = int(raw)
+        maximum = 2048 if key == "after" else 50
+        if not 1 <= value <= maximum or str(value) != raw:
+            raise ApiError("invalid_request", 400)
+        values[key] = value
+    return values.get("after"), values.get("limit", 50)
 
 
 def _one_header(request: Request, name: str) -> str:
@@ -114,6 +132,14 @@ async def _bounded_body(request: Request, expected_length: int) -> bytes:
     if len(content) != expected_length:
         raise ApiError("invalid_request", 400)
     return bytes(content)
+
+
+@router.get(PATH + "/transfers/events", response_model=TransferEventHistoryResponse)
+def event_history(core_id: Identity, home_id: Identity, record_id: Identity,
+                  request: Request, actor: Ready, core: Core):
+    after, limit = _event_read(request)
+    return core.bounded_transfers.events(
+        actor, core_id, home_id, record_id, after=after, limit=limit)
 
 
 @router.get(PATH + "/transfers/{request_id}", response_model=TransferReceiptResponse)

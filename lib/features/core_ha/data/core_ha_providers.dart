@@ -10,6 +10,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../home_resources/domain/home_resource_models.dart';
 import 'core_ha_activity_controller.dart';
 import 'core_ha_checkpoint_store.dart';
+import 'core_ha_event_checkpoint_store.dart';
 import 'core_ha_controller.dart';
 
 /// One mounted page owns one handle. The screen must synchronize on route,
@@ -83,6 +84,9 @@ final coreHaRequestIdProvider = Provider<String Function()>((_) {
 final coreHaCheckpointStoreProvider = Provider<CoreHaCheckpointStore>(
   (_) => CoreHaCheckpointStore(),
 );
+final coreHaEventCheckpointStoreProvider = Provider<CoreHaEventCheckpointStore>(
+  (_) => CoreHaEventCheckpointStore(),
+);
 
 bool Function() _bind(Ref ref, CoreHaOwner owner, HomeSessionController? home) {
   owner._bind(ref);
@@ -153,6 +157,7 @@ final coreHaActivityControllerProvider = Provider.autoDispose
         selection.owner,
         verifyIntegrity: selection.verifyIntegrity,
         checkpointStore: ref.watch(coreHaCheckpointStoreProvider),
+        eventCheckpointStore: ref.watch(coreHaEventCheckpointStoreProvider),
         checkpointProtected: selection.checkpointProtected,
       );
       ref.onDispose(() {

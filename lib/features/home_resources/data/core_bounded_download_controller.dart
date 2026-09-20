@@ -9,6 +9,7 @@ import '../../server/domain/server_models.dart';
 import '../domain/home_resource_models.dart';
 import 'core_bounded_download_api.dart';
 import 'core_bounded_download_file_access.dart';
+import 'core_bounded_transfer_event_checkpoint.dart';
 import 'core_bounded_upload_file_access.dart';
 
 typedef CoreBoundedDownloadApiFactory = CoreBoundedDownloadApi Function(
@@ -67,6 +68,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     this.clock,
     this.windowCurrent, [
     CoreBoundedUploadFileAccess? uploadFiles,
+    this.eventCheckpointStore,
   ]) : uploadFiles = uploadFiles ?? CoreBoundedUploadFileAccess() {
     home.addListener(_changed);
     home.account.addListener(_changed);
@@ -76,6 +78,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   final CoreBoundedDownloadApiFactory apiFactory;
   final CoreBoundedDownloadFileAccess files;
   final CoreBoundedUploadFileAccess uploadFiles;
+  final CoreBoundedEventCheckpointStore? eventCheckpointStore;
   final DateTime Function() clock;
   final bool Function() windowCurrent;
   CoreBoundedDownloadPhase phase = CoreBoundedDownloadPhase.idle;
@@ -84,10 +87,14 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
   List<CoreBoundedTransferReceipt> history = const [];
   String? targetId, traceId;
   String? historyTargetId;
+  String? historyChainId;
+  int? historyHeadSequence;
+  bool historyTrusted = false;
   String? uploadTargetId, uploadRequestId;
   CoreBoundedBlobDescriptor? descriptor;
   CoreBoundedTransferReceipt? receipt;
   bool receiptTrusted = false;
+  bool _serviceReachable = false;
   int epoch = 0;
   bool _disposed = false, _visible = false, busy = false;
   CoreBoundedDownloadApi? _transport;
@@ -125,6 +132,17 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
       userRevision != null &&
       userRevision >= 1 &&
       userRevision <= 9223372036854775807;
+
+  bool get serviceReachable => _serviceReachable;
+
+  bool get intentRegistered =>
+      targetId != null && phase != CoreBoundedDownloadPhase.idle;
+
+  bool get providerAccepted =>
+      receiptTrusted && receipt?.state == CoreBoundedTransferState.completed;
+
+  bool get deviceResultObserved =>
+      providerAccepted && phase == CoreBoundedDownloadPhase.saved;
 
   bool canLoadHistory(HomeResourceRecord target) =>
       !busy &&
@@ -200,6 +218,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     traceId = null;
     receipt = null;
     receiptTrusted = false;
+    _serviceReachable = false;
     phase = CoreBoundedDownloadPhase.idle;
   }
 
@@ -207,6 +226,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     historyPhase = CoreBoundedHistoryPhase.idle;
     history = const [];
     historyTargetId = null;
+    historyChainId = null;
+    historyHeadSequence = null;
+    historyTrusted = false;
   }
 
   void _clearUploadEvidence() {
@@ -425,6 +447,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     historyPhase = CoreBoundedHistoryPhase.loading;
     history = const [];
     historyTargetId = target.id;
+    historyChainId = null;
+    historyHeadSequence = null;
+    historyTrusted = false;
     _boundSession = original;
     _boundTarget = target;
     _boundUserRevision = null;
@@ -432,6 +457,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     CoreBoundedDownloadApi? transport;
     try {
       List<CoreBoundedTransferReceipt>? loaded;
+      String? verifiedChain;
+      int? verifiedHead;
       await home.account.withSession((_, session) async {
         if (!current() ||
             session.context != target.context ||
@@ -445,14 +472,83 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           token: session.accessToken,
           target: target,
         );
+        final checkpoints = eventCheckpointStore;
+        if (checkpoints == null) return;
+        final scope = CoreBoundedEventCheckpointScope(
+          context: target.context,
+          resourceId: target.id,
+          actorId: session.user.id,
+          role: session.user.role,
+        );
+        bool checkpointCurrent() =>
+            current() &&
+            _ready?.context == session.context &&
+            _ready?.user.id == session.user.id &&
+            _ready?.user.role == session.user.role &&
+            _ready?.endpoint.baseUrl == session.endpoint.baseUrl;
+        final retained = await checkpoints.read(
+          scope,
+          isCurrent: checkpointCurrent,
+        );
+        var cursor = retained?.headSequence;
+        CoreBoundedTransferEventPage? first;
+        final eventReceipts = <String, CoreBoundedTransferReceipt>{};
+        while (true) {
+          final page = await transport!.eventHistory(
+            token: session.accessToken,
+            target: target,
+            after: cursor == 0 ? null : cursor,
+          );
+          if (first == null) {
+            first = page;
+            if (retained != null && retained.chainId != page.chainId) {
+              throw const CoreBoundedEventCheckpointException('chain_changed');
+            }
+            if (retained != null && page.headSequence < retained.headSequence) {
+              throw const CoreBoundedEventCheckpointException('rollback');
+            }
+          } else if (page.chainId != first.chainId ||
+              page.headSequence != first.headSequence) {
+            throw const CoreBoundedDownloadException('invalid_response');
+          }
+          for (final event in page.events) {
+            if (session.user.role != ServerRole.admin &&
+                event.actorId != session.user.id) {
+              throw const CoreBoundedDownloadException('invalid_response');
+            }
+            eventReceipts[event.receipt.requestId] = event.receipt;
+          }
+          if (page.nextAfter == null) break;
+          cursor = page.nextAfter;
+        }
+        for (final receipt in loaded!) {
+          final eventReceipt = eventReceipts[receipt.requestId];
+          if ((retained == null && eventReceipt == null) ||
+              eventReceipt != null && !eventReceipt.sameEvidence(receipt)) {
+            throw const CoreBoundedDownloadException('invalid_response');
+          }
+        }
+        final proof = await checkpoints.advance(
+          scope,
+          before: retained,
+          chainId: first.chainId,
+          headSequence: first.headSequence,
+          isCurrent: checkpointCurrent,
+        );
+        verifiedChain = proof.chainId;
+        verifiedHead = proof.headSequence;
       });
       if (!current() || loaded == null) return;
       history = List.unmodifiable(loaded!);
+      historyChainId = verifiedChain;
+      historyHeadSequence = verifiedHead;
+      historyTrusted = eventCheckpointStore != null;
       historyPhase = CoreBoundedHistoryPhase.ready;
     } catch (error) {
       if (current()) {
         final code = switch (error) {
           CoreBoundedDownloadException e => e.code,
+          CoreBoundedEventCheckpointException e => e.code,
           LarenorServerException e => e.code,
           _ => 'failed',
         };
@@ -460,9 +556,17 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           'cancelled' => CoreBoundedHistoryPhase.cancelled,
           'unauthorized' => CoreBoundedHistoryPhase.unauthorized,
           'forbidden' => CoreBoundedHistoryPhase.forbidden,
-          'revision_conflict' => CoreBoundedHistoryPhase.changed,
+          'revision_conflict' ||
+          'not_found' ||
+          'chain_changed' ||
+          'rollback' ||
+          'conflict' => CoreBoundedHistoryPhase.changed,
           _ => CoreBoundedHistoryPhase.failed,
         };
+        history = const [];
+        historyChainId = null;
+        historyHeadSequence = null;
+        historyTrusted = false;
       }
     } finally {
       if (identical(_transport, transport)) _transport = null;
@@ -471,6 +575,9 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
         if (!safeGuard()) {
           historyPhase = CoreBoundedHistoryPhase.cancelled;
           history = const [];
+          historyChainId = null;
+          historyHeadSequence = null;
+          historyTrusted = false;
         }
         _emit();
       }
@@ -514,6 +621,7 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
     traceId = null;
     receipt = null;
     receiptTrusted = false;
+    _serviceReachable = false;
     _emit();
     CoreBoundedDownloadApi? transport;
     try {
@@ -536,6 +644,8 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           if (!current()) {
             throw const CoreBoundedDownloadException('cancelled');
           }
+          _serviceReachable = true;
+          _emit();
           final candidate = await transport!.download(
             token: session.accessToken,
             target: target,
@@ -577,13 +687,26 @@ final class CoreBoundedDownloadController extends ChangeNotifier {
           : CoreBoundedDownloadPhase.cancelled;
     } catch (error) {
       if (current()) {
-        receipt = null;
-        receiptTrusted = false;
+        if (!receiptTrusted) receipt = null;
         final code = switch (error) {
           CoreBoundedDownloadException e => e.code,
           LarenorServerException e => e.code,
           _ => 'failed',
         };
+        if (const {
+          'forbidden',
+          'not_found',
+          'revision_conflict',
+          'payload_too_large',
+          'rate_limited',
+          'server_error',
+          'failed',
+          'invalid_response',
+          'late_frame',
+          'file_access_failed',
+        }.contains(code)) {
+          _serviceReachable = true;
+        }
         phase = switch (code) {
           'cancelled' => CoreBoundedDownloadPhase.cancelled,
           'unauthorized' => CoreBoundedDownloadPhase.unauthorized,

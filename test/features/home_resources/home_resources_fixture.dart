@@ -118,6 +118,48 @@ class ResourceHarness {
       requests.add(request);
       return json(transferHistoryResponse);
     }
+    if (request.url.path.endsWith('/blob/transfers/events')) {
+      resourceReads++;
+      requests.add(request);
+      final segments = request.url.pathSegments;
+      final blob = segments.indexOf('blob');
+      final resourceId = segments[blob - 1];
+      final receipt = Map<String, Object?>.from(
+        ((transferHistoryResponse as Map)['receipts'] as List).single as Map,
+      );
+      return json({
+        'schemaVersion': 1,
+        'ref': {
+          'schemaVersion': 1,
+          'coreId': fixture['context']['coreId'],
+          'homeId': fixture['context']['homeId'],
+          'kind': 'resource',
+          'id': resourceId,
+        },
+        'chainId': 'e' * 32,
+        'headSequence': 2,
+        'events': [
+          {
+            'sequence': 1,
+            'kind': 'accepted',
+            'actorId': userId,
+            'receipt': {
+              ...receipt,
+              'state': 'accepted',
+              'updatedAt': receipt['createdAt'],
+            },
+          },
+          {
+            'sequence': 2,
+            'kind': 'result',
+            'actorId': userId,
+            'receipt': receipt,
+          },
+        ],
+        'nextAfter': null,
+        'verified': true,
+      });
+    }
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
       requests.add(request);

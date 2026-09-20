@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core_bounded_download_api.dart';
+import 'core_bounded_media_preflight.dart';
 
 typedef CoreBlobSave = Future<Uri?> Function(
   String filename,
@@ -36,6 +37,7 @@ final class CoreBoundedDownloadFileAccess {
       throw const CoreBoundedDownloadException('file_access_failed');
     }
     try {
+      CoreBoundedMediaPreflight.verify(blob.contentType, blob.bytes);
       final frozen = Uint8List.fromList(blob.bytes);
       return await _save(
             'larenor-resource-$resourceId.bin',
