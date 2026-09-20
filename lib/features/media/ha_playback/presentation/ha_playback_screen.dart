@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
-import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../auth/providers/auth_providers.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/presentation/health_labels.dart';
@@ -236,289 +238,245 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
     final busy =
         _busy || snapshot?.isBusy == true || snapshot?.isLoading == true;
     final receipt = snapshot?.receipt;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(l10n.haMediaTitle)),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: CustomScrollView(
-              key: const PageStorageKey('ha-media-browser'),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(CupertinoIcons.play_rectangle, size: 36),
-                        const SizedBox(height: 16),
-                        Text(l10n.haMediaHint, style: AppText.body),
-                        const SizedBox(height: 12),
-                        if (sessionExpired)
-                          Text(l10n.mediaRemoteAccountChanged)
-                        else if (reading?.hasError == true)
-                          Text(l10n.healthReadError)
-                        else if (reading?.isLoading == true ||
-                            snapshot?.isLoading == true)
-                          const CupertinoActivityIndicator()
-                        else if (snapshot?.configured == false)
-                          Text(l10n.commonNotConnected),
-                        if (_error != null)
-                          Text(_error!)
-                        else if (snapshot?.outcomeUnknown == true)
-                          Text(l10n.haMediaUnconfirmed)
-                        else if (snapshot?.failure != null)
-                          Text(
-                            haPlaybackFailureLabel(l10n, snapshot!.failure!),
-                          ),
-                        if (inventory?.registryFailure != null)
-                          Text(l10n.haMediaRegistryRequired),
-                        if (inventory != null && !inventory.hasPlayMedia)
-                          Text(l10n.haMediaServiceMissing),
-                        if (inventory != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              l10n.healthLastSuccessfulRead(
-                                DateFormat.yMd(l10n.localeName)
-                                    .add_Hms()
-                                    .format(inventory.readAt.toLocal()),
-                              ),
-                              style: AppText.footnote,
-                            ),
-                          ),
-                        Wrap(
-                          spacing: 16,
-                          runSpacing: 4,
-                          children: [
-                            CupertinoButton(
-                              padding: EdgeInsets.zero,
-                              onPressed: !active || busy || controller == null
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _error = null;
-                                        _selected = null;
-                                        _parents.clear();
-                                      });
-                                      controller.refresh();
-                                    },
-                              child: Text(l10n.commonRefresh),
-                            ),
-                            if (source != null)
-                              CupertinoButton(
-                                padding: EdgeInsets.zero,
-                                onPressed: busy
-                                    ? null
-                                    : () => setState(() => _selected = null),
-                                child: Text(l10n.haMediaChangeSource),
-                              ),
-                            if (page != null &&
-                                source == null &&
-                                _parents.isNotEmpty)
-                              CupertinoButton(
-                                padding: EdgeInsets.zero,
-                                onPressed: busy
-                                    ? null
-                                    : () => _browse(_parents.last, back: true),
-                                child: Text(l10n.commonBack),
-                              ),
-                            if (page != null &&
-                                source == null &&
-                                page.parent.id != 'media-source://')
-                              CupertinoButton(
-                                padding: EdgeInsets.zero,
-                                onPressed: busy ? null : () => _browse(null),
-                                child: Text(l10n.haMediaRoot),
-                              ),
-                          ],
-                        ),
-                      ],
+    return ServiceRootScaffold(
+      title: l10n.haMediaTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(CupertinoIcons.play_rectangle, size: 36),
+                const SizedBox(height: 16),
+                Text(l10n.haMediaHint, style: AppText.body),
+                const SizedBox(height: 12),
+                if (sessionExpired)
+                  Text(l10n.mediaRemoteAccountChanged)
+                else if (reading?.hasError == true)
+                  Text(l10n.healthReadError)
+                else if (reading?.isLoading == true ||
+                    snapshot?.isLoading == true)
+                  const CupertinoActivityIndicator()
+                else if (snapshot?.configured == false)
+                  Text(l10n.commonNotConnected),
+                if (_error != null)
+                  Text(_error!)
+                else if (snapshot?.outcomeUnknown == true)
+                  Text(l10n.haMediaUnconfirmed)
+                else if (snapshot?.failure != null)
+                  Text(haPlaybackFailureLabel(l10n, snapshot!.failure!)),
+                if (inventory?.registryFailure != null)
+                  Text(l10n.haMediaRegistryRequired),
+                if (inventory != null && !inventory.hasPlayMedia)
+                  Text(l10n.haMediaServiceMissing),
+                if (inventory != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      l10n.healthLastSuccessfulRead(
+                        DateFormat.yMd(l10n.localeName)
+                            .add_Hms()
+                            .format(inventory.readAt.toLocal()),
+                      ),
+                      style: AppText.footnote,
                     ),
                   ),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 4,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: !active || busy || controller == null
+                          ? null
+                          : () {
+                              setState(() {
+                                _error = null;
+                                _selected = null;
+                                _parents.clear();
+                              });
+                              controller.refresh();
+                            },
+                      child: Text(l10n.commonRefresh),
+                    ),
+                    if (source != null)
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: busy
+                            ? null
+                            : () => setState(() => _selected = null),
+                        child: Text(l10n.haMediaChangeSource),
+                      ),
+                    if (page != null && source == null && _parents.isNotEmpty)
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: busy
+                            ? null
+                            : () => _browse(_parents.last, back: true),
+                        child: Text(l10n.commonBack),
+                      ),
+                    if (page != null &&
+                        source == null &&
+                        page.parent.id != 'media-source://')
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: busy ? null : () => _browse(null),
+                        child: Text(l10n.haMediaRoot),
+                      ),
+                  ],
                 ),
-                if (receipt != null)
-                  SliverToBoxAdapter(
-                    child: _Panel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(receipt.target.name, style: AppText.headline),
-                          Text(receipt.source.title, style: AppText.body),
-                          const SizedBox(height: 8),
-                          Text(switch (receipt.status) {
-                            HaPlaybackReceiptStatus.accepted =>
-                              l10n.haMediaAccepted,
-                            HaPlaybackReceiptStatus.observed =>
-                              l10n.haMediaObserved,
-                            HaPlaybackReceiptStatus.unconfirmed =>
-                              l10n.haMediaUnconfirmed,
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (source != null && page != null && inventory != null) ...[
-                  SliverToBoxAdapter(
-                    child: _Panel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(source.title, style: AppText.title2),
-                          const SizedBox(height: 8),
-                          Text(l10n.haMediaTargets, style: AppText.headline),
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.haMediaCompatibility,
-                            style: AppText.footnote,
-                          ),
-                          if (inventory.targets.any(
-                            (target) => target.platform == 'apple_tv',
-                          )) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.haMediaAppleLimit,
-                              style: AppText.footnote,
-                            ),
-                          ],
-                          if (inventory.targets.isEmpty)
-                            Text(l10n.haMediaNoTargets),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverList.builder(
-                    itemCount: inventory.targets.length,
-                    itemBuilder: (context, index) {
-                      final target = inventory.targets[index];
-                      final supported = target.canPlay(source, inventory);
-                      return _Panel(
-                        child: CupertinoButton(
-                          key: ValueKey('ha-media-target-${target.entityId}'),
-                          padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
-                          onPressed: active && !busy && supported
-                              ? () => _play(source, target)
-                              : null,
-                          child: Row(
-                            children: [
-                              Icon(
-                                target.isDisplay
-                                    ? CupertinoIcons.tv
-                                    : CupertinoIcons.speaker_2,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(target.name, style: AppText.headline),
-                                    Text(
-                                      haMediaReceiverLabel(
-                                        l10n,
-                                        target.receiverKind,
-                                      ),
-                                      style: AppText.subhead,
-                                    ),
-                                    if (!supported)
-                                      Text(
-                                        l10n.haMediaTargetUnsupported,
-                                        style: AppText.footnote,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ] else if (page != null) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(page.parent.title, style: AppText.title2),
-                          if (page.notShown > 0)
-                            Text(l10n.haMediaNotShown, style: AppText.footnote),
-                          if (page.children.isEmpty) Text(l10n.haMediaEmpty),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverList.builder(
-                    itemCount: page.children.length,
-                    itemBuilder: (context, index) {
-                      final node = page.children[index];
-                      return _Panel(
-                        child: CupertinoButton(
-                          key: ValueKey('ha-media-source-$index'),
-                          padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
-                          onPressed:
-                              !active ||
-                                  busy ||
-                                  !(node.canExpand || node.playable)
-                              ? null
-                              : () {
-                                  if (node.canExpand) {
-                                    _browse(node);
-                                  } else {
-                                    setState(() {
-                                      _selected = node;
-                                      _error = null;
-                                    });
-                                  }
-                                },
-                          child: Row(
-                            children: [
-                              Icon(
-                                node.canExpand
-                                    ? CupertinoIcons.folder
-                                    : node.isAudio
-                                    ? CupertinoIcons.music_note
-                                    : CupertinoIcons.film,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(node.title, style: AppText.headline),
-                                    if (!node.canExpand && !node.playable)
-                                      Text(
-                                        l10n.haMediaSourceUnsupported,
-                                        style: AppText.footnote,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                node.canExpand
-                                    ? CupertinoIcons.chevron_forward
-                                    : CupertinoIcons.play_circle,
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
           ),
         ),
-      ),
+        if (receipt != null)
+          SliverToBoxAdapter(
+            child: _Panel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(receipt.target.name, style: AppText.headline),
+                  Text(receipt.source.title, style: AppText.body),
+                  const SizedBox(height: 8),
+                  Text(switch (receipt.status) {
+                    HaPlaybackReceiptStatus.accepted => l10n.haMediaAccepted,
+                    HaPlaybackReceiptStatus.observed => l10n.haMediaObserved,
+                    HaPlaybackReceiptStatus.unconfirmed =>
+                      l10n.haMediaUnconfirmed,
+                  }),
+                ],
+              ),
+            ),
+          ),
+        if (source != null && page != null && inventory != null) ...[
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Semantics(
+                key: const ValueKey('ha-media-targets-header'),
+                container: true,
+                header: true,
+                child: Text(l10n.haMediaTargets),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(source.title, style: AppText.title2),
+                      const SizedBox(height: 8),
+                      Text(l10n.haMediaCompatibility, style: AppText.footnote),
+                      if (inventory.targets.any(
+                        (target) => target.platform == 'apple_tv',
+                      )) ...[
+                        const SizedBox(height: 8),
+                        Text(l10n.haMediaAppleLimit, style: AppText.footnote),
+                      ],
+                      if (inventory.targets.isEmpty)
+                        Text(l10n.haMediaNoTargets),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SliverList.builder(
+            itemCount: inventory.targets.length,
+            itemBuilder: (context, index) {
+              final target = inventory.targets[index];
+              final supported = target.canPlay(source, inventory);
+              return SettingsSection(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                children: [
+                  SettingsActionTile(
+                    buttonKey: ValueKey('ha-media-target-${target.entityId}'),
+                    leading: Icon(
+                      target.isDisplay
+                          ? CupertinoIcons.tv
+                          : CupertinoIcons.speaker_2,
+                    ),
+                    title: Text(target.name),
+                    additionalInfo: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(haMediaReceiverLabel(l10n, target.receiverKind)),
+                        if (!supported) Text(l10n.haMediaTargetUnsupported),
+                      ],
+                    ),
+                    onTap: active && !busy && supported
+                        ? () => _play(source, target)
+                        : null,
+                  ),
+                ],
+              );
+            },
+          ),
+        ] else if (page != null) ...[
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Semantics(
+                key: const ValueKey('ha-media-sources-header'),
+                container: true,
+                header: true,
+                child: Text(l10n.haMediaSources),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(page.parent.title, style: AppText.title2),
+                      if (page.notShown > 0)
+                        Text(l10n.haMediaNotShown, style: AppText.footnote),
+                      if (page.children.isEmpty) Text(l10n.haMediaEmpty),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SliverList.builder(
+            itemCount: page.children.length,
+            itemBuilder: (context, index) {
+              final node = page.children[index];
+              return SettingsSection(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                children: [
+                  SettingsActionTile(
+                    buttonKey: ValueKey('ha-media-source-$index'),
+                    leading: Icon(
+                      node.canExpand
+                          ? CupertinoIcons.folder
+                          : node.isAudio
+                          ? CupertinoIcons.music_note
+                          : CupertinoIcons.film,
+                    ),
+                    title: Text(node.title),
+                    additionalInfo: !node.canExpand && !node.playable
+                        ? Text(l10n.haMediaSourceUnsupported)
+                        : null,
+                    onTap: !active || busy || !(node.canExpand || node.playable)
+                        ? null
+                        : () {
+                            if (node.canExpand) {
+                              _browse(node);
+                            } else {
+                              setState(() {
+                                _selected = node;
+                                _error = null;
+                              });
+                            }
+                          },
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
     );
   }
 }
