@@ -1,10 +1,11 @@
 # F57 room-presence tablet management acceptance
 
 This package adds an Android tablet and DeX management surface over the F57
-privacy-bounded Core foundation. Queue progress remains 20/125 and selected
-feature progress remains 0/63. Provider adapters, encrypted durable storage,
-real sensor calibration, and physical BLE/UWB/Home Assistant room acceptance
-remain explicit delivery gates.
+privacy-bounded Core foundation. Queue progress remains 21/125 and selected
+feature progress remains 0/63. Encrypted durable Core storage and authenticated
+HTTP are covered by the integration package. Provider adapters, real sensor
+calibration, and physical BLE/UWB/Home Assistant room acceptance remain
+explicit delivery gates.
 
 Exactly three user acceptance criteria are in scope:
 
@@ -23,7 +24,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The RED commit `f671cb32` failed because the F57 Client public models, Core API
+The RED commit `a2b432ee` failed because the F57 Client public models, Core API
 boundary, controller, and tablet screen did not exist. The GREEN test matrix
 contains one privacy/authority test, one calibration confirmation/readback
 test, and one parameterized EN/TR accessibility test across both widths at

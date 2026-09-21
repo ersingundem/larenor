@@ -16,8 +16,9 @@ all required revision conflicts, consent withdrawal, source and input bounds,
 privacy projection, observation replay, exact automation readback, lost
 acknowledgement, and idempotency.
 
-F57 remains open for encrypted durable policy/receipt storage, provider
-adapters and calibration, Client enrollment UI, real Client-to-isolated-Core
-E2E, exact-commit CI, and separate physical ESP32/BLE/UWB/Home Assistant and
-tablet acceptance. Queue progress remains at the inherited **20/125** and
+Encrypted durable policy/receipt storage, authenticated management HTTP,
+calibration, and the tablet Client are covered by the integration evidence.
+F57 remains open for provider adapters, exact-commit CI, and separate physical
+ESP32/BLE/UWB/Home Assistant and tablet acceptance. Queue progress remains at
+the inherited **21/125** and
 selected-feature progress remains **0/63**.
