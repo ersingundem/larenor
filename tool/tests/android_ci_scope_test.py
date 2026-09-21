@@ -53,6 +53,24 @@ class AndroidCiScopeTest(unittest.TestCase):
                     changed_files=lambda *_args, value=paths: value,
                 ), (False, 'android-inputs-unchanged'))
 
+    def test_progress_policy_only_changes_reuse_android_evidence(self):
+        paths = (
+            'tool/check_commit_progress.py',
+            'tool/commit_with_progress.py',
+            'tool/execution_queue.py',
+            'tool/tests/check_commit_progress_test.py',
+            'tool/tests/commit_with_progress_test.py',
+            'tool/tests/execution_queue_test.py',
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(is_android_relevant(path))
+        self.assertEqual(decide_scope(
+            event_name='pull_request', base_sha='a' * 40,
+            head_sha='b' * 40,
+            changed_files=lambda *_args: paths,
+        ), (False, 'android-inputs-unchanged'))
+
     def test_every_android_flutter_workflow_and_build_input_runs(self):
         paths = (
             'lib/main.dart', 'android/app/build.gradle.kts',

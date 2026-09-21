@@ -412,6 +412,7 @@ class _ServerConnectionScreenState
                         ),
                         if (!_account.working)
                           CupertinoButton(
+                            minimumSize: const Size.fromHeight(48),
                             onPressed: _callback(_initialize),
                             child: Text(l10n.commonRetry),
                           ),
@@ -435,6 +436,7 @@ class _ServerConnectionScreenState
                         ),
                         CupertinoButton(
                           key: const ValueKey('server-sign-out'),
+                          minimumSize: const Size.fromHeight(48),
                           onPressed: _enabled && _dialog == null
                               ? _callback(_signOut)
                               : null,
@@ -468,6 +470,7 @@ class _ServerConnectionScreenState
                               l10n.serverDeviceName,
                               _device,
                               max: 128,
+                              submit: _signIn,
                             ),
                           ],
                         ),
@@ -519,6 +522,7 @@ class _ServerConnectionScreenState
                                 _confirmPassword,
                                 secret: true,
                                 max: 128,
+                                submit: _changePassword,
                               ),
                             ],
                           ),
@@ -529,6 +533,7 @@ class _ServerConnectionScreenState
                           ),
                           if (!session.user.mustChangePassword)
                             CupertinoButton(
+                              minimumSize: const Size.fromHeight(48),
                               onPressed: _enabled
                                   ? _callback(
                                       () => setState(() {
@@ -542,6 +547,7 @@ class _ServerConnectionScreenState
                         ] else
                           CupertinoButton(
                             key: const ValueKey('server-edit-password'),
+                            minimumSize: const Size.fromHeight(48),
                             onPressed: _enabled
                                 ? _callback(
                                     () => setState(() => _editPassword = true),
@@ -553,11 +559,10 @@ class _ServerConnectionScreenState
                           SettingsSection(
                             children: [
                               if (session.user.canAdminister)
-                                CupertinoListTile(
-                                  key: const ValueKey('server-admin'),
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey('server-admin'),
                                   leading: const Icon(CupertinoIcons.person_2),
                                   title: Text(l10n.serverAdminTitle),
-                                  trailing: const CupertinoListTileChevron(),
                                   onTap: _enabled
                                       ? _callback(() {
                                           if (_account
@@ -577,11 +582,10 @@ class _ServerConnectionScreenState
                                       : null,
                                 ),
                               if (session.user.canAdminister)
-                                CupertinoListTile(
-                                  key: const ValueKey('server-services'),
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey('server-services'),
                                   leading: const Icon(CupertinoIcons.link),
                                   title: Text(l10n.serverServicesTitle),
-                                  trailing: const CupertinoListTileChevron(),
                                   onTap: _enabled
                                       ? _callback(() {
                                           if (_account
@@ -601,11 +605,10 @@ class _ServerConnectionScreenState
                                       : null,
                                 ),
                               if (session.user.canAdminister)
-                                CupertinoListTile(
-                                  key: const ValueKey('server-plugins'),
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey('server-plugins'),
                                   leading: const Icon(CupertinoIcons.cube_box),
                                   title: Text(l10n.serverPluginsTitle),
-                                  trailing: const CupertinoListTileChevron(),
                                   onTap: _enabled
                                       ? _callback(() {
                                           if (_account
@@ -661,6 +664,7 @@ class _ServerConnectionScreenState
                           ),
                         CupertinoButton(
                           key: const ValueKey('server-sign-out'),
+                          minimumSize: const Size.fromHeight(48),
                           onPressed: _enabled && _dialog == null
                               ? _callback(_signOut)
                               : null,
@@ -710,6 +714,7 @@ class _ServerConnectionScreenState
     bool secret = false,
     int max = 128,
     TextInputType? keyboard,
+    VoidCallback? submit,
   }) => Padding(
     padding: const EdgeInsets.all(12),
     child: Column(
@@ -728,7 +733,14 @@ class _ServerConnectionScreenState
             keyboardType: keyboard,
             autocorrect: false,
             enableSuggestions: false,
-            textInputAction: TextInputAction.next,
+            textInputAction: submit == null
+                ? TextInputAction.next
+                : TextInputAction.done,
+            onSubmitted: submit == null
+                ? null
+                : (_) {
+                    if (_enabled) _callback(submit)();
+                  },
             padding: const EdgeInsets.all(12),
           ),
         ),
@@ -750,6 +762,7 @@ class _ServerConnectionScreenState
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     child: CupertinoButton.filled(
       key: ValueKey(key),
+      minimumSize: const Size.fromHeight(48),
       onPressed: _enabled ? _callback(action) : null,
       child: Text(text, textAlign: TextAlign.center),
     ),

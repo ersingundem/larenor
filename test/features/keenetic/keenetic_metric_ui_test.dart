@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
@@ -11,6 +12,7 @@ import 'package:larenor/features/dashboard/presentation/tiles/keenetic_tile.dart
 import 'package:larenor/features/keenetic/data/keenetic_client.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_metric_detail_screen.dart';
+import 'package:larenor/features/keenetic/presentation/keenetic_metric_presentation.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_widget_picker_screen.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_telemetry_providers.dart';
@@ -55,6 +57,7 @@ class _Harness {
     bool detail = false,
     Size size = const Size(800, 1000),
     double scale = 1,
+    String language = 'en',
     bool overrideInventory = false,
   }) async {
     tester.view.physicalSize = size;
@@ -99,7 +102,7 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -236,6 +239,88 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language direct Keenetic picker has 48dp keyboard actions at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          await h.mount(
+            tester,
+            picker: true,
+            size: size,
+            scale: 2,
+            language: language,
+          );
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(KeeneticWidgetPickerScreen)),
+          );
+          final add = find.widgetWithText(CupertinoButton, l10n.commonAdd);
+          final internet = find.widgetWithText(
+            CupertinoButton,
+            keeneticMetricTitle(l10n, KeeneticMetricKind.internetStatus),
+          );
+          final traffic = find.widgetWithText(
+            CupertinoButton,
+            keeneticMetricTitle(l10n, KeeneticMetricKind.wanTraffic),
+          );
+          for (final action in [add, internet, traffic]) {
+            await tester.ensureVisible(action);
+            expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(action).flagsCollection.isButton,
+              isTrue,
+            );
+          }
+          Focus.of(
+            tester.element(
+              find.descendant(of: add, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(h.results, hasLength(1));
+          expect(
+            h.results.single.keeneticMetric,
+            KeeneticMetricKind.internetStatus,
+          );
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+          await h.close(tester);
+        },
+      );
+    }
+  }
+
+  testWidgets('covered picker rejects a retained metric callback', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester, picker: true);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(KeeneticWidgetPickerScreen)),
+    );
+    final traffic = find.widgetWithText(
+      CupertinoButton,
+      keeneticMetricTitle(l10n, KeeneticMetricKind.wanTraffic),
+    );
+    final callback = tester.widget<CupertinoButton>(traffic).onPressed!;
+    Navigator.of(tester.element(find.byType(KeeneticWidgetPickerScreen))).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => const CupertinoPageScaffold(child: Text('Cover')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    callback();
+    await tester.pump();
+    Navigator.of(tester.element(find.text('Cover'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.keeneticChooseInterface), findsNothing);
+    await h.close(tester);
+  });
+
   testWidgets('static picker reads no router and saves a single local draft', (
     tester,
   ) async {

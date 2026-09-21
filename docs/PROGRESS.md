@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 21 Eylül 2026 — `4e6236e8` main, Larenor Core ile altı yönetilen medya/müzik bileşenini tek canonical pakette birleştirdi. PR #182 üzerinde 41 zorunlu kapı ile unified stack ve altı bileşenin amd64/arm64 gerçek Docker kabulü geçti; S07.1 kapandı ve kuyruk 18/125 oldu. Fiziksel ev ve sağlayıcı kabulü ayrı manuel işlerdir.**
+**Son güncelleme: 21 Eylül 2026 — B5.1 ortak tablet düzeninin kalan Core ayarları, Direct bağlantı, Home Assistant/oynatıcı, Bugün, medya ve Keenetic yüzeyleri birleşti. 240/240 birleşik test ve PR #259 exact CI geçti; kuyruk 21/125 oldu. Fiziksel Huawei MatePad, Samsung DeX, TalkBack ve canlı servis kabulü ayrı manuel kapılardır.**
 
 ```text
-Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  18/125 iş (%14,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  21/125 iş (%16,8; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,14 +17,44 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış kabul kaynağı: PR `b0f778dc` / main `4e6236e8`.**
-PR kaynağında Android analiz/test, API35 E2E, dört Server shardı, unified stack
-ve altı medya/müzik bileşeninin amd64/arm64 gerçek runtime kapıları geçti.
-[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35538624142) ·
-[Security](https://github.com/ersingundem/larenor/actions/runs/35538624021) ·
-[iki mimarili unified stack](https://github.com/ersingundem/larenor/actions/runs/35538623984) ·
-[PR #182 kapıları](https://github.com/ersingundem/larenor/pull/182/checks).
+**Son tam doğrulanmış birleşik kaynak: main `ee25ae45`.** B5.1'in son
+dört tablet paketi birleşik önizlemede 240/240 odaklı Flutter testini geçti.
+PR #259 exact kaynak `0d43b7f8` üzerinde API 35 E2E, debug APK/native
+sözleşmeleri, analiz, Flutter ve Server shardları ile güvenlik kapıları geçti.
+[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35548667441) ·
+[B5.1 kapanış kanıtı](b51-shared-tablet-software-closure-2026-09-21.md).
 Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
+
+### B5.1 ortak tablet düzeni — yazılım kabul edildi
+
+Ayarlar, Bugün, medya ayrıntıları, Home Assistant cihaz/varlık eylemleri,
+Keenetic widget seçimi, Core bağlantısı ve güncelleme yüzeyleri ortak tablet
+sayfası, kart, durum kanıtı ve gezinme dilinde birleşti. Eylemler etkin hesap,
+route, lifecycle, interaction epoch ve exact servis/cihaz revision sınırında
+çalışıyor; kayıtlı bağlantı, erişilebilir servis ve doğrulanmış sonuç ayrı
+gösteriliyor.
+
+Son birleşik önizleme **240/240** odaklı testi geçti. PR #259 tüm zorunlu CI
+kapılarını tamamladı. Böylece kuyruk **21/125 (%16,8)** oldu. Huawei MatePad,
+Samsung DeX, klavye, TalkBack, canlı Home Assistant, medya alıcısı ve Keenetic
+kabulü MANUAL yayın matrisinde kalır.
+
+### S07.2 otomatik medya akışı ve S07.3 tek müzik API'si — kabul edildi
+
+Seerr isteği, qBittorrent indirmesi, Sonarr/Radarr içe aktarımı ve Jellyfin
+oynatılabilir sonucu tek revision-bound akışta birleşti. Eksik sezon, kısmi
+içe aktarma, hardlink/canonical yol, kesinti, idempotent retry ve belirsiz etki
+durumları açık ve fail-closed kaldı. Music Assistant tarafında provider setup,
+katalog, kuyruk, HomePod/AirPlay/Cast alıcı türleri ve oynatma komutları tek
+Larenor Core otoritesinden sunuluyor; ayrı MA adresi veya tokenı istenmiyor.
+Şifreli özel anahtar yenilemesi restart, kayıp yanıt, replay, eşzamanlı işlem
+ve yetki driftinde kapalı davranıyor.
+
+Birleşik main ağacında 87 odaklı Server/API testi geçti. PR #230 ve #231 tam
+zorunlu kapıları, S07.1 de iki mimarili paket yaşam döngüsünü geçti. Bu iki iş
+ile kuyruk **20/125 (%16,0)** oldu; gerçek abonelik girişleri, HomePod/Cast
+eşleştirme ve fiziksel oynatma MANUAL kapılarında kalır. [Üç kabul ölçütü ve
+kanıt](s07-2-s07-3-software-closure-2026-09-21.md).
 
 ### S07.1 tek Larenor medya/müzik paketi — kabul edildi
 
@@ -290,7 +320,7 @@ olarak korunuyor.
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Kabul edildi**; typed switch, kalıcı komut/makbuz, Direct→Core ve kapalı salt okunur standart/özel domain projeksiyonu PR17 tam CI ile ana dala alındı | Registry/servis keşfi ve domain'e özel typed komutlar sonraki HA dilimi |
-| B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
+| B5.1 — ortak tablet tasarımı | **Kabul edildi**; final birleşik önizleme 240/240 PASS, PR #259 exact CI ve API 35 E2E yeşil, main `ee25ae45` | Fiziksel Huawei/DeX/klavye/TalkBack ve canlı servis matrisi MANUAL |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |

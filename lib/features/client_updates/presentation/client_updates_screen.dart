@@ -7,7 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
-import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../server/data/server_account_controller.dart';
@@ -49,8 +50,10 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   bool _visible = true;
   bool _checking = false;
   bool _checked = false;
+  bool _checkScheduled = false;
   bool _disposed = false;
   int _operation = 0;
+  int _commandGeneration = 0;
 
   bool get _active =>
       sessionCurrent(sessionGeneration) &&
@@ -64,9 +67,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
     _account.addListener(_accountChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _active && _signedIn) _check();
-    });
+    _scheduleCheck();
   }
 
   @override
@@ -81,6 +82,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     }
     ModalRoute.isCurrentOf(context);
     if (!_active) clearPendingInteraction();
+    if (_active) _scheduleCheck();
   }
 
   void _visibilityChanged() {
@@ -88,6 +90,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     _visible = _ticker?.value.enabled ?? true;
     if (!_active) clearPendingInteraction();
     setState(() {});
+    if (_active) _scheduleCheck();
   }
 
   void _accountChanged() {
@@ -104,6 +107,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   }
 
   void _retire() {
+    _commandGeneration++;
     _repository?.close();
     _repository = null;
     _update?.removeListener(_updated);
@@ -115,10 +119,31 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
   @override
   void clearPendingInteraction() {
     _operation++;
-    _repository?.close();
-    _repository = null;
-    _checking = false;
     _update?.setVisible(false);
+    _retire();
+    _checking = false;
+    _checked = false;
+    _available = null;
+    _error = null;
+  }
+
+  @override
+  void resumeMediaSession() => _scheduleCheck();
+
+  void _scheduleCheck() {
+    if (_checkScheduled || _disposed) return;
+    _checkScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkScheduled = false;
+      if (mounted &&
+          _active &&
+          _signedIn &&
+          !_checked &&
+          !_checking &&
+          _error == null) {
+        unawaited(_check());
+      }
+    });
   }
 
   void _updated() {
@@ -193,6 +218,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     if (!_active || !_signedIn || update == null || update.busy) return;
     final operation = _operation;
     final epoch = sessionGeneration;
+    _commandGeneration++;
     setState(() => _error = null);
     update.setVisible(true);
     try {
@@ -200,6 +226,21 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     } catch (error) {
       if (_current(operation, epoch)) setState(() => _error = _failure(error));
     }
+  }
+
+  Future<void> _cancel(
+    ClientUpdateController expected,
+    int commandGeneration,
+  ) async {
+    if (!_active ||
+        !_signedIn ||
+        !identical(expected, _update) ||
+        !expected.busy ||
+        commandGeneration != _commandGeneration) {
+      return;
+    }
+    _commandGeneration++;
+    await expected.cancel();
   }
 
   ClientUpdateFailure _failure(Object error) => error is ClientUpdateException
@@ -220,6 +261,9 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_active && _signedIn && !_checked && !_checking && _error == null) {
+      _scheduleCheck();
+    }
     final l10n = AppLocalizations.of(context);
     final update = _update;
     final release = _available;
@@ -228,6 +272,7 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     final busy = _checking || update?.busy == true;
     final enabled = _active && _signedIn && !busy;
     final progress = update?.transfer;
+    final commandGeneration = _commandGeneration;
     final text = !_signedIn
         ? l10n.clientUpdatesAccountRequired
         : _checking
@@ -251,134 +296,120 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
                   : l10n.clientUpdatesIncompatible,
           };
     final statusText = _error == null ? text : _errorText(l10n, _error!);
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        leading: widget.onExit == null
-            ? null
-            : CupertinoNavigationBarBackButton(onPressed: widget.onExit),
-        middle: Text(l10n.clientUpdatesTitle),
-      ),
-      child: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 780),
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+    return ServiceRootScaffold(
+      title: l10n.clientUpdatesTitle,
+      leading: widget.onExit == null
+          ? null
+          : CupertinoNavigationBarBackButton(onPressed: widget.onExit),
+      slivers: [
+        SliverList(
+          delegate: SliverChildListDelegate([
+            SettingsSection(
+              header: Semantics(
+                key: const ValueKey('client-updates-status-heading'),
+                container: true,
+                header: true,
+                child: Text(l10n.clientUpdatesStatus),
+              ),
+              footer: Text(l10n.clientUpdatesSafety),
               children: [
-                SettingsSection(
-                  header: Text(l10n.clientUpdatesStatus),
-                  footer: Text(l10n.clientUpdatesSafety),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _UpdateStatusCard(
-                            text: statusText,
-                            error: _error != null,
-                            busy: busy,
-                            ready: update?.staged != null,
-                          ),
-                          if (snapshot?.supported == true ||
-                              release != null) ...[
-                            const SizedBox(height: 16),
-                            _VersionOverview(
-                              snapshot: snapshot,
-                              release: release,
-                            ),
-                          ],
-                          if (progress != null) ...[
-                            const SizedBox(height: 16),
-                            _TransferProgress(progress: progress),
-                          ] else if (busy) ...[
-                            const SizedBox(height: 16),
-                            Semantics(
-                              liveRegion: true,
-                              label: statusText,
-                              child: const CupertinoActivityIndicator(),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    _button(
-                      l10n.clientUpdatesCheck,
-                      'updates-check',
-                      enabled ? _check : null,
-                      icon: CupertinoIcons.arrow_clockwise,
-                    ),
-                    if (compatible &&
-                        update?.staged == null &&
-                        update?.phase != ClientUpdatePhase.systemPromptOpened)
-                      _button(
-                        l10n.clientUpdatesDownload,
-                        'updates-download',
-                        enabled ? () => _act((u) => u.download(release)) : null,
-                        icon: CupertinoIcons.arrow_down_circle_fill,
-                        primary: true,
-                      ),
-                    if (update?.staged != null)
-                      _button(
-                        l10n.clientUpdatesInstall,
-                        'updates-install',
-                        enabled
-                            ? () => _act((u) async {
-                                await u.install();
-                              })
-                            : null,
-                        icon: CupertinoIcons.device_phone_portrait,
-                        primary: true,
-                      ),
-                    if (update?.busy == true &&
-                        {
-                          ClientUpdatePhase.downloading,
-                          ClientUpdatePhase.verifying,
-                        }.contains(update?.phase))
-                      _button(
-                        l10n.commonCancel,
-                        'updates-cancel',
-                        _active
-                            ? () async {
-                                await update!.cancel();
-                              }
-                            : null,
-                        icon: CupertinoIcons.xmark_circle,
-                      ),
-                  ],
-                ),
-                if (_signedIn &&
-                    snapshot?.supported == true &&
-                    snapshot?.canRequestPackageInstalls == false)
-                  SettingsSection(
-                    footer: Text(l10n.clientUpdatesPermissionHint),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _button(
-                        l10n.clientUpdatesPermission,
-                        'updates-permission',
-                        enabled
-                            ? () => _act((u) => u.openInstallPermission())
-                            : null,
-                        icon: CupertinoIcons.lock_shield,
+                      _UpdateStatusCard(
+                        text: statusText,
+                        error: _error != null,
+                        busy: busy,
+                        ready: update?.staged != null,
                       ),
+                      if (snapshot?.supported == true || release != null) ...[
+                        const SizedBox(height: 16),
+                        _VersionOverview(snapshot: snapshot, release: release),
+                      ],
+                      if (progress != null) ...[
+                        const SizedBox(height: 16),
+                        _TransferProgress(progress: progress),
+                      ] else if (busy) ...[
+                        const SizedBox(height: 16),
+                        Semantics(
+                          liveRegion: true,
+                          label: statusText,
+                          child: const CupertinoActivityIndicator(),
+                        ),
+                      ],
                     ],
                   ),
-                if (release?.releaseNotes.isNotEmpty == true)
-                  SettingsSection(
-                    header: Text(l10n.clientUpdatesReleaseNotes),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(release!.releaseNotes),
-                      ),
-                    ],
+                ),
+                _button(
+                  l10n.clientUpdatesCheck,
+                  'updates-check',
+                  enabled ? _check : null,
+                  icon: CupertinoIcons.arrow_clockwise,
+                ),
+                if (compatible &&
+                    update?.staged == null &&
+                    update?.phase != ClientUpdatePhase.systemPromptOpened)
+                  _button(
+                    l10n.clientUpdatesDownload,
+                    'updates-download',
+                    enabled ? () => _act((u) => u.download(release)) : null,
+                    icon: CupertinoIcons.arrow_down_circle_fill,
+                  ),
+                if (update?.staged != null)
+                  _button(
+                    l10n.clientUpdatesInstall,
+                    'updates-install',
+                    enabled
+                        ? () => _act((u) async {
+                            await u.install();
+                          })
+                        : null,
+                    icon: CupertinoIcons.device_phone_portrait,
+                  ),
+                if (update?.busy == true &&
+                    {
+                      ClientUpdatePhase.downloading,
+                      ClientUpdatePhase.verifying,
+                    }.contains(update?.phase))
+                  _button(
+                    l10n.commonCancel,
+                    'updates-cancel',
+                    _active ? () => _cancel(update!, commandGeneration) : null,
+                    icon: CupertinoIcons.xmark_circle,
                   ),
               ],
             ),
-          ),
+            if (_signedIn &&
+                snapshot?.supported == true &&
+                snapshot?.canRequestPackageInstalls == false)
+              SettingsSection(
+                footer: Text(l10n.clientUpdatesPermissionHint),
+                children: [
+                  _button(
+                    l10n.clientUpdatesPermission,
+                    'updates-permission',
+                    enabled
+                        ? () => _act((u) => u.openInstallPermission())
+                        : null,
+                    icon: CupertinoIcons.lock_shield,
+                  ),
+                ],
+              ),
+            if (release?.releaseNotes.isNotEmpty == true)
+              SettingsSection(
+                header: Text(l10n.clientUpdatesReleaseNotes),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(release!.releaseNotes),
+                  ),
+                ],
+              ),
+          ]),
         ),
-      ),
+      ],
     );
   }
 
@@ -387,23 +418,14 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     String key,
     Future<void> Function()? action, {
     required IconData icon,
-    bool primary = false,
-  }) => SizedBox(
-    width: double.infinity,
-    child: primary
-        ? CupertinoButton.filled(
-            key: ValueKey(key),
-            minimumSize: const Size.fromHeight(48),
-            borderRadius: BorderRadius.circular(12),
-            onPressed: action,
-            child: _ButtonLabel(icon: icon, text: text),
-          )
-        : CupertinoButton(
-            key: ValueKey(key),
-            minimumSize: const Size.fromHeight(48),
-            onPressed: action,
-            child: _ButtonLabel(icon: icon, text: text),
-          ),
+  }) => Semantics(
+    container: true,
+    child: SettingsActionTile(
+      buttonKey: ValueKey(key),
+      leading: Icon(icon),
+      title: Text(text),
+      onTap: action,
+    ),
   );
 
   String _errorText(
@@ -642,20 +664,4 @@ class _TransferProgress extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ButtonLabel extends StatelessWidget {
-  const _ButtonLabel({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      ExcludeSemantics(child: Icon(icon, size: 20)),
-      const SizedBox(width: 8),
-      Flexible(child: Text(text, textAlign: TextAlign.center)),
-    ],
-  );
 }

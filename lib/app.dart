@@ -8,6 +8,7 @@ import 'core/theme.dart';
 import 'features/settings/presentation/idle_gate.dart';
 import 'features/settings/presentation/screen_policy_runner.dart';
 import 'features/settings/providers/settings_providers.dart';
+import 'features/local_notifications/presentation/local_notification_runtime_scope.dart';
 import 'l10n/generated/app_localizations.dart';
 
 class LarenorApp extends ConsumerWidget {
@@ -32,7 +33,12 @@ class LarenorApp extends ConsumerWidget {
       builder: (context, child) => ImmersiveModeGuard(
         child: ScreenPolicyRunner(
           child: IdleGate(
-            child: HomeInteractionGate(child: child ?? const SizedBox.shrink()),
+            child: HomeInteractionGate(
+              child: LocalNotificationRuntimeScope(
+                navigate: router.go,
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
           ),
         ),
       ),
