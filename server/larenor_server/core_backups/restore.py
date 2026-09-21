@@ -20,7 +20,7 @@ from ..files import (
     sync_directory,
 )
 from ..legal import server_version
-from .service import MAX_BUNDLE_BYTES, open_backup_bundle
+from .service import MAX_BUNDLE_BYTES, MAX_FAMILY_BOARD_BYTES, open_backup_bundle
 
 _JOURNAL = ".restore-state.json"
 _SNAPSHOT = re.compile(r"^[0-9a-f]{32}$")
@@ -45,16 +45,19 @@ def _read_journal(settings: Settings) -> dict | None:
         value = json.loads(private_read(path, 1024))
     except (OSError, UnicodeError, ValueError, StartupError):
         raise StartupError("restore_recovery_invalid") from None
+    if type(value) is not dict or value.get("version") not in (1, 2):
+        raise StartupError("restore_recovery_invalid")
+    expected = {"version", "snapshotId", "databaseSha256", "keySha256"}
+    if value["version"] == 2:
+        expected.add("familyBoardSha256")
     if (
-        type(value) is not dict
-        or set(value) != {"version", "snapshotId", "databaseSha256", "keySha256"}
-        or value["version"] != 1
+        set(value) != expected
         or type(value["snapshotId"]) is not str
         or not _SNAPSHOT.fullmatch(value["snapshotId"])
         or any(
             type(value[name]) is not str
             or not re.fullmatch(r"[0-9a-f]{64}", value[name])
-            for name in ("databaseSha256", "keySha256")
+            for name in expected - {"version", "snapshotId"}
         )
     ):
         raise StartupError("restore_recovery_invalid")
@@ -102,6 +105,13 @@ def recover_empty_restore(settings: Settings) -> bool:
         32,
         journal["keySha256"],
     )
+    if journal["version"] == 2:
+        _publish_one(
+            stage_dir / "family-board.sqlite3",
+            settings.data_dir / "family-board.sqlite3",
+            MAX_FAMILY_BOARD_BYTES,
+            journal["familyBoardSha256"],
+        )
     _publish_one(
         stage_dir / "larenor.sqlite3",
         settings.database_file,
@@ -125,7 +135,7 @@ def recover_empty_restore(settings: Settings) -> bool:
 def _validate_capture(capture) -> None:
     manifest = capture.manifest
     if (
-        manifest.contractVersion != 1
+        manifest.contractVersion not in (1, 2)
         or manifest.coreVersion != server_version()
         or manifest.databaseSchemaVersion != _EXPECTED_SCHEMA
     ):
@@ -150,7 +160,7 @@ def _validate_capture(capture) -> None:
 
 
 def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
-    """Validate off-target, then journal and publish the database/key pair."""
+    """Validate off-target, then journal and publish every captured resource."""
     checked_path(settings.data_dir)
     checked_path(settings.key_file)
     if settings.key_file.is_relative_to(settings.data_dir):
@@ -191,6 +201,11 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
                 stage_dir / "larenor.sqlite3",
                 capture.payloads["core-database"],
             )
+            if capture.manifest.contractVersion == 2:
+                private_create(
+                    stage_dir / "family-board.sqlite3",
+                    capture.payloads["family-board"],
+                )
             private_create(stage_key, capture.payloads["vault-key"])
 
             # Construct every Core service against the staged pair. This checks
@@ -214,15 +229,22 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
                 stage_dir / "larenor.sqlite3", MAX_BUNDLE_BYTES
             )
             key = private_read(stage_key, 32)
+            family_board = (
+                private_read(stage_dir / "family-board.sqlite3", MAX_FAMILY_BOARD_BYTES)
+                if capture.manifest.contractVersion == 2
+                else None
+            )
         except Exception:
             _cleanup_stage(stage_dir, stage_key)
             raise
         journal = {
-            "version": 1,
+            "version": capture.manifest.contractVersion,
             "snapshotId": snapshot_id,
             "databaseSha256": _digest(database),
             "keySha256": _digest(key),
         }
+        if family_board is not None:
+            journal["familyBoardSha256"] = _digest(family_board)
         # A failed write must not leave a partial recovery journal alongside
         # private staged bytes. Publish the fully synced journal atomically;
         # once it exists, startup owns recovery even if directory sync fails.

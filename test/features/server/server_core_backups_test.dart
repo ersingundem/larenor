@@ -9,7 +9,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 import 'server_admin_test_support.dart';
 
 Map<String, dynamic> backupManifest() => {
-  'contractVersion': 1,
+  'contractVersion': 2,
   'snapshotId': '1' * 32,
   'createdAt': 1789952400,
   'coreVersion': '0.5.0',
@@ -36,6 +36,13 @@ Map<String, dynamic> backupManifest() => {
       'version': '61',
       'byteLength': 4096,
       'sha256': '3' * 64,
+    },
+    {
+      'id': 'family-board',
+      'kind': 'familyBoard',
+      'version': '1',
+      'byteLength': 1024,
+      'sha256': '5' * 64,
     },
     {
       'id': 'vault-key',
@@ -77,11 +84,12 @@ void main() {
   test('plan parser accepts only exact bounded backup metadata', () {
     final plan = CoreBackupPlan.fromJson(readyPlan());
     expect(plan.ready, isTrue);
-    expect(plan.manifest!.totalBytes, 4328);
+    expect(plan.manifest!.totalBytes, 5352);
     expect(plan.manifest!.resources.map((item) => item.kind), {
       CoreBackupResourceKind.componentData,
       CoreBackupResourceKind.configuration,
       CoreBackupResourceKind.database,
+      CoreBackupResourceKind.familyBoard,
       CoreBackupResourceKind.vaultKey,
     });
     expect(plan.toString(), isNot(contains('111111111')));
@@ -103,7 +111,7 @@ void main() {
       },
       {
         ...readyPlan(),
-        'manifest': {...backupManifest(), 'contractVersion': 2},
+        'manifest': {...backupManifest(), 'contractVersion': 3},
       },
       {
         ...readyPlan(),
@@ -124,6 +132,20 @@ void main() {
         throwsA(isA<LarenorServerException>()),
       );
     }
+  });
+
+  test('legacy four-resource Core backup remains readable', () {
+    final legacy = {
+      ...backupManifest(),
+      'contractVersion': 1,
+      'resources': [
+        for (final item in backupManifest()['resources']! as List)
+          if ((item as Map)['id'] != 'family-board') item,
+      ],
+    };
+    final plan = CoreBackupManifest.fromJson(legacy);
+    expect(plan.resources.length, 4);
+    expect(plan.totalBytes, 4328);
   });
 
   test(

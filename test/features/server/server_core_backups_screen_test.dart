@@ -70,6 +70,10 @@ void main() {
         await tester.drag(find.byType(ListView), const Offset(0, -800));
         await tester.pumpAndSettle();
         expect(
+          find.text(language == 'tr' ? 'Aile panosu' : 'Family board'),
+          findsOneWidget,
+        );
+        expect(
           find.text(
             language == 'tr'
                 ? 'Boş Core kurtarma sınırı'

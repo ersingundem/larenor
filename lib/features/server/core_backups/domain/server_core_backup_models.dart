@@ -1,6 +1,12 @@
 import '../../domain/server_models.dart';
 
-enum CoreBackupResourceKind { database, vaultKey, configuration, componentData }
+enum CoreBackupResourceKind {
+  database,
+  vaultKey,
+  configuration,
+  componentData,
+  familyBoard,
+}
 
 final class CoreBackupResource {
   const CoreBackupResource({
@@ -28,6 +34,7 @@ final class CoreBackupResource {
       'vaultKey' => CoreBackupResourceKind.vaultKey,
       'configuration' => CoreBackupResourceKind.configuration,
       'componentData' => CoreBackupResourceKind.componentData,
+      'familyBoard' => CoreBackupResourceKind.familyBoard,
       _ => throw const LarenorServerException('invalid_response'),
     };
     if (id is! String ||
@@ -87,9 +94,10 @@ final class CoreBackupManifest {
     final databaseVersion = json['databaseSchemaVersion'];
     final rawComponents = json['componentSchemaVersions'];
     final rawResources = json['resources'];
+    final contractVersion = json['contractVersion'];
     if (json.length != keys.length ||
         !json.keys.every(keys.contains) ||
-        json['contractVersion'] != 1 ||
+        (contractVersion != 1 && contractVersion != 2) ||
         snapshot is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(snapshot) ||
         created is! int ||
@@ -103,7 +111,7 @@ final class CoreBackupManifest {
         rawComponents is! Map ||
         rawComponents.length > 128 ||
         rawResources is! List ||
-        rawResources.length != 4) {
+        rawResources.length != (contractVersion == 2 ? 5 : 4)) {
       throw const LarenorServerException('invalid_response');
     }
     final components = <String, int>{};
@@ -124,8 +132,13 @@ final class CoreBackupManifest {
       'core-database': CoreBackupResourceKind.database,
       'vault-key': CoreBackupResourceKind.vaultKey,
     };
-    if (resources.length != expected.length ||
-        resources.any((item) => expected[item.id] != item.kind) ||
+    final versionedExpected = {
+      ...expected,
+      if (contractVersion == 2)
+        'family-board': CoreBackupResourceKind.familyBoard,
+    };
+    if (resources.length != versionedExpected.length ||
+        resources.any((item) => versionedExpected[item.id] != item.kind) ||
         resources.map((item) => item.id).toSet().length != resources.length) {
       throw const LarenorServerException('invalid_response');
     }
@@ -142,6 +155,7 @@ final class CoreBackupManifest {
     if (versions['component-index'] != '1' ||
         versions['core-configuration'] != '1' ||
         versions['core-database'] != '$databaseVersion' ||
+        (contractVersion == 2 && versions['family-board'] != '1') ||
         versions['vault-key'] != 'aes256-v1') {
       throw const LarenorServerException('invalid_response');
     }

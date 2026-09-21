@@ -271,6 +271,7 @@ class _ServerCoreBackupsScreenState
         CoreBackupResourceKind.vaultKey => l10n.serverBackupsVaultKey,
         CoreBackupResourceKind.configuration => l10n.serverBackupsConfiguration,
         CoreBackupResourceKind.componentData => l10n.serverBackupsComponents,
+        CoreBackupResourceKind.familyBoard => l10n.serverBackupsFamilyBoard,
       };
 
   String _size(int bytes) => bytes < 1024 * 1024

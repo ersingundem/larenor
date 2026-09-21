@@ -1,9 +1,11 @@
 """S09.2 empty-target restore and crash recovery contract."""
 
 import os
+import secrets
 from dataclasses import replace
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from conftest import auth, document, login, ready
 from fastapi.testclient import TestClient
 from larenor_server import cli
@@ -11,6 +13,7 @@ from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.core_backups import restore as restore_module
 from larenor_server.core_backups.restore import restore_empty
+from larenor_server.core_backups.service import BackupCapture, CoreBackupContract, MAGIC
 from larenor_server.errors import ApiError, StartupError
 from larenor_server.files import private_create
 
@@ -74,7 +77,42 @@ def test_empty_restore_reopens_key_context_connection_and_vault_after_restart(
     assert not (target.data_dir / ".restore-state.json").exists()
 
 
-def test_empty_restore_preserves_family_board_snapshot_and_delta(server, tmp_path):
+def test_legacy_four_resource_bundle_still_restores(server, tmp_path):
+    app, _client, settings, clock = server
+    bundle, key, context = _bundle(server)
+    opened = app.state.core.core_backups.open_bundle(bundle, PASSPHRASE)
+    legacy = BackupCapture(
+        manifest=opened.manifest.model_copy(
+            update={
+                "contractVersion": 1,
+                "resources": [
+                    item for item in opened.manifest.resources
+                    if item.id != "family-board"
+                ],
+            }
+        ),
+        payloads={
+            name: value for name, value in opened.payloads.items()
+            if name != "family-board"
+        },
+    )
+    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+    aad = MAGIC + salt + nonce
+    legacy_bundle = aad + AESGCM(
+        CoreBackupContract._derive_key(PASSPHRASE, salt)
+    ).encrypt(nonce, CoreBackupContract._archive(legacy), aad)
+
+    target = _target(tmp_path, clock)
+    restore_empty(target, legacy_bundle, PASSPHRASE)
+
+    _assert_restored(target, key, context)
+    assert (target.data_dir / "family-board.sqlite3").exists()
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_empty_restore_preserves_family_board_snapshot_and_delta(
+    server, tmp_path, monkeypatch, interrupted
+):
     app, client, _settings, clock = server
     pair = ready(server)
     context = app.state.core.context
@@ -116,9 +154,29 @@ def test_empty_restore_preserves_family_board_snapshot_and_delta(server, tmp_pat
         json={"passphrase": PASSPHRASE},
     )
     assert bundle.status_code == 200
+    assert b"Movie night" not in bundle.content
 
     target = _target(tmp_path, clock)
-    restore_empty(target, bundle.content, PASSPHRASE)
+    if interrupted:
+        real_replace = os.replace
+        calls = 0
+
+        def interrupt_after_board(source, destination):
+            nonlocal calls
+            calls += 1
+            if calls == 4:
+                raise OSError("synthetic interruption after board publication")
+            return real_replace(source, destination)
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(restore_module.os, "replace", interrupt_after_board)
+            with pytest.raises(OSError, match="after board publication"):
+                restore_empty(target, bundle.content, PASSPHRASE)
+        assert (target.data_dir / "family-board.sqlite3").exists()
+        assert not target.database_file.exists()
+        assert (target.data_dir / ".restore-state.json").exists()
+    else:
+        restore_empty(target, bundle.content, PASSPHRASE)
     restored = create_app(target)
     with TestClient(restored) as target_client:
         restored_pair = login(
@@ -192,7 +250,7 @@ def test_incompatible_bundle_is_rejected_before_staging(server, tmp_path, monkey
     assert not list(target.data_dir.glob(".restore-*"))
 
 
-def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, monkeypatch):
+def test_restart_finishes_interrupted_publication(server, tmp_path, monkeypatch):
     bundle, key, context = _bundle(server)
     target = _target(tmp_path, server[3])
     real_replace = os.replace
@@ -202,7 +260,7 @@ def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, mon
         nonlocal calls
         calls += 1
         # Journal promotion is the first replace; interrupt after publishing
-        # the key, before publishing the database.
+        # the key, before publishing the board and Core databases.
         if calls == 3:
             raise OSError("synthetic interruption")
         return real_replace(source, destination)
