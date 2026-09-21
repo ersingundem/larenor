@@ -18,6 +18,7 @@ import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
+import '../features/resource_reservations/presentation/resource_reservation_route.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
@@ -36,6 +37,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       routes: [
         GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
         GoRoute(path: '/inventory', builder: (_, _) => const InventoryRoute()),
+        GoRoute(
+          path: '/reservations',
+          builder: (_, _) => const ResourceReservationRoute(),
+        ),
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),

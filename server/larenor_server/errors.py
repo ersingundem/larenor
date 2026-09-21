@@ -13,6 +13,13 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'authority_changed': 'The verified authority changed. Read it again.',
+    'reservation_overlap': 'This reservation overlaps the current calendar.',
+    'reservation_limit_reached': 'The reservation calendar is full.',
+    'availability_limit_reached': 'The availability result is too large.',
+    'reservation_export_limit_reached': 'The reservation export is too large.',
+    'reservation_already_cancelled': 'This reservation is already cancelled.',
+    'audit_tampered': 'The reservation audit could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',

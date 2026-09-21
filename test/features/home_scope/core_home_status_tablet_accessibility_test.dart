@@ -39,6 +39,18 @@ void main() {
             );
             expect(inventory, findsOneWidget);
             expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
+            final reservations = find.byKey(
+              const ValueKey('core-home-reservations-action'),
+            );
+            expect(reservations, findsOneWidget);
+            expect(
+              tester.getRect(reservations).height,
+              greaterThanOrEqualTo(48),
+            );
+            expect(
+              tester.getSemantics(reservations).label,
+              contains(l10n.resourceReservationsTitle),
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -73,6 +85,10 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('core-home-inventory-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-reservations-action')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);

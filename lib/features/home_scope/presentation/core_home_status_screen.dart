@@ -94,6 +94,24 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                       ),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('core-home-reservations-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-reservations-action',
+                        ),
+                        title: Text(l10n.resourceReservationsTitle),
+                        additionalInfo: Text(
+                          l10n.resourceReservationsEntrySubtitle,
+                        ),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/reservations');
+                                }
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('local-notification-entry'),
                         buttonKey: const ValueKey(
                           'local-notification-entry-action',

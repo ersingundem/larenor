@@ -491,6 +491,37 @@ class ReservationStore:
             replay["calendar_revision"], reservation,
         )
 
+    def receipt(
+        self,
+        actor: Principal,
+        *,
+        authority: ReservationAuthority,
+        command_id: str,
+    ) -> ReservationReceipt | None:
+        """Read one actor-owned command result without replaying its mutation."""
+        self._authorize(actor, authority)
+        if not _identifier(command_id):
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            connection.execute("BEGIN")
+            try:
+                _, reservations = self._verified(connection, authority)
+                state = self._state(connection, authority)
+                revision = authority.calendar_revision if state is None else state["revision"]
+                if revision != authority.calendar_revision:
+                    raise ApiError("authority_changed", 409)
+                replay = self._find_replay(connection, authority, command_id)
+                if replay is None:
+                    return None
+                if replay["actor_id"] != actor.id:
+                    raise ApiError("not_found", 404)
+                reservation = reservations.get(replay["reservation_id"])
+                if reservation is None:
+                    raise StartupError("resource_reservation_history_invalid")
+                return self._receipt(replay, reservation)
+            finally:
+                connection.rollback()
+
     def create(
         self,
         actor: Principal,

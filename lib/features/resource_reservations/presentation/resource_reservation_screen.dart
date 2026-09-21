@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/resource_reservation_controller.dart';
 import '../domain/resource_reservation_models.dart';
 
@@ -34,6 +35,37 @@ class ResourceReservationStrings {
     required this.cancelled,
     required this.units,
   });
+
+  factory ResourceReservationStrings.fromLocalizations(AppLocalizations l10n) =>
+      ResourceReservationStrings(
+        title: l10n.resourceReservationsTitle,
+        availability: l10n.resourceReservationsAvailability,
+        newReservation: l10n.resourceReservationsNew,
+        localStart: l10n.resourceReservationsLocalStart,
+        durationMinutes: l10n.resourceReservationsDurationMinutes,
+        recurrenceCount: l10n.resourceReservationsRecurrenceCount,
+        timezone: l10n.resourceReservationsTimezone,
+        earlierFold: l10n.resourceReservationsEarlierFold,
+        laterFold: l10n.resourceReservationsLaterFold,
+        once: l10n.resourceReservationsOnce,
+        daily: l10n.resourceReservationsDaily,
+        weekly: l10n.resourceReservationsWeekly,
+        create: l10n.resourceReservationsCreate,
+        cancel: l10n.resourceReservationsCancel,
+        history: l10n.resourceReservationsHistory,
+        export: l10n.resourceReservationsExport,
+        exportReady: l10n.resourceReservationsExportReady,
+        loading: l10n.resourceReservationsLoading,
+        empty: l10n.resourceReservationsEmpty,
+        offline: l10n.resourceReservationsOffline,
+        error: l10n.resourceReservationsError,
+        conflict: l10n.resourceReservationsConflict,
+        uncertain: l10n.resourceReservationsUncertain,
+        reconcile: l10n.resourceReservationsReconcile,
+        created: l10n.resourceReservationsCreated,
+        cancelled: l10n.resourceReservationsCancelled,
+        units: l10n.resourceReservationsUnits,
+      );
 
   static const en = ResourceReservationStrings(
     title: 'Shared resources',

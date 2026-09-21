@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .resource_reservations.schema import migrate_resource_reservations
+from .resource_reservations.integration import ResourceReservationService
 
 
 class CoreServices:
@@ -311,6 +313,8 @@ class CoreServices:
                     clock=settings.clock,
                 )
             )
+            self.resource_reservations = ResourceReservationService(
+                self.db, self.auth, settings, key, self.context)
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

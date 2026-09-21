@@ -91,6 +91,15 @@ class ResourceReservationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Retires every lease before a route/account/window authority is released.
+  void retire() {
+    _epoch++;
+    _authority = null;
+    _clear();
+    _state = ReservationViewState.detached;
+    notifyListeners();
+  }
+
   void _clear() {
     _resource = null;
     _reservations = const [];
