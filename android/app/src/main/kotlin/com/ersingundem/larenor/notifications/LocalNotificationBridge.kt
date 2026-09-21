@@ -35,6 +35,8 @@ class LocalNotificationBridge(
         const val TAP_ACTION = "com.ersingundem.larenor.LOCAL_NOTIFICATION_TAP"
         private const val STORE = "larenor_local_notification_platform_v1"
         private const val MAX_BATCH = 50
+        private const val EVENT_NOTIFICATION_PREFIX = "notification_event_"
+        private const val NEXT_NOTIFICATION_ID = "next_notification_id"
         private val HEX_32 = Regex("^[0-9a-f]{32}$")
         private val HEX_64 = Regex("^[0-9a-f]{64}$")
     }
@@ -221,19 +223,18 @@ class LocalNotificationBridge(
             high = event.sequence
             store.edit().putLong("last_sequence", high).apply()
         }
-        val desired = parsed.map { it.id.hashCode() }.toSet()
-        val stale = storedNotificationIds() - desired
-        stale.forEach(manager::cancel)
-        if (stale.isNotEmpty()) {
-            val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty()
-            val retained = tapKeys.filterNot { key ->
-                key.removePrefix("tap_").substringBefore('_').hashCode() in stale
-            }.toSet()
-            val editor = store.edit()
-            (tapKeys - retained).forEach(editor::remove)
-            editor.putStringSet("tap_keys", retained).apply()
-        }
-        store.edit().putStringSet("notification_ids", desired.map(Int::toString).toSet()).apply()
+        val desiredEvents = parsed.map(Event::id).toSet()
+        val desired = desiredEvents.associateWith(::notificationIdFor)
+        val staleMappings = storedEventNotificationIds().filterKeys { it !in desiredEvents }
+        val staleIds = (storedNotificationIds() - desired.values.toSet()) + staleMappings.values
+        staleIds.forEach(manager::cancel)
+        val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty()
+        val retained = tapKeys.filter { tapKeyEventId(it) in desiredEvents }.toSet()
+        val editor = store.edit()
+        staleMappings.keys.forEach { editor.remove(EVENT_NOTIFICATION_PREFIX + it) }
+        (tapKeys - retained).forEach(editor::remove)
+        editor.putStringSet("tap_keys", retained).apply()
+        store.edit().putStringSet("notification_ids", desired.values.map(Int::toString).toSet()).apply()
     }
 
     private data class Event(val id: String, val sequence: Long, val title: String, val body: String, val private: Boolean)
@@ -259,7 +260,7 @@ class LocalNotificationBridge(
         val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty().toMutableSet()
         while (tapKeys.size >= 64) tapKeys.firstOrNull()?.let { store.edit().remove(it).apply(); tapKeys.remove(it) }
         tapKeys.add(tapKey)
-        val notificationId = event.id.hashCode()
+        val notificationId = notificationIdFor(event.id)
         val notificationIds = storedNotificationIds().toMutableSet()
         notificationIds.add(notificationId)
         store.edit().putString(tapKey, nonce).putStringSet("tap_keys", tapKeys)
@@ -314,7 +315,7 @@ class LocalNotificationBridge(
         intent.action = null
         if (!valid) return false
         val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty().toMutableSet().apply { remove(key) }
-        val notificationId = event.hashCode()
+        val notificationId = storedEventNotificationIds()[event] ?: return false
         val notificationIds = storedNotificationIds().toMutableSet().apply { remove(notificationId) }
         store.edit().remove(key).putStringSet("tap_keys", tapKeys)
             .putStringSet("notification_ids", notificationIds.map(Int::toString).toSet()).apply()
@@ -364,6 +365,40 @@ class LocalNotificationBridge(
         permissionResult = null
     }
     private fun fail(result: MethodChannel.Result, code: String) = result.error(code, "Notification operation unavailable", null)
+    private fun storedEventNotificationIds(): Map<String, Int> = store.all.entries.mapNotNull { (key, value) ->
+        if (!key.startsWith(EVENT_NOTIFICATION_PREFIX)) return@mapNotNull null
+        val eventId = key.removePrefix(EVENT_NOTIFICATION_PREFIX)
+        val notificationId = value as? Int
+        if (!HEX_32.matches(eventId) || notificationId == null || notificationId <= 0) null
+        else eventId to notificationId
+    }.toMap()
+
+    @Synchronized
+    private fun notificationIdFor(eventId: String): Int {
+        require(HEX_32.matches(eventId))
+        storedEventNotificationIds()[eventId]?.let { return it }
+        val used = storedEventNotificationIds().values.toSet()
+        val storedNext = store.all[NEXT_NOTIFICATION_ID] as? Int
+        var candidate = storedNext?.takeIf { it > 0 } ?: 1
+        repeat(MAX_BATCH + 1) {
+            if (candidate !in used) {
+                val next = if (candidate == Int.MAX_VALUE) 1 else candidate + 1
+                store.edit()
+                    .putInt(EVENT_NOTIFICATION_PREFIX + eventId, candidate)
+                    .putInt(NEXT_NOTIFICATION_ID, next)
+                    .apply()
+                return candidate
+            }
+            candidate = if (candidate == Int.MAX_VALUE) 1 else candidate + 1
+        }
+        throw NotificationRejected("unavailable")
+    }
+
+    private fun tapKeyEventId(key: String): String? {
+        if (!key.startsWith("tap_")) return null
+        return key.removePrefix("tap_").substringBefore('_').takeIf(HEX_32::matches)
+    }
+
     private fun storedNotificationIds(): Set<Int> = store.getStringSet("notification_ids", emptySet())
         .orEmpty().mapNotNull(String::toIntOrNull).toSet()
     private fun exactMap(value: Any?, keys: Set<String>): Map<*, *> {
