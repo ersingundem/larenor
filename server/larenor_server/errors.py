@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
+    'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
