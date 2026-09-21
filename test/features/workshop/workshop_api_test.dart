@@ -118,10 +118,16 @@ void main() {
         client: MockClient((request) async {
           requests.add(request);
           expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
-          if (request.method == 'GET') {
+          if (request.method == 'GET' && request.url.path.endsWith('/printers')) {
             return response({
               'schemaVersion': 1,
               'printers': [printerJson()],
+            });
+          }
+          if (request.method == 'GET' && request.url.path.endsWith('/intents')) {
+            return response({
+              'schemaVersion': 1,
+              'intents': [receiptJson()['receipt']],
             });
           }
           if (request.url.path.endsWith('/previews')) {
@@ -142,7 +148,7 @@ void main() {
       final receipt = await api.confirm(preview);
 
       expect(receipt.effect, WorkshopIntentEffect.notDispatched);
-      expect(requests, hasLength(3));
+      expect(requests, hasLength(4));
       final previewBody = jsonDecode(requests[1].body) as Map<String, dynamic>;
       expect(previewBody, {
         'schemaVersion': 1,
@@ -158,8 +164,40 @@ void main() {
       for (final forbidden in ['gcode', 'path', 'credential', 'apiKey']) {
         expect(wire.toLowerCase(), isNot(contains(forbidden.toLowerCase())));
       }
+      expect(requests.last.method, 'GET');
+      expect(requests.last.url.queryParameters, {'limit': '100'});
     },
   );
+
+  test('confirmation fails closed when receipt readback is missing', () async {
+    final transport = LarenorServerApi(
+      endpoint: session().endpoint,
+      client: MockClient((request) async {
+        if (request.method == 'GET' && request.url.path.endsWith('/printers')) {
+          return response({'schemaVersion': 1, 'printers': [printerJson()]});
+        }
+        if (request.method == 'GET') {
+          return response({'schemaVersion': 1, 'intents': []});
+        }
+        if (request.url.path.endsWith('/previews')) {
+          return response(previewJson(), 201);
+        }
+        return response(receiptJson(), 201);
+      }),
+    );
+    addTearDown(transport.close);
+    final api = WorkshopApi(transport, session(), isCurrent: () => true);
+    final printer = (await api.load()).single;
+    final preview = await api.preview(
+      printer: printer,
+      action: WorkshopAction.pause,
+      requestKey: 'pause-request-key-0002',
+    );
+    await expectLater(
+      api.confirm(preview),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
 
   test('foreign, secret-bearing or unsafe action projections fail closed', () {
     for (final mutation
