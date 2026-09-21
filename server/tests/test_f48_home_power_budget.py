@@ -34,6 +34,7 @@ def authority(*, plan_revision: int = 31) -> BudgetAuthority:
         core_revision=3,
         home_revision=5,
         account_revision=7,
+        meter_id="meter-main",
         meter_revision=11,
         tariff_revision=13,
         load_registry_revision=17,
@@ -208,4 +209,3 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
         )
     with pytest.raises(StartupError, match="power_budget_audit_invalid"):
         service(path, worker).history(actor(), authority=authority(), limit=20)
-
