@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .floor_plan.schema import migrate_floor_plan
+from .floor_plan.runtime import FloorPlanRuntime
 
 
 class CoreServices:
@@ -222,6 +224,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_floor_plan(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -333,6 +336,15 @@ class CoreServices:
             self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
+            self.floor_plan = FloorPlanRuntime(
+                self.db,
+                self.auth,
+                self.home_resources,
+                self.home_assistant,
+                self.context,
+                key,
+                settings.clock,
+            )
             self.home_assistant_rules = HomeAssistantRules(self.home_assistant)
             self.home_assistant_rules.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(

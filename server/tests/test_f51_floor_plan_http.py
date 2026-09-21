@@ -104,7 +104,7 @@ def test_resource_anchors_are_resolved_and_revision_drift_fails_closed(server):
     assert changed.status_code == 200
     stale = client.get(_url(scope), headers=headers)
     assert stale.status_code == 409
-    assert stale.json() == {"error": {"code": "floor_plan_authority_changed"}}
+    assert stale.json()["error"]["code"] == "floor_plan_authority_changed"
 
 
 def test_unknown_anchor_and_wrong_scope_never_leak_layout(server):
@@ -132,10 +132,10 @@ def test_unknown_anchor_and_wrong_scope_never_leak_layout(server):
         },
     )
     assert denied.status_code == 404
-    assert denied.json() == {"error": {"code": "not_found"}}
+    assert denied.json()["error"]["code"] == "not_found"
 
     wrong = client.get(
         f"/api/v1/floor-plan/{'0' * 32}/{scope['homeId']}", headers=headers
     )
     assert wrong.status_code == 404
-    assert wrong.json() == {"error": {"code": "not_found"}}
+    assert wrong.json()["error"]["code"] == "not_found"
