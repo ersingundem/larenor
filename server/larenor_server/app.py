@@ -56,6 +56,7 @@ from .plugins.media_recovery_status_api import router as media_recovery_status_r
 from .plugins.media_archive_core_api import router as media_archive_health_router
 from .plugins.media_flow_api import router as media_flow_router
 from .bounded_transfer.api import router as bounded_transfer_router
+from .legacy_remote.api import router as legacy_remote_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
 from .proxmox_commands.api import router as proxmox_power_router
@@ -64,7 +65,6 @@ from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .tablet_fleet.api import router as tablet_fleet_router
 from .mesh_center.api import router as mesh_center_router
-from .legacy_remote.api import router as legacy_remote_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -275,6 +275,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(bounded_transfer_router, prefix="/api/v1")
+    app.include_router(legacy_remote_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(meal_plans_router, prefix="/api/v1")
     app.include_router(personal_profiles_router, prefix="/api/v1")
@@ -282,7 +283,6 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
-    app.include_router(legacy_remote_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")
