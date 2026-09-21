@@ -35,5 +35,5 @@ exact readback, partial/lost ACK behavior, concurrent idempotency, audit limits
 and tamper detection. This foundation does not register HTTP routes, persist the
 command receipt journal across restart, implement Home Assistant or camera-vendor
 workers, prove physical camera behavior, or provide Android Client-to-Core E2E.
-Those gates remain open, so queue progress stays **18/125 (14.4%)** and selected
+Those gates remain open, so queue progress stays **21/125 (16.8%)** and selected
 feature progress stays **0/63 (0.0%)**.
