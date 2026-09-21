@@ -89,20 +89,35 @@ def test_authority_revision_and_departed_member_fail_closed(tmp_path):
         chores.get(principal("mallory"), task.id, core_id="core-a", home_id="home-a")
     with pytest.raises(ApiError, match="forbidden"):
         chores.defer(
-            principal("baran"), task.id, core_id="core-a", home_id="home-a",
-            expected_revision=1, command_id="defer-foreign", days=1,
+            principal("baran"),
+            task.id,
+            core_id="core-a",
+            home_id="home-a",
+            expected_revision=1,
+            command_id="defer-foreign",
+            days=1,
         )
     with pytest.raises(ApiError, match="revision_conflict"):
         chores.complete(
-            principal("ada"), task.id, core_id="core-a", home_id="home-a",
-            expected_revision=9, command_id="complete-stale", completed_at=1_800_000_100,
+            principal("ada"),
+            task.id,
+            core_id="core-a",
+            home_id="home-a",
+            expected_revision=9,
+            command_id="complete-stale",
+            completed_at=1_800_000_100,
             members=original,
         )
 
     current = HouseholdMembers(5, ("ada", "cem"))
     receipt = chores.complete(
-        principal("ada"), task.id, core_id="core-a", home_id="home-a",
-        expected_revision=1, command_id="complete-current", completed_at=1_800_000_100,
+        principal("ada"),
+        task.id,
+        core_id="core-a",
+        home_id="home-a",
+        expected_revision=1,
+        command_id="complete-current",
+        completed_at=1_800_000_100,
         members=current,
     )
     assert receipt.task.assignee_id == "cem"
@@ -115,29 +130,51 @@ def test_completion_is_idempotent_and_history_detects_restart_tamper(tmp_path):
     members = HouseholdMembers(1, ("ada", "baran"))
     task = chores.create(
         principal("admin", "admin"),
-        core_id="core-a", home_id="home-a", title="Bitkileri sula",
-        members=members, timezone_name="Europe/Istanbul", interval_days=2,
+        core_id="core-a",
+        home_id="home-a",
+        title="Bitkileri sula",
+        members=members,
+        timezone_name="Europe/Istanbul",
+        interval_days=2,
         due_at=1_800_000_000,
     )
     first = chores.complete(
-        principal("ada"), task.id, core_id="core-a", home_id="home-a",
-        expected_revision=1, command_id="complete-once", completed_at=1_800_000_100,
+        principal("ada"),
+        task.id,
+        core_id="core-a",
+        home_id="home-a",
+        expected_revision=1,
+        command_id="complete-once",
+        completed_at=1_800_000_100,
         members=members,
     )
     replay = chores.complete(
-        principal("ada"), task.id, core_id="core-a", home_id="home-a",
-        expected_revision=1, command_id="complete-once", completed_at=1_800_000_100,
+        principal("ada"),
+        task.id,
+        core_id="core-a",
+        home_id="home-a",
+        expected_revision=1,
+        command_id="complete-once",
+        completed_at=1_800_000_100,
         members=members,
     )
     assert replay == first
     with pytest.raises(ApiError, match="idempotency_conflict"):
         chores.defer(
-            principal("ada"), task.id, core_id="core-a", home_id="home-a",
-            expected_revision=2, command_id="complete-once", days=1,
+            principal("ada"),
+            task.id,
+            core_id="core-a",
+            home_id="home-a",
+            expected_revision=2,
+            command_id="complete-once",
+            days=1,
         )
-    assert [event.action for event in chores.history(
-        principal("ada"), task.id, core_id="core-a", home_id="home-a"
-    )] == ["created", "completed"]
+    assert [
+        event.action
+        for event in chores.history(
+            principal("ada"), task.id, core_id="core-a", home_id="home-a"
+        )
+    ] == ["created", "completed"]
 
     with Database(path).transaction() as connection:
         connection.execute(
