@@ -5,9 +5,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../data/ambient_repository.dart';
+import '../data/ambient_content_repository.dart';
+import '../domain/ambient_content.dart';
 import '../domain/ambient_settings.dart';
 
 final ambientRepositoryProvider = Provider((_) => AmbientRepository());
+final ambientContentRepositoryProvider = Provider<AmbientContentRepositoryApi>(
+  (_) => AmbientContentRepository(),
+);
+final ambientContentFileAccessProvider = Provider(
+  (_) => AmbientContentFileAccess(),
+);
+final ambientContentLibraryProvider = FutureProvider<List<AmbientContent>>(
+  (ref) => ref.watch(ambientContentRepositoryProvider).list(),
+);
 final ambientFileAccessProvider = Provider((_) => AmbientFileAccess());
 final ambientLibraryProvider = FutureProvider<List<String>>(
   (ref) => ref.watch(ambientRepositoryProvider).list(),
