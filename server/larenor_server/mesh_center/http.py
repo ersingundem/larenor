@@ -19,6 +19,7 @@ class MeshCenterHttpGateway:
             raw = self._resolve_snapshot(actor)
             authority, topology, interference, catalog = raw
             health = self._health.observe(authority, topology, interference)
+            catalog = self._updates.validate_catalog(catalog)
             snapshot = MeshCenterSnapshot(
                 schemaVersion=1,
                 authority=authority,

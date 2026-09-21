@@ -396,6 +396,10 @@ class FirmwareUpdateManager:
             raise ApiError("firmware_signature_invalid", 409) from None
         return catalog
 
+    def validate_catalog(self, presented):
+        """Return only the exact current catalog with a valid vendor signature."""
+        return self._current_catalog(presented)
+
     def _safe_entry(self, topology, catalog, device_id, firmware_id):
         devices = {device.deviceId: device for device in topology.devices}
         device = devices.get(device_id)

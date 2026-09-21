@@ -14,6 +14,14 @@ class StartupError(Exception):
 
 MESSAGES = {
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
+    'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
+    'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
+    'mesh_update_integrity_failed': 'The firmware update history could not be verified.',
+    'firmware_catalog_stale': 'The signed firmware catalog expired. Refresh it first.',
+    'firmware_signature_invalid': 'The firmware catalog signature could not be verified.',
+    'firmware_update_unsupported': 'This device does not support a managed firmware update.',
+    'firmware_incompatible': 'This firmware does not match the selected device.',
+    'firmware_update_safety_blocked': 'Device power, reachability, or route safety blocks this update.',
     'notification_subscription_changed': 'The notification subscription changed. Read it again.',
     'notification_subscription_inactive': 'The notification subscription is not active.',
     'notification_registration_replay': 'This registration identifier belongs to a different request.',

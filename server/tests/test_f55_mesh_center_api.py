@@ -156,3 +156,22 @@ def test_provider_and_request_boundaries_fail_closed(server):
     )
     assert duplicate.status_code == 400
     assert client.get(root + "?probe=1", headers=auth(pair)).status_code == 400
+
+
+def test_snapshot_rejects_catalog_without_the_exact_vendor_signature(server):
+    client, pair, root, *_ = configured(server)
+    gateway = client.app.state.mesh_center_gateway
+    original = gateway._resolve_snapshot
+    tampered = lambda actor: (
+        lambda authority, topology, interference, catalog: (
+            authority,
+            topology,
+            interference,
+            catalog.model_copy(update={"signature": "0" * 128}),
+        )
+    )(*original(actor))
+    gateway._resolve_snapshot = tampered
+    gateway._updates._resolve_catalog = lambda _catalog_id: tampered(None)[3]
+    response = client.get(root, headers=auth(pair))
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "firmware_signature_invalid"
