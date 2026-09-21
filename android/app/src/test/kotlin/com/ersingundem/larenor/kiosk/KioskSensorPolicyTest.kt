@@ -46,7 +46,7 @@ class KioskSensorPolicyTest {
         host.emit(KioskSensorSample.Motion(Double.NaN, 3000))
         val read = policy.read(mapOf("sessionId" to id))
         assertEquals(10.0, read["lux"]); assertEquals(0.8, read["motionDelta"])
-        assertEquals(2L, read["sequence"]); assertEquals(9, read.size)
+        assertEquals(2L, read["sequence"]); assertEquals(10, read.size)
         host.emit(KioskSensorSample.Light(300000.0, 3000))
         assertEquals(200000.0, policy.read(mapOf("sessionId" to id))["lux"])
     }

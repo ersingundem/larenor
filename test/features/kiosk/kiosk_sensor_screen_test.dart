@@ -68,9 +68,8 @@ Future<void> _pump(
           GlobalCupertinoLocalizations.delegate,
         ],
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: const TextScaler.linear(2)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
           child: child!,
         ),
         home: const KioskSensorScreen(),
@@ -92,16 +91,33 @@ void main() {
         expect(start, findsOneWidget);
         expect(tester.getSize(start).height, greaterThanOrEqualTo(48));
         expect(
-          tester.getSemantics(start).getSemanticsData().flagsCollection.isButton,
+          tester
+              .getSemantics(start)
+              .getSemanticsData()
+              .flagsCollection
+              .isButton,
           isTrue,
         );
-        Focus.of(tester.element(find.descendant(of: start, matching: find.byType(Text)))).requestFocus();
+        Focus.of(
+          tester.element(
+            find.descendant(of: start, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
         expect(api.starts, 1);
         expect(find.byKey(const ValueKey('kiosk-sensor-stop')), findsOneWidget);
-        expect(find.textContaining(locale.languageCode == 'tr' ? 'kullanılamıyor' : 'unavailable'), findsOneWidget);
-        expect(find.textContaining(locale.languageCode == 'tr' ? 'meşgul' : 'busy'), findsOneWidget);
+        expect(
+          find.textContaining(
+            locale.languageCode == 'tr' ? 'kullanılamıyor' : 'unavailable',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(locale.languageCode == 'tr' ? 'meşgul' : 'busy'),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       });
     }
