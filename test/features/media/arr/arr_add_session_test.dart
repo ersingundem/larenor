@@ -310,10 +310,10 @@ void main() {
       expect(h.client.writes, 1);
       expect(find.textContaining('result is not confirmed'), findsOneWidget);
       expect(find.textContaining('private-endpoint'), findsNothing);
-      final row = tester.widget<CupertinoListTile>(
-        find.widgetWithText(CupertinoListTile, 'Source title'),
+      final row = tester.widget<CupertinoButton>(
+        find.byKey(const ValueKey('arr-add-result-42')),
       );
-      expect(row.onTap, isNull);
+      expect(row.onPressed, isNull);
     },
   );
 }

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
 import '../../../../../core/app_interaction_scope.dart';
+import '../../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../../shared/widgets/settings_section.dart';
 import '../../../../health/data/health_configuration.dart';
 import '../../../../health/data/integration_health.dart';
 import '../../../data/media_api_exception.dart';
@@ -123,7 +126,7 @@ class _ArrAddScreenState extends MediaSessionState<ArrAddScreen> {
     final provider = widget.connectionProvider;
     if (provider != null) watchMediaAccount(widget.integration, provider);
     final ready = _current(sessionGeneration);
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(widget.title)),
       child: SafeArea(
         child: Column(
@@ -133,22 +136,37 @@ class _ArrAddScreenState extends MediaSessionState<ArrAddScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Text(AppLocalizations.of(context).mediaSelectionExpired),
               ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: CupertinoSearchTextField(
-                placeholder: widget.searchHint,
-                controller: _controller,
-                enabled: ready && !_adding && !_submissionBlocked,
-                onSubmitted: _search,
-              ),
+            SettingsSection(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: CupertinoSearchTextField(
+                      key: const ValueKey('arr-add-search'),
+                      placeholder: widget.searchHint,
+                      controller: _controller,
+                      enabled: ready && !_adding && !_submissionBlocked,
+                      onSubmitted: _search,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            if (_searching || _adding) const CupertinoActivityIndicator(),
+            if (_searching || _adding)
+              Semantics(
+                liveRegion: true,
+                child: const CupertinoActivityIndicator(),
+              ),
             if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: CupertinoColors.systemRed),
+              Semantics(
+                liveRegion: true,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: CupertinoColors.systemRed),
+                  ),
                 ),
               ),
             Expanded(
@@ -156,28 +174,35 @@ class _ArrAddScreenState extends MediaSessionState<ArrAddScreen> {
                   ? Center(
                       child: Text(AppLocalizations.of(context).arrSearchToAdd),
                     )
-                  : ListView.builder(
-                      itemCount: _results!.length,
-                      itemBuilder: (context, index) {
-                        final result = _results![index];
-                        return CupertinoListTile(
-                          title: Text(result.title),
-                          subtitle: result.year != null
-                              ? Text('${result.year}')
-                              : null,
-                          trailing: result.alreadyAdded
-                              ? Text(
-                                  AppLocalizations.of(context).arrAlreadyAdded,
-                                )
-                              : const CupertinoListTileChevron(),
-                          onTap:
-                              result.alreadyAdded ||
-                                  _adding ||
-                                  _submissionBlocked
-                              ? null
-                              : () => _openAddSheet(result),
-                        );
-                      },
+                  : ListView(
+                      children: [
+                        SettingsSection(
+                          children: [
+                            for (final result in _results!)
+                              SettingsActionTile(
+                                buttonKey: ValueKey(
+                                  'arr-add-result-${result.remoteId}',
+                                ),
+                                title: Text(result.title),
+                                additionalInfo: result.alreadyAdded
+                                    ? Text(
+                                        AppLocalizations.of(context)
+                                            .arrAlreadyAdded,
+                                      )
+                                    : result.year != null
+                                    ? Text('${result.year}')
+                                    : null,
+                                selected: result.alreadyAdded,
+                                onTap:
+                                    result.alreadyAdded ||
+                                        _adding ||
+                                        _submissionBlocked
+                                    ? null
+                                    : () => _openAddSheet(result),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
             ),
           ],
