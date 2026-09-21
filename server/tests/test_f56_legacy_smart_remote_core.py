@@ -11,6 +11,7 @@ from larenor_server.legacy_remote import (
     RemoteCommandProfile,
     RemoteDeliveryReceipt,
     RemoteDevice,
+    RemoteWorkerCommand,
 )
 
 
@@ -108,10 +109,19 @@ def profile(**changes):
     return RemoteCommandProfile(**values)
 
 
-def manager(current_device, current_profile, worker, clock=None):
+def manager(
+    current_device,
+    current_profile,
+    worker,
+    clock=None,
+    current_authority=None,
+):
+    live_authority = current_authority or authority()
     return LegacyRemoteManager(
         auditKey=b"f56-legacy-smart-remote-audit-key",
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        authorityResolver=lambda account_id: (
+            live_authority if account_id == ACCOUNT else None
+        ),
         deviceResolver=lambda device_id: current_device if device_id == DEVICE else None,
         profileResolver=lambda profile_id: current_profile if profile_id == PROFILE else None,
         worker=worker,
@@ -273,9 +283,16 @@ def test_only_authorized_bounded_keys_are_public_and_raw_learning_stays_private(
         lambda command: captured.append(command),
     )
 
+    restricted = authority(canControlLegacyRemote=False)
+    restricted_service = manager(
+        current_device,
+        current_profile,
+        lambda command: captured.append(command),
+        current_authority=restricted,
+    )
     with pytest.raises(ApiError) as authority_error:
-        service.preview(
-            authority(canControlLegacyRemote=False),
+        restricted_service.preview(
+            restricted,
             current_device,
             current_profile,
             commandKey="power_toggle",
@@ -341,4 +358,37 @@ def test_only_authorized_bounded_keys_are_public_and_raw_learning_stays_private(
         "codeSetId",
         "codeSetRevision",
     }
+
+    public_types = (
+        RemoteAuthority,
+        RemoteCodeBinding,
+        RemoteCommandDefinition,
+        RemoteCommandProfile,
+        RemoteDeliveryReceipt,
+        RemoteDevice,
+        RemoteWorkerCommand,
+    )
+    assert not any(
+        blocked in field.lower()
+        for model in public_types
+        for field in model.model_fields
+        for blocked in forbidden_names
+    )
+
+    first = service.audit[0]
+    service._audit[0] = replace(first, entryHash="0" * 64)
+    with pytest.raises(ApiError) as audit_error:
+        service.preview(
+            authority(),
+            current_device,
+            current_profile,
+            commandKey="power_toggle",
+            repeats=1,
+            holdMs=0,
+            requestId="f" * 32,
+        )
+    assert (audit_error.value.code, audit_error.value.status) == (
+        "remote_command_integrity_failed",
+        503,
+    )
     assert captured == []
