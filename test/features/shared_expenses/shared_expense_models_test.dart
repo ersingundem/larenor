@@ -17,18 +17,18 @@ void main() {
     'createdAt': 1789980000.25,
   };
 
-  test('accepts the exact Core export record and preserves every minor unit', () {
-    final value = SharedExpenseRecord.fromJson(record());
-    expect(value.id, '1' * 32);
-    expect(value.shares.map((share) => share.amountMinor), [501, 500]);
-  });
+  test(
+    'accepts the exact Core export record and preserves every minor unit',
+    () {
+      final value = SharedExpenseRecord.fromJson(record());
+      expect(value.id, '1' * 32);
+      expect(value.shares.map((share) => share.amountMinor), [501, 500]);
+    },
+  );
 
   test('rejects unknown fields, invalid timestamps, and inexact shares', () {
     final unknown = record()..['private'] = 'leak';
-    expect(
-      () => SharedExpenseRecord.fromJson(unknown),
-      throwsFormatException,
-    );
+    expect(() => SharedExpenseRecord.fromJson(unknown), throwsFormatException);
     final invalidTime = record()..['createdAt'] = -1;
     expect(
       () => SharedExpenseRecord.fromJson(invalidTime),
@@ -36,9 +36,6 @@ void main() {
     );
     final inexact = record();
     (inexact['shares'] as List).first['amountMinor'] = 500;
-    expect(
-      () => SharedExpenseRecord.fromJson(inexact),
-      throwsFormatException,
-    );
+    expect(() => SharedExpenseRecord.fromJson(inexact), throwsFormatException);
   });
 }
