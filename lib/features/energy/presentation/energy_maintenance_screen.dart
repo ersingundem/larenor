@@ -8,6 +8,7 @@ import '../../../shared/theme/spacing.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
@@ -86,6 +87,15 @@ class _EnergyMaintenanceScreenState
                     header: _SectionHeader(l10n.energyRecorded),
                     footer: Text(l10n.energyHint),
                     children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('energy-irrigation-budget'),
+                        leading: const Icon(CupertinoIcons.drop),
+                        title: Text(l10n.irrigationBudgetTitle),
+                        additionalInfo: Text(l10n.irrigationBudgetManualOnly),
+                        onTap: active
+                            ? () => context.push('/energy/irrigation-budget')
+                            : null,
+                      ),
                       Padding(
                         padding: Insets.tile,
                         child: Column(

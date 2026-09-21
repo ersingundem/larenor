@@ -53,7 +53,8 @@ final class _Api implements IrrigationBudgetApi {
   Completer<IrrigationBudgetSnapshot>? gate;
   var retired = false;
   @override
-  Future<IrrigationBudgetSnapshot> load() => gate?.future ?? Future.value(sample);
+  Future<IrrigationBudgetSnapshot> load() =>
+      gate?.future ?? Future.value(sample);
   @override
   void retire() => retired = true;
 }
@@ -62,7 +63,10 @@ void main() {
   test('late budget result is discarded after route retirement', () async {
     var current = true;
     final api = _Api();
-    final controller = IrrigationBudgetController(api: api, isCurrent: () => current);
+    final controller = IrrigationBudgetController(
+      api: api,
+      isCurrent: () => current,
+    );
     addTearDown(controller.dispose);
     final gate = Completer<IrrigationBudgetSnapshot>();
     api.gate = gate;
@@ -78,11 +82,16 @@ void main() {
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1280.0]) {
-      testWidgets('irrigation budget $width ${locale.languageCode} 2x', (tester) async {
+      testWidgets('irrigation budget $width ${locale.languageCode} 2x', (
+        tester,
+      ) async {
         tester.view.physicalSize = Size(width, 1200);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        final controller = IrrigationBudgetController(api: _Api(), isCurrent: () => true);
+        final controller = IrrigationBudgetController(
+          api: _Api(),
+          isCurrent: () => true,
+        );
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -90,7 +99,8 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
               child: child!,
             ),
             home: IrrigationBudgetScreen(controller: controller),
@@ -102,7 +112,10 @@ void main() {
         final refresh = find.byKey(const ValueKey('irrigation-budget-refresh'));
         expect(refresh, findsOneWidget);
         expect(tester.getSize(refresh).height, greaterThanOrEqualTo(48));
-        expect(find.byKey(const ValueKey('irrigation-valve-command')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('irrigation-valve-command')),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull);
       });
     }

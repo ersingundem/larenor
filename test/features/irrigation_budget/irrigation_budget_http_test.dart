@@ -134,9 +134,17 @@ void main() {
   test('rejects command capability and foreign Core authority', () async {
     for (final invalid in [
       snapshot(capability: 'write'),
-      {...snapshot(), 'authority': {...snapshot()['authority'] as Map<String, dynamic>, 'coreId': 'f' * 32}},
+      {
+        ...snapshot(),
+        'authority': {
+          ...snapshot()['authority'] as Map<String, dynamic>,
+          'coreId': 'f' * 32,
+        },
+      },
     ]) {
-      final account = await accountFor((_) async => json({'snapshot': invalid}));
+      final account = await accountFor(
+        (_) async => json({'snapshot': invalid}),
+      );
       final api = CoreIrrigationBudgetApi(
         account: account,
         routeId: 'route',
