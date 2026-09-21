@@ -85,7 +85,10 @@ class CameraMetadataRecord(FrozenModel):
 
     @model_validator(mode="after")
     def valid_capture(self):
-        if self.endMs <= self.startMs or self.evidenceOffsetMs > self.endMs - self.startMs:
+        if (
+            self.endMs <= self.startMs
+            or self.evidenceOffsetMs > self.endMs - self.startMs
+        ):
             raise ValueError("invalid_capture_window")
         if (self.visibility == "private") != (self.ownerAccountId is not None):
             raise ValueError("invalid_visibility")
@@ -100,8 +103,9 @@ class CameraSearchRequest(FrozenModel):
     endMs: TimestampMs
     cameraIds: list[Identity] = Field(min_length=1, max_length=16)
     pageSize: int = Field(ge=1, le=50)
-    cursor: str | None = Field(default=None, min_length=40, max_length=512,
-                               pattern=r"^[A-Za-z0-9_.-]+$")
+    cursor: str | None = Field(
+        default=None, min_length=40, max_length=512, pattern=r"^[A-Za-z0-9_.-]+$"
+    )
 
     _query = field_validator("query")(safe_text)
 
@@ -114,7 +118,10 @@ class CameraSearchRequest(FrozenModel):
 
     @model_validator(mode="after")
     def bounded_window(self):
-        if self.endMs <= self.startMs or self.endMs - self.startMs > 31 * 24 * 60 * 60 * 1000:
+        if (
+            self.endMs <= self.startMs
+            or self.endMs - self.startMs > 31 * 24 * 60 * 60 * 1000
+        ):
             raise ValueError("invalid_time_window")
         return self
 

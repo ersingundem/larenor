@@ -38,7 +38,9 @@ def _terms(value: str) -> tuple[str, ...]:
     normal = _normalise(value)
     words = []
     for raw in normal.split():
-        word = "".join(char for char in raw if char.isalnum() or char in "_-").strip("_-")
+        word = "".join(char for char in raw if char.isalnum() or char in "_-").strip(
+            "_-"
+        )
         if word and word not in words:
             words.append(word)
     return tuple(sorted(words))
@@ -80,7 +82,9 @@ class CameraSearchIndex:
         source = tuple(CameraMetadataRecord.model_validate(item) for item in records)
         if len(source) > MAX_RECORDS:
             raise ValueError("record_limit")
-        if len({(item.homeId, item.clipId, item.captureRevision) for item in source}) != len(source):
+        if len(
+            {(item.homeId, item.clipId, item.captureRevision) for item in source}
+        ) != len(source):
             raise ValueError("duplicate_record")
         self._records = source
         self._revision = revision
@@ -129,7 +133,9 @@ class CameraSearchIndex:
     def _open_cursor(self, cursor: str) -> _CursorState:
         try:
             nonce, signature = cursor.split(".", 1)
-            expected = hmac.new(self._cursor_key, nonce.encode("ascii"), hashlib.sha256).hexdigest()
+            expected = hmac.new(
+                self._cursor_key, nonce.encode("ascii"), hashlib.sha256
+            ).hexdigest()
             if not hmac.compare_digest(signature, expected):
                 raise ValueError
         except (AttributeError, UnicodeError, ValueError):
@@ -142,7 +148,9 @@ class CameraSearchIndex:
 
     def _new_cursor(self, state: _CursorState) -> str:
         nonce = secrets.token_urlsafe(24)
-        signature = hmac.new(self._cursor_key, nonce.encode("ascii"), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            self._cursor_key, nonce.encode("ascii"), hashlib.sha256
+        ).hexdigest()
         cursor = nonce + "." + signature
         with self._cursor_lock:
             self._cursors[cursor] = state
@@ -150,7 +158,9 @@ class CameraSearchIndex:
                 self._cursors.popitem(last=False)
         return cursor
 
-    def _validate_authority(self, presented: CameraSearchAuthority) -> CameraSearchAuthority:
+    def _validate_authority(
+        self, presented: CameraSearchAuthority
+    ) -> CameraSearchAuthority:
         try:
             authority = CameraSearchAuthority.model_validate(presented)
         except ValueError:
@@ -181,7 +191,9 @@ class CameraSearchIndex:
             planned = tuple(self._planner(query))
             if not 1 <= len(planned) <= MAX_PLANNER_TERMS:
                 raise ValueError
-            cleaned = tuple(sorted(set(_terms(" ".join(safe_text(item) for item in planned)))))
+            cleaned = tuple(
+                sorted(set(_terms(" ".join(safe_text(item) for item in planned))))
+            )
             if not cleaned or len(cleaned) > MAX_PLANNER_TERMS:
                 raise ValueError
             return cleaned, "semantic_assisted", "ready"
@@ -212,9 +224,17 @@ class CameraSearchIndex:
             state = self._open_cursor(request.cursor)
             if state.index_revision != self._revision:
                 raise ApiError("revision_conflict", 409)
-            if state.request_digest != request_digest or state.authority_digest != authority_digest:
+            if (
+                state.request_digest != request_digest
+                or state.authority_digest != authority_digest
+            ):
                 raise ApiError("invalid_request")
-            terms, mode, status, offset = state.terms, state.mode, state.status, state.offset
+            terms, mode, status, offset = (
+                state.terms,
+                state.mode,
+                state.status,
+                state.offset,
+            )
 
         candidates: list[tuple[int, CameraMetadataRecord, tuple[str, ...]]] = []
         requested_cameras = set(request.cameraIds)
@@ -226,16 +246,23 @@ class CameraSearchIndex:
             if item.startMs >= request.endMs or item.endMs <= request.startMs:
                 continue
             if item.visibility == "private" and not (
-                item.ownerAccountId == authority.accountId or authority.allowPrivateEvidence
+                item.ownerAccountId == authority.accountId
+                or authority.allowPrivateEvidence
             ):
                 continue
             metadata = _terms(item.summary + " " + " ".join(item.labels))
-            matched = tuple(term for term in terms if any(_term_matches(term, word) for word in metadata))
+            matched = tuple(
+                term
+                for term in terms
+                if any(_term_matches(term, word) for word in metadata)
+            )
             if matched:
                 candidates.append((len(matched), item, matched))
-        candidates.sort(key=lambda entry: (-entry[0], -entry[1].startMs, entry[1].clipId))
+        candidates.sort(
+            key=lambda entry: (-entry[0], -entry[1].startMs, entry[1].clipId)
+        )
 
-        page_source = candidates[offset:offset + request.pageSize]
+        page_source = candidates[offset : offset + request.pageSize]
         results = [
             CameraSearchMatch(
                 schemaVersion=1,
@@ -261,21 +288,25 @@ class CameraSearchIndex:
         next_offset = offset + len(page_source)
         next_cursor = None
         if next_offset < len(candidates):
-            next_cursor = self._new_cursor(_CursorState(
-                request_digest=request_digest,
-                authority_digest=authority_digest,
-                index_revision=self._revision,
-                offset=next_offset,
-                terms=terms,
-                mode=mode,
-                status=status,
-            ))
+            next_cursor = self._new_cursor(
+                _CursorState(
+                    request_digest=request_digest,
+                    authority_digest=authority_digest,
+                    index_revision=self._revision,
+                    offset=next_offset,
+                    terms=terms,
+                    mode=mode,
+                    status=status,
+                )
+            )
         return CameraSearchPage(
             schemaVersion=1,
             indexRevision=self._revision,
             mode=mode,
             status=status,
-            degradedReason="semantic_provider_unavailable" if status == "degraded" else None,
+            degradedReason="semantic_provider_unavailable"
+            if status == "degraded"
+            else None,
             results=results,
             nextCursor=next_cursor,
         )
