@@ -8,6 +8,7 @@ import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/kiosk/data/kiosk_api.dart';
 import 'package:larenor/features/kiosk/domain/kiosk_models.dart';
 import 'package:larenor/features/kiosk/presentation/kiosk_screen.dart';
+import 'package:larenor/features/kiosk/presentation/kiosk_sensor_screen.dart';
 import 'package:larenor/features/kiosk/providers/kiosk_providers.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
@@ -154,6 +155,17 @@ Future<void> confirm(WidgetTester t, {String pin = '1234'}) async {
 }
 
 void main() {
+  testWidgets('local sensor route is discoverable without a policy write', (
+    t,
+  ) async {
+    final api = _Api();
+    await _mount(t, api, _Pin());
+    await tap(t, 'kiosk-sensors-open');
+    expect(find.byType(KioskSensorScreen), findsOneWidget);
+    expect(api.proposals, 0);
+    expect(api.writes, 0);
+  });
+
   testWidgets(
     'opening shows observed status with zero policy writes and recovery available',
     (t) async {
