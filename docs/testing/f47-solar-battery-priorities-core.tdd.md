@@ -1,7 +1,7 @@
 # F47 solar and home-battery priorities Core acceptance
 
 This package establishes the fail-closed Core domain boundary for advisory
-solar and battery planning. Queue progress remains at 18/125 and selected
+solar and battery planning. Queue progress remains at 22/125 and selected
 feature progress remains at 0/63: persistent Core storage, an authenticated API,
 a production inverter worker, physical readback, and the Android tablet surface
 remain explicit gates before F47 can be counted as complete.
