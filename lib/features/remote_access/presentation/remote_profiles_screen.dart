@@ -20,6 +20,7 @@ import '../ssh/ssh_tunnel_panel.dart';
 import '../rdp/rdp_session_panel.dart';
 import '../vnc/vnc_session_panel.dart';
 import 'personal_session_boundary.dart';
+import 'core_personal_profiles_screen.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -52,6 +53,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _terminal = false,
       _sftp = false,
       _tunnel = false;
+  bool _coreProfiles = false;
   bool _rdp = false;
   bool _vnc = false;
   bool Function()? _terminalCurrent;
@@ -122,6 +124,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     _tunnel = false;
     _rdp = false;
     _vnc = false;
+    _coreProfiles = false;
     _terminalCurrent = null;
     _sftpCurrent = null;
     _tunnelCurrent = null;
@@ -495,6 +498,15 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         },
       );
     }
+    if (_coreProfiles && active) {
+      return CorePersonalProfilesScreen(
+        isCurrent: current,
+        onBack: () {
+          _generation++;
+          setState(() => _coreProfiles = false);
+        },
+      );
+    }
     if (_sftp && _selected != null && active) {
       return SftpBrowserPanel(
         key: ValueKey("sftp-${_selected!.id}"),
@@ -558,6 +570,38 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                     child: Text(l.remoteAccessLocked),
                   )
                 else ...[
+                  SettingsSection(
+                    children: [
+                      Semantics(
+                        key: const ValueKey('remote-source-device-local'),
+                        selected: true,
+                        button: true,
+                        label:
+                            '${l.remoteAccessDeviceLocal}. ${l.remoteAccessDeviceLocalScope}',
+                        child: SettingsActionTile(
+                          title: Text('${l.remoteAccessDeviceLocal} ✓'),
+                          additionalInfo: Text(l.remoteAccessDeviceLocalScope),
+                          onTap: active ? () {} : null,
+                        ),
+                      ),
+                      Semantics(
+                        key: const ValueKey('remote-source-core-managed'),
+                        button: true,
+                        label:
+                            '${l.remoteAccessCoreManaged}. ${l.remoteAccessCoreScope}',
+                        child: SettingsActionTile(
+                          title: Text(l.remoteAccessCoreManaged),
+                          additionalInfo: Text(l.remoteAccessCoreScope),
+                          onTap: active && !_busy
+                              ? () {
+                                  _generation++;
+                                  setState(() => _coreProfiles = true);
+                                }
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
                   if (_busy) const Center(child: CupertinoActivityIndicator()),
                   if (_error != null)
                     Padding(
