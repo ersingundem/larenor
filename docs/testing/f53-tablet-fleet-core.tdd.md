@@ -22,8 +22,9 @@ family is the only reporter for that tablet.
 
 ## Verification
 
-The RED contract commit `6a257c8c` failed all three new acceptance tests because
-the Core route did not exist. The focused GREEN gate passes **7/7 tests** across
+The RED `test(tablet-fleet): define Core policy gates` commit failed all three
+new acceptance tests because the Core route did not exist. The focused GREEN
+gate passes **7/7 tests** across
 the tablet registry and policy suite. Python compilation, repository security
 policy, execution queue validation, progress policy, secret scan and diff checks
 are the PR gates.
