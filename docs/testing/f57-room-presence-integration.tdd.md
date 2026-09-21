@@ -34,6 +34,8 @@ criteria are in scope:
 - Client GREEN `48b35c1f` adds the real HTTP adapter, account gateway, route
   ownership, Core Home/Settings discovery, and passes 17 focused Flutter tests
   plus focused analysis with no findings.
+- Hardening `51677356` rejects a tampered body on completed calibration replay
+  and makes failed route bootstrap retry explicit instead of looping.
 
 Queue and selected-feature counters remain **21/125** and **0/63**. Real
 ESP32/BLE/UWB/Home Assistant sensors, Huawei MatePad/DeX hardware, and physical
