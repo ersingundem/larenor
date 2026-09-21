@@ -6,11 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
+import 'kiosk_hid_scan_screen.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
+import 'kiosk_sensor_screen.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
   KioskAction.allowApp => l.kioskAllow,
@@ -315,6 +318,27 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                     child: Text(l.kioskHint, style: AppText.body),
                   ),
+                  SettingsSection(
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('kiosk-sensors-open'),
+                        leading: const Icon(CupertinoIcons.waveform_path),
+                        title: Text(l.kioskSensorsTitle),
+                        additionalInfo: Text(l.kioskSensorsEntryHint),
+                        onTap: _current(sessionGeneration)
+                            ? () {
+                                final generation = sessionGeneration;
+                                if (!_current(generation)) return;
+                                Navigator.of(context).push(
+                                  CupertinoPageRoute<void>(
+                                    builder: (_) => const KioskSensorScreen(),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.all(20),
@@ -409,6 +433,21 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                         ? _refresh
                         : null,
                     child: Text(l.commonRefresh),
+                  ),
+                  CupertinoButton(
+                    key: const ValueKey('kiosk-hid-open'),
+                    minimumSize: const Size.fromHeight(48),
+                    onPressed: _current(sessionGeneration)
+                        ? () {
+                            if (!_current(sessionGeneration)) return;
+                            Navigator.of(context).push(
+                              CupertinoPageRoute<void>(
+                                builder: (_) => const KioskHidScanScreen(),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Text(l.kioskHidOpen),
                   ),
                   SettingsSection(
                     header: Semantics(

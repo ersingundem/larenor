@@ -13,7 +13,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
 from .models import (
-    BOARD_ELEMENT_ADAPTER,
     BoardAuditEvent,
     BoardAuthority,
     BoardCommand,

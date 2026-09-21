@@ -803,30 +803,18 @@ void main() {
           SyntheticCoreAccount.password,
         );
         await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
-        final resourcesScroll = find
-            .descendant(
-              of: find.byType(CustomScrollView).last,
-              matching: find.byType(Scrollable),
-            )
-            .first;
-        await tester.scrollUntilVisible(
+        await revealCoreResource(
+          tester,
           room,
-          200,
-          scrollable: resourcesScroll,
-          maxScrolls: 5,
+          loaded: () => resources.reads > 0,
         );
-        await waitFor(tester, room);
-        // The notification inbox is a real Core-home destination. Its entry
-        // makes the second lazy resource row start below the viewport, so
-        // reveal that row through the production scroll surface before
-        // asserting the member projection.
-        await tester.scrollUntilVisible(
+        // The inbox and other Core sections can move both rows below the
+        // viewport; validate the authorized read before revealing each row.
+        await revealCoreResource(
+          tester,
           lamp,
-          200,
-          scrollable: resourcesScroll,
-          maxScrolls: 5,
+          loaded: () => resources.reads > 0,
         );
-        await waitFor(tester, lamp);
         expect(core.user['role'], 'member');
         expect(find.byKey(ValueKey('home-resource-${'2' * 32}')), findsNothing);
         expect(find.byKey(ValueKey('home-resource-${'4' * 32}')), findsNothing);
@@ -837,7 +825,11 @@ void main() {
         // push channel. A refresh must replace the prior permission snapshot.
         resources.view = SyntheticCoreResourceView.revoked;
         await tapVisible(tester, refresh);
-        await waitFor(tester, lamp);
+        await revealCoreResource(
+          tester,
+          lamp,
+          loaded: () => resources.reads > 1,
+        );
         expect(room, findsNothing);
         expect(resources.reads, 2);
         debugPrint('LARENOR_E2E_PHASE core_resources.revoked_after_refresh');
@@ -1287,19 +1279,11 @@ void main() {
           SyntheticCoreAccount.password,
         );
         await press('server-sign-in');
-        final resourcesScroll = find
-            .descendant(
-              of: find.byType(CustomScrollView).last,
-              matching: find.byType(Scrollable),
-            )
-            .first;
-        await tester.scrollUntilVisible(
+        await revealCoreResource(
+          tester,
           key('home-resource-$resourceId'),
-          200,
-          scrollable: resourcesScroll,
-          maxScrolls: 5,
+          loaded: () => core.grants!.recordReads > 0,
         );
-        await waitFor(tester, key('home-resource-$resourceId'));
         final stored = await SecureServerSessionStore().read();
         expect(stored?.context?.coreId, core.coreId);
         expect(stored?.context?.homeId, core.homeId);
