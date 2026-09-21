@@ -9,6 +9,8 @@ import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_client.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_track_preferences_store.dart';
+import 'package:larenor/features/media/jellyfin/domain/jellyfin_track_preferences.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyfin/presentation/player/jellyfin_player_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
@@ -99,11 +101,38 @@ class _Audio extends LocalAudioBridge {
   }
 }
 
+class _Preferences extends JellyfinTrackPreferencesStore {
+  JellyfinTrackPreferenceRecord? value;
+  int writes = 0;
+
+  @override
+  Future<JellyfinTrackPreferenceRecord?> read(
+    JellyfinConfig config, {
+    required bool Function() isCurrent,
+  }) async => isCurrent() ? value : null;
+
+  @override
+  Future<void> save(
+    JellyfinConfig config, {
+    required String? audioLanguage,
+    required String? subtitleLanguage,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw StateError('stale preference write');
+    writes++;
+    value = JellyfinTrackPreferenceRecord(
+      audioLanguage: audioLanguage,
+      subtitleLanguage: subtitleLanguage,
+    );
+  }
+}
+
 class _Harness {
   final client = _Client();
   final replacement = _Client('other');
   final player = _Player();
   final audio = _Audio();
+  final preferences = _Preferences();
   final interaction = AppInteractionController();
   final navigator = GlobalKey<NavigatorState>();
   final item = ValueNotifier(_movie);
@@ -113,6 +142,7 @@ class _Harness {
     Locale locale = const Locale('en'),
     double width = 1200,
     double textScale = 1,
+    bool clearCommands = true,
   }) async {
     container = ProviderContainer(
       overrides: [
@@ -122,6 +152,7 @@ class _Harness {
         ),
         jellyfinVideoSurfaceProvider.overrideWithValue((_) => const SizedBox()),
         localAudioBridgeProvider.overrideWithValue(audio),
+        jellyfinTrackPreferencesStoreProvider.overrideWithValue(preferences),
       ],
     );
     addTearDown(container.dispose);
@@ -157,8 +188,8 @@ class _Harness {
     player.emitDuration(const Duration(minutes: 10));
     await tester.pumpAndSettle();
     expect(client.negotiations, [null]);
-    expect(player.commands, ['open:true']);
-    player.commands.clear();
+    expect(player.commands.first, 'open:true');
+    if (clearCommands) player.commands.clear();
   }
 
   VoidCallback opener(WidgetTester tester, IconData icon) => tester
@@ -207,6 +238,7 @@ class _Harness {
             (_) => const SizedBox(),
           ),
           localAudioBridgeProvider.overrideWithValue(audio),
+          jellyfinTrackPreferencesStoreProvider.overrideWithValue(preferences),
         ]);
       case 'item':
         item.value = const JellyfinItem(
@@ -226,6 +258,116 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'language preference disclosure fits $language $width at 2x',
+        (tester) async {
+          final h = _Harness();
+          await h.mount(
+            tester,
+            locale: Locale(language),
+            width: width,
+            textScale: 2,
+          );
+          h.opener(tester, CupertinoIcons.captions_bubble)();
+          await tester.pumpAndSettle();
+          expect(
+            find.textContaining(
+              language == 'tr'
+                  ? 'bu Jellyfin hesabı için dilini kaydeder'
+                  : 'saves that language for this Jellyfin account',
+            ),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await h.close(tester);
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'saved languages select only available tracks on a fresh source',
+    (tester) async {
+      final h = _Harness();
+      h.preferences.value = const JellyfinTrackPreferenceRecord(
+        audioLanguage: 'tr',
+        subtitleLanguage: 'en',
+      );
+      await h.mount(tester, clearCommands: false);
+      expect(h.player.commands, ['open:true', 'audio:2', 'subtitle:3']);
+      expect(h.preferences.writes, 0);
+      await h.close(tester);
+    },
+  );
+
+  testWidgets('missing requested languages never invent a track', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.preferences.value = const JellyfinTrackPreferenceRecord(
+      audioLanguage: 'de',
+      subtitleLanguage: 'fr',
+    );
+    await h.mount(tester, clearCommands: false);
+    expect(h.player.commands, ['open:true']);
+    await h.close(tester);
+  });
+
+  testWidgets('account drift retires pending preferred subtitle command', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.preferences.value = const JellyfinTrackPreferenceRecord(
+      audioLanguage: 'tr',
+      subtitleLanguage: 'en',
+    );
+    h.player.trackGate = Completer<void>();
+    await h.mount(tester, clearCommands: false);
+    expect(h.player.commands, ['open:true', 'audio:2']);
+    h.invalidate('account', tester);
+    h.player.trackGate!.complete();
+    await tester.pumpAndSettle();
+    expect(h.player.commands, isNot(contains('subtitle:3')));
+    await h.close(tester);
+  });
+
+  testWidgets('idle and wake cannot resume a pending language selection', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.preferences.value = const JellyfinTrackPreferenceRecord(
+      audioLanguage: 'tr',
+      subtitleLanguage: 'en',
+    );
+    h.player.trackGate = Completer<void>();
+    await h.mount(tester, clearCommands: false);
+    expect(h.player.commands, ['open:true', 'audio:2']);
+    h.invalidate('idle', tester);
+    h.player.trackGate!.complete();
+    await tester.pumpAndSettle();
+    expect(h.player.commands, isNot(contains('subtitle:3')));
+    await h.close(tester);
+  });
+
+  testWidgets('manual choice remembers language for this account', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    final choose = await h.pick(
+      tester,
+      CupertinoIcons.speaker_2,
+      'Turkish audio',
+    );
+    choose();
+    await tester.pumpAndSettle();
+    expect(h.preferences.value?.audioLanguage, 'tr');
+    expect(h.preferences.writes, 1);
+    await h.close(tester);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(

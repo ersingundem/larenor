@@ -30,6 +30,13 @@ void main() {
       SubtitleTrack('5', 'Turkish', 'tr'),
     ];
     expect(JellyfinTrackPreferences.audio(audio, 'tr')?.id, '2');
+    expect(
+      JellyfinTrackPreferences.audio(const [
+        AudioTrack('6', 'Cyprus Turkish', 'tr-CY'),
+        AudioTrack('7', 'Turkey Turkish', 'tr-TR'),
+      ], 'tr-TR')?.id,
+      '7',
+    );
     expect(JellyfinTrackPreferences.subtitle(subtitles, 'tr-TR')?.id, '5');
     expect(JellyfinTrackPreferences.audio(audio, 'de'), isNull);
     expect(JellyfinTrackPreferences.subtitle(subtitles, 'de'), isNull);
@@ -37,30 +44,61 @@ void main() {
     expect(JellyfinTrackPreferences.audio(audio, 'no'), isNull);
   });
 
-  test('preference record is bounded and isolated by Jellyfin account', () async {
-    SharedPreferences.setMockInitialValues({});
-    final store = JellyfinTrackPreferencesStore();
-    await store.save(_first, audioLanguage: 'tr-TR', subtitleLanguage: 'off',
-        isCurrent: () => true);
-    expect((await store.read(_first, isCurrent: () => true))?.audioLanguage, 'tr-tr');
-    expect((await store.read(_first, isCurrent: () => true))?.subtitleLanguage, 'off');
-    expect(await store.read(_second, isCurrent: () => true), isNull);
-    final raw = (await SharedPreferences.getInstance()).getKeys().join(' ');
-    expect(raw, isNot(contains(_first.accessToken)));
-    expect(raw, isNot(contains(_first.userId)));
-    await expectLater(
-      store.save(_first, audioLanguage: 'not-a-valid-language-tag',
-          subtitleLanguage: null, isCurrent: () => true),
-      throwsFormatException,
-    );
-  });
+  test(
+    'preference record is bounded and isolated by Jellyfin account',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = JellyfinTrackPreferencesStore();
+      await store.save(
+        _first,
+        audioLanguage: 'tr-TR',
+        subtitleLanguage: 'off',
+        isCurrent: () => true,
+      );
+      expect(
+        (await store.read(_first, isCurrent: () => true))?.audioLanguage,
+        'tr-tr',
+      );
+      expect(
+        (await store.read(_first, isCurrent: () => true))?.subtitleLanguage,
+        'off',
+      );
+      expect(await store.read(_second, isCurrent: () => true), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs
+          .getKeys()
+          .map((key) => '$key ${prefs.get(key)}')
+          .join(' ');
+      expect(raw, isNot(contains(_first.accessToken)));
+      expect(raw, isNot(contains(_first.userId)));
+      await expectLater(
+        store.save(
+          _first,
+          audioLanguage: 'not-a-valid-language-tag',
+          subtitleLanguage: null,
+          isCurrent: () => true,
+        ),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('expired route refuses a preference write or read', () async {
     SharedPreferences.setMockInitialValues({});
     final store = JellyfinTrackPreferencesStore();
-    await expectLater(store.save(_first, audioLanguage: 'en',
-        subtitleLanguage: null, isCurrent: () => false), throwsStateError);
-    await expectLater(store.read(_first, isCurrent: () => false), throwsStateError);
+    await expectLater(
+      store.save(
+        _first,
+        audioLanguage: 'en',
+        subtitleLanguage: null,
+        isCurrent: () => false,
+      ),
+      throwsStateError,
+    );
+    await expectLater(
+      store.read(_first, isCurrent: () => false),
+      throwsStateError,
+    );
     expect((await SharedPreferences.getInstance()).getKeys(), isEmpty);
   });
 }
