@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 21 Eylül 2026, main `e81ea793` — 22/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. B5.2 son kabul edilen yazılım işidir. 44 açık PR ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 21 Eylül 2026, main `d0a3a43f` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.10 yazılım kapısı #301 ile birleşti; 35 açık PR ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  22/125 iş (%17,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  23/125 iş (%18,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -22,6 +22,15 @@ profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve
 scoped analizi geçti. PR #271 tüm zorunlu Android, API 35 E2E, Server ve
 güvenlik kapılarını tamamladı. [B5.2 kapanış kanıtı](b52-personal-profile-software-closure-2026-09-21.md).
 Gerçek uzak sunucu ve fiziksel tablet kabulü henüz yapılmadı.
+
+### S08.10 olay, komut ve sınırlı transfer — yazılım kabul edildi
+
+PR #301'in exact CI kabulü main `d0a3a43f` içinde birleşti. Kalıcı olay
+zinciri ve bounded ürün transferi, kaynak/yetki/revision kapsamı, kesinti
+makbuzu ve Android Client'ın geç yanıt korumalarıyla yazılım kapısını geçti.
+[Üç ölçüt ve kapanış kanıtı](testing/s08-10-software-closure-2026-09-21.md).
+Kuyruk **23/125 (%18,4)** oldu; gerçek SAF sağlayıcısı ve fiziksel tabletteki
+dosya akışı **MANUAL** kalır.
 
 ### B5.2 kişisel profil ve hassas oturum — yazılım kabul edildi
 

@@ -1,9 +1,9 @@
 # Larenor — güncel teslim sırası (21 Eylül 2026)
 
-Bu sayfa, `origin/main` **`e81ea793`** ve GitHub'daki **44 açık PR**
+Bu sayfa, `origin/main` **`d0a3a43f`** ve GitHub'daki **35 açık PR**
 görünümünün 21 Eylül 2026 anlık görüntüsüdür. Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile üretilen
-[`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **22/125 iş**, **0/63
+[`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **23/125 iş**, **0/63
 seçili özellik**. Açık PR, yerel test veya auto-merge ayarı kabul değildir.
 Bir iş yalnız kuyruktaki bütün ölçütler, zorunlu exact-head CI ve bağımlı
 birleşimler kanıtlandığında `done` olur. Fiziksel kapılar ayrıca MANUAL kalır.
@@ -27,13 +27,14 @@ zorunlu check nedeniyle de görünebilir; ürün hatası anlamına gelmez.
    içerikle taşındı. #313 yalnız readiness gösterir; Client'tan yedek indirme,
    açık onaylı restore UX, kurulum/yükseltme ve bileşen volume verileri ayrıca
    kabul gerektirir. S09.1–S09.3 **PENDING/CI**; B4 **0/3** kalır.
-2. **Kiosk temel zinciri — CI/PENDING.** #303 ortak test güvenilirliği; #304 WebPanel
+2. **Kiosk temel zinciri — CI/PENDING.** #303 ortak test güvenilirliği ve #318
+   Core resource E2E görünürlüğü main'e birleşti; #304 WebPanel
    renderer/transfer; #306 eşlenmiş uzaktan kumanda ve MQTT; #308 watchdog ve
    içeriksiz kullanım ölçümü; #309 sınırlı remote-view yetkisi; #310 sensör
    oturumu; #311 kiosk gezinmesi; #312 çevre birimi sınırı; #320 bunun tablet
    görünümü; #314 filo profili dry-run/rollout. #305 ortam video/PDF/web
-   listeleri ve #319 HID girdi oturumu ayrı PR'lardır. #318 ortak Core kaynak
-   E2E görünürlüğünü düzeltir. #307 K08 native köprü temelini main'e getirdi;
+   listeleri ve #319 HID girdi oturumu ayrı PR'lardır. #307 K08 native köprü
+   temelini main'e getirdi;
    K08'in WebPanel/K07 uçtan uca kullanıcı kabulü hâlâ kuyrukta `pending`.
    K11 için #320, #312'den sonra; K13 için K07,
    K12 ve F53 yazılım kapıları kanıtlanmadan sıra atlanmaz. DPC/OEM,
@@ -47,16 +48,16 @@ zorunlu check nedeniyle de görünebilir; ürün hatası anlamına gelmez.
    donanım kanıtı ayrı kalır. #279 F58'de kullanıcı kaynaklı ACK yalnız
    `acknowledged` olabilir; eşlenmiş cihaz imzası ve fiziksel görüntü kanıtı
    olmadan `verified` kabul edilmez.
-4. **S07.4 ve S08.10 — CI.** Tek kurulum/ayar kabulü #300 ve bounded ürün
-   transfer yazılım kapanışı #301 ana dala girip exact-head kapıları geçmeden
-   ilgili kuyruk satırı kapatılmaz. Medya abonelikleri, HomePod/Cast oynatma,
+4. **S07.4 CI; S08.10 DONE.** Tek kurulum/ayar kabulü #300 açık kalır.
+   Bounded ürün transfer yazılım kapanışı #301 exact CI sonrası main'e
+   birleşti ve kuyruk 23/125 oldu. Medya abonelikleri, HomePod/Cast oynatma,
    Home Assistant, Keenetic ve Proxmox canlı sonuçları **MANUAL** kapılarındadır.
 
 ## Sıradaki çalışma adımları ve kapanış kapıları
 
-1. **Ortak E2E tabanını sabitle.** #303 remount/klavye/transfer ve #318 Core
-   resource görünürlüğü kendi exact HEAD'lerinde yeşil olup main'e birleşsin.
-   Ardından yalnız bu ortak hatadan etkilenen #275, #287, #298 ve diğer ürün
+1. **Ortak E2E tabanının üstünde yeniden doğrula.** #303 remount/klavye/transfer
+   ve #318 Core resource görünürlüğü main'e birleşti. Yalnız bu ortak hatadan
+   etkilenen #275, #287, #298 ve diğer ürün
    PR'larında güncel base ile seçici E2E doğrulansın. Eski iptal edilmiş run'lar
    ürün kusuru sayılmasın.
 2. **S09'u alttan üste birleştir.** #302 → #315 → #316 → #317 → #313. Her
@@ -64,13 +65,13 @@ zorunlu check nedeniyle de görünebilir; ürün hatası anlamına gelmez.
    restore, journal/orphan stage temizliği sınansın. Component volume'leri,
    temiz kurulum/yükseltme ve Client açık onaylı geri yükleme bitmeden S09
    kapanmaz. Bir öncülde fix çıkarsa üst dalların exact HEAD'i yenilenir.
-3. **S08.10 ve S07.4'ü bağımsız kabul et.** #301 sonrası queue/progress
-   `23/125` ancak main'de merge ve tüm gerekli check'ler tamamlanınca yazılır.
-   #300 için kurulum durumu, ayarlar, belirsiz sonuç ve gerçek paket yaşam
+3. **S07.4'ü bağımsız kabul et.** S08.10 main'de `done`; #300 için kurulum
+   durumu, ayarlar, belirsiz sonuç ve gerçek paket yaşam
    döngüsü karşılaştırılır; tek başına yeşil bir API testi yeterli değildir.
 4. **Kiosk bağımlılıklarını aç.** #304/#305 WebPanel ve ortam listeleri;
    #306 K07; #312→#320 K11; #308 K12; #314 K13 sırası korunur. K07,
-   S08.10'a; K11, K08 tam kabulüne; K13, K07/K12/F53'e bağlıdır. Her PR
+   S08.10'un birleşmiş sözleşmesine; K11, K08 tam kabulüne; K13,
+   K07/K12/F53'e bağlıdır. Her PR
    birleşse bile kuyruktaki tüm K kabulü otomatik kapanmaz.
 5. **Özellikleri tek tek doğrula.** F31/F35–F60 PR'ları için tam üç kullanıcı
    ölçütü, Core/Client yetki ve stale-readback sınırı, tablet EN/TR erişim
@@ -90,6 +91,9 @@ zorunlu check nedeniyle de görünebilir; ürün hatası anlamına gelmez.
 - **Hat B:** Dosya çakışması olmayan kiosk/özellik PR'larının gerçek CI
   hatalarını düzeltir. Bağımsız yeşil PR'ları otomatik birleşmeye bırakır;
   bağımlı PR'larda base/head eşleşmesini ve merge-tree'yi denetler.
+- **Hat C:** Bağımsız ürün PR'ları #276/#281/#297/#298 ile docs #321, CI
+  politikası #322 ve medya tercihi #323'ün exact HEAD kontrollerini izler;
+  yalnız gerçek failure veya merge conflict için dar düzeltme gönderir.
 - Her hat yalnız değişen dosyaların hedefli testini yerelde çalıştırır.
   CI'da bir PR'ın kendi exact HEAD'i esastır; eski/cancelled çalıştırmalar
   veya sentetik merge checkout'taki eski ilerleme trailer'ları yeni ürün
