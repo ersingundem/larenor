@@ -1,3 +1,5 @@
+# ruff: noqa: C408
+
 import pytest
 
 from larenor_server.epaper_snapshots import (
@@ -12,7 +14,6 @@ from larenor_server.epaper_snapshots import (
     EpaperSnapshotService,
 )
 from larenor_server.errors import ApiError
-
 
 CORE = "1" * 32
 HOME = "2" * 32

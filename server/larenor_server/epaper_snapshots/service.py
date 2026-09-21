@@ -3,7 +3,7 @@
 import hashlib
 import json
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from ..errors import ApiError
 from .models import (
@@ -18,7 +18,6 @@ from .models import (
     EpaperPullEnvelope,
     EpaperRenderSnapshot,
 )
-
 
 MAX_DATA_AGE_MS = 300_000
 FRAME_BYTES = 4_096
@@ -60,7 +59,7 @@ class EpaperSnapshotService:
             authority = EpaperAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
             current = None if current is None else EpaperAuthority.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 - fail closed across injected resolvers
             raise ApiError("forbidden", 403) from None
         if current is None:
             raise ApiError("forbidden", 403)
@@ -76,7 +75,7 @@ class EpaperSnapshotService:
             presented = model.model_validate(raw)
             current = resolver(identity)
             current = None if current is None else model.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 - fail closed across injected resolvers
             raise ApiError("epaper_content_rejected", 400) from None
         if current != presented:
             raise ApiError("revision_conflict", 409)
@@ -92,7 +91,7 @@ class EpaperSnapshotService:
             presented = EpaperDevice.model_validate(raw)
             current = self._resolve_device(presented.deviceId)
             current = None if current is None else EpaperDevice.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 - fail closed across injected resolvers
             raise ApiError("epaper_content_rejected", 400) from None
         if current != presented or (presented.coreId, presented.homeId) != (
             authority.coreId,
@@ -107,7 +106,7 @@ class EpaperSnapshotService:
         try:
             current = self._resolve_device(device_id)
             current = None if current is None else EpaperDevice.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 - fail closed across injected resolvers
             raise ApiError("revision_conflict", 409) from None
         if current is None or (current.coreId, current.homeId) != (
             authority.coreId,
@@ -232,7 +231,7 @@ class EpaperSnapshotService:
             current_policy = EpaperPolicy.model_validate(
                 self._resolve_policy(policy.policyId)
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - fail closed across injected resolvers
             raise ApiError("revision_conflict", 409) from None
         if (
             snapshot.deviceRevision != device.revision
@@ -277,7 +276,7 @@ class EpaperSnapshotService:
                     byteLength=byte_length,
                     frameCount=frame_count,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - pydantic closes malformed envelopes
                 raise ApiError("invalid_request") from None
             prior = self._pulls.get(envelope.requestId)
             if prior is not None:
@@ -291,7 +290,7 @@ class EpaperSnapshotService:
         authority = self._authority(presentedAuthority)
         try:
             ack = EpaperDeliveryAck.model_validate(rawAck)
-        except Exception:
+        except Exception:  # noqa: BLE001 - pydantic closes malformed acknowledgements
             raise ApiError("invalid_request") from None
         if (ack.coreId, ack.homeId) != (authority.coreId, authority.homeId):
             raise ApiError("revision_conflict", 409)

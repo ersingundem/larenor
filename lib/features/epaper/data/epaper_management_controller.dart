@@ -9,6 +9,7 @@ enum EpaperManagementState {
   ready,
   awaitingConfirmation,
   busy,
+  pendingDelivery,
   verified,
   failed,
   stale,
@@ -39,7 +40,8 @@ final class EpaperManagementController extends ChangeNotifier {
   EpaperCommandPreview? pendingPreview;
 
   List<EpaperDeviceStatus> get devices => List.unmodifiable(_devices);
-  bool get canAct => _current() && state != EpaperManagementState.busy;
+  bool get canAct =>
+      _current() && authority.canManage && state != EpaperManagementState.busy;
 
   bool _current() {
     if (_disposed || !_interactive || !authority.isBounded) return false;
@@ -151,12 +153,57 @@ final class EpaperManagementController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void cancelPending() {
-    if (!_current() || pendingPreview == null) return;
-    _epoch++;
+  Future<void> map(EpaperDeviceMappingDraft draft) async {
+    if (!canAct || !draft.isValid) return;
+    final operation = ++_epoch;
     pendingPreview = null;
-    state = EpaperManagementState.ready;
+    state = EpaperManagementState.busy;
     notifyListeners();
+    try {
+      final value = await api.map(authority, draft);
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return;
+      }
+      if (value.authority != authority || !value.isCoherentAt(_clock())) {
+        state = EpaperManagementState.failed;
+      } else {
+        _devices.removeWhere((item) => item.deviceId == value.deviceId);
+        _devices.add(value);
+        state = EpaperManagementState.ready;
+      }
+    } catch (_) {
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return;
+      }
+      state = EpaperManagementState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> cancelPending() async {
+    if (!_current() || pendingPreview == null) return;
+    final preview = pendingPreview!;
+    final operation = ++_epoch;
+    pendingPreview = null;
+    state = EpaperManagementState.busy;
+    notifyListeners();
+    try {
+      await api.cancel(authority, preview);
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return;
+      }
+      state = EpaperManagementState.ready;
+    } catch (_) {
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return;
+      }
+      state = EpaperManagementState.failed;
+    }
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> confirmPending() async {
@@ -173,7 +220,13 @@ final class EpaperManagementController extends ChangeNotifier {
         _stale();
         return;
       }
-      if (!receipt.isExactFor(preview)) {
+      final receiptBound =
+          receipt.authority == preview.authority &&
+          receipt.requestId == preview.requestId &&
+          receipt.deviceId == preview.deviceId &&
+          receipt.deviceRevision == preview.deviceRevision &&
+          receipt.action == preview.action;
+      if (!receiptBound || receipt.status == EpaperCommandStatus.rejected) {
         pendingPreview = null;
         state = EpaperManagementState.failed;
         notifyListeners();
@@ -196,7 +249,18 @@ final class EpaperManagementController extends ChangeNotifier {
           readback.snapshotDigest == receipt.observedSnapshotDigest &&
           readback.verifiedDigest == receipt.observedSnapshotDigest &&
           readback.isCoherentAt(_clock());
-      if (!exact) {
+      final pending =
+          receipt.status == EpaperCommandStatus.uncertain &&
+          readback.authority == authority &&
+          readback.deviceId == preview.deviceId &&
+          readback.deviceRevision == preview.deviceRevision &&
+          readback.layoutRevision == preview.expectedLayoutRevision &&
+          const {
+            EpaperSnapshotTrust.pending,
+            EpaperSnapshotTrust.partial,
+          }.contains(readback.snapshotTrust) &&
+          readback.isCoherentAt(_clock());
+      if (!exact && !pending) {
         pendingPreview = null;
         state = EpaperManagementState.failed;
       } else {
@@ -209,7 +273,9 @@ final class EpaperManagementController extends ChangeNotifier {
         } else {
           _devices[index] = readback;
           pendingPreview = null;
-          state = EpaperManagementState.verified;
+          state = exact
+              ? EpaperManagementState.verified
+              : EpaperManagementState.pendingDelivery;
         }
       }
     } catch (_) {

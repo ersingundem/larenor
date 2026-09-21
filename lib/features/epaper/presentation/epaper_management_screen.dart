@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
@@ -32,7 +34,19 @@ final class _EpaperStrings {
   String get verifiedAction => tr
       ? 'İşlem ve yeni ekran durumu doğrulandı.'
       : 'Action and new display state verified.';
+  String get pendingDelivery => tr
+      ? 'Görüntü yayınlandı; cihaz teslim doğrulaması bekleniyor.'
+      : 'Snapshot published; waiting for device delivery verification.';
   String get retry => tr ? 'Tekrar dene' : 'Retry';
+  String get add => tr ? 'Ekran eşle' : 'Map display';
+  String get addTitle => tr ? 'E-paper ekran eşle' : 'Map e-paper display';
+  String get deviceId => tr ? 'Cihaz kimliği' : 'Device ID';
+  String get name => tr ? 'Ekran adı' : 'Display name';
+  String get save => tr ? 'Eşle' : 'Map';
+  String get invalid => tr
+      ? '32 karakterli küçük harfli onaltılık cihaz kimliği girin.'
+      : 'Enter a 32-character lowercase hexadecimal device ID.';
+  String get preview => tr ? 'Görüntü önizlemesi' : 'Display preview';
   String get stored => tr ? 'Kayıtlı' : 'Stored';
   String get notStored => tr ? 'Kayıtlı değil' : 'Not stored';
   String get reachable => tr ? 'Erişilebilir' : 'Reachable';
@@ -45,22 +59,15 @@ final class _EpaperStrings {
     EpaperSnapshotTrust.stale => tr ? 'Güncel değil' : 'Stale',
   };
   String get refresh => tr ? 'Ekranı yenile' : 'Refresh display';
-  String get rotate => tr ? 'Düzeni döndür' : 'Rotate layout';
   String confirmTitle(EpaperManagementAction action) => switch (action) {
     EpaperManagementAction.refresh =>
       tr ? 'Ekran yenilensin mi?' : 'Refresh this display?',
-    EpaperManagementAction.rotate =>
-      tr ? 'Düzen döndürülsün mü?' : 'Rotate this layout?',
   };
   String confirmBody(EpaperManagementAction action) => switch (action) {
     EpaperManagementAction.refresh =>
       tr
           ? 'Larenor Core güncel görüntüyü hazırlayıp cihaza iletecek. Sonuç cihazdan tekrar okunmadan başarılı sayılmaz.'
           : 'Larenor Core will prepare and deliver the current image. Success requires a device readback.',
-    EpaperManagementAction.rotate =>
-      tr
-          ? 'Larenor Core bir sonraki izinli düzeni hazırlayacak. Yeni düzen doğrulanmadan başarılı sayılmaz.'
-          : 'Larenor Core will prepare the next allowed layout. Success requires verified readback.',
   };
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Onayla' : 'Confirm';
@@ -158,7 +165,7 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
             key: const ValueKey('epaper-cancel-action'),
             label: strings.cancel,
             onPressed: () {
-              widget.controller.cancelPending();
+              unawaited(widget.controller.cancelPending());
               Navigator.of(dialogContext).pop();
             },
           ),
@@ -177,6 +184,18 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
     );
   }
 
+  Future<void> _map() async {
+    if (!widget.controller.canAct) return;
+    final epoch = _viewEpoch;
+    final draft = await Navigator.of(context).push<EpaperDeviceMappingDraft>(
+      CupertinoPageRoute(
+        builder: (_) => _MappingScreen(strings: _EpaperStrings.of(context)),
+      ),
+    );
+    if (!mounted || epoch != _viewEpoch || draft == null) return;
+    await widget.controller.map(draft);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = _EpaperStrings.of(context);
@@ -190,6 +209,13 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
             footer: Text(strings.overviewHint),
             children: [
               _StatusMessage(controller: controller, strings: strings),
+              if (controller.authority.canManage)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('epaper-map-display'),
+                  title: Text(strings.add),
+                  leading: const Icon(CupertinoIcons.plus_rectangle),
+                  onTap: controller.canAct ? _map : null,
+                ),
               if (controller.state == EpaperManagementState.failed ||
                   controller.state == EpaperManagementState.stale)
                 SettingsActionTile(
@@ -259,6 +285,10 @@ class _StatusMessage extends StatelessWidget {
       EpaperManagementState.verified => (
         CupertinoIcons.checkmark_circle,
         strings.verifiedAction,
+      ),
+      EpaperManagementState.pendingDelivery => (
+        CupertinoIcons.clock,
+        strings.pendingDelivery,
       ),
       _ when controller.devices.isEmpty => (
         CupertinoIcons.rectangle_stack,
@@ -348,6 +378,7 @@ class _DeviceSection extends StatelessWidget {
           ),
         ),
       ),
+      _EpaperPreview(device: device, strings: strings),
       SettingsActionTile(
         buttonKey: ValueKey('epaper-refresh-${device.deviceId}'),
         title: Text(strings.refresh),
@@ -356,15 +387,170 @@ class _DeviceSection extends StatelessWidget {
             ? () => onAction(device, EpaperManagementAction.refresh)
             : null,
       ),
-      SettingsActionTile(
-        buttonKey: ValueKey('epaper-rotate-${device.deviceId}'),
-        title: Text(strings.rotate),
-        leading: const Icon(CupertinoIcons.rotate_right),
-        onTap: enabled
-            ? () => onAction(device, EpaperManagementAction.rotate)
-            : null,
-      ),
     ],
+  );
+}
+
+class _EpaperPreview extends StatelessWidget {
+  const _EpaperPreview({required this.device, required this.strings});
+
+  final EpaperDeviceStatus device;
+  final _EpaperStrings strings;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    key: ValueKey('epaper-preview-${device.deviceId}'),
+    container: true,
+    readOnly: true,
+    label: '${strings.preview}. ${strings.deviceState(device)}',
+    child: ExcludeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: AspectRatio(
+          aspectRatio: 5 / 3,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: CupertinoColors.white,
+              border: Border.all(color: CupertinoColors.black, width: 2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.clock,
+                      color: CupertinoColors.black,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      device.name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: CupertinoColors.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      strings.trust(device.snapshotTrust),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: CupertinoColors.black),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _MappingScreen extends StatefulWidget {
+  const _MappingScreen({required this.strings});
+  final _EpaperStrings strings;
+
+  @override
+  State<_MappingScreen> createState() => _MappingScreenState();
+}
+
+class _MappingScreenState extends State<_MappingScreen> {
+  final _device = TextEditingController();
+  final _name = TextEditingController();
+  bool _attempted = false;
+
+  EpaperDeviceMappingDraft get _draft =>
+      EpaperDeviceMappingDraft(deviceId: _device.text, name: _name.text);
+
+  @override
+  void dispose() {
+    _device.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _draft;
+    if (!value.isValid) {
+      setState(() => _attempted = true);
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoPageScaffold(
+    navigationBar: CupertinoNavigationBar(
+      middle: Text(widget.strings.addTitle),
+    ),
+    child: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Semantics(
+            textField: true,
+            label: widget.strings.deviceId,
+            child: SizedBox(
+              height: 48,
+              child: CupertinoTextField(
+                key: const ValueKey('epaper-map-device-id'),
+                controller: _device,
+                minLines: 1,
+                maxLines: 1,
+                placeholder: widget.strings.deviceId,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Semantics(
+            textField: true,
+            label: widget.strings.name,
+            child: SizedBox(
+              height: 48,
+              child: CupertinoTextField(
+                key: const ValueKey('epaper-map-name'),
+                controller: _name,
+                minLines: 1,
+                maxLines: 1,
+                placeholder: widget.strings.name,
+                textInputAction: TextInputAction.done,
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _submit(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: CupertinoButton.filled(
+              key: const ValueKey('epaper-map-submit'),
+              onPressed: _submit,
+              child: Text(widget.strings.save),
+            ),
+          ),
+          if (_attempted && !_draft.isValid)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  widget.strings.invalid,
+                  style: TextStyle(
+                    color: CupertinoColors.systemRed.resolveFrom(context),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
   );
 }
 

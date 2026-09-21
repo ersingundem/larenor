@@ -1,7 +1,7 @@
 # F58 e-paper tablet management acceptance
 
 This package adds an Android tablet and DeX management surface over the F58
-Core boundary. Queue progress remains 20/125 and selected-feature progress
+Core boundary. Queue progress remains 22/125 and selected-feature progress
 remains 0/63. A concrete authenticated HTTP adapter, durable Core storage,
 bridge firmware, device rotation support, and physical e-paper acceptance stay
 open gates.
@@ -13,7 +13,7 @@ Exactly three user acceptance criteria are in scope:
    exact Core, home, account, session-family, device, bridge, layout, data, and
    policy revisions; malformed, foreign, late, hidden, or retired results clear
    trusted state.
-2. Refresh and rotate first obtain a bounded Core preview and require an
+2. Refresh first obtains a bounded Core preview and requires an
    explicit user confirmation. Success appears only after an exact receipt and
    a fresh verified readback; expiry, lost responses, revision drift, and
    uncertain results fail closed and are never replayed automatically.

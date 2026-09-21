@@ -1,4 +1,6 @@
 {
+  "epaperTitle": "E-paper displays",
+  "epaperEntrySubtitle": "Map displays, preview shared snapshots, and verify delivery",
   "@@locale": "en",
   "appTitle": "Larenor Client",
   "@appTitle": {

@@ -19,6 +19,7 @@ const _authority = EpaperClientAuthority(
   homeRevision: 4,
   accountRevision: 8,
   sessionRevision: 3,
+  canManage: true,
 );
 
 EpaperDeviceStatus _device({
@@ -50,6 +51,34 @@ final class _Api implements EpaperManagementApi {
   var previewCalls = 0;
   var confirmCalls = 0;
   var readbackCalls = 0;
+  var cancelCalls = 0;
+  var mapCalls = 0;
+  var confirmStatus = EpaperCommandStatus.applied;
+  var readbackTrust = EpaperSnapshotTrust.verified;
+
+  @override
+  Future<EpaperDeviceStatus> map(
+    EpaperClientAuthority authority,
+    EpaperDeviceMappingDraft draft,
+  ) async {
+    mapCalls++;
+    return EpaperDeviceStatus(
+      authority: authority,
+      deviceId: draft.deviceId,
+      name: draft.name,
+      deviceRevision: '1',
+      bridgeRevision: '1',
+      layoutRevision: '1',
+      dataRevision: '1',
+      policyRevision: '1',
+      stored: true,
+      reachable: false,
+      snapshotTrust: EpaperSnapshotTrust.pending,
+      snapshotDigest: 'b' * 64,
+      verifiedDigest: null,
+      expiresAt: DateTime.utc(2030),
+    );
+  }
 
   @override
   Future<List<EpaperDeviceStatus>> list(EpaperClientAuthority authority) =>
@@ -69,9 +98,7 @@ final class _Api implements EpaperManagementApi {
       deviceId: deviceId,
       deviceRevision: expectedDeviceRevision,
       action: action,
-      expectedLayoutRevision: action == EpaperManagementAction.rotate
-          ? 'layout-r5'
-          : 'layout-r4',
+      expectedLayoutRevision: 'layout-r4',
       expiresAt: DateTime.utc(2030),
     );
   }
@@ -90,11 +117,23 @@ final class _Api implements EpaperManagementApi {
             deviceId: preview.deviceId,
             deviceRevision: preview.deviceRevision,
             action: preview.action,
-            status: EpaperCommandStatus.applied,
-            observedLayoutRevision: preview.expectedLayoutRevision,
-            observedSnapshotDigest: 'a' * 64,
+            status: confirmStatus,
+            observedLayoutRevision: confirmStatus == EpaperCommandStatus.applied
+                ? preview.expectedLayoutRevision
+                : null,
+            observedSnapshotDigest: confirmStatus == EpaperCommandStatus.applied
+                ? 'a' * 64
+                : null,
           ),
         );
+  }
+
+  @override
+  Future<void> cancel(
+    EpaperClientAuthority authority,
+    EpaperCommandPreview preview,
+  ) async {
+    cancelCalls++;
   }
 
   @override
@@ -104,11 +143,23 @@ final class _Api implements EpaperManagementApi {
   }) async {
     readbackCalls++;
     final pending = devices.single;
-    return pending.copyWith(
+    return EpaperDeviceStatus(
+      authority: pending.authority,
+      deviceId: pending.deviceId,
+      name: pending.name,
+      deviceRevision: pending.deviceRevision,
+      bridgeRevision: pending.bridgeRevision,
       layoutRevision: previewLayout,
-      snapshotTrust: EpaperSnapshotTrust.verified,
+      dataRevision: pending.dataRevision,
+      policyRevision: pending.policyRevision,
+      stored: pending.stored,
+      reachable: pending.reachable,
+      snapshotTrust: readbackTrust,
       snapshotDigest: 'a' * 64,
-      verifiedDigest: 'a' * 64,
+      verifiedDigest: readbackTrust == EpaperSnapshotTrust.verified
+          ? 'a' * 64
+          : null,
+      expiresAt: pending.expiresAt,
     );
   }
 
@@ -157,60 +208,124 @@ void main() {
   );
 
   test(
-    'refresh and rotate require confirmation plus exact verified readback',
+    'published snapshot stays pending until a physical acknowledgement',
     () async {
-      var current = true;
-      final api = _Api();
+      final api = _Api()
+        ..confirmStatus = EpaperCommandStatus.uncertain
+        ..readbackTrust = EpaperSnapshotTrust.pending;
       final controller = EpaperManagementController(
         api: api,
         authority: _authority,
-        isCurrent: () => current,
+        isCurrent: () => true,
       );
       addTearDown(controller.dispose);
       await controller.load();
-
       await controller.preview(
         controller.devices.single,
-        EpaperManagementAction.rotate,
-      );
-      expect(controller.pendingPreview, isNotNull);
-      expect(api.confirmCalls, 0);
-
-      api.previewLayout = 'layout-r5';
-      final gate = Completer<EpaperCommandReceipt>();
-      api.confirmGate = gate;
-      final late = controller.confirmPending();
-      current = false;
-      gate.complete(
-        EpaperCommandReceipt(
-          authority: _authority,
-          requestId: controller.pendingPreview!.requestId,
-          deviceId: 'hall-display',
-          deviceRevision: 'device-r7',
-          action: EpaperManagementAction.rotate,
-          status: EpaperCommandStatus.applied,
-          observedLayoutRevision: 'layout-r5',
-          observedSnapshotDigest: 'a' * 64,
-        ),
-      );
-      await late;
-      expect(controller.state, EpaperManagementState.stale);
-      expect(api.readbackCalls, 0);
-
-      current = true;
-      api.confirmGate = null;
-      await controller.load();
-      await controller.preview(
-        controller.devices.single,
-        EpaperManagementAction.rotate,
+        EpaperManagementAction.refresh,
       );
       await controller.confirmPending();
-      expect(controller.state, EpaperManagementState.verified);
-      expect(controller.devices.single.layoutRevision, 'layout-r5');
-      expect(api.confirmCalls, 2);
-      expect(api.readbackCalls, 1);
+      expect(controller.state, EpaperManagementState.pendingDelivery);
+      expect(
+        controller.devices.single.snapshotTrust,
+        EpaperSnapshotTrust.pending,
+      );
     },
   );
+
+  test('mapping and cancellation stay admin and operation bound', () async {
+    var current = true;
+    final api = _Api();
+    final controller = EpaperManagementController(
+      api: api,
+      authority: _authority,
+      isCurrent: () => current,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+    await controller.map(
+      const EpaperDeviceMappingDraft(
+        deviceId: 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0',
+        name: 'Kitchen display',
+      ),
+    );
+    expect(api.mapCalls, 1);
+    expect(
+      controller.devices.any((item) => item.name == 'Kitchen display'),
+      isTrue,
+    );
+
+    await controller.preview(
+      controller.devices.firstWhere((item) => item.deviceId == 'hall-display'),
+      EpaperManagementAction.refresh,
+    );
+    await controller.cancelPending();
+    expect(api.cancelCalls, 1);
+    expect(controller.pendingPreview, isNull);
+    expect(controller.state, EpaperManagementState.ready);
+
+    current = false;
+    await controller.map(
+      const EpaperDeviceMappingDraft(
+        deviceId: 'c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0',
+        name: 'Late display',
+      ),
+    );
+    expect(api.mapCalls, 1);
+  });
+
+  test('refresh requires confirmation plus exact verified readback', () async {
+    var current = true;
+    final api = _Api();
+    final controller = EpaperManagementController(
+      api: api,
+      authority: _authority,
+      isCurrent: () => current,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+
+    await controller.preview(
+      controller.devices.single,
+      EpaperManagementAction.refresh,
+    );
+    expect(controller.pendingPreview, isNotNull);
+    expect(api.confirmCalls, 0);
+
+    api.previewLayout = 'layout-r4';
+    final gate = Completer<EpaperCommandReceipt>();
+    api.confirmGate = gate;
+    final late = controller.confirmPending();
+    current = false;
+    gate.complete(
+      EpaperCommandReceipt(
+        authority: _authority,
+        requestId: controller.pendingPreview!.requestId,
+        deviceId: 'hall-display',
+        deviceRevision: 'device-r7',
+        action: EpaperManagementAction.refresh,
+        status: EpaperCommandStatus.applied,
+        observedLayoutRevision: 'layout-r4',
+        observedSnapshotDigest: 'a' * 64,
+      ),
+    );
+    await late;
+    expect(controller.state, EpaperManagementState.stale);
+    expect(api.readbackCalls, 0);
+
+    current = true;
+    api.confirmGate = null;
+    await controller.load();
+    await controller.preview(
+      controller.devices.single,
+      EpaperManagementAction.refresh,
+    );
+    await controller.confirmPending();
+    expect(controller.state, EpaperManagementState.verified);
+    expect(controller.devices.single.layoutRevision, 'layout-r4');
+    expect(api.confirmCalls, 2);
+    expect(api.readbackCalls, 1);
+  });
 
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1280, 900)]) {
@@ -249,11 +364,13 @@ void main() {
           final refresh = find.byKey(
             const ValueKey('epaper-refresh-hall-display'),
           );
-          final rotate = find.byKey(
-            const ValueKey('epaper-rotate-hall-display'),
-          );
           expect(tester.getRect(refresh).height, greaterThanOrEqualTo(48));
-          expect(tester.getRect(rotate).height, greaterThanOrEqualTo(48));
+          expect(
+            tester
+                .getRect(find.byKey(const ValueKey('epaper-map-display')))
+                .height,
+            greaterThanOrEqualTo(48),
+          );
           expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
           expect(
             tester
@@ -293,4 +410,52 @@ void main() {
       );
     }
   }
+
+  testWidgets(
+    'mapping form is bounded, keyboard reachable, and validates input',
+    (tester) async {
+      tester.view.physicalSize = const Size(600, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final api = _Api();
+      final controller = EpaperManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => true,
+      );
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        CupertinoApp(home: EpaperManagementScreen(controller: controller)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('epaper-map-display')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('epaper-map-device-id')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getRect(find.byKey(const ValueKey('epaper-map-submit'))).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('epaper-map-device-id')),
+        'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('epaper-map-name')),
+        'Bedroom display',
+      );
+      final submit = find.byKey(const ValueKey('epaper-map-submit'));
+      Focus.of(
+        tester.element(
+          find.descendant(of: submit, matching: find.byType(Text)),
+        ),
+      ).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(api.mapCalls, 1);
+    },
+  );
 }

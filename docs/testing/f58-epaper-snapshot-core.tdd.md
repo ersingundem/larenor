@@ -1,7 +1,7 @@
 # F58 e-paper mini-home-screen Core acceptance
 
 This package establishes a fail-closed Core snapshot and delivery boundary for
-small e-paper displays. Queue progress remains at 20/125 and selected-feature
+small e-paper displays. Queue progress remains at 22/125 and selected-feature
 progress remains at 0/63. Durable snapshot storage, authenticated device HTTP,
 bridge adapters, Android management UI, remote erase semantics, and physical
 e-paper hardware acceptance remain explicit delivery gates.

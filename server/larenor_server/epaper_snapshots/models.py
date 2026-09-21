@@ -7,7 +7,6 @@ from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
 
-
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Color = Literal["black", "white", "red", "yellow"]
 CardKind = Literal["weather", "energy", "temperature", "clock", "battery"]
