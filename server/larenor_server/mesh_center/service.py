@@ -1,12 +1,12 @@
 """Read-only mesh health and explicit, verified Zigbee firmware updates."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import secrets
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -21,11 +21,9 @@ from .models import (
     FirmwareUpdateResult,
     InterferenceSnapshot,
     MeshAuthority,
-    MeshDevice,
     MeshHealthReport,
     MeshTopology,
 )
-
 
 MAX_COMMANDS = 1_000
 MAX_AUDIT = 10_000
@@ -139,7 +137,9 @@ class MeshHealthService:
         interference = self._interference(authority, rawInterference)
         channels = {item.channel: item for item in interference.channels}
         current = channels.get(topology.coordinator.channel)
-        candidates = [channels[channel] for channel in (11, 15, 20, 25) if channel in channels]
+        candidates = [
+            channels[channel] for channel in (11, 15, 20, 25) if channel in channels
+        ]
         if current is None or not candidates:
             raise ApiError("mesh_interference_incomplete", 409)
         recommended = min(
@@ -159,7 +159,12 @@ class MeshHealthService:
         )
         if not topology.coordinator.online:
             status = "unavailable"
-        elif offline_devices or low_battery or offline_routers or current.utilizationPercent >= 80:
+        elif (
+            offline_devices
+            or low_battery
+            or offline_routers
+            or current.utilizationPercent >= 80
+        ):
             status = "degraded"
         else:
             status = "healthy"
@@ -355,7 +360,10 @@ class FirmwareUpdateManager:
         ) != (authority.coreId, authority.homeId, authority.homeRevision):
             raise ApiError("revision_conflict", 409)
         now = self._clock()
-        if topology.capturedAtMs > now or now - topology.capturedAtMs > MAX_SNAPSHOT_AGE_MS:
+        if (
+            topology.capturedAtMs > now
+            or now - topology.capturedAtMs > MAX_SNAPSHOT_AGE_MS
+        ):
             raise ApiError("mesh_snapshot_stale", 409)
         return topology
 
@@ -363,7 +371,9 @@ class FirmwareUpdateManager:
         try:
             catalog = FirmwareCatalog.model_validate(presented)
             current = self._resolve_catalog(catalog.catalogId)
-            current = None if current is None else FirmwareCatalog.model_validate(current)
+            current = (
+                None if current is None else FirmwareCatalog.model_validate(current)
+            )
         except Exception:
             raise ApiError("revision_conflict", 409) from None
         if current != catalog:
@@ -472,9 +482,7 @@ class FirmwareUpdateManager:
                 expiresAtMs=expires,
                 confirmationToken=ZERO_HASH,
             )
-            preview = draft.model_copy(
-                update={"confirmationToken": self._token(draft)}
-            )
+            preview = draft.model_copy(update={"confirmationToken": self._token(draft)})
         except Exception:
             raise ApiError("invalid_request") from None
         with self._lock:
@@ -533,7 +541,10 @@ class FirmwareUpdateManager:
             device, entry = self._safe_entry(
                 topology, catalog, preview.deviceId, preview.firmwareId
             )
-            if device.revision + 1 != preview.expectedResultRevision or entry != state.entry:
+            if (
+                device.revision + 1 != preview.expectedResultRevision
+                or entry != state.entry
+            ):
                 raise ApiError("revision_conflict", 409)
             command = FirmwareUpdateCommand(
                 schemaVersion=1,
@@ -601,3 +612,34 @@ class FirmwareUpdateManager:
             state.result = result
             self._append_audit(action, preview)
             return result
+
+    def result(self, presentedAuthority, requestId):
+        """Read one existing result without dispatching or replaying its command."""
+        authority = self._authority(presentedAuthority)
+        if not isinstance(requestId, str):
+            raise ApiError("invalid_request")
+        with self._lock:
+            self._validate_audit()
+            state = self._commands.get(requestId)
+            if state is None:
+                raise ApiError("not_found", 404)
+            preview = state.preview
+            if (
+                preview.coreId,
+                preview.homeId,
+                preview.accountId,
+                preview.accountRevision,
+                preview.memberRevision,
+                preview.sessionFamilyId,
+            ) != (
+                authority.coreId,
+                authority.homeId,
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("forbidden", 403)
+            if state.result is None:
+                raise ApiError("not_found", 404)
+            return state.result

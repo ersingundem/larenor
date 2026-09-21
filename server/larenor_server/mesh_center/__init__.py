@@ -1,5 +1,6 @@
 """F55 Zigbee/Thread health and supported Zigbee OTA foundation."""
 
+from .http import MeshCenterHttpGateway
 from .models import (
     BorderRouterNode,
     ChannelAdvisory,
@@ -13,8 +14,11 @@ from .models import (
     FirmwareUpdateResult,
     InterferenceSnapshot,
     MeshAuthority,
+    MeshCenterSnapshot,
+    MeshConfirmRequest,
     MeshDevice,
     MeshHealthReport,
+    MeshPreviewRequest,
     MeshTopology,
 )
 from .service import (
@@ -38,9 +42,13 @@ __all__ = [
     "FirmwareUpdateResult",
     "InterferenceSnapshot",
     "MeshAuthority",
+    "MeshCenterHttpGateway",
+    "MeshCenterSnapshot",
+    "MeshConfirmRequest",
     "MeshDevice",
     "MeshHealthReport",
     "MeshHealthService",
+    "MeshPreviewRequest",
     "MeshTopology",
     "MeshUpdateAuditEntry",
     "firmware_catalog_payload",

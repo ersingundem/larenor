@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'notification_subscription_changed': 'The notification subscription changed. Read it again.',
     'notification_subscription_inactive': 'The notification subscription is not active.',
     'notification_registration_replay': 'This registration identifier belongs to a different request.',
