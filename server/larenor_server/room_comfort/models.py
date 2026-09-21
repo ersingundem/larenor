@@ -50,7 +50,10 @@ class RoomComfortScope(FrozenModel):
     def correct_devices(self):
         if self.hvac.kind != "hvac" or self.window.kind != "window":
             raise ValueError("device_kind_mismatch")
-        if self.hvac.deviceId == self.window.deviceId or self.hvac.bindingId == self.window.bindingId:
+        if (
+            self.hvac.deviceId == self.window.deviceId
+            or self.hvac.bindingId == self.window.bindingId
+        ):
             raise ValueError("duplicate_device")
         return self
 
@@ -78,10 +81,17 @@ class ComfortPolicy(FrozenModel):
     @model_validator(mode="after")
     def unique_rooms(self):
         rooms = [item.roomId for item in self.rooms]
-        devices = [device.deviceId for item in self.rooms for device in (item.hvac, item.window)]
+        devices = [
+            device.deviceId
+            for item in self.rooms
+            for device in (item.hvac, item.window)
+        ]
         if len(rooms) != len(set(rooms)) or len(devices) != len(set(devices)):
             raise ValueError("duplicate_room")
-        if any((item.coreId, item.homeId) != (self.coreId, self.homeId) for item in self.rooms):
+        if any(
+            (item.coreId, item.homeId) != (self.coreId, self.homeId)
+            for item in self.rooms
+        ):
             raise ValueError("room_scope_mismatch")
         return self
 
@@ -115,16 +125,24 @@ class RoomClimateSnapshot(FrozenModel):
 
     @model_validator(mode="after")
     def valid_metrics(self):
-        if [self.temperature.kind, self.humidity.kind, self.co2.kind, self.voc.kind] != [
-            "temperature_millic", "humidity_permille", "co2_ppm", "voc_ppb"
-        ]:
+        if [
+            self.temperature.kind,
+            self.humidity.kind,
+            self.co2.kind,
+            self.voc.kind,
+        ] != ["temperature_millic", "humidity_permille", "co2_ppm", "voc_ppb"]:
             raise ValueError("metric_kind_mismatch")
-        if (not -50_000 <= self.temperature.value <= 80_000
-                or not 0 <= self.humidity.value <= 1_000
-                or not 0 <= self.co2.value <= 100_000
-                or not 0 <= self.voc.value <= 1_000_000):
+        if (
+            not -50_000 <= self.temperature.value <= 80_000
+            or not 0 <= self.humidity.value <= 1_000
+            or not 0 <= self.co2.value <= 100_000
+            or not 0 <= self.voc.value <= 1_000_000
+        ):
             raise ValueError("metric_out_of_range")
-        ids = [item.sensorId for item in (self.temperature, self.humidity, self.co2, self.voc)]
+        ids = [
+            item.sensorId
+            for item in (self.temperature, self.humidity, self.co2, self.voc)
+        ]
         if len(ids) != len(set(ids)) or self.smokeSensorId in ids:
             raise ValueError("duplicate_sensor")
         return self
@@ -173,7 +191,10 @@ class ManualComfortOverride(FrozenModel):
 
     @model_validator(mode="after")
     def valid_window(self):
-        if self.expiresAtMs <= self.createdAtMs or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000:
+        if (
+            self.expiresAtMs <= self.createdAtMs
+            or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000
+        ):
             raise ValueError("invalid_override_window")
         if self.windowState == "open" and self.hvacMode != "off":
             raise ValueError("unsafe_override")
@@ -189,9 +210,15 @@ class ComfortInputRevisions(FrozenModel):
     roomSnapshotRevisions: dict[Identity, Revision] = Field(min_length=1, max_length=32)
     occupancyRevisions: dict[Identity, Revision] = Field(min_length=1, max_length=32)
     occupancySourceIds: dict[Identity, Identity] = Field(min_length=1, max_length=32)
-    occupancySourceRevisions: dict[Identity, Revision] = Field(min_length=1, max_length=32)
-    metricSensorRevisions: dict[Identity, dict[str, Revision]] = Field(min_length=1, max_length=32)
-    metricReadingRevisions: dict[Identity, dict[str, Revision]] = Field(min_length=1, max_length=32)
+    occupancySourceRevisions: dict[Identity, Revision] = Field(
+        min_length=1, max_length=32
+    )
+    metricSensorRevisions: dict[Identity, dict[str, Revision]] = Field(
+        min_length=1, max_length=32
+    )
+    metricReadingRevisions: dict[Identity, dict[str, Revision]] = Field(
+        min_length=1, max_length=32
+    )
     smokeSensorRevisions: dict[Identity, Revision] = Field(min_length=1, max_length=32)
     smokeReadingRevisions: dict[Identity, Revision] = Field(min_length=1, max_length=32)
 
@@ -201,9 +228,16 @@ class ComfortPlanItem(FrozenModel):
     room: RoomComfortScope
     status: Literal["planned", "skipped", "blocked"]
     reason: Literal[
-        "air_refresh", "temperature_low", "temperature_high", "comfortable",
-        "manual_override", "sensor_stale", "smoke_detected", "freeze_risk",
-        "rain_window_block", "outdoor_air_unsafe",
+        "air_refresh",
+        "temperature_low",
+        "temperature_high",
+        "comfortable",
+        "manual_override",
+        "sensor_stale",
+        "smoke_detected",
+        "freeze_risk",
+        "rain_window_block",
+        "outdoor_air_unsafe",
     ]
     hvacMode: Literal["off", "heat", "cool", "ventilate"]
     windowState: Literal["closed", "open"]
@@ -273,7 +307,9 @@ class WorkerComfortReadback(FrozenModel):
 class ComfortPreview(FrozenModel):
     schemaVersion: Literal[1]
     previewId: Identity
-    confirmToken: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
+    confirmToken: str = Field(
+        min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"
+    )
     requestId: Identity
     planId: Identity
     expiresAtMs: TimestampMs
