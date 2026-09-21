@@ -75,6 +75,10 @@ def create_configured_app(settings: Settings):
                 classes=Path(os.environ.get("LARENOR_APKSIG_CLASSES", "/opt/larenor/verifier/classes")),
             ),
         )
+        app.state.core.tablet_fleet.bind_release_catalog(
+            releases.latest,
+            releases.settings.signer_sha256,
+        )
         beta_releases = BetaReleaseSynchronizer(
             releases,
             beta_source,
