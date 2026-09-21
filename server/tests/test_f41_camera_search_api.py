@@ -104,6 +104,18 @@ def test_route_binds_authenticated_account_home_camera_and_private_scope(server)
     assert unavailable.json()["error"]["code"] == "service_unavailable"
 
     _principal, installed = _install(app, pair)
+    discovery = client.get(
+        path.removesuffix("/search") + "/context", headers=auth(pair)
+    )
+    assert discovery.status_code == 200
+    assert discovery.json() == {
+        "schemaVersion": 1,
+        "coreId": context.coreId,
+        "homeId": context.homeId,
+        "indexRevision": 11,
+        "cameraIds": [CAMERA],
+        "maxWindowDays": 31,
+    }
     foreign = client.post(
         f"/api/v1/camera-search/{context.coreId}/{'0' * 32}/search",
         headers=auth(pair),

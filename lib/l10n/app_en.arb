@@ -3317,5 +3317,20 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "cameraSearchTitle": "Camera recording search",
+  "cameraSearchEntrySubtitle": "Private, account-scoped recording metadata",
+  "cameraSearchHint": "Describe an event, object or place",
+  "cameraSearchAction": "Search recordings",
+  "cameraSearchPrompt": "Search only the camera metadata available to this account.",
+  "cameraSearchLoading": "Searching authorized camera metadata…",
+  "cameraSearchEmpty": "No authorized recordings matched this search.",
+  "cameraSearchUnavailable": "Camera search is unavailable.",
+  "cameraSearchInvalidQuery": "Enter at least two characters.",
+  "cameraSearchStale": "These results belong to an earlier session. Search again.",
+  "cameraSearchLocalOnly": "Local metadata results",
+  "cameraSearchSemantic": "Semantic-assisted results",
+  "cameraSearchCapturedAt": "Captured",
+  "cameraSearchCamera": "Camera",
+  "cameraSearchRequired": "Connect to the verified Larenor Core for this home to search camera recordings."
 }

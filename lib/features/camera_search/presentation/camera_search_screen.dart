@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/camera_search_controller.dart';
 import '../domain/camera_search_models.dart';
 
@@ -23,11 +24,34 @@ final class CameraSearchStrings {
     required this.capturedAt,
     required this.camera,
     required this.cameraName,
+    this.entrySubtitle = '',
+    this.requiredMessage = '',
   });
 
   final String title, hint, search, prompt, loading, empty, unavailable;
   final String invalidQuery, stale, localOnly, semantic, capturedAt, camera;
   final String cameraName;
+  final String entrySubtitle, requiredMessage;
+
+  factory CameraSearchStrings.fromLocalizations(AppLocalizations l) =>
+      CameraSearchStrings(
+        title: l.cameraSearchTitle,
+        entrySubtitle: l.cameraSearchEntrySubtitle,
+        hint: l.cameraSearchHint,
+        search: l.cameraSearchAction,
+        prompt: l.cameraSearchPrompt,
+        loading: l.cameraSearchLoading,
+        empty: l.cameraSearchEmpty,
+        unavailable: l.cameraSearchUnavailable,
+        invalidQuery: l.cameraSearchInvalidQuery,
+        stale: l.cameraSearchStale,
+        localOnly: l.cameraSearchLocalOnly,
+        semantic: l.cameraSearchSemantic,
+        capturedAt: l.cameraSearchCapturedAt,
+        camera: l.cameraSearchCamera,
+        cameraName: l.cameraSearchCamera,
+        requiredMessage: l.cameraSearchRequired,
+      );
 
   static const en = CameraSearchStrings(
     title: 'Camera recording search',

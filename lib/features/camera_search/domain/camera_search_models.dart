@@ -47,6 +47,49 @@ enum CameraSearchStatus { ready, degraded }
 enum CameraSearchDegradedReason { semanticProviderUnavailable }
 
 @immutable
+final class CameraSearchContext {
+  CameraSearchContext({
+    required this.coreId,
+    required this.homeId,
+    required this.indexRevision,
+    required List<String> cameraIds,
+  }) : cameraIds = List.unmodifiable(cameraIds);
+
+  factory CameraSearchContext.fromJson(Object? raw, ServerContext context) {
+    final value = _closed(raw, {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'indexRevision',
+      'cameraIds',
+      'maxWindowDays',
+    });
+    final cameras = value['cameraIds'];
+    if (value['schemaVersion'] != 1 ||
+        value['coreId'] != context.coreId ||
+        value['homeId'] != context.homeId ||
+        value['maxWindowDays'] != 31 ||
+        cameras is! List ||
+        cameras.isEmpty ||
+        cameras.length > 64) {
+      _invalid();
+    }
+    final ids = cameras.map(_identity).toList(growable: false);
+    if (ids.toSet().length != ids.length) _invalid();
+    return CameraSearchContext(
+      coreId: context.coreId,
+      homeId: context.homeId,
+      indexRevision: _revision(value['indexRevision']),
+      cameraIds: ids,
+    );
+  }
+
+  final String coreId, homeId;
+  final int indexRevision;
+  final List<String> cameraIds;
+}
+
+@immutable
 final class CameraSearchFilter {
   CameraSearchFilter({
     required this.expectedIndexRevision,

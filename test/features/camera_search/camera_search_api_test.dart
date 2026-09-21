@@ -61,6 +61,41 @@ Map<String, Object?> pageJson({String? homeId, bool secret = false}) => {
 
 void main() {
   test(
+    'context discovery binds exact Core home revision and cameras',
+    () async {
+      late http.Request request;
+      final transport = LarenorServerApi(
+        endpoint: session().endpoint,
+        client: MockClient((value) async {
+          request = value;
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'coreId': 'a' * 32,
+              'homeId': 'b' * 32,
+              'indexRevision': 7,
+              'cameraIds': ['d' * 32],
+              'maxWindowDays': 31,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(transport.close);
+      final api = CameraSearchApi(transport, session(), isCurrent: () => true);
+      final discovered = await api.loadContext();
+      expect(discovered.indexRevision, 7);
+      expect(discovered.cameraIds, ['d' * 32]);
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        '/api/v1/camera-search/${'a' * 32}/${'b' * 32}/context',
+      );
+    },
+  );
+
+  test(
     'search sends an exact bounded request and parses scoped evidence',
     () async {
       late http.Request request;

@@ -2979,5 +2979,20 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "cameraSearchTitle": "Kamera kaydı arama",
+  "cameraSearchEntrySubtitle": "Özel, hesap kapsamlı kayıt metadatası",
+  "cameraSearchHint": "Bir olayı, nesneyi veya yeri anlatın",
+  "cameraSearchAction": "Kayıtlarda ara",
+  "cameraSearchPrompt": "Yalnız bu hesabın erişebildiği kamera metadatasında arama yapın.",
+  "cameraSearchLoading": "Yetkili kamera metadatası aranıyor…",
+  "cameraSearchEmpty": "Bu aramayla eşleşen yetkili kayıt bulunamadı.",
+  "cameraSearchUnavailable": "Kamera aramasına ulaşılamıyor.",
+  "cameraSearchInvalidQuery": "En az iki karakter girin.",
+  "cameraSearchStale": "Bu sonuçlar önceki oturuma ait. Yeniden arayın.",
+  "cameraSearchLocalOnly": "Yerel metadata sonuçları",
+  "cameraSearchSemantic": "Anlamsal destekli sonuçlar",
+  "cameraSearchCapturedAt": "Kayıt zamanı",
+  "cameraSearchCamera": "Kamera",
+  "cameraSearchRequired": "Kamera kayıtlarında arama yapmak için bu evin doğrulanmış Larenor Core bağlantısını kullanın."
 }

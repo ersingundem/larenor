@@ -13,6 +13,7 @@ from ..models import ErrorResponse
 from .index import CameraSearchIndex
 from .models import (
     CameraSearchAuthority,
+    CameraSearchContextResponse,
     CameraSearchPage,
     CameraSearchRequest,
     Identity,
@@ -102,6 +103,27 @@ class CameraSearchRuntime:
             raise ApiError("revision_conflict", 409)
         return result
 
+    def context(
+        self,
+        core: CoreServices,
+        actor: Principal,
+        core_id: str,
+        home_id: str,
+    ) -> CameraSearchContextResponse:
+        if core.context.coreId != core_id or core.context.homeId != home_id:
+            raise ApiError("not_found", 404)
+        with core.db.connection() as connection:
+            core.auth.assert_current(connection, actor)
+        authority = self._authority(actor, core_id, home_id)
+        return CameraSearchContextResponse(
+            schemaVersion=1,
+            coreId=core_id,
+            homeId=home_id,
+            indexRevision=self._index.revision,
+            cameraIds=authority.accessibleCameraIds,
+            maxWindowDays=31,
+        )
+
 
 def get_camera_search_runtime(request: Request) -> CameraSearchRuntime:
     runtime = getattr(request.app.state, "camera_search_runtime", None)
@@ -121,6 +143,20 @@ router = APIRouter(
         for status in (400, 401, 403, 404, 409, 413, 429, 503)
     },
 )
+
+
+@router.get(
+    "/camera-search/{core_id}/{home_id}/context",
+    response_model=CameraSearchContextResponse,
+)
+def camera_search_context(
+    core_id: Identity,
+    home_id: Identity,
+    actor: Ready,
+    core: Core,
+    runtime: Runtime,
+):
+    return runtime.context(core, actor, core_id, home_id)
 
 
 @router.post(

@@ -26,6 +26,18 @@ final class CameraSearchApi implements CameraSearchGateway {
     throw const LarenorServerException('cancelled');
   }
 
+  Future<CameraSearchContext> loadContext() async {
+    _check();
+    final context = _context;
+    final response = await _api.request(
+      'GET',
+      '/camera-search/${context.coreId}/${context.homeId}/context',
+      token: _session.accessToken,
+    );
+    _check();
+    return CameraSearchContext.fromJson(response, context);
+  }
+
   @override
   Future<CameraSearchPage> search({
     required String query,
