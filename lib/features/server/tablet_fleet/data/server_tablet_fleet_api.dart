@@ -108,8 +108,7 @@ class ServerTabletFleetApi {
     );
     final readback = await _find(tablet.id);
     if (readback.state != TabletFleetState.revoked ||
-        readback.revision < tablet.revision ||
-        readback.revision > tablet.revision + 1) {
+        readback.revision != tablet.revision + 1) {
       throw const LarenorServerException('invalid_response');
     }
     return readback;

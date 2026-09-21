@@ -56,6 +56,7 @@ Map<String, dynamic> fleetCommand({
   String? result,
   int policyRevision = 1,
   double expiresAt = 1789977660.0,
+  double createdAt = 1789977600.0,
 }) => {
   'schemaVersion': 1,
   'id': id,
@@ -68,8 +69,12 @@ Map<String, dynamic> fleetCommand({
   'expiresAt': expiresAt,
   'state': state,
   'result': result,
-  'createdAt': 1789977600.0,
-  'completedAt': {'completed', 'expired'}.contains(state) ? 1789977601.0 : null,
+  'createdAt': createdAt,
+  'completedAt': switch (state) {
+    'completed' => 1789977601.0,
+    'expired' => expiresAt,
+    _ => null,
+  },
 };
 
 class TabletFleetFixture extends AdminFixture {
@@ -157,6 +162,7 @@ class TabletFleetFixture extends AdminFixture {
         kind: body['command'] as String,
         policyRevision: body['expectedPolicyRevision'] as int,
         expiresAt: body['expiresAt'] as double,
+        createdAt: (body['expiresAt'] as double) - 60,
       );
       return this.json({'command': command}, 201);
     }

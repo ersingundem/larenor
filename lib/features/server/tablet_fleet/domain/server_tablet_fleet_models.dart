@@ -301,13 +301,19 @@ final class ManagedTabletCommand {
     final completedAt = json['completedAt'] == null
         ? null
         : _time(json['completedAt']);
+    final expiresAt = _time(json['expiresAt']);
+    final createdAt = _time(json['createdAt']);
     final terminal =
         state == TabletCommandState.completed ||
         state == TabletCommandState.expired;
     if (requiredMode != kind.requiredMode ||
+        createdAt >= expiresAt ||
         (terminal
             ? result == null || completedAt == null
             : result != null || completedAt != null) ||
+        (completedAt != null && completedAt < createdAt) ||
+        (state == TabletCommandState.completed && completedAt! >= expiresAt) ||
+        (state == TabletCommandState.expired && completedAt! < expiresAt) ||
         (state == TabletCommandState.expired) !=
             (result == TabletCommandResult.expired) ||
         (state == TabletCommandState.completed &&
@@ -320,10 +326,10 @@ final class ManagedTabletCommand {
       kind: kind,
       requiredMode: requiredMode,
       policyRevision: _revision(json['policyRevision']),
-      expiresAt: _time(json['expiresAt']),
+      expiresAt: expiresAt,
       state: state,
       result: result,
-      createdAt: _time(json['createdAt']),
+      createdAt: createdAt,
       completedAt: completedAt,
     );
   }
