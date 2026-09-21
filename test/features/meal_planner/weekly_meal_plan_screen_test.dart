@@ -157,4 +157,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Mercimek çorbası'), findsNothing);
   });
+
+  testWidgets('inactive route clears an already loaded menu before reuse', (
+    tester,
+  ) async {
+    final active = ValueNotifier(true);
+    addTearDown(active.dispose);
+    await tester.pumpWidget(
+      CupertinoApp(
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: ValueListenableBuilder<bool>(
+          valueListenable: active,
+          builder: (context, enabled, _) => TickerMode(
+            enabled: enabled,
+            child: WeeklyMealPlanScreen(
+              gateway: FakeGateway(Future.value(snapshot())),
+              isCurrent: () => true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Mercimek çorbası'), findsOneWidget);
+    active.value = false;
+    await tester.pumpAndSettle();
+    expect(find.text('Mercimek çorbası'), findsNothing);
+  });
 }
