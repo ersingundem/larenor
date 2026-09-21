@@ -7,6 +7,7 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
@@ -28,6 +29,7 @@ enum SettingsCategory {
   display,
   security,
   homeAssistant,
+  cameraVisualSensors,
   intercom,
   integrations,
   meshCenter,
@@ -47,6 +49,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.backupGateCurrent,
     this.remoteGateCurrent,
     this.meshGateCurrent,
+    this.visualSensorGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
@@ -54,6 +57,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
+  final bool Function()? visualSensorGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -143,6 +147,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      visualSensorGateCurrent: widget.visualSensorGateCurrent,
                     ),
                   ),
                 ),
@@ -166,6 +171,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            visualSensorGateCurrent: widget.visualSensorGateCurrent,
           ),
         ),
       ),
@@ -205,6 +211,7 @@ Widget paneFor(
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
+  bool Function()? visualSensorGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -221,6 +228,10 @@ Widget paneFor(
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
       return const HomeAssistantPane();
+    case SettingsCategory.cameraVisualSensors:
+      return CameraVisualSensorRoute(
+        gateCurrent: visualSensorGateCurrent ?? () => false,
+      );
     case SettingsCategory.intercom:
       return const IntercomSettingsScreen();
     case SettingsCategory.integrations:
@@ -290,6 +301,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.cube_box,
         CupertinoColors.systemIndigo,
         l10n.settingsCategoryHomeAssistant,
+      ),
+      (
+        SettingsCategory.cameraVisualSensors,
+        CupertinoIcons.camera_viewfinder,
+        CupertinoColors.systemPurple,
+        l10n.cameraVisualSensorsTitle,
       ),
       (
         SettingsCategory.integrations,
