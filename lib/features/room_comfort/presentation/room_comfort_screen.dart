@@ -29,6 +29,12 @@ final class RoomComfortStrings {
     required this.advisoryOccupied,
     required this.advisoryUnoccupied,
     required this.advisoryStale,
+    required this.review,
+    required this.confirmTitle,
+    required this.confirmBody,
+    required this.confirm,
+    required this.cancel,
+    required this.recorded,
     required this.reasons,
   });
 
@@ -36,6 +42,7 @@ final class RoomComfortStrings {
   final String noPlan, planned, skipped, blocked, heat, cool, ventilate;
   final String hvacOff, windowOpen, windowClosed;
   final String advisoryOccupied, advisoryUnoccupied, advisoryStale;
+  final String review, confirmTitle, confirmBody, confirm, cancel, recorded;
   final Map<ComfortReason, String> reasons;
 
   static const en = RoomComfortStrings(
@@ -58,6 +65,12 @@ final class RoomComfortStrings {
     advisoryOccupied: 'Occupancy advisory: occupied',
     advisoryUnoccupied: 'Occupancy advisory: unoccupied',
     advisoryStale: 'Occupancy advisory: stale',
+    review: 'Review comfort plan',
+    confirmTitle: 'Confirm comfort plan',
+    confirmBody: 'Larenor records this exact plan request. Device delivery remains unverified until provider readback.',
+    confirm: 'Confirm plan',
+    cancel: 'Not now',
+    recorded: 'Plan request recorded. Device delivery is not verified.',
     reasons: {
       ComfortReason.airRefresh: 'Air refresh recommended',
       ComfortReason.temperatureLow: 'Temperature below target',
@@ -92,6 +105,12 @@ final class RoomComfortStrings {
     advisoryOccupied: 'Varlık önerisi: odada biri var',
     advisoryUnoccupied: 'Varlık önerisi: oda boş',
     advisoryStale: 'Varlık önerisi: güncel değil',
+    review: 'Konfor planını incele',
+    confirmTitle: 'Konfor planını onayla',
+    confirmBody: 'Larenor bu tam plan isteğini kaydeder. Sağlayıcı geri okumasına kadar cihaza iletim doğrulanmış sayılmaz.',
+    confirm: 'Planı onayla',
+    cancel: 'Şimdi değil',
+    recorded: 'Plan isteği kaydedildi. Cihaza iletim doğrulanmadı.',
     reasons: {
       ComfortReason.airRefresh: 'Hava yenileme öneriliyor',
       ComfortReason.temperatureLow: 'Sıcaklık hedefin altında',
@@ -144,6 +163,46 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
     if (mounted) setState(() {});
   }
 
+  Future<void> _review() async {
+    if (!_current) return;
+    final preview = await widget.controller.preview();
+    if (!mounted || !_current || preview == null) return;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(widget.strings.confirmTitle),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text(widget.strings.confirmBody),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Center(child: Text(widget.strings.cancel)),
+            ),
+          ),
+          CupertinoDialogAction(
+            key: const ValueKey('comfort-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Center(child: Text(widget.strings.confirm)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || !_current) return;
+    if (accepted == true) {
+      await widget.controller.confirm(preview);
+    } else {
+      widget.controller.cancelPreview(preview);
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
@@ -178,24 +237,45 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
     if (controller.busy && controller.plan == null) {
       return _Status(text: widget.strings.loading);
     }
-    if (controller.failure case final failure?) {
+    final failure = controller.failure;
+    if (failure != null && controller.plan == null) {
       return _Status(
         live: true,
-        text: switch (failure) {
-          RoomComfortFailure.unavailable => widget.strings.unavailable,
-          RoomComfortFailure.staleAuthority => widget.strings.stale,
-          RoomComfortFailure.invalidScope => widget.strings.invalidScope,
-        },
+        text: _failureText(failure),
+        actionLabel: widget.strings.refresh,
+        onAction: controller.busy || !_current ? null : controller.refresh,
       );
     }
     final plan = controller.plan;
-    if (plan == null) return _Status(text: widget.strings.noPlan);
+    if (plan == null) {
+      return _Status(
+        text: widget.strings.noPlan,
+        actionLabel: widget.strings.refresh,
+        onAction: controller.busy || !_current ? null : controller.refresh,
+      );
+    }
     final columns = width >= 1000 ? 2 : 1;
     const gap = 20.0;
     final cardWidth = (width - gap * (columns - 1)) / columns;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (failure != null)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(_failureText(failure), style: AppText.body),
+            ),
+          ),
+        if (controller.receipt != null)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(widget.strings.recorded, style: AppText.headline),
+            ),
+          ),
         Align(
           alignment: AlignmentDirectional.centerEnd,
           child: Semantics(
@@ -220,6 +300,23 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: CupertinoButton.filled(
+            key: const ValueKey('comfort-review'),
+            minimumSize: const Size(48, 48),
+            onPressed:
+                controller.busy ||
+                    !_current ||
+                    plan.rooms.every(
+                      (room) => room.status != ComfortPlanStatus.planned,
+                    )
+                ? null
+                : _review,
+            child: Text(widget.strings.review),
+          ),
+        ),
         const SizedBox(height: 20),
         Wrap(
           spacing: gap,
@@ -235,23 +332,48 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
       ],
     );
   }
+
+  String _failureText(RoomComfortFailure failure) => switch (failure) {
+    RoomComfortFailure.unavailable => widget.strings.unavailable,
+    RoomComfortFailure.staleAuthority => widget.strings.stale,
+    RoomComfortFailure.invalidScope => widget.strings.invalidScope,
+  };
 }
 
 class _Status extends StatelessWidget {
-  const _Status({required this.text, this.live = false});
+  const _Status({
+    required this.text,
+    this.live = false,
+    this.actionLabel,
+    this.onAction,
+  });
   final String text;
   final bool live;
+  final String? actionLabel;
+  final VoidCallback? onAction;
   @override
   Widget build(BuildContext context) => Semantics(
     liveRegion: live,
     child: Padding(
       padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Text(
-          text,
-          style: AppText.emptyStateBody,
-          textAlign: TextAlign.center,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: AppText.emptyStateBody,
+            textAlign: TextAlign.center,
+          ),
+          if (actionLabel case final action?) ...[
+            const SizedBox(height: 16),
+            CupertinoButton(
+              key: const ValueKey('comfort-status-refresh'),
+              minimumSize: const Size(48, 48),
+              onPressed: onAction,
+              child: Text(action),
+            ),
+          ],
+        ],
       ),
     ),
   );

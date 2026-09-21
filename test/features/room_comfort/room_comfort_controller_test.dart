@@ -34,8 +34,34 @@ final class _Gateway implements RoomComfortGateway {
   _Gateway(this.next);
   final Future<RoomComfortPlan> next;
   bool retired = false;
+  Future<RoomComfortPreview>? nextPreview;
+  Future<RoomComfortReceipt>? nextReceipt;
   @override
   Future<RoomComfortPlan> loadPlan() => next;
+  @override
+  Future<RoomComfortPreview> preview(RoomComfortPlan plan, String requestId) =>
+      nextPreview ??
+      Future.value(
+        RoomComfortPreview(
+          id: '1' * 32,
+          planId: plan.planId,
+          policyRevision: plan.policyRevision,
+          token: 'A' * 43,
+          expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
+          commandCount: 1,
+        ),
+      );
+  @override
+  Future<RoomComfortReceipt> confirm(RoomComfortPreview preview) =>
+      nextReceipt ??
+      Future.value(
+        RoomComfortReceipt(
+          requestId: '2' * 32,
+          planId: preview.planId,
+          status: 'unknown',
+          commandCount: preview.commandCount,
+        ),
+      );
   @override
   void retire() => retired = true;
 }
@@ -46,7 +72,7 @@ RoomComfortController _controller(_Gateway gateway, bool Function() current) =>
       isCurrent: current,
       coreId: 'a' * 32,
       homeId: 'b' * 32,
-      sessionFamilyId: 'e' * 32,
+      requestId: () => '3' * 32,
     );
 
 void main() {
@@ -85,6 +111,42 @@ void main() {
     await operation;
     expect(value.plan, isNull);
     expect(gateway.retired, isTrue);
+    value.dispose();
+  });
+
+  test('preview and exact receipt reconcile once', () async {
+    final gateway = _Gateway(Future.value(plan()));
+    final value = _controller(gateway, () => true);
+    await value.refresh();
+    final preview = await value.preview();
+    expect(preview, isNotNull);
+    expect(await value.confirm(preview!), isTrue);
+    expect(value.receipt?.status, 'unknown');
+    expect(await value.confirm(preview), isFalse);
+    value.dispose();
+  });
+
+  test('late confirmation is rejected after authority retires', () async {
+    final gateway = _Gateway(Future.value(plan()));
+    final pending = Completer<RoomComfortReceipt>();
+    gateway.nextReceipt = pending.future;
+    var current = true;
+    final value = _controller(gateway, () => current);
+    await value.refresh();
+    final preview = await value.preview();
+    final operation = value.confirm(preview!);
+    current = false;
+    value.retire();
+    pending.complete(
+      RoomComfortReceipt(
+        requestId: '2' * 32,
+        planId: preview.planId,
+        status: 'unknown',
+        commandCount: preview.commandCount,
+      ),
+    );
+    expect(await operation, isFalse);
+    expect(value.receipt, isNull);
     value.dispose();
   });
 }

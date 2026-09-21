@@ -62,6 +62,7 @@ from .proxmox_commands.api import router as proxmox_power_router
 from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
+from .room_comfort.api import router as room_comfort_router
 from .tablet_fleet.api import router as tablet_fleet_router
 from .mesh_center.api import router as mesh_center_router
 
@@ -278,6 +279,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(personal_profiles_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
+    app.include_router(room_comfort_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")

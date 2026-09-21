@@ -10,6 +10,7 @@ import '../../backup/presentation/backup_screen.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
+import '../../room_comfort/presentation/room_comfort_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -25,6 +26,7 @@ enum SettingsCategory {
   connection,
   server,
   remoteAccess,
+  roomComfort,
   display,
   security,
   homeAssistant,
@@ -47,6 +49,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.backupGateCurrent,
     this.remoteGateCurrent,
     this.meshGateCurrent,
+    this.comfortGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
@@ -54,6 +57,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
+  final bool Function()? comfortGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -143,6 +147,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      comfortGateCurrent: widget.comfortGateCurrent,
                     ),
                   ),
                 ),
@@ -166,6 +171,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            comfortGateCurrent: widget.comfortGateCurrent,
           ),
         ),
       ),
@@ -205,6 +211,7 @@ Widget paneFor(
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
+  bool Function()? comfortGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -213,6 +220,8 @@ Widget paneFor(
       return RemoteProfilesScreen(
         gateCurrent: remoteGateCurrent ?? () => false,
       );
+    case SettingsCategory.roomComfort:
+      return RoomComfortRoute(gateCurrent: comfortGateCurrent ?? () => false);
     case SettingsCategory.server:
       return const ServerConnectionScreen();
     case SettingsCategory.display:
@@ -272,6 +281,14 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.desktopcomputer,
         CupertinoColors.systemTeal,
         l10n.remoteAccessTitle,
+      ),
+      (
+        SettingsCategory.roomComfort,
+        CupertinoIcons.thermometer,
+        CupertinoColors.systemGreen,
+        Localizations.localeOf(context).languageCode == 'tr'
+            ? 'Oda konforu'
+            : 'Room comfort',
       ),
       (
         SettingsCategory.display,

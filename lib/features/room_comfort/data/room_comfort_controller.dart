@@ -12,27 +12,32 @@ final class RoomComfortController extends ChangeNotifier {
     required bool Function() isCurrent,
     required String coreId,
     required String homeId,
-    required String sessionFamilyId,
-  }) : this._(gateway, isCurrent, coreId, homeId, sessionFamilyId);
+    required String Function() requestId,
+  }) : this._(gateway, isCurrent, coreId, homeId, requestId);
 
   RoomComfortController._(
     this._gateway,
     this._isCurrent,
     this._coreId,
     this._homeId,
-    this._sessionFamilyId,
+    this._requestId,
   );
 
   final RoomComfortGateway _gateway;
   final bool Function() _isCurrent;
-  final String _coreId, _homeId, _sessionFamilyId;
+  final String _coreId, _homeId;
+  final String Function() _requestId;
   RoomComfortPlan? _plan;
+  RoomComfortPreview? _preview;
+  RoomComfortReceipt? _receipt;
   RoomComfortFailure? _failure;
   bool _busy = false, _retired = false;
   int _epoch = 0;
 
   RoomComfortPlan? get plan => _plan;
   RoomComfortFailure? get failure => _failure;
+  RoomComfortPreview? get previewValue => _preview;
+  RoomComfortReceipt? get receipt => _receipt;
   bool get busy => _busy;
 
   bool _current() {
@@ -49,6 +54,7 @@ final class RoomComfortController extends ChangeNotifier {
     final operation = ++_epoch;
     _busy = true;
     _failure = null;
+    _preview = null;
     notifyListeners();
     try {
       final next = await _gateway.loadPlan();
@@ -71,7 +77,6 @@ final class RoomComfortController extends ChangeNotifier {
       if (!exactIdentities ||
           next.coreId != _coreId ||
           next.homeId != _homeId ||
-          next.sessionFamilyId != _sessionFamilyId ||
           next.homeRevision < 1 ||
           next.policyRevision < 1 ||
           next.accountRevision < 1 ||
@@ -110,12 +115,93 @@ final class RoomComfortController extends ChangeNotifier {
     }
   }
 
+  Future<RoomComfortPreview?> preview() async {
+    final plan = _plan;
+    if (_busy ||
+        !_current() ||
+        plan == null ||
+        plan.rooms.every((room) => room.status != ComfortPlanStatus.planned)) {
+      return null;
+    }
+    final operation = ++_epoch;
+    _busy = true;
+    _failure = null;
+    _preview = null;
+    notifyListeners();
+    try {
+      final value = await _gateway.preview(plan, _requestId());
+      if (operation != _epoch ||
+          !_current() ||
+          value.planId != plan.planId ||
+          value.policyRevision != plan.policyRevision ||
+          !value.expiresAt.isAfter(DateTime.now().toUtc())) {
+        if (!_retired) _failure = RoomComfortFailure.staleAuthority;
+        return null;
+      }
+      _preview = value;
+      return value;
+    } catch (_) {
+      if (operation == _epoch && _current()) {
+        _failure = RoomComfortFailure.unavailable;
+      }
+      return null;
+    } finally {
+      if (operation == _epoch && !_retired) {
+        _busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> confirm(RoomComfortPreview value) async {
+    if (_busy ||
+        !_current() ||
+        !identical(value, _preview) ||
+        !value.expiresAt.isAfter(DateTime.now().toUtc())) {
+      return false;
+    }
+    final operation = ++_epoch;
+    _busy = true;
+    _preview = null;
+    _failure = null;
+    notifyListeners();
+    try {
+      final receipt = await _gateway.confirm(value);
+      if (operation != _epoch ||
+          !_current() ||
+          receipt.planId != value.planId ||
+          receipt.commandCount != value.commandCount) {
+        if (!_retired) _failure = RoomComfortFailure.staleAuthority;
+        return false;
+      }
+      _receipt = receipt;
+      return true;
+    } catch (_) {
+      if (operation == _epoch && _current()) {
+        _failure = RoomComfortFailure.unavailable;
+      }
+      return false;
+    } finally {
+      if (operation == _epoch && !_retired) {
+        _busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  void cancelPreview(RoomComfortPreview value) {
+    if (!identical(value, _preview)) return;
+    _preview = null;
+    notifyListeners();
+  }
+
   void retire() {
     if (_retired) return;
     _retired = true;
     _epoch++;
     _busy = false;
     _plan = null;
+    _preview = null;
     _gateway.retire();
   }
 

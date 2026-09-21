@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .room_comfort.schema import migrate_room_comfort
+from .room_comfort.service import RoomComfortService
 
 
 class CoreServices:
@@ -222,6 +224,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_room_comfort(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -311,6 +314,9 @@ class CoreServices:
                     clock=settings.clock,
                 )
             )
+            self.room_comfort = RoomComfortService(
+                self.db, self.auth, settings, key, self.context)
+            self.room_comfort.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

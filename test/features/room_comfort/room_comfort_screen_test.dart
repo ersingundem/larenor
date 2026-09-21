@@ -43,10 +43,39 @@ RoomComfortPlan _plan() => RoomComfortPlan(
 
 final class _Gateway implements RoomComfortGateway {
   int loads = 0;
+  int previews = 0;
+  int confirms = 0;
   @override
   Future<RoomComfortPlan> loadPlan() async {
     loads++;
     return _plan();
+  }
+
+  @override
+  Future<RoomComfortPreview> preview(
+    RoomComfortPlan plan,
+    String requestId,
+  ) async {
+    previews++;
+    return RoomComfortPreview(
+      id: '1' * 32,
+      planId: plan.planId,
+      policyRevision: plan.policyRevision,
+      token: 'A' * 43,
+      expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
+      commandCount: 1,
+    );
+  }
+
+  @override
+  Future<RoomComfortReceipt> confirm(RoomComfortPreview preview) async {
+    confirms++;
+    return RoomComfortReceipt(
+      requestId: '2' * 32,
+      planId: preview.planId,
+      status: 'unknown',
+      commandCount: preview.commandCount,
+    );
   }
 
   @override
@@ -73,7 +102,7 @@ Future<_Gateway> _pump(
           isCurrent: () => true,
           coreId: 'a' * 32,
           homeId: 'b' * 32,
-          sessionFamilyId: 'e' * 32,
+          requestId: () => '3' * 32,
         ),
       ),
     ),
@@ -140,5 +169,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.loads, 2);
     semantics.dispose();
+  });
+
+  testWidgets('explicit review confirms one bounded plan request', (
+    tester,
+  ) async {
+    final gateway = await _pump(
+      tester,
+      width: 600,
+      strings: RoomComfortStrings.en,
+    );
+    final review = find.byKey(const ValueKey('comfort-review'));
+    await tester.ensureVisible(review);
+    expect(tester.getSize(review).height, greaterThanOrEqualTo(48));
+    await tester.tap(review);
+    await tester.pumpAndSettle();
+    expect(find.text(RoomComfortStrings.en.confirmBody), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('comfort-confirm')));
+    await tester.pumpAndSettle();
+    expect(gateway.previews, 1);
+    expect(gateway.confirms, 1);
+    expect(find.text(RoomComfortStrings.en.recorded), findsOneWidget);
   });
 }
