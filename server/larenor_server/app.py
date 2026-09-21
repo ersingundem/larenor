@@ -69,6 +69,7 @@ from .camera_search.api import (
     CameraSearchRuntime,
     router as camera_search_router,
 )
+from .sound_events.api import router as sound_events_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -289,6 +290,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(camera_search_router, prefix="/api/v1")
+    app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")
