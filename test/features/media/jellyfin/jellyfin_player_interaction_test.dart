@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -107,7 +108,12 @@ class _Harness {
   final navigator = GlobalKey<NavigatorState>();
   final item = ValueNotifier(_movie);
   late ProviderContainer container;
-  Future<void> mount(WidgetTester tester) async {
+  Future<void> mount(
+    WidgetTester tester, {
+    Locale locale = const Locale('en'),
+    double width = 1200,
+    double textScale = 1,
+  }) async {
     container = ProviderContainer(
       overrides: [
         jellyfinClientProvider.overrideWithValue(client),
@@ -123,16 +129,22 @@ class _Harness {
     addTearDown(replacement.dispose);
     addTearDown(interaction.dispose);
     addTearDown(item.dispose);
+    tester.view.physicalSize = Size(width, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
           navigatorKey: navigator,
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          builder: (_, child) =>
-              AppInteractionScope(controller: interaction, child: child!),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: AppInteractionScope(controller: interaction, child: child!),
+          ),
           home: ValueListenableBuilder(
             valueListenable: item,
             builder: (_, value, _) => JellyfinPlayerScreen(item: value),
@@ -214,6 +226,59 @@ class _Harness {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'Jellyfin player controls are tablet ready $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final h = _Harness();
+          try {
+            await h.mount(
+              tester,
+              locale: Locale(language),
+              width: width,
+              textScale: 2,
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(JellyfinPlayerScreen)),
+            );
+            for (final entry in [
+              ('jellyfin-player-back', l10n.commonBack),
+              ('jellyfin-player-subtitles', l10n.jellyfinPlayerSubtitlesButton),
+              ('jellyfin-player-audio', l10n.jellyfinPlayerAudioButton),
+              ('jellyfin-player-quality', l10n.jellyfinPlayerQualityButton),
+              ('jellyfin-player-toggle', l10n.entityControlPause),
+            ]) {
+              final button = find.byKey(ValueKey(entry.$1));
+              expect(button, findsOneWidget);
+              expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
+              expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+              expect(
+                tester
+                    .getSemantics(find.bySemanticsLabel(entry.$2))
+                    .flagsCollection
+                    .isButton,
+                isTrue,
+              );
+            }
+            Focus.of(
+              tester.element(find.bySemanticsLabel(l10n.entityControlPause)),
+            ).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(h.player.commands, ['toggle']);
+            expect(tester.takeException(), isNull);
+            await h.close(tester);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   for (final kind in [
     (
       name: 'subtitle',
