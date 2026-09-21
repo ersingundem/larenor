@@ -88,6 +88,7 @@ class Provider:
             CameraProviderSupport(
                 schemaVersion=1,
                 camera=self.policy.cameras[0],
+                displayName="Front door",
                 providerRevision=11,
                 recordingSupported=True,
                 detectionSupported=True,
@@ -96,6 +97,7 @@ class Provider:
             CameraProviderSupport(
                 schemaVersion=1,
                 camera=self.policy.cameras[1],
+                displayName="Living room",
                 providerRevision=12,
                 recordingSupported=False,
                 detectionSupported=False,
