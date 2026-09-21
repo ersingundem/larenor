@@ -13,11 +13,13 @@ from .models import (
 
 
 class CameraProfileHttpGateway:
-    def __init__(self, *, engine, coordinator, provider, clockMs):
+    def __init__(self, *, engine, coordinator, provider, clockMs, coreId, homeId):
         self._engine = engine
         self._coordinator = coordinator
         self._provider = provider
         self._clock_ms = clockMs
+        self._core_id = coreId
+        self._home_id = homeId
 
     @staticmethod
     def _actor(authority, actor, core_id, home_id):
@@ -48,6 +50,8 @@ class CameraProfileHttpGateway:
         except Exception:
             raise ApiError("camera_profile_provider_unavailable", 503) from None
         self._actor(authority, actor, core_id, home_id)
+        if (core_id, home_id) != (self._core_id, self._home_id):
+            raise ApiError("not_found", 404)
         if (
             policy.coreId,
             policy.homeId,

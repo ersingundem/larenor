@@ -101,9 +101,11 @@ final class CameraProfileController extends ChangeNotifier {
         return;
       }
       receipt = result;
-      state = result.fullyVerified
-          ? CameraProfileViewState.verified
-          : CameraProfileViewState.partial;
+      state = switch (result.status) {
+        'applied' || 'already_applied' => CameraProfileViewState.verified,
+        'partial' => CameraProfileViewState.partial,
+        _ => CameraProfileViewState.failed,
+      };
     } catch (_) {
       if (operation != _epoch || !_current()) {
         _stale();

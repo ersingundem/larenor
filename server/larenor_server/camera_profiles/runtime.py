@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import re
 from typing import Protocol
 
 from .audit import TamperEvidentCameraAudit
@@ -23,6 +24,11 @@ class CameraProfileProvider(Protocol):
 
 
 def build_camera_profile_gateway(provider, *, master_key: bytes, clock):
+    identity = re.compile(r"^[0-9a-f]{32}$")
+    if not identity.fullmatch(provider.core_id) or not identity.fullmatch(
+        provider.home_id
+    ):
+        raise ValueError("invalid_camera_profile_scope")
     clock_ms = lambda: int(clock() * 1000)
     audit_key = hmac.new(
         master_key,
@@ -48,4 +54,6 @@ def build_camera_profile_gateway(provider, *, master_key: bytes, clock):
         coordinator=coordinator,
         provider=provider,
         clockMs=clock_ms,
+        coreId=provider.core_id,
+        homeId=provider.home_id,
     )

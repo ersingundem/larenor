@@ -7,6 +7,7 @@ import 'package:larenor/features/camera_profiles/data/camera_profile_api.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 const core = '11111111111111111111111111111111';
 const home = '22222222222222222222222222222222';
@@ -135,8 +136,8 @@ Map<String, dynamic> get snapshot => {
       'camera': scope,
       'displayName': 'Front door',
       'providerRevision': 7,
-      'recordingSupported': true,
-      'detectionSupported': true,
+      'recordingSupported': false,
+      'detectionSupported': false,
       'verifiedAtMs': 1000,
     },
   ],
@@ -166,12 +167,12 @@ Future<ServerAccountController> _account(
 
 void main() {
   test(
-    'authenticated client sends exact snapshot and preserves partial readback',
+    'authenticated client sends exact snapshot and preserves failed readback',
     () async {
       final requests = <http.Request>[];
       final account = await _account((request) async {
         requests.add(request);
-        if (request.url.path.endsWith('/auth/login'))
+        if (request.url.path.endsWith('/auth/login')) {
           return _json({
             'accessToken': 'a' * 43,
             'refreshToken': 'b' * 43,
@@ -183,8 +184,10 @@ void main() {
               'mustChangePassword': false,
             },
           });
-        if (request.url.path.endsWith('/context'))
+        }
+        if (request.url.path.endsWith('/context')) {
           return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
         if (request.method == 'GET') return _json({'snapshot': snapshot});
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['authority'], authority);
@@ -195,7 +198,7 @@ void main() {
             'requestId': body['requestId'],
             'profileId': profile,
             'profileRevision': 3,
-            'status': 'partial',
+            'status': 'failed',
             'createdAtMs': 1001,
             'results': [
               {
@@ -222,12 +225,55 @@ void main() {
       expect(current.cameras.single.name, 'Front door');
       expect(current.makesNoHardwarePrivacyClaim, isTrue);
       final receipt = await api.apply(current);
-      expect(receipt.status, 'partial');
+      expect(receipt.status, 'failed');
       expect(receipt.results.single.code, 'provider_unsupported');
       expect(requests.last.headers['authorization'], 'Bearer ${'a' * 43}');
       expect(
         requests.last.url.path,
         '/api/v1/admin/camera-profiles/$core/$home/apply',
+      );
+    },
+  );
+
+  test(
+    'client rejects a provider claim that camera hardware is disabled',
+    () async {
+      final unsafe = Map<String, dynamic>.from(snapshot);
+      unsafe['privacyBoundary'] = {
+        'microphoneDisabled': true,
+        'cameraHardwareDisabled': false,
+        'otherRecordersDisabled': false,
+      };
+      final account = await _account((request) async {
+        if (request.url.path.endsWith('/auth/login')) {
+          return _json({
+            'accessToken': 'a' * 43,
+            'refreshToken': 'b' * 43,
+            'expiresIn': 3600,
+            'user': {
+              'id': accountId,
+              'username': 'admin',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
+        return _json({'snapshot': unsafe});
+      });
+      addTearDown(account.dispose);
+      final api = CoreCameraProfileApi(
+        account: account,
+        routeId: 'd' * 32,
+        sessionRevision: 1,
+        routeRevision: 2,
+        isCurrent: () => true,
+      );
+      await expectLater(
+        api.bootstrap(),
+        throwsA(isA<LarenorServerException>()),
       );
     },
   );
