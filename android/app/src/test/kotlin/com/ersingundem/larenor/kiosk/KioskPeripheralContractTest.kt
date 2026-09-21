@@ -55,6 +55,19 @@ class KioskPeripheralContractTest {
         )
     }
 
+    @Test fun inventoryFreezesCapabilitySnapshotAgainstSilentPermissionDrift() {
+        val source = capabilities().providers.toMutableList()
+        val inventory = KioskPeripheralInventory(5, false, source)
+        source[0] = source[0].copyForTest(enabledByUser = false)
+        assertEquals(PeripheralAvailability.ready, inventory.provider("qr.local_camera").availability(false))
+        fails { KioskPeripheralInputGate().accept(event() + ("capabilityRevision" to 4), inventory, authority, true, 50_000L) }
+        try {
+            (inventory.providers as MutableList<PeripheralCapability>)[0] = source[0]
+            fail("capability snapshot must not be mutable")
+        } catch (_: UnsupportedOperationException) {
+        }
+    }
+
     @Test fun inputIsBoundedReviewOnlyAndNeverExecutes() {
         val accepted = KioskPeripheralInputGate().accept(event(), capabilities(), authority, true, 50_000L)
         assertEquals("javascript:alert(1)", accepted.payload)

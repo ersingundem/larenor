@@ -28,7 +28,7 @@ peripheral adapter is enabled.
 | --- | --- | --- |
 | RED | focused Flutter contract test before production code | Expected compile failure: contract absent; checkpoint `4770e84f` |
 | Flutter | `flutter test test/features/kiosk/kiosk_peripheral_contract_test.dart --coverage` | 3/3 passed; 139/158 lines, **88.0%** |
-| Kotlin | `./android/gradlew -p android :app:testDebugUnitTest --tests com.ersingundem.larenor.kiosk.KioskPeripheralContractTest` | 3/3 passed, 0 failures/errors |
+| Kotlin | `./android/gradlew -p android :app:testDebugUnitTest --tests com.ersingundem.larenor.kiosk.KioskPeripheralContractTest` | 4/4 passed, 0 failures/errors |
 | Static analysis | focused `flutter analyze` | 0 issues |
 
 ## Dependent and manual boundary
@@ -39,3 +39,9 @@ Android permission brokers and real QR/NFC/BLE/USB/TTS/print adapters remain
 follow-up work. GMS-free Huawei, permission dialogs, cable removal, USB reader
 keyboard mode and physical peripherals remain **MANUAL**. Queue progress stays
 **22/125 (17.6%)** and feature progress stays **0/63**.
+
+Native review regression: the Kotlin inventory now copies and freezes its
+provider list, matching Dart's immutable snapshot. Mutating the caller's list
+or casting the published list to a mutable one cannot change opt-in/permission
+state without an inventory/provider revision. The new test failed before the
+fix and passes afterward; native contract suite is now 4/4.

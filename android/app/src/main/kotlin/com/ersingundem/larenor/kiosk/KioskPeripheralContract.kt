@@ -51,12 +51,14 @@ data class PeripheralCapability(
 class KioskPeripheralInventory(
     val inventoryRevision: Int,
     val gmsAvailable: Boolean,
-    val providers: List<PeripheralCapability>,
+    providers: List<PeripheralCapability>,
 ) {
+    val providers: List<PeripheralCapability> = java.util.Collections.unmodifiableList(ArrayList(providers))
+
     init {
-        if (!revision(inventoryRevision) || providers.isEmpty() || providers.size > 24 ||
-            providers.map { it.providerId }.toSet().size != providers.size ||
-            !providers.map { it.kind }.toSet().containsAll(PeripheralKind.entries)
+        if (!revision(inventoryRevision) || this.providers.isEmpty() || this.providers.size > 24 ||
+            this.providers.map { it.providerId }.toSet().size != this.providers.size ||
+            !this.providers.map { it.kind }.toSet().containsAll(PeripheralKind.entries)
         ) failPeripheral()
     }
 
