@@ -487,4 +487,18 @@ void main() {
       );
     }
   }
+
+  testWidgets('keyboard reader is discoverable without a kiosk policy write', (
+    t,
+  ) async {
+    final api = _Api();
+    await _mount(t, api, _Pin());
+    await tap(t, 'kiosk-hid-open');
+    expect(find.byKey(const ValueKey('kiosk-hid-start')), findsOneWidget);
+    expect(api.proposals, 0);
+    expect(api.writes, 0);
+    await t.pageBack();
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kiosk-hid-start')), findsNothing);
+  });
 }
