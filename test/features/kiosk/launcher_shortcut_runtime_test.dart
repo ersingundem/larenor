@@ -17,6 +17,7 @@ final class _Api implements LauncherShortcutApi {
     initial = null;
     return value;
   }
+
   @override
   Stream<LauncherShortcutAction> get actions => events.stream;
 }
@@ -25,22 +26,32 @@ void main() {
   test('closed parser rejects unknown and malformed native values', () {
     expect(LauncherShortcutAction.parse('home'), LauncherShortcutAction.home);
     expect(LauncherShortcutAction.parse('kiosk'), LauncherShortcutAction.kiosk);
-    for (final value in [null, '', 'settings', 'kiosk/../../home', {'action': 'home'}]) {
+    for (final value in [
+      null,
+      '',
+      'settings',
+      'kiosk/../../home',
+      {'action': 'home'},
+    ]) {
       expect(LauncherShortcutAction.parse(value), isNull);
     }
     expect(LauncherShortcutAction.kiosk.location, '/settings/kiosk');
   });
 
-  testWidgets('initial and live shortcuts are one-shot foreground navigation', (tester) async {
+  testWidgets('initial and live shortcuts are one-shot foreground navigation', (
+    tester,
+  ) async {
     final api = _Api()..initial = LauncherShortcutAction.kiosk;
     final routes = <String>[];
-    await tester.pumpWidget(CupertinoApp(
-      home: LauncherShortcutRuntimeScope(
-        api: api,
-        navigate: routes.add,
-        child: const SizedBox(),
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: LauncherShortcutRuntimeScope(
+          api: api,
+          navigate: routes.add,
+          child: const SizedBox(),
+        ),
       ),
-    ));
+    );
     await tester.pump();
     expect(routes, ['/settings/kiosk']);
     expect(api.takes, 1);

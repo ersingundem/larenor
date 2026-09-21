@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
@@ -11,6 +12,7 @@ import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
+import 'kiosk_quick_action_bar.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
   KioskAction.allowApp => l.kioskAllow,
@@ -347,6 +349,19 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                           truth(snapshot.powerMenuAllowed),
                         ),
                       ],
+                    ),
+                    KioskQuickActionBar(
+                      navigationEnabled: active,
+                      exitEnabled:
+                          active &&
+                          snapshot!.actions.contains(KioskAction.exit),
+                      onHome: () async {
+                        if (_current(generation)) context.go('/');
+                      },
+                      onSettings: () async {
+                        if (_current(generation)) context.go('/settings');
+                      },
+                      onExit: () => _act(KioskAction.exit, generation),
                     ),
                     SettingsSection(
                       footer: Text(l.kioskWindowHint),
