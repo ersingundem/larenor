@@ -63,6 +63,10 @@ class LocalNotificationBridgeTest {
         "sequence" to sequence, "sensitivity" to if (private) "private" else "public",
         "title" to if (private) "Larenor" else "Door",
         "body" to if (private) "" else "Opened", "redacted" to private)
+    private fun event(id: String, sequence: Long) = mapOf(
+        "schemaVersion" to 1, "id" to id, "sequence" to sequence,
+        "sensitivity" to "public", "title" to "Workshop", "body" to "Ready",
+        "redacted" to false)
     private fun reconcile(events: List<Map<String, Any>>, revision: Long = 3) = bind(revision = revision) + mapOf("events" to events)
     private fun pump() = Shadows.shadowOf(Looper.getMainLooper()).idle()
 
@@ -130,6 +134,29 @@ class LocalNotificationBridgeTest {
             assertNull(messenger.call("reconcile", reconcile(emptyList())).error)
             assertEquals(0, manager.activeNotifications.size)
             assertEquals("stale", messenger.call("reconcile", reconcile(listOf(event(2)), revision = 2)).error)
+        } finally { bridge.dispose(); activity.pause().stop().destroy() }
+    }
+
+    @Test fun distinctEventIdsWithTheSameJavaHashKeepIndependentNotificationsAndTaps() {
+        val firstId = "0bdd2de831d8ea06add2fdb3b7860188"
+        val secondId = "501c0fb5a15f0056584727a18806728c"
+        assertNotEquals(firstId, secondId)
+        assertEquals(firstId.hashCode(), secondId.hashCode())
+        val activity = activity(); val messenger = Messenger()
+        Shadows.shadowOf(activity.get().application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val bridge = LocalNotificationBridge(activity.get(), messenger)
+        val sink = Sink()
+        try {
+            bridge.setResumed(true); bridge.onListen(null, sink)
+            assertNull(messenger.call("bind", bind()).error)
+            assertNull(messenger.call("reconcile", reconcile(listOf(
+                event(firstId, 1), event(secondId, 2),
+            ))).error)
+            val manager = activity.get().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            assertEquals(2, manager.activeNotifications.size)
+            val taps = manager.activeNotifications.map { Shadows.shadowOf(it.notification.contentIntent).savedIntent }
+            assertTrue(taps.all { bridge.handleIntent(Intent(it)) })
+            assertEquals(setOf(firstId, secondId), sink.values.map { (it as Map<*, *>)["eventId"] }.toSet())
         } finally { bridge.dispose(); activity.pause().stop().destroy() }
     }
 
