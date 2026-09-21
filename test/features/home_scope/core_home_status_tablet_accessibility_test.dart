@@ -32,18 +32,32 @@ void main() {
             final l10n = AppLocalizations.of(
               tester.element(find.byType(CoreHomeStatusScreen)),
             );
+            Future<void> reveal(Finder target) async {
+              final scrollable = find.byType(Scrollable).first;
+              tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+              await tester.pump();
+              await tester.scrollUntilVisible(
+                target,
+                400,
+                scrollable: scrollable,
+                maxScrolls: 20,
+              );
+              await tester.pumpAndSettle();
+            }
 
             expect(find.byType(ServiceRootScaffold), findsOneWidget);
             expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
-            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(2));
+            expect(find.byType(SettingsActionTile), findsWidgets);
             final inventory = find.byKey(
               const ValueKey('core-home-inventory-action'),
             );
+            await reveal(inventory);
             expect(inventory, findsOneWidget);
             expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
             final presence = find.byKey(
               const ValueKey('core-home-room-presence-action'),
             );
+            await reveal(presence);
             expect(presence, findsOneWidget);
             expect(tester.getRect(presence).height, greaterThanOrEqualTo(48));
             expect(
@@ -53,6 +67,7 @@ void main() {
             final documents = find.byKey(
               const ValueKey('core-home-documents-action'),
             );
+            await reveal(documents);
             expect(documents, findsOneWidget);
             expect(tester.getRect(documents).height, greaterThanOrEqualTo(48));
             expect(
@@ -69,6 +84,7 @@ void main() {
             final reservations = find.byKey(
               const ValueKey('core-home-reservations-action'),
             );
+            await reveal(reservations);
             expect(reservations, findsOneWidget);
             expect(
               tester.getRect(reservations).height,
@@ -81,6 +97,7 @@ void main() {
             final catalog = find.byKey(
               const ValueKey('core-home-resource-catalog-action'),
             );
+            await reveal(catalog);
             expect(catalog, findsOneWidget);
             expect(tester.getRect(catalog).height, greaterThanOrEqualTo(48));
             expect(
@@ -90,6 +107,7 @@ void main() {
             final familyBoard = find.byKey(
               const ValueKey('core-home-family-board-action'),
             );
+            await reveal(familyBoard);
             expect(familyBoard, findsOneWidget);
             expect(
               tester.getRect(familyBoard).height,
@@ -98,6 +116,7 @@ void main() {
             final cameraSearch = find.byKey(
               const ValueKey('core-home-camera-search-action'),
             );
+            await reveal(cameraSearch);
             expect(cameraSearch, findsOneWidget);
             expect(
               tester.getRect(cameraSearch).height,
@@ -121,8 +140,7 @@ void main() {
             final action = find.byKey(
               const ValueKey('core-home-source-action'),
             );
-            await tester.ensureVisible(action);
-            await tester.pump();
+            await reveal(action);
             final actionNode = tester.getSemantics(action);
             expect(actionNode.label, contains(l10n.homeSourceTitle));
             expect(actionNode.flagsCollection.isButton, isTrue);
@@ -131,36 +149,19 @@ void main() {
 
             tester.view.physicalSize = Size(width == 600 ? 1200 : 600, 1000);
             await tester.pumpAndSettle();
-            expect(
-              find.byKey(const ValueKey('core-home-source-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-inventory-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-room-presence-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-documents-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-reservations-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-resource-catalog-action')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('core-home-family-board-action')),
-              findsOneWidget,
-            );
-            await tester.ensureVisible(cameraSearch);
-            await tester.pumpAndSettle();
+            for (final target in [
+              action,
+              inventory,
+              presence,
+              documents,
+              reservations,
+              catalog,
+              familyBoard,
+            ]) {
+              await reveal(target);
+              expect(target, findsOneWidget);
+            }
+            await reveal(cameraSearch);
             await tester.tap(cameraSearch);
             await flush(tester);
             expect(find.byType(CameraSearchRoute), findsOneWidget);
@@ -168,6 +169,7 @@ void main() {
             await flush(tester);
             expect(tester.takeException(), isNull);
 
+            await reveal(action);
             final label = find.descendant(
               of: action,
               matching: find.text(l10n.homeSourceTitle),

@@ -143,6 +143,16 @@ class ResourceAdminHarness extends ResourceHarness {
 Finder adminKey(String key) => find.byKey(ValueKey(key));
 Future<void> adminPress(WidgetTester tester, String key) async {
   final target = adminKey(key);
+  // The Core home screen uses a lazy sliver. As more home destinations are
+  // added above resources, its management action may not be built until the
+  // page scrolls to it.
+  if (target.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      target,
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+  }
   expect(target, findsOneWidget);
   await tester.ensureVisible(target);
   await flush(tester);
