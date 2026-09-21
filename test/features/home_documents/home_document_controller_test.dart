@@ -23,7 +23,12 @@ final class _Gateway implements HomeDocumentGateway {
   @override
   Future<HomeWarrantyReminderPage> reminders(String today) => due[dueIndex++];
   @override
-  Future<HomeDocumentUploadEvidence?> pickAndUpload() {
+  Future<HomeDocumentUploadEvidence?> pickAndUpload(
+    String resourceId,
+    int expectedAccountRevision,
+  ) {
+    expect(resourceId, blobId);
+    expect(expectedAccountRevision, 5);
     uploadCalls++;
     return uploadResult!;
   }
@@ -92,7 +97,7 @@ void main() {
       final controller = _controller(gateway);
       addTearDown(controller.dispose);
       await controller.load();
-      await controller.stageUpload();
+      await controller.stageUpload(blobId);
       expect(controller.upload?.candidate?.extractedDate, '2028-05-10');
       expect(gateway.createCalls, 0);
       await controller.publish(
@@ -118,7 +123,7 @@ void main() {
     final controller = _controller(gateway, admin: false);
     addTearDown(controller.dispose);
     await controller.load();
-    await controller.stageUpload();
+    await controller.stageUpload(blobId);
     expect(gateway.uploadCalls, 0);
     expect(controller.canUpload, isFalse);
     expect(controller.page?.items.length, 1);

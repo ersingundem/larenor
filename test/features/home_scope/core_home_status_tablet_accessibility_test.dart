@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/home_scope/presentation/core_home_status_screen.dart';
 import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
+import 'package:larenor/features/home_documents/presentation/home_documents_route.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
@@ -39,6 +40,21 @@ void main() {
             );
             expect(inventory, findsOneWidget);
             expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
+            final documents = find.byKey(
+              const ValueKey('core-home-documents-action'),
+            );
+            expect(documents, findsOneWidget);
+            expect(tester.getRect(documents).height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(documents).label,
+              contains(l10n.inventoryDocuments),
+            );
+            await tester.ensureVisible(documents);
+            await tester.tap(documents);
+            await tester.pump();
+            expect(find.byType(HomeDocumentsRoute), findsOneWidget);
+            await tester.pageBack();
+            await tester.pumpAndSettle();
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -73,6 +89,10 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('core-home-inventory-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-documents-action')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);

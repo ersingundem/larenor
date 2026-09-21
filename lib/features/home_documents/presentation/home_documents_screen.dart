@@ -25,9 +25,11 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
     with WidgetsBindingObserver {
   final _title = TextEditingController();
   final _inventory = TextEditingController();
+  final _resource = TextEditingController();
   final _warranty = TextEditingController();
   final _titleFocus = FocusNode();
   final _inventoryFocus = FocusNode();
+  final _resourceFocus = FocusNode();
   final _warrantyFocus = FocusNode();
   final _readers = <String>{};
   HomeDocumentUploadEvidence? _seenUpload;
@@ -99,9 +101,11 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
     widget.controller.setActive(false);
     _title.dispose();
     _inventory.dispose();
+    _resource.dispose();
     _warranty.dispose();
     _titleFocus.dispose();
     _inventoryFocus.dispose();
+    _resourceFocus.dispose();
     _warrantyFocus.dispose();
     super.dispose();
   }
@@ -120,6 +124,7 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
     if (mounted && widget.controller.failure == null) {
       _title.clear();
       _inventory.clear();
+      _resource.clear();
       _warranty.clear();
       _readers.clear();
       _confirmWarranty = false;
@@ -206,8 +211,23 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
             key: const ValueKey('home-doc-upload'),
             label: copy.upload,
             enabled: widget.controller.canUpload,
-            onPressed: widget.controller.stageUpload,
+            onPressed: () =>
+                widget.controller.stageUpload(_resource.text.trim()),
             child: Text(copy.upload),
+          ),
+          const SizedBox(height: 12),
+          _field(
+            key: const ValueKey('home-doc-resource'),
+            controller: _resource,
+            focus: _resourceFocus,
+            label: copy.resourceId,
+            action: TextInputAction.done,
+            onSubmitted: (_) {
+              if (widget.controller.canUpload) {
+                unawaited(widget.controller.stageUpload(_resource.text.trim()));
+              }
+            },
+            max: 32,
           ),
           if (upload != null) ...[
             const SizedBox(height: 12),
@@ -554,6 +574,8 @@ class _Copy {
     HomeDocumentKind.other => tr ? 'Diğer' : 'Other',
   };
   String get inventoryId => tr ? 'Envanter kimliği' : 'Inventory ID';
+  String get resourceId =>
+      tr ? 'Core belge kaynağı kimliği' : 'Core document resource ID';
   String get warrantyDate =>
       tr ? 'Garanti tarihi (YYYY-AA-GG)' : 'Warranty date (YYYY-MM-DD)';
   String get confirmWarranty => tr

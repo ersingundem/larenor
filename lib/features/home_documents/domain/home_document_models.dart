@@ -208,6 +208,14 @@ final class HomeDocumentOcrCandidate {
   }
   final String extractedDate, sourceDigest;
   final int confidencePermille, sourceRevision;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'extractedDate': extractedDate,
+    'confidencePermille': confidencePermille,
+    'sourceRevision': sourceRevision,
+    'sourceDigest': sourceDigest,
+  };
 }
 
 final class HomeDocumentWarranty {

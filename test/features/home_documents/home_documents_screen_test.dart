@@ -17,7 +17,10 @@ final class _ScreenGateway implements HomeDocumentGateway {
   Future<HomeWarrantyReminderPage> reminders(String today) async =>
       reminderValue;
   @override
-  Future<HomeDocumentUploadEvidence?> pickAndUpload() async => upload();
+  Future<HomeDocumentUploadEvidence?> pickAndUpload(
+    String resourceId,
+    int expectedAccountRevision,
+  ) async => upload();
   @override
   Future<HomeDocumentCommandResult> create({
     required HomeDocumentPage base,
@@ -87,6 +90,7 @@ void main() {
         expect(tester.takeException(), isNull);
         for (final key in [
           'home-doc-upload',
+          'home-doc-resource',
           'home-doc-publish',
           'home-doc-refresh',
           'home-doc-kind-invoice',

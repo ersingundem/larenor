@@ -53,6 +53,12 @@ def test_http_registration_and_encrypted_state_survive_core_restart(server):
     assert created.status_code == 201, created.text
     assert created.json()["authority"]["libraryRevision"] == 1
     assert created.json()["document"]["title"] == "Buzdolabı faturası"
+    with app.state.core.db.connection() as connection:
+        stored = connection.execute(
+            "SELECT nonce,ciphertext FROM home_document_state WHERE singleton=1"
+        ).fetchone()
+    assert len(stored["nonce"]) == 12
+    assert "Buzdolabı".encode() not in stored["ciphertext"]
 
     listed = client.get(
         f"{root}/documents",

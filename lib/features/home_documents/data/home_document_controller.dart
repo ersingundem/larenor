@@ -6,7 +6,10 @@ import '../domain/home_document_models.dart';
 abstract interface class HomeDocumentGateway {
   Future<HomeDocumentPage> search(String query);
   Future<HomeWarrantyReminderPage> reminders(String today);
-  Future<HomeDocumentUploadEvidence?> pickAndUpload();
+  Future<HomeDocumentUploadEvidence?> pickAndUpload(
+    String resourceId,
+    int expectedAccountRevision,
+  );
   Future<HomeDocumentCommandResult> create({
     required HomeDocumentPage base,
     required String requestId,
@@ -99,6 +102,8 @@ final class HomeDocumentController extends ChangeNotifier {
               'revision_conflict',
             }.contains(error.code)
       ? HomeDocumentFailure.rejected
+      : error is LarenorServerException && error.code == 'invalid_request'
+      ? HomeDocumentFailure.invalidInput
       : HomeDocumentFailure.invalidResponse;
 
   bool _authority(HomeDocumentAuthority value) {
@@ -152,14 +157,20 @@ final class HomeDocumentController extends ChangeNotifier {
     }
   }
 
-  Future<void> stageUpload() async {
+  Future<void> stageUpload(String resourceId) async {
     if (!canUpload) return;
     final operation = ++_epoch;
     busy = true;
     failure = null;
     notifyListeners();
     try {
-      final next = await gateway.pickAndUpload();
+      if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(resourceId)) {
+        throw const LarenorServerException('invalid_request');
+      }
+      final next = await gateway.pickAndUpload(
+        resourceId,
+        page!.authority.accountRevision,
+      );
       if (!_current() || operation != _epoch) return _stale(operation);
       upload = next;
     } catch (error) {

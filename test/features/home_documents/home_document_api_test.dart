@@ -26,13 +26,14 @@ void main() {
     final steps = <({String method, String path, Object? body, Object response})>[
       (
         method: 'GET',
-        path: '/api/v1/home-documents/$core/$home/documents?query=&limit=50',
+        path: '/api/v1/home-documents/$core/$home/documents?query&limit=50',
         body: null,
         response: homeDocumentPageFixture(empty: true, revision: 0),
       ),
       (
         method: 'GET',
-        path: '/api/v1/home-documents/$core/$home/reminders?today=2028-05-05&limit=100',
+        path:
+            '/api/v1/home-documents/$core/$home/reminders?today=2028-05-05&limit=100',
         body: null,
         response: reminderPageFixture(revision: 0),
       ),
@@ -52,26 +53,24 @@ void main() {
         body: isA<Map<String, Object?>>(),
         response: {
           'authority': authority(2),
-          'document': documentJson(
-            revision: 2,
-            confirmedDate: '2028-06-01',
-          ),
+          'document': documentJson(revision: 2, confirmedDate: '2028-06-01'),
           'replayed': false,
         },
       ),
     ];
     var index = 0;
+    final seen = <({String method, String path, Object? body})>[];
     final transport = LarenorServerApi(
       endpoint: ServerEndpoint('https://synthetic.invalid'),
       client: MockClient((request) async {
         final step = steps[index++];
-        expect(request.method, step.method);
-        expect(request.url.toString(), 'https://synthetic.invalid${step.path}');
-        expect(request.headers['authorization'], 'Bearer synthetic_token');
-        if (step.body != null) {
-          expect(jsonDecode(request.body), step.body);
-        }
-        return _json(step.response, step.method == 'POST' && index == 3 ? 201 : 200);
+        seen.add((
+          method: request.method,
+          path:
+              '${request.url.path}${request.url.hasQuery ? '?${request.url.query}' : ''}',
+          body: request.body.isEmpty ? null : jsonDecode(request.body),
+        ));
+        return _json(step.response);
       }),
     );
     addTearDown(transport.close);
@@ -105,90 +104,99 @@ void main() {
     );
     expect(confirmed.document.warranty.correctedFromOcr, isTrue);
     expect(index, 4);
+    for (var i = 0; i < steps.length; i++) {
+      expect(seen[i].method, steps[i].method);
+      expect(seen[i].path, steps[i].path);
+      if (steps[i].body != null) expect(seen[i].body, steps[i].body);
+    }
   });
 
-  test('bounded adapter verifies exact writable target and upload receipt', () async {
-    final bytes = Uint8List.fromList(utf8.encode('%PDF synthetic'));
-    final digest = sha256.convert(bytes).toString();
-    final resourceTransport = LarenorServerApi(
-      endpoint: ServerEndpoint('https://synthetic.invalid'),
-      client: MockClient((request) async => _json({
-        'scope': context().toJson(),
-        'userRevision': 5,
-        'entries': [
-          {
-            'ref': {
-              'schemaVersion': 1,
-              'coreId': core,
-              'homeId': home,
-              'kind': 'resource',
-              'id': blobId,
-            },
-            'label': 'Warranty document slot',
-            'order': 0,
-            'revision': 2,
-            'aclRevision': 3,
-            'permissions': {'read': true, 'write': true},
-          },
-        ],
-        'snapshot': 'f' * 64,
-        'nextAfter': null,
-      })),
-    );
-    addTearDown(resourceTransport.close);
-    var calls = 0;
-    final bounded = CoreBoundedDownloadApi(
-      endpoint: ServerEndpoint('https://synthetic.invalid'),
-      requestId: () => 'a' * 32,
-      client: MockClient((request) async {
-        calls++;
-        if (request.method == 'GET') return _json(null, 404);
-        expect(request.method, 'PUT');
-        expect(request.headers['x-larenor-expected-user-revision'], '5');
-        expect(request.headers['x-larenor-expected-resource-revision'], '2');
-        expect(request.headers['x-larenor-expected-acl-revision'], '3');
-        expect(request.headers['x-larenor-expected-service-revision'], '0');
-        expect(request.bodyBytes, bytes);
-        return _json({
-          'blob': {
-            'requestId': 'a' * 32,
-            'resourceId': blobId,
-            'serviceRevision': 1,
-            'contentLength': bytes.length,
-            'sha256': digest,
-            'contentType': 'application/pdf',
-            'createdAt': 1800000000.0,
-            'updatedAt': 1800000000.0,
-          },
-        }, 201);
-      }),
-    );
-    addTearDown(bounded.close);
-    final adapter = CoreHomeDocumentUploadAdapter(
-      resources: HomeResourcesApi(
-        resourceTransport,
-        'synthetic_token',
-        context(),
-      ),
-      bounded: bounded,
-      files: CoreBoundedUploadFileAccess(
-        pick: () async => CoreBoundedPickedFile(
-          name: 'warranty.pdf',
-          declaredLength: bytes.length,
-          chunks: Stream.value(bytes),
+  test(
+    'bounded adapter verifies exact writable target and upload receipt',
+    () async {
+      final bytes = Uint8List.fromList(utf8.encode('%PDF synthetic'));
+      final digest = sha256.convert(bytes).toString();
+      final resourceTransport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://synthetic.invalid'),
+        client: MockClient(
+          (request) async => _json({
+            'scope': context().toJson(),
+            'userRevision': 5,
+            'entries': [
+              {
+                'ref': {
+                  'schemaVersion': 1,
+                  'coreId': core,
+                  'homeId': home,
+                  'kind': 'resource',
+                  'id': blobId,
+                },
+                'label': 'Warranty document slot',
+                'order': 0,
+                'revision': 2,
+                'aclRevision': 3,
+                'permissions': {'read': true, 'write': true},
+              },
+            ],
+            'snapshot': 'f' * 64,
+            'nextAfter': null,
+          }),
         ),
-      ),
-      token: 'synthetic_token',
-      isCurrent: () => true,
-    );
-    final result = await adapter.pickAndUpload(
-      resourceId: blobId,
-      expectedAccountRevision: 5,
-    );
-    expect(result!.filename, 'warranty.pdf');
-    expect(result.blob.sha256, digest);
-    expect(result.candidate, isNull);
-    expect(calls, 2);
-  });
+      );
+      addTearDown(resourceTransport.close);
+      var calls = 0;
+      final bounded = CoreBoundedDownloadApi(
+        endpoint: ServerEndpoint('https://synthetic.invalid'),
+        requestId: () => 'a' * 32,
+        client: MockClient((request) async {
+          calls++;
+          if (request.method == 'GET') return _json(null, 404);
+          expect(request.method, 'PUT');
+          expect(request.headers['x-larenor-expected-user-revision'], '5');
+          expect(request.headers['x-larenor-expected-resource-revision'], '2');
+          expect(request.headers['x-larenor-expected-acl-revision'], '3');
+          expect(request.headers['x-larenor-expected-service-revision'], '0');
+          expect(request.bodyBytes, bytes);
+          return _json({
+            'blob': {
+              'requestId': 'a' * 32,
+              'resourceId': blobId,
+              'serviceRevision': 1,
+              'contentLength': bytes.length,
+              'sha256': digest,
+              'contentType': 'application/pdf',
+              'createdAt': 1800000000.0,
+              'updatedAt': 1800000000.0,
+            },
+          }, 201);
+        }),
+      );
+      addTearDown(bounded.close);
+      final adapter = CoreHomeDocumentUploadAdapter(
+        resources: HomeResourcesApi(
+          resourceTransport,
+          'synthetic_token',
+          context(),
+        ),
+        bounded: bounded,
+        files: CoreBoundedUploadFileAccess(
+          pick: () async => CoreBoundedPickedFile(
+            name: 'warranty.pdf',
+            declaredLength: bytes.length,
+            chunks: Stream.value(bytes),
+          ),
+        ),
+        token: 'synthetic_token',
+        isCurrent: () => true,
+      );
+      final result = await adapter.pickAndUpload(
+        resourceId: blobId,
+        expectedAccountRevision: 5,
+      );
+      expect(result!.filename, 'warranty.pdf');
+      expect(result.blob.sha256, digest);
+      expect(result.candidate, isNull);
+      expect(calls, 2);
+    },
+  );
 }
-
