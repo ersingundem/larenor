@@ -242,8 +242,9 @@ String _dayText(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}';
 
 DateTime? _parseDay(Object? value) {
-  if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value))
+  if (value is! String || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
     return null;
+  }
   final parsed = DateTime.tryParse('${value}T00:00:00Z');
   return parsed != null && _dayText(parsed) == value ? parsed : null;
 }
