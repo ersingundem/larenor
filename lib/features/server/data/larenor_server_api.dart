@@ -368,9 +368,17 @@ class LarenorServerApi {
               .hasMatch(path) &&
           queryParameters.length == 1 &&
           canonicalRevision(revision);
+      final kioskRemoteDeleteQuery =
+          method == 'DELETE' &&
+          RegExp(
+            r'^/admin/paired-remote/[0-9a-f]{32}/[0-9a-f]{32}/pairings/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          canonicalRevision(revision);
       if (!readQuery &&
           !forgetQuery &&
           !personalProfileDeleteQuery &&
+          !kioskRemoteDeleteQuery &&
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&

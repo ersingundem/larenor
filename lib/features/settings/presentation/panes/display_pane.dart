@@ -10,6 +10,8 @@ import 'settings_nav_row.dart';
 import '../settings_file_dialog.dart';
 import '../../../ambient/presentation/ambient_settings_screen.dart';
 import '../../../kiosk/presentation/kiosk_screen.dart';
+import '../../../kiosk/presentation/kiosk_peripheral_screen.dart';
+import '../../../kiosk_remote/presentation/kiosk_remote_route.dart';
 import '../../../kiosk/presentation/kiosk_maintenance_screen.dart';
 import '../../../web_panel/presentation/web_panel_data_screen.dart';
 import '../../../../shared/widgets/settings_section.dart';
@@ -17,6 +19,7 @@ import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../media/local_audio/presentation/playback_power_screen.dart';
 import '../window_panel_screen.dart';
 import '../screen_program_screen.dart';
+import '../../../multi_display/presentation/dual_display_route.dart';
 
 class DisplayPane extends ConsumerWidget {
   const DisplayPane({super.key, this.runFileDialog});
@@ -70,10 +73,29 @@ class DisplayPane extends ConsumerWidget {
               builder: (_) => const WindowPanelScreen(),
             ),
             SettingsNavRow(
+              key: const ValueKey('dual-display-settings-entry'),
+              icon: CupertinoIcons.rectangle_stack,
+              color: CupertinoColors.systemCyan,
+              title: l10n.dualDisplayTitle,
+              builder: (_) => const DualDisplayRoute(),
+            ),
+            SettingsNavRow(
               icon: CupertinoIcons.lock_shield,
               color: CupertinoColors.systemIndigo,
               title: l10n.kioskTitle,
               builder: (_) => const KioskScreen(),
+            ),
+            SettingsNavRow(
+              icon: CupertinoIcons.qrcode_viewfinder,
+              color: CupertinoColors.systemTeal,
+              title: l10n.kioskPeripheralTitle,
+              builder: (_) => const KioskPeripheralScreen(),
+            ),
+            SettingsNavRow(
+              icon: CupertinoIcons.antenna_radiowaves_left_right,
+              color: CupertinoColors.systemGreen,
+              title: l10n.kioskRemoteTitle,
+              builder: (_) => const KioskRemoteRoute(),
             ),
             SettingsNavRow(
               icon: CupertinoIcons.wrench,

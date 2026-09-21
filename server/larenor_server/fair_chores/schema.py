@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 TABLES = {
     "fair_chore_tasks": """CREATE TABLE fair_chore_tasks (
         id TEXT PRIMARY KEY,
@@ -22,7 +21,7 @@ TABLES = {
         sequence INTEGER PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         task_id TEXT NOT NULL,
-        command_id TEXT NOT NULL,
+        command_id TEXT NOT NULL UNIQUE,
         action TEXT NOT NULL CHECK(action IN ('created','completed','deferred')),
         actor_id TEXT NOT NULL,
         revision INTEGER NOT NULL CHECK(revision > 0),
@@ -30,7 +29,6 @@ TABLES = {
         receipt_json TEXT NOT NULL,
         previous_hash TEXT NOT NULL,
         event_hash TEXT NOT NULL,
-        UNIQUE(task_id,command_id),
         FOREIGN KEY(task_id) REFERENCES fair_chore_tasks(id) ON DELETE RESTRICT)""",
 }
 INDEXES = {

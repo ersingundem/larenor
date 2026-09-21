@@ -1,10 +1,10 @@
 """Fail-closed policy evaluation and one-shot provider command coordination."""
 
-from dataclasses import dataclass
 import hashlib
 import json
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from ..errors import ApiError
 from .models import (
@@ -14,6 +14,7 @@ from .models import (
     CameraProfileAuthority,
     CameraProfileDecision,
     CameraProfilePolicy,
+    CameraProviderSupport,
     CameraReadback,
     CameraWorkerCommand,
     ManualCameraOverride,
@@ -35,6 +36,7 @@ class CameraProfileEngine:
         self._resolve_authority = authorityResolver
         self._resolve_policy = policyResolver
         self._signals: dict[str, _ObservedPresence] = {}
+        self._signal_lock = threading.Lock()
 
     def _authority(self, presented):
         try:
@@ -73,22 +75,28 @@ class CameraProfileEngine:
         return value
 
     def _observe(self, profile_id: str, signal: PresenceSignal) -> _ObservedPresence:
-        old = self._signals.get(profile_id)
-        if old is not None:
-            if signal.signalRevision < old.signal.signalRevision:
-                raise ApiError("revision_conflict", 409)
-            if signal.signalRevision == old.signal.signalRevision:
-                if signal != old.signal:
+        with self._signal_lock:
+            old = self._signals.get(profile_id)
+            if old is not None and (
+                old.signal.sourceId != signal.sourceId
+                or old.signal.sourceRevision != signal.sourceRevision
+            ):
+                old = None
+            if old is not None:
+                if signal.signalRevision < old.signal.signalRevision:
                     raise ApiError("revision_conflict", 409)
-                return old
-            if signal.observedAtMs < old.signal.observedAtMs:
-                raise ApiError("revision_conflict", 409)
-        stable_since = signal.observedAtMs
-        if old is not None and old.signal.state == signal.state:
-            stable_since = old.stable_since_ms
-        observed = _ObservedPresence(signal, stable_since)
-        self._signals[profile_id] = observed
-        return observed
+                if signal.signalRevision == old.signal.signalRevision:
+                    if signal != old.signal:
+                        raise ApiError("revision_conflict", 409)
+                    return old
+                if signal.observedAtMs < old.signal.observedAtMs:
+                    raise ApiError("revision_conflict", 409)
+            stable_since = signal.observedAtMs
+            if old is not None and old.signal.state == signal.state:
+                stable_since = old.stable_since_ms
+            observed = _ObservedPresence(signal, stable_since)
+            self._signals[profile_id] = observed
+            return observed
 
     def evaluate(
         self,
@@ -207,19 +215,29 @@ class CameraProfileCoordinator:
         self._lock = threading.Lock()
 
     @staticmethod
-    def _digest(decision):
-        value = decision.model_dump(mode="json")
+    def _digest(decision, readbacks, supports):
+        value = {
+            "decision": decision.model_dump(mode="json"),
+            "readbacks": [item.model_dump(mode="json") for item in readbacks],
+            "support": None if supports is None else [
+                item.model_dump(mode="json") for item in supports
+            ],
+        }
         return hashlib.sha256(
             json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
 
     def apply(
-        self, presentedAuthority, rawDecision, rawReadbacks, *, requestId, nowMs, worker
+        self, presentedAuthority, rawDecision, rawReadbacks, *, requestId, nowMs,
+        worker, rawSupports=None
     ):
         try:
             authority = CameraProfileAuthority.model_validate(presentedAuthority)
             decision = CameraProfileDecision.model_validate(rawDecision)
             readbacks = [CameraReadback.model_validate(item) for item in rawReadbacks]
+            supports = None if rawSupports is None else [
+                CameraProviderSupport.model_validate(item) for item in rawSupports
+            ]
             if (
                 not isinstance(requestId, str)
                 or len(requestId) != 32
@@ -277,16 +295,24 @@ class CameraProfileCoordinator:
                 authority,
                 decision,
                 readbacks,
+                supports,
                 requestId=requestId,
                 nowMs=nowMs,
                 worker=worker,
             )
 
-    def _apply_once(self, authority, decision, readbacks, *, requestId, nowMs, worker):
+    def _apply_once(
+        self, authority, decision, readbacks, supports, *, requestId, nowMs, worker
+    ):
         targets = {item.camera.cameraId: item for item in decision.targets}
         current = {item.camera.cameraId: item for item in readbacks}
         if len(current) != len(readbacks) or set(current) != set(targets):
             raise ApiError("revision_conflict", 409)
+        support_by_camera = None
+        if supports is not None:
+            support_by_camera = {item.camera.cameraId: item for item in supports}
+            if len(support_by_camera) != len(supports) or set(support_by_camera) != set(targets):
+                raise ApiError("revision_conflict", 409)
         for camera_id, target in targets.items():
             observed = current[camera_id]
             if (observed.coreId, observed.homeId, observed.camera) != (
@@ -295,8 +321,12 @@ class CameraProfileCoordinator:
                 target.camera,
             ) or observed.observedAtMs > nowMs:
                 raise ApiError("revision_conflict", 409)
+            if support_by_camera is not None:
+                support = support_by_camera[camera_id]
+                if support.camera != target.camera or support.verifiedAtMs > nowMs:
+                    raise ApiError("revision_conflict", 409)
 
-        digest = self._digest(decision)
+        digest = self._digest(decision, readbacks, supports)
         old = self._receipts.get(requestId)
         if old is not None:
             if old[0] != digest:
@@ -330,6 +360,23 @@ class CameraProfileCoordinator:
                         cameraId=camera_id,
                         status="skipped",
                         code="already_applied",
+                        readback=None,
+                    )
+                )
+                continue
+            support = None if support_by_camera is None else support_by_camera[camera_id]
+            unsupported = support is not None and (
+                (observed.mode.recording != target.mode.recording and not support.recordingSupported)
+                or (observed.mode.detection != target.mode.detection and not support.detectionSupported)
+            )
+            if unsupported:
+                results.append(
+                    CameraCommandResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="failed",
+                        code="provider_unsupported",
                         readback=None,
                     )
                 )

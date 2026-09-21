@@ -3,9 +3,13 @@
 from ..errors import ApiError
 from .media_recovery_status_models import MediaRecoveryStatusResponse
 
-
 _SERVICE_ORDER = (
-    "qbittorrent", "sonarr", "radarr", "jellyfin", "seerr",
+    "larenor_core",
+    "qbittorrent",
+    "sonarr",
+    "radarr",
+    "jellyfin",
+    "seerr",
     "music_assistant",
 )
 _INSTALLATION_SERVICES = frozenset({"jellyfin", "seerr", "music_assistant"})
@@ -14,9 +18,17 @@ _MAX_CONFIGURATIONS = 256
 
 
 class MediaRecoveryStatusManagement:
-    def __init__(self, db, installations, jellyfin_bootstraps,
-                 qbittorrent_configurations, arr_configurations,
-                 seerr_bootstraps, music_assistant_bootstraps):
+    def __init__(
+        self,
+        db,
+        installations,
+        jellyfin_bootstraps,
+        qbittorrent_configurations,
+        arr_configurations,
+        seerr_bootstraps,
+        music_assistant_bootstraps,
+        context,
+    ):
         self.db = db
         self.installations = installations
         self.jellyfin_bootstraps = jellyfin_bootstraps
@@ -24,15 +36,22 @@ class MediaRecoveryStatusManagement:
         self.arr_configurations = arr_configurations
         self.seerr_bootstraps = seerr_bootstraps
         self.music_assistant_bootstraps = music_assistant_bootstraps
+        self.context = context
 
     @staticmethod
-    def _terminal(*, service_id, public, source_kind, container_state,
-                  service_verified=False, partial_action="review"):
+    def _terminal(
+        *,
+        service_id,
+        public,
+        source_kind,
+        container_state,
+        service_verified=False,
+        partial_action="review",
+    ):
         state = public["state"]
         if state in {"queued", "running"}:
             result, action = "pending", "wait"
-        elif state in {"container_started", "credentials_configured",
-                       "wiring_partial"}:
+        elif state in {"container_started", "credentials_configured", "wiring_partial"}:
             result, action = "partial", partial_action
         elif state == "succeeded":
             if service_verified:
@@ -53,10 +72,50 @@ class MediaRecoveryStatusManagement:
             "resultState": result,
             "containerState": container_state,
             "serviceState": "verified" if service_verified else "unverified",
+            "storedState": "stored",
+            "reachableState": "reachable" if service_verified else "unknown",
+            "verifiedState": "verified" if service_verified else "unverified",
             "recoveryAction": action,
             "automaticRetry": False,
             "errorCode": public["errorCode"],
             "updatedAt": public["updatedAt"],
+        }
+
+    def _core(self):
+        return {
+            "serviceId": "larenor_core",
+            "sourceId": self.context.coreId,
+            "sourceKind": "core",
+            "revision": self.context.schemaVersion,
+            "resultState": "verified",
+            "containerState": "started",
+            "serviceState": "verified",
+            "storedState": "stored",
+            "reachableState": "reachable",
+            "verifiedState": "verified",
+            "recoveryAction": "none",
+            "automaticRetry": False,
+            "errorCode": None,
+            "updatedAt": None,
+        }
+
+    @staticmethod
+    def _missing(service_id):
+        return {
+            "serviceId": service_id,
+            "sourceId": None,
+            "sourceKind": "missing",
+            "revision": None,
+            "resultState": "missing",
+            "containerState": "unknown",
+            "serviceState": "unverified",
+            "storedState": "missing",
+            "reachableState": "unknown",
+            "verifiedState": "unverified",
+            "recoveryAction": "configure",
+            "automaticRetry": False,
+            "errorCode": None,
+            "updatedAt": None,
         }
 
     def _latest_installations(self, connection):
@@ -91,21 +150,29 @@ class MediaRecoveryStatusManagement:
         ).fetchone()
         if bootstrap is None:
             container_state = (
-                "started" if row["state"] == "container_started"
-                else "pending" if row["state"] in {"queued", "running"}
+                "started"
+                if row["state"] == "container_started"
+                else "pending"
+                if row["state"] in {"queued", "running"}
                 else "unknown"
             )
             return self._terminal(
-                service_id=service_id, public=public,
-                source_kind="installation", container_state=container_state,
+                service_id=service_id,
+                public=public,
+                source_kind="installation",
+                container_state=container_state,
                 partial_action="configure",
             )
 
         stored = manager._validate_row(connection, bootstrap)
-        public = manager._public(
-            bootstrap, stored) if service_id == "seerr" else manager._public(bootstrap)
+        public = (
+            manager._public(bootstrap, stored)
+            if service_id == "seerr"
+            else manager._public(bootstrap)
+        )
         service_verified = (
-            service_id == "seerr" and public["state"] == "succeeded"
+            service_id == "seerr"
+            and public["state"] == "succeeded"
             or service_id == "jellyfin"
             and public["state"] in {"wiring_partial", "succeeded"}
             and stored.readback is not None
@@ -117,22 +184,24 @@ class MediaRecoveryStatusManagement:
             ).fetchone()
             if core_row is not None:
                 core_stored = manager.core._decode(core_row)
-                core_public = manager.core._public(
-                    connection, core_row, core_stored)
+                core_public = manager.core._public(connection, core_row, core_stored)
                 service_verified = core_public["state"] == "verified"
         return self._terminal(
-            service_id=service_id, public=public, source_kind="bootstrap",
-            container_state="started", service_verified=service_verified,
+            service_id=service_id,
+            public=public,
+            source_kind="bootstrap",
+            container_state="started",
+            service_verified=service_verified,
         )
 
     def _qbittorrent(self, connection):
         rows = connection.execute(
             "SELECT * FROM media_qbittorrent_configurations "
-            "ORDER BY sequence DESC LIMIT ?", (_MAX_CONFIGURATIONS + 1,),
+            "ORDER BY sequence DESC LIMIT ?",
+            (_MAX_CONFIGURATIONS + 1,),
         ).fetchall()
         if len(rows) > _MAX_CONFIGURATIONS:
-            raise ApiError(
-                "media_qbittorrent_configuration_storage_unavailable", 503)
+            raise ApiError("media_qbittorrent_configuration_storage_unavailable", 503)
         decoded = [
             (row, self.qbittorrent_configurations._validate_row(connection, row))
             for row in rows
@@ -142,11 +211,14 @@ class MediaRecoveryStatusManagement:
         row, payload = decoded[0]
         public = self.qbittorrent_configurations._public(row, payload)
         return self._terminal(
-            service_id="qbittorrent", public=public,
+            service_id="qbittorrent",
+            public=public,
             source_kind="configuration",
             container_state=(
-                "started" if public["containerState"] == "container_started"
-                else "pending" if public["state"] in {"queued", "running"}
+                "started"
+                if public["containerState"] == "container_started"
+                else "pending"
+                if public["state"] in {"queued", "running"}
                 else "unknown"
             ),
             service_verified=public["serviceState"] == "verified",
@@ -154,8 +226,8 @@ class MediaRecoveryStatusManagement:
 
     def _arr(self, connection):
         rows = connection.execute(
-            "SELECT * FROM media_arr_configurations "
-            "ORDER BY sequence DESC LIMIT ?", (_MAX_CONFIGURATIONS + 1,),
+            "SELECT * FROM media_arr_configurations ORDER BY sequence DESC LIMIT ?",
+            (_MAX_CONFIGURATIONS + 1,),
         ).fetchall()
         if len(rows) > _MAX_CONFIGURATIONS:
             raise ApiError("media_arr_configuration_storage_unavailable", 503)
@@ -166,11 +238,14 @@ class MediaRecoveryStatusManagement:
             if public["serviceId"] in latest:
                 continue
             latest[public["serviceId"]] = self._terminal(
-                service_id=public["serviceId"], public=public,
+                service_id=public["serviceId"],
+                public=public,
                 source_kind="configuration",
                 container_state=(
-                    "started" if public["containerState"] == "container_started"
-                    else "pending" if public["state"] in {"queued", "running"}
+                    "started"
+                    if public["containerState"] == "container_started"
+                    else "pending"
+                    if public["state"] in {"queued", "running"}
                     else "unknown"
                 ),
                 service_verified=public["serviceState"] == "verified",
@@ -181,27 +256,35 @@ class MediaRecoveryStatusManagement:
         with self.db.connection() as connection:
             connection.execute("BEGIN")
             self.installations._assert_admin(connection, actor)
-            results = {}
+            results = {"larenor_core": self._core()}
             qbittorrent = self._qbittorrent(connection)
             if qbittorrent is not None:
                 results["qbittorrent"] = qbittorrent
             results.update(self._arr(connection))
             for service_id, (row, payload) in self._latest_installations(
-                    connection).items():
+                connection
+            ).items():
                 results[service_id] = self._installation_result(
-                    connection, service_id, row, payload)
-            services = [results[item] for item in _SERVICE_ORDER if item in results]
+                    connection, service_id, row, payload
+                )
+            services = [
+                results.get(item, self._missing(item)) for item in _SERVICE_ORDER
+            ]
             state = (
-                "unknown" if not services
-                else "attention" if any(
+                "attention"
+                if any(
                     item["resultState"] in {"needs_attention", "failed"}
                     for item in services
                 )
-                else "ready" if len(services) == 6 and all(
-                    item["resultState"] == "verified" for item in services)
+                else "ready"
+                if all(item["resultState"] == "verified" for item in services)
                 else "incomplete"
             )
-            return MediaRecoveryStatusResponse.model_validate({
-                "schemaVersion": 1, "state": state,
-                "installAvailable": False, "services": services,
-            }).model_dump()
+            return MediaRecoveryStatusResponse.model_validate(
+                {
+                    "schemaVersion": 2,
+                    "state": state,
+                    "installAvailable": False,
+                    "services": services,
+                }
+            ).model_dump()

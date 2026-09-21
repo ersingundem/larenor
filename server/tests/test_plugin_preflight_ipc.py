@@ -46,14 +46,14 @@ def uid(_connection):
 
 
 @contextmanager
-def running(inspector=None, **kwargs):
+def running(inspector=None, *, timeout=.3, client_timeout=.5, **kwargs):
     with root() as folder:
         path = folder / 'worker.sock'
         worker = PreflightWorkerServer(path, inspector or Inspector(), platform='linux/amd64',
-            allowed_uid=os.getuid(), peer_uid=uid, timeout=.3, **kwargs)
+            allowed_uid=os.getuid(), peer_uid=uid, timeout=timeout, **kwargs)
         worker.start()
         try:
-            yield worker, PreflightWorkerClient(path, owner_uid=os.getuid(), peer_uid=uid, timeout=.5)
+            yield worker, PreflightWorkerClient(path, owner_uid=os.getuid(), peer_uid=uid, timeout=client_timeout)
         finally:
             worker.close()
         assert not path.exists()

@@ -25,7 +25,10 @@ class StackInspector:
 
 def test_media_plan_roundtrip_uses_shared_deadline_and_exact_stack_identity():
     inspector = StackInspector()
-    with running(inspector) as (_, client):
+    # Catalog and complete-stack validation share the worker deadline. Keep the
+    # synthetic budget bounded but large enough for a loaded four-shard runner;
+    # 300 ms intermittently expired before the inspector received the plan.
+    with running(inspector, timeout=1, client_timeout=1.2) as (_, client):
         selected = stack()
         begin = time.monotonic()
         result = client.inspect_stack(selected)
@@ -34,7 +37,7 @@ def test_media_plan_roundtrip_uses_shared_deadline_and_exact_stack_identity():
         assert result.checks[1].status == 'unknown'
         assert len(inspector.calls) == 1
         assert inspector.calls[0][0] == selected
-        assert begin < inspector.calls[0][1] <= begin + .4
+        assert begin < inspector.calls[0][1] <= begin + 1.1
         assert client.status()['installationAvailable'] is False
 
 

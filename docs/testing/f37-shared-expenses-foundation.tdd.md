@@ -1,6 +1,8 @@
 # F37 shared expenses Core foundation
 
-Status: first Core foundation only; F37 remains `pending`.
+Status: the foundation is mounted behind authenticated Core routes and the
+current account resolver; F37 remains `pending` for the remaining acceptance
+work recorded in the Client document.
 
 Larenor stores household expense amounts as integer minor units. This package
 contains no bank connection, payment initiation, card data, or credential field.
@@ -28,7 +30,7 @@ resolver; display names or time proximity never grant authority.
 - GREEN `83bd6c6c`: deterministic splitting, exact authority/idempotency,
   encryption, filtered export, restart, and tamper checks pass.
 
-The authenticated HTTP contract, actual household-account resolver, edit and
-reversal journal, Android tablet surface, CSV artifact delivery, and real
-Client-to-isolated-Core E2E remain open. No F37 acceptance or progress counter
-is claimed by this foundation package.
+The HTTP contract and household-account resolver are now integrated. The edit
+and reversal journal, CSV artifact delivery, and real Client-to-isolated-Core
+device acceptance remain open. No F37 acceptance or progress counter is claimed
+by this integration package.

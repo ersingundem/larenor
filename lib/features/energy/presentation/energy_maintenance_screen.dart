@@ -135,6 +135,15 @@ class _EnergyMaintenanceScreenState
                             ? () => context.push('/energy/irrigation-budget')
                             : null,
                       ),
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('energy-power-budget'),
+                        leading: const Icon(CupertinoIcons.bolt_circle),
+                        title: Text(l10n.powerBudgetTitle),
+                        additionalInfo: Text(l10n.powerBudgetManualOnly),
+                        onTap: active
+                            ? () => context.push('/energy/power-budget')
+                            : null,
+                      ),
                       Padding(
                         padding: Insets.tile,
                         child: Column(

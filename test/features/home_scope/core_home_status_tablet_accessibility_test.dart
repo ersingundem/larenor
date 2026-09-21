@@ -5,6 +5,7 @@ import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/home_scope/presentation/core_home_status_screen.dart';
 import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
 import 'package:larenor/features/home_documents/presentation/home_documents_route.dart';
+import 'package:larenor/features/camera_search/presentation/camera_search_route.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
@@ -94,6 +95,14 @@ void main() {
               tester.getRect(familyBoard).height,
               greaterThanOrEqualTo(48),
             );
+            final cameraSearch = find.byKey(
+              const ValueKey('core-home-camera-search-action'),
+            );
+            expect(cameraSearch, findsOneWidget);
+            expect(
+              tester.getRect(cameraSearch).height,
+              greaterThanOrEqualTo(48),
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -150,6 +159,13 @@ void main() {
               find.byKey(const ValueKey('core-home-family-board-action')),
               findsOneWidget,
             );
+            await tester.ensureVisible(cameraSearch);
+            await tester.pumpAndSettle();
+            await tester.tap(cameraSearch);
+            await flush(tester);
+            expect(find.byType(CameraSearchRoute), findsOneWidget);
+            harness.router(tester).pop();
+            await flush(tester);
             expect(tester.takeException(), isNull);
 
             final label = find.descendant(

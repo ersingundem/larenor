@@ -4,13 +4,16 @@ from .audit import TamperEvidentCameraAudit
 from .models import (
     CameraMode,
     CameraProfileAuthority,
+    CameraPrivacyBoundary,
     CameraProfilePolicy,
+    CameraProviderSupport,
     CameraReadback,
     CameraScope,
     ManualCameraOverride,
     PresenceSignal,
     WorkerReadback,
 )
+from .http import CameraProfileHttpGateway
 from .service import CameraProfileCoordinator, CameraProfileEngine
 
 __all__ = [
@@ -18,7 +21,10 @@ __all__ = [
     "CameraProfileAuthority",
     "CameraProfileCoordinator",
     "CameraProfileEngine",
+    "CameraPrivacyBoundary",
+    "CameraProfileHttpGateway",
     "CameraProfilePolicy",
+    "CameraProviderSupport",
     "CameraReadback",
     "CameraScope",
     "ManualCameraOverride",

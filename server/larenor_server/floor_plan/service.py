@@ -1,4 +1,3 @@
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
@@ -7,11 +6,11 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
-
 
 MAX_FLOORS = 8
 MAX_ROOMS = 128
@@ -184,12 +183,28 @@ class FloorPlanService:
         *,
         audit_key: bytes,
         clock: Callable[[], float] = time.time,
+        authority_guard: Callable[..., None] | None = None,
     ):
         if not isinstance(audit_key, bytes) or len(audit_key) != 32:
             raise ValueError("invalid_floor_plan_audit_key")
         self.database = database
         self._audit_key = audit_key
         self._clock = clock
+        self._authority_guard = authority_guard
+
+    def _verify_authority(
+        self,
+        connection: sqlite3.Connection,
+        actor: Principal,
+        authority: FloorPlanAuthority,
+        *,
+        edit: bool,
+        layout: FloorPlanLayout | None = None,
+    ) -> None:
+        if self._authority_guard is not None:
+            self._authority_guard(
+                connection, actor, authority, edit=edit, layout=layout
+            )
 
     def _fingerprint(self, domain: bytes, value: bytes) -> str:
         return hmac.new(
@@ -488,7 +503,12 @@ class FloorPlanService:
             b"request",
             _canonical(
                 {
-                    "authority": asdict(authority),
+                    "scope": {
+                        "coreId": authority.core_id,
+                        "homeId": authority.home_id,
+                        "accountId": authority.account_id,
+                        "sessionId": authority.session_id,
+                    },
                     "expectedLayoutRevision": expected_layout_revision,
                     "layout": asdict(layout),
                 }
@@ -497,6 +517,9 @@ class FloorPlanService:
         scope = self._scope(authority)
         now = self._clock()
         with self.database.transaction() as connection:
+            self._verify_authority(
+                connection, actor, authority, edit=True, layout=layout
+            )
             self._verified_history(connection, scope)
             old_request = connection.execute(
                 "SELECT * FROM floor_plan_requests WHERE request_id=?", (request_id,)
@@ -589,6 +612,7 @@ class FloorPlanService:
         with self.database.connection() as connection:
             connection.execute("BEGIN")
             try:
+                self._verify_authority(connection, actor, authority, edit=False)
                 self._verified_history(connection, scope)
                 row = connection.execute(
                     "SELECT * FROM floor_plan_layouts WHERE core_id=? AND home_id=?",
@@ -608,6 +632,9 @@ class FloorPlanService:
                     raise ApiError("floor_plan_authority_changed", 409)
                 layout = self._decode_layout(row["payload"])
                 self._validate_layout(layout)
+                self._verify_authority(
+                    connection, actor, authority, edit=False, layout=layout
+                )
                 return StoredLayout(row["revision"], layout)
             finally:
                 connection.rollback()
@@ -698,6 +725,7 @@ class FloorPlanService:
         with self.database.connection() as connection:
             connection.execute("BEGIN")
             try:
+                self._verify_authority(connection, actor, authority, edit=False)
                 rows = self._verified_history(connection, self._scope(authority))
                 return tuple(
                     {

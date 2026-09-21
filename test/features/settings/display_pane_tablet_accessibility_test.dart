@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/multi_display/presentation/dual_display_route.dart';
 import 'package:larenor/features/settings/presentation/panes/display_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -76,6 +77,33 @@ void main() {
                 .isHeader,
             isTrue,
           );
+
+          final dualDisplay = find.byKey(
+            const ValueKey('dual-display-settings-entry'),
+          );
+          await tester.scrollUntilVisible(
+            dualDisplay,
+            250,
+            scrollable: find.byType(Scrollable).first,
+          );
+          expect(tester.getRect(dualDisplay).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.getSemantics(dualDisplay).flagsCollection.isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find
+                  .descendant(of: dualDisplay, matching: find.byType(Text))
+                  .first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(DualDisplayRoute), findsOneWidget);
+          Navigator.of(tester.element(find.byType(DualDisplayRoute))).pop();
+          await tester.pumpAndSettle();
 
           final appearance = find.byKey(
             const ValueKey('display-appearance-action'),

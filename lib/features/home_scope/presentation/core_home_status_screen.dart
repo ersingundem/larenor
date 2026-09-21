@@ -81,6 +81,35 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                 SettingsSection(
                   children: [
                     const HomePeopleEntry(),
+                    if (controller.failure == null && !controller.busy)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-manage-account-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-manage-account-action',
+                        ),
+                        title: Text(l10n.homeCoreManageAccount),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/settings');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-camera-search-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-camera-search-action',
+                        ),
+                        title: Text(l10n.cameraSearchTitle),
+                        additionalInfo: Text(l10n.cameraSearchEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/camera-search');
+                                }
+                              },
+                      ),
                     if (controller.account.context != null)
                       SettingsActionTile(
                         key: const ValueKey('core-home-epaper-entry'),
@@ -180,6 +209,18 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                       ),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('fair-chores-entry'),
+                        buttonKey: const ValueKey('fair-chores-entry-action'),
+                        title: Text(l10n.fairChoresTitle),
+                        additionalInfo: Text(l10n.fairChoresSubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/chores');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('local-notification-entry'),
                         buttonKey: const ValueKey(
                           'local-notification-entry-action',
@@ -196,17 +237,34 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                                 }
                               },
                       ),
-                    if (controller.failure == null && !controller.busy)
+                    if (controller.account.context != null)
                       SettingsActionTile(
-                        key: const ValueKey('core-home-manage-account-entry'),
+                        key: const ValueKey('core-home-weekly-menu-entry'),
                         buttonKey: const ValueKey(
-                          'core-home-manage-account-action',
+                          'core-home-weekly-menu-action',
                         ),
-                        title: Text(l10n.homeCoreManageAccount),
+                        title: Text(l10n.weeklyMealPlanTitle),
+                        additionalInfo: Text(l10n.weeklyMealPlanEntrySubtitle),
                         onTap: !current()
                             ? null
                             : () {
-                                if (current()) context.push('/settings');
+                                if (current()) context.push('/weekly-menu');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-shared-expenses-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-shared-expenses-action',
+                        ),
+                        title: Text(l10n.sharedExpensesTitle),
+                        additionalInfo: Text(l10n.sharedExpensesEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/shared-expenses');
+                                }
                               },
                       ),
                     SettingsActionTile(

@@ -19,7 +19,9 @@ enum ServerServiceKind {
   frigate('frigate', 'Frigate'),
   immich('immich', 'Immich'),
   adguard('adguard', 'AdGuard Home'),
-  esphome('esphome', 'ESPHome');
+  esphome('esphome', 'ESPHome'),
+  octoprint('octoprint', 'OctoPrint'),
+  moonraker('moonraker', 'Moonraker');
 
   const ServerServiceKind(this.wireName, this.label);
   final String wireName, label;
@@ -64,7 +66,9 @@ List<ServerServiceAuthMethod> serviceAuthMethods(ServerServiceKind kind) =>
       ServerServiceKind.lidarr ||
       ServerServiceKind.readarr ||
       ServerServiceKind.bazarr ||
-      ServerServiceKind.prowlarr => const [ServerServiceAuthMethod.apiKey],
+      ServerServiceKind.prowlarr ||
+      ServerServiceKind.octoprint ||
+      ServerServiceKind.moonraker => const [ServerServiceAuthMethod.apiKey],
       ServerServiceKind.jellyfin || ServerServiceKind.immich => const [
         ServerServiceAuthMethod.apiKey,
         ServerServiceAuthMethod.token,

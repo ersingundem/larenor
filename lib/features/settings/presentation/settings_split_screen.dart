@@ -8,12 +8,17 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../ev_charging/presentation/ev_charging_route.dart';
+import '../../game_streaming/data/android_game_stream_port.dart';
+import '../../game_streaming/presentation/game_stream_settings_screen.dart';
 import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
 import '../../room_comfort/presentation/room_comfort_route.dart';
+import '../../camera_profiles/presentation/camera_profile_route.dart';
+import '../../legacy_remote/presentation/legacy_remote_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../workshop/presentation/workshop_route.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -31,7 +36,10 @@ enum SettingsCategory {
   tabletFleet,
   remoteAccess,
   roomComfort,
+  gameStreaming,
+  legacyRemote,
   display,
+  workshop,
   security,
   homeAssistant,
   evCharging,
@@ -39,6 +47,7 @@ enum SettingsCategory {
   intercom,
   integrations,
   meshCenter,
+  cameraProfiles,
   backup,
   about,
 }
@@ -54,9 +63,11 @@ class SettingsSplitScreen extends StatefulWidget {
     this.onExit,
     this.backupGateCurrent,
     this.remoteGateCurrent,
+    this.workshopGateCurrent,
     this.meshGateCurrent,
     this.comfortGateCurrent,
     this.evChargingGateCurrent,
+    this.gameStreamPort,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
   });
@@ -65,9 +76,11 @@ class SettingsSplitScreen extends StatefulWidget {
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
+  final bool Function()? workshopGateCurrent;
   final bool Function()? meshGateCurrent;
   final bool Function()? comfortGateCurrent;
   final bool Function()? evChargingGateCurrent;
+  final GameStreamCapabilityPort? gameStreamPort;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
 
@@ -158,9 +171,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       runFileDialog: widget.runFileDialog,
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
+                      workshopGateCurrent: widget.workshopGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
                       comfortGateCurrent: widget.comfortGateCurrent,
                       evChargingGateCurrent: widget.evChargingGateCurrent,
+                      gameStreamPort: widget.gameStreamPort,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
@@ -185,9 +200,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
+            workshopGateCurrent: widget.workshopGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
             comfortGateCurrent: widget.comfortGateCurrent,
             evChargingGateCurrent: widget.evChargingGateCurrent,
+            gameStreamPort: widget.gameStreamPort,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
@@ -228,9 +245,11 @@ Widget paneFor(
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
+  bool Function()? workshopGateCurrent,
   bool Function()? meshGateCurrent,
   bool Function()? comfortGateCurrent,
   bool Function()? evChargingGateCurrent,
+  GameStreamCapabilityPort? gameStreamPort,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
 }) {
@@ -243,6 +262,13 @@ Widget paneFor(
       );
     case SettingsCategory.roomComfort:
       return RoomComfortRoute(gateCurrent: comfortGateCurrent ?? () => false);
+    case SettingsCategory.gameStreaming:
+      return GameStreamSettingsScreen(
+        port: gameStreamPort,
+        gateCurrent: remoteGateCurrent ?? () => false,
+      );
+    case SettingsCategory.legacyRemote:
+      return LegacyRemoteRoute(gateCurrent: remoteGateCurrent ?? () => false);
     case SettingsCategory.server:
       return ServerConnectionScreen(adminGateCurrent: tabletFleetGateCurrent);
     case SettingsCategory.tabletFleet:
@@ -251,6 +277,8 @@ Widget paneFor(
       );
     case SettingsCategory.display:
       return DisplayPane(runFileDialog: runFileDialog);
+    case SettingsCategory.workshop:
+      return WorkshopRoute(gateCurrent: workshopGateCurrent ?? () => false);
     case SettingsCategory.security:
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
@@ -267,6 +295,8 @@ Widget paneFor(
       return const IntegrationsPane();
     case SettingsCategory.meshCenter:
       return MeshCenterRoute(gateCurrent: meshGateCurrent ?? () => false);
+    case SettingsCategory.cameraProfiles:
+      return CameraProfileRoute(gateCurrent: meshGateCurrent ?? () => false);
     case SettingsCategory.backup:
       return BackupScreen(
         runFileDialog: runFileDialog,
@@ -328,10 +358,28 @@ class _MasterList extends StatelessWidget {
             : 'Room comfort',
       ),
       (
+        SettingsCategory.gameStreaming,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.gameStreamingTitle,
+      ),
+      (
+        SettingsCategory.legacyRemote,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.legacyRemoteTitle,
+      ),
+      (
         SettingsCategory.display,
         CupertinoIcons.brightness,
         CupertinoColors.systemYellow,
         l10n.settingsCategoryDisplay,
+      ),
+      (
+        SettingsCategory.workshop,
+        CupertinoIcons.cube_box_fill,
+        CupertinoColors.systemPurple,
+        l10n.settingsCategoryWorkshop,
       ),
       (
         SettingsCategory.security,
@@ -368,6 +416,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.antenna_radiowaves_left_right,
         CupertinoColors.systemGreen,
         l10n.meshCenterTitle,
+      ),
+      (
+        SettingsCategory.cameraProfiles,
+        CupertinoIcons.video_camera_solid,
+        CupertinoColors.systemRed,
+        l10n.cameraProfileTitle,
       ),
       (
         SettingsCategory.intercom,

@@ -77,6 +77,7 @@ void main() {
       expect(h.api.logouts, 1);
       final manageAccount = find.text(l10n.homeCoreManageAccount);
       await tester.ensureVisible(manageAccount);
+      await tester.pumpAndSettle();
       await tester.pump();
       await tester.tap(manageAccount);
       await flush(tester);
@@ -108,6 +109,7 @@ void main() {
               );
               final manageAccount = find.text(l10n.homeCoreManageAccount);
               await tester.ensureVisible(manageAccount);
+              await tester.pumpAndSettle();
               await tester.pump();
               await tester.tap(manageAccount);
               await flush(tester);

@@ -207,18 +207,22 @@ class PublicationGraphTest(unittest.TestCase):
         self.assertEqual(WORKFLOW["on"]["push"]["branches"], ["main"])
         self.assertFalse(WORKFLOW["on"]["workflow_dispatch"]["inputs"]["publish"]["default"])
         self.assertEqual(WORKFLOW["permissions"], {"contents": "read"})
-        for job in WORKFLOW["jobs"].values():
+        for job_name, job in WORKFLOW["jobs"].items():
             guard = job["if"]
             self.assertIn("github.repository == 'ersingundem/larenor'", guard)
             self.assertIn("github.ref == 'refs/heads/main'", guard)
             self.assertIn("github.event_name == 'push'", guard)
             self.assertIn("github.event_name == 'workflow_dispatch'", guard)
             self.assertNotIn("pull_request", guard)
-            self.assertLessEqual(set(job.get("permissions", {})), {"contents", "packages"})
+            allowed = ({"contents", "pull-requests"} if job_name == "server-test"
+                       else {"contents", "packages"})
+            self.assertLessEqual(set(job.get("permissions", {})), allowed)
 
     def test_reusable_tests_and_both_architectures_gate_the_final_manifest(self):
         jobs = WORKFLOW["jobs"]
         self.assertEqual(jobs["server-test"]["uses"], "./.github/workflows/server-test.yml")
+        self.assertEqual(jobs["server-test"]["permissions"],
+                         {"contents": "read", "pull-requests": "read"})
         self.assertEqual(jobs["build-test"]["needs"], ["server-test"])
         self.assertEqual(set(jobs["publish-manifest"]["needs"]), {"server-test", "build-test"})
         self.assertEqual(jobs["build-test"]["strategy"]["matrix"]["include"], [
