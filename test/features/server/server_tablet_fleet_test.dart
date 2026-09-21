@@ -69,7 +69,7 @@ Map<String, dynamic> fleetCommand({
   'state': state,
   'result': result,
   'createdAt': 1789977600.0,
-  'completedAt': state == 'completed' ? 1789977601.0 : null,
+  'completedAt': {'completed', 'expired'}.contains(state) ? 1789977601.0 : null,
 };
 
 class TabletFleetFixture extends AdminFixture {
@@ -153,7 +153,11 @@ class TabletFleetFixture extends AdminFixture {
       return this.json({'command': command});
     }
     if (path.endsWith('/commands')) {
-      command = fleetCommand(kind: body['command'] as String);
+      command = fleetCommand(
+        kind: body['command'] as String,
+        policyRevision: body['expectedPolicyRevision'] as int,
+        expiresAt: body['expiresAt'] as double,
+      );
       return this.json({'command': command}, 201);
     }
     if (path.endsWith('/devices')) {
@@ -319,10 +323,7 @@ void main() {
       throwsA(isA<LarenorServerException>()),
     );
     final expired = ManagedTabletCommand.fromJson(
-      fleetCommand(
-        state: 'expired',
-        result: 'expired',
-      ),
+      fleetCommand(state: 'expired', result: 'expired'),
     );
     expect(expired.state, TabletCommandState.expired);
     expect(expired.result, TabletCommandResult.expired);
@@ -378,6 +379,15 @@ void main() {
         )
         .toSet();
     expect(keys, {'client:22222222222222222222222222222222'});
+    final envelopes = fixture.calls
+        .where((call) => call.url.path.endsWith('/commands'))
+        .map((call) => jsonDecode(call.body) as Map<String, dynamic>)
+        .toList();
+    expect(envelopes.map((body) => body['expiresAt']).toSet(), hasLength(1));
+    expect(
+      envelopes.every((body) => body['expectedPolicyRevision'] == 1),
+      isTrue,
+    );
     controller.dispose();
     fixture.account.dispose();
   });
@@ -405,4 +415,42 @@ void main() {
     controller.dispose();
     fixture.account.dispose();
   });
+
+  test(
+    'Core policy and expiry conflicts remain actionable fail-closed codes',
+    () async {
+      for (final code in ['tablet_policy_changed', 'tablet_command_expired']) {
+        final fixture = TabletFleetFixture();
+        await fixture.account.initialize();
+        final controller = ServerTabletFleetController(fixture.account);
+        await controller.load(current: () => true);
+        fixture.respond = (request) async {
+          if (request.url.path.endsWith('/commands')) {
+            return fixture.json({
+              'error': {'code': code},
+            }, 409);
+          }
+          if (request.method == 'GET' &&
+              request.url.path.contains('/tablet-fleet/')) {
+            return fixture.json(fixture.listBody);
+          }
+          return fixture.defaultResponse(request);
+        };
+        await controller.issue(
+          controller.tablets.first,
+          TabletCommandKind.refreshDashboard,
+          current: () => true,
+        );
+        expect(controller.failure, code);
+        expect(controller.needsRefresh, isTrue);
+        await controller.load(current: () => true);
+        expect(
+          fixture.calls.where((call) => call.url.path.endsWith('/commands')),
+          hasLength(1),
+        );
+        controller.dispose();
+        fixture.account.dispose();
+      }
+    },
+  );
 }

@@ -43,7 +43,7 @@ void main() {
                 .copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
-          home: const ServerTabletFleetScreen(),
+          home: ServerTabletFleetScreen(gateCurrent: () => true),
         ),
       ),
     );
@@ -190,14 +190,11 @@ void main() {
                       AppLocalizations.localizationsDelegates,
                   supportedLocales: AppLocalizations.supportedLocales,
                   builder: (context, child) => MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
-                      textScaler: const TextScaler.linear(2),
-                    ),
+                    data: MediaQuery.of(context)
+                        .copyWith(textScaler: const TextScaler.linear(2)),
                     child: child!,
                   ),
-                  home: SettingsSplitScreen(
-                    tabletFleetGateCurrent: () => true,
-                  ),
+                  home: SettingsSplitScreen(tabletFleetGateCurrent: () => true),
                 ),
               ),
             );
@@ -253,9 +250,7 @@ void main() {
       );
       expect(find.text(l10n.serverTabletFleetLocked), findsOneWidget);
       expect(
-        fixture.calls.where(
-          (call) => call.url.path.contains('/tablet-fleet/'),
-        ),
+        fixture.calls.where((call) => call.url.path.contains('/tablet-fleet/')),
         isEmpty,
       );
       await tester.pumpWidget(const SizedBox.shrink());

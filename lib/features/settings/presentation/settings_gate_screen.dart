@@ -11,6 +11,7 @@ import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import '../../core_ha/direct_migration/transfer_screen.dart';
 import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
@@ -24,6 +25,7 @@ enum SettingsGateDestination {
   settings,
   clientUpdates,
   serverAccount,
+  tabletFleet,
   homeSource,
   homeResources,
   homePeople,
@@ -147,6 +149,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                   SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
               widget.initialDestination ==
+                  SettingsGateDestination.tabletFleet ||
+              widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
@@ -160,6 +164,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
+              widget.initialDestination ==
+                  SettingsGateDestination.tabletFleet ||
               widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           previous?.value != next.value) {
@@ -223,9 +229,43 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             : widget.initialDestination ==
                                   SettingsGateDestination.serverAccount
                             ? ServerConnectionScreen(
+                                adminGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.tabletFleet
+                            ? ServerTabletFleetScreen(
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.coreHaTransfer
@@ -345,6 +385,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                               )
                             : SettingsSplitScreen(
                                 meshGateCurrent: () {
+                                tabletFleetGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||
                                       resourceGeneration != _generation ||
