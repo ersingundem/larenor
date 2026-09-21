@@ -108,6 +108,8 @@ from .mesh_center.runtime import build_mesh_center_gateway
 from .camera_profiles.runtime import build_camera_profile_gateway
 from .power_budget.schema import migrate_power_budget
 from .power_budget.runtime import build_power_budget_gateway
+from .floor_plan.schema import migrate_floor_plan
+from .floor_plan.runtime import FloorPlanRuntime
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -234,6 +236,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_power_budget(connection)
+                migrate_floor_plan(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -377,6 +380,15 @@ class CoreServices:
             self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
+            self.floor_plan = FloorPlanRuntime(
+                self.db,
+                self.auth,
+                self.home_resources,
+                self.home_assistant,
+                self.context,
+                key,
+                settings.clock,
+            )
             self.home_assistant_rules = HomeAssistantRules(self.home_assistant)
             self.home_assistant_rules.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(

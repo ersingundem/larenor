@@ -67,6 +67,7 @@ from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .camera_profiles.api import router as camera_profile_router
 from .power_budget.api import router as power_budget_router
+from .floor_plan.api import router as floor_plan_router
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -294,6 +295,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(camera_profile_router, prefix="/api/v1")
     app.include_router(power_budget_router, prefix="/api/v1")
+    app.include_router(floor_plan_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
