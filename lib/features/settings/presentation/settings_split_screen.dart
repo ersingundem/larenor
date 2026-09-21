@@ -7,6 +7,8 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../game_streaming/data/android_game_stream_port.dart';
+import '../../game_streaming/presentation/game_stream_settings_screen.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
@@ -25,6 +27,7 @@ enum SettingsCategory {
   connection,
   server,
   remoteAccess,
+  gameStreaming,
   display,
   security,
   homeAssistant,
@@ -47,6 +50,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.backupGateCurrent,
     this.remoteGateCurrent,
     this.meshGateCurrent,
+    this.gameStreamPort,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
@@ -54,6 +58,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
+  final GameStreamCapabilityPort? gameStreamPort;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -143,6 +148,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      gameStreamPort: widget.gameStreamPort,
                     ),
                   ),
                 ),
@@ -166,6 +172,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            gameStreamPort: widget.gameStreamPort,
           ),
         ),
       ),
@@ -205,12 +212,18 @@ Widget paneFor(
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
+  GameStreamCapabilityPort? gameStreamPort,
 }) {
   switch (category) {
     case SettingsCategory.connection:
       return const ConnectionPane();
     case SettingsCategory.remoteAccess:
       return RemoteProfilesScreen(
+        gateCurrent: remoteGateCurrent ?? () => false,
+      );
+    case SettingsCategory.gameStreaming:
+      return GameStreamSettingsScreen(
+        port: gameStreamPort,
         gateCurrent: remoteGateCurrent ?? () => false,
       );
     case SettingsCategory.server:
@@ -272,6 +285,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.desktopcomputer,
         CupertinoColors.systemTeal,
         l10n.remoteAccessTitle,
+      ),
+      (
+        SettingsCategory.gameStreaming,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.gameStreamingTitle,
       ),
       (
         SettingsCategory.display,

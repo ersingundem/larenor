@@ -85,9 +85,25 @@ final class AndroidGameStreamCapabilities {
   final Set<GameStreamIntent> intents;
 }
 
+abstract interface class GameStreamNativeBindingPort {
+  Future<void> bind(AndroidGameStreamBinding binding);
+
+  Future<void> retireBinding(AndroidGameStreamBinding binding);
+
+  Future<void> retire(GameStreamRetirement retirement);
+}
+
+abstract interface class GameStreamCapabilityPort {
+  Future<AndroidGameStreamCapabilities> capabilities();
+}
+
 /// Fail-closed Android port. The default native implementation advertises an
 /// unavailable engine until a reviewed Moonlight/Sunshine runtime is packaged.
-final class AndroidGameStreamPort implements GameStreamPort {
+final class AndroidGameStreamPort
+    implements
+        GameStreamPort,
+        GameStreamNativeBindingPort,
+        GameStreamCapabilityPort {
   AndroidGameStreamPort({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(_channelName);
 
@@ -97,6 +113,7 @@ final class AndroidGameStreamPort implements GameStreamPort {
   AndroidGameStreamBinding? _binding;
   int _generation = 0;
 
+  @override
   Future<AndroidGameStreamCapabilities> capabilities() async {
     final raw = await _channel.invokeMethod<Object?>('capabilities');
     final value = _strictMap(raw, {
@@ -143,6 +160,7 @@ final class AndroidGameStreamPort implements GameStreamPort {
     );
   }
 
+  @override
   Future<void> bind(AndroidGameStreamBinding binding) async {
     final current = _binding;
     if (current != null && current.sameAuthority(binding)) return;
@@ -190,6 +208,15 @@ final class AndroidGameStreamPort implements GameStreamPort {
     final binding = _binding;
     if (binding == null) return;
     if (binding.sessionId != retirement.sessionId) {
+      throw const GameStreamException('stale_native_binding');
+    }
+    await retireBinding(binding);
+  }
+
+  @override
+  Future<void> retireBinding(AndroidGameStreamBinding binding) async {
+    final current = _binding;
+    if (current == null || !identical(current, binding)) {
       throw const GameStreamException('stale_native_binding');
     }
     _generation += 1;
