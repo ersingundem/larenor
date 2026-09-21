@@ -7,6 +7,7 @@ import 'package:larenor/features/epaper/data/epaper_management_api.dart';
 import 'package:larenor/features/epaper/data/epaper_management_controller.dart';
 import 'package:larenor/features/epaper/domain/epaper_management_models.dart';
 import 'package:larenor/features/epaper/presentation/epaper_management_screen.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 
@@ -68,8 +69,9 @@ final class _Api implements EpaperManagementApi {
       deviceId: deviceId,
       deviceRevision: expectedDeviceRevision,
       action: action,
-      expectedLayoutRevision:
-          action == EpaperManagementAction.rotate ? 'layout-r5' : 'layout-r4',
+      expectedLayoutRevision: action == EpaperManagementAction.rotate
+          ? 'layout-r5'
+          : 'layout-r4',
       expiresAt: DateTime.utc(2030),
     );
   }
@@ -114,87 +116,101 @@ final class _Api implements EpaperManagementApi {
 }
 
 void main() {
-  test('safe state is exact-authority bound and stale loads fail closed', () async {
-    var current = true;
-    final api = _Api();
-    final controller = EpaperManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
-
-    await controller.load();
-    expect(controller.devices.single.stored, isTrue);
-    expect(controller.devices.single.reachable, isTrue);
-    expect(
-      controller.devices.single.snapshotTrust,
-      EpaperSnapshotTrust.verified,
-    );
-
-    final gate = Completer<List<EpaperDeviceStatus>>();
-    api.listGate = gate;
-    final late = controller.load();
-    current = false;
-    gate.complete([_device(trust: EpaperSnapshotTrust.partial)]);
-    await late;
-
-    expect(controller.devices, isEmpty);
-    expect(controller.state, EpaperManagementState.stale);
-  });
-
-  test('refresh and rotate require confirmation plus exact verified readback', () async {
-    var current = true;
-    final api = _Api();
-    final controller = EpaperManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
-    await controller.load();
-
-    await controller.preview(
-      controller.devices.single,
-      EpaperManagementAction.rotate,
-    );
-    expect(controller.pendingPreview, isNotNull);
-    expect(api.confirmCalls, 0);
-
-    api.previewLayout = 'layout-r5';
-    final gate = Completer<EpaperCommandReceipt>();
-    api.confirmGate = gate;
-    final late = controller.confirmPending();
-    current = false;
-    gate.complete(
-      EpaperCommandReceipt(
+  test(
+    'safe state is exact-authority bound and stale loads fail closed',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = EpaperManagementController(
+        api: api,
         authority: _authority,
-        requestId: controller.pendingPreview!.requestId,
-        deviceId: 'hall-display',
-        deviceRevision: 'device-r7',
-        action: EpaperManagementAction.rotate,
-        status: EpaperCommandStatus.applied,
-        observedLayoutRevision: 'layout-r5',
-        observedSnapshotDigest: 'a' * 64,
-      ),
-    );
-    await late;
-    expect(controller.state, EpaperManagementState.stale);
-    expect(api.readbackCalls, 0);
+        isCurrent: () => current,
+      );
+      addTearDown(controller.dispose);
 
-    current = true;
-    api.confirmGate = null;
-    await controller.load();
-    await controller.preview(
-      controller.devices.single,
-      EpaperManagementAction.rotate,
-    );
-    await controller.confirmPending();
-    expect(controller.state, EpaperManagementState.verified);
-    expect(controller.devices.single.layoutRevision, 'layout-r5');
-    expect(api.confirmCalls, 2);
-    expect(api.readbackCalls, 1);
-  });
+      await controller.load();
+      expect(controller.devices.single.stored, isTrue);
+      expect(controller.devices.single.reachable, isTrue);
+      expect(
+        controller.devices.single.snapshotTrust,
+        EpaperSnapshotTrust.verified,
+      );
+
+      api.devices = [_device(reachable: false)];
+      await controller.load();
+      await controller.preview(
+        controller.devices.single,
+        EpaperManagementAction.refresh,
+      );
+      expect(api.previewCalls, 0);
+
+      final gate = Completer<List<EpaperDeviceStatus>>();
+      api.listGate = gate;
+      final late = controller.load();
+      current = false;
+      gate.complete([_device(trust: EpaperSnapshotTrust.partial)]);
+      await late;
+
+      expect(controller.devices, isEmpty);
+      expect(controller.state, EpaperManagementState.stale);
+    },
+  );
+
+  test(
+    'refresh and rotate require confirmation plus exact verified readback',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = EpaperManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+
+      await controller.preview(
+        controller.devices.single,
+        EpaperManagementAction.rotate,
+      );
+      expect(controller.pendingPreview, isNotNull);
+      expect(api.confirmCalls, 0);
+
+      api.previewLayout = 'layout-r5';
+      final gate = Completer<EpaperCommandReceipt>();
+      api.confirmGate = gate;
+      final late = controller.confirmPending();
+      current = false;
+      gate.complete(
+        EpaperCommandReceipt(
+          authority: _authority,
+          requestId: controller.pendingPreview!.requestId,
+          deviceId: 'hall-display',
+          deviceRevision: 'device-r7',
+          action: EpaperManagementAction.rotate,
+          status: EpaperCommandStatus.applied,
+          observedLayoutRevision: 'layout-r5',
+          observedSnapshotDigest: 'a' * 64,
+        ),
+      );
+      await late;
+      expect(controller.state, EpaperManagementState.stale);
+      expect(api.readbackCalls, 0);
+
+      current = true;
+      api.confirmGate = null;
+      await controller.load();
+      await controller.preview(
+        controller.devices.single,
+        EpaperManagementAction.rotate,
+      );
+      await controller.confirmPending();
+      expect(controller.state, EpaperManagementState.verified);
+      expect(controller.devices.single.layoutRevision, 'layout-r5');
+      expect(api.confirmCalls, 2);
+      expect(api.readbackCalls, 1);
+    },
+  );
 
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1280, 900)]) {
@@ -205,7 +221,6 @@ void main() {
           tester.view.devicePixelRatio = 1;
           addTearDown(tester.view.reset);
           final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
           final api = _Api();
           final controller = EpaperManagementController(
             api: api,
@@ -217,10 +232,11 @@ void main() {
           await tester.pumpWidget(
             CupertinoApp(
               locale: Locale(language),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: const TextScaler.linear(2),
-                ),
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
                 child: child!,
               ),
               home: EpaperManagementScreen(controller: controller),
@@ -242,15 +258,17 @@ void main() {
           expect(
             tester
                 .getSemantics(
-                  find.byKey(
-                    const ValueKey('epaper-state-hall-display'),
-                  ),
+                  find.byKey(const ValueKey('epaper-state-hall-display')),
                 )
                 .label,
             contains(language == 'tr' ? 'Doğrulandı' : 'Verified'),
           );
 
-          Focus.of(tester.element(refresh)).requestFocus();
+          Focus.of(
+            tester.element(
+              find.descendant(of: refresh, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pumpAndSettle();
@@ -259,13 +277,18 @@ void main() {
 
           final confirm = find.byKey(const ValueKey('epaper-confirm-action'));
           expect(tester.getRect(confirm).height, greaterThanOrEqualTo(48));
-          Focus.of(tester.element(confirm)).requestFocus();
+          Focus.of(
+            tester.element(
+              find.descendant(of: confirm, matching: find.byType(Text)),
+            ),
+          ).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pumpAndSettle();
           expect(api.confirmCalls, 1);
           expect(api.readbackCalls, 1);
           expect(tester.takeException(), isNull);
+          semantics.dispose();
         },
       );
     }
