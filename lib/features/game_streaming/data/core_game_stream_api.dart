@@ -160,6 +160,23 @@ final class CoreGameStreamCommand {
       throw const LarenorServerException('invalid_response');
     }
     final revision = value['readbackRevision'];
+    final expectedResult = switch (intent) {
+      'wake' => 'hostAwake',
+      'launch' => 'appRunning',
+      'stream' => 'streaming',
+      'stop' => 'stopped',
+      _ => throw const LarenorServerException('invalid_response'),
+    };
+    final validOutcome = switch (value['state']) {
+      'authorized' => value['result'] == null && revision == null,
+      'verified' => value['result'] == expectedResult && revision != null,
+      'rejected' => value['result'] == 'rejected' && revision == null,
+      'unknown' => value['result'] == 'unknown' && revision == null,
+      _ => false,
+    };
+    if (!validOutcome) {
+      throw const LarenorServerException('invalid_response');
+    }
     if (revision != null) _revision(revision);
     return CoreGameStreamCommand._(
       id: _id(value['id']),

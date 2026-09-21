@@ -84,6 +84,26 @@ Map<String, Object?> command({String state = 'authorized', int? readback}) => {
 };
 
 void main() {
+  test('Core command parser rejects a verified result for another intent', () {
+    final parsedHost = CoreGameStreamHost.fromJson(
+      host(),
+      context: fixtureContext,
+    );
+    final parsedLease = CoreGameStreamLease.fromJson(
+      lease(),
+      host: parsedHost,
+      expectedAuthority: authority(),
+    );
+    expect(
+      () => CoreGameStreamCommand.fromJson(
+        {...command(state: 'verified', readback: 10), 'result': 'stopped'},
+        lease: parsedLease,
+        intent: 'stream',
+      ),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
+
   test('host lease and command receipts stay exact and secret free', () async {
     final requests = <http.Request>[];
     final transport = LarenorServerApi(

@@ -155,6 +155,27 @@ class GameStreamNativeAdapterTest {
         assertEquals(1, outcomes.size)
     }
 
+    @Test fun oldLeaseCallbackCannotCancelTheNewLeaseCommand() {
+        val engine = DelayedEngine()
+        val adapter = GameStreamNativeAdapter(engine)
+        adapter.bind(binding())
+        val oldCommand = command()
+        val oldOutcomes = mutableListOf<GameStreamNativeOutcome>()
+        adapter.execute(oldCommand.sessionId, 7, oldCommand, oldOutcomes::add)
+
+        adapter.bind(binding(epoch = 8))
+        assertEquals("cancelled", (oldOutcomes.single() as GameStreamNativeOutcome.Failure).failure.code)
+        val newCommand = command(request = "a".repeat(32))
+        val newOutcomes = mutableListOf<GameStreamNativeOutcome>()
+        adapter.execute(newCommand.sessionId, 8, newCommand, newOutcomes::add)
+
+        engine.complete(receipt(oldCommand), index = 0)
+        assertTrue(newOutcomes.isEmpty())
+        engine.complete(receipt(newCommand), index = 1)
+        assertEquals(1, newOutcomes.size)
+        assertTrue(newOutcomes.single() is GameStreamNativeOutcome.Success)
+    }
+
     @Test fun mismatchedEngineReadbackNeverBecomesSuccess() {
         val engine = DelayedEngine()
         val adapter = GameStreamNativeAdapter(engine)
@@ -198,7 +219,7 @@ class GameStreamNativeAdapterTest {
         var executeCalls = 0
         var retireCalls = 0
         var seenCredentialHandle: String? = null
-        private var callback: ((GameStreamEngineReceipt?, GameStreamNativeFailure?) -> Unit)? = null
+        private val callbacks = mutableListOf<(GameStreamEngineReceipt?, GameStreamNativeFailure?) -> Unit>()
 
         override fun capabilities() = GameStreamNativeCapabilities(
             "available", "fixture-1", GameStreamNativeIntent.entries.toSet(),
@@ -211,13 +232,13 @@ class GameStreamNativeAdapterTest {
         ) {
             executeCalls += 1
             seenCredentialHandle = credentialHandle
-            this.callback = callback
+            callbacks += callback
         }
 
         override fun retire(sessionId: String) { retireCalls += 1 }
 
-        fun complete(receipt: GameStreamEngineReceipt) {
-            callback?.invoke(receipt, null)
+        fun complete(receipt: GameStreamEngineReceipt, index: Int = callbacks.lastIndex) {
+            callbacks[index].invoke(receipt, null)
         }
     }
 }

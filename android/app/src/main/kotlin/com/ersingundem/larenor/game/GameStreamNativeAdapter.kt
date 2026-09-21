@@ -110,23 +110,23 @@ class GameStreamNativeAdapter(
             if (current == null || generation != leaseGeneration || operation?.generation != leaseGeneration ||
                 current.sessionId != command.sessionId
             ) {
-                outcome = GameStreamNativeOutcome.Failure(GameStreamNativeFailure("staleSession"))
-                callbacks = operation?.callbacks?.toList().orEmpty()
-                operation?.callbacks?.clear()
-            } else {
-                outcome = try {
-                    when {
-                        failure != null && receipt == null -> GameStreamNativeOutcome.Failure(failure)
-                        failure == null && receipt != null -> GameStreamNativeOutcome.Success(receipt.validatedFor(command))
-                        else -> GameStreamNativeOutcome.Failure(GameStreamNativeFailure("invalidReceipt"))
-                    }
-                } catch (invalid: GameStreamNativeFailure) {
-                    GameStreamNativeOutcome.Failure(invalid)
-                }
-                operation.terminal = outcome
-                callbacks = operation.callbacks.toList()
-                operation.callbacks.clear()
+                // bind/retire already completed the old callbacks as cancelled.
+                // An old engine callback must never consume a newer lease's
+                // operation for the same intent.
+                return
             }
+            outcome = try {
+                when {
+                    failure != null && receipt == null -> GameStreamNativeOutcome.Failure(failure)
+                    failure == null && receipt != null -> GameStreamNativeOutcome.Success(receipt.validatedFor(command))
+                    else -> GameStreamNativeOutcome.Failure(GameStreamNativeFailure("invalidReceipt"))
+                }
+            } catch (invalid: GameStreamNativeFailure) {
+                GameStreamNativeOutcome.Failure(invalid)
+            }
+            operation.terminal = outcome
+            callbacks = operation.callbacks.toList()
+            operation.callbacks.clear()
         }
         callbacks.forEach { it(outcome) }
     }

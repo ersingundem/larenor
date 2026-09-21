@@ -6,7 +6,6 @@ import uuid
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
 
-
 MAX_HOSTS = 64
 MAX_SESSIONS = 2048
 MAX_COMMANDS = 8192
@@ -253,6 +252,12 @@ class GameStreamAuthorityService:
             command = self._command(connection.execute(
                 "SELECT * FROM game_stream_commands WHERE id=? AND session_id=?", (command_id, session_id)
             ).fetchone())
+            expected_result = {
+                "wake": "hostAwake", "launch": "appRunning",
+                "stream": "streaming", "stop": "stopped",
+            }[command["intent"]]
+            if body.state == "verified" and body.result != expected_result:
+                raise ApiError("invalid_request", 400)
             if command["state"] != "authorized":
                 if (command["state"], command["result"], command["readback_revision"]) == (
                     body.state, body.result, body.readbackRevision):

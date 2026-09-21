@@ -159,3 +159,29 @@ def test_intent_receipt_is_bounded_exact_and_lost_ack_never_replays(server):
     late = client.post(command_url, headers=headers, json={
         **intent, "requestKey": "intent-request-0002"})
     assert late.status_code == 409
+
+
+def test_verified_result_must_match_the_authorized_host_intent(server):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    headers = auth(pair)
+    revision = _account_revision(app, pair["user"]["id"])
+    core_id, home_id = _scope(app)
+    root = f"/api/v1/game-streaming/{core_id}/{home_id}"
+    host = _host(client, headers, root)
+    session = _session(client, headers, root, host, revision).json()
+    command_url = root + f"/sessions/{session['id']}/commands"
+    command = client.post(command_url, headers=headers, json={
+        "schemaVersion": 1, "requestKey": "stop-intent-request-0001",
+        "expectedSessionRevision": 1, "intent": "stop",
+    }).json()
+    complete_url = command_url + f"/{command['id']}/complete"
+    wrong = client.post(complete_url, headers=headers, json={
+        "schemaVersion": 1, "expectedSessionRevision": 1,
+        "state": "verified", "result": "streaming", "readbackRevision": 11,
+    })
+    assert wrong.status_code == 400
+    assert client.post(complete_url, headers=headers, json={
+        "schemaVersion": 1, "expectedSessionRevision": 1,
+        "state": "verified", "result": "stopped", "readbackRevision": 11,
+    }).json()["result"] == "stopped"
