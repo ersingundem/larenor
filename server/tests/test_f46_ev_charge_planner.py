@@ -176,7 +176,7 @@ def test_safety_limits_and_manual_override_expiry_fail_closed(tmp_path):
     with pytest.raises(ApiError, match="charge_target_unreachable"):
         service.preview(
             actor(), authority=authority(), inputs=inputs(),
-            goal=replace(goal(), target_soc=100), preview_id="preview-impossible",
+            goal=replace(goal(), target_soc=80), preview_id="preview-impossible",
         )
 
 
@@ -201,6 +201,11 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
     assert same == uncertain
     assert charger.apply_calls == 1
 
+    with pytest.raises(ApiError, match="energy_authority_changed"):
+        service.readback(
+            actor(), authority=authority(schedule_revision=8), command_id="confirm-1"
+        )
+
     assert service.readback(
         actor(), authority=authority(), command_id="confirm-1"
     ).status == "uncertain"
@@ -217,3 +222,16 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
         )
     with pytest.raises(StartupError, match="ev_charge_audit_invalid"):
         planner(path, charger).history(actor(), authority=authority(), limit=20)
+
+    clean_path = tmp_path / "tampered-preview.sqlite3"
+    clean = planner(clean_path)
+    clean.preview(
+        actor(), authority=authority(), inputs=inputs(), goal=goal(),
+        preview_id="preview-tampered",
+    )
+    with Database(clean_path).transaction() as connection:
+        connection.execute(
+            "UPDATE ev_charge_previews SET payload='{}' WHERE id='preview-tampered'"
+        )
+    with pytest.raises(StartupError, match="ev_charge_audit_invalid"):
+        planner(clean_path).history(actor(), authority=authority(), limit=20)
