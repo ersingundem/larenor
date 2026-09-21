@@ -1,0 +1,199 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+
+const upload = FileSelectorParams(
+  isCaptureEnabled: false,
+  acceptTypes: ['application/pdf'],
+  mode: FileSelectorMode.open,
+);
+
+final class Access implements WebPanelTransferAccess {
+  final uploadGate = Completer<List<String>>();
+  final downloadGate = Completer<bool>();
+  int uploads = 0, downloads = 0;
+  Uri? downloaded;
+
+  @override
+  Future<List<String>> pickUpload(FileSelectorParams request) {
+    uploads++;
+    return uploadGate.future;
+  }
+
+  @override
+  Future<bool> download(
+    Uri uri,
+    WebPanelPolicy policy,
+    bool Function() isCurrent,
+  ) {
+    downloads++;
+    downloaded = uri;
+    return downloadGate.future;
+  }
+}
+
+void main() {
+  test(
+    'upload requires a fresh one-shot grant and rejects late completion',
+    () async {
+      var current = true;
+      final access = Access();
+      final controller = WebPanelTransferController(
+        policy: WebPanelPolicy.fromUrl('https://panel.invalid')!,
+        access: access,
+        uploadsEnabled: true,
+        downloadsEnabled: false,
+        isCurrent: () => current,
+      );
+      expect(await controller.selectUpload(upload), isEmpty);
+      controller.armUpload();
+      expect(controller.status, WebPanelTransferStatus.uploadArmed);
+      final pending = controller.selectUpload(upload);
+      expect(controller.status, WebPanelTransferStatus.working);
+      current = false;
+      access.uploadGate.complete(['content://fixture/document/1']);
+      expect(await pending, isEmpty);
+      expect(access.uploads, 1);
+      expect(await controller.selectUpload(upload), isEmpty);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'download consumes one exact-origin navigation and never replays',
+    () async {
+      final access = Access();
+      final controller = WebPanelTransferController(
+        policy: WebPanelPolicy.fromUrl('https://panel.invalid/start')!,
+        access: access,
+        uploadsEnabled: false,
+        downloadsEnabled: true,
+        isCurrent: () => true,
+      );
+      controller.armDownload();
+      expect(controller.captureDownload('https://evil.invalid/file.pdf'), true);
+      expect(controller.status, WebPanelTransferStatus.denied);
+      expect(access.downloads, 0);
+
+      controller.armDownload();
+      expect(
+        controller.captureDownload('https://panel.invalid/file.pdf?private=x'),
+        true,
+      );
+      expect(access.downloads, 1);
+      expect(access.downloaded?.host, 'panel.invalid');
+      expect(
+        controller.captureDownload('https://panel.invalid/file.pdf'),
+        false,
+      );
+      access.downloadGate.complete(true);
+      await pumpEventQueue();
+      expect(controller.status, WebPanelTransferStatus.completed);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'anonymous downloader bounds redirects mime size and exported bytes',
+    () async {
+      final requests = <http.Request>[];
+      Uint8List? saved;
+      final access = LocalWebPanelTransferAccess(
+        client: () => MockClient((request) async {
+          requests.add(request);
+          if (request.url.path == '/start') {
+            return http.Response('', 302, headers: {'location': '/file.pdf'});
+          }
+          return http.Response.bytes(
+            Uint8List.fromList([37, 80, 68, 70]),
+            200,
+            headers: {'content-type': 'application/pdf'},
+          );
+        }),
+        saveFile: (name, mime, bytes) async {
+          expect(name, 'web-panel-download.pdf');
+          expect(mime, 'application/pdf');
+          saved = bytes;
+          return Uri.parse('content://fixture/saved');
+        },
+      );
+      final policy = WebPanelPolicy.fromUrl('https://panel.invalid')!;
+      expect(
+        await access.download(
+          Uri.parse('https://panel.invalid/start?private=x'),
+          policy,
+          () => true,
+        ),
+        true,
+      );
+      expect(saved, [37, 80, 68, 70]);
+      expect(requests, hasLength(2));
+      for (final request in requests) {
+        expect(request.headers.containsKey('authorization'), false);
+        expect(request.headers.containsKey('cookie'), false);
+        expect(request.followRedirects, false);
+      }
+
+      final crossOrigin = LocalWebPanelTransferAccess(
+        client: () => MockClient(
+          (_) async => http.Response(
+            '',
+            302,
+            headers: {'location': 'https://evil.invalid/file.pdf'},
+          ),
+        ),
+        saveFile: (_, _, _) async => Uri.parse('content://fixture/unexpected'),
+      );
+      expect(
+        await crossOrigin.download(
+          Uri.parse('https://panel.invalid/start'),
+          policy,
+          () => true,
+        ),
+        false,
+      );
+
+      var exports = 0;
+      for (final client in [
+        () => MockClient(
+          (_) async => http.Response(
+            'script',
+            200,
+            headers: {'content-type': 'text/html'},
+          ),
+        ),
+        () => MockClient.streaming(
+          (_, _) async => http.StreamedResponse(
+            Stream.value([1]),
+            200,
+            contentLength: webPanelMaxTransferBytes + 1,
+            headers: {'content-type': 'application/pdf'},
+          ),
+        ),
+      ]) {
+        final bounded = LocalWebPanelTransferAccess(
+          client: client,
+          saveFile: (_, _, _) async {
+            exports++;
+            return Uri.parse('content://fixture/unexpected');
+          },
+        );
+        expect(
+          await bounded.download(
+            Uri.parse('https://panel.invalid/file'),
+            policy,
+            () => true,
+          ),
+          false,
+        );
+      }
+      expect(exports, 0);
+    },
+  );
+}
