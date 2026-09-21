@@ -442,6 +442,7 @@ final class WebPanelNativeBridgeController {
       previewId: previewId,
       binding: grant.binding,
       controllerEpoch: _controllerEpoch,
+      expiresAt: grant.expiresAt,
       unsupported: !supported,
     );
     while (_ledger.length > _maxLedgerEntries) {
@@ -465,6 +466,13 @@ final class WebPanelNativeBridgeController {
       return _denied(record?.value);
     }
     if (record.receipt != null) return record.receipt!;
+    if (!record.expiresAt.isAfter(_now())) {
+      return record.receipt = _receipt(
+        record.value,
+        WebPanelBridgeStatus.denied,
+        'grant_expired',
+      );
+    }
     if (record.unsupported) {
       return record.receipt = _receipt(
         record.value,
@@ -607,6 +615,7 @@ final class _RequestRecord {
     required this.previewId,
     required this.binding,
     required this.controllerEpoch,
+    required this.expiresAt,
     required this.unsupported,
   });
 
@@ -614,6 +623,7 @@ final class _RequestRecord {
   final String previewId;
   final WebPanelBridgeScope binding;
   final int controllerEpoch;
+  final DateTime expiresAt;
   final bool unsupported;
   bool dispatching = false;
   WebPanelBridgeReceipt? receipt;

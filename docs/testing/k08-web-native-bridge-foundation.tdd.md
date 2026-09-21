@@ -18,7 +18,7 @@ adds no WebView JavaScript channel and does not advance queue progress.
    policy revisions, route/lifecycle epochs, and HTTPS top origin. Trusted
    native metadata must also report a foreground visible main frame and no new
    window. Foreign iframe/origin, HTTP downgrade, stale binding, revocation and
-   expired grants cannot produce a preview.
+   expired grants cannot produce a preview or delayed confirmation.
 3. **No replay or synthetic success.** Ordered requests create an explicit
    preview before confirmation. The bounded ledger dispatches a request once;
    concurrent confirmation, timeout, exception, invalid receipt, lost
@@ -31,8 +31,10 @@ adds no WebView JavaScript channel and does not advance queue progress.
 | Stage | Command | Result |
 | --- | --- | --- |
 | RED | `flutter test test/features/web_panel/web_panel_native_bridge_test.dart` before production code | Expected compile failure because the bridge contract did not exist; checkpoint `d8a0b70b` |
-| GREEN | `flutter test test/features/web_panel/web_panel_native_bridge_test.dart --coverage` | 4/4 tests passed; checkpoint `4ec93d37` |
-| Coverage | Focused LCOV entry for `web_panel_native_bridge.dart` | 197/237 lines, **83.1%** |
+| GREEN | `flutter test test/features/web_panel/web_panel_native_bridge_test.dart --coverage` | Initial 4/4 tests passed; checkpoint `4ec93d37` |
+| Expiry RED | Focused confirmation-expiry test before the fix | Expected failure: delayed confirmation was observed; checkpoint `262ae13b` |
+| Final GREEN | `flutter test test/features/web_panel/web_panel_native_bridge_test.dart --coverage` | 5/5 tests passed |
+| Coverage | Focused LCOV entry for `web_panel_native_bridge.dart` | 201/241 lines, **83.4%** |
 | Static analysis | Focused `flutter analyze` | 0 issues |
 
 The tests cover strict parsing, every authority dimension through exact scope
