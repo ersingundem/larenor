@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision
 
@@ -148,6 +148,31 @@ class CameraReadback(FrozenModel):
     observedAtMs: TimestampMs
 
 
+class CameraProviderSupport(FrozenModel):
+    schemaVersion: Literal[1]
+    camera: CameraScope
+    displayName: str = Field(min_length=1, max_length=80)
+    providerRevision: Revision
+    recordingSupported: bool
+    detectionSupported: bool
+    verifiedAtMs: TimestampMs
+
+    @field_validator("displayName")
+    @classmethod
+    def safe_display_name(cls, value):
+        if value != value.strip() or any(
+            ord(char) < 32 or ord(char) == 127 for char in value
+        ):
+            raise ValueError("invalid_display_name")
+        return value
+
+
+class CameraPrivacyBoundary(FrozenModel):
+    microphoneDisabled: Literal[False] = False
+    cameraHardwareDisabled: Literal[False] = False
+    otherRecordersDisabled: Literal[False] = False
+
+
 class CameraWorkerCommand(FrozenModel):
     schemaVersion: Literal[1]
     commandId: Identity
@@ -182,6 +207,7 @@ class CameraCommandResult(FrozenModel):
         "readback_mismatch",
         "worker_ack_unknown",
         "worker_response_invalid",
+        "provider_unsupported",
     ]
     readback: WorkerReadback | None
 

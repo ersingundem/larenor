@@ -2493,8 +2493,12 @@
   "coreResourceUploadComplete": "Verified file stored · {bytes} bytes · revision {revision}.",
   "@coreResourceUploadComplete": {
     "placeholders": {
-      "bytes": {"type": "int"},
-      "revision": {"type": "int"}
+      "bytes": {
+        "type": "int"
+      },
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "coreResourceUploadCancelled": "File selection cancelled.",
@@ -2506,7 +2510,11 @@
   "coreResourceTransferHistoryLoading": "Loading verified transfer history…",
   "coreResourceTransferHistoryVerified": "Event chain verified · cursor {sequence}.",
   "@coreResourceTransferHistoryVerified": {
-    "placeholders": {"sequence": {"type": "int"}}
+    "placeholders": {
+      "sequence": {
+        "type": "int"
+      }
+    }
   },
   "coreResourceTransferHistoryEmpty": "No transfer receipts yet.",
   "coreResourceTransferAccepted": "Transfer accepted",
@@ -2532,8 +2540,12 @@
   "coreTransferTrustDetail": "Receipt {receipt} · {bytes} bytes",
   "@coreTransferTrustDetail": {
     "placeholders": {
-      "receipt": {"type": "String"},
-      "bytes": {"type": "int"}
+      "receipt": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
     }
   },
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
@@ -2940,8 +2952,12 @@
   "coreHaEventTrustDetail": "Head {sequence} · Chain {chain}",
   "@coreHaEventTrustDetail": {
     "placeholders": {
-      "sequence": {"type": "int"},
-      "chain": {"type": "String"}
+      "sequence": {
+        "type": "int"
+      },
+      "chain": {
+        "type": "String"
+      }
     }
   },
   "coreHaActivityFailed": "Activity could not be read. Refresh to try again.",
@@ -3454,6 +3470,27 @@
   "weeklyMealPlanShoppingPreview": "Shopping preview",
   "weeklyMealPlanShoppingHint": "Review the scaled ingredients before adding them to a writable Home Assistant shopping list.",
   "weeklyMealPlanClose": "Close",
+  "cameraProfileTitle": "Camera recording profile",
+  "cameraProfileStatus": "Profile status",
+  "cameraProfileApply": "Apply supported profile",
+  "cameraProfileLoading": "Loading camera readback",
+  "cameraProfileFailed": "Camera profile or result could not be verified. No command was replayed.",
+  "cameraProfileStale": "Account, Core, home, session, or route changed. Camera state was cleared.",
+  "cameraProfileVerified": "Every supported change was verified by provider readback.",
+  "cameraProfilePartial": "Only part of the profile was verified. Review each camera result.",
+  "cameraProfileEmpty": "No cameras are assigned to this profile.",
+  "cameraProfileUnsupported": "Provider does not support every requested change.",
+  "cameraProfileCurrent": "Current",
+  "cameraProfileDesired": "Requested",
+  "cameraProfileRecording": "Recording",
+  "cameraProfileDetection": "Detection",
+  "cameraProfileEnabled": "Enabled",
+  "cameraProfilePaused": "Paused",
+  "cameraProfileDisabled": "Disabled",
+  "cameraProfileProviderSupported": "Supported",
+  "cameraProfileProviderUnsupported": "Unsupported",
+  "cameraProfilePrivacyBoundary": "This profile changes only the provider settings shown below. It does not prove that a microphone, camera hardware, or another recorder is off.",
+  "cameraProfileReconnect": "Reconnect",
   "kioskMaintenanceTitle": "Kiosk recovery",
   "kioskMaintenanceHint": "Review bounded WebPanel recovery counters without website addresses, page content, credentials or sensor data.",
   "kioskMaintenanceThirtyDays": "Last 30 days",

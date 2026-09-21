@@ -105,6 +105,7 @@ from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
+from .camera_profiles.runtime import build_camera_profile_gateway
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -115,7 +116,8 @@ class CoreServices:
                  transfer_limits: TransferLimits | None = None,
                  proxmox_guest_provider=None, proxmox_power_executor=None,
                  media_archive_binding_reader=None,
-                 media_archive_worker=None, mesh_center_provider=None):
+                 media_archive_worker=None, mesh_center_provider=None,
+                 camera_profile_provider=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -124,6 +126,7 @@ class CoreServices:
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
         self._mesh_center_provider = mesh_center_provider
+        self._camera_profile_provider = camera_profile_provider
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -324,6 +327,15 @@ class CoreServices:
                     self._mesh_center_provider,
                     master_key=key,
                     data_dir=settings.data_dir,
+                    clock=settings.clock,
+                )
+            )
+            self.camera_profiles = (
+                None
+                if self._camera_profile_provider is None
+                else build_camera_profile_gateway(
+                    self._camera_profile_provider,
+                    master_key=key,
                     clock=settings.clock,
                 )
             )

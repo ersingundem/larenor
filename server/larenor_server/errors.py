@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'camera_profile_provider_unavailable': 'The camera profile provider is unavailable.',
     'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
     'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',

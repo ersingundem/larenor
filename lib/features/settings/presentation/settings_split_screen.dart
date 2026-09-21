@@ -11,6 +11,7 @@ import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
+import '../../camera_profiles/presentation/camera_profile_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
@@ -35,6 +36,7 @@ enum SettingsCategory {
   intercom,
   integrations,
   meshCenter,
+  cameraProfiles,
   backup,
   about,
 }
@@ -249,6 +251,8 @@ Widget paneFor(
       return const IntegrationsPane();
     case SettingsCategory.meshCenter:
       return MeshCenterRoute(gateCurrent: meshGateCurrent ?? () => false);
+    case SettingsCategory.cameraProfiles:
+      return CameraProfileRoute(gateCurrent: meshGateCurrent ?? () => false);
     case SettingsCategory.backup:
       return BackupScreen(
         runFileDialog: runFileDialog,
@@ -336,6 +340,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.antenna_radiowaves_left_right,
         CupertinoColors.systemGreen,
         l10n.meshCenterTitle,
+      ),
+      (
+        SettingsCategory.cameraProfiles,
+        CupertinoIcons.video_camera_solid,
+        CupertinoColors.systemRed,
+        l10n.cameraProfileTitle,
       ),
       (
         SettingsCategory.intercom,
