@@ -20,7 +20,9 @@ jobs:
         shard: [0, 1, 2, 3]
     runs-on: ubuntu-24.04
     # Each shard has its own runner, checkout, virtualenv and pytest temp root.
-    timeout-minutes: 15
+    # Measured shard runs can spend over a minute in pinned toolchain setup.
+    # Keep a bounded margin beyond the balanced pytest runtime.
+    timeout-minutes: 20
     env:
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -118,14 +120,17 @@ jobs:
     name: server-test
     if: always()
     needs: server-test-shard
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Require every deterministic Server shard
         env:
           SHARD_RESULT: ${{ needs.server-test-shard.result }}
-        run: |
-          if [ "$SHARD_RESULT" != "success" ]; then
-            echo "Server test shard result: $SHARD_RESULT" >&2
-            exit 1
-          fi
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/required_ci_aggregate.py server
