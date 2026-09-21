@@ -27,6 +27,7 @@ from .service import (
     MeshUpdateAuditEntry,
     firmware_catalog_payload,
 )
+from .store import FirmwareUpdateStore
 
 __all__ = [
     "BorderRouterNode",
@@ -40,6 +41,7 @@ __all__ = [
     "FirmwareUpdatePreview",
     "FirmwareUpdateReadback",
     "FirmwareUpdateResult",
+    "FirmwareUpdateStore",
     "InterferenceSnapshot",
     "MeshAuthority",
     "MeshCenterHttpGateway",

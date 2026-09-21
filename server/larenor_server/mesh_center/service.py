@@ -6,7 +6,7 @@ import json
 import secrets
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -234,6 +234,7 @@ class FirmwareUpdateManager:
         signingKeyResolver: Callable[[str], bytes | None],
         worker: Callable[[FirmwareUpdateCommand], FirmwareUpdateReadback],
         clockMs: Callable[[], int],
+        stateStore=None,
     ):
         if not isinstance(auditKey, bytes) or len(auditKey) < 32:
             raise ValueError("invalid_audit_key")
@@ -244,9 +245,68 @@ class FirmwareUpdateManager:
         self._resolve_signing_key = signingKeyResolver
         self._worker = worker
         self._clock = clockMs
+        self._store = stateStore
         self._commands: dict[str, _UpdateState] = {}
         self._audit: list[MeshUpdateAuditEntry] = []
         self._lock = threading.RLock()
+        if self._store is not None:
+            self._restore(self._store.load())
+
+    def _restore(self, raw):
+        try:
+            commands = {}
+            for item in raw["commands"]:
+                state = _UpdateState(
+                    preview=FirmwareUpdatePreview.model_validate(item["preview"]),
+                    topology=MeshTopology.model_validate(item["topology"]),
+                    catalog=FirmwareCatalog.model_validate(item["catalog"]),
+                    entry=FirmwareCatalogEntry.model_validate(item["entry"]),
+                    result=(
+                        None
+                        if item.get("result") is None
+                        else FirmwareUpdateResult.model_validate(item["result"])
+                    ),
+                )
+                if state.preview.requestId in commands:
+                    raise ValueError
+                commands[state.preview.requestId] = state
+            audit = [MeshUpdateAuditEntry(**item) for item in raw["audit"]]
+            if len(commands) > MAX_COMMANDS or len(audit) > MAX_AUDIT:
+                raise ValueError
+            self._commands = commands
+            self._audit = audit
+            self._validate_audit()
+        except Exception:
+            from ..errors import StartupError
+
+            raise StartupError("mesh_update_storage_invalid") from None
+
+    def _persist(self):
+        if self._store is None:
+            return
+        commands = []
+        for request_id in sorted(self._commands):
+            state = self._commands[request_id]
+            commands.append(
+                {
+                    "preview": state.preview.model_dump(mode="json"),
+                    "topology": state.topology.model_dump(mode="json"),
+                    "catalog": state.catalog.model_dump(mode="json"),
+                    "entry": state.entry.model_dump(mode="json"),
+                    "result": (
+                        None
+                        if state.result is None
+                        else state.result.model_dump(mode="json")
+                    ),
+                }
+            )
+        self._store.save(
+            {
+                "schemaVersion": 1,
+                "commands": commands,
+                "audit": [asdict(item) for item in self._audit],
+            }
+        )
 
     @property
     def audit(self):
@@ -502,6 +562,12 @@ class FirmwareUpdateManager:
                 preview, topology, catalog, entry
             )
             self._append_audit("previewed", preview)
+            try:
+                self._persist()
+            except Exception:
+                self._audit.pop()
+                del self._commands[preview.requestId]
+                raise
             return preview
 
     def confirm(self, presentedAuthority, rawPreview, confirmationToken):
@@ -615,6 +681,12 @@ class FirmwareUpdateManager:
                 action = "uncertain"
             state.result = result
             self._append_audit(action, preview)
+            try:
+                self._persist()
+            except Exception:
+                self._audit.pop()
+                state.result = None
+                raise
             return result
 
     def result(self, presentedAuthority, requestId):
