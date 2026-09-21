@@ -45,9 +45,9 @@ def test_registered_identity_last_seen_and_capabilities_are_read_only_state(serv
     assert standard["lastSeenAt"] == clock.now
 
     listed = client.get(path + "/devices", headers=auth(admin)).json()["tablets"]
-    assert [item["ref"]["id"] for item in listed] == [
+    assert [item["ref"]["id"] for item in listed] == sorted([
         standard["ref"]["id"], owner["ref"]["id"]
-    ]
+    ])
     assert all("token" not in str(item).lower() for item in listed)
     with TestClient(create_app(settings)) as restarted:
         retained = restarted.get(path + "/devices", headers=auth(admin))
