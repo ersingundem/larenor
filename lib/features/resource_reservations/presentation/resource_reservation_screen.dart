@@ -162,11 +162,15 @@ class ResourceReservationScreen extends StatefulWidget {
     required this.controller,
     required this.authority,
     required this.strings,
+    this.availableResources = const [],
+    this.onSelectResource,
   });
 
   final ResourceReservationController controller;
   final ResourceReservationAuthority authority;
   final ResourceReservationStrings strings;
+  final List<ReservationResource> availableResources;
+  final ValueChanged<ReservationResource>? onSelectResource;
 
   @override
   State<ResourceReservationScreen> createState() =>
@@ -293,6 +297,24 @@ class _ResourceReservationScreenState extends State<ResourceReservationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.availableResources.length > 1) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in widget.availableResources)
+                  _AccessibleButton(
+                    key: ValueKey('reservation-resource-${item.id}'),
+                    label: item.label,
+                    filled: item.id == widget.authority.resourceId,
+                    onPressed: item.id == widget.authority.resourceId
+                        ? null
+                        : () => widget.onSelectResource?.call(item),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           if (resource != null) ...[
             Text(
               resource.label,

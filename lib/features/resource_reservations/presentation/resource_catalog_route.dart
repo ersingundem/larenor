@@ -12,23 +12,22 @@ import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../server/data/server_account_controller.dart';
 import '../data/resource_reservation_api.dart';
-import '../data/resource_reservation_controller.dart';
-import '../domain/resource_reservation_models.dart';
-import 'resource_reservation_screen.dart';
+import '../data/resource_catalog_controller.dart';
+import 'resource_catalog_screen.dart';
 
 /// Owns exactly one verified Core/account/home/route/window reservation runtime.
-final class ResourceReservationRoute extends ConsumerStatefulWidget {
-  const ResourceReservationRoute({super.key, this.apiFactory});
+final class ResourceCatalogRoute extends ConsumerStatefulWidget {
+  const ResourceCatalogRoute({super.key, this.apiFactory});
 
   final ServerApiFactory? apiFactory;
 
   @override
-  ConsumerState<ResourceReservationRoute> createState() =>
-      _ResourceReservationRouteState();
+  ConsumerState<ResourceCatalogRoute> createState() =>
+      _ResourceCatalogRouteState();
 }
 
-final class _ResourceReservationRouteState
-    extends ConsumerState<ResourceReservationRoute>
+final class _ResourceCatalogRouteState
+    extends ConsumerState<ResourceCatalogRoute>
     with WidgetsBindingObserver {
   ProviderContainer? _container;
   HomeSessionController? _home;
@@ -39,9 +38,7 @@ final class _ResourceReservationRouteState
   bool _closed = false, _scheduled = false, _connecting = false;
   bool _foreground = true, _focused = true;
   ResourceReservationAccountApi? _api;
-  ResourceReservationController? _controller;
-  List<ReservationResource> _resources = const [];
-  String? _selectedResourceId;
+  ResourceCatalogController? _controller;
 
   @override
   void initState() {
@@ -133,30 +130,14 @@ final class _ResourceReservationRouteState
         context: context,
         routeId: _randomId(),
         isCurrent: () => operation == _operation && _current(),
-        resourceId: _selectedResourceId,
         apiFactory: widget.apiFactory,
       );
       if (operation != _operation || !_current()) {
         api.close();
         return;
       }
-      final catalog = await api.resources();
-      if (operation != _operation || !_current()) {
-        api.close();
-        return;
-      }
-      final active = catalog.resources.where((item) => item.active).toList();
-      if (!active.any((item) => item.id == api.authority.resourceId)) {
-        api.close();
-        _selectedResourceId = active.first.id;
-        _connecting = false;
-        _schedule();
-        return;
-      }
-      _resources = List.unmodifiable(active);
-      _selectedResourceId = api.authority.resourceId;
       _api = api;
-      _controller = ResourceReservationController(api, commandIds: _randomId);
+      _controller = ResourceCatalogController(api, commandIds: _randomId);
     } catch (_) {
       // The route stays read-only and exposes no stale retained state.
     } finally {
@@ -173,7 +154,6 @@ final class _ResourceReservationRouteState
     controller?.retire();
     _api?.close();
     _api = null;
-    _resources = const [];
     if (controller != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
     }
@@ -248,27 +228,15 @@ final class _ResourceReservationRouteState
     ref.watch(homeSessionControllerProvider);
     ref.listen(windowPolicySnapshotProvider, (_, _) => _changed());
     _schedule();
-    final strings = ResourceReservationStrings.fromLocalizations(
-      AppLocalizations.of(context),
-    );
+    final l10n = AppLocalizations.of(context);
     final controller = _controller, api = _api;
     if (controller != null && api != null && _current()) {
-      return ResourceReservationScreen(
-        controller: controller,
-        authority: api.authority,
-        strings: strings,
-        availableResources: _resources,
-        onSelectResource: (resource) {
-          if (!_current() || resource.id == _selectedResourceId) return;
-          _selectedResourceId = resource.id;
-          _retire();
-          if (mounted) setState(() {});
-          _schedule();
-        },
-      );
+      return ResourceCatalogScreen(controller: controller);
     }
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(l10n.resourceCatalogTitle),
+      ),
       child: SafeArea(
         child: Center(
           child: Padding(
@@ -276,7 +244,7 @@ final class _ResourceReservationRouteState
             child: Semantics(
               liveRegion: true,
               child: Text(
-                AppLocalizations.of(context).resourceReservationsRequired,
+                l10n.resourceCatalogAdminRequired,
                 textAlign: TextAlign.center,
               ),
             ),

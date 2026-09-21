@@ -146,6 +146,7 @@ class ReservationResource {
     required this.label,
     required this.timezone,
     required this.capacity,
+    this.active = true,
   });
 
   final String id;
@@ -153,6 +154,7 @@ class ReservationResource {
   final String label;
   final String timezone;
   final int capacity;
+  final bool active;
 
   factory ReservationResource.fromJson(Object? raw) {
     final value = _reservationMap(raw, const {
@@ -161,6 +163,7 @@ class ReservationResource {
       'label',
       'timezone',
       'capacity',
+      'active',
     });
     final label = value['label'], timezone = value['timezone'];
     final capacity = value['capacity'];
@@ -172,7 +175,8 @@ class ReservationResource {
         timezone.length > 128 ||
         capacity is! int ||
         capacity < 1 ||
-        capacity > 64) {
+        capacity > 64 ||
+        value['active'] is! bool) {
       _invalidReservation();
     }
     return ReservationResource(
@@ -181,8 +185,95 @@ class ReservationResource {
       label: label,
       timezone: timezone,
       capacity: capacity,
+      active: value['active']! as bool,
     );
   }
+}
+
+class ResourceCatalogSnapshot {
+  ResourceCatalogSnapshot({
+    required this.catalogRevision,
+    required this.canManage,
+    required List<ReservationResource> resources,
+  }) : resources = List.unmodifiable(resources);
+
+  final int catalogRevision;
+  final bool canManage;
+  final List<ReservationResource> resources;
+
+  factory ResourceCatalogSnapshot.fromJson(Object? raw) {
+    final value = _reservationMap(raw, const {
+      'schemaVersion',
+      'catalogRevision',
+      'canManage',
+      'resources',
+    });
+    if (value['schemaVersion'] != 1 ||
+        value['canManage'] is! bool ||
+        value['resources'] is! List ||
+        (value['resources']! as List).isEmpty ||
+        (value['resources']! as List).length > 64) {
+      _invalidReservation();
+    }
+    final resources = (value['resources']! as List)
+        .map(ReservationResource.fromJson)
+        .toList();
+    if (resources.map((item) => item.id).toSet().length != resources.length ||
+        !resources.any((item) => item.active)) {
+      _invalidReservation();
+    }
+    return ResourceCatalogSnapshot(
+      catalogRevision: _reservationRevision(value['catalogRevision']),
+      canManage: value['canManage']! as bool,
+      resources: resources,
+    );
+  }
+}
+
+class ResourceCatalogReceipt {
+  const ResourceCatalogReceipt({
+    required this.catalogRevision,
+    required this.resource,
+  });
+
+  final int catalogRevision;
+  final ReservationResource resource;
+
+  factory ResourceCatalogReceipt.fromJson(Object? raw) {
+    final value = _reservationMap(raw, const {
+      'schemaVersion',
+      'catalogRevision',
+      'resource',
+    });
+    return ResourceCatalogReceipt(
+      catalogRevision: _reservationRevision(value['catalogRevision']),
+      resource: ReservationResource.fromJson(value['resource']),
+    );
+  }
+}
+
+abstract interface class ResourceCatalogApi {
+  Future<ResourceCatalogSnapshot> resources();
+  Future<ResourceCatalogReceipt> createResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required String label,
+    required String timezone,
+    required int capacity,
+  });
+  Future<ResourceCatalogReceipt> updateResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required ReservationResource resource,
+    required String label,
+    required String timezone,
+    required int capacity,
+  });
+  Future<ResourceCatalogReceipt> deactivateResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required ReservationResource resource,
+  });
 }
 
 class ResourceReservationBootstrap {

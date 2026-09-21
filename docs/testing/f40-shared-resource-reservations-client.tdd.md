@@ -2,8 +2,8 @@
 
 Status: **authenticated software integration ready; F40 remains pending**
 
-Program counters remain **21/125** and **0/63** until physical-device and
-multi-resource acceptance close the feature.
+Program counters remain **21/125** and **0/63** until physical-device
+acceptance closes the feature.
 
 This package is stacked on the accepted F40 Core foundation and is not
 published. It joins the reducer, authenticated HTTP route, account-bound Client
@@ -42,6 +42,24 @@ transport, route-owned runtime, app-shell entry and localized tablet surface.
    authority-bound snapshot. User actions have at least 48 dp height, explicit
    TalkBack semantics, live status announcements and Enter/Space activation.
 
+## Multi-resource management closure
+
+1. **Versioned admin catalog.** Owners/admins can add, edit and deactivate up
+   to 64 resources. Every command binds the exact catalog and resource
+   revision, carries one idempotency key and advances a tamper-evident HMAC
+   event chain exactly once. Members receive a verified read-only catalog.
+2. **Capacity, timezone and DST policy.** Names, capacities and IANA zones are
+   bounded and validated by Core. Schedule policy changes are rejected while a
+   resource has retained reservations; inactive and last-active-resource
+   boundaries fail closed. Existing version-1 databases migrate to the strict
+   catalog schema without discarding reservation history.
+3. **Tablet management and selection.** The Core home shell exposes the admin
+   catalog separately from the reservation calendar. EN/TR 600/1200 at 2x,
+   48 dp, keyboard and TalkBack controls cover create, update, deactivate and
+   active-resource selection. Account, Core, home, route, lifecycle and window
+   changes retire pending catalog work; a lost acknowledgement remains visible
+   and is never replayed automatically.
+
 ## Evidence
 
 - RED `bdc3aff3`: controller and screen imports failed before production files
@@ -51,15 +69,14 @@ transport, route-owned runtime, app-shell entry and localized tablet surface.
 - Adversarial repair `d8b4ef89`: exact receipt actor/event/resource validation,
   canonical UTC window checks, ordered history, duplicate rejection and
   byte-equivalent export comparison were added.
-- Core reducer and authenticated API suite: 6 passed.
-- Focused Flutter controller/screen/home-entry/transport suite: 12 passed.
+- Core reducer, catalog, authenticated API, runtime and storage suite: 39 passed.
+- Focused Flutter controller/screen/home-entry/transport suite: 19 passed.
 - Focused Flutter analyze: no issues.
 - Security, queue, progress, diff, redacted gitleaks and merge-tree checks are
   repeated at the final package head.
 
 ## Remaining boundary
 
-F40 remains pending and the queue counters stay unchanged. Configurable multiple
-resources plus physical Huawei/DeX rotation, DST and accessibility evidence are
-still manual acceptance gates. No synthetic result is described as a physical
-device or third-party calendar acceptance.
+F40 remains pending and the queue counters stay unchanged. Physical Huawei/DeX
+rotation, DST and accessibility evidence is the only remaining manual acceptance
+gate. No synthetic result is described as physical-device acceptance.

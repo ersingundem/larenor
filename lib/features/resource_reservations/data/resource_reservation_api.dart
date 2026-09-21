@@ -6,7 +6,8 @@ import '../../server/domain/server_models.dart';
 import '../domain/resource_reservation_models.dart';
 
 /// Exact account/session-bound F40 transport. It never retries commands.
-final class ResourceReservationAccountApi implements ResourceReservationApi {
+final class ResourceReservationAccountApi
+    implements ResourceReservationApi, ResourceCatalogApi {
   ResourceReservationAccountApi._(
     this.account,
     this.context,
@@ -33,6 +34,7 @@ final class ResourceReservationAccountApi implements ResourceReservationApi {
     required ServerContext context,
     required String routeId,
     required bool Function() isCurrent,
+    String? resourceId,
     ServerApiFactory? apiFactory,
   }) async {
     final generation = account.generation;
@@ -52,9 +54,12 @@ final class ResourceReservationAccountApi implements ResourceReservationApi {
           session.endpoint.baseUrl != captured.endpoint.baseUrl) {
         throw const ReservationApiException('authority_changed');
       }
+      final authorityPath = resourceId == null
+          ? '/resource-reservations/${context.coreId}/${context.homeId}/authority'
+          : '/resource-reservations/${context.coreId}/${context.homeId}/$resourceId/authority';
       final raw = await api.request(
         'GET',
-        '/resource-reservations/${context.coreId}/${context.homeId}/authority',
+        authorityPath,
         token: session.accessToken,
       );
       if (!isCurrent() ||
@@ -86,6 +91,8 @@ final class ResourceReservationAccountApi implements ResourceReservationApi {
 
   String get _root =>
       '/resource-reservations/${context.coreId}/${context.homeId}/${authority.resourceId}';
+  String get _catalogRoot =>
+      '/resource-reservations/${context.coreId}/${context.homeId}/resources';
 
   Future<ServerSession> _session() async {
     if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
@@ -132,6 +139,80 @@ final class ResourceReservationAccountApi implements ResourceReservationApi {
       throw ReservationApiException(error.code);
     }
   }
+
+  Future<Map<String, dynamic>?> _read(String path) async {
+    try {
+      final session = await _session();
+      final value = await _api.request('GET', path, token: session.accessToken);
+      await _session();
+      return value;
+    } on LarenorServerException catch (error) {
+      if (const {
+        'connection_failed',
+        'timeout',
+        'server_unavailable',
+      }.contains(error.code)) {
+        throw TimeoutException(error.code);
+      }
+      throw ReservationApiException(error.code);
+    }
+  }
+
+  @override
+  Future<ResourceCatalogSnapshot> resources() async =>
+      ResourceCatalogSnapshot.fromJson(await _read(_catalogRoot));
+
+  @override
+  Future<ResourceCatalogReceipt> createResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required String label,
+    required String timezone,
+    required int capacity,
+  }) async => ResourceCatalogReceipt.fromJson(
+    await _request('$_catalogRoot/commands/create', {
+      'schemaVersion': 1,
+      'commandId': commandId,
+      'expectedCatalogRevision': expectedCatalogRevision,
+      'label': label,
+      'timezone': timezone,
+      'capacity': capacity,
+    }),
+  );
+
+  @override
+  Future<ResourceCatalogReceipt> updateResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required ReservationResource resource,
+    required String label,
+    required String timezone,
+    required int capacity,
+  }) async => ResourceCatalogReceipt.fromJson(
+    await _request('$_catalogRoot/${resource.id}/commands/update', {
+      'schemaVersion': 1,
+      'commandId': commandId,
+      'expectedCatalogRevision': expectedCatalogRevision,
+      'expectedResourceRevision': resource.revision,
+      'label': label,
+      'timezone': timezone,
+      'capacity': capacity,
+    }),
+  );
+
+  @override
+  Future<ResourceCatalogReceipt> deactivateResource({
+    required int expectedCatalogRevision,
+    required String commandId,
+    required ReservationResource resource,
+  }) async => ResourceCatalogReceipt.fromJson(
+    await _request('$_catalogRoot/${resource.id}/commands/deactivate', {
+      'schemaVersion': 1,
+      'commandId': commandId,
+      'expectedCatalogRevision': expectedCatalogRevision,
+      'expectedResourceRevision': resource.revision,
+    }),
+  );
 
   @override
   Future<ReservationSnapshot> snapshot(

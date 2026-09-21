@@ -83,6 +83,7 @@ void main() {
     'label': 'Shared home resource',
     'timezone': 'UTC',
     'capacity': 1,
+    'active': true,
   };
 
   test(
@@ -97,6 +98,7 @@ void main() {
       await account.initialize();
       var calls = 0;
       late Map<String, dynamic> createBody;
+      late Map<String, dynamic> catalogBody;
       final client = MockClient((request) async {
         calls++;
         expect(
@@ -123,6 +125,29 @@ void main() {
             'reservations': [],
             'history': [],
             'busy': [],
+          });
+        }
+        if (suffix.endsWith('/resources')) {
+          return _json({
+            'schemaVersion': 1,
+            'catalogRevision': 1,
+            'canManage': true,
+            'resources': [resourceValue],
+          });
+        }
+        if (suffix.endsWith('/resources/commands/create')) {
+          catalogBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return _json({
+            'schemaVersion': 1,
+            'catalogRevision': 2,
+            'resource': {
+              'id': 'abababababababababababababababab',
+              'revision': 1,
+              'label': 'Workshop',
+              'timezone': 'Europe/Istanbul',
+              'capacity': 2,
+              'active': true,
+            },
           });
         }
         createBody = jsonDecode(request.body) as Map<String, dynamic>;
@@ -190,6 +215,20 @@ void main() {
       expect(createBody['expectedCalendarRevision'], 1);
       expect(calls, 3);
 
+      final catalog = await api.resources();
+      expect(catalog.resources.single.id, resource);
+      final catalogReceipt = await api.createResource(
+        expectedCatalogRevision: 1,
+        commandId: '9' * 32,
+        label: 'Workshop',
+        timezone: 'Europe/Istanbul',
+        capacity: 2,
+      );
+      expect(catalogReceipt.catalogRevision, 2);
+      expect(catalogBody['expectedCatalogRevision'], 1);
+      expect(catalogBody['commandId'], '9' * 32);
+      expect(calls, 5);
+
       current = false;
       await expectLater(
         api.export(api.authority, expectedCalendarRevision: 2, limit: 256),
@@ -201,7 +240,7 @@ void main() {
           ),
         ),
       );
-      expect(calls, 3);
+      expect(calls, 5);
     },
   );
 }

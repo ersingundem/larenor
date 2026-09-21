@@ -3346,5 +3346,21 @@
   "resourceReservationsCreated": "Created",
   "resourceReservationsCancelled": "Cancelled",
   "resourceReservationsUnits": "units",
-  "resourceReservationsRequired": "Connect to the verified Larenor Core for this home to use shared reservations."
+  "resourceReservationsRequired": "Connect to the verified Larenor Core for this home to use shared reservations.",
+  "resourceCatalogTitle": "Manage shared resources",
+  "resourceCatalogEntry": "Manage resources",
+  "resourceCatalogLabel": "Resource name",
+  "resourceCatalogTimezone": "IANA time zone",
+  "resourceCatalogCapacity": "Capacity",
+  "resourceCatalogAdd": "Add resource",
+  "resourceCatalogUpdate": "Save changes",
+  "resourceCatalogDeactivate": "Deactivate resource",
+  "resourceCatalogActive": "Active",
+  "resourceCatalogInactive": "Inactive",
+  "resourceCatalogLoading": "Loading verified resource catalog",
+  "resourceCatalogOffline": "Core is not reachable",
+  "resourceCatalogError": "The resource catalog could not be verified",
+  "resourceCatalogUncertain": "The result is uncertain. Reload the catalog before another change.",
+  "resourceCatalogAdminRequired": "An owner or administrator account is required.",
+  "resourceCatalogSelect": "Select resource"
 }

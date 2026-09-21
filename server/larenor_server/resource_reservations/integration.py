@@ -7,6 +7,7 @@ import json
 from zoneinfo import ZoneInfo
 
 from ..errors import ApiError
+from .catalog import ResourceCatalog
 from .service import ReservationAuthority, ReservationStore, ResourceRule
 
 
@@ -16,6 +17,14 @@ class ResourceReservationService:
         encryption = hmac.new(key, b"resource-reservations-encryption-v1", hashlib.sha256).digest()
         audit = hmac.new(key, b"resource-reservations-audit-v1", hashlib.sha256).digest()
         self.store = ReservationStore(db, encryption_key=encryption, audit_key=audit)
+        catalog_audit = hmac.new(
+            key, b"resource-reservations-catalog-audit-v1", hashlib.sha256,
+        ).digest()
+        self.catalog = ResourceCatalog(
+            db, audit_key=catalog_audit, clock=settings.clock,
+            core_id=context.coreId, home_id=context.homeId,
+            default_id=self._resource_id(),
+        )
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.context.coreId, self.context.homeId):
@@ -26,7 +35,7 @@ class ResourceReservationService:
             f"larenor-shared-resource-v1:{self.context.coreId}:{self.context.homeId}".encode("ascii")
         ).hexdigest()[:32]
 
-    def _facts(self, actor):
+    def _facts(self, actor, resource_id):
         with self.db.connection() as connection:
             self.auth.assert_current(connection, actor)
             account = connection.execute(
@@ -38,7 +47,7 @@ class ResourceReservationService:
             ).fetchall()
             state = connection.execute(
                 "SELECT revision FROM resource_reservation_state WHERE core_id=? AND home_id=? AND resource_id=?",
-                (self.context.coreId, self.context.homeId, self._resource_id()),
+                (self.context.coreId, self.context.homeId, resource_id),
             ).fetchone()
         if account is None or account["disabled"] or account["must_change_password"]:
             raise ApiError("invalid_session", 401)
@@ -52,10 +61,17 @@ class ResourceReservationService:
 
     def authority(self, actor, core_id, home_id, resource_id=None):
         self._scope(core_id, home_id)
-        expected = self._resource_id()
-        if resource_id is not None and resource_id != expected:
+        _catalog_revision, resources = self.catalog.list()
+        active = [item for item in resources if item.active]
+        selected = next(
+            (item for item in resources if item.id == resource_id),
+            active[0] if resource_id is None and active else None,
+        )
+        if selected is None:
             raise ApiError("not_found", 404)
-        account, members, members_revision, calendar_revision = self._facts(actor)
+        account, members, members_revision, calendar_revision = self._facts(
+            actor, selected.id,
+        )
         return ReservationAuthority(
             core_id=self.context.coreId,
             home_id=self.context.homeId,
@@ -67,10 +83,10 @@ class ResourceReservationService:
             calendar_revision=calendar_revision,
             member_ids=members,
             resource=ResourceRule(
-                id=expected,
-                revision=1,
-                capacity=1,
-                timezone="UTC",
+                id=selected.id,
+                revision=selected.revision,
+                capacity=selected.capacity,
+                timezone=selected.timezone,
                 member_ids=members,
             ),
         )
@@ -141,6 +157,68 @@ class ResourceReservationService:
         }
 
     @staticmethod
+    def _resource_json(resource):
+        return {
+            "id": resource.id,
+            "revision": resource.revision,
+            "label": resource.label,
+            "timezone": resource.timezone,
+            "capacity": resource.capacity,
+            "active": resource.active,
+        }
+
+    def resources(self, actor, core_id, home_id):
+        self._scope(core_id, home_id)
+        self._facts(actor, self._resource_id())
+        revision, resources = self.catalog.list()
+        return {
+            "schemaVersion": 1,
+            "catalogRevision": revision,
+            "canManage": actor.role == "admin",
+            "resources": [self._resource_json(item) for item in resources],
+        }
+
+    def create_resource(self, actor, core_id, home_id, body):
+        self._scope(core_id, home_id)
+        self._facts(actor, self._resource_id())
+        revision, resource = self.catalog.mutate(
+            actor, command_id=body.commandId,
+            expected_catalog_revision=body.expectedCatalogRevision,
+            action="created", label=body.label, timezone=body.timezone,
+            capacity=body.capacity,
+        )
+        return {"schemaVersion": 1, "catalogRevision": revision,
+                "resource": self._resource_json(resource)}
+
+    def update_resource(self, actor, core_id, home_id, resource_id, body):
+        current = self.authority(actor, core_id, home_id, resource_id)
+        resources = self._verified_records(current)
+        _revision, catalog = self.catalog.list()
+        previous = next(item for item in catalog if item.id == resource_id)
+        if resources and (body.timezone != previous.timezone or body.capacity != previous.capacity):
+            raise ApiError("resource_in_use", 409)
+        revision, resource = self.catalog.mutate(
+            actor, command_id=body.commandId,
+            expected_catalog_revision=body.expectedCatalogRevision,
+            action="updated", resource_id=resource_id,
+            expected_resource_revision=body.expectedResourceRevision,
+            label=body.label, timezone=body.timezone, capacity=body.capacity,
+        )
+        return {"schemaVersion": 1, "catalogRevision": revision,
+                "resource": self._resource_json(resource)}
+
+    def deactivate_resource(self, actor, core_id, home_id, resource_id, body):
+        self.authority(actor, core_id, home_id, resource_id)
+        revision, resource = self.catalog.mutate(
+            actor, command_id=body.commandId,
+            expected_catalog_revision=body.expectedCatalogRevision,
+            action="deactivated", resource_id=resource_id,
+            expected_resource_revision=body.expectedResourceRevision,
+        )
+        return {"schemaVersion": 1, "catalogRevision": revision,
+                "resource": self._resource_json(resource)}
+
+    @staticmethod
     def _authority_json(authority, actor):
         return {
             "coreId": authority.core_id,
@@ -155,19 +233,16 @@ class ResourceReservationService:
             "resourceRevision": authority.resource.revision,
         }
 
-    def bootstrap(self, actor, core_id, home_id):
-        authority = self.authority(actor, core_id, home_id)
+    def bootstrap(self, actor, core_id, home_id, resource_id=None):
+        authority = self.authority(actor, core_id, home_id, resource_id)
         return {
             "schemaVersion": 1,
             "authority": self._authority_json(authority, actor),
             "calendarRevision": authority.calendar_revision,
-            "resource": {
-                "id": authority.resource.id,
-                "revision": authority.resource.revision,
-                "label": "Shared home resource",
-                "timezone": authority.resource.timezone,
-                "capacity": authority.resource.capacity,
-            },
+            "resource": self._resource_json(next(
+                item for item in self.catalog.list()[1]
+                if item.id == authority.resource.id
+            )),
         }
 
     def snapshot(self, actor, core_id, home_id, resource_id, body):
@@ -193,14 +268,14 @@ class ResourceReservationService:
             "schemaVersion": 1,
             "authority": self._authority_json(authority, actor),
             "calendarRevision": authority.calendar_revision,
-            "resource": {
-                "id": authority.resource.id,
-                "revision": authority.resource.revision,
-                "label": "Shared home resource",
-                "timezone": authority.resource.timezone,
-                "capacity": authority.resource.capacity,
-            },
-            "canCreate": True,
+            "resource": self._resource_json(next(
+                item for item in self.catalog.list()[1]
+                if item.id == authority.resource.id
+            )),
+            "canCreate": next(
+                item.active for item in self.catalog.list()[1]
+                if item.id == authority.resource.id
+            ),
             "reservations": reservations,
             "history": [{
                 "eventId": event.event_id,
@@ -214,6 +289,9 @@ class ResourceReservationService:
 
     def create(self, actor, core_id, home_id, resource_id, body):
         authority = self._expected(actor, core_id, home_id, resource_id, body)
+        if not next(item.active for item in self.catalog.list()[1]
+                    if item.id == resource_id):
+            raise ApiError("resource_inactive", 409)
         receipt = self.store.create(
             actor,
             authority=authority,

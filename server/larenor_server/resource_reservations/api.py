@@ -78,6 +78,26 @@ class ExportRequest(AuthorityRequest):
     limit: Annotated[int, Field(ge=1, le=256)]
 
 
+class ResourceCreateRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    expectedCatalogRevision: Revision
+    label: str = Field(min_length=1, max_length=80)
+    timezone: str = Field(min_length=1, max_length=128)
+    capacity: Annotated[int, Field(ge=1, le=64)]
+
+
+class ResourceUpdateRequest(ResourceCreateRequest):
+    expectedResourceRevision: Revision
+
+
+class ResourceDeactivateRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    expectedCatalogRevision: Revision
+    expectedResourceRevision: Revision
+
+
 router = APIRouter(
     tags=["Shared resource reservations"],
     responses={status: {"model": ErrorResponse}
@@ -89,6 +109,41 @@ ROOT = "/resource-reservations/{core_id}/{home_id}"
 @router.get(ROOT + "/authority")
 def bootstrap(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
     return core.resource_reservations.bootstrap(actor, core_id, home_id)
+
+
+@router.get(ROOT + "/{resource_id}/authority")
+def resource_bootstrap(core_id: Identity, home_id: Identity, resource_id: Identity,
+                       actor: Ready, core: Core):
+    return core.resource_reservations.bootstrap(
+        actor, core_id, home_id, resource_id=resource_id,
+    )
+
+
+@router.get(ROOT + "/resources")
+def resources(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
+    return core.resource_reservations.resources(actor, core_id, home_id)
+
+
+@router.post(ROOT + "/resources/commands/create")
+def create_resource(core_id: Identity, home_id: Identity,
+                    body: ResourceCreateRequest, actor: Ready, core: Core):
+    return core.resource_reservations.create_resource(actor, core_id, home_id, body)
+
+
+@router.post(ROOT + "/resources/{resource_id}/commands/update")
+def update_resource(core_id: Identity, home_id: Identity, resource_id: Identity,
+                    body: ResourceUpdateRequest, actor: Ready, core: Core):
+    return core.resource_reservations.update_resource(
+        actor, core_id, home_id, resource_id, body,
+    )
+
+
+@router.post(ROOT + "/resources/{resource_id}/commands/deactivate")
+def deactivate_resource(core_id: Identity, home_id: Identity, resource_id: Identity,
+                        body: ResourceDeactivateRequest, actor: Ready, core: Core):
+    return core.resource_reservations.deactivate_resource(
+        actor, core_id, home_id, resource_id, body,
+    )
 
 
 @router.post(ROOT + "/{resource_id}/snapshot")

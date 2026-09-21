@@ -3008,5 +3008,21 @@
   "resourceReservationsCreated": "Oluşturuldu",
   "resourceReservationsCancelled": "İptal edildi",
   "resourceReservationsUnits": "birim",
-  "resourceReservationsRequired": "Ortak rezervasyonları kullanmak için bu evin doğrulanmış Larenor Core bağlantısını kullanın."
+  "resourceReservationsRequired": "Ortak rezervasyonları kullanmak için bu evin doğrulanmış Larenor Core bağlantısını kullanın.",
+  "resourceCatalogTitle": "Ortak kaynakları yönet",
+  "resourceCatalogEntry": "Kaynakları yönet",
+  "resourceCatalogLabel": "Kaynak adı",
+  "resourceCatalogTimezone": "IANA saat dilimi",
+  "resourceCatalogCapacity": "Kapasite",
+  "resourceCatalogAdd": "Kaynak ekle",
+  "resourceCatalogUpdate": "Değişiklikleri kaydet",
+  "resourceCatalogDeactivate": "Kaynağı pasifleştir",
+  "resourceCatalogActive": "Etkin",
+  "resourceCatalogInactive": "Pasif",
+  "resourceCatalogLoading": "Doğrulanmış kaynak kataloğu yükleniyor",
+  "resourceCatalogOffline": "Core erişilebilir değil",
+  "resourceCatalogError": "Kaynak kataloğu doğrulanamadı",
+  "resourceCatalogUncertain": "Sonuç belirsiz. Başka bir değişiklikten önce kataloğu yeniden yükleyin.",
+  "resourceCatalogAdminRequired": "Sahip veya yönetici hesabı gerekli.",
+  "resourceCatalogSelect": "Kaynak seç"
 }
