@@ -8,10 +8,10 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
+import 'kiosk_hid_scan_screen.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
-import 'kiosk_hid_scan_screen.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
   KioskAction.allowApp => l.kioskAllow,
