@@ -2,8 +2,8 @@
 
 20 September 2026. This local-only integration branch composes the completed
 S08.10 software slices on one exact commit. It records the final software
-criteria and the remaining release gates without changing queue or selected
-feature counters.
+criteria before the merged CI and hardening evidence recorded in
+`s08-10-software-closure-2026-09-21.md` closed the queue task.
 
 ## Exact composition
 
@@ -70,18 +70,10 @@ failed-proof trust clearing. All three tests pass and targeted static analysis
 is clean. The rebased authority fixes end at `74f15b16`. Queue and selected-feature
 counters remain unchanged until the closing sequence below completes.
 
-## Required closing sequence
+## Closure status
 
-S08.10 remains `pending`, with counters fixed at `16/125` and `0/63`, until all
-of the following are true:
-
-1. the prerequisite slice heads are reviewed and merged;
-2. this final slice is replayed or rebased onto that exact `main` without
-   weakening its RED/GREEN evidence;
-3. required GitHub CI passes on the exact resulting head and an independent
-   authority/lifecycle review accepts it; and
-4. real LAN/service and physical Huawei tablet, DeX, and Android SAF checks are
-   recorded under `MANUAL.SERVICES` and `MANUAL.TABLET`.
-
-Only after those gates may the queue validator accept S08.10 as `done` and the
-progress counters advance.
+The prerequisite slices and final hardening were merged and passed exact-head
+CI. The independent authority/lifecycle review found no remaining software
+blocker, so S08.10 is `done` at **23/125**. Real LAN/service and physical Huawei
+tablet, DeX, and Android SAF results remain explicit environment acceptance
+under `MANUAL.SERVICES` and `MANUAL.TABLET`.

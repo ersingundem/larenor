@@ -19,11 +19,19 @@ class KioskBridge(private val activity: Activity, messenger: BinaryMessenger) : 
     private val channel = MethodChannel(messenger, "com.ersingundem.larenor/kiosk")
     private val admin = ComponentName(activity, KioskAdminReceiver::class.java)
     private val policy = KioskPolicy(this)
+    private val sensors = KioskSensorPolicy(AndroidKioskSensorHost(activity))
     private var resumed = false
     private var disposed = false
     init { channel.setMethodCallHandler(this) }
-    fun setResumed(value: Boolean) { resumed = value; if (!value) policy.invalidate() }
-    fun windowChanged() { policy.invalidate() }
+    fun setResumed(value: Boolean) {
+        resumed = value
+        if (!value) policy.invalidate()
+        syncSensors()
+    }
+    fun windowChanged() { policy.invalidate(); syncSensors() }
+    private fun syncSensors() {
+        sensors.setInteractive(resumed && activity.window.decorView.hasWindowFocus())
+    }
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (disposed) { result.error("unavailable", "Kiosk unavailable", null); return }
         try {
@@ -32,6 +40,9 @@ class KioskBridge(private val activity: Activity, messenger: BinaryMessenger) : 
                 "prepare" -> policy.prepare(call.arguments)
                 "execute" -> policy.execute(call.arguments)
                 "cancel" -> { policy.cancel(call.arguments); null }
+                "sensorStart" -> sensors.start(call.arguments)
+                "sensorRead" -> sensors.read(call.arguments)
+                "sensorStop" -> sensors.stop(call.arguments)
                 else -> { result.notImplemented(); return }
             }
             result.success(response)
@@ -92,5 +103,5 @@ class KioskBridge(private val activity: Activity, messenger: BinaryMessenger) : 
     }
     override fun nowMillis(): Long = SystemClock.elapsedRealtime()
     override fun token(): String = UUID.randomUUID().toString()
-    fun dispose() { disposed = true; policy.dispose(); channel.setMethodCallHandler(null) }
+    fun dispose() { disposed = true; sensors.dispose(); policy.dispose(); channel.setMethodCallHandler(null) }
 }

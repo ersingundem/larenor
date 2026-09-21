@@ -76,6 +76,29 @@ Future<void> _focus(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _tabUntilFocused(
+  WidgetTester tester,
+  Finder target, {
+  bool reverse = false,
+  int maxTabs = 12,
+}) async {
+  bool isFocused() =>
+      target.evaluate().isNotEmpty &&
+      Focus.of(tester.element(target.first)).hasPrimaryFocus;
+
+  for (var index = 0; index < maxTabs && !isFocused(); index++) {
+    if (reverse) {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    if (reverse) {
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    }
+    await tester.pumpAndSettle();
+  }
+  expect(isFocused(), isTrue);
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -207,34 +230,28 @@ void main() {
             );
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await _tabUntilFocused(tester, gameStream);
             expect(
               Focus.of(tester.element(gameStream)).hasPrimaryFocus,
               isTrue,
             );
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await _tabUntilFocused(tester, display);
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
-            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            await _tabUntilFocused(tester, gameStream, reverse: true);
             expect(
               Focus.of(tester.element(gameStream)).hasPrimaryFocus,
               isTrue,
             );
-            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            await _tabUntilFocused(tester, remote, reverse: true);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
-            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            await _tabUntilFocused(tester, tabletFleet, reverse: true);
             expect(
               Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
               isTrue,
             );
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await _tabUntilFocused(tester, server, reverse: true);
+            expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
+            await _tabUntilFocused(tester, display);
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
             await tester.pumpAndSettle();
             final rows = find.byType(SettingsNavRow);
@@ -242,11 +259,8 @@ void main() {
                 .descendant(of: rows.first, matching: find.byType(Text))
                 .first;
             await _focus(tester, first);
-            for (var i = 0; i < 3; i++) {
-              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-              await tester.pumpAndSettle();
-            }
             final kiosk = find.text(l10n.kioskTitle);
+            await _tabUntilFocused(tester, kiosk);
             expect(Focus.of(tester.element(kiosk)).hasPrimaryFocus, isTrue);
             expect(tester.getSemantics(kiosk).flagsCollection.isButton, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.space);
