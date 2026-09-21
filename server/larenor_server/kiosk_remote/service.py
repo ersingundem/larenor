@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from ..errors import ApiError, StartupError
 from .models import CreatePairing, MqttAck, MqttCommand
 
-
 _TOKEN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 _MAX_TTL = 90 * 24 * 60 * 60
 _MAX_COMMAND_TTL = 300
@@ -290,9 +289,20 @@ class KioskRemoteService:
     def complete(self, core_id, home_id, pairing_id, command_id, token, value):
         self._scope(core_id, home_id)
         body = MqttAck.model_validate(value)
-        self._authenticate(pairing_id, token, "control")
+        row, _ = self._authenticate(pairing_id, token, "control")
         try:
             with self.db.transaction() as connection:
+                current = connection.execute(
+                    "SELECT * FROM kiosk_remote_pairings WHERE id=?", (pairing_id,)
+                ).fetchone()
+                self._validate_pairing(current)
+                if (
+                    current["revision"] != row["revision"]
+                    or not current["active"]
+                    or current["record_tag"] != row["record_tag"]
+                    or self.settings.clock() >= current["expires_at"]
+                ):
+                    raise ApiError("pairing_changed", 409)
                 old = connection.execute("SELECT * FROM kiosk_remote_commands WHERE id=? AND pairing_id=?", (command_id, pairing_id)).fetchone()
                 self._validate_command(old)
                 if old["sequence"] != body.sequence:

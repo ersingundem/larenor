@@ -102,7 +102,7 @@ def command(*, request_id=None, sequence=1, retained=False):
 
 
 def test_mqtt_command_replay_retained_and_ack_are_fail_closed(server):
-    pair, remote, created, _tablet, _body = create_pairing(server)
+    _pair, remote, created, _tablet, _body = create_pairing(server)
     pairing, token = created["pairing"], created["token"]
     endpoint = remote + f"/pairings/{pairing['id']}/mqtt/commands"
     body = command(request_id="a" * 32, sequence=1)
@@ -160,7 +160,7 @@ def test_pairing_identity_has_a_bounded_rate_limit(server):
 
 
 def test_ack_rechecks_pairing_after_authentication_race(server, monkeypatch):
-    pair, remote, created, _tablet, _body = create_pairing(server)
+    _pair, remote, created, _tablet, _body = create_pairing(server)
     pairing, token = created["pairing"], created["token"]
     endpoint = remote + f"/pairings/{pairing['id']}/mqtt/commands"
     accepted = server[1].post(
