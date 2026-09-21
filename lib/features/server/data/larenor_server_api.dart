@@ -157,29 +157,42 @@ class LarenorServerApi {
         queryParameters?.length == 2 &&
         canonicalRevision(queryParameters?['expectedRevision']) &&
         canonicalRevision(queryParameters?['expectedAclRevision']);
+    final tabletFleetDeletion =
+        method == 'DELETE' &&
+        RegExp(
+          r'^/tablet-fleet/[0-9a-f]{32}/[0-9a-f]{32}/devices/[0-9a-f]{32}$',
+        ).hasMatch(path);
+    final tabletFleetDeleteQuery =
+        tabletFleetDeletion &&
+        queryParameters?.length == 1 &&
+        canonicalRevision(queryParameters?['expectedRevision']);
     if (homeResourceDeletion && !homeResourceDeleteQuery) {
+      throw const LarenorServerException('invalid_request');
+    }
+    if (tabletFleetDeletion && !tabletFleetDeleteQuery) {
       throw const LarenorServerException('invalid_request');
     }
     var uri = endpoint.api(path);
     if (queryParameters != null && queryParameters.isNotEmpty) {
       const keys = {'userId', 'cursor', 'limit', 'platform', 'channel'};
       final readQuery =
-          method == 'GET' &&
-          !path.startsWith('/admin/plugins/jobs') &&
-          !path.startsWith('/admin/media/preparations') &&
-          !path.startsWith('/admin/media/inspections') &&
-          !path.startsWith('/home-resources') &&
-          !path.startsWith('/home-people') &&
-          !path.startsWith('/home-assistant') &&
-          !path.startsWith('/admin/home-assistant') &&
-          !path.startsWith('/admin/home-people') &&
-          queryParameters.length <= keys.length &&
-          !queryParameters.entries.any(
-            (entry) =>
-                !keys.contains(entry.key) ||
-                entry.value.length > 512 ||
-                entry.value.contains(RegExp(r'[\x00-\x1f\x7f]')),
-          );
+          tabletFleetDeleteQuery ||
+          (method == 'GET' &&
+              !path.startsWith('/admin/plugins/jobs') &&
+              !path.startsWith('/admin/media/preparations') &&
+              !path.startsWith('/admin/media/inspections') &&
+              !path.startsWith('/home-resources') &&
+              !path.startsWith('/home-people') &&
+              !path.startsWith('/home-assistant') &&
+              !path.startsWith('/admin/home-assistant') &&
+              !path.startsWith('/admin/home-people') &&
+              queryParameters.length <= keys.length &&
+              !queryParameters.entries.any(
+                (entry) =>
+                    !keys.contains(entry.key) ||
+                    entry.value.length > 512 ||
+                    entry.value.contains(RegExp(r'[\x00-\x1f\x7f]')),
+              ));
       final jobsList = path == '/admin/plugins/jobs';
       final jobsEvents = RegExp(r'^/admin/plugins/jobs/[0-9a-f]{32}/events$')
           .hasMatch(path);
@@ -521,6 +534,7 @@ class LarenorServerApi {
             'media_inspection_storage_unavailable',
             'media_archive_worker_unavailable',
             'sound_event_integrity_failed',
+            'tablet_fleet_storage_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -552,6 +566,18 @@ class LarenorServerApi {
             'notification_not_delivered',
             'notification_event_conflict',
             'notification_limit_reached',
+            'tablet_device_changed',
+            'tablet_device_inactive',
+            'tablet_profile_changed',
+            'tablet_policy_changed',
+            'tablet_registration_replay',
+            'tablet_capability_unavailable',
+            'tablet_command_conflict',
+            'tablet_command_expired',
+            'tablet_command_not_delivered',
+            'tablet_command_changed',
+            'tablet_limit_reached',
+            'tablet_command_limit_reached',
           }.contains(code)) {
         return code as String;
       }
