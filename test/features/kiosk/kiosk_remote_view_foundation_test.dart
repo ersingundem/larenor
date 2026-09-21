@@ -119,7 +119,10 @@ void main() {
       isCurrent: (candidate) => candidate == authority,
       requestIds: () => '0123456789abcdef0123456789abcdef',
     );
-    final preview = controller.prepare(KioskRemoteViewMode.appSurface, context());
+    final preview = controller.prepare(
+      KioskRemoteViewMode.appSurface,
+      context(),
+    );
     expect(
       (await controller.confirm(preview, context())).status,
       KioskRemoteViewStatus.active,

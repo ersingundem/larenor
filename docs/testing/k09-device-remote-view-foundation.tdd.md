@@ -25,9 +25,11 @@ MediaProjection engine, or queue-progress claim.
    preview/confirmation window. Start/readback/stop use a capability-gated port
    and bounded timeouts. Concurrent confirmation, stale callbacks, invalid
    receipts and lost acknowledgement never replay. Authority or system-consent
-   loss retires the local session and attempts one stop; a lost stop remains
-   `unconfirmed` and cannot be reported active. Public receipts omit native
-   handles.
+   loss retires the local session and attempts one stop using the original
+   receipt scope, even after route/session drift. A lost stop remains
+   `unconfirmed` and cannot be reported active. The request-ID ledger is capped
+   at 256 entries and denies further starts instead of growing indefinitely.
+   Public receipts omit native handles.
 
 ## TDD evidence
 
@@ -35,8 +37,8 @@ MediaProjection engine, or queue-progress claim.
 | --- | --- | --- |
 | RED | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart` before production code | Expected compile failure because the K09 contract did not exist; checkpoint `441a139` |
 | Regression RED | focused unreadable-readback test before compensation fix | Expected failure: accepted native start performed 0 stops |
-| GREEN | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart --coverage` | 5/5 tests passed |
-| Coverage | Focused LCOV entry for `kiosk_remote_view.dart` | 212/250 lines, **84.8%** |
+| GREEN | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart` | 7/7 tests passed |
+| Coverage | Focused LCOV entry for `kiosk_remote_view.dart` | 215/253 lines, **85.0%** |
 | Static analysis | Focused `flutter analyze` | 0 issues |
 
 The focused tests cover strict telemetry parsing and redaction, stale samples,

@@ -7,6 +7,7 @@ final _requestId = RegExp(r'^[0-9a-f]{32}$');
 final _receiptHandle = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$');
 final _appVersion = RegExp(r'^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$');
 const _maxRevision = 0x7fffffff;
+const _maxRequestIds = 256;
 
 @immutable
 final class KioskDeviceAuthority {
@@ -399,10 +400,18 @@ final class KioskRemoteViewController {
     KioskRemoteViewMode mode,
     KioskRemoteViewContext trusted,
   ) {
-    if (_record != null || _active != null || !_allowed(mode, trusted)) {
+    if (_record != null ||
+        _active != null ||
+        _seen.length >= _maxRequestIds ||
+        !_allowed(mode, trusted)) {
       return const KioskRemoteViewPreview.denied();
     }
-    final requestId = requestIds();
+    final String requestId;
+    try {
+      requestId = requestIds();
+    } catch (_) {
+      return const KioskRemoteViewPreview.denied();
+    }
     if (!_requestId.hasMatch(requestId) || !_seen.add(requestId)) {
       return const KioskRemoteViewPreview.denied();
     }
@@ -550,6 +559,7 @@ final class KioskRemoteViewController {
           _active = _ActiveRemote(
             record: record,
             receiptHandle: started.receiptHandle!,
+            startContext: trusted,
           );
           return record.receipt = _receipt(
             record,
@@ -590,7 +600,7 @@ final class KioskRemoteViewController {
     _generation++;
     try {
       final stopped = await port
-          .stop(active.receiptHandle, record.mode, trusted)
+          .stop(active.receiptHandle, record.mode, active.startContext)
           .timeout(_portTimeout);
       return record.receipt = _receipt(
         record,
@@ -690,9 +700,15 @@ final class _RemoteRecord {
 }
 
 final class _ActiveRemote {
-  const _ActiveRemote({required this.record, required this.receiptHandle});
+  const _ActiveRemote({
+    required this.record,
+    required this.receiptHandle,
+    required this.startContext,
+  });
   final _RemoteRecord record;
   final String receiptHandle;
+  // Retirement uses the original receipt scope even after route/session drift.
+  final KioskRemoteViewContext startContext;
 }
 
 bool _revision(int value) => value > 0 && value <= _maxRevision;
