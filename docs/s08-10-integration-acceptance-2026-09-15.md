@@ -1,9 +1,9 @@
 # S08.10 — olay, komut sonucu ve sınırlı taşıma kabul matrisi
 
-15 Eylül 2026. S08.10 yazılım işi bu kayıtta **açık** tutulur. Bu belge
-mevcut kabul sınırını ve sonraki parçaların kanıtını ayırır; yeni `done` veya
-`installAvailable` iddiası üretmez. Kuyruk 15/125 (%12,0), seçili özellikler
-0/63 (%0,0) olarak kalır.
+15 Eylül 2026 tarihli bu matris daha sonra tamamlanan dilimlerin başlangıç
+kaydıdır. Birleşen yazılım zinciri, kesin CI ve bağımsız inceleme
+`testing/s08-10-software-closure-2026-09-21.md` belgesinde toplandı; S08.10
+**done** ve kuyruk 23/125 (%18,4) oldu. Fiziksel kabul ayrı manuel işlerde kalır.
 
 ## Ana dalda olan sözleşmeler
 

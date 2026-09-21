@@ -11,6 +11,8 @@ from .models import (
     CompleteTabletCommand,
     IssueTabletCommand,
     PollTabletCommands,
+    PreviewKioskProfileRollout,
+    KioskProfileRolloutPreview,
     RegisterTablet,
     TabletCommandPage,
     TabletCommandResponse,
@@ -48,6 +50,14 @@ def register(core_id: Identity, home_id: Identity, body: RegisterTablet,
 @router.get(ROOT + "/devices", response_model=TabletList)
 def devices(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
     return core.tablet_fleet.list(actor, core_id, home_id)
+
+
+@router.post(ROOT + "/profiles/dry-run", response_model=KioskProfileRolloutPreview)
+def preview_profile_rollout(core_id: Identity, home_id: Identity,
+                            body: PreviewKioskProfileRollout,
+                            actor: Admin, core: Core):
+    return core.tablet_fleet.preview_profile_rollout(
+        actor, core_id, home_id, body)
 
 
 @router.post(ROOT + "/devices/{device_id}/heartbeat", response_model=TabletResponse)

@@ -6,7 +6,6 @@ from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
 
-
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
 
@@ -200,3 +199,64 @@ class SoundIngestResult(FrozenModel):
         }:
             raise ValueError("invalid_result")
         return self
+
+
+class SoundEventClientAuthority(FrozenModel):
+    schemaVersion: Literal[1]
+    coreId: Identity
+    homeId: Identity
+    accountId: Identity
+    sessionFamilyId: Identity
+    accountRevision: Revision
+    repositoryRevision: Revision
+    canRead: bool
+    canAcknowledge: bool
+
+
+class SoundEventRecord(FrozenModel):
+    schemaVersion: Literal[1]
+    eventId: Identity
+    roomId: Identity
+    deviceId: Identity
+    className: str = Field(min_length=1, max_length=48)
+    confidence: Confidence
+    observedAtMs: TimestampMs
+    retentionExpiresAtMs: TimestampMs
+    eventRevision: Revision
+    acknowledged: bool
+    automationVerified: bool
+
+    _class_name = field_validator("className")(_safe_label)
+
+
+class SoundEventSnapshot(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: SoundEventClientAuthority
+    repositoryRevision: Revision
+    events: list[SoundEventRecord] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def exact_revision(self):
+        if self.authority.repositoryRevision != self.repositoryRevision:
+            raise ValueError("revision_mismatch")
+        return self
+
+
+class SoundEventAcknowledgementRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedRepositoryRevision: Revision
+    expectedEventRevision: Revision
+
+
+class SoundEventAcknowledgement(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    eventId: Identity
+    coreId: Identity
+    homeId: Identity
+    accountId: Identity
+    sessionFamilyId: Identity
+    repositoryRevision: Revision
+    eventRevision: Revision
+    acknowledged: Literal[True]
