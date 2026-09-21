@@ -1,14 +1,67 @@
 import hashlib
 import json
 import uuid
+from io import BytesIO
 
 import pytest
-
 from conftest import auth, ready
-from test_admin import activate, create as create_user
-
+from larenor_server.errors import ApiError
+from larenor_server.runtime import _verified_rollout_release
+from test_admin import activate
+from test_admin import create as create_user
 
 SIGNER = "a" * 64
+
+
+def test_rollout_catalog_requires_current_apk_readback_and_closes_stream():
+    published = manifest()
+
+    class Store:
+        def __init__(self):
+            self.stream = BytesIO(b"apk")
+            self.checked = []
+
+        def latest(self, channel):
+            assert channel == "stable"
+            return published
+
+        def open_apk(self, version):
+            self.checked.append(version)
+            return published, self.stream
+
+    store = Store()
+    assert _verified_rollout_release(store, "stable") == published
+    assert store.checked == [42]
+    assert store.stream.closed
+
+
+def test_rollout_catalog_rejects_missing_or_raced_apk():
+    published = manifest()
+
+    class Store:
+        def latest(self, _channel):
+            return published
+
+        def open_apk(self, _version):
+            raise ApiError("server_unavailable", 503)
+
+    with pytest.raises(ApiError):
+        _verified_rollout_release(Store(), "stable")
+
+    class RacedStore(Store):
+        def __init__(self):
+            self.stream = BytesIO(b"apk")
+
+        def open_apk(self, _version):
+            return manifest(
+                versionCode=43,
+                downloadPath="/api/v1/client/releases/43/apk",
+            ), self.stream
+
+    raced = RacedStore()
+    with pytest.raises(ApiError):
+        _verified_rollout_release(raced, "stable")
+    assert raced.stream.closed
 
 
 def root(app):

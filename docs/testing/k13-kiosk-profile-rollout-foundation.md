@@ -31,6 +31,11 @@ install an APK or assert Device Owner provisioning.
 
 `Server/tests/test_k13_kiosk_profile_rollout.py` covers read-only replay,
 signature/pinning, scope/role/revision conflicts and deterministic cohorts.
+The runtime binding also opens the exact published APK for bounded digest
+readback before reporting rollout readiness. A missing/tampered APK or a
+manifest change between latest-pointer and artifact read fails closed; the
+stream is closed on both success and mismatch. This closes the post-startup
+manifest-only readiness gap without changing the read-only dry-run contract.
 The focused Flutter fleet API, controller and widget tests cover exact
 request/response authority, stale callbacks, EN/TR tablet size, semantics and
 keyboard action. Actual profile publication/restore, Android package manager

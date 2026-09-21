@@ -1,8 +1,8 @@
 """Compose the packaged Server APIs without loading arbitrary runtime plugins."""
 
 import os
-from pathlib import Path
 import secrets
+from pathlib import Path
 
 from .app import create_app
 from .config import Settings
@@ -16,11 +16,25 @@ from .releases import (
     ReleaseSettings,
     build_release_router,
 )
-from .releases.models import PUBLISH_TOKEN
-
+from .releases.models import PUBLISH_TOKEN, validate_manifest
 
 # Public certificate of Larenor Client; no private signing material is bundled.
 DEFAULT_CLIENT_SIGNER = "d7c8be0fd89daa2d60aa97a249aa1e3615aed92fcb7e4135bbbd7456eb5882a0"
+
+
+def _verified_rollout_release(releases: ReleaseService, channel: str) -> dict | None:
+    """Require an exact downloadable APK before marking a rollout ready."""
+    candidate = releases.latest(channel)
+    if candidate is None:
+        return None
+    expected = validate_manifest(candidate)
+    actual, stream = releases.open_apk(expected["versionCode"])
+    try:
+        if validate_manifest(actual) != expected:
+            raise ApiError("server_unavailable", 503)
+        return actual
+    finally:
+        stream.close()
 
 
 def create_configured_app(settings: Settings):
@@ -76,7 +90,7 @@ def create_configured_app(settings: Settings):
             ),
         )
         app.state.core.tablet_fleet.bind_release_catalog(
-            releases.latest,
+            lambda channel: _verified_rollout_release(releases, channel),
             releases.settings.signer_sha256,
         )
         beta_releases = BetaReleaseSynchronizer(
