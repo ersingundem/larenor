@@ -2409,6 +2409,7 @@
   "gameStreamingBoundaryHeader": "Kişisel oturum koruması",
   "gameStreamingBoundaryBody": "Yayın yalnızca geçerli kişisel hesap, görünür rota ve etkin tablet oturumundan başlatılabilir. Larenor Android’e içeriği açığa çıkmayan bir kimlik bilgisi tanıtıcısı iletir; rota, yaşam döngüsü veya boşta kalma değişince bağlantı iptal edilir.",
   "gameStreamingDeferredBody": "Bu ekran video, ses, kontrolcü, klavye veya fiziksel Moonlight/Sunshine uyumluluğu iddia etmez. İncelenmiş bir motor kurulana kadar bu denetimler kullanılamaz.",
+  "legacyRemoteTitle": "Akıllı kumandalar",
   "cameraVisualSensorsTitle": "Kamera görsel sensörleri",
   "remoteAccessPrivacy": "Kişisel hedef profilleri bu tabletin güvenli deposunda kalır. Core veya Proxmox hesabı gerekmez. Burada parola ve anahtar saklanmaz.",
   "remoteAccessLocked": "Bu özel görünümü açmak için Ayarlar’a dönün.",

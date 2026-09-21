@@ -2740,6 +2740,7 @@
   "gameStreamingBoundaryHeader": "Personal session protection",
   "gameStreamingBoundaryBody": "A stream can start only from the current personal account, visible route and active tablet session. Larenor passes Android an opaque credential handle; route, lifecycle or idle changes cancel the binding.",
   "gameStreamingDeferredBody": "This screen does not claim video, audio, controller, keyboard or physical Moonlight/Sunshine compatibility. Those controls remain unavailable until a reviewed engine is installed.",
+  "legacyRemoteTitle": "Smart remotes",
   "cameraVisualSensorsTitle": "Camera visual sensors",
   "remoteAccessPrivacy": "Personal target profiles stay in this tablet’s secure storage. No Core or Proxmox account is required. Passwords and keys are not saved here.",
   "remoteAccessLocked": "Return to Settings to unlock this private view.",

@@ -13,6 +13,7 @@ import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
+import '../../legacy_remote/presentation/legacy_remote_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
@@ -31,6 +32,7 @@ enum SettingsCategory {
   tabletFleet,
   remoteAccess,
   gameStreaming,
+  legacyRemote,
   display,
   security,
   homeAssistant,
@@ -240,6 +242,8 @@ Widget paneFor(
         port: gameStreamPort,
         gateCurrent: remoteGateCurrent ?? () => false,
       );
+    case SettingsCategory.legacyRemote:
+      return LegacyRemoteRoute(gateCurrent: remoteGateCurrent ?? () => false);
     case SettingsCategory.server:
       return ServerConnectionScreen(adminGateCurrent: tabletFleetGateCurrent);
     case SettingsCategory.tabletFleet:
@@ -319,6 +323,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.game_controller_solid,
         CupertinoColors.systemPurple,
         l10n.gameStreamingTitle,
+      ),
+      (
+        SettingsCategory.legacyRemote,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.legacyRemoteTitle,
       ),
       (
         SettingsCategory.display,

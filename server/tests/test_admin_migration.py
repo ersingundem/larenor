@@ -82,6 +82,12 @@ def downgrade_to_known_v1(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='keenetic_command_schema'"
         )
+        # Durable remote state authenticates its ciphertext against the Core
+        # and home identities introduced after the shipped v1 schema.
+        connection.execute("DROP TABLE legacy_remote_state")
+        connection.execute(
+            "DELETE FROM metadata WHERE key='legacy_remote_schema'"
+        )
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 

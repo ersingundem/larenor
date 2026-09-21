@@ -64,6 +64,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             initialDestination: SettingsGateDestination.kiosk,
           ),
         ),
+        GoRoute(
+          path: '/settings/legacy-remotes',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.legacyRemote,
+          ),
+        ),
       ],
     );
     ref.onDispose(router.dispose);
@@ -216,6 +222,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/client-updates',
         builder: (_, _) => const SettingsGateScreen(
           initialDestination: SettingsGateDestination.clientUpdates,
+        ),
+      ),
+      GoRoute(
+        path: '/settings/legacy-remotes',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.legacyRemote,
         ),
       ),
       GoRoute(path: '/wellbeing', builder: (_, _) => const WellbeingGate()),

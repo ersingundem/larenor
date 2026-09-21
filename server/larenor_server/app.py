@@ -56,6 +56,7 @@ from .plugins.media_recovery_status_api import router as media_recovery_status_r
 from .plugins.media_archive_core_api import router as media_archive_health_router
 from .plugins.media_flow_api import router as media_flow_router
 from .bounded_transfer.api import router as bounded_transfer_router
+from .legacy_remote.api import router as legacy_remote_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
 from .proxmox_commands.api import router as proxmox_power_router
@@ -85,7 +86,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                proxmox_power_executor=None,
                media_archive_binding_reader=None,
                media_archive_worker=None,
-               mesh_center_provider=None) -> FastAPI:
+               mesh_center_provider=None,
+               legacy_remote_provider=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -181,7 +183,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         proxmox_power_executor=proxmox_power_executor,
         media_archive_binding_reader=media_archive_binding_reader,
         media_archive_worker=media_archive_worker,
-        mesh_center_provider=mesh_center_provider)
+        mesh_center_provider=mesh_center_provider,
+        legacy_remote_provider=legacy_remote_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -192,6 +195,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
+    app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -278,6 +282,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(bounded_transfer_router, prefix="/api/v1")
+    app.include_router(legacy_remote_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(meal_plans_router, prefix="/api/v1")
     app.include_router(personal_profiles_router, prefix="/api/v1")
