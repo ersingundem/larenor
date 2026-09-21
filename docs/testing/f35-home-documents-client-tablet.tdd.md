@@ -3,7 +3,7 @@
 This Client slice is based directly on `main`. It models the isolated F35 Core
 contract without copying the unmerged Core implementation or F34 commits. The
 production HTTP/account adapter and bounded-upload resource wiring remain later
-dependent slices, so F35 stays open at **18/125** and **0/63**.
+dependent slices, so F35 stays open at **21/125** and **0/63**.
 
 Exactly three acceptance criteria are delivered:
 
