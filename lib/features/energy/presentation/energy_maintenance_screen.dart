@@ -13,6 +13,7 @@ import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../health/data/integration_health.dart';
+import '../../energy_priorities/presentation/energy_priority_route.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../domain/energy_models.dart';
 import '../domain/maintenance_models.dart';
@@ -82,6 +83,44 @@ class _EnergyMaintenanceScreenState
             constraints: const BoxConstraints(maxWidth: 1000),
             child: CustomScrollView(
               slivers: [
+                SliverToBoxAdapter(
+                  child: SettingsSection(
+                    children: [
+                      CupertinoButton(
+                        key: const ValueKey('energy-open-priorities'),
+                        minimumSize: const Size(48, 48),
+                        onPressed: !active
+                            ? null
+                            : () => Navigator.of(context).push(
+                                CupertinoPageRoute<void>(
+                                  builder: (_) => EnergyPriorityRoute(
+                                    gateCurrent: () =>
+                                        interactionCurrent(generation),
+                                  ),
+                                ),
+                              ),
+                        child: Row(
+                          children: [
+                            const Icon(CupertinoIcons.sun_max),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                Localizations.localeOf(context).languageCode ==
+                                        'tr'
+                                    ? 'Güneş ve batarya öncelikleri'
+                                    : 'Solar and battery priorities',
+                              ),
+                            ),
+                            const Icon(
+                              CupertinoIcons.chevron_forward,
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 SliverToBoxAdapter(
                   child: SettingsSection(
                     header: _SectionHeader(l10n.energyRecorded),

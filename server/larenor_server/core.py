@@ -108,6 +108,7 @@ from .mesh_center.runtime import build_mesh_center_gateway
 from .room_comfort.schema import migrate_room_comfort
 from .room_comfort.service import RoomComfortService
 from .garden_irrigation.runtime import build_irrigation_gateway
+from .energy_priorities.service import EnergyPriorityService
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -119,7 +120,10 @@ class CoreServices:
                  proxmox_guest_provider=None, proxmox_power_executor=None,
                  media_archive_binding_reader=None,
                  media_archive_worker=None, mesh_center_provider=None,
-                 irrigation_provider=None):
+                 irrigation_provider=None,
+                 energy_priority_provider=None,
+                 energy_priority_inverter_worker=None,
+                 energy_priority_inverter_capability=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -129,6 +133,9 @@ class CoreServices:
         self._media_archive_worker = media_archive_worker
         self._mesh_center_provider = mesh_center_provider
         self._irrigation_provider = irrigation_provider
+        self._energy_priority_provider = energy_priority_provider
+        self._energy_priority_inverter_worker = energy_priority_inverter_worker
+        self._energy_priority_inverter_capability = energy_priority_inverter_capability
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -342,6 +349,16 @@ class CoreServices:
                 else build_irrigation_gateway(
                     self._irrigation_provider, clock=settings.clock
                 )
+            )
+            self.energy_priorities = EnergyPriorityService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                self._energy_priority_provider,
+                self._energy_priority_inverter_worker,
+                self._energy_priority_inverter_capability,
             )
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
