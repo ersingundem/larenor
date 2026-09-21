@@ -27,4 +27,3 @@ three focused tests covering deterministic planning and every input revision,
 safety and override expiry boundaries, and preview-confirm-readback behavior,
 including exact plan drift, lost ACK idempotency, exception redaction, and audit
 tamper rejection.
-
