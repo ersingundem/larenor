@@ -408,6 +408,14 @@ final class DualDisplayCoordinator {
       throw const DualDisplayException('route_forbidden');
     }
     final secondary = topology.externalById(secondaryDisplayId);
+    if (_active != null) {
+      await _retire(
+        secondary == null
+            ? DualDisplayReason.secondaryUnavailable
+            : DualDisplayReason.secondaryDetached,
+        topology,
+      );
+    }
     if (secondary == null) {
       _epoch++;
       _active = null;
@@ -508,6 +516,17 @@ final class DualDisplayCoordinator {
     _lifecycle = lifecycle;
     if (lifecycle == DisplayLifecycle.resumed || _active == null) return _state;
     return _retire(DualDisplayReason.lifecycleRetired, _topologyResolver());
+  }
+
+  Future<DualDisplayState> updateAuthority(
+    DisplayRouteAuthority authority,
+  ) async {
+    if (_authorityResolver() != authority) {
+      throw const DualDisplayException('stale_authority');
+    }
+    final active = _active;
+    if (active == null || active.authority == authority) return _state;
+    return _retire(DualDisplayReason.staleAuthority, _topologyResolver());
   }
 
   Future<DualDisplayState> _retire(

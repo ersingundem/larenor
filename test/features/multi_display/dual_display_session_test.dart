@@ -34,15 +34,16 @@ DisplaySurface primary({int generation = 2}) => DisplaySurface(
   securePresentation: true,
 );
 
-DisplaySurface external({int generation = 4}) => DisplaySurface(
-  displayId: 7,
-  generation: generation,
-  kind: DisplayKind.external,
-  widthPixels: 1920,
-  heightPixels: 1080,
-  densityDpi: 160,
-  securePresentation: true,
-);
+DisplaySurface external({int displayId = 7, int generation = 4}) =>
+    DisplaySurface(
+      displayId: displayId,
+      generation: generation,
+      kind: DisplayKind.external,
+      widthPixels: 1920,
+      heightPixels: 1080,
+      densityDpi: 160,
+      securePresentation: true,
+    );
 
 DisplayTopology topology({bool withExternal = true, int revision = 9}) {
   return DisplayTopology(
@@ -314,6 +315,63 @@ void main() {
     expect(state.reason, DualDisplayReason.presentationFailed);
     expect(port.dismissals, hasLength(1));
   });
+
+  test(
+    'replacement, missing display and authority rotation retire old lease',
+    () async {
+      var liveAuthority = authority();
+      var liveTopology = DisplayTopology(
+        revision: 9,
+        surfaces: [primary(), external(), external(displayId: 8)],
+      );
+      final port = FakeDisplayPort();
+      final coordinator = DualDisplayCoordinator(
+        authorityResolver: () => liveAuthority,
+        topologyResolver: () => liveTopology,
+        port: port,
+      );
+
+      await coordinator.activate(
+        authority: liveAuthority,
+        topology: liveTopology,
+        secondaryDisplayId: 7,
+        selection: selection(),
+      );
+      await coordinator.activate(
+        authority: liveAuthority,
+        topology: liveTopology,
+        secondaryDisplayId: 8,
+        selection: selection(),
+      );
+      expect(port.dismissals.map((value) => value.displayId), [7]);
+      expect(coordinator.state.secondaryDisplayId, 8);
+
+      liveTopology = topology(withExternal: false, revision: 10);
+      final missing = await coordinator.activate(
+        authority: liveAuthority,
+        topology: liveTopology,
+        secondaryDisplayId: 8,
+        selection: selection(),
+      );
+      expect(missing.status, DualDisplayStatus.primaryOnly);
+      expect(missing.secondaryDisplayId, isNull);
+      expect(port.dismissals.map((value) => value.displayId), [7, 8]);
+
+      liveTopology = topology(revision: 11);
+      await coordinator.activate(
+        authority: liveAuthority,
+        topology: liveTopology,
+        secondaryDisplayId: 7,
+        selection: selection(),
+      );
+      liveAuthority = authority(accountRevision: 4);
+      final retired = await coordinator.updateAuthority(liveAuthority);
+      expect(retired.status, DualDisplayStatus.retired);
+      expect(retired.reason, DualDisplayReason.staleAuthority);
+      expect(retired.secondaryDisplayId, isNull);
+      expect(port.dismissals.map((value) => value.displayId), [7, 8, 7]);
+    },
+  );
 
   test('topology and public state stay bounded and secret-free', () {
     expect(
