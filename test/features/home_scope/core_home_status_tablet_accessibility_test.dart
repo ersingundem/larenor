@@ -59,6 +59,7 @@ void main() {
               contains(l10n.inventoryDocuments),
             );
             await tester.ensureVisible(documents);
+            await tester.pumpAndSettle();
             await tester.tap(documents);
             await tester.pump();
             expect(find.byType(HomeDocumentsRoute), findsOneWidget);
