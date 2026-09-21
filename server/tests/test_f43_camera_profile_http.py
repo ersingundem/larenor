@@ -42,6 +42,8 @@ def _scope(camera_id, binding_id):
 class Provider:
     def __init__(self, authority):
         self.current_authority = authority
+        self.core_id = authority.coreId
+        self.home_id = authority.homeId
         self.policy = CameraProfilePolicy(
             schemaVersion=1,
             coreId=authority.coreId,
@@ -132,7 +134,7 @@ def _configured(server):
         schemaVersion=1,
         coreId=context.coreId,
         homeId=context.homeId,
-        homeRevision=context.homeRevision,
+        homeRevision=1,
         accountId=pair["user"]["id"],
         accountRevision=1,
         sessionFamilyId=principal.family_id,

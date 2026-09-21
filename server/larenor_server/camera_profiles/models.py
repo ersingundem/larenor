@@ -148,6 +148,21 @@ class CameraReadback(FrozenModel):
     observedAtMs: TimestampMs
 
 
+class CameraProviderSupport(FrozenModel):
+    schemaVersion: Literal[1]
+    camera: CameraScope
+    providerRevision: Revision
+    recordingSupported: bool
+    detectionSupported: bool
+    verifiedAtMs: TimestampMs
+
+
+class CameraPrivacyBoundary(FrozenModel):
+    microphoneDisabled: Literal[False] = False
+    cameraHardwareDisabled: Literal[False] = False
+    otherRecordersDisabled: Literal[False] = False
+
+
 class CameraWorkerCommand(FrozenModel):
     schemaVersion: Literal[1]
     commandId: Identity
@@ -182,6 +197,7 @@ class CameraCommandResult(FrozenModel):
         "readback_mismatch",
         "worker_ack_unknown",
         "worker_response_invalid",
+        "provider_unsupported",
     ]
     readback: WorkerReadback | None
 

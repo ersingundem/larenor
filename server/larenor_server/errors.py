@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'camera_profile_provider_unavailable': 'The camera profile provider is unavailable.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
