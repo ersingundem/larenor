@@ -7,32 +7,81 @@ from pydantic import Field, model_validator
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
 
-
 ManagedMediaService = Literal[
-    "qbittorrent", "sonarr", "radarr", "jellyfin", "seerr",
+    "larenor_core",
+    "qbittorrent",
+    "sonarr",
+    "radarr",
+    "jellyfin",
+    "seerr",
     "music_assistant",
 ]
 
 
 class MediaRecoveryService(StrictModel):
     serviceId: ManagedMediaService
-    sourceId: ObjectId
-    sourceKind: Literal["installation", "configuration", "bootstrap"]
-    revision: Revision
+    sourceId: ObjectId | None
+    sourceKind: Literal[
+        "core",
+        "installation",
+        "configuration",
+        "bootstrap",
+        "missing",
+    ]
+    revision: Revision | None
     resultState: Literal[
-        "pending", "partial", "verified", "cancelled", "needs_attention",
+        "pending",
+        "partial",
+        "verified",
+        "cancelled",
+        "needs_attention",
         "failed",
+        "missing",
     ]
     containerState: Literal["pending", "started", "unknown"]
     serviceState: Literal["unverified", "verified"]
+    storedState: Literal["missing", "stored"]
+    reachableState: Literal["unknown", "reachable", "unreachable"]
+    verifiedState: Literal["unverified", "verified"]
     recoveryAction: Literal["wait", "configure", "review", "retry", "none"]
     automaticRetry: Literal[False] = False
-    errorCode: str | None = Field(
-        default=None, pattern=r"^[a-z][a-z0-9_]{0,127}$")
-    updatedAt: str
+    errorCode: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,127}$")
+    updatedAt: str | None
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.serviceState != self.verifiedState:
+            raise ValueError("invalid_media_recovery_status")
+        if (self.serviceId == "larenor_core") != (self.sourceKind == "core"):
+            raise ValueError("invalid_media_recovery_status")
+        if self.sourceKind == "missing":
+            if (
+                self.sourceId is not None
+                or self.revision is not None
+                or self.updatedAt is not None
+                or self.resultState != "missing"
+                or self.storedState != "missing"
+                or self.reachableState != "unknown"
+                or self.verifiedState != "unverified"
+                or self.containerState != "unknown"
+                or self.recoveryAction != "configure"
+            ):
+                raise ValueError("invalid_media_recovery_status")
+            return self
+        if (
+            self.sourceId is None
+            or self.revision is None
+            or self.storedState != "stored"
+        ):
+            raise ValueError("invalid_media_recovery_status")
+        if self.sourceKind == "core" and (
+            self.serviceId != "larenor_core"
+            or self.resultState != "verified"
+            or self.reachableState != "reachable"
+        ):
+            raise ValueError("invalid_media_recovery_status")
+        if self.verifiedState == "verified" and self.reachableState != "reachable":
+            raise ValueError("invalid_media_recovery_status")
         if self.serviceState == "verified" and self.containerState != "started":
             raise ValueError("invalid_media_recovery_status")
         if self.resultState == "verified" and (
@@ -67,26 +116,36 @@ class MediaRecoveryService(StrictModel):
 
 
 class MediaRecoveryStatusResponse(StrictModel):
-    schemaVersion: Literal[1] = 1
-    state: Literal["unknown", "incomplete", "attention", "ready"]
+    schemaVersion: Literal[2] = 2
+    state: Literal["incomplete", "attention", "ready"]
     installAvailable: Literal[False] = False
-    services: list[MediaRecoveryService] = Field(max_length=6)
+    services: list[MediaRecoveryService] = Field(min_length=7, max_length=7)
 
     @model_validator(mode="after")
     def coherent(self):
         expected = (
-            "unknown" if not self.services
-            else "attention" if any(
+            "attention"
+            if any(
                 item.resultState in {"needs_attention", "failed"}
                 for item in self.services
             )
-            else "ready" if len(self.services) == 6 and all(
-                item.resultState == "verified" for item in self.services)
+            else "ready"
+            if all(item.resultState == "verified" for item in self.services)
             else "incomplete"
         )
         if self.state != expected:
             raise ValueError("invalid_media_recovery_status")
         identifiers = [item.serviceId for item in self.services]
         if len(identifiers) != len(set(identifiers)):
+            raise ValueError("invalid_media_recovery_status")
+        if identifiers != [
+            "larenor_core",
+            "qbittorrent",
+            "sonarr",
+            "radarr",
+            "jellyfin",
+            "seerr",
+            "music_assistant",
+        ]:
             raise ValueError("invalid_media_recovery_status")
         return self

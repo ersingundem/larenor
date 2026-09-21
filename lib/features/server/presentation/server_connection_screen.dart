@@ -18,6 +18,7 @@ import '../../settings/presentation/settings_gate_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
+import '../media_recovery/presentation/server_media_recovery_screen.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
 import '../providers/server_providers.dart';
 import '../services/presentation/server_services_screen.dart';
@@ -558,6 +559,36 @@ class _ServerConnectionScreenState
                         if (!session.user.mustChangePassword)
                           SettingsSection(
                             children: [
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-media-recovery',
+                                  ),
+                                  leading: const Icon(
+                                    CupertinoIcons.square_stack_3d_down_right,
+                                  ),
+                                  title: Text(l10n.serverRecoveryTitle),
+                                  additionalInfo: Text(
+                                    l10n.serverRecoverySettingsSummary,
+                                  ),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  const ServerMediaRecoveryScreen(),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
                               if (session.user.canAdminister)
                                 SettingsActionTile(
                                   buttonKey: const ValueKey('server-admin'),
