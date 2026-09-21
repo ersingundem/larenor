@@ -116,6 +116,8 @@ class ResourceReservationController extends ChangeNotifier {
       value.resource.capacity >= 1 &&
       value.resource.capacity <= 64 &&
       value.reservations.length <= exportLimit &&
+      value.reservations.map((item) => item.id).toSet().length ==
+          value.reservations.length &&
       value.history.length <= exportLimit &&
       value.busy.length <= exportLimit &&
       value.history.every(
@@ -123,7 +125,20 @@ class ResourceReservationController extends ChangeNotifier {
             item.eventId.isNotEmpty &&
             item.actorId.isNotEmpty &&
             item.reservationId.isNotEmpty &&
-            item.calendarRevision > 0,
+            item.calendarRevision > 0 &&
+            item.calendarRevision <= value.calendarRevision,
+      ) &&
+      Iterable<int>.generate(value.history.length).every(
+        (index) =>
+            index == 0 ||
+            value.history[index - 1].calendarRevision <
+                value.history[index].calendarRevision,
+      ) &&
+      value.busy.every(
+        (item) =>
+            item.units >= 1 &&
+            item.units <= value.resource.capacity &&
+            _validWindow(item.startUtc, item.endUtc),
       ) &&
       value.reservations.every(
         (item) =>
@@ -132,9 +147,25 @@ class ResourceReservationController extends ChangeNotifier {
             item.timezone == value.resource.timezone &&
             item.occurrences.isNotEmpty &&
             item.occurrences.length <= 64 &&
+            item.occurrences.every(
+              (occurrence) =>
+                  _validWindow(occurrence.startUtc, occurrence.endUtc),
+            ) &&
             item.units >= 1 &&
             item.units <= value.resource.capacity,
       );
+
+  static bool _validWindow(String start, String end) {
+    final canonical = RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$');
+    if (!canonical.hasMatch(start) || !canonical.hasMatch(end)) return false;
+    final startValue = DateTime.tryParse(start);
+    final endValue = DateTime.tryParse(end);
+    return startValue != null &&
+        endValue != null &&
+        startValue.isUtc &&
+        endValue.isUtc &&
+        startValue.isBefore(endValue);
+  }
 
   Future<void> load(ReservationLease lease) async {
     if (!_current(lease) ||
@@ -278,6 +309,8 @@ class ResourceReservationController extends ChangeNotifier {
     _PendingReservation pending,
   ) {
     if (receipt.authority != lease.authority ||
+        receipt.eventId.isEmpty ||
+        receipt.actorId != lease.authority.accountId ||
         receipt.commandId != pending.commandId ||
         receipt.action != pending.action ||
         receipt.expectedCalendarRevision != pending.expectedCalendarRevision ||
@@ -287,6 +320,8 @@ class ResourceReservationController extends ChangeNotifier {
     return switch (pending.action) {
       ReservationAction.create =>
         pending.draft != null &&
+            receipt.reservation.ownerId == lease.authority.accountId &&
+            receipt.reservation.resourceId == lease.authority.resourceId &&
             receipt.reservation.matchesDraft(pending.draft!),
       ReservationAction.cancel =>
         pending.reservation != null &&
@@ -314,6 +349,16 @@ class ResourceReservationController extends ChangeNotifier {
         .toList();
     _reservations = List.unmodifiable([...without, receipt.reservation]);
     _calendarRevision = receipt.calendarRevision;
+    _history = List.unmodifiable([
+      ..._history,
+      ReservationHistoryItem(
+        eventId: receipt.eventId,
+        action: receipt.action,
+        actorId: receipt.actorId,
+        reservationId: receipt.reservation.id,
+        calendarRevision: receipt.calendarRevision,
+      ),
+    ]);
     _exported = const [];
     _pending = null;
     _set(ReservationViewState.ready);

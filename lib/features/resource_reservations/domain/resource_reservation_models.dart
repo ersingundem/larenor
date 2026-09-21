@@ -250,6 +250,8 @@ enum ReservationAction { create, cancel }
 class ReservationReceipt {
   const ReservationReceipt({
     required this.authority,
+    required this.eventId,
+    required this.actorId,
     required this.commandId,
     required this.action,
     required this.expectedCalendarRevision,
@@ -258,6 +260,8 @@ class ReservationReceipt {
   });
 
   final ResourceReservationAuthority authority;
+  final String eventId;
+  final String actorId;
   final String commandId;
   final ReservationAction action;
   final int expectedCalendarRevision;

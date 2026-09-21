@@ -140,6 +140,8 @@ class FakeReservationApi implements ResourceReservationApi {
     if (timeoutCreate) throw TimeoutException('lost ack');
     return ReservationReceipt(
       authority: authority,
+      eventId: 'event-create',
+      actorId: authority.accountId,
       commandId: commandId,
       action: ReservationAction.create,
       expectedCalendarRevision: expectedCalendarRevision,
@@ -158,6 +160,8 @@ class FakeReservationApi implements ResourceReservationApi {
     cancelCalls++;
     return ReservationReceipt(
       authority: authority,
+      eventId: 'event-cancel',
+      actorId: authority.accountId,
       commandId: commandId,
       action: ReservationAction.cancel,
       expectedCalendarRevision: expectedCalendarRevision,
@@ -292,6 +296,8 @@ void main() {
       );
       api.reconciled = ReservationReceipt(
         authority: reservationAuthorityA,
+        eventId: 'event-reconciled',
+        actorId: 'ada',
         commandId: 'create-1',
         action: ReservationAction.create,
         expectedCalendarRevision: 7,
@@ -302,6 +308,7 @@ void main() {
       expect(api.receiptReads, 1);
       expect(controller.calendarRevision, 8);
       expect(controller.reservations.single.id, 'created');
+      expect(controller.history.last.action, ReservationAction.create);
 
       api.exported = ReservationExport(
         authority: reservationAuthorityA,
@@ -354,5 +361,6 @@ void main() {
     expect(api.cancelCalls, 1);
     expect(controller.calendarRevision, 8);
     expect(controller.reservations.single.cancelled, isTrue);
+    expect(controller.history.last.action, ReservationAction.cancel);
   });
 }
