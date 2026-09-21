@@ -68,6 +68,7 @@ class SharedExpenseService:
             "accountId": actor.id,
             "sessionId": actor.family_id,
             "membersRevision": members.revision,
+            "canViewAll": actor.role == "admin",
         }
 
     @staticmethod

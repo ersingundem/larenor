@@ -2,6 +2,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/shared_expenses/domain/shared_expense_models.dart';
 
 void main() {
+  test('export visibility requires explicit bounded Core authority', () {
+    final authority = <String, dynamic>{
+      'schemaVersion': 1,
+      'coreId': 'a' * 32,
+      'homeId': 'b' * 32,
+      'accountId': 'c' * 32,
+      'sessionId': 'd' * 32,
+      'membersRevision': 9,
+      'canViewAll': true,
+    };
+    SharedExpenseAuthority parse(Map<String, dynamic> value) =>
+        SharedExpenseAuthority.fromJson(
+          value,
+          routeId: 'route-a',
+          coreId: 'a' * 32,
+          homeId: 'b' * 32,
+          accountId: 'c' * 32,
+        );
+
+    expect(parse(authority).canViewAll, isTrue);
+    expect(
+      () => parse({...authority}..remove('canViewAll')),
+      throwsFormatException,
+    );
+    expect(
+      () => parse({...authority, 'canViewAll': 'true'}),
+      throwsFormatException,
+    );
+  });
+
   Map<String, dynamic> record() => {
     'id': '1' * 32,
     'revision': 1,

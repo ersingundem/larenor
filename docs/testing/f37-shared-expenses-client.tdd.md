@@ -14,7 +14,8 @@ tablet-to-isolated-Core acceptance are complete.
    replacement clears retained data; stale replies fail closed. Lost create
    acknowledgement is reconciled by command id without replaying the write.
 3. History and export are read-only. Export accepts only the current ledger
-   revision and records where the current account is payer or participant. The
+   revision and participant/payer records, or the full ledger when the Core
+   explicitly grants admin-wide visibility in the exact authority. The
    EN/TR surface works at 600/1200 widths with 2x text, scrollable reflow, 48dp
    actions, labeled form controls, button semantics, and live status copy.
 
@@ -25,6 +26,12 @@ tablet-to-isolated-Core acceptance are complete.
   uncertain receipt, responsive UI, history, and read-only export.
 - RED `32ef66e2`: a foreign participant export was retained; `a512295f` rejects
   it and disables create outside a current ready/empty authority state.
+- RED `08a1ddf1`: the Core's admin-wide export was rejected by the Client's
+  participant-only filter. The authority now carries explicit Core-confirmed
+  visibility; ordinary accounts still reject foreign records.
+- RED `c994dcda`: a foreign snapshot could be rendered and a failed refresh
+  retained the previous ledger. The Client now clears prior ledger data before
+  refresh and rejects records outside the current account's visibility.
 
 - `089bc63f` exposes the authenticated Core contract with the live account
   membership resolver, HMAC-bound membership revision, idempotent command

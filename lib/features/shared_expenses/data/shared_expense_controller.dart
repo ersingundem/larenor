@@ -100,14 +100,32 @@ class SharedExpenseController extends ChangeNotifier {
         _pending != null) {
       return;
     }
+    _participants = const [];
+    _records = const [];
+    _exportedRecords = const [];
+    _ledgerRevision = null;
+    _membersRevision = null;
     _set(SharedExpenseViewState.loading);
     try {
       final result = await _api.snapshot(lease.authority);
       if (!_current(lease)) return;
       if (result.authority != lease.authority ||
           result.ledgerRevision < 1 ||
-          result.membersRevision < 1 ||
-          result.participants.isEmpty) {
+          result.membersRevision != lease.authority.membersRevision ||
+          result.participants.isEmpty ||
+          result.participants.length > 32 ||
+          result.records.length > 1000 ||
+          !result.participants.any(
+            (participant) => participant.id == lease.authority.accountId,
+          ) ||
+          result.records.any(
+            (record) =>
+                !lease.authority.canViewAll &&
+                record.payerId != lease.authority.accountId &&
+                !record.shares.any(
+                  (share) => share.accountId == lease.authority.accountId,
+                ),
+          )) {
         _set(SharedExpenseViewState.error);
         return;
       }
@@ -216,6 +234,8 @@ class SharedExpenseController extends ChangeNotifier {
             _state != SharedExpenseViewState.empty)) {
       return;
     }
+    _exportedRecords = const [];
+    notifyListeners();
     try {
       final result = await _api.export(
         lease.authority,
@@ -226,6 +246,7 @@ class SharedExpenseController extends ChangeNotifier {
           result.ledgerRevision != revision ||
           result.records.any(
             (record) =>
+                !lease.authority.canViewAll &&
                 record.payerId != lease.authority.accountId &&
                 !record.shares.any(
                   (share) => share.accountId == lease.authority.accountId,

@@ -1,6 +1,8 @@
 from conftest import auth, login, ready
 from fastapi.testclient import TestClient
 from larenor_server.app import create_app
+from test_admin import activate
+from test_admin import create as create_user
 
 
 def _root(client, pair):
@@ -83,3 +85,46 @@ def test_expense_scope_revision_session_and_restart_fail_closed(server):
         restored = restarted.get(root, headers=auth(fresh))
         assert restored.status_code == 200
         assert restored.json()["ledgerRevision"] == 1
+
+
+def test_admin_visibility_is_explicit_and_member_export_remains_private(server):
+    _app, client, _settings, _clock = server
+    admin = ready(server)
+    create_user(client, admin)
+    member = activate(client, "member")
+    root = _root(client, admin)
+    admin_state = client.get(root, headers=auth(admin)).json()
+    member_state = client.get(root, headers=auth(member)).json()
+    assert admin_state["authority"]["canViewAll"] is True
+    assert member_state["authority"]["canViewAll"] is False
+
+    body = {
+        "schemaVersion": 1,
+        "commandId": "33" * 16,
+        "expectedLedgerRevision": 1,
+        "expectedMembersRevision": member_state["authority"]["membersRevision"],
+        "title": "Member private purchase",
+        "currency": "TRY",
+        "totalMinor": 1250,
+        "payerId": member["user"]["id"],
+        "participantIds": [member["user"]["id"]],
+    }
+    created = client.post(root + "/commands/create", headers=auth(member), json=body)
+    assert created.status_code == 201, created.text
+    assert client.get(root, headers=auth(admin)).json()["records"][0]["title"] == body["title"]
+    assert client.get(root, headers=auth(member)).json()["records"][0]["title"] == body["title"]
+
+    admin_only = {
+        **body,
+        "commandId": "44" * 16,
+        "expectedLedgerRevision": 2,
+        "title": "Admin private purchase",
+        "payerId": admin["user"]["id"],
+        "participantIds": [admin["user"]["id"]],
+    }
+    response = client.post(root + "/commands/create", headers=auth(admin), json=admin_only)
+    assert response.status_code == 201, response.text
+    admin_records = client.get(root, headers=auth(admin)).json()["records"]
+    member_records = client.get(root, headers=auth(member)).json()["records"]
+    assert len(admin_records) == 2
+    assert [record["title"] for record in member_records] == [body["title"]]

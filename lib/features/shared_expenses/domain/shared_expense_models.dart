@@ -14,6 +14,7 @@ class SharedExpenseAuthority {
     required this.sessionId,
     required this.routeId,
     required this.membersRevision,
+    this.canViewAll = false,
   });
 
   final String coreId;
@@ -22,6 +23,7 @@ class SharedExpenseAuthority {
   final String sessionId;
   final String routeId;
   final int membersRevision;
+  final bool canViewAll;
 
   factory SharedExpenseAuthority.fromJson(
     Map<String, dynamic> json, {
@@ -30,7 +32,9 @@ class SharedExpenseAuthority {
     required String homeId,
     required String accountId,
   }) {
-    if (json.length != 6 || json['schemaVersion'] != 1) {
+    if (json.length != 7 ||
+        json['schemaVersion'] != 1 ||
+        json['canViewAll'] is! bool) {
       throw const FormatException('invalid_authority');
     }
     String id(String key) {
@@ -59,6 +63,7 @@ class SharedExpenseAuthority {
       sessionId: session,
       routeId: routeId,
       membersRevision: revision,
+      canViewAll: json['canViewAll'] as bool,
     );
   }
 
@@ -70,7 +75,8 @@ class SharedExpenseAuthority {
       other.accountId == accountId &&
       other.sessionId == sessionId &&
       other.routeId == routeId &&
-      other.membersRevision == membersRevision;
+      other.membersRevision == membersRevision &&
+      other.canViewAll == canViewAll;
 
   @override
   int get hashCode => Object.hash(
@@ -80,6 +86,7 @@ class SharedExpenseAuthority {
     sessionId,
     routeId,
     membersRevision,
+    canViewAll,
   );
 }
 
