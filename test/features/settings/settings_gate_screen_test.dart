@@ -34,6 +34,7 @@ Future<void> showGate(
   Size size = const Size(500, 900),
   double scale = 1,
   String language = 'en',
+  SettingsGateDestination destination = SettingsGateDestination.settings,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?initialPin});
@@ -72,7 +73,7 @@ Future<void> showGate(
                   ),
                 ),
               )
-            : const SettingsGateScreen(),
+            : SettingsGateScreen(initialDestination: destination),
       ),
     ),
   );
@@ -93,6 +94,20 @@ class PendingSaveStore extends PinLockStore {
 }
 
 void main() {
+  testWidgets('launcher kiosk destination remains behind the settings PIN', (
+    tester,
+  ) async {
+    await showGate(tester, destination: SettingsGateDestination.kiosk);
+    expect(find.byType(KioskScreen), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-pin-field')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-pin-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byType(KioskScreen), findsOneWidget);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1200, 900)]) {
       testWidgets(

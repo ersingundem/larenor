@@ -58,6 +58,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             initialDestination: SettingsGateDestination.homeSource,
           ),
         ),
+        GoRoute(
+          path: '/settings/kiosk',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.kiosk,
+          ),
+        ),
       ],
     );
     ref.onDispose(router.dispose);
@@ -187,6 +193,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      GoRoute(
+        path: '/settings/kiosk',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.kiosk,
+        ),
+      ),
       GoRoute(
         path: '/settings/tablet-fleet',
         builder: (_, _) => const SettingsGateScreen(

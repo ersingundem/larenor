@@ -14,6 +14,7 @@ import '../../server/presentation/server_connection_screen.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import '../../core_ha/direct_migration/transfer_screen.dart';
 import '../../core_proxmox/presentation/core_proxmox_screen.dart';
+import '../../kiosk/presentation/kiosk_screen.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -31,6 +32,7 @@ enum SettingsGateDestination {
   homePeople,
   coreHaTransfer,
   proxmoxPower,
+  kiosk,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -388,6 +390,9 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                     ? _exit
                                     : null,
                               )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.kiosk
+                            ? const KioskScreen()
                             : SettingsSplitScreen(
                                 visualSensorGateCurrent: () {
                                   if (!mounted ||

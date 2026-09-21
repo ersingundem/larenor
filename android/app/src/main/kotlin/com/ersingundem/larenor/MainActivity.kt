@@ -9,6 +9,7 @@ import com.ersingundem.larenor.audio.LocalAudioBridge
 import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
 import com.ersingundem.larenor.kiosk.KioskPeripheralBridge
+import com.ersingundem.larenor.kiosk.LauncherShortcutBridge
 import com.ersingundem.larenor.updater.ClientUpdaterBridge
 import com.ersingundem.larenor.wellbeing.WellbeingBridge
 import com.ersingundem.larenor.vnc.VncNativeBridge
@@ -23,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var wellbeing: WellbeingBridge? = null
     private var kiosk: KioskBridge? = null
     private var kioskPeripherals: KioskPeripheralBridge? = null
+    private var launcherShortcuts: LauncherShortcutBridge? = null
     private var updater: ClientUpdaterBridge? = null
     private var vncNative: VncNativeBridge? = null
     private var rdpNative: RdpNativeBridge? = null
@@ -35,6 +37,7 @@ class MainActivity : FlutterActivity() {
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kioskPeripherals = KioskPeripheralBridge(flutterEngine.dartExecutor.binaryMessenger)
+        launcherShortcuts = LauncherShortcutBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
         rdpNative = RdpNativeBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -47,6 +50,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.setResumed(true)
         wellbeing?.setResumed(true)
         kiosk?.setResumed(true)
+        launcherShortcuts?.setResumed(true)
         updater?.setResumed(true)
         vncNative?.setResumed(true)
         rdpNative?.setResumed(true)
@@ -58,6 +62,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.setResumed(false)
         wellbeing?.setResumed(false)
         kiosk?.setResumed(false)
+        launcherShortcuts?.setResumed(false)
         updater?.setResumed(false)
         vncNative?.setResumed(false)
         rdpNative?.setResumed(false)
@@ -84,6 +89,7 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        launcherShortcuts?.handleIntent(intent)
         localNotifications?.handleIntent(intent)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -111,6 +117,8 @@ class MainActivity : FlutterActivity() {
         kiosk = null
         kioskPeripherals?.dispose()
         kioskPeripherals = null
+        launcherShortcuts?.dispose()
+        launcherShortcuts = null
         wellbeing?.dispose()
         wellbeing = null
         windowPolicy?.dispose()
