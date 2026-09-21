@@ -236,15 +236,42 @@ def test_exact_topology_health_is_read_only_and_channel_changes_are_advisory():
     assert report.lowBatteryDeviceIds == [THREAD_DEVICE]
     assert report.threadBorderRouterCount == 1
 
-    stale_topology = current_topology.model_copy(update={"revision": 99})
-    with pytest.raises(ApiError) as topology_error:
-        health_service(current_topology, current_interference).observe(
-            authority(), stale_topology, current_interference
+    stale_topologies = [
+        current_topology.model_copy(update={"revision": 99}),
+        current_topology.model_copy(
+            update={
+                "coordinator": current_topology.coordinator.model_copy(
+                    update={"revision": 99}
+                )
+            }
+        ),
+        current_topology.model_copy(
+            update={
+                "borderRouters": [
+                    current_topology.borderRouters[0].model_copy(
+                        update={"routeRevision": 99}
+                    )
+                ]
+            }
+        ),
+        current_topology.model_copy(
+            update={
+                "devices": [
+                    current_topology.devices[0].model_copy(update={"revision": 99}),
+                    current_topology.devices[1],
+                ]
+            }
+        ),
+    ]
+    for stale_topology in stale_topologies:
+        with pytest.raises(ApiError) as topology_error:
+            health_service(current_topology, current_interference).observe(
+                authority(), stale_topology, current_interference
+            )
+        assert (topology_error.value.code, topology_error.value.status) == (
+            "revision_conflict",
+            409,
         )
-    assert (topology_error.value.code, topology_error.value.status) == (
-        "revision_conflict",
-        409,
-    )
 
     stale_interference = current_interference.model_copy(update={"revision": 99})
     with pytest.raises(ApiError) as interference_error:
@@ -293,6 +320,41 @@ def test_signed_firmware_compatibility_power_and_route_safety_fail_closed():
         409,
     )
 
+    stale_catalog = catalog.model_copy(update={"revision": 99})
+    with pytest.raises(ApiError) as catalog_error:
+        manager.preview(
+            authority(),
+            current_topology,
+            stale_catalog,
+            deviceId=DEVICE,
+            firmwareId=FIRMWARE,
+            requestId="1" * 32,
+        )
+    assert (catalog_error.value.code, catalog_error.value.status) == (
+        "revision_conflict",
+        409,
+    )
+
+    incompatible_entry = catalog.entries[0].model_copy(
+        update={"sourceVersions": ["1.1.0"]}
+    )
+    incompatible = signed_catalog(private, entries=[incompatible_entry])
+    with pytest.raises(ApiError) as compatibility_error:
+        update_manager(
+            current_topology, incompatible, public, lambda command: None
+        ).preview(
+            authority(),
+            current_topology,
+            incompatible,
+            deviceId=DEVICE,
+            firmwareId=FIRMWARE,
+            requestId="2" * 32,
+        )
+    assert (compatibility_error.value.code, compatibility_error.value.status) == (
+        "firmware_incompatible",
+        409,
+    )
+
     unsafe_device = zigbee_device(
         powerSource="battery",
         batteryPercent=25,
@@ -308,6 +370,21 @@ def test_signed_firmware_compatibility_power_and_route_safety_fail_closed():
             requestId="f" * 32,
         )
     assert (power_error.value.code, power_error.value.status) == (
+        "firmware_update_safety_blocked",
+        409,
+    )
+
+    unsafe_route = topology(devices=[zigbee_device(parentId="0" * 32)])
+    with pytest.raises(ApiError) as route_error:
+        update_manager(unsafe_route, catalog, public, lambda command: None).preview(
+            authority(),
+            unsafe_route,
+            catalog,
+            deviceId=DEVICE,
+            firmwareId=FIRMWARE,
+            requestId="3" * 32,
+        )
+    assert (route_error.value.code, route_error.value.status) == (
         "firmware_update_safety_blocked",
         409,
     )
