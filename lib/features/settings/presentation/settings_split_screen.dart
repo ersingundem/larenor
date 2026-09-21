@@ -15,6 +15,7 @@ import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
 import '../../legacy_remote/presentation/legacy_remote_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../workshop/presentation/workshop_route.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -34,6 +35,7 @@ enum SettingsCategory {
   gameStreaming,
   legacyRemote,
   display,
+  workshop,
   security,
   homeAssistant,
   cameraVisualSensors,
@@ -55,6 +57,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.onExit,
     this.backupGateCurrent,
     this.remoteGateCurrent,
+    this.workshopGateCurrent,
     this.meshGateCurrent,
     this.gameStreamPort,
     this.visualSensorGateCurrent,
@@ -65,6 +68,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
+  final bool Function()? workshopGateCurrent;
   final bool Function()? meshGateCurrent;
   final GameStreamCapabilityPort? gameStreamPort;
   final bool Function()? visualSensorGateCurrent;
@@ -157,6 +161,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       runFileDialog: widget.runFileDialog,
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
+                      workshopGateCurrent: widget.workshopGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
                       gameStreamPort: widget.gameStreamPort,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
@@ -183,6 +188,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
+            workshopGateCurrent: widget.workshopGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
             gameStreamPort: widget.gameStreamPort,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
@@ -225,6 +231,7 @@ Widget paneFor(
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
+  bool Function()? workshopGateCurrent,
   bool Function()? meshGateCurrent,
   GameStreamCapabilityPort? gameStreamPort,
   bool Function()? visualSensorGateCurrent,
@@ -252,6 +259,8 @@ Widget paneFor(
       );
     case SettingsCategory.display:
       return DisplayPane(runFileDialog: runFileDialog);
+    case SettingsCategory.workshop:
+      return WorkshopRoute(gateCurrent: workshopGateCurrent ?? () => false);
     case SettingsCategory.security:
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
@@ -335,6 +344,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.brightness,
         CupertinoColors.systemYellow,
         l10n.settingsCategoryDisplay,
+      ),
+      (
+        SettingsCategory.workshop,
+        CupertinoIcons.cube_box_fill,
+        CupertinoColors.systemPurple,
+        l10n.settingsCategoryWorkshop,
       ),
       (
         SettingsCategory.security,

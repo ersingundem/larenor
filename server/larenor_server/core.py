@@ -114,6 +114,8 @@ from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
+from .workshop.schema import migrate_workshop
+from .workshop.service import WorkshopService
 from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
 from .game_streaming.schema import migrate_game_streaming
@@ -298,6 +300,7 @@ class CoreServices:
                 migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
+                migrate_workshop(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
                 migrate_automation_rules(connection, self.context, key)
@@ -430,6 +433,9 @@ class CoreServices:
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.workshop = WorkshopService(
+                self.db, self.auth, settings, key, self.context, self.services)
+            self.workshop.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             power_executor = self._proxmox_power_executor
