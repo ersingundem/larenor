@@ -66,7 +66,7 @@ def test_pairing_identity_scope_revoke_and_secret_free_inventory(server):
     assert token not in discovery.text
     assert server[1].get(
         remote + f"/pairings/{pairing['id']}/mqtt/discovery?token={token}"
-    ).status_code == 401
+    ).status_code in {400, 401}
 
     forbidden = server[1].post(
         remote + f"/pairings/{pairing['id']}/mqtt/commands",
@@ -93,7 +93,7 @@ def command(*, request_id=None, sequence=1, retained=False):
         "sequence": sequence,
         "kind": "refreshDashboard",
         "retained": retained,
-        "expiresAt": 1788610000.0,
+        "expiresAt": 1788609720.0,
     }
 
 

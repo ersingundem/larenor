@@ -13,6 +13,19 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'invalid_pairing': 'The paired remote identity is invalid or expired.',
+    'pairing_scope_denied': 'This paired remote scope does not allow the request.',
+    'pairing_changed': 'The paired remote changed. Read it again.',
+    'pairing_request_conflict': 'This pairing request conflicts with an existing pairing.',
+    'pairing_expiry_invalid': 'Choose a pairing expiry inside the supported window.',
+    'pairing_limit_reached': 'The paired remote limit has been reached.',
+    'mqtt_retained_command_denied': 'Remote commands cannot use retained MQTT delivery.',
+    'mqtt_command_replay': 'This MQTT sequence has already been consumed.',
+    'mqtt_command_conflict': 'This MQTT request conflicts with an accepted command.',
+    'mqtt_command_changed': 'The MQTT command acknowledgement changed.',
+    'mqtt_command_expired': 'The MQTT command expired.',
+    'mqtt_command_limit_reached': 'The MQTT command journal is full.',
+    'kiosk_remote_storage_unavailable': 'The paired remote registry is unavailable.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
