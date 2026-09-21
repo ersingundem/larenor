@@ -86,6 +86,67 @@ def _resource(identifier, kind, version, payload):
     )
 
 
+def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
+    """Authenticate and decode one bounded bundle without touching storage."""
+    try:
+        header = len(MAGIC) + 16 + 12
+        if (
+            type(bundle) is not bytes
+            or not header + 16 <= len(bundle) <= MAX_BUNDLE_BYTES
+            or bundle[: len(MAGIC)] != MAGIC
+        ):
+            raise ValueError("invalid_bundle")
+        salt = bundle[len(MAGIC) : len(MAGIC) + 16]
+        nonce = bundle[len(MAGIC) + 16 : header]
+        aad = bundle[:header]
+        key = Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(
+            passphrase.encode("utf-8")
+        )
+        plaintext = AESGCM(key).decrypt(nonce, bundle[header:], aad)
+        with zipfile.ZipFile(io.BytesIO(plaintext), mode="r") as archive:
+            infos = archive.infolist()
+            names = [item.filename for item in infos]
+            if (
+                len(infos) != 5
+                or len(set(names)) != len(names)
+                or _MANIFEST_NAME not in names
+                or any(
+                    item.is_dir() or item.file_size > MAX_BUNDLE_BYTES
+                    for item in infos
+                )
+                or sum(item.file_size for item in infos) > MAX_BUNDLE_BYTES
+            ):
+                raise ValueError("invalid_archive")
+            manifest_bytes = archive.read(_MANIFEST_NAME)
+            if len(manifest_bytes) > 256 * 1024:
+                raise ValueError("invalid_manifest")
+            manifest = BackupManifest.model_validate_json(manifest_bytes)
+            expected = {f"resources/{item.id}" for item in manifest.resources}
+            if set(names) != expected | {_MANIFEST_NAME}:
+                raise ValueError("invalid_resources")
+            payloads = {
+                item.id: archive.read(f"resources/{item.id}")
+                for item in manifest.resources
+            }
+        for resource in manifest.resources:
+            payload = payloads[resource.id]
+            if len(payload) != resource.byteLength or not secrets.compare_digest(
+                hashlib.sha256(payload).hexdigest(), resource.sha256
+            ):
+                raise ValueError("invalid_digest")
+        return BackupCapture(manifest=manifest, payloads=payloads)
+    except (
+        InvalidTag,
+        OSError,
+        UnicodeError,
+        ValueError,
+        ValidationError,
+        zipfile.BadZipFile,
+        RuntimeError,
+    ):
+        raise ApiError("backup_decryption_failed") from None
+
+
 @dataclass(frozen=True)
 class BackupCapture:
     """Private bytes and their public manifest; never returned by the API."""
@@ -277,59 +338,4 @@ class CoreBackupContract:
             self._export_lock.release()
 
     def open_bundle(self, bundle: bytes, passphrase: str) -> BackupCapture:
-        try:
-            header = len(MAGIC) + 16 + 12
-            if (
-                type(bundle) is not bytes
-                or not header + 16 <= len(bundle) <= MAX_BUNDLE_BYTES
-                or bundle[: len(MAGIC)] != MAGIC
-            ):
-                raise ValueError("invalid_bundle")
-            salt = bundle[len(MAGIC) : len(MAGIC) + 16]
-            nonce = bundle[len(MAGIC) + 16 : header]
-            aad = bundle[:header]
-            plaintext = AESGCM(self._derive_key(passphrase, salt)).decrypt(
-                nonce, bundle[header:], aad
-            )
-            with zipfile.ZipFile(io.BytesIO(plaintext), mode="r") as archive:
-                infos = archive.infolist()
-                names = [item.filename for item in infos]
-                if (
-                    len(infos) != 5
-                    or len(set(names)) != len(names)
-                    or _MANIFEST_NAME not in names
-                    or any(
-                        item.is_dir() or item.file_size > MAX_BUNDLE_BYTES
-                        for item in infos
-                    )
-                    or sum(item.file_size for item in infos) > MAX_BUNDLE_BYTES
-                ):
-                    raise ValueError("invalid_archive")
-                manifest_bytes = archive.read(_MANIFEST_NAME)
-                if len(manifest_bytes) > 256 * 1024:
-                    raise ValueError("invalid_manifest")
-                manifest = BackupManifest.model_validate_json(manifest_bytes)
-                expected = {f"resources/{item.id}" for item in manifest.resources}
-                if set(names) != expected | {_MANIFEST_NAME}:
-                    raise ValueError("invalid_resources")
-                payloads = {
-                    item.id: archive.read(f"resources/{item.id}")
-                    for item in manifest.resources
-                }
-            for resource in manifest.resources:
-                payload = payloads[resource.id]
-                if len(payload) != resource.byteLength or not secrets.compare_digest(
-                    hashlib.sha256(payload).hexdigest(), resource.sha256
-                ):
-                    raise ValueError("invalid_digest")
-            return BackupCapture(manifest=manifest, payloads=payloads)
-        except (
-            InvalidTag,
-            OSError,
-            UnicodeError,
-            ValueError,
-            ValidationError,
-            zipfile.BadZipFile,
-            RuntimeError,
-        ):
-            raise ApiError("backup_decryption_failed") from None
+        return open_backup_bundle(bundle, passphrase)
