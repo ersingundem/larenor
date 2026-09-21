@@ -19,11 +19,14 @@ The Core surface uses the same Cupertino `AppPageScaffold`, `SettingsSection`, a
 ```text
 flutter test test/features/remote_access/core_personal_profiles_test.dart test/features/remote_access/core_personal_profiles_tablet_test.dart
 flutter test test/features/remote_access/personal_session_boundary_test.dart test/features/remote_access/personal_session_boundary_tablet_test.dart test/features/remote_access/remote_profiles_screen_test.dart
+flutter test test/features/remote_access/remote_profiles_tablet_test.dart
 flutter analyze lib/features/remote_access lib/features/server/data/larenor_server_api.dart test/features/remote_access/core_personal_profiles_test.dart test/features/remote_access/core_personal_profiles_tablet_test.dart
 python -m pytest -q server/tests/test_personal_profiles.py
 ```
 
-After rebasing onto the merged notification runtime and direct-connect tablet
-changes, the combined five-file Flutter gate passed **38/38** tests and the
-scoped analyzer reported no issues. EN/TR ARB files were regenerated and
-validated as JSON; the queue, security and commit-progress policies also pass.
+After rebasing onto the merged notification runtime, direct-connect tablet and
+family-board Core changes, the combined six-file Flutter gate passed **44/44**
+tests and the scoped analyzer reported no issues. The narrow 320 logical-pixel
+path now scrolls lazy profile actions into view before exercising them. EN/TR
+ARB files were regenerated and validated as JSON; the queue, security and
+commit-progress policies also pass.
