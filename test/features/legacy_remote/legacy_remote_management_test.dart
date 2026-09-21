@@ -67,6 +67,7 @@ LegacyRemoteDevice _device({
 final class _Api implements LegacyRemoteManagementApi {
   List<LegacyRemoteDevice> values = [_device()];
   Completer<List<LegacyRemoteDevice>>? listGate;
+  final listGates = <Completer<List<LegacyRemoteDevice>>>[];
   Completer<LegacyRemoteCommandResult>? confirmGate;
   var previewCalls = 0;
   var confirmCalls = 0;
@@ -74,7 +75,9 @@ final class _Api implements LegacyRemoteManagementApi {
 
   @override
   Future<List<LegacyRemoteDevice>> list(LegacyRemoteAuthority authority) =>
-      listGate?.future ?? Future.value(values);
+      listGates.isNotEmpty
+      ? listGates.removeAt(0).future
+      : listGate?.future ?? Future.value(values);
 
   @override
   Future<LegacyRemoteCommandPreview> preview(
@@ -146,6 +149,31 @@ final class _EmptySessions implements ServerSessionPersistence {
 }
 
 void main() {
+  test('late device list cannot clear a newer verified list', () async {
+    final api = _Api();
+    final controller = LegacyRemoteManagementController(
+      api: api,
+      authority: _authority,
+      isCurrent: () => true,
+    );
+    addTearDown(controller.dispose);
+    final older = Completer<List<LegacyRemoteDevice>>();
+    final newer = Completer<List<LegacyRemoteDevice>>();
+    api.listGates.addAll([older, newer]);
+
+    final firstLoad = controller.load();
+    final secondLoad = controller.load();
+    newer.complete([_device()]);
+    await secondLoad;
+    expect(controller.state, LegacyRemoteManagementState.ready);
+    expect(controller.devices, hasLength(1));
+
+    older.complete([]);
+    await firstLoad;
+    expect(controller.state, LegacyRemoteManagementState.ready);
+    expect(controller.devices, hasLength(1));
+  });
+
   test(
     'safe device and command state rejects private or stale authority',
     () async {

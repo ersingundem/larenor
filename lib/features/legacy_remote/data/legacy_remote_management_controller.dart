@@ -47,7 +47,14 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
   }
 
   bool get canAct => _current() && state != LegacyRemoteManagementState.busy;
-  bool _operationCurrent(int operation) => operation == _epoch && _current();
+  bool _obsoleteOrStale(int operation) {
+    // A newer operation owns the view. Its verified state must survive an
+    // older request completing or failing later.
+    if (operation != _epoch) return true;
+    if (_current()) return false;
+    _stale();
+    return true;
+  }
 
   void _stale() {
     _devices.clear();
@@ -78,10 +85,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     notifyListeners();
     try {
       final response = await api.list(authority);
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       final ids = response.map((item) => item.deviceId).toSet();
       if (response.length > 100 ||
           ids.length != response.length ||
@@ -97,10 +101,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         state = LegacyRemoteManagementState.ready;
       }
     } catch (_) {
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       _devices.clear();
       state = LegacyRemoteManagementState.failed;
     }
@@ -138,10 +139,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         repeats: repeats,
         holdMs: holdMs,
       );
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       if (!value.isExactFor(authority, device, command, _clock())) {
         state = LegacyRemoteManagementState.failed;
       } else {
@@ -149,10 +147,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         state = LegacyRemoteManagementState.awaitingConfirmation;
       }
     } catch (_) {
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       state = LegacyRemoteManagementState.failed;
     }
     if (!_disposed) notifyListeners();
@@ -179,10 +174,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await api.confirm(authority, preview);
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       if (!result.isExactFor(preview)) {
         pendingPreview = null;
         state = LegacyRemoteManagementState.failed;
@@ -193,10 +185,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         authority,
         requestId: preview.requestId,
       );
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       if (!readback.isExactFor(preview)) {
         pendingPreview = null;
         state = LegacyRemoteManagementState.failed;
@@ -206,10 +195,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         state = LegacyRemoteManagementState.verified;
       }
     } catch (_) {
-      if (!_operationCurrent(operation)) {
-        _stale();
-        return;
-      }
+      if (_obsoleteOrStale(operation)) return;
       // A missing delivery acknowledgement is ambiguous: never replay it.
       pendingPreview = null;
       lastResult = null;
