@@ -82,7 +82,10 @@ class PresencePolicy(FrozenModel):
             raise ValueError("duplicate_room")
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("duplicate_source")
-        if any((room.coreId, room.homeId) != (self.coreId, self.homeId) for room in self.rooms):
+        if any(
+            (room.coreId, room.homeId) != (self.coreId, self.homeId)
+            for room in self.rooms
+        ):
             raise ValueError("room_scope_mismatch")
         return self
 
@@ -152,7 +155,9 @@ class PresenceEstimate(FrozenModel):
                 raise ValueError("room_required")
         elif self.roomId is not None or self.roomRevision is not None:
             raise ValueError("room_forbidden")
-        if self.status == "unknown" and (self.confidencePermille != 0 or self.sampleCount != 0):
+        if self.status == "unknown" and (
+            self.confidencePermille != 0 or self.sampleCount != 0
+        ):
             raise ValueError("unknown_has_signal")
         return self
 

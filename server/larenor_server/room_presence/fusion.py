@@ -56,6 +56,78 @@ class RoomPresenceFusion:
     def private_history_size(self):
         return 0
 
+    def snapshot_state(self):
+        """Return only reduced replay/fusion state; raw observations never persist."""
+        return {
+            "schemaVersion": 1,
+            "boundScope": list(self._bound_scope) if self._bound_scope else None,
+            "currentRoom": self._current_room,
+            "candidateRoom": self._candidate_room,
+            "candidateCount": self._candidate_count,
+            "exitCount": self._exit_count,
+            "transitionRevision": self._transition_revision,
+            "observationCheckpoints": dict(self._last_observations),
+        }
+
+    def restore_state(self, raw):
+        if (
+            not isinstance(raw, dict)
+            or set(raw)
+            != {
+                "schemaVersion",
+                "boundScope",
+                "currentRoom",
+                "candidateRoom",
+                "candidateCount",
+                "exitCount",
+                "transitionRevision",
+                "observationCheckpoints",
+            }
+            or raw["schemaVersion"] != 1
+        ):
+            raise ValueError("invalid_presence_fusion_state")
+        scope = raw["boundScope"]
+        if scope is not None and (
+            not isinstance(scope, list)
+            or len(scope) != 11
+            or any(not isinstance(item, (str, int)) for item in scope)
+        ):
+            raise ValueError("invalid_presence_fusion_state")
+        rooms = (raw["currentRoom"], raw["candidateRoom"])
+        if any(
+            value is not None
+            and (not isinstance(value, str) or _IDENTITY.fullmatch(value) is None)
+            for value in rooms
+        ):
+            raise ValueError("invalid_presence_fusion_state")
+        numbers = (
+            raw["candidateCount"],
+            raw["exitCount"],
+            raw["transitionRevision"],
+        )
+        if any(
+            type(value) is not int or not 0 <= value <= _MAX_REVISION
+            for value in numbers
+        ):
+            raise ValueError("invalid_presence_fusion_state")
+        checkpoints = raw["observationCheckpoints"]
+        if (
+            not isinstance(checkpoints, dict)
+            or len(checkpoints) > self._max_source_checkpoints
+            or any(
+                not isinstance(key, str)
+                or re.fullmatch(r"[0-9a-f]{64}", key) is None
+                or type(value) is not int
+                or not 1 <= value <= _MAX_REVISION
+                for key, value in checkpoints.items()
+            )
+        ):
+            raise ValueError("invalid_presence_fusion_state")
+        self._bound_scope = tuple(scope) if scope is not None else None
+        self._current_room, self._candidate_room = rooms
+        self._candidate_count, self._exit_count, self._transition_revision = numbers
+        self._last_observations = dict(checkpoints)
+
     def _authority(self, raw):
         try:
             value = PresenceAuthority.model_validate(raw)
@@ -101,7 +173,9 @@ class RoomPresenceFusion:
         if not 1 <= len(rawSignals) <= 64:
             raise ApiError("invalid_request")
         try:
-            signals = [PrivatePresenceSignal.model_validate(item) for item in rawSignals]
+            signals = [
+                PrivatePresenceSignal.model_validate(item) for item in rawSignals
+            ]
         except ValueError:
             raise ApiError("invalid_request") from None
 
@@ -178,7 +252,10 @@ class RoomPresenceFusion:
                 raise ApiError("revision_conflict", 409)
 
         new_checkpoints = seen.difference(self._last_observations)
-        if len(self._last_observations) + len(new_checkpoints) > self._max_source_checkpoints:
+        if (
+            len(self._last_observations) + len(new_checkpoints)
+            > self._max_source_checkpoints
+        ):
             raise ApiError("source_checkpoint_limit", 409)
 
         # Validate the whole batch before advancing replay checkpoints.
@@ -200,9 +277,7 @@ class RoomPresenceFusion:
         ]
         if not fresh:
             self._clear_presence()
-            return self._estimate(
-                authority, policy, "unknown", None, 0, 0, nowMs
-            )
+            return self._estimate(authority, policy, "unknown", None, 0, 0, nowMs)
 
         by_room = {}
         for signal in fresh:
@@ -265,16 +340,30 @@ class RoomPresenceFusion:
             self._advance_candidate(best.roomId)
             if self._candidate_count >= policy.enterObservations:
                 self._current_room = best.roomId
-                self._candidate_room, self._candidate_count, self._exit_count = None, 0, 0
+                self._candidate_room, self._candidate_count, self._exit_count = (
+                    None,
+                    0,
+                    0,
+                )
                 self._transition_revision += 1
                 return self._estimate(
-                    authority, policy, "present", best,
-                    best.confidencePermille, len(fresh), observed_at,
+                    authority,
+                    policy,
+                    "present",
+                    best,
+                    best.confidencePermille,
+                    len(fresh),
+                    observed_at,
                 )
             current_room = rooms[self._current_room]
             return self._estimate(
-                authority, policy, "uncertain", current_room,
-                current_confidence, len(fresh), observed_at,
+                authority,
+                policy,
+                "uncertain",
+                current_room,
+                current_confidence,
+                len(fresh),
+                observed_at,
             )
 
         self._candidate_room, self._candidate_count = None, 0
@@ -286,13 +375,23 @@ class RoomPresenceFusion:
                     authority, policy, "unknown", None, 0, 0, observed_at
                 )
             return self._estimate(
-                authority, policy, "uncertain", rooms[self._current_room],
-                current_confidence, len(fresh), observed_at,
+                authority,
+                policy,
+                "uncertain",
+                rooms[self._current_room],
+                current_confidence,
+                len(fresh),
+                observed_at,
             )
         self._exit_count = 0
         return self._estimate(
-            authority, policy, "present", current,
-            current_confidence, len(fresh), observed_at,
+            authority,
+            policy,
+            "present",
+            current,
+            current_confidence,
+            len(fresh),
+            observed_at,
         )
 
     def _advance_candidate(self, room_id):
@@ -305,7 +404,9 @@ class RoomPresenceFusion:
         self._current_room = self._candidate_room = None
         self._candidate_count = self._exit_count = 0
 
-    def _estimate(self, authority, policy, status, room, confidence, samples, observed_at):
+    def _estimate(
+        self, authority, policy, status, room, confidence, samples, observed_at
+    ):
         room_id = getattr(room, "roomId", None)
         room_revision = getattr(room, "roomRevision", None)
         identity = {
@@ -398,11 +499,11 @@ class PresenceAutomationHandoff:
             raise ApiError("revision_conflict", 409)
         if not authority.active or not authority.canManagePresence:
             raise ApiError("forbidden", 403)
-        if (
-            (authority.coreId, authority.homeId, authority.homeRevision)
-            != (policy.coreId, policy.homeId, policy.homeRevision)
-            or (estimate.coreId, estimate.homeId) != (policy.coreId, policy.homeId)
-        ):
+        if (authority.coreId, authority.homeId, authority.homeRevision) != (
+            policy.coreId,
+            policy.homeId,
+            policy.homeRevision,
+        ) or (estimate.coreId, estimate.homeId) != (policy.coreId, policy.homeId):
             raise ApiError("not_found", 404)
         if (
             not policy.active
