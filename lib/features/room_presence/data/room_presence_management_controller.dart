@@ -48,7 +48,8 @@ final class RoomPresenceManagementController extends ChangeNotifier {
 
   bool _operationCurrent(int operation) => operation == _epoch && _current();
 
-  void _stale() {
+  void _stale([int? operation]) {
+    if (operation != null && operation != _epoch) return;
     _evidence.clear();
     pendingPreview = null;
     state = RoomPresenceManagementState.stale;
@@ -76,7 +77,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
     try {
       final response = await api.list(authority);
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       final ids = response.map((item) => item.deviceId).toSet();
@@ -96,7 +97,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
       }
     } catch (_) {
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       _evidence.clear();
@@ -132,7 +133,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
         expectedCalibrationRevision: evidence.calibrationRevision,
       );
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       if (!value.isExactFor(authority, evidence, _clock())) {
@@ -143,7 +144,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
       }
     } catch (_) {
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       state = RoomPresenceManagementState.failed;
@@ -173,7 +174,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
     try {
       final receipt = await api.confirmCalibration(authority, preview);
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       if (!receipt.isExactFor(preview)) {
@@ -187,7 +188,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
         deviceId: preview.deviceId,
       );
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       final exact =
@@ -214,7 +215,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
       }
     } catch (_) {
       if (!_operationCurrent(operation)) {
-        _stale();
+        _stale(operation);
         return;
       }
       // Missing confirmation is ambiguous and must never be replayed.

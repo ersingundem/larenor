@@ -140,6 +140,31 @@ final class _Api implements RoomPresenceManagementApi {
 }
 
 void main() {
+  test('older load completion cannot clear a newer verified page', () async {
+    final api = _Api();
+    final controller = RoomPresenceManagementController(
+      api: api,
+      authority: _authority,
+      isCurrent: () => true,
+      clock: () => DateTime.utc(2026, 9, 21, 12),
+    );
+    addTearDown(controller.dispose);
+
+    final older = Completer<List<RoomPresenceEvidence>>();
+    api.listGate = older;
+    final olderLoad = controller.load();
+    final newer = Completer<List<RoomPresenceEvidence>>();
+    api.listGate = newer;
+    final newerLoad = controller.load();
+    newer.complete([_evidence(state: PresenceEvidenceState.present)]);
+    await newerLoad;
+    older.complete([_evidence(state: PresenceEvidenceState.uncertain)]);
+    await olderLoad;
+
+    expect(controller.state, RoomPresenceManagementState.ready);
+    expect(controller.evidence.single.state, PresenceEvidenceState.present);
+  });
+
   test(
     'public room evidence stays private and stale authority clears it',
     () async {
