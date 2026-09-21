@@ -43,6 +43,6 @@ Validated commands:
 - `flutter test test/features/home_documents test/features/home_scope/core_home_status_tablet_accessibility_test.dart` — 16 passed.
 - Focused `flutter analyze` — no issues.
 
-F35 remains at the current main counters, **21/125** and **0/63**. Physical
+F35 remains at the current main counters, **22/125** and **0/63**. Physical
 Huawei/DeX document-provider, real OCR provider and printed warranty workflow
 are manual or dependent acceptance gates; this slice does not claim them.
