@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from typing import Callable
+from collections.abc import Callable
 
 from ..errors import ApiError
 from .models import EnergyAuthority, EnergyInputs, EnergyPlan, EnergyPlanSlot
@@ -24,8 +24,10 @@ class EnergyPlanner:
         try:
             authority = EnergyAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
-            current = None if current is None else EnergyAuthority.model_validate(current)
-        except Exception:
+            current = (
+                None if current is None else EnergyAuthority.model_validate(current)
+            )
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("forbidden", 403) from None
         if current is None:
             raise ApiError("forbidden", 403)
@@ -44,12 +46,12 @@ class EnergyPlanner:
         authority = self._authority(presentedAuthority)
         try:
             source = EnergyInputs.model_validate(rawInputs)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("invalid_request") from None
         try:
             current = self._resolve_inputs(source.battery.resourceId)
             current = None if current is None else EnergyInputs.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("server_unavailable", 503) from None
         if current is None:
             raise ApiError("not_found", 404)
@@ -63,7 +65,11 @@ class EnergyPlanner:
         now = self._clock()
         override = source.manualOverride
         override_status = (
-            "none" if override is None else "active" if now < override.expiresAtMs else "expired"
+            "none"
+            if override is None
+            else "active"
+            if now < override.expiresAtMs
+            else "expired"
         )
         input_digest = self._digest(source)
         plan_payload = json.dumps(
@@ -96,7 +102,9 @@ class EnergyPlanner:
                 reason = "manual_override"
                 requested_wh = override.powerW * slot_seconds // 3_600
                 if override.mode == "charge":
-                    amount = min(requested_wh, max_charge_wh, battery.maximumSocWh - soc)
+                    amount = min(
+                        requested_wh, max_charge_wh, battery.maximumSocWh - soc
+                    )
                     if amount > 0:
                         action, power = "charge", amount * 3_600 // slot_seconds
                         soc += amount
@@ -134,7 +142,8 @@ class EnergyPlanner:
                 EnergyPlanSlot(
                     schemaVersion=1,
                     index=index,
-                    startsAtMs=source.forecast.startsAtMs + index * slot_seconds * 1_000,
+                    startsAtMs=source.forecast.startsAtMs
+                    + index * slot_seconds * 1_000,
                     action=action,
                     powerW=power,
                     projectedSocWh=soc,

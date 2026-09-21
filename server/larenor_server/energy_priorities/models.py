@@ -2,15 +2,14 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
-
 
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 EnergyWh = Annotated[int, Field(ge=0, le=10**12)]
 PowerW = Annotated[int, Field(ge=0, le=10**9)]
-Price = Annotated[int, Field(ge=-10**9, le=10**9)]
+Price = Annotated[int, Field(ge=-(10**9), le=10**9)]
 
 
 class EnergyAuthority(FrozenModel):
@@ -205,7 +204,7 @@ class InverterCommandPreview(FrozenModel):
     batteryId: Identity
     expectedBatteryRevision: Revision
     inputDigest: Snapshot
-    targetPowerW: int = Field(ge=-10**9, le=10**9)
+    targetPowerW: int = Field(ge=-(10**9), le=10**9)
     expiresAtMs: TimestampMs
     confirmationToken: Snapshot
 
@@ -225,7 +224,7 @@ class InverterCommand(FrozenModel):
     batteryId: Identity
     expectedBatteryRevision: Revision
     inputDigest: Snapshot
-    targetPowerW: int = Field(ge=-10**9, le=10**9)
+    targetPowerW: int = Field(ge=-(10**9), le=10**9)
 
 
 class InverterReadback(FrozenModel):
@@ -238,8 +237,8 @@ class InverterReadback(FrozenModel):
     batteryId: Identity
     batteryRevision: Revision
     inputDigest: Snapshot
-    targetPowerW: int = Field(ge=-10**9, le=10**9)
-    observedPowerW: int = Field(ge=-10**9, le=10**9)
+    targetPowerW: int = Field(ge=-(10**9), le=10**9)
+    observedPowerW: int = Field(ge=-(10**9), le=10**9)
     status: Literal["applied"]
 
 
@@ -254,7 +253,11 @@ class InverterCommandResult(FrozenModel):
     @model_validator(mode="after")
     def coherent_result(self):
         if self.status == "confirmed":
-            if not self.readbackVerified or self.readback is None or self.reason is not None:
+            if (
+                not self.readbackVerified
+                or self.readback is None
+                or self.reason is not None
+            ):
                 raise ValueError("invalid_result")
         elif self.readbackVerified or self.readback is not None or self.reason is None:
             raise ValueError("invalid_result")

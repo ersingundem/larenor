@@ -1,12 +1,12 @@
 """Explicit inverter preview-confirm authority with exact readback."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import secrets
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from ..errors import ApiError
 from .models import (
@@ -17,7 +17,6 @@ from .models import (
     InverterCommandResult,
     InverterReadback,
 )
-
 
 MAX_COMMANDS = 1_000
 MAX_AUDIT = 10_000
@@ -80,14 +79,20 @@ class InverterCommandManager:
         try:
             authority = EnergyAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
-            current = None if current is None else EnergyAuthority.model_validate(current)
-        except Exception:
+            current = (
+                None if current is None else EnergyAuthority.model_validate(current)
+            )
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("forbidden", 403) from None
         if current is None:
             raise ApiError("forbidden", 403)
         if current != authority:
             raise ApiError("revision_conflict", 409)
-        if not authority.active or not authority.canControl or authority.role != "admin":
+        if (
+            not authority.active
+            or not authority.canControl
+            or authority.role != "admin"
+        ):
             raise ApiError("forbidden", 403)
         return authority
 
@@ -203,7 +208,7 @@ class InverterCommandManager:
         try:
             current = self._resolve_plan(plan.planId)
             current = None if current is None else EnergyPlan.model_validate(current)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("revision_conflict", 409) from None
         if current != plan:
             raise ApiError("revision_conflict", 409)
@@ -259,7 +264,7 @@ class InverterCommandManager:
             )
         except ApiError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("invalid_request") from None
         with self._lock:
             self._validate_audit()
@@ -331,7 +336,7 @@ class InverterCommandManager:
             )
             try:
                 readback = InverterReadback.model_validate(self._worker(command))
-            except Exception:
+            except Exception:  # noqa: BLE001 -- external state must fail closed.
                 readback = None
             expected = InverterReadback(
                 schemaVersion=1,

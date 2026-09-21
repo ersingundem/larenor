@@ -1,7 +1,6 @@
 from dataclasses import replace
 
 import pytest
-
 from larenor_server.energy_priorities import (
     BatteryInput,
     EnergyAuthority,
@@ -16,7 +15,6 @@ from larenor_server.energy_priorities import (
     TariffInput,
 )
 from larenor_server.errors import ApiError
-
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -124,9 +122,7 @@ def planner(current_inputs=None, current_authority=None, clock=None):
         authorityResolver=lambda account_id: (
             live_authority if account_id == ACCOUNT else None
         ),
-        inputResolver=lambda battery_id: (
-            live_inputs if battery_id == BATTERY else None
-        ),
+        inputResolver=lambda battery_id: live_inputs if battery_id == BATTERY else None,
         clockMs=clock or Clock(),
     )
 
@@ -141,7 +137,9 @@ def test_revision_bound_advisory_plan_is_deterministic_and_bounded():
     assert first.advisory is True
     assert first.automaticExecutionAllowed is False
     assert first.inputDigest == second.inputDigest
-    assert [(slot.action, slot.powerW, slot.projectedSocWh) for slot in first.slots] == [
+    assert [
+        (slot.action, slot.powerW, slot.projectedSocWh) for slot in first.slots
+    ] == [
         ("charge", 2_000, 7_000),
         ("discharge", 1_000, 6_000),
     ]
@@ -182,7 +180,9 @@ def test_safety_limits_and_expiring_manual_override_win_without_becoming_automat
         battery_changes={"stateOfChargeWh": 8_500},
     )
     active_plan = planner(source, clock=clock).plan(authority(), source)
-    assert [(slot.action, slot.powerW, slot.projectedSocWh) for slot in active_plan.slots] == [
+    assert [
+        (slot.action, slot.powerW, slot.projectedSocWh) for slot in active_plan.slots
+    ] == [
         ("charge", 500, 9_000),
         ("hold", 0, 9_000),
     ]
@@ -193,8 +193,12 @@ def test_safety_limits_and_expiring_manual_override_win_without_becoming_automat
     worker_calls = []
     manager = InverterCommandManager(
         auditKey=b"override-expiry-audit-key-for-f47",
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
-        planResolver=lambda plan_id: active_plan if plan_id == active_plan.planId else None,
+        authorityResolver=lambda account_id: (
+            authority() if account_id == ACCOUNT else None
+        ),
+        planResolver=lambda plan_id: (
+            active_plan if plan_id == active_plan.planId else None
+        ),
         worker=lambda command: worker_calls.append(command),
         clockMs=clock,
     )
@@ -222,16 +226,16 @@ def test_safety_limits_and_expiring_manual_override_win_without_becoming_automat
 
     discharge = source.model_copy(
         update={
-            "battery": source.battery.model_copy(
-                update={"stateOfChargeWh": 4_000}
-            ),
+            "battery": source.battery.model_copy(update={"stateOfChargeWh": 4_000}),
             "manualOverride": active.model_copy(
                 update={"mode": "discharge", "expiresAtMs": clock.ms + 5_000}
             ),
         }
     )
     reserve_plan = planner(discharge, clock=clock).plan(authority(), discharge)
-    assert all(slot.action == "hold" and slot.powerW == 0 for slot in reserve_plan.slots)
+    assert all(
+        slot.action == "hold" and slot.powerW == 0 for slot in reserve_plan.slots
+    )
     assert all(slot.projectedSocWh == 4_000 for slot in reserve_plan.slots)
 
 
@@ -261,7 +265,9 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
 
     manager = InverterCommandManager(
         auditKey=b"audit-key-for-f47-energy-priority",
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        authorityResolver=lambda account_id: (
+            authority() if account_id == ACCOUNT else None
+        ),
         planResolver=lambda plan_id: live_plan[0] if plan_id == plan.planId else None,
         worker=worker,
         clockMs=clock,
@@ -316,7 +322,9 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
 
     lost = InverterCommandManager(
         auditKey=b"second-audit-key-for-f47-priority",
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        authorityResolver=lambda account_id: (
+            authority() if account_id == ACCOUNT else None
+        ),
         planResolver=lambda plan_id: plan if plan_id == plan.planId else None,
         worker=lost_ack,
         clockMs=clock,
@@ -333,9 +341,12 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
         authority(), uncertain_preview, uncertain_preview.confirmationToken
     )
     assert (uncertain.status, uncertain.reason) == ("uncertain", "lost_ack")
-    assert lost.confirm(
-        authority(), uncertain_preview, uncertain_preview.confirmationToken
-    ) == uncertain
+    assert (
+        lost.confirm(
+            authority(), uncertain_preview, uncertain_preview.confirmationToken
+        )
+        == uncertain
+    )
     assert len(lost_calls) == 1
     assert "private worker detail" not in uncertain.model_dump_json()
 
