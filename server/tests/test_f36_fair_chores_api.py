@@ -105,3 +105,33 @@ def test_chore_scope_session_and_restart_are_fail_closed(server):
         page = restarted.get(root, headers=auth(fresh))
         assert page.status_code == 200
         assert page.json()["tasks"][0]["id"] == created["task"]["id"]
+
+
+def test_chore_completion_uses_core_time_when_tablet_clock_is_wrong(server):
+    _app, client, _settings, clock = server
+    pair = ready(server)
+    root = _root(client, pair)
+    created = client.post(
+        root,
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "commandId": "40" * 16,
+            "title": "Water plants",
+            "timezone": "Europe/Istanbul",
+            "intervalDays": 7,
+            "dueAt": clock.now + 3600,
+        },
+    ).json()["task"]
+    response = client.post(
+        f"{root}/{created['id']}/commands/complete",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "commandId": "50" * 16,
+            "expectedRevision": created["revision"],
+            "completedAt": clock.now + 30 * 86400,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["task"]["dueAt"] == clock.now + 7 * 86400

@@ -126,7 +126,8 @@ class FairChoreService:
             home_id=home_id,
             expected_revision=body.expectedRevision,
             command_id=body.commandId,
-            completed_at=body.completedAt,
+            # Device wall clocks can drift; Core owns the next due date.
+            completed_at=self.settings.clock(),
             members=members,
         )
         return self._receipt(actor, members, receipt, labels)
