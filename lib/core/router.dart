@@ -29,6 +29,7 @@ import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
 import '../features/wellbeing/presentation/wellbeing_gate.dart';
+import '../features/camera_search/presentation/camera_search_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -56,6 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, _) => const SharedExpenseRoute(),
         ),
         GoRoute(
+          path: '/camera-search',
+          builder: (_, _) => const CameraSearchRoute(),
+        ),
+        GoRoute(
           path: '/settings',
           builder: (_, _) => const SettingsGateScreen(
             initialDestination: SettingsGateDestination.serverAccount,
@@ -71,6 +76,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/settings/home-source',
           builder: (_, _) => const SettingsGateScreen(
             initialDestination: SettingsGateDestination.homeSource,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/kiosk',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.kiosk,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/legacy-remotes',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.legacyRemote,
           ),
         ),
       ],
@@ -210,6 +227,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
       GoRoute(
+        path: '/settings/kiosk',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.kiosk,
+        ),
+      ),
+      GoRoute(
         path: '/settings/tablet-fleet',
         builder: (_, _) => const SettingsGateScreen(
           initialDestination: SettingsGateDestination.tabletFleet,
@@ -226,6 +249,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/client-updates',
         builder: (_, _) => const SettingsGateScreen(
           initialDestination: SettingsGateDestination.clientUpdates,
+        ),
+      ),
+      GoRoute(
+        path: '/settings/legacy-remotes',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.legacyRemote,
         ),
       ),
       GoRoute(path: '/wellbeing', builder: (_, _) => const WellbeingGate()),

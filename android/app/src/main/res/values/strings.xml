@@ -3,4 +3,8 @@
     <string name="local_notification_channel_name">Larenor alerts</string>
     <string name="local_notification_channel_description">Private alerts delivered by your Larenor Core</string>
     <string name="local_notification_private_preview">Private notification. Unlock Larenor to view.</string>
+    <string name="shortcut_home">Home</string>
+    <string name="shortcut_home_long">Open Larenor Home</string>
+    <string name="shortcut_kiosk">Kiosk controls</string>
+    <string name="shortcut_kiosk_long">Open PIN-protected kiosk controls</string>
 </resources>

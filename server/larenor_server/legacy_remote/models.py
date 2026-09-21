@@ -200,3 +200,81 @@ class RemoteCommandResult(FrozenModel):
         elif self.deliveryVerified or self.receipt is not None or self.reason is None:
             raise ValueError("invalid_result")
         return self
+
+
+class RemoteCatalogItem(FrozenModel):
+    """Secret-free projection needed by the Android control surface."""
+
+    schemaVersion: Literal[1]
+    name: str = Field(min_length=1, max_length=128, pattern=r"^[^\x00-\x1f\x7f]+$")
+    device: RemoteDevice
+    profile: RemoteCommandProfile
+
+    @model_validator(mode="after")
+    def coherent_item(self):
+        if (
+            self.device.coreId,
+            self.device.homeId,
+            self.device.deviceId,
+            self.device.revision,
+            self.device.providerId,
+            self.device.providerRevision,
+            self.device.protocol,
+        ) != (
+            self.profile.coreId,
+            self.profile.homeId,
+            self.profile.deviceId,
+            self.profile.expectedDeviceRevision,
+            self.profile.providerId,
+            self.profile.expectedProviderRevision,
+            self.profile.protocol,
+        ):
+            raise ValueError("invalid_remote_catalog_item")
+        return self
+
+
+class RemoteCatalog(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: RemoteAuthority
+    items: list[RemoteCatalogItem] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def coherent_catalog(self):
+        identities = [item.device.deviceId for item in self.items]
+        profiles = [item.profile.profileId for item in self.items]
+        if len(identities) != len(set(identities)) or len(profiles) != len(set(profiles)):
+            raise ValueError("duplicate_remote_catalog_item")
+        if any(
+            (item.device.coreId, item.device.homeId)
+            != (self.authority.coreId, self.authority.homeId)
+            for item in self.items
+        ):
+            raise ValueError("invalid_remote_catalog_scope")
+        return self
+
+
+class RemotePreviewRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: RemoteAuthority
+    requestId: Identity
+    deviceId: Identity
+    expectedDeviceRevision: Revision
+    providerId: Identity
+    expectedProviderRevision: Revision
+    bridgeId: Identity
+    expectedBridgeRevision: Revision
+    profileId: Identity
+    expectedProfileRevision: Revision
+    codeSetId: Identity
+    expectedCodeSetRevision: Revision
+    bindingId: Identity
+    commandKey: RemoteCommandKey
+    repeats: int = Field(ge=1, le=3)
+    holdMs: int = Field(ge=0, le=2_000)
+
+
+class RemoteConfirmRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: RemoteAuthority
+    preview: RemoteCommandPreview
+    confirmationToken: Snapshot

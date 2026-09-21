@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
@@ -13,6 +14,7 @@ import 'kiosk_hid_scan_screen.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
+import 'kiosk_quick_action_bar.dart';
 import 'kiosk_sensor_screen.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
@@ -371,6 +373,18 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                           truth(snapshot.powerMenuAllowed),
                         ),
                       ],
+                    ),
+                    KioskQuickActionBar(
+                      navigationEnabled: active,
+                      exitEnabled:
+                          active && snapshot.actions.contains(KioskAction.exit),
+                      onHome: () async {
+                        if (_current(generation)) context.go('/');
+                      },
+                      onSettings: () async {
+                        if (_current(generation)) context.go('/settings');
+                      },
+                      onExit: () => _act(KioskAction.exit, generation),
                     ),
                     SettingsSection(
                       footer: Text(l.kioskWindowHint),

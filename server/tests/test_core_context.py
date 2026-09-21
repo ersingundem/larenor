@@ -104,6 +104,12 @@ def legacy_v2(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='keenetic_command_schema'"
         )
+        # Durable legacy-remote receipts bind ciphertext to the later Core/home
+        # identity and therefore did not exist in this historical v2 fixture.
+        connection.execute("DROP TABLE legacy_remote_state")
+        connection.execute(
+            "DELETE FROM metadata WHERE key='legacy_remote_schema'"
+        )
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
 
 

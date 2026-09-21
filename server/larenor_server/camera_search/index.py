@@ -94,6 +94,10 @@ class CameraSearchIndex:
         self._cursors: OrderedDict[str, _CursorState] = OrderedDict()
         self._cursor_lock = threading.Lock()
 
+    @property
+    def revision(self) -> int:
+        return self._revision
+
     @staticmethod
     def _request_digest(request: CameraSearchRequest) -> str:
         raw = json.dumps(

@@ -209,6 +209,7 @@ void main() {
             final tabletFleet = find.text(l10n.serverTabletFleetTitle).first;
             final remote = find.text(l10n.remoteAccessTitle).first;
             final mesh = find.text(l10n.meshCenterTitle).first;
+            final gameStream = find.text(l10n.gameStreamingTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
             final node = tester.getSemantics(connection);
             expect(node.flagsCollection.isButton, isTrue);
@@ -229,8 +230,18 @@ void main() {
             );
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await _tabUntilFocused(tester, gameStream);
+            expect(
+              Focus.of(tester.element(gameStream)).hasPrimaryFocus,
+              isTrue,
+            );
             await _tabUntilFocused(tester, display);
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
+            await _tabUntilFocused(tester, gameStream, reverse: true);
+            expect(
+              Focus.of(tester.element(gameStream)).hasPrimaryFocus,
+              isTrue,
+            );
             await _tabUntilFocused(tester, remote, reverse: true);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, tabletFleet, reverse: true);

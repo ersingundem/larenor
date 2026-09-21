@@ -56,6 +56,7 @@ from .plugins.media_recovery_status_api import router as media_recovery_status_r
 from .plugins.media_archive_core_api import router as media_archive_health_router
 from .plugins.media_flow_api import router as media_flow_router
 from .bounded_transfer.api import router as bounded_transfer_router
+from .legacy_remote.api import router as legacy_remote_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
 from .proxmox_commands.api import router as proxmox_power_router
@@ -63,6 +64,8 @@ from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .tablet_fleet.api import router as tablet_fleet_router
+from .kiosk_remote.api import router as kiosk_remote_router
+from .workshop.api import router as workshop_router
 from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .camera_profiles.api import router as camera_profile_router
@@ -70,6 +73,11 @@ from .power_budget.api import router as power_budget_router
 from .floor_plan.api import router as floor_plan_router
 from .shared_expenses.api import router as shared_expenses_router
 from .fair_chores.api import router as fair_chores_router
+from .game_streaming.api import router as game_streaming_router
+from .camera_search.api import (
+    CameraSearchRuntime,
+    router as camera_search_router,
+)
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -90,7 +98,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                media_archive_worker=None,
                mesh_center_provider=None,
                camera_profile_provider=None,
-               power_budget_provider=None) -> FastAPI:
+               power_budget_provider=None,
+               legacy_remote_provider=None,
+               camera_search_runtime: CameraSearchRuntime | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -188,7 +198,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         media_archive_worker=media_archive_worker,
         mesh_center_provider=mesh_center_provider,
         camera_profile_provider=camera_profile_provider,
-        power_budget_provider=power_budget_provider)
+        power_budget_provider=power_budget_provider,
+        legacy_remote_provider=legacy_remote_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -201,6 +212,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.camera_profile_gateway = app.state.core.camera_profiles
     app.state.power_budget_gateway = app.state.core.power_budget
+    app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
+    app.state.camera_search_runtime = camera_search_runtime
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -287,12 +300,15 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(bounded_transfer_router, prefix="/api/v1")
+    app.include_router(legacy_remote_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(meal_plans_router, prefix="/api/v1")
     app.include_router(personal_profiles_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
+    app.include_router(kiosk_remote_router, prefix="/api/v1")
+    app.include_router(workshop_router, prefix="/api/v1")
     app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(camera_profile_router, prefix="/api/v1")
@@ -300,6 +316,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(floor_plan_router, prefix="/api/v1")
     app.include_router(shared_expenses_router, prefix="/api/v1")
     app.include_router(fair_chores_router, prefix="/api/v1")
+    app.include_router(game_streaming_router, prefix="/api/v1")
+    app.include_router(camera_search_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")

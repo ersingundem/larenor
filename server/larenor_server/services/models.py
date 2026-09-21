@@ -11,7 +11,7 @@ from ..models import StrictModel
 
 ServiceKind = Literal["home_assistant", "jellyfin", "seerr", "sonarr", "radarr", "lidarr", "readarr",
                       "bazarr", "prowlarr", "qbittorrent", "music_assistant", "proxmox", "keenetic",
-                      "frigate", "immich", "adguard", "esphome"]
+                      "frigate", "immich", "adguard", "esphome", "octoprint", "moonraker"]
 CredentialKey = Literal["token", "apiKey", "username", "password", "userId"]
 CredentialValue = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
 Credentials = dict[CredentialKey, CredentialValue]

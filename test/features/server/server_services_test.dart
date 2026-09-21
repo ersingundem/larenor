@@ -114,6 +114,8 @@ void main() {
       ServerServiceKind.prowlarr,
       ServerServiceKind.bazarr,
       ServerServiceKind.seerr,
+      ServerServiceKind.octoprint,
+      ServerServiceKind.moonraker,
     ]) {
       expect(
         validServiceCredentialCombination(kind, {'apiKey': 'sample'}),

@@ -7,12 +7,16 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../game_streaming/data/android_game_stream_port.dart';
+import '../../game_streaming/presentation/game_stream_settings_screen.dart';
 import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
 import '../../camera_profiles/presentation/camera_profile_route.dart';
+import '../../legacy_remote/presentation/legacy_remote_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../workshop/presentation/workshop_route.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -29,7 +33,10 @@ enum SettingsCategory {
   server,
   tabletFleet,
   remoteAccess,
+  gameStreaming,
+  legacyRemote,
   display,
+  workshop,
   security,
   homeAssistant,
   cameraVisualSensors,
@@ -52,7 +59,9 @@ class SettingsSplitScreen extends StatefulWidget {
     this.onExit,
     this.backupGateCurrent,
     this.remoteGateCurrent,
+    this.workshopGateCurrent,
     this.meshGateCurrent,
+    this.gameStreamPort,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
   });
@@ -61,7 +70,9 @@ class SettingsSplitScreen extends StatefulWidget {
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
+  final bool Function()? workshopGateCurrent;
   final bool Function()? meshGateCurrent;
+  final GameStreamCapabilityPort? gameStreamPort;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
 
@@ -152,7 +163,9 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       runFileDialog: widget.runFileDialog,
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
+                      workshopGateCurrent: widget.workshopGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      gameStreamPort: widget.gameStreamPort,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
@@ -177,7 +190,9 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
+            workshopGateCurrent: widget.workshopGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            gameStreamPort: widget.gameStreamPort,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
@@ -218,7 +233,9 @@ Widget paneFor(
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
+  bool Function()? workshopGateCurrent,
   bool Function()? meshGateCurrent,
+  GameStreamCapabilityPort? gameStreamPort,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
 }) {
@@ -229,6 +246,13 @@ Widget paneFor(
       return RemoteProfilesScreen(
         gateCurrent: remoteGateCurrent ?? () => false,
       );
+    case SettingsCategory.gameStreaming:
+      return GameStreamSettingsScreen(
+        port: gameStreamPort,
+        gateCurrent: remoteGateCurrent ?? () => false,
+      );
+    case SettingsCategory.legacyRemote:
+      return LegacyRemoteRoute(gateCurrent: remoteGateCurrent ?? () => false);
     case SettingsCategory.server:
       return ServerConnectionScreen(adminGateCurrent: tabletFleetGateCurrent);
     case SettingsCategory.tabletFleet:
@@ -237,6 +261,8 @@ Widget paneFor(
       );
     case SettingsCategory.display:
       return DisplayPane(runFileDialog: runFileDialog);
+    case SettingsCategory.workshop:
+      return WorkshopRoute(gateCurrent: workshopGateCurrent ?? () => false);
     case SettingsCategory.security:
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
@@ -306,10 +332,28 @@ class _MasterList extends StatelessWidget {
         l10n.remoteAccessTitle,
       ),
       (
+        SettingsCategory.gameStreaming,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.gameStreamingTitle,
+      ),
+      (
+        SettingsCategory.legacyRemote,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.legacyRemoteTitle,
+      ),
+      (
         SettingsCategory.display,
         CupertinoIcons.brightness,
         CupertinoColors.systemYellow,
         l10n.settingsCategoryDisplay,
+      ),
+      (
+        SettingsCategory.workshop,
+        CupertinoIcons.cube_box_fill,
+        CupertinoColors.systemPurple,
+        l10n.settingsCategoryWorkshop,
       ),
       (
         SettingsCategory.security,

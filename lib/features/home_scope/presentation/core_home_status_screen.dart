@@ -96,6 +96,22 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                       ),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('core-home-camera-search-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-camera-search-action',
+                        ),
+                        title: Text(l10n.cameraSearchTitle),
+                        additionalInfo: Text(l10n.cameraSearchEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/camera-search');
+                                }
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('core-home-inventory-entry'),
                         buttonKey: const ValueKey('core-home-inventory-action'),
                         title: Text(l10n.inventoryTitle),

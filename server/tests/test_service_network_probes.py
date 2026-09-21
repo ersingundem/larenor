@@ -266,6 +266,67 @@ def test_esphome_unverified_protocol_or_auth_does_not_attempt_login(response, st
     assert len(fake.calls) == 1
 
 
+@pytest.mark.parametrize(
+    "kind,path,payload,version",
+    [
+        (
+            "octoprint",
+            "/api/version",
+            {"api": "0.1", "server": "1.10.3", "text": "OctoPrint 1.10.3"},
+            "1.10.3",
+        ),
+        (
+            "moonraker",
+            "/server/info",
+            {
+                "result": {
+                    "klippy_connected": True,
+                    "klippy_state": "ready",
+                    "components": ["database", "file_manager"],
+                    "failed_components": [],
+                    "moonraker_version": "v0.9.3-4",
+                }
+            },
+            "v0.9.3-4",
+        ),
+    ],
+)
+def test_workshop_probes_authenticate_only_fixed_read_routes(kind, path, payload, version):
+    fake = FakeFactory(reply(payload))
+    result = probe_connection(connection(kind, {"apiKey": "private-workshop-key"}), fake)
+    assert result == ProbeResult("authenticated", version)
+    assert len(fake.calls) == 1
+    assert fake.calls[0][1:5] == (
+        "GET",
+        path,
+        {"X-Api-Key": "private-workshop-key"},
+        None,
+    )
+
+
+@pytest.mark.parametrize("kind", ["octoprint", "moonraker"])
+@pytest.mark.parametrize("credentials", [{}, {"token": "wrong"}, {"apiKey": "ok", "token": "extra"}])
+def test_workshop_probes_never_guess_credentials_or_claim_anonymous_success(kind, credentials):
+    fake = FakeFactory(reply({"server": "1.10.3"}))
+    assert probe_connection(connection(kind, credentials), fake) == ProbeResult("unsupported")
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize(
+    "kind,payload",
+    [
+        ("octoprint", {"api": "0.2", "server": "1.10.3", "text": "OctoPrint 1.10.3"}),
+        ("octoprint", {"api": "0.1", "server": "private-workshop-key", "text": "OctoPrint"}),
+        ("moonraker", {"result": {"moonraker_version": "v0.9.3-4"}}),
+        ("moonraker", {"result": {"klippy_connected": True, "klippy_state": "ready", "components": [True], "failed_components": [], "moonraker_version": "v0.9.3-4"}}),
+    ],
+)
+def test_workshop_probes_reject_ambiguous_or_secret_reflecting_identity(kind, payload):
+    fake = FakeFactory(reply(payload))
+    assert probe_connection(connection(kind, {"apiKey": "private-workshop-key"}), fake) == ProbeResult("unsupported")
+    assert len(fake.calls) == 1
+
+
 def test_keenetic_full_exchange_shares_deadline_and_closes_every_transport(monkeypatch):
     clock = [10.0]
     monkeypatch.setattr(probe.time, "monotonic", lambda: clock[0])
@@ -275,10 +336,11 @@ def test_keenetic_full_exchange_shares_deadline_and_closes_every_transport(monke
     assert all(item.closed for item in fake.instances)
 
 
-@pytest.mark.parametrize("kind", ["keenetic", "proxmox", "esphome"])
+@pytest.mark.parametrize("kind", ["keenetic", "proxmox", "esphome", "octoprint", "moonraker"])
 def test_network_transport_failure_is_static_and_closed(kind):
+    credentials = {"apiKey": "private-workshop-key"} if kind in {"octoprint", "moonraker"} else {}
     fake = FakeFactory(ProbeTransportError("tls_failed"))
-    assert probe_connection(connection(kind), fake) == ProbeResult("unavailable")
+    assert probe_connection(connection(kind, credentials), fake) == ProbeResult("unavailable")
     assert len(fake.calls) == 1 and fake.instances[0].closed
 
 
