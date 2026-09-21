@@ -1,11 +1,10 @@
 """Exercise host-only Android preparation without selecting any device."""
 
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tool/prepare_android_e2e_build.sh"
@@ -13,7 +12,7 @@ SCRIPT = ROOT / "tool/prepare_android_e2e_build.sh"
 
 class AndroidE2EPrecompileTest(unittest.TestCase):
     def run_script(self, *, generation=0, build=0, ci=True):
-        with tempfile.TemporaryDirectory(prefix="larenor warm build ") as folder:
+        with tempfile.TemporaryDirectory(prefix="larenor adb warm build ") as folder:
             root = Path(folder)
             binaries = root / "bin"
             binaries.mkdir()
@@ -56,7 +55,7 @@ class AndroidE2EPrecompileTest(unittest.TestCase):
         self.assertIn("--target-platform android-x64", trace)
         self.assertIn("--target integration_test/platform_storage_test.dart", trace)
         self.assertIn("--dart-define=LARENOR_E2E=true", trace)
-        self.assertNotIn("adb", trace)
+        self.assertNotIn(f"{root}/bin/adb ", trace)
         self.assertNotIn("flutter test", trace)
         self.assertEqual(homes.splitlines(), [str(root / "runner temp/larenor-e2e-gradle")] * 2)
         self.assertIn("org.gradle.jvmargs=-Xmx3G", properties)
@@ -65,17 +64,17 @@ class AndroidE2EPrecompileTest(unittest.TestCase):
         self.assertIn("compiled", log)
 
     def test_generation_failure_preserves_evidence_and_does_not_compile(self):
-        result, trace, _, _, log, _ = self.run_script(generation=17)
+        result, trace, _, _, log, root = self.run_script(generation=17)
         self.assertEqual(result.returncode, 17, result.stderr)
         self.assertNotIn("flutter", trace)
-        self.assertNotIn("adb", trace)
+        self.assertNotIn(f"{root}/bin/adb ", trace)
         self.assertIn("generated", log)
 
     def test_compile_failure_blocks_the_next_workflow_step(self):
-        result, trace, _, _, log, _ = self.run_script(build=23)
+        result, trace, _, _, log, root = self.run_script(build=23)
         self.assertEqual(result.returncode, 23, result.stderr)
         self.assertIn("compiled", log)
-        self.assertNotIn("adb", trace)
+        self.assertNotIn(f"{root}/bin/adb ", trace)
 
     def test_local_build_preserves_developer_gradle_home(self):
         result, _, homes, properties, _, root = self.run_script(ci=False)

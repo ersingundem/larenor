@@ -56,34 +56,50 @@ class WebOrigin {
 
 @immutable
 class WebPanelPolicy {
-  WebPanelPolicy._(this.initialUri, Set<WebOrigin> origins)
-    : allowedOrigins = Set.unmodifiable(origins);
+  WebPanelPolicy._(
+    this.initialUri,
+    Set<WebOrigin> origins, {
+    required this.cleanNavigationOnly,
+  }) : allowedOrigins = Set.unmodifiable(origins);
   final Uri initialUri;
   final Set<WebOrigin> allowedOrigins;
+
+  /// Idle surfaces must not follow same-origin query or fragment redirects.
+  final bool cleanNavigationOnly;
 
   static WebPanelPolicy? fromUrl(
     String url, {
     Set<WebOrigin> additionalOrigins = const {},
+    bool cleanNavigationOnly = false,
   }) {
     final origin = WebOrigin.parse(url);
     if (origin == null || additionalOrigins.length > 15) return null;
     return WebPanelPolicy._(Uri.parse(dashboardWebsiteUrl(url)!), {
       origin,
       ...additionalOrigins,
-    });
+    }, cleanNavigationOnly: cleanNavigationOnly);
   }
 
   bool allows(String url) {
     final origin = WebOrigin.parse(url);
-    return origin != null && allowedOrigins.contains(origin);
+    if (origin == null || !allowedOrigins.contains(origin)) return false;
+    if (cleanNavigationOnly) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || uri.hasQuery || uri.hasFragment) return false;
+    }
+    return true;
   }
 
   @override
   bool operator ==(Object other) =>
       other is WebPanelPolicy &&
       other.initialUri == initialUri &&
+      other.cleanNavigationOnly == cleanNavigationOnly &&
       setEquals(other.allowedOrigins, allowedOrigins);
   @override
-  int get hashCode =>
-      Object.hash(initialUri, Object.hashAllUnordered(allowedOrigins));
+  int get hashCode => Object.hash(
+    initialUri,
+    Object.hashAllUnordered(allowedOrigins),
+    cleanNavigationOnly,
+  );
 }

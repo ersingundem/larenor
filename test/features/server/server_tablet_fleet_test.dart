@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -111,6 +112,54 @@ class TabletFleetFixture extends AdminFixture {
     final body = request.body.isEmpty
         ? <String, dynamic>{}
         : jsonDecode(request.body) as Map<String, dynamic>;
+    if (path.endsWith('/profiles/dry-run')) {
+      final targets = body['targets'] as List;
+      return this.json({
+        'schemaVersion': 1,
+        'scope': {'schemaVersion': 1, 'coreId': coreId, 'homeId': homeId},
+        'requestDigest': body['requestDigest'],
+        'profileRevision': body['profileRevision'],
+        'rolloutPercent': body['rolloutPercent'],
+        'profileSeal': '9' * 64,
+        'release': {
+          'applicationId': 'com.ersingundem.larenor',
+          'certificateSha256': 'a' * 64,
+          'versionCode': 42,
+          'versionName': '1.2.3',
+          'apkSha256': 'b' * 64,
+        },
+        'devices': [
+          for (final target in targets)
+            {
+              'deviceId': target['deviceId'],
+              'deviceRevision': target['expectedDeviceRevision'],
+              'appliedProfileRevision': records.firstWhere(
+                (item) => (item['ref'] as Map)['id'] == target['deviceId'],
+              )['appliedProfileRevision'],
+              'desiredProfileRevision': records.firstWhere(
+                (item) => (item['ref'] as Map)['id'] == target['deviceId'],
+              )['desiredProfileRevision'],
+              'state':
+                  int.parse(
+                            sha256
+                                .convert(
+                                  utf8.encode(
+                                    "${'9' * 64}:${target['deviceId']}",
+                                  ),
+                                )
+                                .toString()
+                                .substring(0, 8),
+                            radix: 16,
+                          ) %
+                          100 <
+                      (body['rolloutPercent'] as int)
+                  ? 'ready'
+                  : 'deferred',
+              'differences': ['profileRevision'],
+            },
+        ],
+      });
+    }
     if (request.method == 'DELETE') {
       final item = records.firstWhere(
         (value) => path.endsWith(value['ref']['id']),
@@ -207,6 +256,98 @@ void main() {
         throwsA(isA<LarenorServerException>()),
       );
     }
+  });
+
+  test(
+    'rollout preview is exact, revision-bound and rejects malformed state',
+    () async {
+      final fixture = TabletFleetFixture();
+      await fixture.account.initialize();
+      await fixture.account.withSession((raw, session) async {
+        final api = ServerTabletFleetApi(
+          raw,
+          session.accessToken,
+          session.context!,
+        );
+        final tablets = await api.list();
+        final preview = await api.previewRollout(
+          tablets: tablets,
+          profileRevision: 2,
+          rolloutPercent: 10,
+        );
+        expect(preview.context, session.context);
+        expect(preview.profileRevision, 2);
+        expect(preview.rolloutPercent, 10);
+        expect(preview.release.applicationId, 'com.ersingundem.larenor');
+        expect(preview.release.certificateSha256, hasLength(64));
+        expect(preview.devices, hasLength(2));
+        final request = fixture.calls.last;
+        expect(request.url.path, endsWith('/profiles/dry-run'));
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['requestDigest'], matches(RegExp(r'^[0-9a-f]{64}$')));
+        expect(body['targets'], [
+          {'deviceId': standardTabletId, 'expectedDeviceRevision': 1},
+          {'deviceId': ownerTabletId, 'expectedDeviceRevision': 1},
+        ]);
+      });
+      expect(
+        () => KioskRolloutDevice.fromJson({
+          'deviceId': standardTabletId,
+          'deviceRevision': 1,
+          'appliedProfileRevision': 1,
+          'desiredProfileRevision': 1,
+          'state': 'ready',
+          'differences': ['applicationVersion', 'profileRevision'],
+        }),
+        throwsA(isA<LarenorServerException>()),
+      );
+      fixture.account.dispose();
+    },
+  );
+
+  test('stale and malformed rollout readbacks never remain visible', () async {
+    final fixture = TabletFleetFixture();
+    await fixture.account.initialize();
+    final controller = ServerTabletFleetController(fixture.account);
+    await controller.load(current: () => true);
+    await controller.previewRollout(rolloutPercent: 100, current: () => true);
+    expect(controller.rolloutPreview, isNotNull);
+
+    await controller.load(current: () => true);
+    expect(controller.rolloutPreview, isNull);
+
+    fixture.respond = (request) async {
+      final response = await fixture.response(request);
+      if (!request.url.path.endsWith('/profiles/dry-run')) return response;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final release = body['release'] as Map<String, dynamic>;
+      return fixture.json({
+        ...body,
+        'release': {...release, 'applicationId': 'foreign.example'},
+      });
+    };
+    await controller.previewRollout(rolloutPercent: 100, current: () => true);
+    expect(controller.failure, 'invalid_response');
+    expect(controller.rolloutPreview, isNull);
+
+    fixture.respond = fixture.response;
+    await controller.load(current: () => true);
+    final pending = Completer<http.Response>();
+    fixture.respond = (request) =>
+        request.url.path.endsWith('/profiles/dry-run')
+        ? pending.future
+        : fixture.response(request);
+    final stale = controller.previewRollout(
+      rolloutPercent: 100,
+      current: () => true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    controller.invalidate();
+    pending.complete(await fixture.response(fixture.calls.last));
+    await stale;
+    expect(controller.rolloutPreview, isNull);
+    controller.dispose();
+    fixture.account.dispose();
   });
 
   test(
