@@ -103,6 +103,8 @@ from .local_notifications.schema import migrate_local_notifications
 from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
+from .workshop.schema import migrate_workshop
+from .workshop.service import WorkshopService
 
 
 class CoreServices:
@@ -221,6 +223,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_services(connection)
+                migrate_workshop(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
                 migrate_automation_rules(connection, self.context, key)
@@ -302,6 +305,9 @@ class CoreServices:
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.workshop = WorkshopService(
+                self.db, self.auth, settings, key, self.context, self.services)
+            self.workshop.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             power_executor = self._proxmox_power_executor

@@ -13,6 +13,15 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'workshop_state_changed': 'The printer state changed. Read it again.',
+    'workshop_binding_changed': 'The verified printer service changed. Review it again.',
+    'workshop_registration_replay': 'This printer registration belongs to a different request.',
+    'workshop_safety_blocked': 'Current printer safety state does not allow this action.',
+    'workshop_preview_invalid': 'Create and review a new printer action preview.',
+    'workshop_preview_limit': 'The printer action preview limit has been reached.',
+    'workshop_intent_conflict': 'This printer request key belongs to a different intent.',
+    'workshop_limit_reached': 'The workshop record limit has been reached.',
+    'workshop_storage_unavailable': 'The workshop state is unavailable.',
     'notification_subscription_changed': 'The notification subscription changed. Read it again.',
     'notification_subscription_inactive': 'The notification subscription is not active.',
     'notification_registration_replay': 'This registration identifier belongs to a different request.',

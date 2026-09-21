@@ -1,9 +1,12 @@
 import uuid
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from conftest import auth, ready
 from larenor_server.app import create_app
+from larenor_server.errors import StartupError
 from test_admin import activate, create as create_user
 
 
@@ -121,6 +124,13 @@ def test_printer_job_material_and_safety_revisions_are_exact_and_secret_free(ser
         listed = restarted.get(root(app) + "/printers", headers=auth(admin))
         assert listed.status_code == 200
         assert listed.json()["printers"] == [changed]
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE workshop_printers SET thermal='runaway' WHERE id=?",
+            (printer["ref"]["id"],),
+        )
+    with pytest.raises(StartupError, match="workshop_storage_invalid"):
+        create_app(settings)
 
 
 def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server):
@@ -153,11 +163,7 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server
         endpoint + f"/{pending['id']}/confirm", headers=auth(delegate),
         json={"schemaVersion": 1, "confirmationToken": pending["confirmationToken"]},
     )
-    retry = client.post(
-        endpoint + f"/{pending['id']}/confirm", headers=auth(delegate),
-        json={"schemaVersion": 1, "confirmationToken": pending["confirmationToken"]},
-    )
-    assert confirmed.status_code == 201 and retry.json() == confirmed.json()
+    assert confirmed.status_code == 201
     receipt = confirmed.json()["receipt"]
     assert receipt["state"] == "recorded"
     assert receipt["effect"] == "notDispatched"
@@ -167,6 +173,34 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server
     })
     assert changed.status_code == 409
     assert changed.json()["error"]["code"] == "workshop_intent_conflict"
+
+    cancel_preview = client.post(endpoint, headers=auth(delegate), json={
+        **body, "requestKey": "cancel-request-key-0002", "action": "cancel",
+    }).json()["preview"]
+    service_update = client.patch(
+        "/api/v1/admin/services/" + service["id"], headers=auth(owner), json={
+            "expectedRevision": 1,
+            "name": "Renamed OctoPrint",
+            "baseUrl": service["baseUrl"],
+        },
+    )
+    assert service_update.status_code == 200
+    stale_binding = client.post(
+        endpoint + f"/{cancel_preview['id']}/confirm", headers=auth(delegate),
+        json={
+            "schemaVersion": 1,
+            "confirmationToken": cancel_preview["confirmationToken"],
+        },
+    )
+    assert stale_binding.status_code == 409
+    assert stale_binding.json()["error"]["code"] == "workshop_binding_changed"
+
+    clock.now += 31
+    retry = client.post(
+        endpoint + f"/{pending['id']}/confirm", headers=auth(delegate),
+        json={"schemaVersion": 1, "confirmationToken": pending["confirmationToken"]},
+    )
+    assert retry.json() == confirmed.json()
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 1
     with TestClient(create_app(settings)) as restarted:
