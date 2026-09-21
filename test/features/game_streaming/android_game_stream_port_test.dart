@@ -79,6 +79,15 @@ GameStreamCommand command() => GameStreamCommand(
   networkId: networkId,
   policyId: policyId,
   revisions: revisions(),
+  quality: const GameStreamQuality(
+    widthPixels: 2560,
+    heightPixels: 1600,
+    framesPerSecond: 120,
+    bitrateKbps: 24576,
+    frameQueueDepth: 3,
+    inputQueueDepth: 32,
+    secureSurface: true,
+  ),
 );
 
 Map<String, Object> receipt(GameStreamCommand value) => {
@@ -87,6 +96,7 @@ Map<String, Object> receipt(GameStreamCommand value) => {
   'requestId': value.requestId,
   'intent': value.intent.name,
   'revisions': value.revisions.toJson(),
+  'quality': value.quality.toJson(),
   'accepted': true,
   'observedState': 'streaming',
   'readbackRevision': 17,

@@ -245,6 +245,7 @@ final class AndroidGameStreamPort
       'requestId',
       'intent',
       'revisions',
+      'quality',
       'accepted',
       'observedState',
       'readbackRevision',
@@ -253,11 +254,16 @@ final class AndroidGameStreamPort
       value['revisions'],
       command.revisions.toJson().keys.toSet(),
     );
+    final quality = _strictMap(
+      value['quality'],
+      command.quality.toJson().keys.toSet(),
+    );
     if (value['sessionId'] != command.sessionId ||
         value['commandId'] != command.commandId ||
         value['requestId'] != command.requestId ||
         _intent(value['intent'], 'invalid_native_receipt') != command.intent ||
         !_sameMap(revisions, command.revisions.toJson()) ||
+        !_sameMap(quality, command.quality.toJson()) ||
         value['accepted'] is! bool) {
       throw const GameStreamException('invalid_native_receipt');
     }
@@ -275,6 +281,7 @@ final class AndroidGameStreamPort
       requestId: command.requestId,
       intent: command.intent,
       revisions: command.revisions,
+      quality: command.quality,
       accepted: value['accepted']! as bool,
       observedState: state.single,
       readbackRevision: readbackRevision,
@@ -300,7 +307,7 @@ GameStreamIntent _intent(Object? raw, String code) {
   return matches.single;
 }
 
-bool _sameMap(Map<Object?, Object?> left, Map<String, int> right) =>
+bool _sameMap(Map<Object?, Object?> left, Map<String, Object> right) =>
     left.length == right.length &&
     right.entries.every((entry) => left[entry.key] == entry.value);
 

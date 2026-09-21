@@ -42,6 +42,7 @@ class GameStreamNativeAdapterTest {
                 "networkRevision" to 15,
                 "policyRevision" to 16,
             ),
+            "quality" to qualityMap(),
         ))
 
     private fun receipt(command: GameStreamNativeCommand) = GameStreamEngineReceipt(
@@ -50,6 +51,7 @@ class GameStreamNativeAdapterTest {
         requestId = command.requestId,
         intent = command.intent,
         revisions = command.revisions,
+        quality = command.quality,
         accepted = true,
         observedState = "streaming",
         readbackRevision = 17,
@@ -81,6 +83,9 @@ class GameStreamNativeAdapterTest {
         }
         reject("invalidRequest") {
             GameStreamNativeBinding.parse(bindingMap() + ("routeRevision" to 3.0))
+        }
+        reject("unsupported") {
+            GameStreamNativeCommand.parse(commandMap() + ("quality" to qualityMap() + ("secureSurface" to false)))
         }
         assertEquals(4, GameStreamNativeIntent.entries.size)
     }
@@ -179,6 +184,14 @@ class GameStreamNativeAdapterTest {
             "displayRevision" to 13, "codecRevision" to 14,
             "networkRevision" to 15, "policyRevision" to 16,
         ),
+        "quality" to qualityMap(),
+    )
+
+    private fun qualityMap() = mapOf<String, Any>(
+        "widthPixels" to 2560, "heightPixels" to 1600,
+        "framesPerSecond" to 120, "bitrateKbps" to 24576,
+        "frameQueueDepth" to 3, "inputQueueDepth" to 32,
+        "secureSurface" to true,
     )
 
     private class DelayedEngine : GameStreamNativeEngine {

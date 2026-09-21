@@ -59,7 +59,7 @@ class GameStreamNativeAdapter(
                 command.sessionId != active.sessionId
             ) gameStreamFail("staleSession")
 
-            val fingerprint = "${command.sessionId}:${command.commandId}:${command.requestId}:${command.intent.wire}:${command.revisions}"
+            val fingerprint = "${command.sessionId}:${command.commandId}:${command.requestId}:${command.intent.wire}:${command.revisions}:${command.quality}"
             val existing = operations[command.intent]
             if (existing != null) {
                 if (existing.fingerprint != fingerprint) gameStreamFail("idempotencyConflict")

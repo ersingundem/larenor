@@ -488,6 +488,76 @@ final class GameStreamSessionState {
   String toString() => 'GameStreamSessionState(${phase.name})';
 }
 
+/// A protected, bounded transport request for low-latency tablet/DeX output.
+final class GameStreamQuality {
+  const GameStreamQuality({
+    required this.widthPixels,
+    required this.heightPixels,
+    required this.framesPerSecond,
+    required this.bitrateKbps,
+    required this.frameQueueDepth,
+    required this.inputQueueDepth,
+    required this.secureSurface,
+  });
+
+  factory GameStreamQuality.fromSnapshots(
+    GameStreamDisplay display,
+    GameStreamCodec codec,
+  ) {
+    final frames = codec.maxFramesPerSecond.clamp(24, 120);
+    final bitrate =
+        (display.widthPixels * display.heightPixels * frames ~/ 2000).clamp(
+          2000,
+          100000,
+        );
+    return GameStreamQuality(
+      widthPixels: display.widthPixels,
+      heightPixels: display.heightPixels,
+      framesPerSecond: frames,
+      bitrateKbps: bitrate,
+      frameQueueDepth: 3,
+      inputQueueDepth: 32,
+      secureSurface: display.secureSurface,
+    );
+  }
+
+  final int widthPixels, heightPixels, framesPerSecond, bitrateKbps;
+  final int frameQueueDepth, inputQueueDepth;
+  final bool secureSurface;
+
+  Map<String, Object> toJson() => {
+    'widthPixels': widthPixels,
+    'heightPixels': heightPixels,
+    'framesPerSecond': framesPerSecond,
+    'bitrateKbps': bitrateKbps,
+    'frameQueueDepth': frameQueueDepth,
+    'inputQueueDepth': inputQueueDepth,
+    'secureSurface': secureSurface,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is GameStreamQuality &&
+      widthPixels == other.widthPixels &&
+      heightPixels == other.heightPixels &&
+      framesPerSecond == other.framesPerSecond &&
+      bitrateKbps == other.bitrateKbps &&
+      frameQueueDepth == other.frameQueueDepth &&
+      inputQueueDepth == other.inputQueueDepth &&
+      secureSurface == other.secureSurface;
+
+  @override
+  int get hashCode => Object.hash(
+    widthPixels,
+    heightPixels,
+    framesPerSecond,
+    bitrateKbps,
+    frameQueueDepth,
+    inputQueueDepth,
+    secureSurface,
+  );
+}
+
 final class GameStreamCommand {
   const GameStreamCommand({
     required this.sessionId,
@@ -501,6 +571,7 @@ final class GameStreamCommand {
     required this.networkId,
     required this.policyId,
     required this.revisions,
+    required this.quality,
   });
 
   final String sessionId;
@@ -514,6 +585,7 @@ final class GameStreamCommand {
   final String networkId;
   final String policyId;
   final GameStreamRevisions revisions;
+  final GameStreamQuality quality;
 
   Map<String, Object> toJson() => {
     'sessionId': sessionId,
@@ -527,6 +599,7 @@ final class GameStreamCommand {
     'networkId': networkId,
     'policyId': policyId,
     'revisions': revisions.toJson(),
+    'quality': quality.toJson(),
   };
 
   @override
@@ -540,6 +613,7 @@ final class GameStreamNativeReceipt {
     required this.requestId,
     required this.intent,
     required this.revisions,
+    required this.quality,
     required this.accepted,
     required this.observedState,
     required this.readbackRevision,
@@ -555,6 +629,7 @@ final class GameStreamNativeReceipt {
   final String requestId;
   final GameStreamIntent intent;
   final GameStreamRevisions revisions;
+  final GameStreamQuality quality;
   final bool accepted;
   final NativeStreamState observedState;
   final int readbackRevision;
@@ -691,6 +766,7 @@ final class GameStreamSessionCoordinator {
         !host.paired ||
         !app.launchable ||
         !display.attached ||
+        !display.secureSurface ||
         !codec.supported ||
         app.hostId != host.hostId ||
         app.hostRevision != host.hostRevision ||
@@ -773,6 +849,7 @@ final class GameStreamSessionCoordinator {
       networkId: active.network.networkId,
       policyId: active.policy.policyId,
       revisions: active.revisions,
+      quality: GameStreamQuality.fromSnapshots(active.display, active.codec),
     );
     final operation = _IntentOperation(
       fingerprint: fingerprint,
@@ -807,7 +884,8 @@ final class GameStreamSessionCoordinator {
         native.commandId == command.commandId &&
         native.requestId == command.requestId &&
         native.intent == command.intent &&
-        native.revisions == command.revisions;
+        native.revisions == command.revisions &&
+        native.quality == command.quality;
     late final GameStreamIntentReceipt receipt;
     if (!stillCurrent || !exact) {
       receipt = GameStreamIntentReceipt(

@@ -134,13 +134,14 @@ data class GameStreamNativeCommand(
     val networkId: String,
     val policyId: String,
     val revisions: GameStreamNativeRevisions,
+    val quality: GameStreamQuality,
 ) {
     override fun toString() = "GameStreamNativeCommand(${intent.wire}, <redacted>)"
 
     companion object {
         private val keys = setOf(
             "sessionId", "commandId", "requestId", "intent", "hostId", "appId",
-            "displayId", "codecId", "networkId", "policyId", "revisions",
+            "displayId", "codecId", "networkId", "policyId", "revisions", "quality",
         )
 
         fun parse(raw: Any?): GameStreamNativeCommand {
@@ -159,7 +160,40 @@ data class GameStreamNativeCommand(
                 networkId = gameStreamIdentity(value["networkId"]),
                 policyId = gameStreamIdentity(value["policyId"]),
                 revisions = GameStreamNativeRevisions.parse(value["revisions"]),
+                quality = GameStreamQuality.parse(value["quality"]),
             )
+        }
+    }
+}
+
+data class GameStreamQuality(
+    val widthPixels: Int,
+    val heightPixels: Int,
+    val framesPerSecond: Int,
+    val bitrateKbps: Int,
+    val frameQueueDepth: Int,
+    val inputQueueDepth: Int,
+    val secureSurface: Boolean,
+) {
+    companion object {
+        private val keys = setOf(
+            "widthPixels", "heightPixels", "framesPerSecond", "bitrateKbps",
+            "frameQueueDepth", "inputQueueDepth", "secureSurface",
+        )
+
+        fun parse(raw: Any?): GameStreamQuality {
+            val value = strictMap(raw, keys)
+            val width = integer(value["widthPixels"])
+            val height = integer(value["heightPixels"])
+            val fps = integer(value["framesPerSecond"])
+            val bitrate = integer(value["bitrateKbps"])
+            val frames = integer(value["frameQueueDepth"])
+            val inputs = integer(value["inputQueueDepth"])
+            val secure = value["secureSurface"] as? Boolean ?: gameStreamFail("invalidRequest")
+            if (width !in 320..8192 || height !in 320..8192 || fps !in 24..120 ||
+                bitrate !in 2_000..100_000 || frames !in 1..3 || inputs !in 1..32 || !secure
+            ) gameStreamFail("unsupported")
+            return GameStreamQuality(width, height, fps, bitrate, frames, inputs, secure)
         }
     }
 }
@@ -170,6 +204,7 @@ data class GameStreamEngineReceipt(
     val requestId: String,
     val intent: GameStreamNativeIntent,
     val revisions: GameStreamNativeRevisions,
+    val quality: GameStreamQuality,
     val accepted: Boolean,
     val observedState: String,
     val readbackRevision: Long,
@@ -177,7 +212,8 @@ data class GameStreamEngineReceipt(
     fun validatedFor(command: GameStreamNativeCommand): GameStreamEngineReceipt {
         if (sessionId != command.sessionId || commandId != command.commandId ||
             requestId != command.requestId || intent != command.intent ||
-            revisions != command.revisions || readbackRevision !in 1..MAX_REVISION ||
+            revisions != command.revisions || quality != command.quality ||
+            readbackRevision !in 1..MAX_REVISION ||
             observedState !in setOf("hostAwake", "appRunning", "streaming", "stopped", "rejected")
         ) gameStreamFail("invalidReceipt")
         return this
@@ -189,6 +225,15 @@ data class GameStreamEngineReceipt(
         "requestId" to requestId,
         "intent" to intent.wire,
         "revisions" to revisions.toChannel(),
+        "quality" to mapOf(
+            "widthPixels" to quality.widthPixels,
+            "heightPixels" to quality.heightPixels,
+            "framesPerSecond" to quality.framesPerSecond,
+            "bitrateKbps" to quality.bitrateKbps,
+            "frameQueueDepth" to quality.frameQueueDepth,
+            "inputQueueDepth" to quality.inputQueueDepth,
+            "secureSurface" to quality.secureSurface,
+        ),
         "accepted" to accepted,
         "observedState" to observedState,
         "readbackRevision" to readbackRevision,

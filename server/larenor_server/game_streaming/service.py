@@ -126,10 +126,11 @@ class GameStreamAuthorityService:
     def hosts(self, actor, core_id, home_id):
         self._scope(core_id, home_id)
         with self.db.connection() as connection:
-            self._actor(connection, actor)
+            user = self._actor(connection, actor)
             rows = [self._host(row) for row in connection.execute(
                 "SELECT * FROM game_stream_hosts WHERE active=1 ORDER BY name,id LIMIT ?", (MAX_HOSTS,))]
         return {"schemaVersion": 1, "scope": self.scope.model_dump(),
+                "accountRevision": user["revision"],
                 "hosts": [self._public_host(row) for row in rows]}
 
     def open(self, actor, core_id, home_id, host_id, body):
@@ -182,6 +183,18 @@ class GameStreamAuthorityService:
             raise ApiError("not_found", 404)
         if row["revision"] != expected or row["state"] != "open" or self.settings.clock() >= row["expires_at"]:
             raise ApiError("game_stream_authority_changed", 409)
+        authority = json.loads(row["authority"])
+        user = connection.execute(
+            "SELECT revision FROM users WHERE id=?", (actor.id,)
+        ).fetchone()
+        host = self._host(connection.execute(
+            "SELECT * FROM game_stream_hosts WHERE id=?", (row["host_id"],)
+        ).fetchone())
+        if (user is None or user["revision"] != authority["accountRevision"]
+                or not host["active"]
+                or host["revision"] != authority["expectedHostRevision"]
+                or host["pairing_revision"] != authority["expectedPairingRevision"]):
+            raise ApiError("game_stream_authority_changed", 409)
         return row
 
     def authorize(self, actor, core_id, home_id, session_id, body):
@@ -211,8 +224,20 @@ class GameStreamAuthorityService:
 
     def complete(self, actor, core_id, home_id, session_id, command_id, body):
         self._scope(core_id, home_id)
-        if (body.state == "verified") != (body.readbackRevision is not None) or (
-            body.state == "verified" and body.result in {"unknown", "rejected"}):
+        valid_result = (
+            body.state == "verified"
+            and body.readbackRevision is not None
+            and body.result in {"hostAwake", "appRunning", "streaming", "stopped"}
+        ) or (
+            body.state == "rejected"
+            and body.readbackRevision is None
+            and body.result == "rejected"
+        ) or (
+            body.state == "unknown"
+            and body.readbackRevision is None
+            and body.result == "unknown"
+        )
+        if not valid_result:
             raise ApiError("invalid_request", 400)
         with self.db.transaction() as connection:
             self._actor(connection, actor)

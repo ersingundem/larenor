@@ -63,7 +63,9 @@ def test_host_registry_is_secret_free_revision_bound_and_tamper_evident(server):
         "codecs", "maxWidth", "maxHeight", "maxFps",
     }
     assert "credential" not in json.dumps(host).lower()
-    assert client.get(root + "/hosts", headers=headers).json()["hosts"] == [host]
+    page = client.get(root + "/hosts", headers=headers).json()
+    assert page["hosts"] == [host]
+    assert page["accountRevision"] == _account_revision(app, pair["user"]["id"])
 
     with app.state.core.db.transaction() as connection:
         connection.execute("UPDATE game_stream_hosts SET name='tampered'")

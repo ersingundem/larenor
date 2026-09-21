@@ -56,16 +56,19 @@ GameStreamApp app({int revision = 6}) => GameStreamApp(
   launchable: true,
 );
 
-GameStreamDisplay display({int revision = 8, bool attached = true}) =>
-    GameStreamDisplay(
-      displayId: 0,
-      displayRevision: revision,
-      attached: attached,
-      widthPixels: 2560,
-      heightPixels: 1600,
-      densityDpi: 280,
-      secureSurface: true,
-    );
+GameStreamDisplay display({
+  int revision = 8,
+  bool attached = true,
+  bool secureSurface = true,
+}) => GameStreamDisplay(
+  displayId: 0,
+  displayRevision: revision,
+  attached: attached,
+  widthPixels: 2560,
+  heightPixels: 1600,
+  densityDpi: 280,
+  secureSurface: secureSurface,
+);
 
 GameStreamCodec codec({int revision = 9}) => GameStreamCodec(
   codecId: codecId,
@@ -132,6 +135,7 @@ GameStreamNativeReceipt receiptFor(
   requestId: command.requestId,
   intent: command.intent,
   revisions: command.revisions,
+  quality: command.quality,
   accepted: true,
   observedState: switch (command.intent) {
     GameStreamIntent.wake => NativeStreamState.hostAwake,
@@ -290,6 +294,28 @@ void main() {
       expect(harness.port.calls, isEmpty);
     }
   });
+
+  test(
+    'protected display and bounded low-latency quality reach native only',
+    () async {
+      final insecure = Harness()
+        ..currentDisplay = display(secureSurface: false);
+      expect(insecure.open, throwsA(isA<GameStreamException>()));
+
+      final harness = Harness();
+      harness.open();
+      await harness.coordinator.dispatch(
+        intent: GameStreamIntent.wake,
+        requestId: 'a' * 32,
+      );
+      final quality = harness.port.calls.single.quality;
+      expect(quality.secureSurface, isTrue);
+      expect(quality.frameQueueDepth, 3);
+      expect(quality.inputQueueDepth, 32);
+      expect(quality.framesPerSecond, 120);
+      expect(quality.bitrateKbps, inInclusiveRange(2000, 100000));
+    },
+  );
 
   test('current PIN lifecycle route and idle denial cannot mint a session', () {
     for (final denied in [
