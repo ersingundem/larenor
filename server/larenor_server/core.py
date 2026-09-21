@@ -103,9 +103,11 @@ from .local_notifications.schema import migrate_local_notifications
 from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
+from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
+from .sound_events.repository import SoundEventRepository
 
 
 class CoreServices:
@@ -310,6 +312,14 @@ class CoreServices:
             self.ev_charging = EvChargeRuntime(
                 self.db, self.auth, settings, key, self.context,
                 self._ev_charge_provider, self._ev_charge_charger)
+            self.sound_events = SoundEventRepository(
+                settings.data_dir / "sound-events.db",
+                key,
+                self.db,
+                self.auth,
+                self.context,
+                settings.clock,
+            )
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None
@@ -321,6 +331,7 @@ class CoreServices:
                 )
             )
             self.admin = AdminService(self.db, self.auth, settings)
+            self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)

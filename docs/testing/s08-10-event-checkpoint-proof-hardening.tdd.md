@@ -42,5 +42,7 @@ started from a null cursor, and the controller could re-anchor below the saved
 head. The migration test now proves rollback stays untrusted and a valid
 same-chain read is the only path that writes v2.
 
-Progress remains 17/125 and 0/63; physical SAF/device validation is still the
-existing completion gate.
+The hardening later merged through PR #233 and passed exact-head CI. Combined
+with the complete transfer chain from PR #179 and the current-main verification
+in `s08-10-software-closure-2026-09-21.md`, S08.10 is closed at **23/125**.
+Physical SAF/device validation remains separately tracked by the manual gates.
