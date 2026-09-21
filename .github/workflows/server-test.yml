@@ -20,7 +20,9 @@ jobs:
         shard: [0, 1, 2, 3]
     runs-on: ubuntu-24.04
     # Each shard has its own runner, checkout, virtualenv and pytest temp root.
-    timeout-minutes: 15
+    # Measured shard runs can spend over a minute in pinned toolchain setup.
+    # Keep a bounded margin beyond the balanced pytest runtime.
+    timeout-minutes: 20
     env:
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
