@@ -15,7 +15,10 @@ Future<ResourceReservationController> pumpReservationScreen(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final controller = ResourceReservationController(api, commandIds: () => 'ui-command');
+  final controller = ResourceReservationController(
+    api,
+    commandIds: () => 'ui-command',
+  );
   await tester.pumpWidget(
     MediaQuery(
       data: MediaQueryData(size: size, textScaler: const TextScaler.linear(2)),
@@ -61,7 +64,11 @@ void main() {
         greaterThanOrEqualTo(48),
       );
       expect(
-        tester.getSize(find.byKey(const ValueKey('reservation-cancel-reservation-1'))).height,
+        tester
+            .getSize(
+              find.byKey(const ValueKey('reservation-cancel-reservation-1')),
+            )
+            .height,
         greaterThanOrEqualTo(48),
       );
       expect(tester.takeException(), isNull);
@@ -69,32 +76,42 @@ void main() {
     }
   });
 
-  testWidgets('TalkBack labels and keyboard activate bounded read-only export', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    final api = FakeReservationApi();
-    await pumpReservationScreen(
-      tester,
-      size: const Size(1200, 800),
-      strings: ResourceReservationStrings.en,
-      api: api,
-    );
-    final export = find.byKey(const ValueKey('reservation-export'));
-    expect(
-      tester.getSemantics(export),
-      matchesSemantics(
-        label: 'Read reservation export',
-        isButton: true,
-        hasEnabledState: true,
-        isEnabled: true,
-        hasTapAction: true,
-      ),
-    );
-    await tester.tap(export);
-    await tester.pumpAndSettle();
-    expect(api.exportReads, 1);
-    expect(api.createCalls, 0);
-    semantics.dispose();
-  });
+  testWidgets(
+    'TalkBack labels and keyboard activate bounded read-only export',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = FakeReservationApi();
+      await pumpReservationScreen(
+        tester,
+        size: const Size(1200, 800),
+        strings: ResourceReservationStrings.en,
+        api: api,
+      );
+      final export = find.byKey(const ValueKey('reservation-export'));
+      await tester.ensureVisible(export);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(export),
+        matchesSemantics(
+          label: 'Read reservation export',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      final keyboardTarget = find.descendant(
+        of: export,
+        matching: find.byType(CupertinoButton),
+      );
+      Actions.invoke(
+        tester.element(keyboardTarget.first),
+        const ActivateIntent(),
+      );
+      await tester.pumpAndSettle();
+      expect(api.exportReads, 1);
+      expect(api.createCalls, 0);
+      semantics.dispose();
+    },
+  );
 }

@@ -47,6 +47,8 @@ ResourceReservationItem reservation({
 }) => ResourceReservationItem(
   id: id,
   ownerId: 'ada',
+  resourceId: 'room-study',
+  timezone: 'Europe/Berlin',
   localStart: '2026-10-25T02:30:00',
   fold: 1,
   durationSeconds: 3600,
@@ -71,13 +73,22 @@ ReservationSnapshot snapshot(
   int calendarRevision = 7,
   bool canCreate = true,
   List<ResourceReservationItem> reservations = const [],
+  List<ReservationHistoryItem> history = const [
+    ReservationHistoryItem(
+      eventId: 'event-1',
+      action: ReservationAction.create,
+      actorId: 'ada',
+      reservationId: 'reservation-1',
+      calendarRevision: 7,
+    ),
+  ],
 }) => ReservationSnapshot(
   authority: authority,
   calendarRevision: calendarRevision,
   resource: studyResource,
   canCreate: canCreate,
   reservations: reservations,
-  history: const [],
+  history: history,
   busy: const [
     ReservationBusyWindow(
       startUtc: '2026-10-25T01:30:00Z',
@@ -123,7 +134,9 @@ class FakeReservationApi implements ResourceReservationApi {
     required ReservationDraft draft,
   }) async {
     createCalls++;
-    if (conflictCreate) throw const ReservationApiException('reservation_overlap');
+    if (conflictCreate) {
+      throw const ReservationApiException('reservation_overlap');
+    }
     if (timeoutCreate) throw TimeoutException('lost ack');
     return ReservationReceipt(
       authority: authority,
@@ -184,7 +197,10 @@ void main() {
     expect(value.timezone, 'Europe/Berlin');
     expect(value.fold, 1);
     expect(value.durationSeconds, 3600);
-    expect(value.recurrence, const ReservationRecurrence(frequency: 'weekly', count: 2));
+    expect(
+      value.recurrence,
+      const ReservationRecurrence(frequency: 'weekly', count: 2),
+    );
     expect(
       ReservationDraft.tryCreate(
         timezone: 'Europe/Berlin',
@@ -214,7 +230,10 @@ void main() {
 
   test('late authority is ignored and overlap is a visible conflict', () async {
     final api = FakeReservationApi();
-    final controller = ResourceReservationController(api, commandIds: () => 'cmd-1');
+    final controller = ResourceReservationController(
+      api,
+      commandIds: () => 'cmd-1',
+    );
     final oldLease = controller.bind(reservationAuthorityA);
     final oldLoad = controller.load(oldLease);
     final currentLease = controller.bind(reservationAuthorityB);
@@ -232,7 +251,7 @@ void main() {
           id: 'car-family',
           revision: 14,
           label: 'Family car',
-          timezone: 'Europe/Istanbul',
+          timezone: 'Europe/Berlin',
           capacity: 1,
         ),
         canCreate: true,
@@ -250,45 +269,58 @@ void main() {
     expect(api.createCalls, 1);
   });
 
-  test('lost acknowledgement reconciles without replay and export is read-only', () async {
-    final api = FakeReservationApi()..timeoutCreate = true;
-    final controller = ResourceReservationController(api, commandIds: () => 'create-1');
-    final lease = controller.bind(reservationAuthorityA);
-    final load = controller.load(lease);
-    api.snapshots.single.complete(snapshot(reservationAuthorityA));
-    await load;
+  test(
+    'lost acknowledgement reconciles without replay and export is read-only',
+    () async {
+      final api = FakeReservationApi()..timeoutCreate = true;
+      final controller = ResourceReservationController(
+        api,
+        commandIds: () => 'create-1',
+      );
+      final lease = controller.bind(reservationAuthorityA);
+      final load = controller.load(lease);
+      api.snapshots.single.complete(snapshot(reservationAuthorityA));
+      await load;
 
-    await controller.create(lease, draft());
-    await controller.create(lease, draft());
-    expect(controller.state, ReservationViewState.uncertain);
-    expect(api.createCalls, 1, reason: 'uncertain commands are never replayed');
-    api.reconciled = ReservationReceipt(
-      authority: reservationAuthorityA,
-      commandId: 'create-1',
-      action: ReservationAction.create,
-      expectedCalendarRevision: 7,
-      calendarRevision: 8,
-      reservation: reservation(id: 'created'),
-    );
-    await controller.reconcile(lease);
-    expect(api.receiptReads, 1);
-    expect(controller.calendarRevision, 8);
-    expect(controller.reservations.single.id, 'created');
+      await controller.create(lease, draft());
+      await controller.create(lease, draft());
+      expect(controller.state, ReservationViewState.uncertain);
+      expect(
+        api.createCalls,
+        1,
+        reason: 'uncertain commands are never replayed',
+      );
+      api.reconciled = ReservationReceipt(
+        authority: reservationAuthorityA,
+        commandId: 'create-1',
+        action: ReservationAction.create,
+        expectedCalendarRevision: 7,
+        calendarRevision: 8,
+        reservation: reservation(id: 'created'),
+      );
+      await controller.reconcile(lease);
+      expect(api.receiptReads, 1);
+      expect(controller.calendarRevision, 8);
+      expect(controller.reservations.single.id, 'created');
 
-    api.exported = ReservationExport(
-      authority: reservationAuthorityA,
-      calendarRevision: 8,
-      reservations: [controller.reservations.single],
-    );
-    await controller.readExport(lease);
-    expect(api.exportReads, 1);
-    expect(controller.exported.single.id, 'created');
-    expect(api.createCalls, 1, reason: 'export cannot emit a mutator');
-  });
+      api.exported = ReservationExport(
+        authority: reservationAuthorityA,
+        calendarRevision: 8,
+        reservations: [controller.reservations.single],
+      );
+      await controller.readExport(lease);
+      expect(api.exportReads, 1);
+      expect(controller.exported.single.id, 'created');
+      expect(api.createCalls, 1, reason: 'export cannot emit a mutator');
+    },
+  );
 
   test('server role grants gate create and cancellation', () async {
     final api = FakeReservationApi();
-    final controller = ResourceReservationController(api, commandIds: () => 'denied');
+    final controller = ResourceReservationController(
+      api,
+      commandIds: () => 'denied',
+    );
     final lease = controller.bind(reservationAuthorityA);
     final load = controller.load(lease);
     api.snapshots.single.complete(
@@ -303,5 +335,24 @@ void main() {
     await controller.cancel(lease, controller.reservations.single);
     expect(api.createCalls, 0);
     expect(api.cancelCalls, 0);
+  });
+
+  test('authorized cancellation advances exact calendar revision', () async {
+    final api = FakeReservationApi();
+    final controller = ResourceReservationController(
+      api,
+      commandIds: () => 'cancel-1',
+    );
+    final lease = controller.bind(reservationAuthorityA);
+    final load = controller.load(lease);
+    api.snapshots.single.complete(
+      snapshot(reservationAuthorityA, reservations: [reservation()]),
+    );
+    await load;
+
+    await controller.cancel(lease, controller.reservations.single);
+    expect(api.cancelCalls, 1);
+    expect(controller.calendarRevision, 8);
+    expect(controller.reservations.single.cancelled, isTrue);
   });
 }
