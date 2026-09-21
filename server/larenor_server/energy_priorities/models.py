@@ -34,6 +34,14 @@ class MeterInput(FrozenModel):
     revision: Revision
     providerRevision: Revision
     capturedAtMs: TimestampMs
+    gridImportPowerW: PowerW
+    gridExportPowerW: PowerW
+
+    @model_validator(mode="after")
+    def single_grid_direction(self):
+        if self.gridImportPowerW and self.gridExportPowerW:
+            raise ValueError("invalid_meter_direction")
+        return self
 
 
 class SolarForecastInput(FrozenModel):
@@ -178,6 +186,7 @@ class EnergyPlan(FrozenModel):
     advisory: Literal[True]
     automaticExecutionAllowed: Literal[False]
     overrideStatus: Literal["none", "active", "expired"]
+    overrideExpiresAtMs: TimestampMs | None
     slots: list[EnergyPlanSlot] = Field(min_length=1, max_length=96)
 
 

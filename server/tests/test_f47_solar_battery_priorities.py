@@ -82,6 +82,8 @@ def inputs(*, override=None, battery_changes=None, **changes):
             revision=5,
             providerRevision=6,
             capturedAtMs=999_900,
+            gridImportPowerW=0,
+            gridExportPowerW=0,
         ),
         forecast=SolarForecastInput(
             schemaVersion=1,
@@ -146,6 +148,13 @@ def test_revision_bound_advisory_plan_is_deterministic_and_bounded():
     assert first.slots[0].reason == "solar_surplus"
     assert first.slots[1].reason == "high_tariff_deficit"
 
+    with pytest.raises(ApiError) as invalid_error:
+        service.plan(authority(), {"schemaVersion": 1})
+    assert (invalid_error.value.code, invalid_error.value.status) == (
+        "invalid_request",
+        400,
+    )
+
     for field, value in (
         ("homeRevision", 99),
         ("meter", source.meter.model_copy(update={"revision": 99})),
@@ -179,8 +188,33 @@ def test_safety_limits_and_expiring_manual_override_win_without_becoming_automat
     ]
     assert all(slot.reason == "manual_override" for slot in active_plan.slots)
     assert active_plan.automaticExecutionAllowed is False
+    assert active_plan.overrideExpiresAtMs == active.expiresAtMs
+
+    worker_calls = []
+    manager = InverterCommandManager(
+        auditKey=b"override-expiry-audit-key-for-f47",
+        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        planResolver=lambda plan_id: active_plan if plan_id == active_plan.planId else None,
+        worker=lambda command: worker_calls.append(command),
+        clockMs=clock,
+    )
+    preview = manager.preview(
+        authority(),
+        active_plan,
+        slotIndex=0,
+        requestId="f" * 32,
+        inverterId=INVERTER,
+        expectedInverterRevision=14,
+    )
 
     clock.ms = active.expiresAtMs
+    with pytest.raises(ApiError) as expiry_error:
+        manager.confirm(authority(), preview, preview.confirmationToken)
+    assert (expiry_error.value.code, expiry_error.value.status) == (
+        "revision_conflict",
+        409,
+    )
+    assert worker_calls == []
     expired_plan = planner(source, clock=clock).plan(authority(), source)
     assert expired_plan.overrideStatus == "expired"
     assert expired_plan.slots[0].reason == "solar_surplus"

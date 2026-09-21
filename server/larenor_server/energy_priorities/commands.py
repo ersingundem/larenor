@@ -30,7 +30,13 @@ class EnergyCommandAuditEntry:
     action: str
     requestId: str
     planId: str
+    coreId: str
+    homeId: str
+    accountId: str
+    sessionFamilyId: str
+    inverterId: str
     inputDigest: str
+    targetPowerW: int
     createdAtMs: int
     previousHash: str
     entryHash: str
@@ -104,7 +110,13 @@ class InverterCommandManager:
                     entry.action,
                     entry.requestId,
                     entry.planId,
+                    entry.coreId,
+                    entry.homeId,
+                    entry.accountId,
+                    entry.sessionFamilyId,
+                    entry.inverterId,
                     entry.inputDigest,
+                    entry.targetPowerW,
                     entry.createdAtMs,
                     previous,
                 ]
@@ -130,7 +142,13 @@ class InverterCommandManager:
             action,
             preview.requestId,
             preview.planId,
+            preview.coreId,
+            preview.homeId,
+            preview.accountId,
+            preview.sessionFamilyId,
+            preview.inverterId,
             preview.inputDigest,
+            preview.targetPowerW,
             created,
             previous,
         ]
@@ -140,7 +158,13 @@ class InverterCommandManager:
                 action=action,
                 requestId=preview.requestId,
                 planId=preview.planId,
+                coreId=preview.coreId,
+                homeId=preview.homeId,
+                accountId=preview.accountId,
+                sessionFamilyId=preview.sessionFamilyId,
+                inverterId=preview.inverterId,
                 inputDigest=preview.inputDigest,
+                targetPowerW=preview.targetPowerW,
                 createdAtMs=created,
                 previousHash=previous,
                 entryHash=self._entry_hash(values),
@@ -182,6 +206,12 @@ class InverterCommandManager:
         except Exception:
             raise ApiError("revision_conflict", 409) from None
         if current != plan:
+            raise ApiError("revision_conflict", 409)
+        if (
+            plan.overrideStatus == "active"
+            and plan.overrideExpiresAtMs is not None
+            and self._clock() >= plan.overrideExpiresAtMs
+        ):
             raise ApiError("revision_conflict", 409)
 
     def preview(
@@ -281,17 +311,7 @@ class InverterCommandManager:
                 return state.result
             if self._clock() >= preview.expiresAtMs:
                 raise ApiError("invalid_request")
-            try:
-                current_plan = self._resolve_plan(preview.planId)
-                current_plan = (
-                    None
-                    if current_plan is None
-                    else EnergyPlan.model_validate(current_plan)
-                )
-            except Exception:
-                raise ApiError("revision_conflict", 409) from None
-            if current_plan != state.plan:
-                raise ApiError("revision_conflict", 409)
+            self._current_plan(state.plan)
             command = InverterCommand(
                 schemaVersion=1,
                 requestId=preview.requestId,

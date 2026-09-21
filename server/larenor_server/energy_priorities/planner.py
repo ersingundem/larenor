@@ -44,6 +44,9 @@ class EnergyPlanner:
         authority = self._authority(presentedAuthority)
         try:
             source = EnergyInputs.model_validate(rawInputs)
+        except Exception:
+            raise ApiError("invalid_request") from None
+        try:
             current = self._resolve_inputs(source.battery.resourceId)
             current = None if current is None else EnergyInputs.model_validate(current)
         except Exception:
@@ -157,5 +160,8 @@ class EnergyPlanner:
             advisory=True,
             automaticExecutionAllowed=False,
             overrideStatus=override_status,
+            overrideExpiresAtMs=(
+                override.expiresAtMs if override is not None else None
+            ),
             slots=slots,
         )
