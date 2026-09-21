@@ -29,8 +29,10 @@ def _canonical(value: object) -> bytes:
 
 
 def _identifier(value: object) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 128 and all(
-        character.isalnum() or character in "-_.:" for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 128
+        and all(character.isalnum() or character in "-_.:" for character in value)
     )
 
 
@@ -39,8 +41,10 @@ def _revision(value: object, *, allow_zero: bool = False) -> bool:
 
 
 def _label(value: object) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 80 and all(
-        ord(character) >= 32 for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 80
+        and all(ord(character) >= 32 for character in value)
     )
 
 
@@ -66,14 +70,26 @@ class FloorPlanAuthority:
 
     def __post_init__(self) -> None:
         if (
-            any(not _identifier(item) for item in (
-                self.core_id, self.home_id, self.account_id, self.session_id,
-            ))
-            or any(not _revision(item) for item in (
-                self.core_revision, self.home_revision, self.account_revision,
-                self.entity_registry_revision, self.resource_revision,
-                self.grant_revision,
-            ))
+            any(
+                not _identifier(item)
+                for item in (
+                    self.core_id,
+                    self.home_id,
+                    self.account_id,
+                    self.session_id,
+                )
+            )
+            or any(
+                not _revision(item)
+                for item in (
+                    self.core_revision,
+                    self.home_revision,
+                    self.account_revision,
+                    self.entity_registry_revision,
+                    self.resource_revision,
+                    self.grant_revision,
+                )
+            )
             or not _revision(self.layout_revision, allow_zero=True)
             or type(self.can_read) is not bool
             or type(self.can_edit) is not bool
@@ -184,7 +200,10 @@ class FloorPlanService:
 
     @staticmethod
     def _authorize(
-        actor: Principal, authority: FloorPlanAuthority, *, edit: bool,
+        actor: Principal,
+        authority: FloorPlanAuthority,
+        *,
+        edit: bool,
     ) -> None:
         if actor.id != authority.account_id or actor.family_id != authority.session_id:
             raise ApiError("floor_plan_authority_changed", 409)
@@ -212,7 +231,8 @@ class FloorPlanService:
         ).fetchone()
         rows = connection.execute(
             "SELECT * FROM floor_plan_events WHERE core_id=? AND home_id=? "
-            "ORDER BY sequence", scope,
+            "ORDER BY sequence",
+            scope,
         ).fetchall()
         if state is None:
             if rows:
@@ -226,10 +246,16 @@ class FloorPlanService:
             previous = ""
             for row in rows:
                 values = (
-                    row["sequence"], row["audit_id"], row["core_id"],
-                    row["home_id"], row["action"], row["actor_id"],
-                    row["object_id"], row["layout_revision"],
-                    row["occurred_at"], row["request_hash"],
+                    row["sequence"],
+                    row["audit_id"],
+                    row["core_id"],
+                    row["home_id"],
+                    row["action"],
+                    row["actor_id"],
+                    row["object_id"],
+                    row["layout_revision"],
+                    row["occurred_at"],
+                    row["request_hash"],
                     row["previous_hash"],
                 )
                 if row["previous_hash"] != previous or not hmac.compare_digest(
@@ -243,17 +269,30 @@ class FloorPlanService:
             (
                 "floor_plan_layouts",
                 (
-                    "core_id", "home_id", "account_id", "core_revision",
-                    "home_revision", "revision", "entity_registry_revision",
-                    "resource_revision", "payload", "updated_at",
+                    "core_id",
+                    "home_id",
+                    "account_id",
+                    "core_revision",
+                    "home_revision",
+                    "revision",
+                    "entity_registry_revision",
+                    "resource_revision",
+                    "payload",
+                    "updated_at",
                 ),
                 b"layout",
             ),
             (
                 "floor_plan_requests",
                 (
-                    "request_id", "core_id", "home_id", "account_id", "session_id",
-                    "request_hash", "result_revision", "created_at",
+                    "request_id",
+                    "core_id",
+                    "home_id",
+                    "account_id",
+                    "session_id",
+                    "request_hash",
+                    "result_revision",
+                    "created_at",
                 ),
                 b"request",
             ),
@@ -271,8 +310,15 @@ class FloorPlanService:
         return rows
 
     def _event(
-        self, connection, *, scope, actor_id, request_id, revision,
-        request_hash, occurred_at,
+        self,
+        connection,
+        *,
+        scope,
+        actor_id,
+        request_id,
+        revision,
+        request_hash,
+        occurred_at,
     ) -> None:
         rows = self._verified_history(connection, scope)
         if len(rows) >= MAX_HISTORY:
@@ -282,8 +328,16 @@ class FloorPlanService:
             "SELECT COALESCE(MAX(sequence),0)+1 FROM floor_plan_events"
         ).fetchone()[0]
         values = (
-            sequence, uuid.uuid4().hex, *scope, "layout_replaced", actor_id,
-            request_id, revision, occurred_at, request_hash, previous,
+            sequence,
+            uuid.uuid4().hex,
+            *scope,
+            "layout_replaced",
+            actor_id,
+            request_id,
+            revision,
+            occurred_at,
+            request_hash,
+            previous,
         )
         event_hash = self._event_hash(values)
         connection.execute(
@@ -337,8 +391,10 @@ class FloorPlanService:
                 or not _label(room.label)
                 or not isinstance(room.polygon, tuple)
                 or not 3 <= len(room.polygon) <= 64
-                or any(not _coordinate(point.x) or not _coordinate(point.y)
-                       for point in room.polygon)
+                or any(
+                    not _coordinate(point.x) or not _coordinate(point.y)
+                    for point in room.polygon
+                )
             ):
                 raise ApiError("floor_plan_invalid", 400)
             room_ids.add(room.room_id)
@@ -373,8 +429,10 @@ class FloorPlanService:
                 or vector.kind not in {"wall", "door", "window", "path"}
                 or not isinstance(vector.points, tuple)
                 or not 2 <= len(vector.points) <= 128
-                or any(not _coordinate(point.x) or not _coordinate(point.y)
-                       for point in vector.points)
+                or any(
+                    not _coordinate(point.x) or not _coordinate(point.y)
+                    for point in vector.points
+                )
             ):
                 raise ApiError("floor_plan_invalid", 400)
             vector_ids.add(vector.shape_id)
@@ -388,17 +446,25 @@ class FloorPlanService:
             value = json.loads(payload)
             return FloorPlanLayout(
                 floors=tuple(Floor(**item) for item in value["floors"]),
-                rooms=tuple(Room(
-                    room_id=item["room_id"], floor_id=item["floor_id"],
-                    label=item["label"],
-                    polygon=tuple(Point(**point) for point in item["polygon"]),
-                ) for item in value["rooms"]),
+                rooms=tuple(
+                    Room(
+                        room_id=item["room_id"],
+                        floor_id=item["floor_id"],
+                        label=item["label"],
+                        polygon=tuple(Point(**point) for point in item["polygon"]),
+                    )
+                    for item in value["rooms"]
+                ),
                 anchors=tuple(Anchor(**item) for item in value["anchors"]),
-                vectors=tuple(VectorShape(
-                    shape_id=item["shape_id"], floor_id=item["floor_id"],
-                    kind=item["kind"],
-                    points=tuple(Point(**point) for point in item["points"]),
-                ) for item in value["vectors"]),
+                vectors=tuple(
+                    VectorShape(
+                        shape_id=item["shape_id"],
+                        floor_id=item["floor_id"],
+                        kind=item["kind"],
+                        points=tuple(Point(**point) for point in item["points"]),
+                    )
+                    for item in value["vectors"]
+                ),
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("floor_plan_layout_invalid") from None
@@ -418,11 +484,16 @@ class FloorPlanService:
         ):
             raise ApiError("invalid_request", 400)
         self._validate_layout(layout)
-        request_hash = self._fingerprint(b"request", _canonical({
-            "authority": asdict(authority),
-            "expectedLayoutRevision": expected_layout_revision,
-            "layout": asdict(layout),
-        }))
+        request_hash = self._fingerprint(
+            b"request",
+            _canonical(
+                {
+                    "authority": asdict(authority),
+                    "expectedLayoutRevision": expected_layout_revision,
+                    "layout": asdict(layout),
+                }
+            ),
+        )
         scope = self._scope(authority)
         now = self._clock()
         with self.database.transaction() as connection:
@@ -435,7 +506,9 @@ class FloorPlanService:
                     (old_request["core_id"], old_request["home_id"]) != scope
                     or old_request["account_id"] != actor.id
                     or old_request["session_id"] != actor.family_id
-                    or not hmac.compare_digest(old_request["request_hash"], request_hash)
+                    or not hmac.compare_digest(
+                        old_request["request_hash"], request_hash
+                    )
                 ):
                     raise ApiError("floor_plan_edit_conflict", 409)
                 return LayoutReceipt(request_id, old_request["result_revision"])
@@ -458,9 +531,15 @@ class FloorPlanService:
             revision = current_revision + 1
             payload = json.dumps(asdict(layout), sort_keys=True)
             layout_values = (
-                *scope, actor.id, authority.core_revision, authority.home_revision,
-                revision, authority.entity_registry_revision,
-                authority.resource_revision, payload, now,
+                *scope,
+                actor.id,
+                authority.core_revision,
+                authority.home_revision,
+                revision,
+                authority.entity_registry_revision,
+                authority.resource_revision,
+                payload,
+                now,
             )
             connection.execute(
                 "INSERT INTO floor_plan_layouts VALUES(?,?,?,?,?,?,?,?,?,?,?) "
@@ -476,21 +555,34 @@ class FloorPlanService:
                 layout_values + (self._record_hash(b"layout", layout_values),),
             )
             request_values = (
-                request_id, *scope, actor.id, actor.family_id, request_hash,
-                revision, now,
+                request_id,
+                *scope,
+                actor.id,
+                actor.family_id,
+                request_hash,
+                revision,
+                now,
             )
             connection.execute(
                 "INSERT INTO floor_plan_requests VALUES(?,?,?,?,?,?,?,?,?)",
                 request_values + (self._record_hash(b"request", request_values),),
             )
             self._event(
-                connection, scope=scope, actor_id=actor.id, request_id=request_id,
-                revision=revision, request_hash=request_hash, occurred_at=now,
+                connection,
+                scope=scope,
+                actor_id=actor.id,
+                request_id=request_id,
+                revision=revision,
+                request_hash=request_hash,
+                occurred_at=now,
             )
             return LayoutReceipt(request_id, revision)
 
     def read(
-        self, actor: Principal, *, authority: FloorPlanAuthority,
+        self,
+        actor: Principal,
+        *,
+        authority: FloorPlanAuthority,
     ) -> StoredLayout:
         self._authorize(actor, authority, edit=False)
         scope = self._scope(authority)
@@ -542,7 +634,8 @@ class FloorPlanService:
         if not isinstance(snapshots, tuple) or len(snapshots) > MAX_ANCHORS:
             raise ApiError("floor_plan_projection_invalid", 400)
         anchors = {
-            anchor.target_id: anchor for anchor in stored.layout.anchors
+            anchor.target_id: anchor
+            for anchor in stored.layout.anchors
             if anchor.target_kind == "entity"
         }
         supplied: dict[str, EntitySnapshot] = {}
@@ -572,22 +665,32 @@ class FloorPlanService:
         for entity_id, anchor in sorted(anchors.items()):
             snapshot = supplied.get(entity_id)
             if snapshot is None:
-                projections.append(EntityProjection(
-                    entity_id, anchor.target_revision, "unavailable", "stale"
-                ))
+                projections.append(
+                    EntityProjection(
+                        entity_id, anchor.target_revision, "unavailable", "stale"
+                    )
+                )
                 continue
             live = (
                 snapshot.source_status == "verified"
                 and now - snapshot.observed_at <= MAX_STATE_AGE_SECONDS
             )
-            projections.append(EntityProjection(
-                entity_id, snapshot.entity_revision, snapshot.state,
-                "live" if live else "stale",
-            ))
+            projections.append(
+                EntityProjection(
+                    entity_id,
+                    snapshot.entity_revision,
+                    snapshot.state,
+                    "live" if live else "stale",
+                )
+            )
         return tuple(projections)
 
     def history(
-        self, actor: Principal, *, authority: FloorPlanAuthority, limit: int,
+        self,
+        actor: Principal,
+        *,
+        authority: FloorPlanAuthority,
+        limit: int,
     ) -> tuple[dict, ...]:
         self._authorize(actor, authority, edit=False)
         if type(limit) is not int or not 1 <= limit <= MAX_HISTORY:
@@ -596,12 +699,15 @@ class FloorPlanService:
             connection.execute("BEGIN")
             try:
                 rows = self._verified_history(connection, self._scope(authority))
-                return tuple({
-                    "auditId": row["audit_id"],
-                    "action": row["action"],
-                    "actorId": row["actor_id"],
-                    "layoutRevision": row["layout_revision"],
-                    "occurredAt": row["occurred_at"],
-                } for row in rows[-limit:])
+                return tuple(
+                    {
+                        "auditId": row["audit_id"],
+                        "action": row["action"],
+                        "actorId": row["actor_id"],
+                        "layoutRevision": row["layout_revision"],
+                        "occurredAt": row["occurred_at"],
+                    }
+                    for row in rows[-limit:]
+                )
             finally:
                 connection.rollback()

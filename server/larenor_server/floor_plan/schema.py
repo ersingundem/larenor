@@ -75,10 +75,14 @@ def migrate_floor_plan(connection: sqlite3.Connection) -> None:
             connection.execute("INSERT INTO metadata VALUES('floor_plan_schema','1')")
             return
         expected = TABLES | INDEXES
-        if marker["value"] != "1" or set(actual) != set(expected) or any(
-            row["type"] != ("table" if name in TABLES else "index")
-            or " ".join(row["sql"].split()) != " ".join(expected[name].split())
-            for name, row in actual.items()
+        if (
+            marker["value"] != "1"
+            or set(actual) != set(expected)
+            or any(
+                row["type"] != ("table" if name in TABLES else "index")
+                or " ".join(row["sql"].split()) != " ".join(expected[name].split())
+                for name, row in actual.items()
+            )
         ):
             raise ValueError("invalid_floor_plan_storage")
     except (sqlite3.Error, TypeError, ValueError):
