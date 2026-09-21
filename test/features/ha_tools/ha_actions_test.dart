@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -69,7 +70,12 @@ class _Entities extends Entities {
   };
 }
 
-Widget app(Widget child, HaRestClient client) => ProviderScope(
+Widget app(
+  Widget child,
+  HaRestClient client, {
+  Locale locale = const Locale('en'),
+  double textScale = 1,
+}) => ProviderScope(
   overrides: [
     connectionConfigProvider.overrideWith(_Connection.new),
     entitiesProvider.overrideWith(_Entities.new),
@@ -78,13 +84,71 @@ Widget app(Widget child, HaRestClient client) => ProviderScope(
     haActionsProvider.overrideWith((ref) async => catalog),
   ],
   child: CupertinoApp(
+    locale: locale,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
+    builder: (context, mounted) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(textScale)),
+      child: mounted!,
+    ),
     home: child,
   ),
 );
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('HA action route is tablet ready $language $width 2x', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final semantics = tester.ensureSemantics();
+        final client = HaRestClient(
+          baseUrl: 'http://ha.test',
+          token: 'test',
+          httpClient: MockClient((_) async => http.Response('[]', 200)),
+        );
+        addTearDown(client.dispose);
+        try {
+          await tester.pumpWidget(
+            app(
+              const HaActionsScreen(entityId: 'light.desk'),
+              client,
+              locale: Locale(language),
+              textScale: 2,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final row = find.byKey(const ValueKey('ha-action-light.turn_on'));
+          expect(row, findsOneWidget);
+          expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(row).flagsCollection.isButton, isTrue);
+          Focus.of(tester.element(find.text('Turn on'))).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(HaActionScreen), findsOneWidget);
+          final run = find.byKey(const ValueKey('ha-action-run'));
+          expect(tester.getSize(run).height, greaterThanOrEqualTo(48));
+          final l10n = AppLocalizations.of(tester.element(run));
+          expect(
+            tester
+                .getSemantics(find.bySemanticsLabel(l10n.haRun))
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
+
   test(
     'server catalog retains response requirement and flattens field sections',
     () {

@@ -2,9 +2,10 @@
 
 This client slice consumes the single Larenor Core music manager contract. It
 does not ask for a Music Assistant address or token and does not create a
-second connection authority. The queue remains **17/125** and selected features
-remain **0/63** because the Core API slice, a real provider account and physical
-HomePod/AirPlay/Cast receiver acceptance are separate gates.
+second connection authority. Its Core API and unified-package dependencies are
+accepted in `docs/s07-2-s07-3-software-closure-2026-09-21.md`; real provider
+accounts and physical HomePod/AirPlay/Cast receiver acceptance remain separate
+manual gates.
 
 ## Three acceptance criteria
 
@@ -19,8 +20,8 @@ HomePod/AirPlay/Cast receiver acceptance are separate gates.
 The tests use a local synthetic Core account and manager responses. They do not
 claim real Spotify, Apple Music or YouTube Music playback, HomePod/AirPlay/Cast
 discovery, network pairing, synchronized groups, Huawei MatePad, DeX, physical
-keyboard or TalkBack device acceptance. Those gates must use the matching S07.3
-Core branch and real receivers before this item can advance the progress count.
+keyboard or TalkBack device acceptance. Those gates remain explicit manual
+acceptance and do not block the declared S07.3 software scope.
 
 ## Core contract cross-check
 

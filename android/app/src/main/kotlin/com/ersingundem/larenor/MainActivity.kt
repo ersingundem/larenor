@@ -1,6 +1,7 @@
 package com.ersingundem.larenor
 
 import android.content.res.Configuration
+import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.media3.common.util.UnstableApi
@@ -11,6 +12,7 @@ import com.ersingundem.larenor.updater.ClientUpdaterBridge
 import com.ersingundem.larenor.wellbeing.WellbeingBridge
 import com.ersingundem.larenor.vnc.VncNativeBridge
 import com.ersingundem.larenor.rdp.RdpNativeBridge
+import com.ersingundem.larenor.notifications.LocalNotificationBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -21,6 +23,7 @@ class MainActivity : FlutterActivity() {
     private var updater: ClientUpdaterBridge? = null
     private var vncNative: VncNativeBridge? = null
     private var rdpNative: RdpNativeBridge? = null
+    private var localNotifications: LocalNotificationBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -30,6 +33,7 @@ class MainActivity : FlutterActivity() {
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
         rdpNative = RdpNativeBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        localNotifications = LocalNotificationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -40,6 +44,7 @@ class MainActivity : FlutterActivity() {
         updater?.setResumed(true)
         vncNative?.setResumed(true)
         rdpNative?.setResumed(true)
+        localNotifications?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -49,6 +54,7 @@ class MainActivity : FlutterActivity() {
         updater?.setResumed(false)
         vncNative?.setResumed(false)
         rdpNative?.setResumed(false)
+        localNotifications?.setResumed(false)
         super.onPause()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -59,11 +65,21 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
         vncNative?.setWindowFocused(hasFocus)
         rdpNative?.setWindowFocused(hasFocus)
+        localNotifications?.windowChanged()
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         kiosk?.windowChanged()
         windowPolicy?.windowChanged()
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        localNotifications?.handleIntent(intent)
+    }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
@@ -72,6 +88,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        localNotifications?.dispose()
+        localNotifications = null
         rdpNative?.dispose()
         rdpNative = null
         vncNative?.dispose()

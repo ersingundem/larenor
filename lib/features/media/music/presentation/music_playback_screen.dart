@@ -262,16 +262,23 @@ class _MusicPlaybackScreenState extends MediaSessionState<MusicPlaybackScreen> {
                             playback?.hasError == true)
                           Text(l10n.healthReadError),
                         if (_error != null)
-                          Text(_error!)
+                          Semantics(liveRegion: true, child: Text(_error!))
                         else if (state?.outcomeUnknown == true)
-                          Text(l10n.musicPlayUnknown)
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(l10n.musicPlayUnknown),
+                          )
                         else if (state?.failure != null)
-                          Text(
-                            musicPlaybackFailureLabel(l10n, state!.failure!),
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              musicPlaybackFailureLabel(l10n, state!.failure!),
+                            ),
                           ),
                         if (discovery != null && targets.isEmpty)
                           Text(l10n.haMediaNoTargets),
                         CupertinoButton(
+                          minimumSize: const Size(48, 48),
                           padding: EdgeInsets.zero,
                           onPressed:
                               !active || _preparing || state?.isBusy == true
@@ -313,6 +320,7 @@ class _MusicPlaybackScreenState extends MediaSessionState<MusicPlaybackScreen> {
                         vertical: 6,
                       ),
                       child: CupertinoButton(
+                        minimumSize: const Size(48, 48),
                         padding: const EdgeInsets.all(16),
                         color: CupertinoColors.secondarySystemGroupedBackground
                             .resolveFrom(context),

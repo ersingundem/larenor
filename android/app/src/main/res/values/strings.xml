@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_notification_channel_name">Larenor alerts</string>
+    <string name="local_notification_channel_description">Private alerts delivered by your Larenor Core</string>
+    <string name="local_notification_private_preview">Private notification. Unlock Larenor to view.</string>
+</resources>

@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../data/keenetic_config.dart';
 import '../data/keenetic_credentials_store.dart';
@@ -213,7 +215,7 @@ class _KeeneticConnectScreenState
     if (!_access.isCurrent ||
         !identical(_access, ref.read(directHomeAccessProvider))) {
       clearPendingInteraction();
-      return CupertinoPageScaffold(
+      return AppPageScaffold(
         child: Center(child: Text(l10n.keeneticErrorUnreachable)),
       );
     }
@@ -255,12 +257,12 @@ class _KeeneticConnectScreenState
       _clearFields();
     }
     if (reading.isLoading && !_connecting) {
-      return const CupertinoPageScaffold(
+      return const AppPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       );
     }
     if (reading.hasError && !_recovery) {
-      return CupertinoPageScaffold(
+      return AppPageScaffold(
         child: Center(child: Text(l10n.keeneticErrorUnreachable)),
       );
     }
@@ -275,12 +277,12 @@ class _KeeneticConnectScreenState
     }
     final connection = ref.read(keeneticConnectionProvider.notifier);
     final store = ref.read(keeneticCredentialsStoreProvider);
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Keenetic')),
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 780),
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -294,7 +296,7 @@ class _KeeneticConnectScreenState
                   ),
                   const SizedBox(height: 16),
                 ],
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(l10n.keeneticCredentialsHint),
                   children: [
                     CupertinoTextFormFieldRow(
@@ -320,34 +322,48 @@ class _KeeneticConnectScreenState
                       autocorrect: false,
                       enableSuggestions: false,
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _connect(generation, connection),
+                      onFieldSubmitted: (_) {
+                        if (active && !_connecting) {
+                          _connect(generation, connection);
+                        }
+                      },
                     ),
                   ],
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: CupertinoColors.systemRed.resolveFrom(context),
+                      ),
                     ),
                   ),
                 ],
                 const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: _connecting || !active
-                      ? null
-                      : () => _connect(generation, connection),
-                  child: _connecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : Text(l10n.commonConnect),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    key: const ValueKey('keenetic-connect-submit'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _connect(generation, connection),
+                    child: _connecting
+                        ? const CupertinoActivityIndicator(
+                            color: CupertinoColors.white,
+                          )
+                        : Text(l10n.commonConnect),
+                  ),
                 ),
                 if (_recovery) ...[
                   const SizedBox(height: 12),
                   CupertinoButton(
+                    key: const ValueKey('keenetic-connect-remove'),
+                    minimumSize: const Size(48, 48),
                     onPressed: _connecting || !active
                         ? null
                         : () => _clear(generation, store),

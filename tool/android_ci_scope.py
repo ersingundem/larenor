@@ -39,6 +39,12 @@ SAFE_SKIP_PATTERNS = (
     'tool/tests/native_ci_scope_test.py',
     'tool/unified_media_stack_managed_ci.py',
     'tool/tests/unified_media_stack_*',
+    'tool/check_commit_progress.py',
+    'tool/commit_with_progress.py',
+    'tool/execution_queue.py',
+    'tool/tests/check_commit_progress_test.py',
+    'tool/tests/commit_with_progress_test.py',
+    'tool/tests/execution_queue_test.py',
 )
 
 

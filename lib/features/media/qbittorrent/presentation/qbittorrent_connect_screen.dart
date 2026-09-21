@@ -5,7 +5,9 @@ import '../../../../core/direct_home_access.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../data/qbittorrent_credentials_store.dart';
 import '../providers/qbittorrent_providers.dart';
@@ -206,12 +208,12 @@ class _QbittorrentConnectScreenState
     final active = _current(generation);
     final connection = ref.read(qbittorrentConnectionProvider.notifier);
     final store = ref.read(qbittorrentCredentialsStoreProvider);
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('qBittorrent')),
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 780),
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -234,7 +236,7 @@ class _QbittorrentConnectScreenState
                       }
                     },
                   ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
@@ -252,33 +254,49 @@ class _QbittorrentConnectScreenState
                       enabled: active && !_connecting,
                       prefix: _fieldLabel(l10n.mediaPasswordLabel),
                       obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (active && !_connecting) {
+                          _connect(generation, connection);
+                        }
+                      },
                     ),
                   ],
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: CupertinoColors.systemRed.resolveFrom(context),
+                      ),
                     ),
                   ),
                 ],
                 const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: _connecting || !active
-                      ? null
-                      : () => _connect(generation, connection),
-                  child: _connecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : Text(l10n.commonConnect),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    key: const ValueKey('qbittorrent-connect-submit'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _connect(generation, connection),
+                    child: _connecting
+                        ? const CupertinoActivityIndicator(
+                            color: CupertinoColors.white,
+                          )
+                        : Text(l10n.commonConnect),
+                  ),
                 ),
                 if (_recovery) ...[
                   const SizedBox(height: 12),
                   CupertinoButton(
+                    key: const ValueKey('qbittorrent-connect-remove'),
+                    minimumSize: const Size(48, 48),
                     onPressed: _connecting || !active
                         ? null
                         : () => _clear(generation, store),

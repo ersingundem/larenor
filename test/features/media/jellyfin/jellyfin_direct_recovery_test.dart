@@ -738,9 +738,8 @@ void main() {
               ),
             ]);
             await pumpJellyfinFrames(tester);
-            final tile = find.widgetWithText(
-              CupertinoListTile,
-              'Synthetic discovery',
+            final tile = find.byKey(
+              const ValueKey('jellyfin-discovered-https://discovered.invalid'),
             );
             await tester.tap(tile);
             await pumpJellyfinFrames(tester);
@@ -753,7 +752,7 @@ void main() {
                   .text,
               'https://discovered.invalid',
             );
-            final stale = tester.widget<CupertinoListTile>(tile).onTap!;
+            final stale = tester.widget<CupertinoButton>(tile).onPressed!;
             tester.binding.handleViewFocusChanged(
               ViewFocusEvent(
                 viewId: tester.view.viewId + 1,

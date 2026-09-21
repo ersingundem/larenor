@@ -480,6 +480,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
                             _confirm,
                           ),
                           CupertinoButton(
+                            minimumSize: const Size.fromHeight(48),
                             onPressed: _enabled
                                 ? _callback(() => setState(_resetReview))
                                 : null,
@@ -541,6 +542,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     VoidCallback action,
   ) => CupertinoButton(
     key: ValueKey(key),
+    minimumSize: const Size.fromHeight(48),
     onPressed: _enabled ? _callback(action) : null,
     child: Row(
       children: [
@@ -590,6 +592,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     child: CupertinoButton.filled(
       key: ValueKey(key),
+      minimumSize: const Size.fromHeight(48),
       onPressed: _enabled && action != null ? _callback(action) : null,
       child: Text(label, textAlign: TextAlign.center),
     ),
