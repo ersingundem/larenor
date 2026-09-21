@@ -9,6 +9,7 @@ import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
+import '../../mesh_center/presentation/mesh_center_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -29,6 +30,7 @@ enum SettingsCategory {
   homeAssistant,
   intercom,
   integrations,
+  meshCenter,
   backup,
   about,
 }
@@ -44,12 +46,14 @@ class SettingsSplitScreen extends StatefulWidget {
     this.onExit,
     this.backupGateCurrent,
     this.remoteGateCurrent,
+    this.meshGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
+  final bool Function()? meshGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -138,6 +142,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       runFileDialog: widget.runFileDialog,
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
+                      meshGateCurrent: widget.meshGateCurrent,
                     ),
                   ),
                 ),
@@ -160,6 +165,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
+            meshGateCurrent: widget.meshGateCurrent,
           ),
         ),
       ),
@@ -198,6 +204,7 @@ Widget paneFor(
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
+  bool Function()? meshGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -218,6 +225,8 @@ Widget paneFor(
       return const IntercomSettingsScreen();
     case SettingsCategory.integrations:
       return const IntegrationsPane();
+    case SettingsCategory.meshCenter:
+      return MeshCenterRoute(gateCurrent: meshGateCurrent ?? () => false);
     case SettingsCategory.backup:
       return BackupScreen(
         runFileDialog: runFileDialog,
@@ -287,6 +296,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.slider_horizontal_3,
         CupertinoColors.systemGrey,
         l10n.settingsCategoryIntegrations,
+      ),
+      (
+        SettingsCategory.meshCenter,
+        CupertinoIcons.antenna_radiowaves_left_right,
+        CupertinoColors.systemGreen,
+        l10n.meshCenterTitle,
       ),
       (
         SettingsCategory.intercom,
