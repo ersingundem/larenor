@@ -20,6 +20,7 @@ from .component_egress.service import ComponentEgress
 from .component_egress.storage import migrate as migrate_component_egress
 from .config import Settings
 from .context import migrate_context
+from .core_backups.service import CoreBackupContract
 from .database import Database
 from .errors import StartupError
 from .files import (
@@ -108,6 +109,7 @@ from .proxmox_commands.worker_ipc import verified_power_worker_client
 from .services.probe_runner import ServiceProbeRunner
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
+from .sound_events.repository import SoundEventRepository
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .vault import VaultService
@@ -381,6 +383,14 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.tablet_fleet.validate_storage()
+            self.sound_events = SoundEventRepository(
+                settings.data_dir / "sound-events.db",
+                key,
+                self.db,
+                self.auth,
+                self.context,
+                settings.clock,
+            )
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None
@@ -392,6 +402,7 @@ class CoreServices:
                 )
             )
             self.admin = AdminService(self.db, self.auth, settings)
+            self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)

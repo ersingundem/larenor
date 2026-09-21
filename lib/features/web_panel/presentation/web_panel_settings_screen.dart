@@ -30,6 +30,7 @@ class _WebPanelSettingsState
   final _origin = TextEditingController();
   late List<String> _origins;
   late bool _zoom;
+  late bool _uploads, _downloads;
   late int _textZoom;
   bool _expired = false, _returned = false;
   String? _error;
@@ -59,6 +60,8 @@ class _WebPanelSettingsState
     _origins = [...?tile.webPanel?.additionalOrigins];
     _zoom = tile.webPanel?.zoomEnabled ?? true;
     _textZoom = tile.webPanel?.textZoom ?? 100;
+    _uploads = tile.webPanel?.allowUploads ?? false;
+    _downloads = tile.webPanel?.allowDownloads ?? false;
   }
 
   @override
@@ -161,6 +164,8 @@ class _WebPanelSettingsState
           .toList(),
       zoomEnabled: _zoom,
       textZoom: _textZoom,
+      allowUploads: _uploads,
+      allowDownloads: _downloads,
     );
     _returned = true;
     Navigator.pop(
@@ -185,6 +190,58 @@ class _WebPanelSettingsState
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 780),
       child: child,
+    ),
+  );
+
+  Widget _toggle({
+    required Key key,
+    required String label,
+    required bool value,
+    required int generation,
+    required ValueChanged<bool> changed,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        FocusableActionDetector(
+          shortcuts: const {
+            SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          },
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                if (_valid(generation)) changed(!value);
+                return null;
+              },
+            ),
+          },
+          child: Semantics(
+            key: key,
+            container: true,
+            label: label,
+            toggled: value,
+            onTap: () {
+              if (_valid(generation)) changed(!value);
+            },
+            child: SizedBox(
+              width: 60,
+              height: 48,
+              child: Center(
+                child: ExcludeSemantics(
+                  child: CupertinoSwitch(
+                    value: value,
+                    onChanged: (next) {
+                      if (_valid(generation)) changed(next);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 
@@ -417,6 +474,28 @@ class _WebPanelSettingsState
                               ),
                           ],
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    header: Text(l10n.webPanelTransfers),
+                    children: [
+                      _toggle(
+                        key: const ValueKey('web-settings-uploads'),
+                        label: l10n.webPanelUploads,
+                        value: _uploads,
+                        generation: generation,
+                        changed: (value) => setState(() => _uploads = value),
+                      ),
+                      _toggle(
+                        key: const ValueKey('web-settings-downloads'),
+                        label: l10n.webPanelDownloads,
+                        value: _downloads,
+                        generation: generation,
+                        changed: (value) => setState(() => _downloads = value),
                       ),
                     ],
                   ),

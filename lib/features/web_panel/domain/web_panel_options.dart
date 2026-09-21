@@ -9,6 +9,8 @@ class WebPanelOptions {
     List<String> additionalOrigins = const [],
     this.zoomEnabled = true,
     this.textZoom = 100,
+    this.allowUploads = false,
+    this.allowDownloads = false,
   }) : additionalOrigins = List.unmodifiable(additionalOrigins) {
     validateJson(toJson());
   }
@@ -16,6 +18,7 @@ class WebPanelOptions {
   final List<String> additionalOrigins;
   final bool zoomEnabled;
   final int textZoom;
+  final bool allowUploads, allowDownloads;
 
   factory WebPanelOptions.fromJson(Map<String, dynamic> json) {
     validateJson(json);
@@ -24,6 +27,8 @@ class WebPanelOptions {
           .cast<String>(),
       zoomEnabled: json['zoomEnabled'] as bool? ?? true,
       textZoom: json['textZoom'] as int? ?? 100,
+      allowUploads: json['allowUploads'] as bool? ?? false,
+      allowDownloads: json['allowDownloads'] as bool? ?? false,
     );
   }
 
@@ -31,6 +36,8 @@ class WebPanelOptions {
     'additionalOrigins': additionalOrigins,
     'zoomEnabled': zoomEnabled,
     'textZoom': textZoom,
+    'allowUploads': allowUploads,
+    'allowDownloads': allowDownloads,
   };
 
   static void validateJson(Object? value) {
@@ -40,6 +47,8 @@ class WebPanelOptions {
           'additionalOrigins',
           'zoomEnabled',
           'textZoom',
+          'allowUploads',
+          'allowDownloads',
         }.containsAll(value.keys)) {
       throw invalid;
     }
@@ -58,6 +67,13 @@ class WebPanelOptions {
     if (value.containsKey('zoomEnabled') && value['zoomEnabled'] is! bool) {
       throw invalid;
     }
+    if (value.containsKey('allowUploads') && value['allowUploads'] is! bool) {
+      throw invalid;
+    }
+    if (value.containsKey('allowDownloads') &&
+        value['allowDownloads'] is! bool) {
+      throw invalid;
+    }
     final zoom = value.containsKey('textZoom') ? value['textZoom'] : 100;
     if (zoom is! int || zoom < 75 || zoom > 200) throw invalid;
   }
@@ -74,10 +90,17 @@ class WebPanelOptions {
       other is WebPanelOptions &&
       listEquals(additionalOrigins, other.additionalOrigins) &&
       zoomEnabled == other.zoomEnabled &&
-      textZoom == other.textZoom;
+      textZoom == other.textZoom &&
+      allowUploads == other.allowUploads &&
+      allowDownloads == other.allowDownloads;
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(additionalOrigins), zoomEnabled, textZoom);
+  int get hashCode => Object.hash(
+    Object.hashAll(additionalOrigins),
+    zoomEnabled,
+    textZoom,
+    allowUploads,
+    allowDownloads,
+  );
 }
 
 /// Shared dashboard/backup boundary. Other tile kinds cannot carry web grants.
