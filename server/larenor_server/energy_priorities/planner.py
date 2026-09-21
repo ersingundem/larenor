@@ -80,7 +80,10 @@ class EnergyPlanner:
         battery = source.battery
         slot_seconds = source.forecast.slotDurationSeconds
         soc = battery.stateOfChargeWh
-        reserve = max(battery.minimumSocWh, source.reserve.backupReserveWh)
+        reserve = max(
+            battery.minimumSocWh,
+            battery.capacityWh * source.reserve.backupReservePercent // 100,
+        )
         high_price = max(source.tariff.importPriceMicrosPerKwh)
         low_price = min(source.tariff.importPriceMicrosPerKwh)
         slots = []

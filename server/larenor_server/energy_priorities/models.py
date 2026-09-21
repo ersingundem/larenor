@@ -106,7 +106,17 @@ class BatteryInput(FrozenModel):
 class ReservePolicy(FrozenModel):
     schemaVersion: Literal[1]
     revision: Revision
-    backupReserveWh: EnergyWh
+    backupReservePercent: Annotated[int, Field(ge=0, le=100)]
+
+
+class InverterCapability(FrozenModel):
+    schemaVersion: Literal[1]
+    inverterId: Identity
+    revision: Revision
+    canCharge: bool
+    canDischarge: bool
+    writable: bool
+    physicalAcceptance: Literal["manual"]
 
 
 class ManualOverride(FrozenModel):
@@ -144,7 +154,6 @@ class EnergyInputs(FrozenModel):
             len(self.tariff.importPriceMicrosPerKwh) != count
             or self.tariff.startsAtMs != self.forecast.startsAtMs
             or self.tariff.slotDurationSeconds != self.forecast.slotDurationSeconds
-            or self.reserve.backupReserveWh > self.battery.maximumSocWh
         ):
             raise ValueError("input_mismatch")
         return self

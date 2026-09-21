@@ -7,6 +7,7 @@ from .models import (
     EnergyInputs,
     EnergyPlan,
     EnergyPlanSlot,
+    InverterCapability,
     InverterCommand,
     InverterCommandPreview,
     InverterCommandResult,
@@ -18,6 +19,7 @@ from .models import (
     TariffInput,
 )
 from .planner import EnergyPlanner
+from .service import EnergyPriorityService
 
 __all__ = [
     "BatteryInput",
@@ -27,6 +29,8 @@ __all__ = [
     "EnergyPlan",
     "EnergyPlanSlot",
     "EnergyPlanner",
+    "EnergyPriorityService",
+    "InverterCapability",
     "InverterCommand",
     "InverterCommandManager",
     "InverterCommandPreview",

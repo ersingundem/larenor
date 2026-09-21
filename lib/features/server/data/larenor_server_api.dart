@@ -534,6 +534,8 @@ class LarenorServerApi {
             'media_inspection_storage_unavailable',
             'media_archive_worker_unavailable',
             'tablet_fleet_storage_unavailable',
+            'energy_provider_unavailable',
+            'energy_command_integrity_failed',
           }.contains(code)) {
         return code as String;
       }

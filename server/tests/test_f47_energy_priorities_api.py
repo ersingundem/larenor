@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
-from fastapi.testclient import TestClient
-
 from conftest import auth, bootstrap_password
+from fastapi.testclient import TestClient
 from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.energy_priorities import (
@@ -14,7 +13,6 @@ from larenor_server.energy_priorities import (
     SolarForecastInput,
     TariffInput,
 )
-
 
 METER, FORECAST, TARIFF = "5" * 32, "6" * 32, "7" * 32
 BATTERY, INVERTER = "8" * 32, "9" * 32
@@ -121,6 +119,19 @@ def _open(tmp_path, provider, worker=None):
         settings,
         energy_priority_provider=provider,
         energy_priority_inverter_worker=worker,
+        energy_priority_inverter_capability=(
+            None
+            if worker is None
+            else {
+                "schemaVersion": 1,
+                "inverterId": INVERTER,
+                "revision": 1,
+                "canCharge": True,
+                "canDischarge": True,
+                "writable": True,
+                "physicalAcceptance": "manual",
+            }
+        ),
     )
     return app, settings, TestClient(app)
 
@@ -162,7 +173,12 @@ def test_preview_is_capability_gated_and_stale_provider_revision_fails_closed(tm
             "expectedAccountRevision": snapshot["authority"]["accountRevision"],
             "expectedHomeRevision": snapshot["authority"]["homeRevision"],
         }
-        assert client.post(f"{root}/previews", headers=auth(pair), json=command).status_code == 403
+        assert (
+            client.post(
+                f"{root}/previews", headers=auth(pair), json=command
+            ).status_code
+            == 403
+        )
 
     def worker(command):
         return InverterReadback(
@@ -191,7 +207,10 @@ def test_preview_is_capability_gated_and_stale_provider_revision_fails_closed(tm
         command["inputDigest"] = snapshot["plan"]["inputDigest"]
         command["expectedAccountRevision"] = snapshot["authority"]["accountRevision"]
         stale = client.post(f"{root}/previews", headers=auth(pair), json=command)
-        assert (stale.status_code, stale.json()["error"]["code"]) == (409, "revision_conflict")
+        assert (stale.status_code, stale.json()["error"]["code"]) == (
+            409,
+            "revision_conflict",
+        )
 
 
 def test_confirm_requires_explicit_token_and_exact_readback(tmp_path):
@@ -231,6 +250,8 @@ def test_confirm_requires_explicit_token_and_exact_readback(tmp_path):
             "expectedHomeRevision": snapshot["authority"]["homeRevision"],
         }
         preview = client.post(f"{root}/previews", headers=auth(pair), json=body).json()
+        replay = client.post(f"{root}/previews", headers=auth(pair), json=body)
+        assert replay.json() == preview
         denied = client.post(
             f"{root}/previews/{body['requestId']}/confirm",
             headers=auth(pair),

@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'energy_provider_unavailable': 'The energy provider is unavailable.',
+    'energy_command_integrity_failed': 'The inverter command history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',

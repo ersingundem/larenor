@@ -375,3 +375,27 @@ class InverterCommandManager:
             state.result = result
             self._append_audit(action, preview)
             return result
+
+    def result(self, presentedAuthority, requestId):
+        authority = self._authority(presentedAuthority)
+        with self._lock:
+            self._validate_audit()
+            state = self._commands.get(requestId)
+            if state is None:
+                raise ApiError("not_found", 404)
+            preview = state.preview
+            if (
+                preview.accountId,
+                preview.accountRevision,
+                preview.memberRevision,
+                preview.sessionFamilyId,
+            ) != (
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("revision_conflict", 409)
+            if state.result is None:
+                raise ApiError("revision_conflict", 409)
+            return state.result

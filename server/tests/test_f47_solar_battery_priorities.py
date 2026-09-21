@@ -36,45 +36,45 @@ class Clock:
 
 
 def authority(**changes):
-    values = dict(
-        schemaVersion=1,
-        coreId=CORE,
-        homeId=HOME,
-        homeRevision=2,
-        accountId=ACCOUNT,
-        accountRevision=3,
-        memberRevision=4,
-        sessionFamilyId=FAMILY,
-        role="admin",
-        active=True,
-        canPlan=True,
-        canControl=True,
-    )
+    values = {
+        "schemaVersion": 1,
+        "coreId": CORE,
+        "homeId": HOME,
+        "homeRevision": 2,
+        "accountId": ACCOUNT,
+        "accountRevision": 3,
+        "memberRevision": 4,
+        "sessionFamilyId": FAMILY,
+        "role": "admin",
+        "active": True,
+        "canPlan": True,
+        "canControl": True,
+    }
     values.update(changes)
     return EnergyAuthority(**values)
 
 
 def inputs(*, override=None, battery_changes=None, **changes):
-    battery_values = dict(
-        schemaVersion=1,
-        resourceId=BATTERY,
-        revision=9,
-        providerRevision=10,
-        capturedAtMs=999_900,
-        capacityWh=10_000,
-        stateOfChargeWh=5_000,
-        minimumSocWh=2_000,
-        maximumSocWh=9_000,
-        maxChargePowerW=2_000,
-        maxDischargePowerW=1_000,
-    )
+    battery_values = {
+        "schemaVersion": 1,
+        "resourceId": BATTERY,
+        "revision": 9,
+        "providerRevision": 10,
+        "capturedAtMs": 999_900,
+        "capacityWh": 10_000,
+        "stateOfChargeWh": 5_000,
+        "minimumSocWh": 2_000,
+        "maximumSocWh": 9_000,
+        "maxChargePowerW": 2_000,
+        "maxDischargePowerW": 1_000,
+    }
     battery_values.update(battery_changes or {})
-    values = dict(
-        schemaVersion=1,
-        coreId=CORE,
-        homeId=HOME,
-        homeRevision=2,
-        meter=MeterInput(
+    values = {
+        "schemaVersion": 1,
+        "coreId": CORE,
+        "homeId": HOME,
+        "homeRevision": 2,
+        "meter": MeterInput(
             schemaVersion=1,
             resourceId=METER,
             revision=5,
@@ -83,7 +83,7 @@ def inputs(*, override=None, battery_changes=None, **changes):
             gridImportPowerW=0,
             gridExportPowerW=0,
         ),
-        forecast=SolarForecastInput(
+        "forecast": SolarForecastInput(
             schemaVersion=1,
             resourceId=FORECAST,
             revision=7,
@@ -94,7 +94,7 @@ def inputs(*, override=None, battery_changes=None, **changes):
             solarEnergyWh=[5_000, 0],
             loadEnergyWh=[0, 4_000],
         ),
-        tariff=TariffInput(
+        "tariff": TariffInput(
             schemaVersion=1,
             resourceId=TARIFF,
             revision=11,
@@ -103,14 +103,14 @@ def inputs(*, override=None, battery_changes=None, **changes):
             importPriceMicrosPerKwh=[100_000, 400_000],
             exportPriceMicrosPerKwh=[50_000, 50_000],
         ),
-        battery=BatteryInput(**battery_values),
-        reserve=ReservePolicy(
+        "battery": BatteryInput(**battery_values),
+        "reserve": ReservePolicy(
             schemaVersion=1,
             revision=12,
             backupReservePercent=40,
         ),
-        manualOverride=override,
-    )
+        "manualOverride": override,
+    }
     values.update(changes)
     return EnergyInputs(**values)
 
