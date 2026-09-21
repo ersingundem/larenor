@@ -44,4 +44,3 @@ provider ingestion, or acceptance against a physical charger.
 - Validate a supported charger, network/time/tariff outage behavior, and manual
   control on physical hardware. These are manual device gates, not implied by
   this software foundation.
-
