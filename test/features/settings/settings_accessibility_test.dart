@@ -206,6 +206,7 @@ void main() {
                 )
                 .first;
             final server = find.text(l10n.serverTitle).first;
+            final tabletFleet = find.text(l10n.serverTabletFleetTitle).first;
             final remote = find.text(l10n.remoteAccessTitle).first;
             final mesh = find.text(l10n.meshCenterTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
@@ -222,11 +223,21 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            expect(
+              Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
+              isTrue,
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, display);
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, remote, reverse: true);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await _tabUntilFocused(tester, tabletFleet, reverse: true);
+            expect(
+              Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
+              isTrue,
+            );
             await _tabUntilFocused(tester, server, reverse: true);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, display);
