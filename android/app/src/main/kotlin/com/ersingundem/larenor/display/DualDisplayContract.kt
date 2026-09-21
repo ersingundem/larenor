@@ -103,7 +103,11 @@ class DualDisplayController(private val host: DualDisplayHost) {
     private var focused = false
     private var active: DualDisplayRequest? = null
 
-    fun snapshot(): Map<String, Any> = host.topology().projection()
+    fun snapshot(): Map<String, Any> {
+        val topology = host.topology()
+        retireIfTopologyChanged(topology)
+        return topology.projection()
+    }
 
     fun setResumed(value: Boolean) {
         resumed = value
@@ -119,6 +123,7 @@ class DualDisplayController(private val host: DualDisplayHost) {
         if (!resumed || !focused) throw DualDisplayFailure("inactive")
         val request = DualDisplayRequest.parse(raw)
         val topology = host.topology()
+        retireIfTopologyChanged(topology)
         val surface = topology.surfaces.singleOrNull { it.displayId == request.displayId }
             ?: throw DualDisplayFailure("displayUnavailable")
         if (
@@ -159,6 +164,14 @@ class DualDisplayController(private val host: DualDisplayHost) {
         resumed = false
         focused = false
         retire()
+    }
+
+    private fun retireIfTopologyChanged(topology: DualDisplayTopology) {
+        val current = active ?: return
+        val surface = topology.surfaces.singleOrNull { it.displayId == current.displayId }
+        if (topology.revision != current.topologyRevision ||
+            surface?.generation != current.displayGeneration || surface?.primary != false
+        ) retire()
     }
 
     private fun retire() {

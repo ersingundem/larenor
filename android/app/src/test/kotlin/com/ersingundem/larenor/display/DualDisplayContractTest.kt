@@ -87,16 +87,55 @@ class DualDisplayContractTest {
         assertEquals(listOf(4), host.dismissed)
     }
 
+    @Test
+    fun topologyChangeRetiresOldOwnerBeforeReattachedDisplayCanPresent() {
+        val host = FakeHost()
+        val controller = DualDisplayController(host)
+        controller.setResumed(true)
+        controller.setFocused(true)
+        val old = mapOf(
+            "sessionId" to "display-session-1-7-4",
+            "topologyRevision" to 7L,
+            "displayId" to 4,
+            "displayGeneration" to 5L,
+            "routeId" to "dashboard.overview",
+        )
+        assertEquals(true, controller.present(old)["attached"])
+
+        host.currentTopology = DualDisplayTopology(
+            revision = 8,
+            surfaces = listOf(DualDisplaySurface(0, 3, true, 1600, 2560, 320, true)),
+        )
+        controller.snapshot()
+        assertEquals(listOf(4), host.dismissed)
+
+        host.currentTopology = DualDisplayTopology(
+            revision = 9,
+            surfaces = listOf(
+                DualDisplaySurface(0, 3, true, 1600, 2560, 320, true),
+                DualDisplaySurface(4, 6, false, 1920, 1080, 160, true),
+            ),
+        )
+        val reattached = old + mapOf(
+            "sessionId" to "display-session-2-9-4",
+            "topologyRevision" to 9L,
+            "displayGeneration" to 6L,
+        )
+        assertEquals(true, controller.present(reattached)["attached"])
+        assertEquals(2, host.presented.size)
+    }
+
     private class FakeHost : DualDisplayHost {
         val presented = mutableListOf<DualDisplayRequest>()
         val dismissed = mutableListOf<Int>()
-        override fun topology() = DualDisplayTopology(
+        var currentTopology = DualDisplayTopology(
             revision = 7,
             surfaces = listOf(
                 DualDisplaySurface(0, 3, true, 1600, 2560, 320, true),
                 DualDisplaySurface(4, 5, false, 1920, 1080, 160, true),
             ),
         )
+        override fun topology() = currentTopology
         override fun present(request: DualDisplayRequest): Boolean {
             presented += request
             return true

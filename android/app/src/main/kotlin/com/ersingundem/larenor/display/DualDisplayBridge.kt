@@ -48,6 +48,7 @@ class DualDisplayBridge(
     fun configurationChanged() {
         if (disposed) return
         host.refresh()
+        controller.snapshot()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -73,11 +74,17 @@ class DualDisplayBridge(
         }
     }
 
-    override fun onDisplayAdded(displayId: Int) = host.refresh()
-    override fun onDisplayChanged(displayId: Int) = host.refresh()
+    override fun onDisplayAdded(displayId: Int) {
+        host.refresh()
+        controller.snapshot()
+    }
+    override fun onDisplayChanged(displayId: Int) {
+        host.refresh()
+        controller.snapshot()
+    }
     override fun onDisplayRemoved(displayId: Int) {
         host.refresh()
-        host.dismiss(displayId)
+        controller.snapshot()
     }
 
     fun dispose() {
