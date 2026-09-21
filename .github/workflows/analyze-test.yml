@@ -108,15 +108,18 @@ jobs:
   analyze-test:
     if: always()
     needs: [static-analysis, flutter-test]
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Require analysis and every deterministic test shard
         env:
           STATIC_RESULT: ${{ needs.static-analysis.result }}
           TEST_RESULT: ${{ needs.flutter-test.result }}
-        run: |
-          if [ "$STATIC_RESULT" != "success" ] || [ "$TEST_RESULT" != "success" ]; then
-            echo "Static analysis or at least one Flutter test shard failed."
-            exit 1
-          fi
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/required_ci_aggregate.py flutter
