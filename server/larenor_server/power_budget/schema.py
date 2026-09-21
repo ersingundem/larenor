@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 TABLES = {
     "power_budget_previews": """CREATE TABLE power_budget_previews (
         id TEXT PRIMARY KEY,
@@ -79,10 +78,14 @@ def migrate_power_budget(connection: sqlite3.Connection) -> None:
             connection.execute("INSERT INTO metadata VALUES('power_budget_schema','1')")
             return
         expected = TABLES | INDEXES
-        if marker["value"] != "1" or set(actual) != set(expected) or any(
-            row["type"] != ("table" if name in TABLES else "index")
-            or " ".join(row["sql"].split()) != " ".join(expected[name].split())
-            for name, row in actual.items()
+        if (
+            marker["value"] != "1"
+            or set(actual) != set(expected)
+            or any(
+                row["type"] != ("table" if name in TABLES else "index")
+                or " ".join(row["sql"].split()) != " ".join(expected[name].split())
+                for name, row in actual.items()
+            )
         ):
             raise ValueError("invalid_power_budget_storage")
     except (sqlite3.Error, TypeError, ValueError):

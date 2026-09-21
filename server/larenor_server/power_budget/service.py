@@ -1,4 +1,3 @@
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
@@ -7,12 +6,12 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from typing import Protocol
 
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
-
 
 MAX_LOADS = 192
 MAX_PREVIEWS = 256
@@ -26,8 +25,10 @@ def _canonical(value: object) -> bytes:
 
 
 def _identifier(value: object) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 128 and all(
-        character.isalnum() or character in "-_.:" for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 128
+        and all(character.isalnum() or character in "-_.:" for character in value)
     )
 
 
@@ -57,17 +58,30 @@ class BudgetAuthority:
 
     def __post_init__(self) -> None:
         if (
-            any(not _identifier(item) for item in (
-                self.core_id, self.home_id, self.account_id, self.session_id,
-                self.meter_id,
-            ))
-            or any(not _revision(item) for item in (
-                self.core_revision, self.home_revision, self.account_revision,
-                self.meter_revision, self.tariff_revision,
-                self.load_registry_revision, self.grid_limit_revision,
-                self.override_revision,
-                self.plan_revision,
-            ))
+            any(
+                not _identifier(item)
+                for item in (
+                    self.core_id,
+                    self.home_id,
+                    self.account_id,
+                    self.session_id,
+                    self.meter_id,
+                )
+            )
+            or any(
+                not _revision(item)
+                for item in (
+                    self.core_revision,
+                    self.home_revision,
+                    self.account_revision,
+                    self.meter_revision,
+                    self.tariff_revision,
+                    self.load_registry_revision,
+                    self.grid_limit_revision,
+                    self.override_revision,
+                    self.plan_revision,
+                )
+            )
             or type(self.max_grid_w) is not int
             or not 1 <= self.max_grid_w <= 1_000_000
             or type(self.max_shed_w) is not int
@@ -202,7 +216,8 @@ class PowerBudgetService:
         ).fetchone()
         rows = connection.execute(
             "SELECT * FROM power_budget_events WHERE core_id=? AND home_id=? AND meter_id=? "
-            "ORDER BY sequence", scope,
+            "ORDER BY sequence",
+            scope,
         ).fetchall()
         if state is None:
             if rows:
@@ -214,9 +229,17 @@ class PowerBudgetService:
         previous = ""
         for row in rows:
             values = (
-                row["sequence"], row["audit_id"], row["core_id"], row["home_id"],
-                row["meter_id"], row["action"], row["actor_id"], row["object_id"],
-                row["plan_hash"], row["occurred_at"], row["request_hash"],
+                row["sequence"],
+                row["audit_id"],
+                row["core_id"],
+                row["home_id"],
+                row["meter_id"],
+                row["action"],
+                row["actor_id"],
+                row["object_id"],
+                row["plan_hash"],
+                row["occurred_at"],
+                row["request_hash"],
                 row["previous_hash"],
             )
             if row["previous_hash"] != previous or not hmac.compare_digest(
@@ -230,8 +253,15 @@ class PowerBudgetService:
             (
                 "power_budget_previews",
                 (
-                    "id", "core_id", "home_id", "meter_id", "account_id",
-                    "plan_revision", "plan_hash", "request_hash", "payload",
+                    "id",
+                    "core_id",
+                    "home_id",
+                    "meter_id",
+                    "account_id",
+                    "plan_revision",
+                    "plan_hash",
+                    "request_hash",
+                    "payload",
                     "created_at",
                 ),
                 b"preview",
@@ -239,8 +269,15 @@ class PowerBudgetService:
             (
                 "power_budget_commands",
                 (
-                    "command_id", "core_id", "home_id", "meter_id", "account_id",
-                    "preview_id", "plan_hash", "request_hash", "created_at",
+                    "command_id",
+                    "core_id",
+                    "home_id",
+                    "meter_id",
+                    "account_id",
+                    "preview_id",
+                    "plan_hash",
+                    "request_hash",
+                    "created_at",
                 ),
                 b"command",
             ),
@@ -279,8 +316,16 @@ class PowerBudgetService:
         ).fetchone()[0]
         audit_id = uuid.uuid4().hex
         values = (
-            sequence, audit_id, *scope, action, actor_id, object_id, plan_hash,
-            occurred_at, request_hash, previous,
+            sequence,
+            audit_id,
+            *scope,
+            action,
+            actor_id,
+            object_id,
+            plan_hash,
+            occurred_at,
+            request_hash,
+            previous,
         )
         event_hash = self._event_hash(values)
         connection.execute(
@@ -297,7 +342,9 @@ class PowerBudgetService:
         )
 
     def _validate_inputs(
-        self, authority: BudgetAuthority, inputs: BudgetInputs,
+        self,
+        authority: BudgetAuthority,
+        inputs: BudgetInputs,
     ) -> dict[str, str]:
         if (
             inputs.meter_revision != authority.meter_revision
@@ -313,14 +360,18 @@ class PowerBudgetService:
             "tariff": authority.tariff_revision,
         }
         now = self._clock()
-        if len(inputs.provider_states) != len(PROVIDERS) or set(states) != PROVIDERS or any(
-            state.status != "verified"
-            or state.revision != expected_revisions[name]
-            or type(state.observed_at) not in (int, float)
-            or not math.isfinite(state.observed_at)
-            or state.observed_at > now
-            or now - state.observed_at > MAX_PROVIDER_AGE_SECONDS
-            for name, state in states.items()
+        if (
+            len(inputs.provider_states) != len(PROVIDERS)
+            or set(states) != PROVIDERS
+            or any(
+                state.status != "verified"
+                or state.revision != expected_revisions[name]
+                or type(state.observed_at) not in (int, float)
+                or not math.isfinite(state.observed_at)
+                or state.observed_at > now
+                or now - state.observed_at > MAX_PROVIDER_AGE_SECONDS
+                for name, state in states.items()
+            )
         ):
             raise ApiError("power_inputs_unverified", 409)
         if (
@@ -332,7 +383,10 @@ class PowerBudgetService:
             or not 0 <= inputs.tariff_micros_per_kwh <= 10_000_000
         ):
             raise ApiError("power_safety_limit", 400)
-        if not isinstance(inputs.loads, tuple) or not 1 <= len(inputs.loads) <= MAX_LOADS:
+        if (
+            not isinstance(inputs.loads, tuple)
+            or not 1 <= len(inputs.loads) <= MAX_LOADS
+        ):
             raise ApiError("power_inputs_unverified", 409)
         identifiers: set[str] = set()
         for load in inputs.loads:
@@ -357,8 +411,15 @@ class PowerBudgetService:
     def _preview_from_row(self, row: sqlite3.Row) -> BudgetPreview:
         try:
             fields = (
-                "id", "core_id", "home_id", "meter_id", "account_id",
-                "plan_revision", "plan_hash", "request_hash", "payload",
+                "id",
+                "core_id",
+                "home_id",
+                "meter_id",
+                "account_id",
+                "plan_revision",
+                "plan_hash",
+                "request_hash",
+                "payload",
                 "created_at",
             )
             if not hmac.compare_digest(
@@ -368,7 +429,9 @@ class PowerBudgetService:
                 raise StartupError("power_budget_preview_invalid")
             value = json.loads(row["payload"])
             actions = tuple(SheddingAction(**slot) for slot in value.pop("actions"))
-            return BudgetPreview(id=row["id"], plan_hash=row["plan_hash"], actions=actions, **value)
+            return BudgetPreview(
+                id=row["id"], plan_hash=row["plan_hash"], actions=actions, **value
+            )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("power_budget_preview_invalid") from None
 
@@ -396,24 +459,36 @@ class PowerBudgetService:
         required_reduction_w = max(0, inputs.grid_import_w - inputs.grid_limit_w)
         if required_reduction_w > authority.max_shed_w:
             raise ApiError("power_safety_limit", 400)
-        status = "manual_override_active" if override and override.expires_at > now else "ready"
+        status = (
+            "manual_override_active"
+            if override and override.expires_at > now
+            else "ready"
+        )
         planned: list[SheddingAction] = []
         if status == "ready":
             remaining = required_reduction_w
             ordered = sorted(
                 (
-                    load for load in inputs.loads
-                    if not load.critical and load.controllable
-                    and load.hold_until <= now and load.current_w > 0
+                    load
+                    for load in inputs.loads
+                    if not load.critical
+                    and load.controllable
+                    and load.hold_until <= now
+                    and load.current_w > 0
                 ),
                 key=lambda load: (load.priority, load.load_id),
             )
             for load in ordered:
                 reduction = min(remaining, load.current_w)
-                planned.append(SheddingAction(
-                    load.load_id, load.revision, reduction,
-                    load.current_w - reduction, load.priority,
-                ))
+                planned.append(
+                    SheddingAction(
+                        load.load_id,
+                        load.revision,
+                        reduction,
+                        load.current_w - reduction,
+                        load.priority,
+                    )
+                )
                 remaining -= reduction
                 if remaining == 0:
                     break
@@ -427,14 +502,19 @@ class PowerBudgetService:
             "provider_status": statuses,
             "override_expires_at": override.expires_at if status != "ready" else None,
         }
-        plan_hash = hashlib.sha256(_canonical({
-            "authority": asdict(authority),
-            "inputs": asdict(inputs),
-            "result": payload,
-        })).hexdigest()
-        request_hash = self._fingerprint(b"preview", _canonical({
-            "authority": asdict(authority), "inputs": asdict(inputs)
-        }))
+        plan_hash = hashlib.sha256(
+            _canonical(
+                {
+                    "authority": asdict(authority),
+                    "inputs": asdict(inputs),
+                    "result": payload,
+                }
+            )
+        ).hexdigest()
+        request_hash = self._fingerprint(
+            b"preview",
+            _canonical({"authority": asdict(authority), "inputs": asdict(inputs)}),
+        )
         scope = self._scope(authority)
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
@@ -442,7 +522,9 @@ class PowerBudgetService:
                 "SELECT * FROM power_budget_previews WHERE id=?", (preview_id,)
             ).fetchone()
             if old is not None:
-                if old["account_id"] != actor.id or not hmac.compare_digest(old["request_hash"], request_hash):
+                if old["account_id"] != actor.id or not hmac.compare_digest(
+                    old["request_hash"], request_hash
+                ):
                     raise ApiError("power_budget_preview_conflict", 409)
                 return self._preview_from_row(old)
             count = connection.execute(
@@ -452,16 +534,27 @@ class PowerBudgetService:
             if count >= MAX_PREVIEWS:
                 raise ApiError("power_budget_preview_limit_reached", 413)
             values = (
-                preview_id, *scope, actor.id, authority.plan_revision,
-                plan_hash, request_hash, json.dumps(payload, sort_keys=True), now,
+                preview_id,
+                *scope,
+                actor.id,
+                authority.plan_revision,
+                plan_hash,
+                request_hash,
+                json.dumps(payload, sort_keys=True),
+                now,
             )
             connection.execute(
                 "INSERT INTO power_budget_previews VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 values + (self._record_hash(b"preview", values),),
             )
             self._event(
-                connection, scope=scope, action="previewed", actor_id=actor.id,
-                object_id=preview_id, plan_hash=plan_hash, request_hash=request_hash,
+                connection,
+                scope=scope,
+                action="previewed",
+                actor_id=actor.id,
+                object_id=preview_id,
+                plan_hash=plan_hash,
+                request_hash=request_hash,
                 occurred_at=now,
             )
             row = connection.execute(
@@ -472,7 +565,8 @@ class PowerBudgetService:
     def _command_status(self, connection, scope, command_id: str) -> str:
         rows = connection.execute(
             "SELECT action FROM power_budget_events WHERE core_id=? AND home_id=? "
-            "AND meter_id=? AND object_id=? ORDER BY sequence", (*scope, command_id),
+            "AND meter_id=? AND object_id=? ORDER BY sequence",
+            (*scope, command_id),
         ).fetchall()
         if not rows:
             raise StartupError("power_budget_audit_invalid")
@@ -486,8 +580,15 @@ class PowerBudgetService:
 
     def _receipt(self, connection, row, scope) -> BudgetCommandReceipt:
         fields = (
-            "command_id", "core_id", "home_id", "meter_id", "account_id",
-            "preview_id", "plan_hash", "request_hash", "created_at",
+            "command_id",
+            "core_id",
+            "home_id",
+            "meter_id",
+            "account_id",
+            "preview_id",
+            "plan_hash",
+            "request_hash",
+            "created_at",
         )
         if not hmac.compare_digest(
             row["record_hash"],
@@ -495,8 +596,11 @@ class PowerBudgetService:
         ):
             raise StartupError("power_budget_command_invalid")
         return BudgetCommandReceipt(
-            row["command_id"], row["preview_id"], row["plan_hash"],
-            self._command_status(connection, scope, row["command_id"]), 1,
+            row["command_id"],
+            row["preview_id"],
+            row["plan_hash"],
+            self._command_status(connection, scope, row["command_id"]),
+            1,
         )
 
     def confirm(
@@ -513,7 +617,8 @@ class PowerBudgetService:
             raise ApiError("invalid_request", 400)
         scope = self._scope(authority)
         request_hash = self._fingerprint(
-            b"confirm", _canonical([asdict(authority), preview_id, command_id, expected_plan_hash])
+            b"confirm",
+            _canonical([asdict(authority), preview_id, command_id, expected_plan_hash]),
         )
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
@@ -521,7 +626,9 @@ class PowerBudgetService:
                 "SELECT * FROM power_budget_commands WHERE command_id=?", (command_id,)
             ).fetchone()
             if old is not None:
-                if old["account_id"] != actor.id or not hmac.compare_digest(old["request_hash"], request_hash):
+                if old["account_id"] != actor.id or not hmac.compare_digest(
+                    old["request_hash"], request_hash
+                ):
                     raise ApiError("power_budget_command_conflict", 409)
                 return self._receipt(connection, old, scope)
             preview_row = connection.execute(
@@ -542,17 +649,27 @@ class PowerBudgetService:
                 raise ApiError("power_budget_preview_changed", 409)
             now = self._clock()
             values = (
-                command_id, *scope, actor.id, preview_id, preview.plan_hash,
-                request_hash, now,
+                command_id,
+                *scope,
+                actor.id,
+                preview_id,
+                preview.plan_hash,
+                request_hash,
+                now,
             )
             connection.execute(
                 "INSERT INTO power_budget_commands VALUES(?,?,?,?,?,?,?,?,?,?)",
                 values + (self._record_hash(b"command", values),),
             )
             self._event(
-                connection, scope=scope, action="dispatch_reserved", actor_id=actor.id,
-                object_id=command_id, plan_hash=preview.plan_hash,
-                request_hash=request_hash, occurred_at=now,
+                connection,
+                scope=scope,
+                action="dispatch_reserved",
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=preview.plan_hash,
+                request_hash=request_hash,
+                occurred_at=now,
             )
         try:
             self._worker.apply(
@@ -560,14 +677,19 @@ class PowerBudgetService:
                 actions=tuple(asdict(slot) for slot in preview.actions),
             )
             action = "awaiting_readback"
-        except Exception:
+        except Exception:  # noqa: BLE001 -- hardware result is deliberately uncertain.
             action = "confirm_uncertain"
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
             self._event(
-                connection, scope=scope, action=action, actor_id=actor.id,
-                object_id=command_id, plan_hash=preview.plan_hash,
-                request_hash=request_hash, occurred_at=self._clock(),
+                connection,
+                scope=scope,
+                action=action,
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=preview.plan_hash,
+                request_hash=request_hash,
+                occurred_at=self._clock(),
             )
             row = connection.execute(
                 "SELECT * FROM power_budget_commands WHERE command_id=?", (command_id,)
@@ -588,16 +710,22 @@ class PowerBudgetService:
             row = connection.execute(
                 "SELECT * FROM power_budget_commands WHERE command_id=?", (command_id,)
             ).fetchone()
-            if row is None or row["account_id"] != actor.id or (
-                row["core_id"], row["home_id"], row["meter_id"]
-            ) != scope:
+            if (
+                row is None
+                or row["account_id"] != actor.id
+                or (row["core_id"], row["home_id"], row["meter_id"]) != scope
+            ):
                 raise ApiError("not_found", 404)
             expected_request_hash = self._fingerprint(
                 b"confirm",
-                _canonical([
-                    asdict(authority), row["preview_id"], command_id,
-                    row["plan_hash"],
-                ]),
+                _canonical(
+                    [
+                        asdict(authority),
+                        row["preview_id"],
+                        command_id,
+                        row["plan_hash"],
+                    ]
+                ),
             )
             if not hmac.compare_digest(row["request_hash"], expected_request_hash):
                 raise ApiError("power_authority_changed", 409)
@@ -605,19 +733,32 @@ class PowerBudgetService:
             if current == "verified":
                 return self._receipt(connection, row, scope)
             observed = self._worker.readback()
-            action = "verified" if observed is not None and hmac.compare_digest(
-                observed, row["plan_hash"]
-            ) else "readback_mismatch"
+            action = (
+                "verified"
+                if observed is not None
+                and hmac.compare_digest(observed, row["plan_hash"])
+                else "readback_mismatch"
+            )
             self._event(
-                connection, scope=scope, action=action, actor_id=actor.id,
-                object_id=command_id, plan_hash=row["plan_hash"],
-                request_hash=self._fingerprint(b"readback", _canonical([command_id, observed])),
+                connection,
+                scope=scope,
+                action=action,
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=row["plan_hash"],
+                request_hash=self._fingerprint(
+                    b"readback", _canonical([command_id, observed])
+                ),
                 occurred_at=self._clock(),
             )
             return self._receipt(connection, row, scope)
 
     def history(
-        self, actor: Principal, *, authority: BudgetAuthority, limit: int,
+        self,
+        actor: Principal,
+        *,
+        authority: BudgetAuthority,
+        limit: int,
     ) -> tuple[dict, ...]:
         self._authorize(actor, authority)
         if type(limit) is not int or not 1 <= limit <= MAX_HISTORY:
@@ -626,11 +767,14 @@ class PowerBudgetService:
             connection.execute("BEGIN")
             try:
                 rows = self._verified_history(connection, self._scope(authority))
-                return tuple({
-                    "auditId": row["audit_id"],
-                    "action": row["action"],
-                    "objectId": row["object_id"],
-                    "occurredAt": row["occurred_at"],
-                } for row in rows[-limit:])
+                return tuple(
+                    {
+                        "auditId": row["audit_id"],
+                        "action": row["action"],
+                        "objectId": row["object_id"],
+                        "occurredAt": row["occurred_at"],
+                    }
+                    for row in rows[-limit:]
+                )
             finally:
                 connection.rollback()

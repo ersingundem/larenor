@@ -2,7 +2,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.errors import ApiError, StartupError
@@ -15,7 +14,6 @@ from larenor_server.power_budget.service import (
     PowerBudgetService,
     ProviderState,
 )
-
 
 AUDIT_KEY = bytes.fromhex("48" * 32)
 NOW = 1_800_000_000.0
@@ -67,7 +65,9 @@ def inputs(*, grid_import_w: int = 11_500, override_until: float | None = None):
             LoadState("dryer", 4, 20, 2_000, False, True, 0),
             LoadState("dishwasher", 6, 30, 1_000, False, True, 0),
         ),
-        manual_override=None if override_until is None else ManualOverride(
+        manual_override=None
+        if override_until is None
+        else ManualOverride(
             expires_at=override_until,
             reason="resident-control",
         ),
@@ -106,7 +106,9 @@ def service(path: Path, worker: FakeWorker | None = None) -> PowerBudgetService:
     )
 
 
-def test_revision_bound_verified_inputs_make_deterministic_bounded_shedding_plan(tmp_path):
+def test_revision_bound_verified_inputs_make_deterministic_bounded_shedding_plan(
+    tmp_path,
+):
     budget = service(tmp_path / "core.sqlite3")
     preview = budget.preview(
         actor(), authority=authority(), inputs=inputs(), preview_id="preview-1"
@@ -120,17 +122,21 @@ def test_revision_bound_verified_inputs_make_deterministic_bounded_shedding_plan
     assert all(action.load_id != "medical-fridge" for action in preview.actions)
     assert preview.provider_status == {"meter": "verified", "tariff": "verified"}
 
-    stale = replace(inputs(), provider_states=(
-        ProviderState("meter", 11, "stale", NOW),
-        ProviderState("tariff", 13, "verified", NOW),
-    ))
+    stale = replace(
+        inputs(),
+        provider_states=(
+            ProviderState("meter", 11, "stale", NOW),
+            ProviderState("tariff", 13, "verified", NOW),
+        ),
+    )
     with pytest.raises(ApiError, match="power_inputs_unverified"):
         budget.preview(
             actor(), authority=authority(), inputs=stale, preview_id="preview-stale"
         )
     with pytest.raises(ApiError, match="power_authority_changed"):
         budget.preview(
-            actor(), authority=authority(),
+            actor(),
+            authority=authority(),
             inputs=replace(inputs(), meter_revision=10),
             preview_id="preview-revision",
         )
@@ -139,7 +145,9 @@ def test_revision_bound_verified_inputs_make_deterministic_bounded_shedding_plan
 def test_critical_load_hold_and_manual_override_expiry_fail_closed(tmp_path):
     budget = service(tmp_path / "core.sqlite3")
     active = budget.preview(
-        actor(), authority=authority(), inputs=inputs(override_until=NOW + 300),
+        actor(),
+        authority=authority(),
+        inputs=inputs(override_until=NOW + 300),
         preview_id="preview-override",
     )
     assert active.status == "manual_override_active"
@@ -147,7 +155,9 @@ def test_critical_load_hold_and_manual_override_expiry_fail_closed(tmp_path):
     assert active.override_expires_at == NOW + 300
 
     expired = budget.preview(
-        actor(), authority=authority(), inputs=inputs(override_until=NOW - 1),
+        actor(),
+        authority=authority(),
+        inputs=inputs(override_until=NOW - 1),
         preview_id="preview-expired",
     )
     assert expired.status == "ready"
@@ -161,18 +171,23 @@ def test_critical_load_hold_and_manual_override_expiry_fail_closed(tmp_path):
     )
     with pytest.raises(ApiError, match="critical_load_protection"):
         budget.preview(
-            actor(), authority=authority(), inputs=protected,
+            actor(),
+            authority=authority(),
+            inputs=protected,
             preview_id="preview-protected",
         )
     with pytest.raises(ApiError, match="power_safety_limit"):
         budget.preview(
-            actor(), authority=authority(),
+            actor(),
+            authority=authority(),
             inputs=replace(inputs(), grid_limit_w=13_000),
             preview_id="preview-unsafe",
         )
 
 
-def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tamper(tmp_path):
+def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tamper(
+    tmp_path,
+):
     path = tmp_path / "core.sqlite3"
     worker = FakeWorker()
     budget = service(path, worker)
@@ -181,17 +196,25 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
     )
     worker.timeout = True
     uncertain = budget.confirm(
-        actor(), authority=authority(), preview_id=preview.id,
-        command_id="command-1", expected_plan_hash=preview.plan_hash,
+        actor(),
+        authority=authority(),
+        preview_id=preview.id,
+        command_id="command-1",
+        expected_plan_hash=preview.plan_hash,
     )
     assert uncertain.status == "uncertain"
     same = service(path, worker).confirm(
-        actor(), authority=authority(), preview_id=preview.id,
-        command_id="command-1", expected_plan_hash=preview.plan_hash,
+        actor(),
+        authority=authority(),
+        preview_id=preview.id,
+        command_id="command-1",
+        expected_plan_hash=preview.plan_hash,
     )
     assert same == uncertain
     assert worker.apply_calls == 1
-    assert [(action["load_id"], action["reduction_w"]) for action in worker.actions] == [
+    assert [
+        (action["load_id"], action["reduction_w"]) for action in worker.actions
+    ] == [
         ("ev-charger", 3_000),
         ("dryer", 500),
     ]
@@ -200,13 +223,15 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
         budget.readback(
             actor(), authority=authority(plan_revision=32), command_id="command-1"
         )
-    assert budget.readback(
-        actor(), authority=authority(), command_id="command-1"
-    ).status == "uncertain"
+    assert (
+        budget.readback(actor(), authority=authority(), command_id="command-1").status
+        == "uncertain"
+    )
     worker.observed_hash = preview.plan_hash
-    assert budget.readback(
-        actor(), authority=authority(), command_id="command-1"
-    ).status == "verified"
+    assert (
+        budget.readback(actor(), authority=authority(), command_id="command-1").status
+        == "verified"
+    )
     assert worker.apply_calls == 1
 
     with Database(path).transaction() as connection:
