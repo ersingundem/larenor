@@ -18,11 +18,11 @@ def root(app):
     return f"/api/v1/workshop/{scope.coreId}/{scope.homeId}"
 
 
-def octoprint(client, admin, app):
+def printer_service(client, admin, app, *, kind="octoprint"):
     response = client.post("/api/v1/admin/services", headers=auth(admin), json={
-        "name": "Workshop OctoPrint",
-        "kind": "octoprint",
-        "baseUrl": "https://octoprint.fixture.invalid",
+        "name": f"Workshop {kind}",
+        "kind": kind,
+        "baseUrl": f"https://{kind}.fixture.invalid",
         "credentials": {"apiKey": SECRET},
     })
     assert response.status_code == 201, response.text
@@ -33,6 +33,10 @@ def octoprint(client, admin, app):
         state="authenticated", version="1.10.3",
     )
     return service
+
+
+def octoprint(client, admin, app):
+    return printer_service(client, admin, app)
 
 
 def state(clock, **safety):
@@ -131,6 +135,19 @@ def test_printer_job_material_and_safety_revisions_are_exact_and_secret_free(ser
         )
     with pytest.raises(StartupError, match="workshop_storage_invalid"):
         create_app(settings)
+
+
+def test_octoprint_and_moonraker_share_a_secret_free_provider_boundary(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    for kind in ("octoprint", "moonraker"):
+        service = printer_service(client, admin, app, kind=kind)
+        printer = register(client, admin, app, clock, service)
+        assert printer["serviceRef"] == {
+            "id": service["id"], "revision": service["revision"]
+        }
+        assert kind not in str(printer).lower()
+        assert SECRET not in str(printer)
 
 
 def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server):
