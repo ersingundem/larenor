@@ -15,9 +15,11 @@ import 'package:larenor/features/ha_tools/presentation/ha_frontend_screen.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
+import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_view.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
 import 'web_panel_data_test.dart' show Api;
@@ -42,6 +44,25 @@ class Connection extends ConnectionConfig {
   ).copyWithPrevious(state);
 }
 
+final class TransferAccess implements WebPanelTransferAccess {
+  int uploads = 0, downloads = 0;
+  @override
+  Future<List<String>> pickUpload(FileSelectorParams request) async {
+    uploads++;
+    return const ['content://fixture/file'];
+  }
+
+  @override
+  Future<bool> download(
+    Uri uri,
+    WebPanelPolicy policy,
+    bool Function() isCurrent,
+  ) async {
+    downloads++;
+    return isCurrent() && policy.allows(uri.toString());
+  }
+}
+
 class Harness {
   final platform = TestWebViewPlatform();
   final interaction = AppInteractionController();
@@ -57,6 +78,7 @@ class Harness {
     Locale locale = const Locale('en'),
     WebPanelOptions? options,
     WebPanelDataCoordinator? coordinator,
+    WebPanelTransferAccess? transferAccess,
   }) async {
     final previous = WebViewPlatform.instance;
     WebViewPlatform.instance = platform;
@@ -103,6 +125,7 @@ class Harness {
                           key: panel,
                           options: options,
                           dataCoordinator: coordinator,
+                          transferAccess: transferAccess,
                           policy:
                               options?.policyFor(
                                 'https://fixture.invalid/start',
@@ -141,6 +164,73 @@ void resume(WidgetTester tester) {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('one-shot transfer bar is accessible $language $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final access = TransferAccess();
+        final h = Harness();
+        await h.mount(
+          tester,
+          size: Size(width, 900),
+          scale: 2,
+          locale: Locale(language),
+          transferAccess: access,
+          options: WebPanelOptions(allowUploads: true, allowDownloads: true),
+        );
+        h.platform.controllers.single.delegate.finished(
+          'https://fixture.invalid/start',
+        );
+        await tester.pump();
+        final download = find.byKey(const ValueKey('web-panel-arm-download'));
+        final downloadSemantics = find.bySemanticsLabel(
+          h.l10n.webPanelArmDownload,
+        );
+        expect(tester.getSize(download).height, greaterThanOrEqualTo(48));
+        expect(downloadSemantics, findsOneWidget);
+        expect(
+          tester.getSemantics(downloadSemantics).flagsCollection.isButton,
+          isTrue,
+        );
+        Focus.of(
+          tester.element(
+            find.descendant(of: download, matching: find.byType(Text)).first,
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(
+          await h.platform.controllers.single.delegate.navigation(
+            const NavigationRequest(
+              url: 'https://fixture.invalid/frame.pdf',
+              isMainFrame: false,
+            ),
+          ),
+          NavigationDecision.navigate,
+        );
+        expect(access.downloads, 0);
+        expect(
+          await h.platform.controllers.single.delegate.navigation(
+            const NavigationRequest(
+              url: 'https://fixture.invalid/file.pdf',
+              isMainFrame: true,
+            ),
+          ),
+          NavigationDecision.prevent,
+        );
+        await tester.pump();
+        expect(access.downloads, 1);
+        expect(find.text(h.l10n.webPanelTransferDone), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await h.close(tester);
+        semantics.dispose();
+      });
+    }
+  }
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('HA frontend toolbar is tablet ready $language $width 2x', (
@@ -551,4 +641,33 @@ void main() {
       await h.close(tester);
     });
   }
+  testWidgets('renderer termination gets one bounded recovery without a loop', (
+    tester,
+  ) async {
+    final h = Harness();
+    await h.mount(tester);
+    h.platform.controllers.single.delegate.resourceError(
+      const WebResourceError(
+        errorCode: -1,
+        description: 'renderer terminated',
+        errorType: WebResourceErrorType.webContentProcessTerminated,
+        isForMainFrame: true,
+      ),
+    );
+    await tester.pump();
+    expect(h.platform.controllers, hasLength(2));
+    h.platform.controllers.last.delegate.resourceError(
+      const WebResourceError(
+        errorCode: -1,
+        description: 'renderer terminated again',
+        errorType: WebResourceErrorType.webContentProcessTerminated,
+        isForMainFrame: true,
+      ),
+    );
+    await tester.pump();
+    expect(h.platform.controllers, hasLength(2));
+    expect(find.text(h.l10n.webPanelLoadFailed), findsOneWidget);
+    expect(find.textContaining('renderer terminated'), findsNothing);
+    await h.close(tester);
+  });
 }

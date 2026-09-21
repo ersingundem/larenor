@@ -8,6 +8,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_platform.dart';
 import '../data/web_panel_data.dart';
+import '../data/web_panel_transfers.dart';
 import '../domain/web_panel_options.dart';
 import '../domain/web_panel_policy.dart';
 
@@ -23,12 +24,14 @@ class WebPanelView extends StatefulWidget {
     this.sourceCurrent,
     this.options,
     this.dataCoordinator,
+    this.transferAccess,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
   final bool Function()? sourceCurrent;
   final WebPanelOptions? options;
   final WebPanelDataCoordinator? dataCoordinator;
+  final WebPanelTransferAccess? transferAccess;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -42,9 +45,10 @@ class WebPanelViewState extends State<WebPanelView> {
   bool _foreground = true, _visible = false, _ready = false;
   _Failure? _failure;
   Timer? _watchdog;
-  final _sinceRestart = Stopwatch();
+  final _recovery = WebPanelRecoveryBudget();
   bool _backBusy = false;
   late WebPanelDataCoordinator _data;
+  WebPanelTransferController? _transfer;
 
   @override
   void initState() {
@@ -97,7 +101,8 @@ class WebPanelViewState extends State<WebPanelView> {
     }
     if (oldWidget.policy != widget.policy ||
         oldWidget.sourceIdentity != widget.sourceIdentity ||
-        oldWidget.options != widget.options) {
+        oldWidget.options != widget.options ||
+        oldWidget.transferAccess != widget.transferAccess) {
       _retire();
       _failure = null;
     }
@@ -118,6 +123,10 @@ class WebPanelViewState extends State<WebPanelView> {
     if (mounted) setState(_sync);
   }
 
+  void _transferChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _clearRetire() {
     _retire();
     return Future.value();
@@ -134,14 +143,7 @@ class WebPanelViewState extends State<WebPanelView> {
   }
 
   void restart() {
-    if (!_active) return;
-    if (_sinceRestart.isRunning &&
-        _sinceRestart.elapsed < const Duration(seconds: 2)) {
-      return;
-    }
-    _sinceRestart
-      ..reset()
-      ..start();
+    if (!_active || !_recovery.take()) return;
     setState(() {
       _retire();
       _failure = null;
@@ -188,6 +190,13 @@ class WebPanelViewState extends State<WebPanelView> {
     try {
       final controller = createWebPanelController();
       _controller = controller;
+      _transfer = WebPanelTransferController(
+        policy: policy,
+        access: widget.transferAccess ?? LocalWebPanelTransferAccess(),
+        uploadsEnabled: widget.options?.allowUploads ?? false,
+        downloadsEnabled: widget.options?.allowDownloads ?? false,
+        isCurrent: () => _current(generation),
+      )..addListener(_transferChanged);
       _ready = false;
       _watchdog?.cancel();
       _watchdog = Timer(
@@ -220,6 +229,10 @@ class WebPanelViewState extends State<WebPanelView> {
               if (!_current(generation)) return NavigationDecision.prevent;
               if (!policy.allows(request.url)) {
                 _fail(_Failure.blocked, generation);
+                return NavigationDecision.prevent;
+              }
+              if (request.isMainFrame &&
+                  _transfer?.captureDownload(request.url) == true) {
                 return NavigationDecision.prevent;
               }
               if (!budget.take()) {
@@ -259,6 +272,12 @@ class WebPanelViewState extends State<WebPanelView> {
               setState(() => _ready = true);
             },
             onWebResourceError: (error) {
+              if (error.errorType ==
+                      WebResourceErrorType.webContentProcessTerminated ||
+                  error.errorType == WebResourceErrorType.webViewInvalidated) {
+                _recoverRenderer(generation);
+                return;
+              }
               if (error.isForMainFrame != false) {
                 _fail(_Failure.load, generation);
               }
@@ -272,7 +291,11 @@ class WebPanelViewState extends State<WebPanelView> {
           ),
         ),
       );
-      await restrictWebPanelPlatform(controller, step);
+      await restrictWebPanelPlatform(
+        controller,
+        step,
+        selectUpload: _transfer?.selectUpload,
+      );
       await configureWebPanelAppearance(controller, widget.options, step);
       await step(
         () => controller.setJavaScriptMode(JavaScriptMode.unrestricted),
@@ -295,12 +318,29 @@ class WebPanelViewState extends State<WebPanelView> {
     });
   }
 
+  void _recoverRenderer(int generation) {
+    if (!_current(generation)) return;
+    if (!_recovery.take()) {
+      _fail(_Failure.load, generation);
+      return;
+    }
+    setState(() {
+      _retire();
+      _failure = null;
+      _sync();
+    });
+  }
+
   void _retire() {
     _generation++;
     _watchdog?.cancel();
     _watchdog = null;
     final controller = _controller;
     _controller = null;
+    final transfer = _transfer;
+    _transfer = null;
+    transfer?.removeListener(_transferChanged);
+    transfer?.dispose();
     _ready = false;
     if (controller != null) _data.retire(() => _blankForClear(controller));
   }
@@ -369,7 +409,76 @@ class WebPanelViewState extends State<WebPanelView> {
           const IgnorePointer(
             child: Center(child: CupertinoActivityIndicator()),
           ),
+        if (_ready &&
+            ((widget.options?.allowUploads ?? false) ||
+                (widget.options?.allowDownloads ?? false)))
+          PositionedDirectional(
+            start: 12,
+            end: 12,
+            bottom: 12,
+            child: SafeArea(top: false, child: _transferBar(l10n)),
+          ),
       ],
+    );
+  }
+
+  Widget _transferBar(AppLocalizations l10n) {
+    final transfer = _transfer;
+    if (transfer == null) return const SizedBox.shrink();
+    final status = switch (transfer.status) {
+      WebPanelTransferStatus.idle => null,
+      WebPanelTransferStatus.uploadArmed => l10n.webPanelUploadArmed,
+      WebPanelTransferStatus.downloadArmed => l10n.webPanelDownloadArmed,
+      WebPanelTransferStatus.working => l10n.webPanelTransferWorking,
+      WebPanelTransferStatus.completed => l10n.webPanelTransferDone,
+      WebPanelTransferStatus.denied => l10n.webPanelTransferDenied,
+      WebPanelTransferStatus.failed => l10n.webPanelTransferFailed,
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground.resolveFrom(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: CupertinoColors.separator.resolveFrom(context),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            if (widget.options?.allowUploads ?? false)
+              CupertinoButton(
+                key: const ValueKey('web-panel-arm-upload'),
+                minimumSize: const Size(48, 48),
+                onPressed: transfer.status == WebPanelTransferStatus.working
+                    ? null
+                    : transfer.armUpload,
+                child: Text(l10n.webPanelArmUpload),
+              ),
+            if (widget.options?.allowDownloads ?? false)
+              CupertinoButton(
+                key: const ValueKey('web-panel-arm-download'),
+                minimumSize: const Size(48, 48),
+                onPressed: transfer.status == WebPanelTransferStatus.working
+                    ? null
+                    : transfer.armDownload,
+                child: Text(l10n.webPanelArmDownload),
+              ),
+            if (status != null)
+              Semantics(
+                liveRegion: true,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Text(status, textAlign: TextAlign.center),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
