@@ -321,6 +321,12 @@ def test_new_partial_or_expired_snapshot_never_reuses_old_verified_state():
     assert core.acknowledge(authority(), old_ack).verified is True
 
     current_data[0] = data(revision=24)
+    with pytest.raises(ApiError) as drift_error:
+        core.delivery_status(authority(), deviceId=DEVICE)
+    assert (drift_error.value.code, drift_error.value.status) == (
+        "revision_conflict",
+        409,
+    )
     fresh = core.compose(
         authority(), device(), layout(), current_data[0], policy(), ttlSeconds=60
     )
