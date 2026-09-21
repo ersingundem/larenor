@@ -1,6 +1,5 @@
 import sqlite3
 
-
 DDL = """
 CREATE TABLE IF NOT EXISTS room_comfort_plans (
     id TEXT PRIMARY KEY,
@@ -31,7 +30,12 @@ CREATE TABLE IF NOT EXISTS room_comfort_previews (
 
 
 def migrate_room_comfort(connection: sqlite3.Connection) -> None:
-    connection.executescript(DDL)
+    # sqlite3.executescript() commits an active transaction before running the
+    # script. Core migrations must remain part of the caller's single startup
+    # transaction so a later schema failure rolls every new table back.
+    for statement in DDL.split(";"):
+        if sql := statement.strip():
+            connection.execute(sql)
     connection.execute(
         "INSERT OR IGNORE INTO room_comfort_state(singleton,plan_id) VALUES(1,NULL)"
     )
