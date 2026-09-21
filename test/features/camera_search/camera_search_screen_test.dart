@@ -100,8 +100,12 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text(entry.$1.localOnly), findsOneWidget);
         expect(tester.takeException(), isNull);
-        final first = tester.getTopLeft(find.byKey(const ValueKey('camera-result-1')));
-        final second = tester.getTopLeft(find.byKey(const ValueKey('camera-result-2')));
+        final first = tester.getTopLeft(
+          find.byKey(const ValueKey('camera-result-1')),
+        );
+        final second = tester.getTopLeft(
+          find.byKey(const ValueKey('camera-result-2')),
+        );
         if (width >= 1000) {
           expect(second.dx, greaterThan(first.dx));
           expect(second.dy, first.dy);
@@ -110,14 +114,18 @@ void main() {
           expect(second.dy, greaterThan(first.dy));
         }
         expect(
-          tester.getSize(find.byKey(const ValueKey('camera-search-submit'))).height,
+          tester
+              .getSize(find.byKey(const ValueKey('camera-search-submit')))
+              .height,
           greaterThanOrEqualTo(48),
         );
       });
     }
   }
 
-  testWidgets('keyboard and TalkBack submit a read-only search', (tester) async {
+  testWidgets('keyboard and TalkBack submit a read-only search', (
+    tester,
+  ) async {
     final gateway = await _pump(
       tester,
       width: 1280,
@@ -133,7 +141,9 @@ void main() {
     expect(gateway.calls, 1);
     expect(find.text('A parcel was left by the door'), findsOneWidget);
     expect(
-      tester.getSemantics(find.byKey(const ValueKey('camera-search-submit'))).label,
+      tester
+          .getSemantics(find.byKey(const ValueKey('camera-search-submit')))
+          .label,
       CameraSearchStrings.en.search,
     );
     expect(find.textContaining('https://'), findsNothing);

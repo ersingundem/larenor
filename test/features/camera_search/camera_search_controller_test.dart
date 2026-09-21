@@ -54,18 +54,21 @@ final class _Gateway implements CameraSearchGateway {
 }
 
 void main() {
-  test('exact current route publishes immutable privacy-scoped results', () async {
-    final gateway = _Gateway();
-    final controller = CameraSearchController(
-      gateway: gateway,
-      isCurrent: () => true,
-    );
-    await controller.search('parcel at door', filter());
-    expect(controller.results, hasLength(1));
-    expect(controller.results.single.summary, contains('parcel'));
-    expect(controller.failure, isNull);
-    expect(gateway.calls, 1);
-  });
+  test(
+    'exact current route publishes immutable privacy-scoped results',
+    () async {
+      final gateway = _Gateway();
+      final controller = CameraSearchController(
+        gateway: gateway,
+        isCurrent: () => true,
+      );
+      await controller.search('parcel at door', filter());
+      expect(controller.results, hasLength(1));
+      expect(controller.results.single.summary, contains('parcel'));
+      expect(controller.failure, isNull);
+      expect(gateway.calls, 1);
+    },
+  );
 
   test('late response after route authority changes is discarded', () async {
     var current = true;

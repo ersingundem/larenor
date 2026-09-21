@@ -60,50 +60,53 @@ Map<String, Object?> pageJson({String? homeId, bool secret = false}) => {
 };
 
 void main() {
-  test('search sends an exact bounded request and parses scoped evidence', () async {
-    late http.Request request;
-    final transport = LarenorServerApi(
-      endpoint: session().endpoint,
-      client: MockClient((value) async {
-        request = value;
-        return http.Response(
-          jsonEncode(pageJson()),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      }),
-    );
-    addTearDown(transport.close);
-    final api = CameraSearchApi(transport, session(), isCurrent: () => true);
-    final page = await api.search(
-      query: 'red parcel',
-      filter: CameraSearchFilter(
-        expectedIndexRevision: 7,
-        start: DateTime.utc(2026, 9, 5, 12),
-        end: DateTime.utc(2026, 9, 5, 13),
-        cameraIds: ['d' * 32],
-      ),
-    );
-    expect(page.results.single.evidence.cameraId, 'd' * 32);
-    expect(request.method, 'POST');
-    expect(request.url.path, '/camera-search/${'a' * 32}/${'b' * 32}/search');
-    expect(jsonDecode(request.body), {
-      'schemaVersion': 1,
-      'query': 'red parcel',
-      'expectedIndexRevision': 7,
-      'startMs': 1788609600000,
-      'endMs': 1788613200000,
-      'cameraIds': ['d' * 32],
-      'pageSize': 30,
-      'cursor': null,
-    });
-  });
+  test(
+    'search sends an exact bounded request and parses scoped evidence',
+    () async {
+      late http.Request request;
+      final transport = LarenorServerApi(
+        endpoint: session().endpoint,
+        client: MockClient((value) async {
+          request = value;
+          return http.Response(
+            jsonEncode(pageJson()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(transport.close);
+      final api = CameraSearchApi(transport, session(), isCurrent: () => true);
+      final page = await api.search(
+        query: 'red parcel',
+        filter: CameraSearchFilter(
+          expectedIndexRevision: 7,
+          start: DateTime.utc(2026, 9, 5, 12),
+          end: DateTime.utc(2026, 9, 5, 13),
+          cameraIds: ['d' * 32],
+        ),
+      );
+      expect(page.results.single.evidence.cameraId, 'd' * 32);
+      expect(request.method, 'POST');
+      expect(
+        request.url.path,
+        '/api/v1/camera-search/${'a' * 32}/${'b' * 32}/search',
+      );
+      expect(jsonDecode(request.body), {
+        'schemaVersion': 1,
+        'query': 'red parcel',
+        'expectedIndexRevision': 7,
+        'startMs': 1788609600000,
+        'endMs': 1788613200000,
+        'cameraIds': ['d' * 32],
+        'pageSize': 30,
+        'cursor': null,
+      });
+    },
+  );
 
   test('foreign scope and secret-bearing results fail closed', () {
-    for (final body in [
-      pageJson(homeId: '0' * 32),
-      pageJson(secret: true),
-    ]) {
+    for (final body in [pageJson(homeId: '0' * 32), pageJson(secret: true)]) {
       expect(
         () => CameraSearchPage.fromJson(body, context()),
         throwsA(isA<LarenorServerException>()),
