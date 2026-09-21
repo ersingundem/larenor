@@ -122,7 +122,7 @@ class _WorkshopScreenState extends State<WorkshopScreen>
   bool get _routeCurrent =>
       mounted &&
       _foreground &&
-      TickerMode.of(context) &&
+      TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override

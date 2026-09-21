@@ -94,7 +94,7 @@ final class _Gateway implements WorkshopGateway {
   void retire() {}
 }
 
-Future<_Gateway> pump(
+Future<_Gateway> _pump(
   WidgetTester tester, {
   required double width,
   required WorkshopStrings strings,
@@ -130,7 +130,7 @@ void main() {
       testWidgets('${entry.$2} $width at 2x is readable and adaptive', (
         tester,
       ) async {
-        await pump(tester, width: width, strings: entry.$1);
+        await _pump(tester, width: width, strings: entry.$1);
         expect(find.text(entry.$1.title), findsOneWidget);
         expect(find.text(entry.$1.thermalRunaway), findsOneWidget);
         expect(tester.takeException(), isNull);
@@ -160,7 +160,7 @@ void main() {
   testWidgets('keyboard and TalkBack keep confirmation explicit', (
     tester,
   ) async {
-    final gateway = await pump(
+    final gateway = await _pump(
       tester,
       width: 1280,
       strings: WorkshopStrings.en,

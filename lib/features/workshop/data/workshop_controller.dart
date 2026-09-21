@@ -14,9 +14,9 @@ final class WorkshopController extends ChangeNotifier {
     required WorkshopGateway gateway,
     required bool Function() isCurrent,
     required String Function() requestKey,
-  }) : _gateway = gateway,
-       _isCurrent = isCurrent,
-       _requestKey = requestKey;
+  }) : this._(gateway, isCurrent, requestKey);
+
+  WorkshopController._(this._gateway, this._isCurrent, this._requestKey);
 
   final WorkshopGateway _gateway;
   final bool Function() _isCurrent;
