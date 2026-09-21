@@ -23,3 +23,9 @@ The focused matrix covers English and Turkish at 600 and 1200 logical pixels
 with 2x text, button semantics and keyboard Done. Existing direct-recovery
 suites exercise PIN recovery, route coverage, lifecycle/background, source and
 provider replacement, storage quarantine and late callback rejection.
+
+## Immutable head validation refresh
+
+The acceptance head was refreshed after the progress gate began reading the
+pull-request head tree directly. This records the new synchronize event; it
+does not change the accepted product scope or claim additional progress.
