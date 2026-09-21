@@ -229,9 +229,9 @@ void main() {
             );
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
-            final comfort = find.text(
-              language == 'tr' ? 'Oda konforu' : 'Room comfort',
-            ).first;
+            final comfort = find
+                .text(language == 'tr' ? 'Oda konforu' : 'Room comfort')
+                .first;
             await _tabUntilFocused(tester, comfort);
             expect(Focus.of(tester.element(comfort)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, display);
