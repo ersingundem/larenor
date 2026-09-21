@@ -32,10 +32,10 @@ not use a production home, account, calendar, or secret.
 
 ## TDD and verification evidence
 
-- RED `2dd74488`: the module import failed before any production code existed.
-- GREEN `edc573f8`: schema, encrypted store, recurrence, authority,
+- RED `d6c67167`: the module import failed before any production code existed.
+- GREEN `34405ade`: schema, encrypted store, recurrence, authority,
   idempotency, cancellation, availability and export contracts were added.
-- Adversarial repair `c26b1bd2`: a RED aggregate-capacity case showed that
+- Adversarial repair `d6504532`: a RED aggregate-capacity case showed that
   pairwise checks could overbook a capacity-three resource. The repair sums all
   concurrent units, rejects numeric lookalike revisions, uses keyed request and
   payload fingerprints, and reads audit state from one SQLite snapshot.

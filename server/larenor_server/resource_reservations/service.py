@@ -463,7 +463,7 @@ class ReservationStore:
         connection.execute(
             "INSERT INTO resource_reservation_state VALUES(?,?,?,?,?,?,?,?) "
             "ON CONFLICT(core_id,home_id,resource_id) DO UPDATE SET "
-            "revision=excluded.revision,event_count=excluded.event_count," 
+            "revision=excluded.revision,event_count=excluded.event_count,"
             "last_hash=excluded.last_hash,state_hash=excluded.state_hash",
             state_values + (self._state_hash(state_values),),
         )
