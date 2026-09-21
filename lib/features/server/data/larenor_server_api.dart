@@ -323,32 +323,25 @@ class LarenorServerApi {
           });
       final forgetQuery =
           method == 'DELETE' &&
-          RegExp(r'^/admin/services/[0-9a-f]{32}$').hasMatch(path) &&
           queryParameters.length == 1 &&
           revision != null &&
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
-          revisionNumber < 9223372036854775807;
+          ((RegExp(r'^/admin/services/[0-9a-f]{32}$').hasMatch(path) &&
+                  revisionNumber < 9223372036854775807) ||
+              (RegExp(
+                    r'^/tablet-fleet/[0-9a-f]{32}/[0-9a-f]{32}/devices/[0-9a-f]{32}$',
+                  ).hasMatch(path) &&
+                  revisionNumber <= 9223372036854775807));
       final personalProfileDeleteQuery =
           method == 'DELETE' &&
           RegExp(r'^/personal-profiles/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$')
               .hasMatch(path) &&
           queryParameters.length == 1 &&
           canonicalRevision(revision);
-      final tabletFleetRevokeQuery =
-          method == 'DELETE' &&
-          RegExp(
-            r'^/tablet-fleet/[0-9a-f]{32}/[0-9a-f]{32}/devices/[0-9a-f]{32}$',
-          ).hasMatch(path) &&
-          queryParameters.length == 1 &&
-          revision != null &&
-          RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
-          revisionNumber != null &&
-          revisionNumber <= 9223372036854775807;
       if (!readQuery &&
           !forgetQuery &&
           !personalProfileDeleteQuery &&
-          !tabletFleetRevokeQuery &&
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&
