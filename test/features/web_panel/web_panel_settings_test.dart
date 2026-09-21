@@ -162,20 +162,14 @@ class Harness {
   }
 
   Future<void> tap(WidgetTester tester, Finder finder) async {
-    if (finder.evaluate().isEmpty) {
-      await tester.scrollUntilVisible(
-        finder,
-        200,
-        scrollable: find
-            .byWidgetPredicate(
-              (widget) =>
-                  widget is Scrollable &&
-                  widget.axisDirection == AxisDirection.down,
-            )
-            .first,
-      );
+    for (
+      var attempt = 0;
+      attempt < 12 && finder.hitTestable().evaluate().isEmpty;
+      attempt++
+    ) {
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+      await tester.pumpAndSettle();
     }
-    await tester.ensureVisible(finder);
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
@@ -265,6 +259,17 @@ void main() {
       await h.close(tester);
     },
   );
+  testWidgets('transfer grants are explicit persisted settings', (
+    tester,
+  ) async {
+    final h = Harness();
+    await h.mount(tester);
+    await h.tap(tester, find.byKey(const ValueKey('web-settings-uploads')));
+    await h.tap(tester, find.byKey(const ValueKey('web-settings-downloads')));
+    await h.tap(tester, find.byKey(const ValueKey('web-settings-save')));
+    expect(h.saved?.webPanel?.allowUploads, true);
+    expect(h.saved?.webPanel?.allowDownloads, true);
+  });
   testWidgets('origin cancel retains no new grant', (tester) async {
     final h = Harness();
     await h.mount(tester);
