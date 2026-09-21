@@ -106,6 +106,12 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/client_update_paths" />
         </provider>
+        <provider android:name=".inventory.InventoryExportFileProvider"
+            android:authorities="${applicationId}.inventory_exports"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/inventory_export_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

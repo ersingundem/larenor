@@ -12,6 +12,7 @@ import com.ersingundem.larenor.updater.ClientUpdaterBridge
 import com.ersingundem.larenor.wellbeing.WellbeingBridge
 import com.ersingundem.larenor.vnc.VncNativeBridge
 import com.ersingundem.larenor.rdp.RdpNativeBridge
+import com.ersingundem.larenor.inventory.InventoryShareBridge
 import com.ersingundem.larenor.notifications.LocalNotificationBridge
 
 @UnstableApi
@@ -23,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var updater: ClientUpdaterBridge? = null
     private var vncNative: VncNativeBridge? = null
     private var rdpNative: RdpNativeBridge? = null
+    private var inventoryShare: InventoryShareBridge? = null
     private var localNotifications: LocalNotificationBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -33,6 +35,7 @@ class MainActivity : FlutterActivity() {
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
         rdpNative = RdpNativeBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        inventoryShare = InventoryShareBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         localNotifications = LocalNotificationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
@@ -44,6 +47,7 @@ class MainActivity : FlutterActivity() {
         updater?.setResumed(true)
         vncNative?.setResumed(true)
         rdpNative?.setResumed(true)
+        inventoryShare?.setResumed(true)
         localNotifications?.setResumed(true)
     }
     override fun onPause() {
@@ -54,6 +58,7 @@ class MainActivity : FlutterActivity() {
         updater?.setResumed(false)
         vncNative?.setResumed(false)
         rdpNative?.setResumed(false)
+        inventoryShare?.setResumed(false)
         localNotifications?.setResumed(false)
         super.onPause()
     }
@@ -65,6 +70,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
         vncNative?.setWindowFocused(hasFocus)
         rdpNative?.setWindowFocused(hasFocus)
+        inventoryShare?.windowChanged()
         localNotifications?.windowChanged()
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -88,6 +94,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        inventoryShare?.dispose()
+        inventoryShare = null
         localNotifications?.dispose()
         localNotifications = null
         rdpNative?.dispose()
