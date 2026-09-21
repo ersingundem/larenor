@@ -28,8 +28,9 @@ progress counter change is claimed.
 
 ## Remaining work
 
-The encrypted selection/album manifest, personal/shared grants, quota and asset
-integrity jobs, deleted-index cleanup, restore verification, authenticated Core
-routes, Android tablet picker, and real Immich acceptance remain open. Face
-labeling remains off unless the administrator and affected account explicitly
-opt in. Originals are never copied or deleted by this foundation.
+The encrypted selection manifest, personal/shared album boundary, quota, and
+deleted-index cleanup are implemented in the following Core slice. Asset
+integrity reconciliation, restore verification, authenticated Core routes,
+Android tablet picker, and real Immich acceptance remain open. Face labeling
+remains off unless the administrator and affected account explicitly opt in.
+Originals are never copied or deleted by this foundation.
