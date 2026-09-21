@@ -1,10 +1,9 @@
 import copy
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 from larenor_server.camera_profiles import (
     CameraMode,
     CameraProfileAuthority,
@@ -19,7 +18,6 @@ from larenor_server.camera_profiles import (
     WorkerReadback,
 )
 from larenor_server.errors import ApiError, StartupError
-
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -156,6 +154,28 @@ def test_presence_is_not_authority_and_home_transition_waits_then_fails_safe():
     )
     assert unknown.reason == "presence_unknown"
     assert unknown.mode == policy().failSafeMode
+
+
+def test_presence_source_rotation_resets_signal_revision_and_stability_window():
+    current = {PROFILE: policy()}
+    service = engine(current_policy=current)
+    service.evaluate(
+        authority(), current[PROFILE],
+        signal("away", revision=100, observed=1_000_000), nowMs=1_015_000,
+    )
+
+    current[PROFILE] = policy(revision=12).model_copy(
+        update={"presenceSourceRevision": 4}
+    )
+    fresh = signal("home", revision=1, observed=2_000_000, source_revision=4)
+    stabilizing = service.evaluate(
+        authority(), current[PROFILE], fresh, nowMs=2_034_999,
+    )
+    assert stabilizing.reason == "presence_stabilizing"
+    settled = service.evaluate(
+        authority(), current[PROFILE], fresh, nowMs=2_035_000,
+    )
+    assert settled.reason == "presence_home"
 
 
 def test_manual_override_is_explicit_revision_bound_and_expires_to_fail_safe():

@@ -1,10 +1,10 @@
 """Fail-closed policy evaluation and one-shot provider command coordination."""
 
-from dataclasses import dataclass
 import hashlib
 import json
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from ..errors import ApiError
 from .models import (
@@ -36,6 +36,7 @@ class CameraProfileEngine:
         self._resolve_authority = authorityResolver
         self._resolve_policy = policyResolver
         self._signals: dict[str, _ObservedPresence] = {}
+        self._signal_lock = threading.Lock()
 
     def _authority(self, presented):
         try:
@@ -74,22 +75,28 @@ class CameraProfileEngine:
         return value
 
     def _observe(self, profile_id: str, signal: PresenceSignal) -> _ObservedPresence:
-        old = self._signals.get(profile_id)
-        if old is not None:
-            if signal.signalRevision < old.signal.signalRevision:
-                raise ApiError("revision_conflict", 409)
-            if signal.signalRevision == old.signal.signalRevision:
-                if signal != old.signal:
+        with self._signal_lock:
+            old = self._signals.get(profile_id)
+            if old is not None and (
+                old.signal.sourceId != signal.sourceId
+                or old.signal.sourceRevision != signal.sourceRevision
+            ):
+                old = None
+            if old is not None:
+                if signal.signalRevision < old.signal.signalRevision:
                     raise ApiError("revision_conflict", 409)
-                return old
-            if signal.observedAtMs < old.signal.observedAtMs:
-                raise ApiError("revision_conflict", 409)
-        stable_since = signal.observedAtMs
-        if old is not None and old.signal.state == signal.state:
-            stable_since = old.stable_since_ms
-        observed = _ObservedPresence(signal, stable_since)
-        self._signals[profile_id] = observed
-        return observed
+                if signal.signalRevision == old.signal.signalRevision:
+                    if signal != old.signal:
+                        raise ApiError("revision_conflict", 409)
+                    return old
+                if signal.observedAtMs < old.signal.observedAtMs:
+                    raise ApiError("revision_conflict", 409)
+            stable_since = signal.observedAtMs
+            if old is not None and old.signal.state == signal.state:
+                stable_since = old.stable_since_ms
+            observed = _ObservedPresence(signal, stable_since)
+            self._signals[profile_id] = observed
+            return observed
 
     def evaluate(
         self,
