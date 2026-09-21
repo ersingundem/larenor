@@ -68,6 +68,7 @@ from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .garden_irrigation.api import router as irrigation_router
 from .energy_priorities.api import router as energy_priorities_router
+from .ev_charging.api import router as ev_charging_router
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -90,7 +91,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                irrigation_provider=None,
                energy_priority_provider=None,
                energy_priority_inverter_worker=None,
-               energy_priority_inverter_capability=None) -> FastAPI:
+               energy_priority_inverter_capability=None,
+               ev_charge_provider=None,
+               ev_charge_charger=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -190,7 +193,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         irrigation_provider=irrigation_provider,
         energy_priority_provider=energy_priority_provider,
         energy_priority_inverter_worker=energy_priority_inverter_worker,
-        energy_priority_inverter_capability=energy_priority_inverter_capability)
+        energy_priority_inverter_capability=energy_priority_inverter_capability,
+        ev_charge_provider=ev_charge_provider,
+        ev_charge_charger=ev_charge_charger)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -299,6 +304,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(irrigation_router, prefix="/api/v1")
     app.include_router(energy_priorities_router, prefix="/api/v1")
+    app.include_router(ev_charging_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")

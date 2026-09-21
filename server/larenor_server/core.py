@@ -109,6 +109,8 @@ from .room_comfort.schema import migrate_room_comfort
 from .room_comfort.service import RoomComfortService
 from .garden_irrigation.runtime import build_irrigation_gateway
 from .energy_priorities.service import EnergyPriorityService
+from .ev_charging.runtime import EvChargeRuntime
+from .ev_charging.schema import migrate_ev_charging
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -123,7 +125,8 @@ class CoreServices:
                  irrigation_provider=None,
                  energy_priority_provider=None,
                  energy_priority_inverter_worker=None,
-                 energy_priority_inverter_capability=None):
+                 energy_priority_inverter_capability=None,
+                 ev_charge_provider=None, ev_charge_charger=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -136,6 +139,8 @@ class CoreServices:
         self._energy_priority_provider = energy_priority_provider
         self._energy_priority_inverter_worker = energy_priority_inverter_worker
         self._energy_priority_inverter_capability = energy_priority_inverter_capability
+        self._ev_charge_provider = ev_charge_provider
+        self._ev_charge_charger = ev_charge_charger
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -239,6 +244,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_room_comfort(connection)
+                migrate_ev_charging(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -319,6 +325,9 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.ev_charging = EvChargeRuntime(
+                self.db, self.auth, settings, key, self.context,
+                self._ev_charge_provider, self._ev_charge_charger)
             self.camera_visual_sensors = CameraVisualSensorService(
                 self.db, self.auth, settings, key, self.context)
             self.camera_visual_sensors.validate_storage()

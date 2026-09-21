@@ -7,6 +7,7 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../ev_charging/presentation/ev_charging_route.dart';
 import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
@@ -33,6 +34,7 @@ enum SettingsCategory {
   display,
   security,
   homeAssistant,
+  evCharging,
   cameraVisualSensors,
   intercom,
   integrations,
@@ -54,6 +56,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.remoteGateCurrent,
     this.meshGateCurrent,
     this.comfortGateCurrent,
+    this.evChargingGateCurrent,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
   });
@@ -64,6 +67,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
   final bool Function()? comfortGateCurrent;
+  final bool Function()? evChargingGateCurrent;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
 
@@ -156,6 +160,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
                       comfortGateCurrent: widget.comfortGateCurrent,
+                      evChargingGateCurrent: widget.evChargingGateCurrent,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
@@ -182,6 +187,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
             comfortGateCurrent: widget.comfortGateCurrent,
+            evChargingGateCurrent: widget.evChargingGateCurrent,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
@@ -224,6 +230,7 @@ Widget paneFor(
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
   bool Function()? comfortGateCurrent,
+  bool Function()? evChargingGateCurrent,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
 }) {
@@ -248,6 +255,8 @@ Widget paneFor(
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
       return const HomeAssistantPane();
+    case SettingsCategory.evCharging:
+      return EvChargingRoute(gateCurrent: evChargingGateCurrent ?? () => false);
     case SettingsCategory.cameraVisualSensors:
       return CameraVisualSensorRoute(
         gateCurrent: visualSensorGateCurrent ?? () => false,
@@ -335,6 +344,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.cube_box,
         CupertinoColors.systemIndigo,
         l10n.settingsCategoryHomeAssistant,
+      ),
+      (
+        SettingsCategory.evCharging,
+        CupertinoIcons.bolt,
+        CupertinoColors.systemGreen,
+        l10n.evChargingTitle,
       ),
       (
         SettingsCategory.cameraVisualSensors,
