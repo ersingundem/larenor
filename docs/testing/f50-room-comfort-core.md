@@ -33,5 +33,5 @@ resolution, preview/confirm readback, lost-ACK idempotency and audit tampering.
 This foundation does not register HTTP routes, persist plan/preview/receipt state
 across restart, implement Home Assistant or vendor workers, provide Android
 Client-to-Core E2E, or prove physical HVAC/window behavior. F50 remains open, so
-progress stays **18/125 (14.4%)** and selected-feature acceptance stays
+progress stays **20/125 (16.0%)** and selected-feature acceptance stays
 **0/63 (0.0%)**.
