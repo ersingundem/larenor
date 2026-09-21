@@ -13,3 +13,9 @@ background, Doze, OEM wake-up, or physical-device acceptance.
 F54 still needs a separately accepted background transport/device gate if that
 scope is desired. Queue progress therefore remains **17/125** and selected
 feature acceptance remains **0/63**.
+
+## Immutable head validation refresh
+
+The acceptance head was refreshed after the progress gate began reading the
+pull-request head tree directly. This records the new synchronize event; it
+does not change the accepted product scope or claim additional progress.
