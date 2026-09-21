@@ -105,7 +105,9 @@ from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .workshop.schema import migrate_workshop
 from .workshop.service import WorkshopService
+from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
+from .sound_events.repository import SoundEventRepository
 
 
 class CoreServices:
@@ -304,6 +306,14 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.sound_events = SoundEventRepository(
+                settings.data_dir / "sound-events.db",
+                key,
+                self.db,
+                self.auth,
+                self.context,
+                settings.clock,
+            )
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None
@@ -315,6 +325,7 @@ class CoreServices:
                 )
             )
             self.admin = AdminService(self.db, self.auth, settings)
+            self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
             self.workshop = WorkshopService(
