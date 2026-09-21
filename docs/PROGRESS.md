@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 21 Eylül 2026 — 22/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. B5.2 son kabul edilen yazılım işidir. Açık PR'lar ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 21 Eylül 2026, main `e81ea793` — 22/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. B5.2 son kabul edilen yazılım işidir. 44 açık PR ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  22/125 iş (%17,6; eşit ağırlıklı sayaç)
