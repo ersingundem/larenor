@@ -24,6 +24,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Finder key(String id) => find.byKey(ValueKey(id));
 Future<void> press(WidgetTester t, String id) async {
+  if (key(id).evaluate().isEmpty) {
+    final scrollable = find.descendant(
+      of: key('remote-scroll'),
+      matching: find.byType(Scrollable),
+    );
+    await t.scrollUntilVisible(key(id), 240, scrollable: scrollable.first);
+  }
   await t.ensureVisible(key(id));
   await t.pumpAndSettle();
   expect(key(id).hitTestable(), findsOneWidget);
