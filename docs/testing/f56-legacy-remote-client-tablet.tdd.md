@@ -30,7 +30,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The rebased RED commit `13c07970` failed because the F56 Client public models, Core API
+The RED contract commit failed because the F56 Client public models, Core API
 boundary, controller, and tablet screen did not exist. The completed matrix now
 contains six Core/service route tests, two authenticated Client transport and
 late-callback tests, two controller contract tests, four command-surface
