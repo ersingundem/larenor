@@ -45,8 +45,10 @@ def transformation_proof(key: bytes, value: dict) -> str:
 
 
 def _identifier(value: object) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 128 and all(
-        character.isalnum() or character in "-_.:" for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 128
+        and all(character.isalnum() or character in "-_.:" for character in value)
     )
 
 
@@ -55,8 +57,10 @@ def _revision(value: object) -> bool:
 
 
 def _digest(value: object) -> bool:
-    return isinstance(value, str) and len(value) == 64 and all(
-        character in "0123456789abcdef" for character in value
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
     )
 
 
@@ -81,15 +85,30 @@ class EventShareAuthority:
 
     def __post_init__(self) -> None:
         if (
-            any(not _identifier(item) for item in (
-                self.core_id, self.home_id, self.account_id, self.session_id,
-                self.camera_id, self.event_id,
-            ))
-            or any(not _revision(item) for item in (
-                self.core_revision, self.home_revision, self.account_revision,
-                self.members_revision, self.camera_revision, self.event_revision,
-                self.session_revision, self.share_revision,
-            ))
+            any(
+                not _identifier(item)
+                for item in (
+                    self.core_id,
+                    self.home_id,
+                    self.account_id,
+                    self.session_id,
+                    self.camera_id,
+                    self.event_id,
+                )
+            )
+            or any(
+                not _revision(item)
+                for item in (
+                    self.core_revision,
+                    self.home_revision,
+                    self.account_revision,
+                    self.members_revision,
+                    self.camera_revision,
+                    self.event_revision,
+                    self.session_revision,
+                    self.share_revision,
+                )
+            )
             or not isinstance(self.member_ids, tuple)
             or not 1 <= len(self.member_ids) <= 128
             or len(set(self.member_ids)) != len(self.member_ids)
@@ -115,9 +134,15 @@ class EventShareConsent:
 
     def __post_init__(self) -> None:
         if (
-            any(not _identifier(item) for item in (
-                self.id, self.granted_by, self.recipient_id, self.event_id,
-            ))
+            any(
+                not _identifier(item)
+                for item in (
+                    self.id,
+                    self.granted_by,
+                    self.recipient_id,
+                    self.event_id,
+                )
+            )
             or not _revision(self.revision)
             or not isinstance(self.purpose, str)
             or not 1 <= len(self.purpose) <= 200
@@ -174,9 +199,14 @@ class PrivateEventShareStore:
         transformation_key: bytes,
         clock: Callable[[], float] = time.time,
     ):
-        if any(not isinstance(key, bytes) or len(key) != 32 for key in (
-            encryption_key, audit_key, transformation_key,
-        )):
+        if any(
+            not isinstance(key, bytes) or len(key) != 32
+            for key in (
+                encryption_key,
+                audit_key,
+                transformation_key,
+            )
+        ):
             raise ValueError("invalid_private_event_share_keys")
         self.database = database
         self._cipher = AESGCM(encryption_key)
@@ -199,7 +229,10 @@ class PrivateEventShareStore:
 
     @staticmethod
     def _parse(command_bytes: bytes, fields: set[str]) -> dict:
-        if not isinstance(command_bytes, bytes) or not 1 <= len(command_bytes) <= MAX_COMMAND_BYTES:
+        if (
+            not isinstance(command_bytes, bytes)
+            or not 1 <= len(command_bytes) <= MAX_COMMAND_BYTES
+        ):
             raise ApiError("invalid_request", 400)
 
         def unique(pairs: list[tuple[str, object]]) -> dict:
@@ -219,7 +252,9 @@ class PrivateEventShareStore:
         return value
 
     @staticmethod
-    def _authorize(actor: Principal, authority: EventShareAuthority, *, write: bool) -> None:
+    def _authorize(
+        actor: Principal, authority: EventShareAuthority, *, write: bool
+    ) -> None:
         if actor.id != authority.account_id or actor.family_id != authority.session_id:
             raise ApiError("authority_changed", 409)
         if actor.role != "admin" and actor.id not in authority.member_ids:
@@ -254,27 +289,43 @@ class PrivateEventShareStore:
 
     @staticmethod
     def _scope(authority: EventShareAuthority) -> tuple[str, str, str, str]:
-        return authority.core_id, authority.home_id, authority.camera_id, authority.event_id
+        return (
+            authority.core_id,
+            authority.home_id,
+            authority.camera_id,
+            authority.event_id,
+        )
 
     def _state(self, connection: sqlite3.Connection, scope: tuple[str, str, str, str]):
         row = connection.execute(
             "SELECT * FROM private_event_share_state WHERE core_id=? AND home_id=? "
-            "AND camera_id=? AND event_id=?", scope,
+            "AND camera_id=? AND event_id=?",
+            scope,
         ).fetchone()
         if row is not None:
             values = (
-                row["core_id"], row["home_id"], row["camera_id"], row["event_id"],
-                row["base_revision"], row["revision"], row["event_count"], row["last_hash"],
+                row["core_id"],
+                row["home_id"],
+                row["camera_id"],
+                row["event_id"],
+                row["base_revision"],
+                row["revision"],
+                row["event_count"],
+                row["last_hash"],
             )
             if not hmac.compare_digest(row["state_hash"], self._state_hash(values)):
                 raise StartupError("private_event_share_history_invalid")
         return row
 
-    def _decrypt(self, row: sqlite3.Row, statuses: dict[str, tuple[float | None, float | None]]):
+    def _decrypt(
+        self, row: sqlite3.Row, statuses: dict[str, tuple[float | None, float | None]]
+    ):
         try:
-            aad = f'{row["core_id"]}\0{row["home_id"]}\0{row["camera_id"]}\0{row["event_id"]}\0{row["id"]}'.encode()
+            aad = f"{row['core_id']}\0{row['home_id']}\0{row['camera_id']}\0{row['event_id']}\0{row['id']}".encode()
             raw = self._cipher.decrypt(row["nonce"], row["ciphertext"], aad)
-            if not hmac.compare_digest(row["payload_hash"], self._fingerprint(b"payload", raw)):
+            if not hmac.compare_digest(
+                row["payload_hash"], self._fingerprint(b"payload", raw)
+            ):
                 raise ValueError
             value = json.loads(raw)
             token = value.pop("access_token")
@@ -301,15 +352,19 @@ class PrivateEventShareStore:
         except (InvalidTag, KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("private_event_share_storage_invalid") from None
 
-    def _verified(self, connection: sqlite3.Connection, scope: tuple[str, str, str, str]):
+    def _verified(
+        self, connection: sqlite3.Connection, scope: tuple[str, str, str, str]
+    ):
         state = self._state(connection, scope)
         rows = connection.execute(
             "SELECT * FROM private_event_share_events WHERE core_id=? AND home_id=? "
-            "AND camera_id=? AND event_id=? ORDER BY sequence", scope,
+            "AND camera_id=? AND event_id=? ORDER BY sequence",
+            scope,
         ).fetchall()
         records = connection.execute(
             "SELECT * FROM private_event_shares WHERE core_id=? AND home_id=? "
-            "AND camera_id=? AND event_id=? ORDER BY created_at,id", scope,
+            "AND camera_id=? AND event_id=? ORDER BY created_at,id",
+            scope,
         ).fetchall()
         if state is None:
             if rows or records:
@@ -322,10 +377,20 @@ class PrivateEventShareStore:
         access_counts: dict[str, int] = {}
         for row in rows:
             values = (
-                row["sequence"], row["audit_id"], row["core_id"], row["home_id"],
-                row["camera_id"], row["event_id"], row["command_id"], row["action"],
-                row["actor_id"], row["recipient_id"], row["share_id"],
-                row["share_revision"], row["occurred_at"], row["request_hash"],
+                row["sequence"],
+                row["audit_id"],
+                row["core_id"],
+                row["home_id"],
+                row["camera_id"],
+                row["event_id"],
+                row["command_id"],
+                row["action"],
+                row["actor_id"],
+                row["recipient_id"],
+                row["share_id"],
+                row["share_revision"],
+                row["occurred_at"],
+                row["request_hash"],
                 row["previous_hash"],
             )
             if row["previous_hash"] != previous or not hmac.compare_digest(
@@ -392,16 +457,31 @@ class PrivateEventShareStore:
         audit_id = uuid.uuid4().hex
         revision = current + 1
         values = (
-            sequence, audit_id, *scope, command_id, action, actor_id, recipient_id,
-            share_id, revision, occurred_at, request_hash, previous,
+            sequence,
+            audit_id,
+            *scope,
+            command_id,
+            action,
+            actor_id,
+            recipient_id,
+            share_id,
+            revision,
+            occurred_at,
+            request_hash,
+            previous,
         )
         event_hash = self._event_hash(values)
         connection.execute(
             "INSERT INTO private_event_share_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             values + (event_hash,),
         )
-        state_values = (*scope, base_revision if state is None else state["base_revision"],
-                        revision, count + 1, event_hash)
+        state_values = (
+            *scope,
+            base_revision if state is None else state["base_revision"],
+            revision,
+            count + 1,
+            event_hash,
+        )
         connection.execute(
             "INSERT INTO private_event_share_state VALUES(?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(core_id,home_id,camera_id,event_id) DO UPDATE SET "
@@ -415,7 +495,8 @@ class PrivateEventShareStore:
     def _find_event(connection, scope, command_id):
         return connection.execute(
             "SELECT * FROM private_event_share_events WHERE core_id=? AND home_id=? "
-            "AND camera_id=? AND event_id=? AND command_id=?", (*scope, command_id),
+            "AND camera_id=? AND event_id=? AND command_id=?",
+            (*scope, command_id),
         ).fetchone()
 
     def create(
@@ -428,11 +509,29 @@ class PrivateEventShareStore:
     ) -> EventShareReceipt:
         self._authorize(actor, authority, write=True)
         fields = {
-            "action", "commandId", "coreId", "homeId", "accountId", "sessionId",
-            "coreRevision", "homeRevision", "accountRevision", "membersRevision",
-            "cameraId", "cameraRevision", "eventId", "eventRevision", "sessionRevision",
-            "expectedShareRevision", "consentId", "consentRevision", "recipientId",
-            "purpose", "expiresAt", "accessMode", "transformation",
+            "action",
+            "commandId",
+            "coreId",
+            "homeId",
+            "accountId",
+            "sessionId",
+            "coreRevision",
+            "homeRevision",
+            "accountRevision",
+            "membersRevision",
+            "cameraId",
+            "cameraRevision",
+            "eventId",
+            "eventRevision",
+            "sessionRevision",
+            "expectedShareRevision",
+            "consentId",
+            "consentRevision",
+            "recipientId",
+            "purpose",
+            "expiresAt",
+            "accessMode",
+            "transformation",
         }
         value = self._parse(command_bytes, fields)
         self._check_scope(value, authority)
@@ -453,15 +552,26 @@ class PrivateEventShareStore:
             or consent.accepted_at > now
             or consent.expires_at <= now
             or consent.expires_at - now > MAX_ACCESS_SECONDS
-            or any(value.get(key) != expected for key, expected in consent_expected.items())
+            or any(
+                value.get(key) != expected for key, expected in consent_expected.items()
+            )
         ):
             raise ApiError("consent_scope_changed", 409)
         transformation = value["transformation"]
         transform_fields = {
-            "sourceDigest", "outputDigest", "outputArtifactId", "pipelineId",
-            "pipelineRevision", "masks", "removedMetadata", "proof",
+            "sourceDigest",
+            "outputDigest",
+            "outputArtifactId",
+            "pipelineId",
+            "pipelineRevision",
+            "masks",
+            "removedMetadata",
+            "proof",
         }
-        if not isinstance(transformation, dict) or set(transformation) != transform_fields:
+        if (
+            not isinstance(transformation, dict)
+            or set(transformation) != transform_fields
+        ):
             raise ApiError("transformation_unverified", 409)
         masks = transformation["masks"]
         metadata = transformation["removedMetadata"]
@@ -482,7 +592,9 @@ class PrivateEventShareStore:
             or not set(consent.required_masks).issubset(masks)
             or not set(consent.required_metadata).issubset(metadata)
             or not isinstance(proof, str)
-            or not hmac.compare_digest(proof, transformation_proof(self._transformation_key, transformation))
+            or not hmac.compare_digest(
+                proof, transformation_proof(self._transformation_key, transformation)
+            )
         ):
             raise ApiError("transformation_unverified", 409)
         request_hash = self._fingerprint(b"request", command_bytes)
@@ -499,8 +611,12 @@ class PrivateEventShareStore:
                     raise ApiError("idempotency_conflict", 409)
                 share, token = shares[replay["share_id"]]
                 return EventShareReceipt(
-                    replay["audit_id"], value["commandId"], "created",
-                    replay["share_revision"], share, token,
+                    replay["audit_id"],
+                    value["commandId"],
+                    "created",
+                    replay["share_revision"],
+                    share,
+                    token,
                 )
             state = self._state(connection, scope)
             current = authority.share_revision if state is None else state["revision"]
@@ -534,22 +650,38 @@ class PrivateEventShareStore:
             connection.execute(
                 "INSERT INTO private_event_shares VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    share_id, *scope, nonce, self._cipher.encrypt(nonce, raw, aad),
+                    share_id,
+                    *scope,
+                    nonce,
+                    self._cipher.encrypt(nonce, raw, aad),
                     self._fingerprint(b"payload", raw),
-                    self._fingerprint(b"token", token.encode()), request_hash, now,
+                    self._fingerprint(b"token", token.encode()),
+                    request_hash,
+                    now,
                 ),
             )
             audit_id, revision = self._insert_event(
-                connection, scope=scope, state=state, base_revision=authority.share_revision,
-                command_id=value["commandId"], action="created", actor_id=actor.id,
-                recipient_id=consent.recipient_id, share_id=share_id,
-                request_hash=request_hash, occurred_at=now,
+                connection,
+                scope=scope,
+                state=state,
+                base_revision=authority.share_revision,
+                command_id=value["commandId"],
+                action="created",
+                actor_id=actor.id,
+                recipient_id=consent.recipient_id,
+                share_id=share_id,
+                request_hash=request_hash,
+                occurred_at=now,
             )
             share, _ = self._decrypt(
-                connection.execute("SELECT * FROM private_event_shares WHERE id=?", (share_id,)).fetchone(),
+                connection.execute(
+                    "SELECT * FROM private_event_shares WHERE id=?", (share_id,)
+                ).fetchone(),
                 {},
             )
-            return EventShareReceipt(audit_id, value["commandId"], "created", revision, share, token)
+            return EventShareReceipt(
+                audit_id, value["commandId"], "created", revision, share, token
+            )
 
     def redeem(
         self,
@@ -559,7 +691,11 @@ class PrivateEventShareStore:
         access_id: str,
         now: float | None = None,
     ) -> dict:
-        if not _identifier(recipient_id) or not _identifier(access_id) or not isinstance(access_token, str):
+        if (
+            not _identifier(recipient_id)
+            or not _identifier(access_id)
+            or not isinstance(access_token, str)
+        ):
             raise ApiError("share_unavailable", 404)
         token_hash = self._fingerprint(b"token", access_token.encode())
         timestamp = self._clock() if now is None else now
@@ -585,17 +721,27 @@ class PrivateEventShareStore:
             )
             replay = self._find_event(connection, scope, access_id)
             if replay is not None:
-                if replay["action"] != "redeemed" or replay["recipient_id"] != recipient_id:
+                if (
+                    replay["action"] != "redeemed"
+                    or replay["recipient_id"] != recipient_id
+                ):
                     raise ApiError("share_unavailable", 404)
             else:
                 state = self._state(connection, scope)
                 if state is None or state["event_count"] >= MAX_EVENTS:
                     raise ApiError("share_unavailable", 404)
                 self._insert_event(
-                    connection, scope=scope, state=state, base_revision=state["base_revision"],
-                    command_id=access_id, action="redeemed", actor_id=recipient_id,
-                    recipient_id=recipient_id, share_id=share.id,
-                    request_hash=request_hash, occurred_at=timestamp,
+                    connection,
+                    scope=scope,
+                    state=state,
+                    base_revision=state["base_revision"],
+                    command_id=access_id,
+                    action="redeemed",
+                    actor_id=recipient_id,
+                    recipient_id=recipient_id,
+                    share_id=share.id,
+                    request_hash=request_hash,
+                    occurred_at=timestamp,
                 )
             return {
                 "shareId": share.id,
@@ -613,14 +759,31 @@ class PrivateEventShareStore:
     ) -> EventShareReceipt:
         self._authorize(actor, authority, write=True)
         fields = {
-            "action", "commandId", "coreId", "homeId", "accountId", "sessionId",
-            "coreRevision", "homeRevision", "accountRevision", "membersRevision",
-            "cameraId", "cameraRevision", "eventId", "eventRevision", "sessionRevision",
-            "expectedShareRevision", "shareId",
+            "action",
+            "commandId",
+            "coreId",
+            "homeId",
+            "accountId",
+            "sessionId",
+            "coreRevision",
+            "homeRevision",
+            "accountRevision",
+            "membersRevision",
+            "cameraId",
+            "cameraRevision",
+            "eventId",
+            "eventRevision",
+            "sessionRevision",
+            "expectedShareRevision",
+            "shareId",
         }
         value = self._parse(command_bytes, fields)
         self._check_scope(value, authority)
-        if value["action"] != "revoke" or not _identifier(value["commandId"]) or not _identifier(value["shareId"]):
+        if (
+            value["action"] != "revoke"
+            or not _identifier(value["commandId"])
+            or not _identifier(value["shareId"])
+        ):
             raise ApiError("invalid_request", 400)
         request_hash = self._fingerprint(b"request", command_bytes)
         scope = self._scope(authority)
@@ -628,12 +791,18 @@ class PrivateEventShareStore:
             _, shares = self._verified(connection, scope)
             replay = self._find_event(connection, scope, value["commandId"])
             if replay is not None:
-                if replay["action"] != "revoked" or not hmac.compare_digest(replay["request_hash"], request_hash):
+                if replay["action"] != "revoked" or not hmac.compare_digest(
+                    replay["request_hash"], request_hash
+                ):
                     raise ApiError("idempotency_conflict", 409)
                 share, _ = shares[replay["share_id"]]
                 return EventShareReceipt(
-                    replay["audit_id"], value["commandId"], "revoked",
-                    replay["share_revision"], share, "",
+                    replay["audit_id"],
+                    value["commandId"],
+                    "revoked",
+                    replay["share_revision"],
+                    share,
+                    "",
                 )
             state = self._state(connection, scope)
             if state is None or state["revision"] != authority.share_revision:
@@ -648,17 +817,26 @@ class PrivateEventShareStore:
                 raise ApiError("share_unavailable", 409)
             now = self._clock()
             audit_id, revision = self._insert_event(
-                connection, scope=scope, state=state, base_revision=state["base_revision"],
-                command_id=value["commandId"], action="revoked", actor_id=actor.id,
-                recipient_id=share.recipient_id, share_id=share.id,
-                request_hash=request_hash, occurred_at=now,
+                connection,
+                scope=scope,
+                state=state,
+                base_revision=state["base_revision"],
+                command_id=value["commandId"],
+                action="revoked",
+                actor_id=actor.id,
+                recipient_id=share.recipient_id,
+                share_id=share.id,
+                request_hash=request_hash,
+                occurred_at=now,
             )
             revoked = PrivateEventShare(**{**share.__dict__, "revoked_at": now})
             return EventShareReceipt(
                 audit_id, value["commandId"], "revoked", revision, revoked, ""
             )
 
-    def export(self, actor: Principal, *, authority: EventShareAuthority, limit: int) -> dict:
+    def export(
+        self, actor: Principal, *, authority: EventShareAuthority, limit: int
+    ) -> dict:
         self._authorize(actor, authority, write=False)
         if type(limit) is not int or not 1 <= limit <= MAX_EXPORT:
             raise ApiError("invalid_request", 400)
@@ -668,10 +846,16 @@ class PrivateEventShareStore:
             try:
                 _, shares = self._verified(connection, scope)
                 state = self._state(connection, scope)
-                current = authority.share_revision if state is None else state["revision"]
+                current = (
+                    authority.share_revision if state is None else state["revision"]
+                )
                 if current != authority.share_revision:
                     raise ApiError("authority_changed", 409)
-                visible = [pair[0] for pair in shares.values() if actor.role == "admin" or pair[0].owner_id == actor.id]
+                visible = [
+                    pair[0]
+                    for pair in shares.values()
+                    if actor.role == "admin" or pair[0].owner_id == actor.id
+                ]
                 if actor.role != "admin" and not authority.can_share:
                     raise ApiError("forbidden", 403)
                 if len(visible) > limit:

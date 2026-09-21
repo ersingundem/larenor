@@ -76,10 +76,14 @@ def migrate_private_event_sharing(connection: sqlite3.Connection) -> None:
             )
             return
         expected = TABLES | INDEXES
-        if marker["value"] != "1" or set(actual) != set(expected) or any(
-            row["type"] != ("table" if name in TABLES else "index")
-            or " ".join(row["sql"].split()) != " ".join(expected[name].split())
-            for name, row in actual.items()
+        if (
+            marker["value"] != "1"
+            or set(actual) != set(expected)
+            or any(
+                row["type"] != ("table" if name in TABLES else "index")
+                or " ".join(row["sql"].split()) != " ".join(expected[name].split())
+                for name, row in actual.items()
+            )
         ):
             raise ValueError("invalid_private_event_share_storage")
     except (sqlite3.Error, TypeError, ValueError):

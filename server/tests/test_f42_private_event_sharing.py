@@ -21,11 +21,15 @@ TRANSFORM_KEY = bytes.fromhex("55" * 32)
 NOW = 1_800_000_000.0
 
 
-def actor(identifier: str, role: str = "member", session: str = "session-a") -> Principal:
+def actor(
+    identifier: str, role: str = "member", session: str = "session-a"
+) -> Principal:
     return Principal(identifier, identifier, role, False, session, "token")
 
 
-def authority(account_id: str = "ada", *, share_revision: int = 7) -> EventShareAuthority:
+def authority(
+    account_id: str = "ada", *, share_revision: int = 7
+) -> EventShareAuthority:
     return EventShareAuthority(
         core_id="core-a",
         home_id="home-a",
@@ -46,7 +50,9 @@ def authority(account_id: str = "ada", *, share_revision: int = 7) -> EventShare
     )
 
 
-def consent(*, mode: str = "one_time", expires_at: float = NOW + 600) -> EventShareConsent:
+def consent(
+    *, mode: str = "one_time", expires_at: float = NOW + 600
+) -> EventShareConsent:
     return EventShareConsent(
         id="consent-1",
         revision=2,
@@ -171,17 +177,25 @@ def test_explicit_consent_and_redaction_proof_are_closed_scopes(tmp_path):
     missing_face = evidence(masks=("license_plate",))
     with pytest.raises(ApiError, match="transformation_unverified"):
         shares.create(
-            actor("ada"), command_bytes=create_bytes(
-                command_id="share-2", share_revision=8, evidence_value=missing_face,
+            actor("ada"),
+            command_bytes=create_bytes(
+                command_id="share-2",
+                share_revision=8,
+                evidence_value=missing_face,
             ),
-            authority=authority(share_revision=8), consent=consent(),
+            authority=authority(share_revision=8),
+            consent=consent(),
         )
     with pytest.raises(ApiError, match="consent_scope_changed"):
         shares.create(
-            actor("ada"), command_bytes=create_bytes(
-                command_id="share-3", share_revision=8, expires_at=NOW + 601,
+            actor("ada"),
+            command_bytes=create_bytes(
+                command_id="share-3",
+                share_revision=8,
+                expires_at=NOW + 601,
             ),
-            authority=authority(share_revision=8), consent=consent(),
+            authority=authority(share_revision=8),
+            consent=consent(),
         )
 
 
@@ -191,13 +205,21 @@ def test_one_time_expiry_revoke_and_byte_exact_idempotency_fail_closed(tmp_path)
     created = shares.create(
         actor("ada"), command_bytes=command, authority=authority(), consent=consent()
     )
-    assert shares.create(
-        actor("ada"), command_bytes=command, authority=authority(), consent=consent()
-    ) == created
+    assert (
+        shares.create(
+            actor("ada"),
+            command_bytes=command,
+            authority=authority(),
+            consent=consent(),
+        )
+        == created
+    )
     with pytest.raises(ApiError, match="idempotency_conflict"):
         shares.create(
-            actor("ada"), command_bytes=json.dumps(json.loads(command), indent=2).encode(),
-            authority=authority(), consent=consent(),
+            actor("ada"),
+            command_bytes=json.dumps(json.loads(command), indent=2).encode(),
+            authority=authority(),
+            consent=consent(),
         )
 
     access = shares.redeem(
@@ -209,14 +231,18 @@ def test_one_time_expiry_revoke_and_byte_exact_idempotency_fail_closed(tmp_path)
     assert set(access) == {"shareId", "outputArtifactId", "outputDigest", "expiresAt"}
     with pytest.raises(ApiError, match="share_unavailable"):
         shares.redeem(
-            recipient_id="recipient-a", access_token=created.access_token,
-            access_id="access-2", now=NOW + 2,
+            recipient_id="recipient-a",
+            access_token=created.access_token,
+            access_id="access-2",
+            now=NOW + 2,
         )
 
     timed = shares.create(
         actor("ada"),
         command_bytes=create_bytes(
-            command_id="share-timed", share_revision=9, mode="time_bound",
+            command_id="share-timed",
+            share_revision=9,
+            mode="time_bound",
         ),
         authority=authority(share_revision=9),
         consent=consent(mode="time_bound"),
@@ -229,8 +255,10 @@ def test_one_time_expiry_revoke_and_byte_exact_idempotency_fail_closed(tmp_path)
     assert revoked.share_revision == 11
     with pytest.raises(ApiError, match="share_unavailable"):
         shares.redeem(
-            recipient_id="recipient-a", access_token=timed.access_token,
-            access_id="access-revoked", now=NOW + 1,
+            recipient_id="recipient-a",
+            access_token=timed.access_token,
+            access_id="access-revoked",
+            now=NOW + 1,
         )
 
 
@@ -238,7 +266,10 @@ def test_encrypted_audit_and_secret_free_role_scoped_export(tmp_path):
     path = tmp_path / "core.sqlite3"
     shares = store(path)
     created = shares.create(
-        actor("ada"), command_bytes=create_bytes(), authority=authority(), consent=consent()
+        actor("ada"),
+        command_bytes=create_bytes(),
+        authority=authority(),
+        consent=consent(),
     )
     with Database(path).connection() as connection:
         row = connection.execute(
@@ -253,12 +284,21 @@ def test_encrypted_audit_and_secret_free_role_scoped_export(tmp_path):
         actor("ada"), authority=authority(share_revision=8), limit=20
     )
     assert set(exported) == {
-        "schemaVersion", "coreId", "homeId", "cameraId", "eventId",
-        "shareRevision", "shares",
+        "schemaVersion",
+        "coreId",
+        "homeId",
+        "cameraId",
+        "eventId",
+        "shareRevision",
+        "shares",
     }
     assert all(
-        not any(term in key.lower() for term in ("token", "source", "proof", "nonce", "cipher", "key"))
-        for item in exported["shares"] for key in item
+        not any(
+            term in key.lower()
+            for term in ("token", "source", "proof", "nonce", "cipher", "key")
+        )
+        for item in exported["shares"]
+        for key in item
     )
     with pytest.raises(ApiError, match="forbidden"):
         shares.export(
