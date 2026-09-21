@@ -16,6 +16,7 @@ def test_authenticated_expense_flow_and_lost_ack_readback(server):
     assert snapshot.status_code == 200
     state = snapshot.json()
     assert state["records"] == []
+    assert state["authority"]["canViewAll"] is True
     account_id = pair["user"]["id"]
     command_id = "11" * 16
     body = {

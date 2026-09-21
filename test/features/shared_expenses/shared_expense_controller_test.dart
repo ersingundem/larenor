@@ -20,6 +20,15 @@ const expenseAuthorityB = SharedExpenseAuthority(
   routeId: 'expenses-b',
   membersRevision: 9,
 );
+const expenseAdminAuthority = SharedExpenseAuthority(
+  coreId: 'core-a',
+  homeId: 'home-a',
+  accountId: 'ada',
+  sessionId: 'session-a',
+  routeId: 'expenses-a',
+  membersRevision: 9,
+  canViewAll: true,
+);
 const participants = [
   ExpenseParticipant(id: 'cem', label: 'Cem'),
   ExpenseParticipant(id: 'ada', label: 'Ada'),
@@ -233,4 +242,23 @@ void main() {
       expect(controller.exportedRecords, isEmpty);
     },
   );
+
+  test('admin-wide export accepts foreign records only with Core authority', () async {
+    final api = FakeSharedExpenseApi();
+    final controller = SharedExpenseController(api, commandIds: () => 'cmd');
+    final lease = controller.bind(expenseAdminAuthority);
+    final load = controller.load(lease);
+    api.snapshots.single.complete(snapshot(expenseAdminAuthority));
+    await load;
+    api.exported = ExpenseExport(expenseAdminAuthority, 4, [
+      record(
+        id: 'foreign-expense',
+        payerId: 'cem',
+        shares: const [ExpenseShare(accountId: 'cem', amountMinor: 10000)],
+      ),
+    ]);
+    await controller.readExport(lease);
+    expect(controller.state, SharedExpenseViewState.empty);
+    expect(controller.exportedRecords.single.id, 'foreign-expense');
+  });
 }
