@@ -132,6 +132,25 @@ void main() {
       throwsA(isA<FormatException>()),
       reason: 'the dated historical receipt must have a valid UTC time',
     );
+    final absentObservation = recoveryJson();
+    final historical = (absentObservation['services'] as List)[1];
+    historical
+      ..['sourceId'] = 'b' * 32
+      ..['sourceKind'] = 'configuration'
+      ..['revision'] = 1
+      ..['resultState'] = 'verified'
+      ..['containerState'] = 'started'
+      ..['serviceState'] = 'verified'
+      ..['storedState'] = 'stored'
+      ..['reachableState'] = 'reachable'
+      ..['verifiedState'] = 'verified'
+      ..['recoveryAction'] = 'none';
+    expect(
+      () => ServerMediaRecoveryStatus.fromJson(absentObservation),
+      throwsA(isA<FormatException>()),
+      reason:
+          'historical reachability cannot be shown without its receipt time',
+    );
   });
 
   test('account change discards an in-flight installation snapshot', () async {

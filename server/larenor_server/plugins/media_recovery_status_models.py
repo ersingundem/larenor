@@ -72,6 +72,7 @@ class MediaRecoveryService(StrictModel):
             self.sourceId is None
             or self.revision is None
             or self.storedState != "stored"
+            or (self.sourceKind != "core" and self.updatedAt is None)
         ):
             raise ValueError("invalid_media_recovery_status")
         if self.sourceKind == "core" and (

@@ -3,9 +3,14 @@
 import json
 from types import SimpleNamespace
 
+import pytest
 from conftest import auth, login, ready
 from fastapi.testclient import TestClient
 from larenor_server.app import create_app
+from larenor_server.plugins.media_recovery_status_models import (
+    MediaRecoveryStatusResponse,
+)
+from pydantic import ValidationError
 from test_music_assistant_bootstrap_jobs import (
     Backend as MusicAssistantBackend,
 )
@@ -37,6 +42,17 @@ def _service(document, service_id):
     return next(
         item for item in document["services"] if item["serviceId"] == service_id
     )
+
+
+def test_retained_reachability_requires_receipt_observation_time(server):
+    _, client, _, _ = server
+    pair, _, _ = music_assistant_ready(server)
+    document = client.get(BASE, headers=auth(pair)).json()
+    observed = _service(document, "music_assistant")
+    assert observed["updatedAt"] is not None
+    observed["updatedAt"] = None
+    with pytest.raises(ValidationError):
+        MediaRecoveryStatusResponse.model_validate(document)
 
 
 def test_container_receipt_is_distinct_from_verified_music_assistant_result(server):

@@ -124,7 +124,8 @@ class ServerMediaRecoveryService {
           revision is! int ||
           revision < 1 ||
           stored != 'stored' ||
-          result == 'missing') {
+          result == 'missing' ||
+          (sourceKind != 'core' && parsedUpdatedAt == null)) {
         _invalid();
       }
     }
