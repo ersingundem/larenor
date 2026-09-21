@@ -22,7 +22,7 @@ kadar açık kalır.
 
 ## RED / GREEN ve doğrulama
 
-- RED `ce15a4e8`: Flutter ve Robolectric sözleşmeleri üretim köprüleri yokken
+- RED `cca7649d`: Flutter ve Robolectric sözleşmeleri üretim köprüleri yokken
   derleme/test hatasını kaydetti.
 - `InventoryShareBridgeTest` hedefli Android görevinde **2/2 PASS**. Test
   izolasyonu Robolectric'in süreç çapındaki `FileProvider` önbelleğini her test
