@@ -23,7 +23,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The RED commit `6f8bc079` failed collection because the
+The RED commit `e3ccd228` failed collection because the
 `larenor_server.epaper_snapshots` package did not exist. The GREEN matrix has
 exactly three focused tests covering allowlists, deterministic canonical
 rendering, all revision and TTL boundaries, secret rejection, offline pull and

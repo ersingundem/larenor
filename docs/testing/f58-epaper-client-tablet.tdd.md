@@ -24,7 +24,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The RED commit `81b90c19` failed because the F58 Client models, API boundary,
+The RED commit `ed4b0dd2` failed because the F58 Client models, API boundary,
 controller, and screen did not exist. The GREEN matrix contains one authority
 and stale-callback test, one preview-confirm-readback test, and one parameterized
 EN/TR tablet accessibility test across both target widths at 200% text.
