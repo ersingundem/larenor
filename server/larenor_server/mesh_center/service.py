@@ -1,12 +1,12 @@
 """Read-only mesh health and explicit, verified Zigbee firmware updates."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import secrets
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -21,11 +21,9 @@ from .models import (
     FirmwareUpdateResult,
     InterferenceSnapshot,
     MeshAuthority,
-    MeshDevice,
     MeshHealthReport,
     MeshTopology,
 )
-
 
 MAX_COMMANDS = 1_000
 MAX_AUDIT = 10_000
@@ -139,7 +137,9 @@ class MeshHealthService:
         interference = self._interference(authority, rawInterference)
         channels = {item.channel: item for item in interference.channels}
         current = channels.get(topology.coordinator.channel)
-        candidates = [channels[channel] for channel in (11, 15, 20, 25) if channel in channels]
+        candidates = [
+            channels[channel] for channel in (11, 15, 20, 25) if channel in channels
+        ]
         if current is None or not candidates:
             raise ApiError("mesh_interference_incomplete", 409)
         recommended = min(
@@ -159,7 +159,12 @@ class MeshHealthService:
         )
         if not topology.coordinator.online:
             status = "unavailable"
-        elif offline_devices or low_battery or offline_routers or current.utilizationPercent >= 80:
+        elif (
+            offline_devices
+            or low_battery
+            or offline_routers
+            or current.utilizationPercent >= 80
+        ):
             status = "degraded"
         else:
             status = "healthy"
@@ -229,6 +234,7 @@ class FirmwareUpdateManager:
         signingKeyResolver: Callable[[str], bytes | None],
         worker: Callable[[FirmwareUpdateCommand], FirmwareUpdateReadback],
         clockMs: Callable[[], int],
+        stateStore=None,
     ):
         if not isinstance(auditKey, bytes) or len(auditKey) < 32:
             raise ValueError("invalid_audit_key")
@@ -239,9 +245,68 @@ class FirmwareUpdateManager:
         self._resolve_signing_key = signingKeyResolver
         self._worker = worker
         self._clock = clockMs
+        self._store = stateStore
         self._commands: dict[str, _UpdateState] = {}
         self._audit: list[MeshUpdateAuditEntry] = []
         self._lock = threading.RLock()
+        if self._store is not None:
+            self._restore(self._store.load())
+
+    def _restore(self, raw):
+        try:
+            commands = {}
+            for item in raw["commands"]:
+                state = _UpdateState(
+                    preview=FirmwareUpdatePreview.model_validate(item["preview"]),
+                    topology=MeshTopology.model_validate(item["topology"]),
+                    catalog=FirmwareCatalog.model_validate(item["catalog"]),
+                    entry=FirmwareCatalogEntry.model_validate(item["entry"]),
+                    result=(
+                        None
+                        if item.get("result") is None
+                        else FirmwareUpdateResult.model_validate(item["result"])
+                    ),
+                )
+                if state.preview.requestId in commands:
+                    raise ValueError
+                commands[state.preview.requestId] = state
+            audit = [MeshUpdateAuditEntry(**item) for item in raw["audit"]]
+            if len(commands) > MAX_COMMANDS or len(audit) > MAX_AUDIT:
+                raise ValueError
+            self._commands = commands
+            self._audit = audit
+            self._validate_audit()
+        except Exception:
+            from ..errors import StartupError
+
+            raise StartupError("mesh_update_storage_invalid") from None
+
+    def _persist(self):
+        if self._store is None:
+            return
+        commands = []
+        for request_id in sorted(self._commands):
+            state = self._commands[request_id]
+            commands.append(
+                {
+                    "preview": state.preview.model_dump(mode="json"),
+                    "topology": state.topology.model_dump(mode="json"),
+                    "catalog": state.catalog.model_dump(mode="json"),
+                    "entry": state.entry.model_dump(mode="json"),
+                    "result": (
+                        None
+                        if state.result is None
+                        else state.result.model_dump(mode="json")
+                    ),
+                }
+            )
+        self._store.save(
+            {
+                "schemaVersion": 1,
+                "commands": commands,
+                "audit": [asdict(item) for item in self._audit],
+            }
+        )
 
     @property
     def audit(self):
@@ -355,7 +420,10 @@ class FirmwareUpdateManager:
         ) != (authority.coreId, authority.homeId, authority.homeRevision):
             raise ApiError("revision_conflict", 409)
         now = self._clock()
-        if topology.capturedAtMs > now or now - topology.capturedAtMs > MAX_SNAPSHOT_AGE_MS:
+        if (
+            topology.capturedAtMs > now
+            or now - topology.capturedAtMs > MAX_SNAPSHOT_AGE_MS
+        ):
             raise ApiError("mesh_snapshot_stale", 409)
         return topology
 
@@ -363,7 +431,9 @@ class FirmwareUpdateManager:
         try:
             catalog = FirmwareCatalog.model_validate(presented)
             current = self._resolve_catalog(catalog.catalogId)
-            current = None if current is None else FirmwareCatalog.model_validate(current)
+            current = (
+                None if current is None else FirmwareCatalog.model_validate(current)
+            )
         except Exception:
             raise ApiError("revision_conflict", 409) from None
         if current != catalog:
@@ -385,6 +455,10 @@ class FirmwareUpdateManager:
         except Exception:
             raise ApiError("firmware_signature_invalid", 409) from None
         return catalog
+
+    def validate_catalog(self, presented):
+        """Return only the exact current catalog with a valid vendor signature."""
+        return self._current_catalog(presented)
 
     def _safe_entry(self, topology, catalog, device_id, firmware_id):
         devices = {device.deviceId: device for device in topology.devices}
@@ -472,9 +546,7 @@ class FirmwareUpdateManager:
                 expiresAtMs=expires,
                 confirmationToken=ZERO_HASH,
             )
-            preview = draft.model_copy(
-                update={"confirmationToken": self._token(draft)}
-            )
+            preview = draft.model_copy(update={"confirmationToken": self._token(draft)})
         except Exception:
             raise ApiError("invalid_request") from None
         with self._lock:
@@ -490,6 +562,12 @@ class FirmwareUpdateManager:
                 preview, topology, catalog, entry
             )
             self._append_audit("previewed", preview)
+            try:
+                self._persist()
+            except Exception:
+                self._audit.pop()
+                del self._commands[preview.requestId]
+                raise
             return preview
 
     def confirm(self, presentedAuthority, rawPreview, confirmationToken):
@@ -533,7 +611,10 @@ class FirmwareUpdateManager:
             device, entry = self._safe_entry(
                 topology, catalog, preview.deviceId, preview.firmwareId
             )
-            if device.revision + 1 != preview.expectedResultRevision or entry != state.entry:
+            if (
+                device.revision + 1 != preview.expectedResultRevision
+                or entry != state.entry
+            ):
                 raise ApiError("revision_conflict", 409)
             command = FirmwareUpdateCommand(
                 schemaVersion=1,
@@ -600,4 +681,41 @@ class FirmwareUpdateManager:
                 action = "uncertain"
             state.result = result
             self._append_audit(action, preview)
+            try:
+                self._persist()
+            except Exception:
+                self._audit.pop()
+                state.result = None
+                raise
             return result
+
+    def result(self, presentedAuthority, requestId):
+        """Read one existing result without dispatching or replaying its command."""
+        authority = self._authority(presentedAuthority)
+        if not isinstance(requestId, str):
+            raise ApiError("invalid_request")
+        with self._lock:
+            self._validate_audit()
+            state = self._commands.get(requestId)
+            if state is None:
+                raise ApiError("not_found", 404)
+            preview = state.preview
+            if (
+                preview.coreId,
+                preview.homeId,
+                preview.accountId,
+                preview.accountRevision,
+                preview.memberRevision,
+                preview.sessionFamilyId,
+            ) != (
+                authority.coreId,
+                authority.homeId,
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("forbidden", 403)
+            if state.result is None:
+                raise ApiError("not_found", 404)
+            return state.result

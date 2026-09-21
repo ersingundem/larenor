@@ -105,6 +105,7 @@ from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .workshop.schema import migrate_workshop
 from .workshop.service import WorkshopService
+from .mesh_center.runtime import build_mesh_center_gateway
 
 
 class CoreServices:
@@ -112,7 +113,7 @@ class CoreServices:
                  transfer_limits: TransferLimits | None = None,
                  proxmox_guest_provider=None, proxmox_power_executor=None,
                  media_archive_binding_reader=None,
-                 media_archive_worker=None):
+                 media_archive_worker=None, mesh_center_provider=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -120,6 +121,7 @@ class CoreServices:
         self._proxmox_power_executor = proxmox_power_executor
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
+        self._mesh_center_provider = mesh_center_provider
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -302,6 +304,16 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.mesh_center = (
+                None
+                if self._mesh_center_provider is None
+                else build_mesh_center_gateway(
+                    self._mesh_center_provider,
+                    master_key=key,
+                    data_dir=settings.data_dir,
+                    clock=settings.clock,
+                )
+            )
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
