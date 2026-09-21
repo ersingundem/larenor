@@ -23,6 +23,7 @@ class ServerMediaRecoveryService {
     required this.reachableState,
     required this.verifiedState,
     required this.recoveryAction,
+    required this.updatedAt,
   });
 
   factory ServerMediaRecoveryService.fromJson(Object? value) {
@@ -55,6 +56,9 @@ class ServerMediaRecoveryService {
     final action = map['recoveryAction'];
     final error = map['errorCode'];
     final updatedAt = map['updatedAt'];
+    final parsedUpdatedAt = updatedAt is String
+        ? DateTime.tryParse(updatedAt)
+        : null;
     if (serviceId is! String ||
         !mediaRecoveryServiceOrder.contains(serviceId) ||
         sourceKind is! String ||
@@ -92,7 +96,12 @@ class ServerMediaRecoveryService {
         (error != null &&
             (error is! String ||
                 !RegExp(r'^[a-z][a-z0-9_]{0,127}$').hasMatch(error))) ||
-        (updatedAt != null && updatedAt is! String)) {
+        (updatedAt != null &&
+            (updatedAt is! String ||
+                updatedAt.length > 40 ||
+                !updatedAt.endsWith('Z') ||
+                parsedUpdatedAt == null ||
+                !parsedUpdatedAt.isUtc))) {
       _invalid();
     }
     if (sourceKind == 'missing') {
@@ -147,6 +156,7 @@ class ServerMediaRecoveryService {
       reachableState: reachable,
       verifiedState: verified,
       recoveryAction: action,
+      updatedAt: parsedUpdatedAt,
     );
   }
 
@@ -155,6 +165,7 @@ class ServerMediaRecoveryService {
   final String sourceKind, resultState, storedState, reachableState;
   final String verifiedState, recoveryAction;
   final int? revision;
+  final DateTime? updatedAt;
 }
 
 class ServerMediaRecoveryStatus {

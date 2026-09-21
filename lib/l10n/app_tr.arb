@@ -2991,17 +2991,18 @@
   "serverRecoveryProviderAccounts": "Sağlayıcı hesapları",
   "serverRecoveryProviderAccountsDetail": "Music Assistant sağlayıcı hazırlığını ve desteklenen denetimleri inceleyin.",
   "serverRecoveryUnavailable": "Kurulum durumu kullanılamıyor. Bu ekranı güncel bir yönetici oturumuyla yeniden açın.",
-  "serverRecoveryReady": "Yedi bileşenin tamamı doğrulandı",
+  "serverRecoveryReady": "Yedi bileşenin son sonuçları doğrulandı",
   "serverRecoveryAttention": "Bir bileşen ilgilenilmesini bekliyor",
   "serverRecoveryIncomplete": "Kurulum tamamlanmadı",
-  "serverRecoveryEvidenceHelp": "Kayıtlı, Core'un bir kaydı koruduğunu belirtir. Erişilebilir durumu güncel servis kanıtı, doğrulanmış durumu ise aynı revizyon için kimlik doğrulanmış sonuç gerektirir.",
+  "serverRecoveryEvidenceHelp": "Servis satırları belirtilen revizyon ve gözlem zamanına ait saklanan sonuçları gösterir. Canlı bağlantı testi değildir; yenileme bu sonuçları yeniden okur.",
   "serverRecoveryCore": "Larenor Core",
   "serverRecoveryStored": "Kayıtlı",
   "serverRecoveryNotStored": "Kayıtlı değil",
-  "serverRecoveryReachable": "Erişilebilir",
+  "serverRecoveryReachable": "Son gözlemde erişilebilir",
   "serverRecoveryUnreachable": "Erişilemiyor",
   "serverRecoveryReachabilityUnknown": "Erişilebilirlik doğrulanmadı",
   "serverRecoveryVerified": "Doğrulandı",
   "serverRecoveryUnverified": "Doğrulanmadı",
-  "serverRecoveryRevision": "Revizyon"
+  "serverRecoveryRevision": "Revizyon",
+  "serverRecoveryObservedAt": "Son kayıt"
 }

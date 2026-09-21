@@ -3329,17 +3329,18 @@
   "serverRecoveryProviderAccounts": "Provider accounts",
   "serverRecoveryProviderAccountsDetail": "Review Music Assistant provider readiness and supported controls.",
   "serverRecoveryUnavailable": "Installation status is unavailable. Reopen this screen with a current administrator session.",
-  "serverRecoveryReady": "All seven components are verified",
+  "serverRecoveryReady": "Last results verified for all seven components",
   "serverRecoveryAttention": "A component needs attention",
   "serverRecoveryIncomplete": "Installation is incomplete",
-  "serverRecoveryEvidenceHelp": "Stored means Core retained a record. Reachable requires current service evidence. Verified requires an authenticated result for that exact revision.",
+  "serverRecoveryEvidenceHelp": "Service rows show retained receipts for their stated revision and observation time. This is not a live connection test; refresh reloads those receipts.",
   "serverRecoveryCore": "Larenor Core",
   "serverRecoveryStored": "Stored",
   "serverRecoveryNotStored": "Not stored",
-  "serverRecoveryReachable": "Reachable",
+  "serverRecoveryReachable": "Last observed reachable",
   "serverRecoveryUnreachable": "Unreachable",
   "serverRecoveryReachabilityUnknown": "Reachability not verified",
   "serverRecoveryVerified": "Verified",
   "serverRecoveryUnverified": "Not verified",
-  "serverRecoveryRevision": "Revision"
+  "serverRecoveryRevision": "Revision",
+  "serverRecoveryObservedAt": "Last receipt"
 }

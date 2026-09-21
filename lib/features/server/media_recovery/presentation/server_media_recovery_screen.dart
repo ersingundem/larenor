@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
@@ -174,10 +175,14 @@ class _ServerMediaRecoveryScreenState
         '${_stored(l, item.storedState)}. '
         '${_reachable(l, item.reachableState)}. '
         '${_verified(l, item.verifiedState)}.';
+    final observed = item.updatedAt == null
+        ? null
+        : '${l.serverRecoveryObservedAt}: '
+              '${DateFormat.yMd(l.localeName).add_Hm().format(item.updatedAt!.toLocal())}';
     return Semantics(
       key: ValueKey('server-recovery-${item.serviceId}'),
       container: true,
-      label: '$name. $state',
+      label: '$name. $state${observed == null ? '' : ' $observed'}',
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
@@ -210,6 +215,8 @@ class _ServerMediaRecoveryScreenState
                         '${l.serverRecoveryRevision} $revision',
                         style: AppText.footnote,
                       ),
+                    if (observed != null)
+                      Text(observed, style: AppText.footnote),
                   ],
                 ),
               ),

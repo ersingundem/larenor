@@ -13,6 +13,7 @@ import 'package:larenor/features/server/media_recovery/presentation/server_media
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:intl/intl.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -122,6 +123,14 @@ void main() {
       () => ServerMediaRecoveryStatus.fromJson(contradictory),
       throwsA(anyOf(isA<LarenorServerException>(), isA<FormatException>())),
       reason: 'failed evidence requires a bounded public error code',
+    );
+    final undatedEvidence = recoveryJson();
+    (undatedEvidence['services'] as List).first['updatedAt'] =
+        'not-a-utc-observation';
+    expect(
+      () => ServerMediaRecoveryStatus.fromJson(undatedEvidence),
+      throwsA(isA<FormatException>()),
+      reason: 'the dated historical receipt must have a valid UTC time',
     );
   });
 
@@ -251,6 +260,80 @@ void main() {
         semantics.dispose();
       });
     }
+  }
+
+  for (final locale in ['en', 'tr']) {
+    testWidgets(
+      'historical reachability is dated and never presented as live in $locale',
+      (tester) async {
+        final fixture = RecoveryFixture();
+        final snapshot = recoveryJson();
+        final qbittorrent = (snapshot['services'] as List).firstWhere(
+          (entry) => entry['serviceId'] == 'qbittorrent',
+        ) as Map<String, dynamic>;
+        qbittorrent.addAll({
+          'sourceId': 'b' * 32,
+          'sourceKind': 'configuration',
+          'revision': 2,
+          'resultState': 'verified',
+          'containerState': 'started',
+          'serviceState': 'verified',
+          'storedState': 'stored',
+          'reachableState': 'reachable',
+          'verifiedState': 'verified',
+          'recoveryAction': 'none',
+          'updatedAt': '2026-09-20T12:00:00.000Z',
+        });
+        fixture.respond = (request) async =>
+            request.url.path.endsWith('/admin/media/recovery-status')
+            ? fixture.json(snapshot)
+            : fixture.defaultResponse(request);
+        FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
+        await fixture.account.initialize();
+        addTearDown(fixture.account.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              serverAccountControllerProvider.overrideWithValue(
+                fixture.account,
+              ),
+            ],
+            child: CupertinoApp(
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ServerMediaRecoveryScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final finder = find.byKey(
+          const ValueKey('server-recovery-qbittorrent'),
+        );
+        await tester.scrollUntilVisible(finder, 220);
+        final semantics = tester.getSemantics(finder).label;
+        expect(
+          semantics,
+          contains(
+            locale == 'tr'
+                ? 'Son gözlemde erişilebilir'
+                : 'Last observed reachable',
+          ),
+        );
+        final observed = DateFormat.yMd(locale)
+            .add_Hm()
+            .format(DateTime.parse('2026-09-20T12:00:00.000Z').toLocal());
+        expect(semantics, contains(observed));
+        expect(
+          find.textContaining(
+            locale == 'tr'
+                ? 'Canlı bağlantı testi değildir'
+                : 'This is not a live connection test',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   }
 
   testWidgets('operator action is keyboard reachable and opens settings', (

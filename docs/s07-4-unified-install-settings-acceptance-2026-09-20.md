@@ -58,6 +58,10 @@ geçersizleşir. Aynı exact route tekrar görünür olduğunda ekran kilitli ka
 Route yetkisi callback'i istisna üretirse de ağ çağrısı başlamaz. İstisna geç
 yanıt sırasında oluşursa sonuç bırakılır, `busy` temizlenir ve sonraki geçerli
 rota tekrar okuyabilir; callback hatası Client'a taşınmaz.
+Durum yanıtı kalıcı kurulum/konfigürasyon receipt'lerini okur; refresh canlı
+servis probe'u değildir. Tablet artık `reachable` bilgisini son gözlem olarak
+adlandırır ve mevcutsa receipt zamanını gösterir; geçmiş doğrulamayı şu anki
+bağlantı erişilebilirliği gibi sunmaz.
 
 ## Açık kapılar
 
