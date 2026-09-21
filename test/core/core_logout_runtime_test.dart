@@ -75,7 +75,13 @@ void main() {
       expect(find.text(l10n.serverLogoutUnconfirmed), findsOneWidget);
       expect(h.connectionReads, 0);
       expect(h.api.logouts, 1);
-      await tester.tap(find.text(l10n.homeCoreManageAccount));
+      final manageAccount = find.text(l10n.homeCoreManageAccount);
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -350),
+      );
+      await tester.pump();
+      await tester.tap(manageAccount);
       await flush(tester);
       expect(find.text(l10n.settingsGateUnlockButton), findsOneWidget);
       expect(find.byType(ServerConnectionScreen), findsNothing);
@@ -103,7 +109,13 @@ void main() {
               final l10n = AppLocalizations.of(
                 tester.element(find.byType(CoreHomeStatusScreen)),
               );
-              await tester.tap(find.text(l10n.homeCoreManageAccount));
+              final manageAccount = find.text(l10n.homeCoreManageAccount);
+              await tester.drag(
+                find.byType(CustomScrollView).last,
+                const Offset(0, -350),
+              );
+              await tester.pump();
+              await tester.tap(manageAccount);
               await flush(tester);
               await tester.enterText(find.byType(CupertinoTextField), '1234');
               await tester.tap(find.text(l10n.settingsGateUnlockButton));
