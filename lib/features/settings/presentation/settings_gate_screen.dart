@@ -144,12 +144,19 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
+      if (widget.initialDestination == SettingsGateDestination.tabletFleet &&
+          (next.isLoading ||
+              next.hasError ||
+              (previous?.hasValue == true &&
+                  next.hasValue &&
+                  previous?.value != next.value))) {
+        _lockSettings();
+        return;
+      }
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
               widget.initialDestination ==
                   SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
-              widget.initialDestination ==
-                  SettingsGateDestination.tabletFleet ||
               widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           (next.isLoading || next.hasError)) {
@@ -164,8 +171,6 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
-              widget.initialDestination ==
-                  SettingsGateDestination.tabletFleet ||
               widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           previous?.value != next.value) {
@@ -385,7 +390,6 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                               )
                             : SettingsSplitScreen(
                                 meshGateCurrent: () {
-                                tabletFleetGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||
                                       resourceGeneration != _generation ||
@@ -428,6 +432,21 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                       !value.hasError &&
                                       value.hasValue &&
                                       (value.value == null || _unlocked);
+                                },
+                                tabletFleetGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
                                 },
                                 runFileDialog: _runFileDialog,
                                 onExit: Navigator.of(context).canPop()
