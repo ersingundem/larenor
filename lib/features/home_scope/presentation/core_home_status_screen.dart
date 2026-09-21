@@ -83,6 +83,18 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                     const HomePeopleEntry(),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('core-home-epaper-entry'),
+                        buttonKey: const ValueKey('core-home-epaper-action'),
+                        title: Text(l10n.epaperTitle),
+                        additionalInfo: Text(l10n.epaperEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/epaper');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('core-home-inventory-entry'),
                         buttonKey: const ValueKey('core-home-inventory-action'),
                         title: Text(l10n.inventoryTitle),

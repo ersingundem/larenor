@@ -21,6 +21,7 @@ import '../features/local_notifications/presentation/local_notification_screen.d
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
 import '../features/irrigation_budget/presentation/irrigation_budget_route.dart';
+import '../features/epaper/presentation/epaper_management_route.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
@@ -40,6 +41,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),
+        ),
+        GoRoute(
+          path: '/epaper',
+          builder: (_, _) => const EpaperManagementRoute(),
         ),
         GoRoute(
           path: '/settings',
@@ -218,6 +223,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/notifications',
         builder: (_, _) => const LocalNotificationScreen(),
       ),
+      if (home != null)
+        GoRoute(
+          path: '/epaper',
+          builder: (_, _) => const EpaperManagementRoute(),
+        ),
     ],
   );
   ref.onDispose(router.dispose);
