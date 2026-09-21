@@ -100,6 +100,7 @@ class DetectionBatch(FrozenModel):
     modelRevision: Revision
     capturedAtMs: TimestampMs
     providerStatus: Literal["ready", "degraded"]
+    frameStatus: Literal["complete", "missing", "corrupt", "wrong_camera"]
     evidence: EvidenceDescriptor
     detections: list[Detection] = Field(max_length=64)
 
@@ -108,6 +109,10 @@ class DetectionBatch(FrozenModel):
         labels = [item.label for item in self.detections]
         if len(labels) != len(set(labels)):
             raise ValueError("duplicate_detection")
+        if self.frameStatus != "complete" and (
+            self.providerStatus != "degraded" or self.detections
+        ):
+            raise ValueError("untrusted_frame")
         return self
 
 
