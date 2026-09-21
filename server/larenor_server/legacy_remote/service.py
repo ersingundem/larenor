@@ -1,12 +1,12 @@
 """Preview-confirm orchestration for opaque, bounded IR/RF commands."""
 
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
 import secrets
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 from ..errors import ApiError
 from .models import (
@@ -18,7 +18,6 @@ from .models import (
     RemoteDevice,
     RemoteWorkerCommand,
 )
-
 
 MAX_COMMANDS = 1_000
 MAX_AUDIT = 10_000
@@ -146,7 +145,9 @@ class LegacyRemoteManager:
                 commands[preview.requestId] = state
             audit = []
             for raw in snapshot["audit"]:
-                if not isinstance(raw, dict) or set(raw) != set(RemoteAuditEntry.__annotations__):
+                if not isinstance(raw, dict) or set(raw) != set(
+                    RemoteAuditEntry.__annotations__
+                ):
                     raise ValueError("invalid_snapshot")
                 audit.append(RemoteAuditEntry(**raw))
             self._commands, self._audit = commands, audit
@@ -167,7 +168,9 @@ class LegacyRemoteManager:
         try:
             authority = RemoteAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
-            current = None if current is None else RemoteAuthority.model_validate(current)
+            current = (
+                None if current is None else RemoteAuthority.model_validate(current)
+            )
         except Exception:
             raise ApiError("forbidden", 403) from None
         if current is None:
@@ -381,9 +384,7 @@ class LegacyRemoteManager:
                 expiresAtMs=self._clock() + PREVIEW_LIFETIME_MS,
                 confirmationToken=ZERO_HASH,
             )
-            preview = draft.model_copy(
-                update={"confirmationToken": self._token(draft)}
-            )
+            preview = draft.model_copy(update={"confirmationToken": self._token(draft)})
         except Exception:
             raise ApiError("invalid_request") from None
         with self._lock:
@@ -395,9 +396,7 @@ class LegacyRemoteManager:
                 return prior.preview
             if len(self._commands) >= MAX_COMMANDS:
                 raise ApiError("revision_conflict", 409)
-            self._commands[preview.requestId] = _CommandState(
-                preview, device, profile
-            )
+            self._commands[preview.requestId] = _CommandState(preview, device, profile)
             self._append_audit("previewed", preview)
             try:
                 self._persist()

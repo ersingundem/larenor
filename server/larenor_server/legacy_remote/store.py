@@ -62,7 +62,9 @@ class LegacyRemoteStore:
         return value
 
     def _read(self, connection):
-        rows = connection.execute("SELECT * FROM legacy_remote_state LIMIT 2").fetchall()
+        rows = connection.execute(
+            "SELECT * FROM legacy_remote_state LIMIT 2"
+        ).fetchall()
         if len(rows) != 1:
             raise ValueError("invalid_legacy_remote_state")
         return rows[0], self._decode(rows[0])
@@ -71,7 +73,14 @@ class LegacyRemoteStore:
         try:
             with self._db.connection() as connection:
                 return self._read(connection)[1]
-        except (InvalidTag, json.JSONDecodeError, sqlite3.Error, TypeError, ValueError, OverflowError):
+        except (
+            InvalidTag,
+            json.JSONDecodeError,
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+            OverflowError,
+        ):
             raise ApiError("remote_command_integrity_failed", 503) from None
 
     def save(self, snapshot):
@@ -115,7 +124,14 @@ class LegacyRemoteStore:
                 )
         except ApiError:
             raise
-        except (InvalidTag, json.JSONDecodeError, sqlite3.Error, TypeError, ValueError, OverflowError):
+        except (
+            InvalidTag,
+            json.JSONDecodeError,
+            sqlite3.Error,
+            TypeError,
+            ValueError,
+            OverflowError,
+        ):
             raise ApiError("remote_command_integrity_failed", 503) from None
 
     def validate_storage(self):

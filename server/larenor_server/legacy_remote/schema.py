@@ -6,11 +6,10 @@ import json
 import os
 import sqlite3
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import StartupError
-
 
 SCHEMA_VERSION = "1"
 MAX_CIPHERTEXT = 2 * 1024 * 1024
@@ -26,13 +25,19 @@ CREATE TABLE legacy_remote_state (
 
 
 def aad(core_id: str, home_id: str, revision: int) -> bytes:
-    return (
-        b"larenor:legacy-remote-state:v1\0"
-        + json.dumps([core_id, home_id, revision], separators=(",", ":")).encode("ascii")
-    )
+    return b"larenor:legacy-remote-state:v1\0" + json.dumps(
+        [core_id, home_id, revision], separators=(",", ":")
+    ).encode("ascii")
 
 
-def state_tag(key: bytes, core_id: str, home_id: str, revision: int, nonce: bytes, ciphertext: bytes) -> str:
+def state_tag(
+    key: bytes,
+    core_id: str,
+    home_id: str,
+    revision: int,
+    nonce: bytes,
+    ciphertext: bytes,
+) -> str:
     return hmac.new(
         key,
         b"larenor:legacy-remote-row:v1\0"
@@ -84,7 +89,9 @@ def migrate_legacy_remote(connection: sqlite3.Connection, key: bytes, context) -
             )
         elif marker["value"] != SCHEMA_VERSION or table is None:
             raise ValueError("invalid_legacy_remote_schema")
-        rows = connection.execute("SELECT * FROM legacy_remote_state LIMIT 2").fetchall()
+        rows = connection.execute(
+            "SELECT * FROM legacy_remote_state LIMIT 2"
+        ).fetchall()
         if len(rows) != 1:
             raise ValueError("invalid_legacy_remote_state")
         row = rows[0]

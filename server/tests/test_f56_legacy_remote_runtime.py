@@ -1,5 +1,5 @@
+from conftest import Clock, auth, bootstrap_password, login
 from fastapi.testclient import TestClient
-
 from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.errors import ApiError
@@ -12,9 +12,6 @@ from larenor_server.legacy_remote import (
     RemoteDeliveryReceipt,
     RemoteDevice,
 )
-
-from conftest import Clock, auth, bootstrap_password, login
-
 
 DEVICE = "5" * 32
 BRIDGE = "6" * 32
@@ -107,7 +104,9 @@ class FakeRemoteProvider:
         return self.device if self.device is not None and device_id == DEVICE else None
 
     def resolve_profile(self, profile_id):
-        return self.profile if self.profile is not None and profile_id == PROFILE else None
+        return (
+            self.profile if self.profile is not None and profile_id == PROFILE else None
+        )
 
     def emit(self, command):
         self.calls.append(command)
@@ -222,9 +221,10 @@ def test_registered_provider_result_survives_restart_without_replay(tmp_path):
     second = _start(settings, provider)
     with TestClient(second) as client:
         assert client.get(root, headers=auth(pair)).status_code == 200
-        assert client.get(
-            root + f"/results/{REQUEST}", headers=auth(pair)
-        ).json() == expected
+        assert (
+            client.get(root + f"/results/{REQUEST}", headers=auth(pair)).json()
+            == expected
+        )
         repeated = client.post(
             root + f"/previews/{REQUEST}/confirm",
             headers=auth(pair),
@@ -268,9 +268,12 @@ def test_lost_ack_is_durable_and_restart_never_replays(tmp_path):
     second = _start(settings, provider)
     with TestClient(second) as client:
         assert client.get(root, headers=auth(pair)).status_code == 200
-        assert client.get(
-            root + f"/results/{REQUEST}", headers=auth(pair)
-        ).json()["result"] == result
+        assert (
+            client.get(root + f"/results/{REQUEST}", headers=auth(pair)).json()[
+                "result"
+            ]
+            == result
+        )
     assert len(provider.calls) == 1
 
 
@@ -316,9 +319,7 @@ def test_restart_recovers_persisted_dispatch_attempt_as_uncertain_without_replay
     second = _start(settings, provider)
     with TestClient(second) as client:
         assert client.get(root, headers=auth(pair)).status_code == 200
-        recovered = client.get(
-            root + f"/results/{REQUEST}", headers=auth(pair)
-        )
+        recovered = client.get(root + f"/results/{REQUEST}", headers=auth(pair))
         assert recovered.status_code == 200
         assert (
             recovered.json()["result"]["status"],
