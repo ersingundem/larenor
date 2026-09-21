@@ -572,9 +572,9 @@ void main() {
       tester.widget<CupertinoButton>(all).onPressed!();
       await tester.pumpAndSettle();
       expect(find.byType(HaActionsScreen), findsOneWidget);
-      final tile = find.widgetWithText(CupertinoListTile, 'lock.unlock');
+      final tile = find.byKey(const ValueKey('ha-action-lock.unlock'));
       await tester.ensureVisible(tile);
-      tester.widget<CupertinoListTile>(tile).onTap!();
+      tester.widget<CupertinoButton>(tile).onPressed!();
       await tester.pumpAndSettle();
       expect(find.byType(HaActionScreen), findsOneWidget);
       final run = find.widgetWithText(CupertinoButton, 'Run');

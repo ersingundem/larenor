@@ -56,6 +56,18 @@ class _MediaTitleDetailScreenState
   bool _choosingSeasons = false;
   bool _requestSubmitted = false;
 
+  bool _actionCurrent(int generation) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true;
+
+  VoidCallback _guardedAction(VoidCallback action) {
+    final generation = sessionGeneration;
+    return () {
+      if (_actionCurrent(generation)) action();
+    };
+  }
+
   String? get _jellyfinHint =>
       widget.title.jellyfinItemId ??
       widget.title.jellyfinSeriesId ??
@@ -147,7 +159,7 @@ class _MediaTitleDetailScreenState
 
   Future<void> _refresh() async {
     final generation = sessionGeneration;
-    if (_busy || !sessionCurrent(generation)) return;
+    if (_busy || !_actionCurrent(generation)) return;
     setState(() {
       _busy = true;
       _message = null;
@@ -291,9 +303,9 @@ class _MediaTitleDetailScreenState
                       const SizedBox(height: 20),
                       MediaProgressCard(
                         title: title,
-                        onRefresh: _busy ? null : guardedMediaAction(_refresh),
+                        onRefresh: _busy ? null : _guardedAction(_refresh),
                         onOpenService: (service) {
-                          if (sessionCurrent(generation)) {
+                          if (_actionCurrent(generation)) {
                             context.push('/system/${service.name}');
                           }
                         },
@@ -334,6 +346,7 @@ class _MediaTitleDetailScreenState
   ) {
     if (_busy) {
       return const CupertinoButton.filled(
+        minimumSize: Size(48, 48),
         onPressed: null,
         child: CupertinoActivityIndicator(),
       );
@@ -343,8 +356,9 @@ class _MediaTitleDetailScreenState
         !title.isStale &&
         jellyfin != null) {
       return CupertinoButton.filled(
+        minimumSize: const Size(48, 48),
         key: const ValueKey('media-primary-play'),
-        onPressed: guardedMediaAction(_play),
+        onPressed: _guardedAction(_play),
         child: Text(
           title.jellyfinItemId == null
               ? l10n.mediaEpisodesTitle
@@ -356,6 +370,7 @@ class _MediaTitleDetailScreenState
     }
     if (_requestSubmitted) {
       return CupertinoButton.filled(
+        minimumSize: const Size(48, 48),
         onPressed: null,
         child: Text(l10n.mediaActionRequest),
       );
@@ -376,13 +391,21 @@ class _MediaTitleDetailScreenState
           MediaAvailability.importing,
           MediaAvailability.available,
         }.contains(title.availability)) {
-      return CupertinoButton.filled(
-        key: const ValueKey('media-primary-request'),
-        onPressed: guardedMediaAction(
-          title.isTv ? () => setState(() => _choosingSeasons = true) : _request,
-        ),
-        child: Text(
-          title.isTv ? l10n.mediaRequestChooseSeasons : l10n.mediaActionRequest,
+      return Semantics(
+        container: true,
+        child: CupertinoButton.filled(
+          minimumSize: const Size(48, 48),
+          key: const ValueKey('media-primary-request'),
+          onPressed: _guardedAction(
+            title.isTv
+                ? () => setState(() => _choosingSeasons = true)
+                : _request,
+          ),
+          child: Text(
+            title.isTv
+                ? l10n.mediaRequestChooseSeasons
+                : l10n.mediaActionRequest,
+          ),
         ),
       );
     }
@@ -394,7 +417,8 @@ class _MediaTitleDetailScreenState
         !title.isStale &&
         title.availability == MediaAvailability.notAvailable) {
       return CupertinoButton.filled(
-        onPressed: guardedMediaAction(_addViaArr),
+        minimumSize: const Size(48, 48),
+        onPressed: _guardedAction(_addViaArr),
         child: Text(l10n.mediaActionAdd),
       );
     }
@@ -452,20 +476,29 @@ class _MediaTitleDetailScreenState
               },
             ),
           ),
-        CupertinoButton.filled(
-          key: const ValueKey('media-confirm-request'),
-          onPressed: _busy || _requestedSeasons.isEmpty
-              ? null
-              : guardedMediaAction(_request),
-          child: Text(l10n.mediaActionRequest),
+        Semantics(
+          container: true,
+          child: CupertinoButton.filled(
+            minimumSize: const Size(48, 48),
+            key: const ValueKey('media-confirm-request'),
+            onPressed: _busy || _requestedSeasons.isEmpty
+                ? null
+                : _guardedAction(_request),
+            child: Text(l10n.mediaActionRequest),
+          ),
         ),
-        CupertinoButton(
-          onPressed: _busy
-              ? null
-              : guardedMediaAction(
-                  () => setState(() => _choosingSeasons = false),
-                ),
-          child: Text(l10n.commonCancel),
+        Semantics(
+          container: true,
+          child: CupertinoButton(
+            key: const ValueKey('media-cancel-request'),
+            minimumSize: const Size(48, 48),
+            onPressed: _busy
+                ? null
+                : _guardedAction(
+                    () => setState(() => _choosingSeasons = false),
+                  ),
+            child: Text(l10n.commonCancel),
+          ),
         ),
       ],
     ),
@@ -574,8 +607,9 @@ class _MediaTitleDetailScreenState
         0;
     if (count == 0) return const SizedBox.shrink();
     return CupertinoButton(
+      minimumSize: const Size(48, 48),
       padding: const EdgeInsets.only(top: 16),
-      onPressed: guardedMediaAction(() => context.push('/system/bazarr')),
+      onPressed: _guardedAction(() => context.push('/system/bazarr')),
       child: Text(l10n.mediaSubtitlesMissing(count)),
     );
   }
@@ -583,7 +617,7 @@ class _MediaTitleDetailScreenState
   /// True only when an actual player opened; browsing a series returns false.
   Future<bool> _play() async {
     final generation = sessionGeneration;
-    if (_busy || !sessionCurrent(generation)) return false;
+    if (_busy || !_actionCurrent(generation)) return false;
     final client = ref.read(jellyfinClientProvider);
     final title = _title;
     final itemId = title.jellyfinItemId ?? title.jellyfinSeriesId;
@@ -650,7 +684,7 @@ class _MediaTitleDetailScreenState
 
   Future<void> _request() async {
     final generation = sessionGeneration;
-    if (_busy || _requestSubmitted || !sessionCurrent(generation)) return;
+    if (_busy || _requestSubmitted || !_actionCurrent(generation)) return;
     final client = ref.read(jellyseerrClientProvider);
     final title = _title;
     final tmdbId = title.identity.tmdbId;
@@ -739,7 +773,7 @@ class _MediaTitleDetailScreenState
 
   Future<void> _addViaArr() async {
     final generation = sessionGeneration;
-    if (_busy || !sessionCurrent(generation)) return;
+    if (_busy || !_actionCurrent(generation)) return;
     final title = _title;
     final client = title.isTv
         ? ref.read(sonarrClientProvider)

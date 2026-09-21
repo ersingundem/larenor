@@ -324,14 +324,17 @@ void main() {
           expect(find.byType(HomeSourceScreen), findsOneWidget);
           expect(
             find.text(language == 'tr' ? 'Ev kaynağı' : 'Home source'),
-            findsOneWidget,
+            findsWidgets,
           );
           for (final source in HomeSource.values) {
             final row = find.byKey(ValueKey('home-source-${source.name}'));
             await tester.ensureVisible(row);
             await flush(tester);
             expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
-            expect(tester.widget<SettingsActionTile>(row).onTap, isNotNull);
+            expect(
+              tester.widget<SettingsActionTile>(row).onTap,
+              source == HomeSource.verifiedCore ? isNull : isNotNull,
+            );
           }
           expect(tester.takeException(), isNull);
         },

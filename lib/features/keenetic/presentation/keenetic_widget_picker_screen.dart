@@ -66,7 +66,9 @@ class _KeeneticWidgetPickerScreenState
         !_foreground ||
         _expired ||
         _submitted ||
-        generation != _generation) {
+        generation != _generation ||
+        !TickerMode.valuesOf(context).enabled ||
+        ModalRoute.of(context)?.isCurrent != true) {
       return false;
     }
     final config = ref.read(keeneticConnectionProvider);
@@ -164,10 +166,20 @@ class _KeeneticWidgetPickerScreenState
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.keeneticAddWidget),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: canSave ? () => _save(generation) : null,
-          child: Text(l10n.commonAdd),
+        trailing: Semantics(
+          container: true,
+          child: OverflowBox(
+            minWidth: 48,
+            maxWidth: 48,
+            minHeight: 48,
+            maxHeight: 48,
+            child: CupertinoButton(
+              minimumSize: const Size(48, 48),
+              padding: EdgeInsets.zero,
+              onPressed: canSave ? () => _save(generation) : null,
+              child: Text(l10n.commonAdd),
+            ),
+          ),
         ),
       ),
       child: SafeArea(
@@ -202,40 +214,43 @@ class _KeeneticWidgetPickerScreenState
                       for (final kind in KeeneticMetricKind.values)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: CupertinoButton(
-                            color: CupertinoColors
-                                .secondarySystemGroupedBackground
-                                .resolveFrom(context),
-                            onPressed: active
-                                ? () {
-                                    if (_current(generation)) {
-                                      setState(() {
-                                        _selected = kind;
-                                        _interfaceId = null;
-                                        _generation++;
-                                      });
+                          child: Semantics(
+                            container: true,
+                            child: CupertinoButton(
+                              minimumSize: const Size(48, 48),
+                              color: CupertinoColors
+                                  .secondarySystemGroupedBackground
+                                  .resolveFrom(context),
+                              onPressed: active
+                                  ? () {
+                                      if (_current(generation)) {
+                                        setState(() {
+                                          _selected = kind;
+                                          _interfaceId = null;
+                                          _generation++;
+                                        });
+                                      }
                                     }
-                                  }
-                                : null,
-                            child: Row(
-                              children: [
-                                Icon(keeneticMetricIcon(kind)),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    keeneticMetricTitle(l10n, kind),
-                                    style: AppText.body.copyWith(
-                                      color: CupertinoColors.label.resolveFrom(
-                                        context,
+                                  : null,
+                              child: Row(
+                                children: [
+                                  Icon(keeneticMetricIcon(kind)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      keeneticMetricTitle(l10n, kind),
+                                      style: AppText.body.copyWith(
+                                        color: CupertinoColors.label
+                                            .resolveFrom(context),
                                       ),
                                     ),
                                   ),
-                                ),
-                                if (kind == _selected)
-                                  const Icon(
-                                    CupertinoIcons.check_mark_circled_solid,
-                                  ),
-                              ],
+                                  if (kind == _selected)
+                                    const Icon(
+                                      CupertinoIcons.check_mark_circled_solid,
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -273,6 +288,7 @@ class _KeeneticWidgetPickerScreenState
                               ),
                             ),
                           CupertinoButton(
+                            minimumSize: const Size(48, 48),
                             padding: EdgeInsets.zero,
                             onPressed:
                                 active &&
