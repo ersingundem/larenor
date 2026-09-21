@@ -10,6 +10,7 @@ import '../../settings/presentation/settings_file_dialog.dart';
 import '../../settings/presentation/panes/settings_nav_row.dart';
 import '../domain/ambient_settings.dart';
 import '../providers/ambient_providers.dart';
+import 'ambient_content_settings.dart';
 import 'ambient_screen.dart';
 
 class AmbientSettingsScreen extends ConsumerStatefulWidget {
@@ -555,6 +556,7 @@ class _AmbientSettingsScreenState extends ConsumerState<AmbientSettingsScreen>
                 ),
           ],
         ),
+        AmbientContentSettings(runFileDialog: widget.runFileDialog),
       ],
     );
   }
