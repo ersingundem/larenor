@@ -787,6 +787,18 @@ void main() {
           SyntheticCoreAccount.password,
         );
         await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
+        final resourcesScroll = find
+            .descendant(
+              of: find.byType(CustomScrollView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.scrollUntilVisible(
+          room,
+          200,
+          scrollable: resourcesScroll,
+          maxScrolls: 5,
+        );
         await waitFor(tester, room);
         // The notification inbox is a real Core-home destination. Its entry
         // makes the second lazy resource row start below the viewport, so
@@ -795,7 +807,7 @@ void main() {
         await tester.scrollUntilVisible(
           lamp,
           200,
-          scrollable: find.byType(Scrollable).last,
+          scrollable: resourcesScroll,
           maxScrolls: 5,
         );
         await waitFor(tester, lamp);
@@ -1259,6 +1271,18 @@ void main() {
           SyntheticCoreAccount.password,
         );
         await press('server-sign-in');
+        final resourcesScroll = find
+            .descendant(
+              of: find.byType(CustomScrollView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.scrollUntilVisible(
+          key('home-resource-$resourceId'),
+          200,
+          scrollable: resourcesScroll,
+          maxScrolls: 5,
+        );
         await waitFor(tester, key('home-resource-$resourceId'));
         final stored = await SecureServerSessionStore().read();
         expect(stored?.context?.coreId, core.coreId);
