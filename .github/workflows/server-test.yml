@@ -120,14 +120,17 @@ jobs:
     name: server-test
     if: always()
     needs: server-test-shard
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Require every deterministic Server shard
         env:
           SHARD_RESULT: ${{ needs.server-test-shard.result }}
-        run: |
-          if [ "$SHARD_RESULT" != "success" ]; then
-            echo "Server test shard result: $SHARD_RESULT" >&2
-            exit 1
-          fi
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tool/required_ci_aggregate.py server
