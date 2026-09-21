@@ -2043,8 +2043,12 @@
   "coreResourceUploadComplete": "Doğrulanmış dosya kaydedildi · {bytes} bayt · revizyon {revision}.",
   "@coreResourceUploadComplete": {
     "placeholders": {
-      "bytes": {"type": "int"},
-      "revision": {"type": "int"}
+      "bytes": {
+        "type": "int"
+      },
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "coreResourceUploadCancelled": "Dosya seçimi iptal edildi.",
@@ -2056,7 +2060,11 @@
   "coreResourceTransferHistoryLoading": "Doğrulanmış aktarım geçmişi yükleniyor…",
   "coreResourceTransferHistoryVerified": "Olay zinciri doğrulandı · imleç {sequence}.",
   "@coreResourceTransferHistoryVerified": {
-    "placeholders": {"sequence": {"type": "int"}}
+    "placeholders": {
+      "sequence": {
+        "type": "int"
+      }
+    }
   },
   "coreResourceTransferHistoryEmpty": "Henüz aktarım makbuzu yok.",
   "coreResourceTransferAccepted": "Aktarım kabul edildi",
@@ -2082,8 +2090,12 @@
   "coreTransferTrustDetail": "Makbuz {receipt} · {bytes} bayt",
   "@coreTransferTrustDetail": {
     "placeholders": {
-      "receipt": {"type": "String"},
-      "bytes": {"type": "int"}
+      "receipt": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
     }
   },
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
@@ -2482,8 +2494,12 @@
   "coreHaEventTrustDetail": "Baş {sequence} · Zincir {chain}",
   "@coreHaEventTrustDetail": {
     "placeholders": {
-      "sequence": {"type": "int"},
-      "chain": {"type": "String"}
+      "sequence": {
+        "type": "int"
+      },
+      "chain": {
+        "type": "String"
+      }
     }
   },
   "coreHaActivityFailed": "Etkinlik okunamadı. Yenilemek için tekrar deneyin.",
@@ -2979,5 +2995,26 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "cameraProfileTitle": "Kamera kayıt profili",
+  "cameraProfileStatus": "Profil durumu",
+  "cameraProfileApply": "Desteklenen profili uygula",
+  "cameraProfileLoading": "Kamera readback bilgisi yükleniyor",
+  "cameraProfileFailed": "Kamera profili veya işlem sonucu doğrulanamadı. Komut tekrarlanmadı.",
+  "cameraProfileStale": "Hesap, Core, ev, oturum veya rota değişti. Kamera durumu temizlendi.",
+  "cameraProfileVerified": "Desteklenen tüm değişiklikler sağlayıcı readback sonucu ile doğrulandı.",
+  "cameraProfilePartial": "Profilin yalnız bir bölümü doğrulandı. Her kamera sonucunu inceleyin.",
+  "cameraProfileEmpty": "Bu profile atanmış kamera yok.",
+  "cameraProfileUnsupported": "Sağlayıcı istenen tüm değişiklikleri desteklemiyor.",
+  "cameraProfileCurrent": "Mevcut",
+  "cameraProfileDesired": "İstenen",
+  "cameraProfileRecording": "Kayıt",
+  "cameraProfileDetection": "Algılama",
+  "cameraProfileEnabled": "Açık",
+  "cameraProfilePaused": "Duraklatıldı",
+  "cameraProfileDisabled": "Kapalı",
+  "cameraProfileProviderSupported": "Destekleniyor",
+  "cameraProfileProviderUnsupported": "Desteklenmiyor",
+  "cameraProfilePrivacyBoundary": "Bu profil yalnız aşağıda gösterilen sağlayıcı ayarlarını değiştirir. Mikrofonun, kamera donanımının veya başka bir kayıt sisteminin kapalı olduğunu kanıtlamaz.",
+  "cameraProfileReconnect": "Yeniden bağlan"
 }
