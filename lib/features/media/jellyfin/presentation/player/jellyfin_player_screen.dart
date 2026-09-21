@@ -694,13 +694,16 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           ? CupertinoNavigationBar(
               backgroundColor: CupertinoColors.black,
               leading: CupertinoButton(
+                key: const ValueKey('jellyfin-player-back'),
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
                 onPressed: _interactionAction(
                   () => Navigator.of(context).maybePop(),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.chevron_back,
                   color: CupertinoColors.white,
+                  semanticLabel: l10n.commonBack,
                 ),
               ),
               middle: Text(
@@ -810,13 +813,16 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           child: Row(
             children: [
               CupertinoButton(
+                key: const ValueKey('jellyfin-player-back'),
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
                 onPressed: _interactionAction(
                   () => Navigator.of(context).pop(),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.chevron_back,
                   color: CupertinoColors.white,
+                  semanticLabel: l10n.commonBack,
                 ),
               ),
               Expanded(
@@ -831,28 +837,37 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
               ),
               if (_tracks.subtitle.isNotEmpty)
                 CupertinoButton(
+                  key: const ValueKey('jellyfin-player-subtitles'),
+                  minimumSize: const Size(48, 48),
                   padding: EdgeInsets.zero,
                   onPressed: _interactionAction(_showSubtitlePicker),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.captions_bubble,
                     color: CupertinoColors.white,
+                    semanticLabel: l10n.jellyfinPlayerSubtitlesButton,
                   ),
                 ),
               if (_tracks.audio.length > 1)
                 CupertinoButton(
+                  key: const ValueKey('jellyfin-player-audio'),
+                  minimumSize: const Size(48, 48),
                   padding: EdgeInsets.zero,
                   onPressed: _interactionAction(_showAudioPicker),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.speaker_2,
                     color: CupertinoColors.white,
+                    semanticLabel: l10n.jellyfinPlayerAudioButton,
                   ),
                 ),
               CupertinoButton(
+                key: const ValueKey('jellyfin-player-quality'),
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
                 onPressed: _interactionAction(_showQualityPicker),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.settings,
                   color: CupertinoColors.white,
+                  semanticLabel: l10n.jellyfinPlayerQualityButton,
                 ),
               ),
             ],
@@ -953,6 +968,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                 ],
               ),
               CupertinoButton(
+                key: const ValueKey('jellyfin-player-toggle'),
+                minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
                 onPressed: _interactionAction(_togglePlaying),
                 child: Icon(
@@ -961,6 +978,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                       : CupertinoIcons.play_fill,
                   color: CupertinoColors.white,
                   size: 36,
+                  semanticLabel: _playing
+                      ? l10n.entityControlPause
+                      : l10n.mediaActionPlay,
                 ),
               ),
             ],

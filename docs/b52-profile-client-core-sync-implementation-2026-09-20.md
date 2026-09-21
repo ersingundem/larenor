@@ -1,7 +1,7 @@
 # B5.2 personal profile Client/Core sync acceptance
 
 Status: implementation complete on the integration branch; program progress
-stays **20/125** and feature progress stays **0/63** because this software
+stays **21/125** and feature progress stays **0/63** because this software
 slice does not close the physical remote-session and release gates.
 
 ## Acceptance matrix
