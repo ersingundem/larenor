@@ -81,6 +81,19 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                 SettingsSection(
                   children: [
                     const HomePeopleEntry(),
+                    if (controller.failure == null && !controller.busy)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-manage-account-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-manage-account-action',
+                        ),
+                        title: Text(l10n.homeCoreManageAccount),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/settings');
+                              },
+                      ),
                     if (controller.account.context != null)
                       SettingsActionTile(
                         key: const ValueKey('core-home-inventory-entry'),
@@ -90,6 +103,18 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             ? null
                             : () {
                                 if (current()) context.push('/inventory');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('fair-chores-entry'),
+                        buttonKey: const ValueKey('fair-chores-entry-action'),
+                        title: Text(l10n.fairChoresTitle),
+                        additionalInfo: Text(l10n.fairChoresSubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/chores');
                               },
                       ),
                     if (controller.account.context != null)

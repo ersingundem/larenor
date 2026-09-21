@@ -18,6 +18,7 @@ import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
 import '../features/floor_plan/presentation/floor_plan_route.dart';
+import '../features/fair_chores/presentation/fair_chore_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
 import '../features/meal_planner/presentation/weekly_meal_plan_route.dart';
 import '../features/shared_expenses/presentation/shared_expense_route.dart';
@@ -45,6 +46,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/weekly-menu',
           builder: (_, _) => const WeeklyMealPlanRoute(),
         ),
+        GoRoute(path: '/chores', builder: (_, _) => const FairChoreRoute()),
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),

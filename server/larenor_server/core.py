@@ -111,6 +111,7 @@ from .power_budget.runtime import build_power_budget_gateway
 from .floor_plan.schema import migrate_floor_plan
 from .floor_plan.runtime import FloorPlanRuntime
 from .shared_expenses import SharedExpenseService, migrate_shared_expenses
+from .fair_chores import FairChoreService, migrate_fair_chores
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -239,6 +240,7 @@ class CoreServices:
                 migrate_power_budget(connection)
                 migrate_floor_plan(connection)
                 migrate_shared_expenses(connection)
+                migrate_fair_chores(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -360,6 +362,9 @@ class CoreServices:
                 )
             )
             self.shared_expenses = SharedExpenseService(
+                self.db, self.auth, settings, self.context, key
+            )
+            self.fair_chores = FairChoreService(
                 self.db, self.auth, settings, self.context, key
             )
             self.admin = AdminService(self.db, self.auth, settings)
