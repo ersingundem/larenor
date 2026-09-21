@@ -58,6 +58,34 @@ class CheckCommitProgressTest(unittest.TestCase):
             check_commit_progress.validate_sequence(
                 history, expected=history[0])
 
+    def test_parallel_histories_are_checked_by_parent_not_topological_order(self):
+        values = check_commit_progress.ProgressValues
+        entry = check_commit_progress.ProgressEntry
+        history = [
+            entry('left-start', values((14, 125), (0, 63))),
+            entry('left-end', values((15, 125), (0, 63)), ('left-start',)),
+            entry('right-start', values((14, 125), (0, 63))),
+            entry('right-end', values((14, 125), (1, 63)), ('right-start',)),
+            entry('merge', values((15, 125), (1, 63)),
+                  ('left-end', 'right-end')),
+        ]
+
+        check_commit_progress.validate_graph(history, history[-1].values)
+
+        regressed_merge = entry('merge', values((14, 125), (1, 63)),
+                                ('left-end', 'right-end'))
+        with self.assertRaisesRegex(
+                check_commit_progress.ProgressCheckError,
+                '^progress_regressed$'):
+            check_commit_progress.validate_graph(
+                [*history[:-1], regressed_merge], regressed_merge.values)
+
+        with self.assertRaisesRegex(
+                check_commit_progress.ProgressCheckError,
+                '^head_progress_mismatch$'):
+            check_commit_progress.validate_graph(
+                history, history[0].values)
+
     def test_checks_every_commit_added_by_the_pr(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
@@ -78,6 +106,11 @@ class CheckCommitProgressTest(unittest.TestCase):
                 repo, base, head)
             self.assertEqual(len(values), 3)
             self.assertEqual(values[-1].queue, (14, 125))
+            entries = check_commit_progress.read_progress_entries(
+                repo, base, head)
+            self.assertEqual(set(entries[-1].parents),
+                             {entries[0].commit, entries[1].commit})
+            check_commit_progress.validate_graph(entries, values[-1])
 
     def test_checks_pr_commits_when_the_base_branch_advances(self):
         with tempfile.TemporaryDirectory() as directory:
