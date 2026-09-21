@@ -107,6 +107,8 @@ from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
 from .game_streaming.schema import migrate_game_streaming
 from .game_streaming.service import GameStreamAuthorityService
+from .camera_visual_sensors.schema import migrate_camera_visual_sensors
+from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
 
 
@@ -227,6 +229,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_game_streaming(connection)
+                migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -306,6 +309,9 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.camera_visual_sensors = CameraVisualSensorService(
+                self.db, self.auth, settings, key, self.context)
+            self.camera_visual_sensors.validate_storage()
             self.sound_events = SoundEventRepository(
                 settings.data_dir / "sound-events.db",
                 key,

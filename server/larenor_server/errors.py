@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
+    'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
@@ -173,6 +175,10 @@ MESSAGES = {
     'keenetic_command_integrity_failed': 'The Keenetic command history could not be verified.',
     'idempotency_conflict': 'This request conflicts with an existing command.',
     'operation_replay': 'This completed operation belongs to an older state. Read the current state.',
+    'backup_blocked': 'Wait for active Core operations to finish before creating a backup.',
+    'backup_busy': 'Another Core backup is already being created.',
+    'backup_too_large': 'The Core backup exceeds the supported size.',
+    'backup_decryption_failed': 'The Core backup could not be opened.',
 }
 
 
