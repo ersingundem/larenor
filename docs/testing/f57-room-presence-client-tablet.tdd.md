@@ -1,7 +1,7 @@
 # F57 room-presence tablet management acceptance
 
 This package adds an Android tablet and DeX management surface over the F57
-privacy-bounded Core foundation. Queue progress remains 21/125 and selected
+privacy-bounded Core foundation. Queue progress remains 22/125 and selected
 feature progress remains 0/63. Encrypted durable Core storage and authenticated
 HTTP are covered by the integration package. Provider adapters, real sensor
 calibration, and physical BLE/UWB/Home Assistant room acceptance remain

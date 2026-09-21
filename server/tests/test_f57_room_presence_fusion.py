@@ -165,11 +165,28 @@ def test_exact_revision_hysteresis_and_public_projection_hide_radio_identity():
     assert "rawIdentifier" not in text
     assert "history" not in text
     assert set(public) == {
-        "schemaVersion", "estimateId", "coreId", "homeId", "homeRevision", "deviceId",
-        "deviceRevision", "modelId", "modelRevision", "policyId",
-        "policyRevision", "consentId", "consentRevision", "status", "roomId",
-        "roomRevision", "confidencePermille", "observedAtMs", "sampleCount",
-        "transitionRevision", "advisoryOnly", "grantsAccess",
+        "schemaVersion",
+        "estimateId",
+        "coreId",
+        "homeId",
+        "homeRevision",
+        "deviceId",
+        "deviceRevision",
+        "modelId",
+        "modelRevision",
+        "policyId",
+        "policyRevision",
+        "consentId",
+        "consentRevision",
+        "status",
+        "roomId",
+        "roomRevision",
+        "confidencePermille",
+        "observedAtMs",
+        "sampleCount",
+        "transitionRevision",
+        "advisoryOnly",
+        "grantsAccess",
     }
     assert service.private_history_size == 0
     assert "private-aa-bb-cc" not in repr(service.__dict__)
@@ -178,18 +195,22 @@ def test_exact_revision_hysteresis_and_public_projection_hide_radio_identity():
 def test_stale_unknown_and_room_transition_need_fresh_hysteresis():
     service, current = present_estimate()
     stale = service.fuse(
-        authority(), policy(), [signal(observed=900_000, observation_revision=3)],
+        authority(),
+        policy(),
+        [signal(observed=900_000, observation_revision=3)],
         nowMs=1_010_000,
     )
     assert stale.status == "unknown" and stale.roomId is None
     assert stale.confidencePermille == 0
     first = service.fuse(
-        authority(), policy(),
+        authority(),
+        policy(),
         [signal(ROOM_B, room_revision=14, observed=1_011_000, observation_revision=4)],
         nowMs=1_011_500,
     )
     second = service.fuse(
-        authority(), policy(),
+        authority(),
+        policy(),
         [signal(ROOM_B, room_revision=14, observed=1_012_000, observation_revision=5)],
         nowMs=1_012_500,
     )
@@ -226,9 +247,7 @@ def test_inactive_consent_unknown_source_and_unbounded_input_fail_closed():
     with pytest.raises(ApiError, match="invalid_request"):
         fusion().fuse(authority(), policy(), [signal()] * 65, nowMs=1_005_000)
     with pytest.raises(ApiError, match="invalid_request"):
-        fusion().fuse(
-            authority(), policy(), [signal(confidence=1001)], nowMs=1_005_000
-        )
+        fusion().fuse(authority(), policy(), [signal(confidence=1001)], nowMs=1_005_000)
 
 
 def test_observation_replay_is_rejected_without_advancing_hysteresis():
@@ -238,7 +257,8 @@ def test_observation_replay_is_rejected_without_advancing_hysteresis():
     with pytest.raises(ApiError, match="revision_conflict"):
         service.fuse(authority(), policy(), [signal()], nowMs=1_005_100)
     second = service.fuse(
-        authority(), policy(),
+        authority(),
+        policy(),
         [signal(observation_revision=2, observed=1_005_200)],
         nowMs=1_005_300,
     )
@@ -255,7 +275,8 @@ def test_fusion_instance_is_exact_scope_bound_and_replay_checkpoints_are_bounded
     service.fuse(authority(), policy(), [signal()], nowMs=1_005_000)
     with pytest.raises(ApiError, match="source_checkpoint_limit"):
         service.fuse(
-            authority(), policy(),
+            authority(),
+            policy(),
             [signal(raw="ble:another-private-id", observation_revision=2)],
             nowMs=1_005_100,
         )
@@ -296,14 +317,22 @@ def test_automation_handoff_requires_exact_receipt_and_is_idempotent():
         )
 
     receipt = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="c" * 32, worker=worker,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="c" * 32,
+        worker=worker,
     )
     duplicate = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="c" * 32, worker=worker,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="c" * 32,
+        worker=worker,
     )
     assert receipt == duplicate
     assert receipt.status == "verified" and receipt.verified is True
@@ -325,14 +354,22 @@ def test_lost_or_mismatched_automation_receipt_is_unknown_and_never_replayed():
         raise TimeoutError("lost acknowledgement")
 
     first = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="d" * 32, worker=lost,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="d" * 32,
+        worker=lost,
     )
     again = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="d" * 32, worker=lost,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="d" * 32,
+        worker=lost,
     )
     assert first == again
     assert first.status == "unknown" and first.verified is False
@@ -355,9 +392,13 @@ def test_lost_or_mismatched_automation_receipt_is_unknown_and_never_replayed():
         )
 
     receipt = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="f" * 32, worker=mismatched,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="f" * 32,
+        worker=mismatched,
     )
     assert receipt.status == "unknown" and receipt.verified is False
 
@@ -378,9 +419,13 @@ def test_lost_or_mismatched_automation_receipt_is_unknown_and_never_replayed():
         )
 
     receipt = handoff.dispatch(
-        authority(), policy(), estimate,
-        automationId=AUTOMATION, automationRevision=17,
-        requestId="0" * 32, worker=ambiguous,
+        authority(),
+        policy(),
+        estimate,
+        automationId=AUTOMATION,
+        automationRevision=17,
+        requestId="0" * 32,
+        worker=ambiguous,
     )
     assert receipt.status == "unknown" and receipt.readbackRevision is None
 
@@ -402,9 +447,13 @@ def test_handoff_rejects_stale_policy_estimate_and_unbounded_ids_before_worker()
 
     with pytest.raises(ApiError, match="revision_conflict"):
         handoff.dispatch(
-            authority(), current_policy, estimate,
-            automationId=AUTOMATION, automationRevision=17,
-            requestId="1" * 32, worker=worker,
+            authority(),
+            current_policy,
+            estimate,
+            automationId=AUTOMATION,
+            automationRevision=17,
+            requestId="1" * 32,
+            worker=worker,
         )
 
     safe = PresenceAutomationHandoff(
@@ -415,8 +464,12 @@ def test_handoff_rejects_stale_policy_estimate_and_unbounded_ids_before_worker()
     )
     with pytest.raises(ApiError, match="invalid_request"):
         safe.dispatch(
-            authority(), policy(), estimate,
-            automationId=AUTOMATION, automationRevision=17,
-            requestId="x" * 10_000, worker=worker,
+            authority(),
+            policy(),
+            estimate,
+            automationId=AUTOMATION,
+            automationRevision=17,
+            requestId="x" * 10_000,
+            worker=worker,
         )
     assert calls == []

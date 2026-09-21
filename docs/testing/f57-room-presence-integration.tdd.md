@@ -37,7 +37,7 @@ criteria are in scope:
 - Hardening `e5550748` rejects a tampered body on completed calibration replay
   and makes failed route bootstrap retry explicit instead of looping.
 
-Queue and selected-feature counters remain **21/125** and **0/63**. Real
+Queue and selected-feature counters remain **22/125** and **0/63**. Real
 ESP32/BLE/UWB/Home Assistant sensors, Huawei MatePad/DeX hardware, and physical
 room calibration remain explicit manual gates; no physical acceptance is
 claimed by this software package.

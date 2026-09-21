@@ -20,5 +20,5 @@ Encrypted durable policy/receipt storage, authenticated management HTTP,
 calibration, and the tablet Client are covered by the integration evidence.
 F57 remains open for provider adapters, exact-commit CI, and separate physical
 ESP32/BLE/UWB/Home Assistant and tablet acceptance. Queue progress remains at
-the inherited **21/125** and
+the inherited **22/125** and
 selected-feature progress remains **0/63**.
