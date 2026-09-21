@@ -2,9 +2,9 @@
 
 This package connects the Android tablet management surface to the F55 Core
 boundary. Queue progress remains 22/125 and selected-feature progress remains
-0/63. Production coordinator workers, provider discovery and physical Zigbee
-or Thread device acceptance remain open delivery gates; this package therefore
-does not mark F55 complete.
+0/63. The production provider contract and durable Core wiring are present;
+coordinator adapter discovery and physical Zigbee or Thread device acceptance
+remain open delivery gates, so this package does not mark F55 complete.
 
 Exactly three user acceptance criteria are in scope:
 
@@ -29,7 +29,7 @@ Exactly three user acceptance criteria are in scope:
 
 The RED commit `825b1691` failed because the F55 Client models, API boundary,
 controller and management screen did not exist. The GREEN matrix now contains
-eight Core service/API tests, two authenticated HTTP Client tests, two controller
+nine Core service/API/runtime tests, two authenticated HTTP Client tests, two controller
 tests and four parameterized EN/TR tablet accessibility tests. The broader
 Settings matrix adds ten PIN, keyboard and 600/1200 @2x checks. Targeted Flutter
 analysis is clean; the exact source also passes queue, security, progress and

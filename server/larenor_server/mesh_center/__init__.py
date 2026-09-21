@@ -28,6 +28,7 @@ from .service import (
     firmware_catalog_payload,
 )
 from .store import FirmwareUpdateStore
+from .runtime import MeshCenterProvider, build_mesh_center_gateway
 
 __all__ = [
     "BorderRouterNode",
@@ -46,6 +47,7 @@ __all__ = [
     "MeshAuthority",
     "MeshCenterHttpGateway",
     "MeshCenterSnapshot",
+    "MeshCenterProvider",
     "MeshConfirmRequest",
     "MeshDevice",
     "MeshHealthReport",
@@ -54,4 +56,5 @@ __all__ = [
     "MeshTopology",
     "MeshUpdateAuditEntry",
     "firmware_catalog_payload",
+    "build_mesh_center_gateway",
 ]

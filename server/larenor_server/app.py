@@ -18,9 +18,18 @@ from .core import CoreServices
 from .dependencies import get_core, require_admin, require_ready_user, require_user
 from .errors import ApiError, StartupError, error_body
 from .legal import SourceInformation, SourceResponse, server_version
-from .models import (ErrorResponse, HealthResponse, LoginRequest, LogoutRequest,
-                     PasswordRequest, RefreshRequest, SessionPair, UserResponse,
-                     VaultRequest, VaultResponse)
+from .models import (
+    ErrorResponse,
+    HealthResponse,
+    LoginRequest,
+    LogoutRequest,
+    PasswordRequest,
+    RefreshRequest,
+    SessionPair,
+    UserResponse,
+    VaultRequest,
+    VaultResponse,
+)
 from .services.api import router as services_router
 from .home_resources.api import router as home_resources_router
 from .home_people.api import router as home_people_router
@@ -39,9 +48,13 @@ from .plugins.job_api import router as plugin_jobs_router
 from .plugins.media_api import router as media_preparations_router
 from .plugins.media_inspection_api import router as media_inspections_router
 from .plugins.media_installation_api import router as media_installations_router
-from .plugins.media_service_bootstrap_api import router as media_service_bootstraps_router
+from .plugins.media_service_bootstrap_api import (
+    router as media_service_bootstraps_router,
+)
 from .plugins.seerr_bootstrap_job_api import router as seerr_bootstraps_router
-from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurations_router
+from .plugins.qbittorrent_config_job_api import (
+    router as qbittorrent_configurations_router,
+)
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
 from .plugins.music_assistant_bootstrap_job_api import (
@@ -72,15 +85,21 @@ ReadyUser = Annotated[Principal, Depends(require_ready_user)]
 Admin = Annotated[Principal, Depends(require_admin)]
 
 
-def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
-               source: SourceInformation | None = None,
-               blob_provider: BlobProvider | None = None,
-               transfer_limits: TransferLimits | None = None,
-               proxmox_guest_provider=None,
-               proxmox_power_executor=None,
-               media_archive_binding_reader=None,
-               media_archive_worker=None) -> FastAPI:
+def create_app(
+    settings: Settings,
+    *,
+    routers: Iterable[APIRouter] = (),
+    source: SourceInformation | None = None,
+    blob_provider: BlobProvider | None = None,
+    transfer_limits: TransferLimits | None = None,
+    proxmox_guest_provider=None,
+    proxmox_power_executor=None,
+    media_archive_binding_reader=None,
+    media_archive_worker=None,
+    mesh_center_provider=None,
+) -> FastAPI:
     source = source or SourceInformation.from_environment()
+
     @asynccontextmanager
     async def lifespan(application):
         manager = application.state.core.plugin_jobs
@@ -99,32 +118,73 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 except TimeoutError:
                     pass
 
-        task = asyncio.create_task(dispatch(manager, "preflight_dispatch_unavailable")) if manager.backend is not None else None
+        task = (
+            asyncio.create_task(dispatch(manager, "preflight_dispatch_unavailable"))
+            if manager.backend is not None
+            else None
+        )
         media = application.state.core.media_inspections
-        media_task = asyncio.create_task(dispatch(media, "media_inspection_dispatch_unavailable")) if media.backend is not None else None
+        media_task = (
+            asyncio.create_task(
+                dispatch(media, "media_inspection_dispatch_unavailable")
+            )
+            if media.backend is not None
+            else None
+        )
         installations = application.state.core.media_installations
-        installation_task = asyncio.create_task(dispatch(
-            installations, "media_installation_dispatch_unavailable")) if installations.backend is not None else None
+        installation_task = (
+            asyncio.create_task(
+                dispatch(installations, "media_installation_dispatch_unavailable")
+            )
+            if installations.backend is not None
+            else None
+        )
         bootstraps = application.state.core.media_service_bootstraps
-        bootstrap_task = asyncio.create_task(dispatch(
-            bootstraps, "media_service_bootstrap_dispatch_unavailable")) if bootstraps.backend is not None else None
+        bootstrap_task = (
+            asyncio.create_task(
+                dispatch(bootstraps, "media_service_bootstrap_dispatch_unavailable")
+            )
+            if bootstraps.backend is not None
+            else None
+        )
         qbittorrent = application.state.core.qbittorrent_configurations
-        qbittorrent_task = asyncio.create_task(dispatch(
-            qbittorrent, "qbittorrent_configuration_dispatch_unavailable")) if qbittorrent.backend is not None else None
+        qbittorrent_task = (
+            asyncio.create_task(
+                dispatch(qbittorrent, "qbittorrent_configuration_dispatch_unavailable")
+            )
+            if qbittorrent.backend is not None
+            else None
+        )
         arr = application.state.core.arr_configurations
-        arr_task = asyncio.create_task(dispatch(
-            arr, "arr_configuration_dispatch_unavailable")) if arr.backend is not None else None
+        arr_task = (
+            asyncio.create_task(dispatch(arr, "arr_configuration_dispatch_unavailable"))
+            if arr.backend is not None
+            else None
+        )
         seerr = application.state.core.seerr_bootstraps
-        seerr_task = asyncio.create_task(dispatch(
-            seerr, "seerr_bootstrap_dispatch_unavailable")) if seerr.backend is not None else None
+        seerr_task = (
+            asyncio.create_task(dispatch(seerr, "seerr_bootstrap_dispatch_unavailable"))
+            if seerr.backend is not None
+            else None
+        )
         music_assistant = application.state.core.music_assistant_bootstraps
-        music_assistant_task = asyncio.create_task(dispatch(
-            music_assistant, "music_assistant_bootstrap_dispatch_unavailable"
-        )) if music_assistant.backend is not None else None
+        music_assistant_task = (
+            asyncio.create_task(
+                dispatch(
+                    music_assistant, "music_assistant_bootstrap_dispatch_unavailable"
+                )
+            )
+            if music_assistant.backend is not None
+            else None
+        )
         music_providers = application.state.core.music_provider_setups
-        music_provider_task = asyncio.create_task(dispatch(
-            music_providers, "music_provider_setup_dispatch_unavailable"
-        )) if music_providers.backend is not None else None
+        music_provider_task = (
+            asyncio.create_task(
+                dispatch(music_providers, "music_provider_setup_dispatch_unavailable")
+            )
+            if music_providers.backend is not None
+            else None
+        )
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
@@ -164,17 +224,28 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
             if music_provider_task is not None:
                 await music_provider_task
 
-    app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
-                  redoc_url=None, openapi_url=None,
-                  lifespan=lifespan,
-                  license_info={"name": "GNU Affero General Public License v3.0 only",
-                                "identifier": "AGPL-3.0-only"})
+    app = FastAPI(
+        title="Larenor Server",
+        version=server_version(),
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+        license_info={
+            "name": "GNU Affero General Public License v3.0 only",
+            "identifier": "AGPL-3.0-only",
+        },
+    )
     app.state.core = CoreServices(
-        settings, blob_provider=blob_provider, transfer_limits=transfer_limits,
+        settings,
+        blob_provider=blob_provider,
+        transfer_limits=transfer_limits,
         proxmox_guest_provider=proxmox_guest_provider,
         proxmox_power_executor=proxmox_power_executor,
         media_archive_binding_reader=media_archive_binding_reader,
-        media_archive_worker=media_archive_worker)
+        media_archive_worker=media_archive_worker,
+        mesh_center_provider=mesh_center_provider,
+    )
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -184,7 +255,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.seerr_bootstrap_dispatcher = None
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
-    app.state.mesh_center_gateway = None
+    app.state.mesh_center_gateway = app.state.core.mesh_center
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -197,19 +268,42 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
 
     @app.exception_handler(HTTPException)
     async def http_error(_request, error):
-        code = {404: "not_found", 405: "method_not_allowed"}.get(error.status_code, "invalid_request")
+        code = {404: "not_found", 405: "method_not_allowed"}.get(
+            error.status_code, "invalid_request"
+        )
         return JSONResponse(error_body(code), status_code=error.status_code)
 
-    router = APIRouter(prefix="/api/v1", responses={
-        400: {"model": ErrorResponse, "description": "Invalid request or password policy"},
-        401: {"model": ErrorResponse, "description": "Invalid credentials or expired/revoked session"},
-        403: {"model": ErrorResponse, "description": "password_change_required or insufficient role"},
-        408: {"model": ErrorResponse, "description": "Request body timeout"},
-        409: {"model": ErrorResponse, "description": "Vault revision_conflict"},
-        413: {"model": ErrorResponse, "description": "Bounded request size exceeded"},
-        429: {"model": ErrorResponse, "description": "Authentication rate/concurrency limit"},
-        503: {"model": ErrorResponse, "description": "Storage or service temporarily unavailable"},
-    })
+    router = APIRouter(
+        prefix="/api/v1",
+        responses={
+            400: {
+                "model": ErrorResponse,
+                "description": "Invalid request or password policy",
+            },
+            401: {
+                "model": ErrorResponse,
+                "description": "Invalid credentials or expired/revoked session",
+            },
+            403: {
+                "model": ErrorResponse,
+                "description": "password_change_required or insufficient role",
+            },
+            408: {"model": ErrorResponse, "description": "Request body timeout"},
+            409: {"model": ErrorResponse, "description": "Vault revision_conflict"},
+            413: {
+                "model": ErrorResponse,
+                "description": "Bounded request size exceeded",
+            },
+            429: {
+                "model": ErrorResponse,
+                "description": "Authentication rate/concurrency limit",
+            },
+            503: {
+                "model": ErrorResponse,
+                "description": "Storage or service temporarily unavailable",
+            },
+        },
+    )
 
     @router.get("/health", tags=["Health"], response_model=HealthResponse)
     def health():
@@ -244,7 +338,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
 
     @router.post("/auth/password", tags=["Authentication"], response_model=SessionPair)
     def password(body: PasswordRequest, principal: User, core: Core):
-        pair = core.auth.change_password(principal, body.currentPassword, body.newPassword)
+        pair = core.auth.change_password(
+            principal, body.currentPassword, body.newPassword
+        )
         try:
             core.clear_inactive_bootstrap()
         except (OSError, StartupError):
