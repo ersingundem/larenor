@@ -24,7 +24,7 @@ physical 24-hour tablet result.
 
 ## TDD evidence
 
-- RED: `b29eda35` introduced the policy, persistence and tablet acceptance
+- RED: `55884a70` introduced the policy, persistence and tablet acceptance
   tests before production classes existed.
 - GREEN: focused Flutter tests cover policy, restart persistence, retention,
   strict parsing, CSV output, four EN/TR tablet viewports and the existing
