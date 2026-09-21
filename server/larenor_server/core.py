@@ -104,6 +104,7 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .core_backups.service import CoreBackupContract
+from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
 
 
@@ -145,6 +146,7 @@ class CoreServices:
             private_read(lock_path, 0)
         with lock_path.open("rb") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            recover_empty_restore(settings)
             existed = settings.database_file.exists()
             initialized_marker = settings.data_dir / ".initialized"
             if not existed and initialized_marker.exists():
