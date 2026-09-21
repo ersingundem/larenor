@@ -18,6 +18,9 @@ Exactly three acceptance criteria are in scope:
    topology or receipt to `DualDisplayCoordinator`; unknown keys, private data,
    malformed values, and foreign callbacks fail closed.
 
-The RED tests intentionally precede the Android bridge and Flutter platform
-adapter. A later slice will connect the verified bridge to a route-owned tablet
-management surface and isolated secondary Flutter renderer.
+The RED tests preceded the Android bridge and Flutter platform adapter. The
+production bridge is registered with `MainActivity`, observes Android display,
+focus, configuration and lifecycle changes, and retires its presentation on
+detach or authority loss. Nine Flutter contract tests and three Android unit
+tests pass. A later slice will connect the verified bridge to a route-owned
+tablet management surface and isolated secondary Flutter renderer.
