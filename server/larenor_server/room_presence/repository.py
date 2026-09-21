@@ -594,15 +594,15 @@ class RoomPresenceRepository:
         with self._lock:
             self._sync()
             self._verify_authority(principal, preview.authority)
+            stored = self._state["previews"].get(request_id)
+            if stored is None or CalibrationPreview.model_validate(stored) != preview:
+                raise ApiError("idempotency_conflict", 409)
             replay = self._state["receipts"].get(request_id)
             if replay is not None:
                 receipt = CalibrationReceipt.model_validate(replay)
                 if receipt.authority != preview.authority:
                     raise ApiError("idempotency_conflict", 409)
                 return receipt
-            stored = self._state["previews"].get(request_id)
-            if stored is None or CalibrationPreview.model_validate(stored) != preview:
-                raise ApiError("revision_conflict", 409)
             if preview.expiresAtMs <= int(self.settings.clock() * 1000):
                 raise ApiError("revision_conflict", 409)
             record = self._state["devices"].get(preview.deviceId)

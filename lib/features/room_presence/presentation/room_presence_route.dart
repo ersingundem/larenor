@@ -119,7 +119,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
         }
         return;
       }
-      if (_controller == null && !_starting) {
+      if (_controller == null && !_starting && !_failed) {
         unawaited(_createRuntime());
       }
     });
@@ -249,18 +249,39 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                _failed
-                    ? tr
-                          ? 'Core oda varlığı doğrulanamadı.'
-                          : 'Core room presence could not be verified.'
-                    : tr
-                    ? 'Core oda varlığı hazırlanıyor.'
-                    : 'Preparing Core room presence.',
-                textAlign: TextAlign.center,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _failed
+                        ? tr
+                              ? 'Core oda varlığı doğrulanamadı.'
+                              : 'Core room presence could not be verified.'
+                        : tr
+                        ? 'Core oda varlığı hazırlanıyor.'
+                        : 'Preparing Core room presence.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                if (_failed) ...[
+                  const SizedBox(height: 16),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: CupertinoButton.filled(
+                      key: const ValueKey('room-presence-route-retry'),
+                      onPressed: !_current()
+                          ? null
+                          : () {
+                              setState(() => _failed = false);
+                              _schedule();
+                            },
+                      child: Text(tr ? 'Tekrar dene' : 'Retry'),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

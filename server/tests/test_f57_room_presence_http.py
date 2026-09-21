@@ -219,6 +219,13 @@ def test_calibration_requires_exact_preview_confirm_and_durable_readback(server)
         )
         assert replay.status_code == 200
         assert replay.json() == confirm.json()
+        tampered = restarted.post(
+            root + f"/calibrations/{preview.json()['requestId']}/confirm",
+            headers=auth(admin),
+            json={**preview.json(), "deviceRevision": 10},
+        )
+        assert tampered.status_code == 409
+        assert tampered.json()["error"]["code"] == "idempotency_conflict"
 
 
 def test_foreign_scope_session_route_and_revisions_fail_closed(server):
