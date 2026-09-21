@@ -43,99 +43,46 @@ class CoreHomeStatusScreen extends ConsumerWidget {
         SliverToBoxAdapter(
           child: ListenableBuilder(
             listenable: controller,
-            builder: (_, _) => Column(
+            builder: (_, _) => SettingsSection(
+              footer: Text(l10n.homeCoreUnavailable),
               children: [
-                SettingsSection(
-                  footer: Text(l10n.homeCoreUnavailable),
-                  children: [
-                    _statusRow(
-                      Text(
-                        controller.failure != null
-                            ? l10n.homeSourceStorageError
-                            : controller.busy
-                            ? l10n.homeSourceLoading
-                            : controller.account.context != null
-                            ? l10n.homeCoreVerified
-                            : l10n.homeCoreVerificationRequired,
-                      ),
-                    ),
-                    if (controller.account.failure
-                        case 'storage_failed' || 'logout_not_confirmed')
-                      Semantics(
-                        liveRegion: true,
-                        child: _statusRow(
-                          Text(
-                            controller.account.failure == 'storage_failed'
-                                ? l10n.serverFailureStorage
-                                : l10n.serverLogoutUnconfirmed,
-                            style: TextStyle(
-                              color: CupertinoColors.systemRed.resolveFrom(
-                                context,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                _statusRow(
+                  Text(
+                    controller.failure != null
+                        ? l10n.homeSourceStorageError
+                        : controller.busy
+                        ? l10n.homeSourceLoading
+                        : controller.account.context != null
+                        ? l10n.homeCoreVerified
+                        : l10n.homeCoreVerificationRequired,
+                  ),
                 ),
-                SettingsSection(
-                  children: [
-                    const HomePeopleEntry(),
-                    if (controller.account.context != null)
-                      SettingsActionTile(
-                        key: const ValueKey('core-home-inventory-entry'),
-                        buttonKey: const ValueKey('core-home-inventory-action'),
-                        title: Text(l10n.inventoryTitle),
-                        onTap: !current()
-                            ? null
-                            : () {
-                                if (current()) context.push('/inventory');
-                              },
-                      ),
-                    if (controller.account.context != null)
-                      SettingsActionTile(
-                        key: const ValueKey('local-notification-entry'),
-                        buttonKey: const ValueKey(
-                          'local-notification-entry-action',
+                if (controller.account.failure
+                    case 'storage_failed' || 'logout_not_confirmed')
+                  Semantics(
+                    liveRegion: true,
+                    child: _statusRow(
+                      Text(
+                        controller.account.failure == 'storage_failed'
+                            ? l10n.serverFailureStorage
+                            : l10n.serverLogoutUnconfirmed,
+                        style: TextStyle(
+                          color: CupertinoColors.systemRed.resolveFrom(context),
                         ),
-                        title: Text(l10n.localNotificationsTitle),
-                        additionalInfo: Text(
-                          l10n.localNotificationsEntrySubtitle,
-                        ),
-                        onTap: !current()
-                            ? null
-                            : () {
-                                if (current()) {
-                                  context.push('/notifications');
-                                }
-                              },
                       ),
-                    if (controller.failure == null && !controller.busy)
-                      SettingsActionTile(
-                        key: const ValueKey('core-home-manage-account-entry'),
-                        buttonKey: const ValueKey(
-                          'core-home-manage-account-action',
-                        ),
-                        title: Text(l10n.homeCoreManageAccount),
-                        onTap: !current()
-                            ? null
-                            : () {
-                                if (current()) context.push('/settings');
-                              },
-                      ),
-                    SettingsActionTile(
-                      key: const ValueKey('core-home-source-entry'),
-                      buttonKey: const ValueKey('core-home-source-action'),
-                      title: Text(l10n.homeSourceTitle),
-                      onTap: controller.busy || !current()
-                          ? null
-                          : () {
-                              if (current()) {
-                                context.push('/settings/home-source');
-                              }
-                            },
                     ),
-                  ],
+                  ),
+                SettingsActionTile(
+                  key: const ValueKey('core-home-source-entry'),
+                  buttonKey: const ValueKey('core-home-source-action'),
+                  title: Text(l10n.homeSourceTitle),
+                  onTap: controller.busy || !current()
+                      ? null
+                      : () {
+                          if (current()) {
+                            context.push('/settings/home-source');
+                          }
+                        },
                 ),
               ],
             ),
@@ -144,6 +91,190 @@ class CoreHomeStatusScreen extends ConsumerWidget {
         const SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: 24),
           sliver: CoreHomeResources(),
+        ),
+        SliverToBoxAdapter(
+          child: ListenableBuilder(
+            listenable: controller,
+            builder: (_, _) => SettingsSection(
+              children: [
+                const HomePeopleEntry(),
+                if (controller.failure == null && !controller.busy)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-manage-account-entry'),
+                    buttonKey: const ValueKey(
+                      'core-home-manage-account-action',
+                    ),
+                    title: Text(l10n.homeCoreManageAccount),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/settings');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-camera-search-entry'),
+                    buttonKey: const ValueKey('core-home-camera-search-action'),
+                    title: Text(l10n.cameraSearchTitle),
+                    additionalInfo: Text(l10n.cameraSearchEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/camera-search');
+                            }
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-epaper-entry'),
+                    buttonKey: const ValueKey('core-home-epaper-action'),
+                    title: Text(l10n.epaperTitle),
+                    additionalInfo: Text(l10n.epaperEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/epaper');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-room-presence-entry'),
+                    buttonKey: const ValueKey('core-home-room-presence-action'),
+                    title: Text(l10n.roomPresenceTitle),
+                    additionalInfo: Text(l10n.roomPresenceEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/room-presence');
+                            }
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-inventory-entry'),
+                    buttonKey: const ValueKey('core-home-inventory-action'),
+                    title: Text(l10n.inventoryTitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/inventory');
+                          },
+                  ),
+                if (controller.account.session?.user.canAdminister == true)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-resource-catalog-entry'),
+                    buttonKey: const ValueKey(
+                      'core-home-resource-catalog-action',
+                    ),
+                    title: Text(l10n.resourceCatalogEntry),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/reservations/manage');
+                            }
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-reservations-entry'),
+                    buttonKey: const ValueKey('core-home-reservations-action'),
+                    title: Text(l10n.resourceReservationsTitle),
+                    additionalInfo: Text(
+                      l10n.resourceReservationsEntrySubtitle,
+                    ),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/reservations');
+                            }
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-documents-entry'),
+                    buttonKey: const ValueKey('core-home-documents-action'),
+                    title: Text(l10n.inventoryDocuments),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/documents');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-family-board-entry'),
+                    buttonKey: const ValueKey('core-home-family-board-action'),
+                    title: Text(l10n.familyBoardTitle),
+                    additionalInfo: Text(l10n.familyBoardEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/family-board');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('fair-chores-entry'),
+                    buttonKey: const ValueKey('fair-chores-entry-action'),
+                    title: Text(l10n.fairChoresTitle),
+                    additionalInfo: Text(l10n.fairChoresSubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/chores');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('local-notification-entry'),
+                    buttonKey: const ValueKey(
+                      'local-notification-entry-action',
+                    ),
+                    title: Text(l10n.localNotificationsTitle),
+                    additionalInfo: Text(l10n.localNotificationsEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/notifications');
+                            }
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-weekly-menu-entry'),
+                    buttonKey: const ValueKey('core-home-weekly-menu-action'),
+                    title: Text(l10n.weeklyMealPlanTitle),
+                    additionalInfo: Text(l10n.weeklyMealPlanEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/weekly-menu');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-shared-expenses-entry'),
+                    buttonKey: const ValueKey(
+                      'core-home-shared-expenses-action',
+                    ),
+                    title: Text(l10n.sharedExpensesTitle),
+                    additionalInfo: Text(l10n.sharedExpensesEntrySubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/shared-expenses');
+                            }
+                          },
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="larenor_home"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_home"
+        android:shortcutLongLabel="@string/shortcut_home_long">
+        <intent
+            android:action="com.ersingundem.larenor.action.OPEN_HOME"
+            android:targetPackage="com.ersingundem.larenor"
+            android:targetClass="com.ersingundem.larenor.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="larenor_kiosk"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_kiosk"
+        android:shortcutLongLabel="@string/shortcut_kiosk_long">
+        <intent
+            android:action="com.ersingundem.larenor.action.OPEN_KIOSK"
+            android:targetPackage="com.ersingundem.larenor"
+            android:targetClass="com.ersingundem.larenor.MainActivity" />
+    </shortcut>
+</shortcuts>

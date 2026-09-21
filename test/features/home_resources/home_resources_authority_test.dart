@@ -49,6 +49,7 @@ void main() {
       );
       final manage = find.text(l10n.homeCoreManageAccount);
       await tester.ensureVisible(manage);
+      await tester.pumpAndSettle();
       await tester.tap(manage);
       await flush(tester);
       expect(find.byType(ServerConnectionScreen), findsNothing);

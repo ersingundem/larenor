@@ -433,7 +433,13 @@ void main() {
       changed['snapshot'] = 'f' * 64;
       harness.response = changed;
       final refresh = find.byKey(const ValueKey('home-resources-refresh'));
-      await tester.ensureVisible(refresh);
+      await tester.scrollUntilVisible(
+        refresh,
+        -400,
+        scrollable: find.byType(Scrollable).first,
+        maxScrolls: 20,
+      );
+      await tester.pump();
       await tester.tap(refresh);
       await flush(tester);
 

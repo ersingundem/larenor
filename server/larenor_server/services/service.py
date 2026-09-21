@@ -169,6 +169,18 @@ class ServiceManagement:
             raise ApiError("keenetic_service_unverified", 409)
         return self._private(row, record)
 
+    def _workshop_connection(self, connection, service_id: str,
+                             revision: int) -> ServiceConnection:
+        """Private, transaction-bound workshop source; never returns through HTTP."""
+        row, record = self._record(connection, service_id, revision)
+        if (
+            record["kind"] not in {"octoprint", "moonraker"}
+            or set(record["credentials"]) != {"apiKey"}
+            or record["verification"]["state"] != "authenticated"
+        ):
+            raise ApiError("workshop_binding_changed", 409)
+        return self._private(row, record)
+
     def list(self, actor: Principal) -> dict:
         with self._read(actor) as connection:
             rows = connection.execute("SELECT * FROM service_connections ORDER BY id LIMIT ?", (MAX_SERVICES + 1,)).fetchall()

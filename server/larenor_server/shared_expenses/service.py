@@ -1,10 +1,10 @@
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
 import sqlite3
 import time
 import uuid
+from dataclasses import asdict, dataclass
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -13,9 +13,9 @@ from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
 
-
 CURRENCY_SCALES = {"EUR": 2, "GBP": 2, "JPY": 0, "TRY": 2, "USD": 2}
 MAX_ACCOUNTS = 32
+MAX_HOUSEHOLD_MEMBERS = 256
 MAX_EXPENSES = 1000
 MAX_TITLE_LENGTH = 200
 MAX_TOTAL_MINOR = 10**12
@@ -39,7 +39,7 @@ class HouseholdAccounts:
             type(self.revision) is not int
             or self.revision < 1
             or not isinstance(self.ids, tuple)
-            or not 1 <= len(self.ids) <= MAX_ACCOUNTS
+            or not 1 <= len(self.ids) <= MAX_HOUSEHOLD_MEMBERS
             or len(set(self.ids)) != len(self.ids)
             or any(not _identifier(identifier) for identifier in self.ids)
         ):
@@ -442,6 +442,37 @@ class ExpenseStore:
         self._authorize(actor, members)
         with self.database.connection() as connection:
             return self._verified_history(connection, core_id, home_id)
+
+    def receipt(
+        self,
+        actor: Principal,
+        command_id: str,
+        *,
+        core_id: str,
+        home_id: str,
+        members: HouseholdAccounts,
+    ) -> ExpenseReceipt | None:
+        self._scope(core_id, home_id)
+        self._authorize(actor, members)
+        if not _identifier(command_id):
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            self._verified_history(connection, core_id, home_id)
+            row = connection.execute(
+                "SELECT * FROM shared_expense_events WHERE core_id=? AND home_id=? "
+                "AND command_id=?",
+                (core_id, home_id, command_id),
+            ).fetchone()
+            if row is None:
+                return None
+            if row["actor_id"] != actor.id and actor.role != "admin":
+                raise ApiError("forbidden", 403)
+            return ExpenseReceipt(
+                row["event_id"],
+                row["command_id"],
+                row["ledger_revision"],
+                self._record(connection, row["record_id"]),
+            )
 
     def export(
         self,

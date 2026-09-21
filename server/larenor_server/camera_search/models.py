@@ -164,3 +164,19 @@ class CameraSearchPage(FrozenModel):
         if self.status == "ready" and self.mode != "semantic_assisted":
             raise ValueError("invalid_status")
         return self
+
+
+class CameraSearchContextResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    coreId: Identity
+    homeId: Identity
+    indexRevision: Revision
+    cameraIds: list[Identity] = Field(min_length=1, max_length=64)
+    maxWindowDays: Literal[31]
+
+    @field_validator("cameraIds")
+    @classmethod
+    def unique_cameras(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("duplicate_camera")
+        return value

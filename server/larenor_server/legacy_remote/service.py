@@ -1,12 +1,12 @@
 """Preview-confirm orchestration for opaque, bounded IR/RF commands."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import secrets
 import threading
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 from ..errors import ApiError
 from .models import (
@@ -18,7 +18,6 @@ from .models import (
     RemoteDevice,
     RemoteWorkerCommand,
 )
-
 
 MAX_COMMANDS = 1_000
 MAX_AUDIT = 10_000
@@ -56,6 +55,7 @@ class _CommandState:
     device: RemoteDevice
     profile: RemoteCommandProfile
     result: RemoteCommandResult | None = None
+    attempted: bool = False
 
 
 class LegacyRemoteManager:
@@ -68,6 +68,7 @@ class LegacyRemoteManager:
         profileResolver: Callable[[str], RemoteCommandProfile | None],
         worker: Callable[[RemoteWorkerCommand], RemoteDeliveryReceipt],
         clockMs: Callable[[], int],
+        store=None,
     ):
         if not isinstance(auditKey, bytes) or len(auditKey) < 32:
             raise ValueError("invalid_audit_key")
@@ -77,9 +78,85 @@ class LegacyRemoteManager:
         self._resolve_profile = profileResolver
         self._worker = worker
         self._clock = clockMs
+        self._store = store
         self._commands: dict[str, _CommandState] = {}
         self._audit: list[RemoteAuditEntry] = []
         self._lock = threading.RLock()
+        if store is not None:
+            self._restore(store.load())
+            self._validate_audit()
+
+    def _snapshot(self):
+        return {
+            "schemaVersion": 1,
+            "commands": [
+                {
+                    "preview": state.preview.model_dump(mode="json"),
+                    "device": state.device.model_dump(mode="json"),
+                    "profile": state.profile.model_dump(mode="json"),
+                    "result": None
+                    if state.result is None
+                    else state.result.model_dump(mode="json"),
+                    "attempted": state.attempted,
+                }
+                for _request_id, state in sorted(self._commands.items())
+            ],
+            "audit": [asdict(entry) for entry in self._audit],
+        }
+
+    def _restore(self, snapshot):
+        try:
+            if (
+                not isinstance(snapshot, dict)
+                or set(snapshot) != {"schemaVersion", "commands", "audit"}
+                or snapshot["schemaVersion"] != 1
+                or not isinstance(snapshot["commands"], list)
+                or not isinstance(snapshot["audit"], list)
+                or len(snapshot["commands"]) > MAX_COMMANDS
+                or len(snapshot["audit"]) > MAX_AUDIT
+            ):
+                raise ValueError("invalid_snapshot")
+            commands = {}
+            for raw in snapshot["commands"]:
+                if not isinstance(raw, dict) or set(raw) != {
+                    "preview",
+                    "device",
+                    "profile",
+                    "result",
+                    "attempted",
+                }:
+                    raise ValueError("invalid_snapshot")
+                preview = RemoteCommandPreview.model_validate(raw["preview"])
+                state = _CommandState(
+                    preview=preview,
+                    device=RemoteDevice.model_validate(raw["device"]),
+                    profile=RemoteCommandProfile.model_validate(raw["profile"]),
+                    result=None
+                    if raw["result"] is None
+                    else RemoteCommandResult.model_validate(raw["result"]),
+                    attempted=raw["attempted"],
+                )
+                if type(state.attempted) is not bool or (
+                    state.result is not None and not state.attempted
+                ):
+                    raise ValueError("invalid_snapshot")
+                if preview.requestId in commands:
+                    raise ValueError("invalid_snapshot")
+                commands[preview.requestId] = state
+            audit = []
+            for raw in snapshot["audit"]:
+                if not isinstance(raw, dict) or set(raw) != set(
+                    RemoteAuditEntry.__annotations__
+                ):
+                    raise ValueError("invalid_snapshot")
+                audit.append(RemoteAuditEntry(**raw))
+            self._commands, self._audit = commands, audit
+        except Exception:
+            raise ApiError("remote_command_integrity_failed", 503) from None
+
+    def _persist(self):
+        if self._store is not None:
+            self._store.save(self._snapshot())
 
     @property
     def audit(self):
@@ -91,7 +168,9 @@ class LegacyRemoteManager:
         try:
             authority = RemoteAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
-            current = None if current is None else RemoteAuthority.model_validate(current)
+            current = (
+                None if current is None else RemoteAuthority.model_validate(current)
+            )
         except Exception:
             raise ApiError("forbidden", 403) from None
         if current is None:
@@ -101,6 +180,10 @@ class LegacyRemoteManager:
         if not authority.active or not authority.canControlLegacyRemote:
             raise ApiError("forbidden", 403)
         return authority
+
+    def authorize(self, presented):
+        """Validate a catalog read against the same live authority as effects."""
+        return self._authority(presented)
 
     def _entry_hash(self, values):
         return hmac.new(
@@ -133,7 +216,8 @@ class LegacyRemoteManager:
             ]
             if (
                 entry.sequence != sequence
-                or entry.action not in {"previewed", "dispatched", "uncertain"}
+                or entry.action
+                not in {"previewed", "dispatching", "dispatched", "uncertain"}
                 or entry.previousHash != previous
                 or not secrets.compare_digest(entry.entryHash, self._entry_hash(values))
             ):
@@ -300,9 +384,7 @@ class LegacyRemoteManager:
                 expiresAtMs=self._clock() + PREVIEW_LIFETIME_MS,
                 confirmationToken=ZERO_HASH,
             )
-            preview = draft.model_copy(
-                update={"confirmationToken": self._token(draft)}
-            )
+            preview = draft.model_copy(update={"confirmationToken": self._token(draft)})
         except Exception:
             raise ApiError("invalid_request") from None
         with self._lock:
@@ -314,11 +396,34 @@ class LegacyRemoteManager:
                 return prior.preview
             if len(self._commands) >= MAX_COMMANDS:
                 raise ApiError("revision_conflict", 409)
-            self._commands[preview.requestId] = _CommandState(
-                preview, device, profile
-            )
+            self._commands[preview.requestId] = _CommandState(preview, device, profile)
             self._append_audit("previewed", preview)
+            try:
+                self._persist()
+            except Exception:
+                self._commands.pop(preview.requestId, None)
+                self._audit.pop()
+                raise
             return preview
+
+    @staticmethod
+    def _uncertain_result(preview):
+        return RemoteCommandResult(
+            schemaVersion=1,
+            requestId=preview.requestId,
+            status="uncertain",
+            reason="lost_ack",
+            deliveryVerified=False,
+            deviceStateVerified=False,
+            receipt=None,
+        )
+
+    def _recover_attempted(self, state):
+        if state.attempted and state.result is None:
+            state.result = self._uncertain_result(state.preview)
+            self._append_audit("uncertain", state.preview)
+            self._persist()
+        return state.result
 
     def confirm(self, presentedAuthority, rawPreview, confirmationToken):
         authority = self._authority(presentedAuthority)
@@ -356,6 +461,9 @@ class LegacyRemoteManager:
                 raise ApiError("invalid_request")
             if state.result is not None:
                 return state.result
+            recovered = self._recover_attempted(state)
+            if recovered is not None:
+                return recovered
             if self._clock() >= preview.expiresAtMs:
                 raise ApiError("remote_preview_expired", 409)
             device = self._current_device(authority, state.device)
@@ -391,6 +499,14 @@ class LegacyRemoteManager:
                 repeats=preview.repeats,
                 holdMs=preview.holdMs,
             )
+            state.attempted = True
+            self._append_audit("dispatching", preview)
+            try:
+                self._persist()
+            except Exception:
+                state.attempted = False
+                self._audit.pop()
+                raise
             try:
                 receipt = RemoteDeliveryReceipt.model_validate(self._worker(command))
             except Exception:
@@ -440,4 +556,42 @@ class LegacyRemoteManager:
                 action = "uncertain"
             state.result = result
             self._append_audit(action, preview)
+            try:
+                self._persist()
+            except Exception:
+                state.result = None
+                self._audit.pop()
+                raise
+            return result
+
+    def result(self, presentedAuthority, requestId):
+        """Read one completed result without retrying or redispatching it."""
+        authority = self._authority(presentedAuthority)
+        with self._lock:
+            self._validate_audit()
+            state = self._commands.get(requestId)
+            if state is None:
+                raise ApiError("not_found", 404)
+            preview = state.preview
+            if (
+                preview.coreId,
+                preview.homeId,
+                preview.homeRevision,
+                preview.accountId,
+                preview.accountRevision,
+                preview.memberRevision,
+                preview.sessionFamilyId,
+            ) != (
+                authority.coreId,
+                authority.homeId,
+                authority.homeRevision,
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("not_found", 404)
+            result = state.result or self._recover_attempted(state)
+            if result is None:
+                raise ApiError("not_found", 404)
             return result

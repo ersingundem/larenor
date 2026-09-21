@@ -293,6 +293,26 @@ class LarenorServerApi {
               _ => false,
             },
           );
+      final homeDocumentsQuery =
+          method == 'GET' &&
+          RegExp(
+            r'^/home-documents/[0-9a-f]{32}/[0-9a-f]{32}/(?:documents|reminders)$',
+          ).hasMatch(path) &&
+          queryParameters.entries.every(
+            (entry) => switch (entry.key) {
+              'query' =>
+                path.endsWith('/documents') &&
+                    entry.value.length <= 120 &&
+                    !entry.value.contains(RegExp(r'[\x00-\x1f\x7f]')),
+              'today' =>
+                path.endsWith('/reminders') &&
+                    RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(entry.value),
+              'limit' =>
+                RegExp(r'^[1-9][0-9]{0,2}$').hasMatch(entry.value) &&
+                    (int.tryParse(entry.value) ?? 0) <= 100,
+              _ => false,
+            },
+          );
       final keeneticDetailsQuery =
           method == 'GET' &&
           RegExp(
@@ -348,12 +368,21 @@ class LarenorServerApi {
               .hasMatch(path) &&
           queryParameters.length == 1 &&
           canonicalRevision(revision);
+      final kioskRemoteDeleteQuery =
+          method == 'DELETE' &&
+          RegExp(
+            r'^/admin/paired-remote/[0-9a-f]{32}/[0-9a-f]{32}/pairings/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          canonicalRevision(revision);
       if (!readQuery &&
           !forgetQuery &&
           !personalProfileDeleteQuery &&
+          !kioskRemoteDeleteQuery &&
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&
+          !homeDocumentsQuery &&
           !keeneticDetailsQuery &&
           !homeAssistantHistory &&
           !homeAssistantEvents &&
@@ -535,6 +564,8 @@ class LarenorServerApi {
             'media_archive_worker_unavailable',
             'sound_event_integrity_failed',
             'tablet_fleet_storage_unavailable',
+            'energy_provider_unavailable',
+            'energy_command_integrity_failed',
           }.contains(code)) {
         return code as String;
       }

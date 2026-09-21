@@ -149,6 +149,13 @@ class StoredReceipt(FrozenModel):
 class StoredBoard(FrozenModel):
     elements: list[BoardElement] = Field(max_length=512)
     receipts: dict[
-        Annotated[str, Field(min_length=98, max_length=98, pattern=r"^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]{32}$")],
+        Annotated[
+            str,
+            Field(
+                min_length=98,
+                max_length=98,
+                pattern=r"^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]{32}$",
+            ),
+        ],
         StoredReceipt,
     ] = Field(max_length=1024)

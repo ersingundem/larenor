@@ -2,8 +2,10 @@ import hashlib
 import io
 import json
 import secrets
+import sqlite3
 import threading
 import zipfile
+from contextlib import closing
 from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidTag
@@ -15,7 +17,7 @@ from ..auth import AuthService, Principal
 from ..config import Settings
 from ..database import Database
 from ..errors import ApiError
-from ..files import private_read
+from ..files import checked_path, private_read
 from ..legal import server_version
 from .models import BackupManifest, BackupResource
 
@@ -65,8 +67,9 @@ _ACTIVE = (
     ),
 )
 MAX_DATABASE_BYTES = 128 * 1024 * 1024
+MAX_FAMILY_BOARD_BYTES = 32 * 1024 * 1024
 MAGIC = b"LARENOR-CORE-BACKUP\x00\x01"
-MAX_BUNDLE_BYTES = MAX_DATABASE_BYTES + 8 * 1024 * 1024
+MAX_BUNDLE_BYTES = MAX_DATABASE_BYTES + MAX_FAMILY_BOARD_BYTES + 8 * 1024 * 1024
 _MANIFEST_NAME = "manifest.json"
 
 
@@ -84,6 +87,67 @@ def _resource(identifier, kind, version, payload):
         byteLength=len(payload),
         sha256=hashlib.sha256(payload).hexdigest(),
     )
+
+
+def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
+    """Authenticate and decode one bounded bundle without touching storage."""
+    try:
+        header = len(MAGIC) + 16 + 12
+        if (
+            type(bundle) is not bytes
+            or not header + 16 <= len(bundle) <= MAX_BUNDLE_BYTES
+            or bundle[: len(MAGIC)] != MAGIC
+        ):
+            raise ValueError("invalid_bundle")
+        salt = bundle[len(MAGIC) : len(MAGIC) + 16]
+        nonce = bundle[len(MAGIC) + 16 : header]
+        aad = bundle[:header]
+        key = Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(
+            passphrase.encode("utf-8")
+        )
+        plaintext = AESGCM(key).decrypt(nonce, bundle[header:], aad)
+        with zipfile.ZipFile(io.BytesIO(plaintext), mode="r") as archive:
+            infos = archive.infolist()
+            names = [item.filename for item in infos]
+            if (
+                len(infos) not in (5, 6)
+                or len(set(names)) != len(names)
+                or _MANIFEST_NAME not in names
+                or any(
+                    item.is_dir() or item.file_size > MAX_BUNDLE_BYTES
+                    for item in infos
+                )
+                or sum(item.file_size for item in infos) > MAX_BUNDLE_BYTES
+            ):
+                raise ValueError("invalid_archive")
+            manifest_bytes = archive.read(_MANIFEST_NAME)
+            if len(manifest_bytes) > 256 * 1024:
+                raise ValueError("invalid_manifest")
+            manifest = BackupManifest.model_validate_json(manifest_bytes)
+            expected = {f"resources/{item.id}" for item in manifest.resources}
+            if set(names) != expected | {_MANIFEST_NAME}:
+                raise ValueError("invalid_resources")
+            payloads = {
+                item.id: archive.read(f"resources/{item.id}")
+                for item in manifest.resources
+            }
+        for resource in manifest.resources:
+            payload = payloads[resource.id]
+            if len(payload) != resource.byteLength or not secrets.compare_digest(
+                hashlib.sha256(payload).hexdigest(), resource.sha256
+            ):
+                raise ValueError("invalid_digest")
+        return BackupCapture(manifest=manifest, payloads=payloads)
+    except (
+        InvalidTag,
+        OSError,
+        UnicodeError,
+        ValueError,
+        ValidationError,
+        zipfile.BadZipFile,
+        RuntimeError,
+    ):
+        raise ApiError("backup_decryption_failed") from None
 
 
 @dataclass(frozen=True)
@@ -137,6 +201,31 @@ class CoreBackupContract:
                 values[row["key"]] = version
         return values
 
+    def _capture_family_board(self) -> bytes:
+        path = self.settings.data_dir / "family-board.sqlite3"
+        checked_path(path)
+        if not path.is_file():
+            raise ApiError("server_unavailable", 503)
+        try:
+            with closing(sqlite3.connect(path, timeout=5.0)) as board:
+                # Hold this write reservation until both databases have been
+                # serialized. Core's reservation is acquired first, matching
+                # the family-board authority-then-store lock order.
+                board.execute("BEGIN IMMEDIATE")
+                page_size = board.execute("PRAGMA page_size").fetchone()[0]
+                page_count = board.execute("PRAGMA page_count").fetchone()[0]
+                if page_size * page_count > MAX_FAMILY_BOARD_BYTES:
+                    raise ApiError("backup_too_large", 413)
+                if board.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise ApiError("server_unavailable", 503)
+                payload = board.serialize()
+                board.rollback()
+            if not payload or len(payload) > MAX_FAMILY_BOARD_BYTES:
+                raise ApiError("backup_too_large", 413)
+            return payload
+        except sqlite3.Error:
+            raise ApiError("server_unavailable", 503) from None
+
     def capture(self, actor: Principal) -> BackupCapture:
         with self.db.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -157,6 +246,7 @@ class CoreBackupContract:
                 connection.rollback()
                 raise ApiError("backup_too_large", 413)
             database = connection.serialize()
+            family_board = self._capture_family_board()
             connection.rollback()
 
         key = private_read(self.settings.key_file, 32)
@@ -180,6 +270,7 @@ class CoreBackupContract:
         )
         payloads = {
             "core-database": database,
+            "family-board": family_board,
             "vault-key": key,
             "core-configuration": configuration,
             "component-index": component_index,
@@ -187,6 +278,7 @@ class CoreBackupContract:
         resources = sorted(
             (
                 _resource("core-database", "database", str(schema), database),
+                _resource("family-board", "familyBoard", "1", family_board),
                 _resource("vault-key", "vaultKey", "aes256-v1", key),
                 _resource("core-configuration", "configuration", "1", configuration),
                 _resource("component-index", "componentData", "1", component_index),
@@ -194,7 +286,7 @@ class CoreBackupContract:
             key=lambda item: item.id,
         )
         manifest = BackupManifest(
-            contractVersion=1,
+            contractVersion=2,
             snapshotId=secrets.token_hex(16),
             createdAt=int(self.settings.clock()),
             coreVersion=server_version(),
@@ -218,7 +310,7 @@ class CoreBackupContract:
 
     def validate_restore(self, manifest: BackupManifest):
         reasons = []
-        if manifest.contractVersion != 1:
+        if manifest.contractVersion not in (1, 2):
             reasons.append("unsupported_contract_version")
         with self.db.connection() as connection:
             current_schema = int(
@@ -277,59 +369,4 @@ class CoreBackupContract:
             self._export_lock.release()
 
     def open_bundle(self, bundle: bytes, passphrase: str) -> BackupCapture:
-        try:
-            header = len(MAGIC) + 16 + 12
-            if (
-                type(bundle) is not bytes
-                or not header + 16 <= len(bundle) <= MAX_BUNDLE_BYTES
-                or bundle[: len(MAGIC)] != MAGIC
-            ):
-                raise ValueError("invalid_bundle")
-            salt = bundle[len(MAGIC) : len(MAGIC) + 16]
-            nonce = bundle[len(MAGIC) + 16 : header]
-            aad = bundle[:header]
-            plaintext = AESGCM(self._derive_key(passphrase, salt)).decrypt(
-                nonce, bundle[header:], aad
-            )
-            with zipfile.ZipFile(io.BytesIO(plaintext), mode="r") as archive:
-                infos = archive.infolist()
-                names = [item.filename for item in infos]
-                if (
-                    len(infos) != 5
-                    or len(set(names)) != len(names)
-                    or _MANIFEST_NAME not in names
-                    or any(
-                        item.is_dir() or item.file_size > MAX_BUNDLE_BYTES
-                        for item in infos
-                    )
-                    or sum(item.file_size for item in infos) > MAX_BUNDLE_BYTES
-                ):
-                    raise ValueError("invalid_archive")
-                manifest_bytes = archive.read(_MANIFEST_NAME)
-                if len(manifest_bytes) > 256 * 1024:
-                    raise ValueError("invalid_manifest")
-                manifest = BackupManifest.model_validate_json(manifest_bytes)
-                expected = {f"resources/{item.id}" for item in manifest.resources}
-                if set(names) != expected | {_MANIFEST_NAME}:
-                    raise ValueError("invalid_resources")
-                payloads = {
-                    item.id: archive.read(f"resources/{item.id}")
-                    for item in manifest.resources
-                }
-            for resource in manifest.resources:
-                payload = payloads[resource.id]
-                if len(payload) != resource.byteLength or not secrets.compare_digest(
-                    hashlib.sha256(payload).hexdigest(), resource.sha256
-                ):
-                    raise ValueError("invalid_digest")
-            return BackupCapture(manifest=manifest, payloads=payloads)
-        except (
-            InvalidTag,
-            OSError,
-            UnicodeError,
-            ValueError,
-            ValidationError,
-            zipfile.BadZipFile,
-            RuntimeError,
-        ):
-            raise ApiError("backup_decryption_failed") from None
+        return open_backup_bundle(bundle, passphrase)

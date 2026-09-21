@@ -41,6 +41,19 @@ class _LogoutStore extends server.Store {
   }
 }
 
+Future<void> _revealManageAccount(WidgetTester tester, Finder action) async {
+  final scrollable = find.byType(Scrollable).first;
+  tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+  await tester.pump();
+  await tester.scrollUntilVisible(
+    action,
+    400,
+    scrollable: scrollable,
+    maxScrolls: 20,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
     'Core late logout failure remains visible after protected account route retires',
@@ -75,7 +88,9 @@ void main() {
       expect(find.text(l10n.serverLogoutUnconfirmed), findsOneWidget);
       expect(h.connectionReads, 0);
       expect(h.api.logouts, 1);
-      await tester.tap(find.text(l10n.homeCoreManageAccount));
+      final manageAccount = find.text(l10n.homeCoreManageAccount);
+      await _revealManageAccount(tester, manageAccount);
+      await tester.tap(manageAccount);
       await flush(tester);
       expect(find.text(l10n.settingsGateUnlockButton), findsOneWidget);
       expect(find.byType(ServerConnectionScreen), findsNothing);
@@ -103,7 +118,9 @@ void main() {
               final l10n = AppLocalizations.of(
                 tester.element(find.byType(CoreHomeStatusScreen)),
               );
-              await tester.tap(find.text(l10n.homeCoreManageAccount));
+              final manageAccount = find.text(l10n.homeCoreManageAccount);
+              await _revealManageAccount(tester, manageAccount);
+              await tester.tap(manageAccount);
               await flush(tester);
               await tester.enterText(find.byType(CupertinoTextField), '1234');
               await tester.tap(find.text(l10n.settingsGateUnlockButton));
@@ -130,9 +147,7 @@ void main() {
               expect(h.connectionReads, 0);
               expect(tester.takeException(), isNull);
               final recoveryAction = find.text(l10n.homeCoreManageAccount);
-              await tester.ensureVisible(recoveryAction);
-              // jumpTo schedules layout; hit testing needs that frame first.
-              await tester.pump();
+              await _revealManageAccount(tester, recoveryAction);
               expect(recoveryAction.hitTestable(), findsOneWidget);
               await tester.tap(recoveryAction);
               await flush(tester);

@@ -751,6 +751,33 @@ void main() {
       final refresh = find.byKey(const ValueKey('home-resources-refresh'));
       final empty = find.byKey(const ValueKey('home-resources-empty'));
 
+      Future<void> refreshCoreResources() async {
+        // Resource rows are lazy slivers. After revealing a lower row, the
+        // refresh button above it may no longer be built. Scroll the Core
+        // page itself back to its header, not the last nested Scrollable.
+        final page = find
+            .descendant(
+              of: find.byType(CoreHomeStatusScreen),
+              matching: find.byType(CustomScrollView),
+            )
+            .first;
+        final scrollable = find
+            .descendant(of: page, matching: find.byType(Scrollable))
+            .first;
+        final position = tester.state<ScrollableState>(scrollable).position;
+        position.jumpTo(position.minScrollExtent);
+        await tester.pump(const Duration(milliseconds: 350));
+        if (refresh.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(
+            refresh,
+            200,
+            scrollable: scrollable,
+            maxScrolls: 8,
+          );
+        }
+        await tapVisible(tester, refresh);
+      }
+
       Future<void> remount(String expectedLabel) async {
         final meReads = core.meReads, contextReads = core.contextReads;
         final resourceReads = resources.reads;
@@ -824,7 +851,7 @@ void main() {
         // ACL changes are observed on a new authorized request, not a pretend
         // push channel. A refresh must replace the prior permission snapshot.
         resources.view = SyntheticCoreResourceView.revoked;
-        await tapVisible(tester, refresh);
+        await refreshCoreResources();
         await revealCoreResource(
           tester,
           lamp,
@@ -835,7 +862,7 @@ void main() {
         debugPrint('LARENOR_E2E_PHASE core_resources.revoked_after_refresh');
 
         resources.view = SyntheticCoreResourceView.empty;
-        await tapVisible(tester, refresh);
+        await refreshCoreResources();
         await waitFor(tester, empty);
         expect(room, findsNothing);
         expect(lamp, findsNothing);

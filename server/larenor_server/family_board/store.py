@@ -13,7 +13,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
 from .models import (
-    BOARD_ELEMENT_ADAPTER,
     BoardAuditEvent,
     BoardAuthority,
     BoardCommand,
@@ -68,7 +67,14 @@ class FamilyBoardStore:
             self.validate_storage()
         except StartupError:
             raise
-        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError, OSError):
+        except (
+            InvalidTag,
+            ValueError,
+            TypeError,
+            sqlite3.Error,
+            OverflowError,
+            OSError,
+        ):
             raise StartupError("family_board_storage_invalid") from None
 
     @contextmanager
@@ -87,8 +93,12 @@ class FamilyBoardStore:
 
     def _migrate(self):
         with self._connection() as connection:
-            connection.execute("CREATE TABLE IF NOT EXISTS family_board_metadata (version INTEGER NOT NULL)")
-            version = connection.execute("SELECT version FROM family_board_metadata").fetchall()
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS family_board_metadata (version INTEGER NOT NULL)"
+            )
+            version = connection.execute(
+                "SELECT version FROM family_board_metadata"
+            ).fetchall()
             if not version:
                 connection.execute(BOARDS)
                 connection.execute(EVENTS)
@@ -128,8 +138,13 @@ class FamilyBoardStore:
 
     @staticmethod
     def _canonical(value):
-        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-                          allow_nan=False).encode("utf-8")
+        return json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
 
     def _state_aad(self, row):
         return (
@@ -144,15 +159,28 @@ class FamilyBoardStore:
         ).encode("ascii")
 
     def _state_tag(self, row):
-        payload = self._canonical([
-            row["core_id"], row["home_id"], row["board_id"], row["home_revision"],
-            row["board_revision"], row["event_count"], row["audit_head"],
-            bytes(row["nonce"]).hex(), hashlib.sha256(bytes(row["ciphertext"])).hexdigest(),
-        ])
-        return hmac.new(self._key, b"family-board-state-v1\0" + payload, hashlib.sha256).hexdigest()
+        payload = self._canonical(
+            [
+                row["core_id"],
+                row["home_id"],
+                row["board_id"],
+                row["home_revision"],
+                row["board_revision"],
+                row["event_count"],
+                row["audit_head"],
+                bytes(row["nonce"]).hex(),
+                hashlib.sha256(bytes(row["ciphertext"])).hexdigest(),
+            ]
+        )
+        return hmac.new(
+            self._key, b"family-board-state-v1\0" + payload, hashlib.sha256
+        ).hexdigest()
 
     def _command_digest(self, command):
-        return hashlib.sha256(b"family-board-command-v1\0" + self._canonical(command.model_dump(mode="json"))).hexdigest()
+        return hashlib.sha256(
+            b"family-board-command-v1\0"
+            + self._canonical(command.model_dump(mode="json"))
+        ).hexdigest()
 
     @staticmethod
     def _receipt_key(authority, request_id):
@@ -164,7 +192,9 @@ class FamilyBoardStore:
         if current is None or not current.active:
             raise ApiError("forbidden", 403)
         if (current.coreId, current.homeId, current.boardId) != (
-            supplied.coreId, supplied.homeId, supplied.boardId
+            supplied.coreId,
+            supplied.homeId,
+            supplied.boardId,
         ):
             raise ApiError("not_found", 404)
         if current != supplied:
@@ -176,21 +206,32 @@ class FamilyBoardStore:
         return supplied
 
     def _row(self, connection, authority, *, required=True):
-        row = connection.execute("SELECT * FROM family_boards WHERE board_id=?", (authority.boardId,)).fetchone()
+        row = connection.execute(
+            "SELECT * FROM family_boards WHERE board_id=?", (authority.boardId,)
+        ).fetchone()
         if row is None:
             if required:
                 raise ApiError("not_found", 404)
             return None
         if (row["core_id"], row["home_id"], row["home_revision"]) != (
-            authority.coreId, authority.homeId, authority.homeRevision
+            authority.coreId,
+            authority.homeId,
+            authority.homeRevision,
         ):
             raise ApiError("not_found", 404)
         return row
 
     def _decode_state(self, row):
-        if (len(row["nonce"]) != 12 or row["event_count"] < 0 or row["event_count"] > MAX_EVENTS
-                or row["board_revision"] < 1 or row["event_count"] != row["board_revision"]
-                or not secrets.compare_digest(row["authentication_tag"], self._state_tag(row))):
+        if (
+            len(row["nonce"]) != 12
+            or row["event_count"] < 0
+            or row["event_count"] > MAX_EVENTS
+            or row["board_revision"] < 1
+            or row["event_count"] != row["board_revision"]
+            or not secrets.compare_digest(
+                row["authentication_tag"], self._state_tag(row)
+            )
+        ):
             raise ValueError("invalid_board_state")
         return StoredBoard.model_validate_json(
             self._cipher.decrypt(row["nonce"], row["ciphertext"], self._state_aad(row))
@@ -213,19 +254,27 @@ class FamilyBoardStore:
         previous = ZERO_HASH
         events = []
         for sequence, stored in enumerate(rows, 1):
-            if (stored["sequence"] != sequence or stored["previous_hash"] != previous
-                    or len(stored["nonce"]) != 12):
+            if (
+                stored["sequence"] != sequence
+                or stored["previous_hash"] != previous
+                or len(stored["nonce"]) != 12
+            ):
                 raise ValueError("invalid_event_chain")
             plain = self._cipher.decrypt(
-                stored["nonce"], stored["ciphertext"], self._event_aad(row, sequence, previous)
+                stored["nonce"],
+                stored["ciphertext"],
+                self._event_aad(row, sequence, previous),
             )
             event = BoardAuditEvent.model_validate_json(plain)
             unsigned = event.model_dump(mode="json", exclude={"eventHash"})
             expected = self._event_hash(unsigned)
-            if (event.sequence != sequence or event.previousHash != previous
-                    or event.boardRevision != sequence
-                    or not secrets.compare_digest(event.eventHash, expected)
-                    or not secrets.compare_digest(stored["event_hash"], expected)):
+            if (
+                event.sequence != sequence
+                or event.previousHash != previous
+                or event.boardRevision != sequence
+                or not secrets.compare_digest(event.eventHash, expected)
+                or not secrets.compare_digest(stored["event_hash"], expected)
+            ):
                 raise ValueError("invalid_event")
             events.append(event)
             previous = expected
@@ -248,17 +297,30 @@ class FamilyBoardStore:
             "board_revision=excluded.board_revision,event_count=excluded.event_count,"
             "audit_head=excluded.audit_head,nonce=excluded.nonce,ciphertext=excluded.ciphertext,"
             "authentication_tag=excluded.authentication_tag",
-            tuple(provisional[key] for key in (
-                "board_id", "core_id", "home_id", "home_revision", "board_revision",
-                "event_count", "audit_head", "nonce", "ciphertext", "authentication_tag"
-            )),
+            tuple(
+                provisional[key]
+                for key in (
+                    "board_id",
+                    "core_id",
+                    "home_id",
+                    "home_revision",
+                    "board_revision",
+                    "event_count",
+                    "audit_head",
+                    "nonce",
+                    "ciphertext",
+                    "authentication_tag",
+                )
+            ),
         )
         return provisional
 
     def validate_storage(self):
         try:
             with self._connection() as connection:
-                rows = connection.execute("SELECT * FROM family_boards ORDER BY board_id LIMIT 1001").fetchall()
+                rows = connection.execute(
+                    "SELECT * FROM family_boards ORDER BY board_id LIMIT 1001"
+                ).fetchall()
                 if len(rows) > 1000:
                     raise ValueError("board_capacity")
                 for row in rows:
@@ -283,7 +345,11 @@ class FamilyBoardStore:
                 else:
                     state = self._decode_state(row)
                     self._decode_events(connection, row)
-                    revision, count, head = row["board_revision"], row["event_count"], row["audit_head"]
+                    revision, count, head = (
+                        row["board_revision"],
+                        row["event_count"],
+                        row["audit_head"],
+                    )
                 receipt_key = self._receipt_key(authority, command.requestId)
                 replay = state.receipts.get(receipt_key)
                 if replay is not None:
@@ -296,13 +362,20 @@ class FamilyBoardStore:
                 if len(state.receipts) >= MAX_RECEIPTS or count >= MAX_EVENTS:
                     raise ApiError("revision_conflict", 409)
                 elements = {item.id: item for item in state.elements}
-                target = command.element.id if command.element is not None else command.elementId
+                target = (
+                    command.element.id
+                    if command.element is not None
+                    else command.elementId
+                )
                 if command.action == "append":
                     if target in elements or len(elements) >= MAX_ELEMENTS:
                         raise ApiError("revision_conflict", 409)
                     elements[target] = command.element
                 elif command.action == "update":
-                    if target not in elements or elements[target].kind != command.element.kind:
+                    if (
+                        target not in elements
+                        or elements[target].kind != command.element.kind
+                    ):
                         raise ApiError("not_found", 404)
                     elements[target] = command.element
                 else:
@@ -313,29 +386,47 @@ class FamilyBoardStore:
                 count += 1
                 created_at = float(self._clock())
                 unsigned = {
-                    "schemaVersion": 1, "sequence": count, "action": command.action,
-                    "actorId": authority.accountId, "elementId": target,
-                    "boardRevision": revision, "createdAt": created_at, "previousHash": head,
+                    "schemaVersion": 1,
+                    "sequence": count,
+                    "action": command.action,
+                    "actorId": authority.accountId,
+                    "elementId": target,
+                    "boardRevision": revision,
+                    "createdAt": created_at,
+                    "previousHash": head,
                 }
                 event_hash = self._event_hash(unsigned)
                 event = BoardAuditEvent(**unsigned, eventHash=event_hash)
                 receipt = BoardReceipt(
-                    schemaVersion=1, requestId=command.requestId, boardId=authority.boardId,
-                    boardRevision=revision, auditSequence=count, action=command.action, elementId=target,
+                    schemaVersion=1,
+                    requestId=command.requestId,
+                    boardId=authority.boardId,
+                    boardRevision=revision,
+                    auditSequence=count,
+                    action=command.action,
+                    elementId=target,
                 )
                 receipts = dict(state.receipts)
                 receipts[receipt_key] = StoredReceipt(digest=digest, receipt=receipt)
-                new_state = StoredBoard(elements=sorted(elements.values(), key=lambda item: item.id), receipts=receipts)
+                new_state = StoredBoard(
+                    elements=sorted(elements.values(), key=lambda item: item.id),
+                    receipts=receipts,
+                )
                 self._authority(authority, write=True)
                 values = {
-                    "board_id": authority.boardId, "core_id": authority.coreId,
-                    "home_id": authority.homeId, "home_revision": authority.homeRevision,
-                    "board_revision": revision, "event_count": count, "audit_head": event_hash,
+                    "board_id": authority.boardId,
+                    "core_id": authority.coreId,
+                    "home_id": authority.homeId,
+                    "home_revision": authority.homeRevision,
+                    "board_revision": revision,
+                    "event_count": count,
+                    "audit_head": event_hash,
                 }
                 saved = self._save_state(connection, values, new_state)
                 nonce = secrets.token_bytes(12)
                 ciphertext = self._cipher.encrypt(
-                    nonce, event.model_dump_json().encode("utf-8"),
+                    nonce,
+                    event.model_dump_json().encode("utf-8"),
                     self._event_aad(saved, count, head),
                 )
                 connection.execute(
@@ -357,8 +448,11 @@ class FamilyBoardStore:
                 self._decode_events(connection, row)
                 self._authority(authority)
                 return BoardSnapshot(
-                    schemaVersion=1, authority=authority, boardRevision=row["board_revision"],
-                    auditHead=row["audit_head"], elements=state.elements,
+                    schemaVersion=1,
+                    authority=authority,
+                    boardRevision=row["board_revision"],
+                    auditHead=row["audit_head"],
+                    elements=state.elements,
                 )
         except ApiError:
             raise
@@ -373,14 +467,24 @@ class FamilyBoardStore:
         if len(snap.elements) > limit:
             raise ApiError("payload_too_large", 413)
         return PublicBoardSnapshot(
-            schemaVersion=1, coreId=authority.coreId, homeId=authority.homeId,
-            homeRevision=authority.homeRevision, boardId=authority.boardId,
-            memberRevision=authority.memberRevision, boardRevision=snap.boardRevision,
-            auditHead=snap.auditHead, elements=snap.elements,
+            schemaVersion=1,
+            coreId=authority.coreId,
+            homeId=authority.homeId,
+            homeRevision=authority.homeRevision,
+            boardId=authority.boardId,
+            memberRevision=authority.memberRevision,
+            boardRevision=snap.boardRevision,
+            auditHead=snap.auditHead,
+            elements=snap.elements,
         )
 
     def delta(self, authority, *, after_sequence, limit=100):
-        if type(after_sequence) is not int or after_sequence < 0 or type(limit) is not int or not 1 <= limit <= 100:
+        if (
+            type(after_sequence) is not int
+            or after_sequence < 0
+            or type(limit) is not int
+            or not 1 <= limit <= 100
+        ):
             raise ValueError("invalid_page")
         authority = self._authority(authority)
         try:
@@ -390,14 +494,19 @@ class FamilyBoardStore:
                 events = self._decode_events(connection, row)
                 if after_sequence > row["event_count"]:
                     raise ApiError("revision_conflict", 409)
-                page = events[after_sequence:after_sequence + limit]
+                page = events[after_sequence : after_sequence + limit]
                 next_after = page[-1].sequence if page else after_sequence
                 self._authority(authority)
                 return BoardDelta(
-                    schemaVersion=1, coreId=authority.coreId, homeId=authority.homeId,
-                    boardId=authority.boardId, boardRevision=row["board_revision"],
-                    afterSequence=after_sequence, nextAfter=next_after,
-                    auditHead=row["audit_head"], events=page,
+                    schemaVersion=1,
+                    coreId=authority.coreId,
+                    homeId=authority.homeId,
+                    boardId=authority.boardId,
+                    boardRevision=row["board_revision"],
+                    afterSequence=after_sequence,
+                    nextAfter=next_after,
+                    auditHead=row["audit_head"],
+                    events=page,
                 )
         except ApiError:
             raise

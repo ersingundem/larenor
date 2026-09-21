@@ -17,13 +17,26 @@ import '../features/settings/data/app_service.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
+import '../features/home_documents/presentation/home_documents_route.dart';
+import '../features/family_board/presentation/family_board_route.dart';
+import '../features/room_presence/presentation/room_presence_route.dart';
+import '../features/resource_reservations/presentation/resource_reservation_route.dart';
+import '../features/resource_reservations/presentation/resource_catalog_route.dart';
+import '../features/irrigation_budget/presentation/irrigation_budget_route.dart';
+import '../features/epaper/presentation/epaper_management_route.dart';
+import '../features/floor_plan/presentation/floor_plan_route.dart';
+import '../features/fair_chores/presentation/fair_chore_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
+import '../features/meal_planner/presentation/weekly_meal_plan_route.dart';
+import '../features/shared_expenses/presentation/shared_expense_route.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
+import '../features/power_budget/presentation/power_budget_route.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
 import '../features/wellbeing/presentation/wellbeing_gate.dart';
+import '../features/camera_search/presentation/camera_search_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -36,9 +49,47 @@ final routerProvider = Provider<GoRouter>((ref) {
       routes: [
         GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
         GoRoute(path: '/inventory', builder: (_, _) => const InventoryRoute()),
+        GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
+        GoRoute(
+          path: '/weekly-menu',
+          builder: (_, _) => const WeeklyMealPlanRoute(),
+        ),
+        GoRoute(path: '/chores', builder: (_, _) => const FairChoreRoute()),
+        GoRoute(
+          path: '/documents',
+          builder: (_, _) => const HomeDocumentsRoute(),
+        ),
+        GoRoute(
+          path: '/reservations',
+          builder: (_, _) => const ResourceReservationRoute(),
+        ),
+        GoRoute(
+          path: '/reservations/manage',
+          builder: (_, _) => const ResourceCatalogRoute(),
+        ),
+        GoRoute(
+          path: '/family-board',
+          builder: (_, _) => const FamilyBoardRoute(),
+        ),
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),
+        ),
+        GoRoute(
+          path: '/epaper',
+          builder: (_, _) => const EpaperManagementRoute(),
+        ),
+        GoRoute(
+          path: '/room-presence',
+          builder: (_, _) => const RoomPresenceRoute(),
+        ),
+        GoRoute(
+          path: '/shared-expenses',
+          builder: (_, _) => const SharedExpenseRoute(),
+        ),
+        GoRoute(
+          path: '/camera-search',
+          builder: (_, _) => const CameraSearchRoute(),
         ),
         GoRoute(
           path: '/settings',
@@ -56,6 +107,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/settings/home-source',
           builder: (_, _) => const SettingsGateScreen(
             initialDestination: SettingsGateDestination.homeSource,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/kiosk',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.kiosk,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/legacy-remotes',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.legacyRemote,
           ),
         ),
       ],
@@ -81,6 +144,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'energy',
                     builder: (_, _) => const EnergyMaintenanceScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'irrigation-budget',
+                        builder: (_, _) => const IrrigationBudgetRoute(),
+                      ),
+                      GoRoute(
+                        path: 'power-budget',
+                        builder: (_, _) => const PowerBudgetRoute(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'today',
@@ -170,6 +243,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           entityId: state.pathParameters['entityId']!,
         ),
       ),
+      GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
       GoRoute(
         path: '/search',
         builder: (context, state) => LocalSearchScreen(
@@ -187,6 +261,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      GoRoute(
+        path: '/settings/kiosk',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.kiosk,
+        ),
+      ),
       GoRoute(
         path: '/settings/tablet-fleet',
         builder: (_, _) => const SettingsGateScreen(
@@ -206,11 +286,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           initialDestination: SettingsGateDestination.clientUpdates,
         ),
       ),
+      GoRoute(
+        path: '/settings/legacy-remotes',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.legacyRemote,
+        ),
+      ),
       GoRoute(path: '/wellbeing', builder: (_, _) => const WellbeingGate()),
       GoRoute(
         path: '/notifications',
         builder: (_, _) => const LocalNotificationScreen(),
       ),
+      if (home != null)
+        GoRoute(
+          path: '/epaper',
+          builder: (_, _) => const EpaperManagementRoute(),
+        ),
     ],
   );
   ref.onDispose(router.dispose);

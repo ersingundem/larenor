@@ -207,18 +207,22 @@ class PublicationGraphTest(unittest.TestCase):
         self.assertEqual(WORKFLOW["on"]["push"]["branches"], ["main"])
         self.assertFalse(WORKFLOW["on"]["workflow_dispatch"]["inputs"]["publish"]["default"])
         self.assertEqual(WORKFLOW["permissions"], {"contents": "read"})
-        for job in WORKFLOW["jobs"].values():
+        for job_name, job in WORKFLOW["jobs"].items():
             guard = job["if"]
             self.assertIn("github.repository == 'ersingundem/larenor'", guard)
             self.assertIn("github.ref == 'refs/heads/main'", guard)
             self.assertIn("github.event_name == 'push'", guard)
             self.assertIn("github.event_name == 'workflow_dispatch'", guard)
             self.assertNotIn("pull_request", guard)
-            self.assertLessEqual(set(job.get("permissions", {})), {"contents", "packages"})
+            allowed = ({"contents", "pull-requests"} if job_name == "server-test"
+                       else {"contents", "packages"})
+            self.assertLessEqual(set(job.get("permissions", {})), allowed)
 
     def test_reusable_tests_and_both_architectures_gate_the_final_manifest(self):
         jobs = WORKFLOW["jobs"]
         self.assertEqual(jobs["server-test"]["uses"], "./.github/workflows/server-test.yml")
+        self.assertEqual(jobs["server-test"]["permissions"],
+                         {"contents": "read", "pull-requests": "read"})
         self.assertEqual(jobs["build-test"]["needs"], ["server-test"])
         self.assertEqual(set(jobs["publish-manifest"]["needs"]), {"server-test", "build-test"})
         self.assertEqual(jobs["build-test"]["strategy"]["matrix"]["include"], [
@@ -246,6 +250,25 @@ class PublicationGraphTest(unittest.TestCase):
         final = WORKFLOW["jobs"]["publish-manifest"]["steps"][-1]["run"]
         self.assertLess(final.rindex('gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main"'), final.index('--tag "$IMAGE:stable"'))
         self.assertIn("Existing commit index does not match tested images", final)
+
+    def test_encrypted_restore_acceptance_is_offline_bounded_and_gates_publication(self):
+        names = [step.get("name") for step in STEPS]
+        restore_name = "Encrypted backup restore and restart acceptance"
+        restore = step_named(restore_name)["run"]
+        self.assertLess(names.index("Smoke-test the exact image before publication"),
+                        names.index(restore_name))
+        self.assertLess(names.index(restore_name),
+                        names.index("Recheck trusted main before architecture publication"))
+        for required in (
+            "--network none", "--read-only", "--cap-drop ALL",
+            "--security-opt no-new-privileges:true", "--pids-limit 128",
+            "--memory 1g", "--cpus 2", "--tmpfs /tmp:",
+            "dst=/acceptance", "server_restore_acceptance.py,readonly",
+            "--entrypoint python", "--root /acceptance",
+        ):
+            self.assertIn(required, restore)
+        self.assertNotIn("--env", restore)
+        self.assertNotIn("-e ", restore)
 
     def test_actions_are_official_and_pinned_and_image_archives_are_not_uploaded(self):
         for job in WORKFLOW["jobs"].values():

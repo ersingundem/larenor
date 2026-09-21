@@ -3,4 +3,8 @@
     <string name="local_notification_channel_name">Larenor uyarıları</string>
     <string name="local_notification_channel_description">Larenor Core tarafından iletilen özel uyarılar</string>
     <string name="local_notification_private_preview">Özel bildirim. Görmek için Larenor’un kilidini açın.</string>
+    <string name="shortcut_home">Ev</string>
+    <string name="shortcut_home_long">Larenor Ev’i aç</string>
+    <string name="shortcut_kiosk">Kiosk kontrolleri</string>
+    <string name="shortcut_kiosk_long">PIN korumalı kiosk kontrollerini aç</string>
 </resources>

@@ -8,10 +8,12 @@ import '../../../shared/theme/spacing.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/integration_health_status.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../health/data/integration_health.dart';
+import '../../energy_priorities/presentation/energy_priority_route.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../domain/energy_models.dart';
 import '../domain/maintenance_models.dart';
@@ -83,9 +85,65 @@ class _EnergyMaintenanceScreenState
               slivers: [
                 SliverToBoxAdapter(
                   child: SettingsSection(
+                    children: [
+                      CupertinoButton(
+                        key: const ValueKey('energy-open-priorities'),
+                        minimumSize: const Size(48, 48),
+                        onPressed: !active
+                            ? null
+                            : () => Navigator.of(context).push(
+                                CupertinoPageRoute<void>(
+                                  builder: (_) => EnergyPriorityRoute(
+                                    gateCurrent: () =>
+                                        interactionCurrent(generation),
+                                  ),
+                                ),
+                              ),
+                        child: Row(
+                          children: [
+                            const Icon(CupertinoIcons.sun_max),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                Localizations.localeOf(context).languageCode ==
+                                        'tr'
+                                    ? 'Güneş ve batarya öncelikleri'
+                                    : 'Solar and battery priorities',
+                              ),
+                            ),
+                            const Icon(
+                              CupertinoIcons.chevron_forward,
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SettingsSection(
                     header: _SectionHeader(l10n.energyRecorded),
                     footer: Text(l10n.energyHint),
                     children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('energy-irrigation-budget'),
+                        leading: const Icon(CupertinoIcons.drop),
+                        title: Text(l10n.irrigationBudgetTitle),
+                        additionalInfo: Text(l10n.irrigationBudgetManualOnly),
+                        onTap: active
+                            ? () => context.push('/energy/irrigation-budget')
+                            : null,
+                      ),
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('energy-power-budget'),
+                        leading: const Icon(CupertinoIcons.bolt_circle),
+                        title: Text(l10n.powerBudgetTitle),
+                        additionalInfo: Text(l10n.powerBudgetManualOnly),
+                        onTap: active
+                            ? () => context.push('/energy/power-budget')
+                            : null,
+                      ),
                       Padding(
                         padding: Insets.tile,
                         child: Column(

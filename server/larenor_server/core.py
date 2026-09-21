@@ -10,112 +10,168 @@ import uuid
 
 from .admin.service import AdminService
 from .auth import AuthService
+from .bounded_transfer.blob_schema import migrate as migrate_bounded_blobs
+from .bounded_transfer.events import migrate as migrate_bounded_transfer_events
+from .bounded_transfer.models import TransferLimits
+from .bounded_transfer.product_store import CompositeBlobProvider, ProductBlobStore
+from .bounded_transfer.schema import migrate as migrate_bounded_transfers
+from .bounded_transfer.service import BlobProvider, BoundedTransferService
+from .component_egress.service import ComponentEgress
+from .component_egress.storage import migrate as migrate_component_egress
 from .config import Settings
 from .context import migrate_context
+from .core_backups.service import CoreBackupContract
 from .database import Database
 from .errors import StartupError
-from .files import checked_path, private_create, private_directory, private_read, sync_directory
-from .plugins.schema import migrate_plugins
-from .plugins.service import PluginManagement
+from .files import (
+    checked_path,
+    private_create,
+    private_directory,
+    private_read,
+    sync_directory,
+)
+from .home_assistant.command_chain import migrate_command_history
+from .home_assistant.migration import DirectHaMigration
+from .home_assistant.migration_schema import migrate as migrate_direct_ha
+from .home_assistant.rule_schema import migrate as migrate_automation_rules
+from .home_assistant.rules import HomeAssistantRules
+from .home_assistant.schema import migrate_home_assistant
+from .home_assistant.service import HomeAssistantAdapter
+from .home_people.schema import migrate_home_people
+from .home_people.service import HomePeopleRegistry
+from .home_resources.schema import migrate_home_resources
+from .home_resources.service import HomeResourceRegistry
+from .inventory.schema import migrate_inventory
+from .inventory.service import InventoryRegistry
+from .keenetic_commands.core_worker import build_keenetic_worker_effect
+from .keenetic_commands.journal import KeeneticCommandJournal
+from .keenetic_commands.journal import state_tag as keenetic_state_tag
+from .keenetic_commands.provider import KeeneticCommandStateProvider
+from .keenetic_commands.schema import migrate as migrate_keenetic_commands
+from .keenetic_commands.service import KeeneticCommandAuthority
+from .keenetic_resources.schema import migrate as migrate_keenetic_resources
+from .keenetic_resources.service import KeeneticResourceAdapter
+from .local_notifications.schema import migrate_local_notifications
+from .local_notifications.service import LocalNotificationService
+from .meal_plans.repository import MealPlanRepository
+from .meal_plans.schema import migrate_meal_plans
+from .mesh_center.runtime import build_mesh_center_gateway
+from .personal_profiles.repository import PersonalProfileRepository
+from .personal_profiles.schema import migrate_personal_profiles
+from .plugins.arr_config_job_schema import migrate_arr_configurations
+from .plugins.arr_config_jobs import ArrConfigurationManagement
+from .plugins.installation_ipc import InstallationWorkerClient
 from .plugins.job_schema import migrate_plugin_jobs
 from .plugins.jobs import JobManagement
-from .plugins.media_schema import migrate_media_preparations
-from .plugins.media_preparations import MediaPreparationManagement
+from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_archive_weekly_trend_schema import (
+    migrate_media_archive_weekly_trends,
+)
+from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
+from .plugins.media_flow_schema import migrate_media_flow
 from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
+from .plugins.media_preparations import MediaPreparationManagement
+from .plugins.media_recovery_status import MediaRecoveryStatusManagement
+from .plugins.media_schema import migrate_media_preparations
 from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
 from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
-from .plugins.seerr_bootstrap_job_schema import migrate_seerr_bootstraps
-from .plugins.seerr_bootstrap_jobs import SeerrBootstrapManagement
-from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
-from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
-from .plugins.arr_config_job_schema import migrate_arr_configurations
-from .plugins.arr_config_jobs import ArrConfigurationManagement
-from .plugins.music_assistant_core_schema import migrate_music_assistant_core
-from .plugins.music_assistant_core import MusicAssistantCoreManagement
 from .plugins.music_assistant_bootstrap_job_schema import (
     migrate_music_assistant_bootstraps,
 )
 from .plugins.music_assistant_bootstrap_jobs import (
     MusicAssistantBootstrapManagement,
 )
-from .plugins.music_provider_setup_schema import migrate_music_provider_setups
-from .plugins.music_provider_setups import MusicProviderSetupManagement
+from .plugins.music_assistant_core import MusicAssistantCoreManagement
+from .plugins.music_assistant_core_schema import migrate_music_assistant_core
+from .plugins.music_playback import MusicPlaybackManagement
+from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_provider_command_schema import migrate_music_provider_commands
 from .plugins.music_provider_commands import MusicProviderCommandManagement
-from .plugins.music_playback_schema import migrate_music_playback
-from .plugins.music_playback import MusicPlaybackManagement
+from .plugins.music_provider_setup_schema import migrate_music_provider_setups
+from .plugins.music_provider_setups import MusicProviderSetupManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
-from .plugins.media_recovery_status import MediaRecoveryStatusManagement
-from .plugins.media_archive_core import MediaArchiveHealthManagement
-from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
-from .plugins.media_flow_schema import migrate_media_flow
-from .plugins.media_archive_weekly_trend_schema import (
-    migrate_media_archive_weekly_trends,
-)
 from .plugins.preflight_ipc import PreflightWorkerClient
-from .plugins.installation_ipc import InstallationWorkerClient
-from .component_egress.storage import migrate as migrate_component_egress
-from .component_egress.service import ComponentEgress
-from .services.schema import migrate_services
-from .services.service import ServiceManagement
-from .services.probe_runner import ServiceProbeRunner
-from .vault import VaultService
-from .home_resources.schema import migrate_home_resources
-from .home_assistant.command_chain import migrate_command_history
-from .home_resources.service import HomeResourceRegistry
-from .bounded_transfer.models import TransferLimits
-from .bounded_transfer.service import BlobProvider, BoundedTransferService
-from .bounded_transfer.schema import migrate as migrate_bounded_transfers
-from .bounded_transfer.events import migrate as migrate_bounded_transfer_events
-from .bounded_transfer.blob_schema import migrate as migrate_bounded_blobs
-from .bounded_transfer.product_store import CompositeBlobProvider, ProductBlobStore
-from .home_people.schema import migrate_home_people
-from .home_people.service import HomePeopleRegistry
-from .meal_plans.schema import migrate_meal_plans
-from .meal_plans.repository import MealPlanRepository
-from .personal_profiles.schema import migrate_personal_profiles
-from .personal_profiles.repository import PersonalProfileRepository
-from .home_assistant.schema import migrate_home_assistant
-from .home_assistant.service import HomeAssistantAdapter
-from .home_assistant.rule_schema import migrate as migrate_automation_rules
-from .home_assistant.rules import HomeAssistantRules
-from .keenetic_resources.schema import migrate as migrate_keenetic_resources
-from .keenetic_resources.service import KeeneticResourceAdapter
-from .home_assistant.migration_schema import migrate as migrate_direct_ha
-from .home_assistant.migration import DirectHaMigration
+from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
+from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
+from .plugins.schema import migrate_plugins
+from .plugins.seerr_bootstrap_job_schema import migrate_seerr_bootstraps
+from .plugins.seerr_bootstrap_jobs import SeerrBootstrapManagement
+from .plugins.service import PluginManagement
 from .proxmox.schema import migrate as migrate_proxmox_resources
 from .proxmox.service import ProxmoxResourceAdapter
+from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
 from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
 from .proxmox_commands.worker_ipc import verified_power_worker_client
-from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
-from .keenetic_commands.schema import migrate as migrate_keenetic_commands
-from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
-from .keenetic_commands.service import KeeneticCommandAuthority
-from .keenetic_commands.core_worker import build_keenetic_worker_effect
-from .keenetic_commands.provider import KeeneticCommandStateProvider
-from .inventory.schema import migrate_inventory
-from .inventory.service import InventoryRegistry
-from .local_notifications.schema import migrate_local_notifications
-from .local_notifications.service import LocalNotificationService
+from .services.probe_runner import ServiceProbeRunner
+from .services.schema import migrate_services
+from .services.service import ServiceManagement
+from .sound_events.repository import SoundEventRepository
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
+from .kiosk_remote.schema import migrate_kiosk_remote
+from .kiosk_remote.service import KioskRemoteService
+from .workshop.schema import migrate_workshop
+from .workshop.service import WorkshopService
 from .core_backups.service import CoreBackupContract
+from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
+from .room_comfort.schema import migrate_room_comfort
+from .room_comfort.service import RoomComfortService
+from .garden_irrigation.runtime import build_irrigation_gateway
+from .energy_priorities.service import EnergyPriorityService
+from .ev_charging.runtime import EvChargeRuntime
+from .ev_charging.schema import migrate_ev_charging
+from .epaper_snapshots.schema import migrate_epaper_snapshots
+from .epaper_snapshots.management import EpaperManagement
+from .room_presence.schema import migrate_room_presence
+from .room_presence.repository import RoomPresenceRepository
+from .home_documents.schema import migrate_home_documents
+from .home_documents.repository import HomeDocumentRepository
+from .resource_reservations.schema import migrate_resource_reservations
+from .resource_reservations.integration import ResourceReservationService
+from .family_board.service import FamilyBoardService
+from .camera_profiles.runtime import build_camera_profile_gateway
+from .power_budget.schema import migrate_power_budget
+from .power_budget.runtime import build_power_budget_gateway
+from .floor_plan.schema import migrate_floor_plan
+from .floor_plan.runtime import FloorPlanRuntime
+from .shared_expenses import SharedExpenseService, migrate_shared_expenses
+from .fair_chores import FairChoreService, migrate_fair_chores
+from .game_streaming.schema import migrate_game_streaming
+from .game_streaming.service import GameStreamAuthorityService
+from .legacy_remote.schema import migrate_legacy_remote
+from .legacy_remote.runtime import build_legacy_remote_gateway
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
-from .sound_events.repository import SoundEventRepository
+from .vault import VaultService
 
 
 class CoreServices:
-    def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
-                 transfer_limits: TransferLimits | None = None,
-                 proxmox_guest_provider=None, proxmox_power_executor=None,
-                 media_archive_binding_reader=None,
-                 media_archive_worker=None, mesh_center_provider=None):
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        blob_provider: BlobProvider | None = None,
+        transfer_limits: TransferLimits | None = None,
+        proxmox_guest_provider=None,
+        proxmox_power_executor=None,
+        media_archive_binding_reader=None,
+        media_archive_worker=None,
+        mesh_center_provider=None,
+        irrigation_provider=None,
+        energy_priority_provider=None,
+        energy_priority_inverter_worker=None,
+        energy_priority_inverter_capability=None,
+        ev_charge_provider=None,
+        ev_charge_charger=None,
+        camera_profile_provider=None,
+        power_budget_provider=None,
+        legacy_remote_provider=None,
+    ):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -124,6 +180,15 @@ class CoreServices:
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
         self._mesh_center_provider = mesh_center_provider
+        self._irrigation_provider = irrigation_provider
+        self._energy_priority_provider = energy_priority_provider
+        self._energy_priority_inverter_worker = energy_priority_inverter_worker
+        self._energy_priority_inverter_capability = energy_priority_inverter_capability
+        self._ev_charge_provider = ev_charge_provider
+        self._ev_charge_charger = ev_charge_charger
+        self._camera_profile_provider = camera_profile_provider
+        self._power_budget_provider = power_budget_provider
+        self._legacy_remote_provider = legacy_remote_provider
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -148,6 +213,7 @@ class CoreServices:
             private_read(lock_path, 0)
         with lock_path.open("rb") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            recover_empty_restore(settings)
             existed = settings.database_file.exists()
             initialized_marker = settings.data_dir / ".initialized"
             if not existed and initialized_marker.exists():
@@ -160,7 +226,9 @@ class CoreServices:
             if len(key) != 32:
                 raise StartupError("vault_key_invalid")
             # An independently backed-up DB must never silently acquire a new key.
-            check = hmac.new(key, b"larenor-vault-key-check-v1", hashlib.sha256).hexdigest()
+            check = hmac.new(
+                key, b"larenor-vault-key-check-v1", hashlib.sha256
+            ).hexdigest()
             if existed:
                 info = settings.database_file.stat()
                 if info.st_nlink == 2:
@@ -168,31 +236,52 @@ class CoreServices:
                     # link(2) and removing that one initialization alias.
                     aliases = []
                     for candidate in settings.data_dir.iterdir():
-                        if not re.fullmatch(r"\.initialize-[0-9a-f]{32}\.sqlite3", candidate.name):
+                        if not re.fullmatch(
+                            r"\.initialize-[0-9a-f]{32}\.sqlite3", candidate.name
+                        ):
                             continue
                         entry = candidate.lstat()
-                        if (stat.S_ISREG(entry.st_mode) and entry.st_uid == os.geteuid()
-                                and entry.st_ino == info.st_ino and entry.st_dev == info.st_dev):
+                        if (
+                            stat.S_ISREG(entry.st_mode)
+                            and entry.st_uid == os.geteuid()
+                            and entry.st_ino == info.st_ino
+                            and entry.st_dev == info.st_dev
+                        ):
                             aliases.append(candidate)
                     if len(aliases) == 1:
                         aliases[0].unlink()
                         sync_directory(settings.data_dir)
                         info = settings.database_file.stat()
-                if info.st_uid != os.geteuid() or info.st_mode & 0o777 != 0o600 or info.st_nlink != 1:
+                if (
+                    info.st_uid != os.geteuid()
+                    or info.st_mode & 0o777 != 0o600
+                    or info.st_nlink != 1
+                ):
                     raise StartupError("storage_file_not_private")
                 self.db = Database(settings.database_file)
             else:
-                pending_file = settings.data_dir / f".initialize-{uuid.uuid4().hex}.sqlite3"
+                pending_file = (
+                    settings.data_dir / f".initialize-{uuid.uuid4().hex}.sqlite3"
+                )
                 private_create(pending_file, b"")
                 self.db = Database(pending_file)
                 self.db.create_schema()
             self.auth = AuthService(self.db, settings, key)
             with self.db.transaction() as connection:
-                version = connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()
-                stored_key = connection.execute("SELECT value FROM metadata WHERE key='key_check'").fetchone()
+                version = connection.execute(
+                    "SELECT value FROM metadata WHERE key='schema_version'"
+                ).fetchone()
+                stored_key = connection.execute(
+                    "SELECT value FROM metadata WHERE key='key_check'"
+                ).fetchone()
                 users = connection.execute("SELECT * FROM users").fetchall()
                 if version:
-                    if version["value"] not in ("1", "2", "3") or not stored_key or not hmac.compare_digest(stored_key["value"], check) or not users:
+                    if (
+                        version["value"] not in ("1", "2", "3")
+                        or not stored_key
+                        or not hmac.compare_digest(stored_key["value"], check)
+                        or not users
+                    ):
                         raise StartupError("existing_database_invalid_or_wrong_key")
                     if version["value"] == "1":
                         self.db.migrate_v1(connection)
@@ -203,18 +292,39 @@ class CoreServices:
                     if path.exists():
                         bootstrap = private_read(path, 2048).decode("ascii")
                         prefix = "username: admin\npassword: "
-                        if not bootstrap.startswith(prefix) or not bootstrap.endswith("\n"):
+                        if not bootstrap.startswith(prefix) or not bootstrap.endswith(
+                            "\n"
+                        ):
                             raise StartupError("bootstrap_file_invalid")
-                        password = bootstrap[len(prefix):-1]
-                        if len(password) != 43 or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" for char in password):
+                        password = bootstrap[len(prefix) : -1]
+                        if len(password) != 43 or any(
+                            char
+                            not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+                            for char in password
+                        ):
                             raise StartupError("bootstrap_file_invalid")
                     else:
                         password = secrets.token_urlsafe(32)
-                        private_create(path, f"username: admin\npassword: {password}\n".encode("ascii"))
+                        private_create(
+                            path,
+                            f"username: admin\npassword: {password}\n".encode("ascii"),
+                        )
                         self.bootstrap_created = True
-                    connection.execute("INSERT INTO users(id,username,role,password_hash,must_change_password,created_at) VALUES(?,?,?,?,?,?)",
-                                       (uuid.uuid4().hex, "admin", "admin", self.auth.hash_password(password), 1, settings.clock()))
-                    connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
+                    connection.execute(
+                        "INSERT INTO users(id,username,role,password_hash,must_change_password,created_at) VALUES(?,?,?,?,?,?)",
+                        (
+                            uuid.uuid4().hex,
+                            "admin",
+                            "admin",
+                            self.auth.hash_password(password),
+                            1,
+                            settings.clock(),
+                        ),
+                    )
+                    connection.executemany(
+                        "INSERT INTO metadata VALUES(?,?)",
+                        [("schema_version", "2"), ("key_check", check)],
+                    )
                 self.context = migrate_context(connection, key)
                 migrate_home_resources(connection, self.context, key)
                 migrate_bounded_transfers(connection)
@@ -226,8 +336,21 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_room_comfort(connection)
+                migrate_ev_charging(connection)
+                migrate_epaper_snapshots(connection)
+                migrate_room_presence(connection)
+                migrate_home_documents(connection)
+                migrate_resource_reservations(connection)
+                migrate_power_budget(connection)
+                migrate_floor_plan(connection)
+                migrate_shared_expenses(connection)
+                migrate_fair_chores(connection)
+                migrate_kiosk_remote(connection)
+                migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
+                migrate_workshop(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
                 migrate_automation_rules(connection, self.context, key)
@@ -260,11 +383,17 @@ class CoreServices:
                         scope, chain, sequence, head, key
                     ),
                 )
+                migrate_legacy_remote(connection, key, self.context)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
                 with self.db.connection() as connection:
-                    if connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] != 0:
+                    if (
+                        connection.execute(
+                            "PRAGMA wal_checkpoint(TRUNCATE)"
+                        ).fetchone()[0]
+                        != 0
+                    ):
                         raise StartupError("initial_database_checkpoint_failed")
                 os.link(pending_file, settings.database_file)
                 pending_file.unlink()
@@ -278,34 +407,60 @@ class CoreServices:
                 if private_read(initialized_marker, 64) != b"larenor-schema-1\n":
                     raise StartupError("initialized_marker_invalid")
             self.vault = VaultService(self.db, self.auth, settings, key)
-            self.home_resources = HomeResourceRegistry(self.db, self.auth, settings, key, self.context)
+            self.home_resources = HomeResourceRegistry(
+                self.db, self.auth, settings, key, self.context
+            )
             self.home_resources.validate_storage()
             self.product_blobs = ProductBlobStore(
-                self.db, settings, key, self.home_resources)
+                self.db, settings, key, self.home_resources
+            )
             self.product_blobs.validate_storage()
             self.bounded_transfers = BoundedTransferService(
-                self.home_resources, settings, key,
+                self.home_resources,
+                settings,
+                key,
                 CompositeBlobProvider(self._blob_provider, self.product_blobs),
-                self._transfer_limits)
-            self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
+                self._transfer_limits,
+            )
+            self.home_people = HomePeopleRegistry(
+                self.db, self.auth, settings, key, self.context
+            )
             self.home_people.validate_storage()
             self.meal_plans = MealPlanRepository(
-                self.db, self.auth, settings, key, self.context,
-                self.home_people)
+                self.db, self.auth, settings, key, self.context, self.home_people
+            )
             self.meal_plans.validate_storage()
             self.personal_profiles = PersonalProfileRepository(
-                self.db, self.auth, settings, key, self.context)
+                self.db, self.auth, settings, key, self.context
+            )
             self.personal_profiles.validate_storage()
             self.inventory = InventoryRegistry(
-                self.db, self.auth, settings, key, self.context,
-                self.home_resources, self.product_blobs)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                self.home_resources,
+                self.product_blobs,
+            )
             self.inventory.validate_storage()
+            self.home_documents = HomeDocumentRepository(
+                self.db, self.auth, settings, key, self.context,
+                self.product_blobs, self.inventory)
             self.local_notifications = LocalNotificationService(
-                self.db, self.auth, settings, key, self.context)
+                self.db, self.auth, settings, key, self.context
+            )
             self.local_notifications.validate_storage()
             self.tablet_fleet = TabletFleetService(
-                self.db, self.auth, settings, key, self.context)
+                self.db, self.auth, settings, key, self.context
+            )
             self.tablet_fleet.validate_storage()
+            self.ev_charging = EvChargeRuntime(
+                self.db, self.auth, settings, key, self.context,
+                self._ev_charge_provider, self._ev_charge_charger)
+            self.kiosk_remote = KioskRemoteService(
+                self.db, self.auth, settings, key, self.context)
+            self.kiosk_remote.validate_storage()
             self.camera_visual_sensors = CameraVisualSensorService(
                 self.db, self.auth, settings, key, self.context)
             self.camera_visual_sensors.validate_storage()
@@ -327,14 +482,79 @@ class CoreServices:
                     clock=settings.clock,
                 )
             )
+            self.room_comfort = RoomComfortService(
+                self.db, self.auth, settings, key, self.context)
+            self.room_comfort.validate_storage()
+            self.irrigation = (
+                None
+                if self._irrigation_provider is None
+                else build_irrigation_gateway(
+                    self._irrigation_provider, clock=settings.clock
+                )
+            )
+            self.energy_priorities = EnergyPriorityService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                self._energy_priority_provider,
+                self._energy_priority_inverter_worker,
+                self._energy_priority_inverter_capability,
+            )
+            self.epaper = EpaperManagement(
+                self.db, self.auth, settings, key, self.context)
+            self.epaper.validate_storage()
+            self.room_presence = RoomPresenceRepository(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.room_presence.validate_storage()
+            self.resource_reservations = ResourceReservationService(
+                self.db, self.auth, settings, key, self.context)
+            self.family_board = FamilyBoardService(
+                self.db, self.auth, settings, key, self.context)
+            self.camera_profiles = (
+                None
+                if self._camera_profile_provider is None
+                else build_camera_profile_gateway(
+                    self._camera_profile_provider,
+                    master_key=key,
+                    clock=settings.clock,
+                )
+            )
+            self.power_budget = (
+                None
+                if self._power_budget_provider is None
+                else build_power_budget_gateway(
+                    self._power_budget_provider,
+                    database=self.db,
+                    master_key=key,
+                    clock=settings.clock,
+                )
+            )
+            self.shared_expenses = SharedExpenseService(
+                self.db, self.auth, settings, self.context, key
+            )
+            self.fair_chores = FairChoreService(
+                self.db, self.auth, settings, self.context, key
+            )
+            self.game_streaming = GameStreamAuthorityService(
+                self.db, self.auth, settings, key, self.context)
+            self.game_streaming.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.workshop = WorkshopService(
+                self.db, self.auth, settings, key, self.context, self.services)
+            self.workshop.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             power_executor = self._proxmox_power_executor
-            if power_executor is None and settings.proxmox_power_worker_socket is not None:
+            if (
+                power_executor is None
+                and settings.proxmox_power_worker_socket is not None
+            ):
                 worker = verified_power_worker_client(
                     settings.proxmox_power_worker_socket,
                     settings.proxmox_power_worker_health,
@@ -342,97 +562,199 @@ class CoreServices:
                 )
                 if worker is not None:
                     power_executor = EgressGatedProxmoxExecutor(
-                        worker, self.component_egress)
+                        worker, self.component_egress
+                    )
             self.proxmox_power = ProxmoxPowerAuthority(
-                self.home_resources, self.auth, settings, key,
-                self._proxmox_guest_provider, power_executor)
+                self.home_resources,
+                self.auth,
+                settings,
+                key,
+                self._proxmox_guest_provider,
+                power_executor,
+            )
             self.proxmox_power.store.validate_storage()
             self.proxmox_power.store.recover_incomplete()
-            self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
+            self.home_assistant = HomeAssistantAdapter(
+                self.db, self.auth, settings, key, self.home_resources, self.services
+            )
             self.home_assistant.validate_storage()
+            self.floor_plan = FloorPlanRuntime(
+                self.db,
+                self.auth,
+                self.home_resources,
+                self.home_assistant,
+                self.context,
+                key,
+                settings.clock,
+            )
             self.home_assistant_rules = HomeAssistantRules(self.home_assistant)
             self.home_assistant_rules.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
-                self.db, self.auth, settings, key, self.home_resources, self.services)
+                self.db, self.auth, settings, key, self.home_resources, self.services
+            )
             self.keenetic_resources.validate_storage()
             self.direct_ha_migration = DirectHaMigration(self.home_assistant)
             self.direct_ha_migration.validate_storage()
             self.proxmox = ProxmoxResourceAdapter(
-                self.db, self.auth, settings, key, self.home_resources, self.services)
+                self.db, self.auth, settings, key, self.home_resources, self.services
+            )
             self.proxmox.validate_storage()
             self.proxmox_power.attach_binding_reader(self.proxmox)
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()
-            backend = None if settings.plugin_worker_socket is None else PreflightWorkerClient(
-                settings.plugin_worker_socket, owner_uid=settings.plugin_worker_uid)
-            self.plugin_jobs = JobManagement(self.db, self.auth, settings, key, self.plugins, backend)
+            backend = (
+                None
+                if settings.plugin_worker_socket is None
+                else PreflightWorkerClient(
+                    settings.plugin_worker_socket, owner_uid=settings.plugin_worker_uid
+                )
+            )
+            self.plugin_jobs = JobManagement(
+                self.db, self.auth, settings, key, self.plugins, backend
+            )
             self.plugin_jobs.validate_storage()
-            self.media_preparations = MediaPreparationManagement(self.db, self.auth, settings, key, self.plugins, self.context)
+            self.media_preparations = MediaPreparationManagement(
+                self.db, self.auth, settings, key, self.plugins, self.context
+            )
             self.media_preparations.validate_storage()
-            self.media_inspections = MediaInspectionManagement(self.db, self.auth, settings, key, self.media_preparations, backend)
+            self.media_inspections = MediaInspectionManagement(
+                self.db, self.auth, settings, key, self.media_preparations, backend
+            )
             self.media_inspections.validate_storage()
             # Mutating execution uses a separate, future worker channel. The
             # read-only preflight socket can never be promoted implicitly.
-            installation_backend = None if settings.installation_worker_socket is None else InstallationWorkerClient(
-                settings.installation_worker_socket, owner_uid=settings.installation_worker_uid)
+            installation_backend = (
+                None
+                if settings.installation_worker_socket is None
+                else InstallationWorkerClient(
+                    settings.installation_worker_socket,
+                    owner_uid=settings.installation_worker_uid,
+                )
+            )
             self.media_installations = MediaInstallationManagement(
-                self.db, self.auth, settings, key, self.media_preparations, self.media_inspections,
-                installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_preparations,
+                self.media_inspections,
+                installation_backend,
+            )
             self.media_installations.validate_storage()
             self.media_service_bootstraps = MediaServiceBootstrapManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                installation_backend,
+            )
             self.media_service_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                installation_backend,
+            )
             self.qbittorrent_configurations.validate_storage()
             self.arr_configurations = ArrConfigurationManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                installation_backend, self.qbittorrent_configurations)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                installation_backend,
+                self.qbittorrent_configurations,
+            )
             self.arr_configurations.validate_storage()
             self.seerr_bootstraps = SeerrBootstrapManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                self.media_service_bootstraps, self.arr_configurations)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                self.media_service_bootstraps,
+                self.arr_configurations,
+            )
             self.seerr_bootstraps.backend = installation_backend
             self.seerr_bootstraps.validate_storage()
             self.music_assistant_core = MusicAssistantCoreManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                self.services)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                self.services,
+            )
             self.music_assistant_core.validate_storage()
             self.music_assistant_bootstraps = MusicAssistantBootstrapManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                self.music_assistant_core, installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                self.music_assistant_core,
+                installation_backend,
+            )
             self.music_assistant_bootstraps.validate_storage()
             self.music_provider_setups = MusicProviderSetupManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                self.music_assistant_core, installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.media_installations,
+                self.music_assistant_core,
+                installation_backend,
+            )
             self.music_provider_setups.validate_storage()
             self.music_provider_commands = MusicProviderCommandManagement(
-                self.db, settings, self.music_provider_setups)
+                self.db, settings, self.music_provider_setups
+            )
             self.music_retained_status = MusicRetainedStatusManagement(
-                self.db, self.media_installations, self.music_assistant_core,
-                self.music_provider_setups)
+                self.db,
+                self.media_installations,
+                self.music_assistant_core,
+                self.music_provider_setups,
+            )
             self.media_recovery_status = MediaRecoveryStatusManagement(
-                self.db, self.media_installations, self.media_service_bootstraps,
-                self.qbittorrent_configurations, self.arr_configurations,
-                self.seerr_bootstraps, self.music_assistant_bootstraps)
+                self.db,
+                self.media_installations,
+                self.media_service_bootstraps,
+                self.qbittorrent_configurations,
+                self.arr_configurations,
+                self.seerr_bootstraps,
+                self.music_assistant_bootstraps,
+                self.context,
+            )
             self.music_playback = MusicPlaybackManagement(
-                self.db, self.auth, settings, key, self.music_assistant_core,
-                self.music_provider_setups, installation_backend)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.music_assistant_core,
+                self.music_provider_setups,
+                installation_backend,
+            )
             self.music_playback.validate_storage()
             self.media_archive_health = MediaArchiveHealthManagement(
-                self.db, self.auth, settings, self.media_installations,
-                self._media_archive_binding_reader, self._media_archive_worker)
+                self.db,
+                self.auth,
+                settings,
+                self.media_installations,
+                self._media_archive_binding_reader,
+                self._media_archive_worker,
+            )
             media_flow_provider = (
                 MediaFlowWorkerProvider(installation_backend)
-                if callable(getattr(
-                    installation_backend, "read_media_flow", None)) else None
+                if callable(getattr(installation_backend, "read_media_flow", None))
+                else None
             )
             self.media_flow = MediaFlowManagement(
-                self.db, self.auth, settings, key,
-                media_flow_provider)
+                self.db, self.auth, settings, key, media_flow_provider
+            )
             self.keenetic_command_journal = KeeneticCommandJournal(
                 self.db, self.auth, settings, key, self.context
             )
@@ -477,6 +799,13 @@ class CoreServices:
                 journal=self.keenetic_command_journal,
                 wall_clock=settings.clock,
             )
+            self.legacy_remote_gateway = build_legacy_remote_gateway(
+                self.db,
+                settings,
+                key,
+                self.context,
+                self._legacy_remote_provider,
+            )
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
@@ -484,7 +813,9 @@ class CoreServices:
         if not path.exists():
             return
         with self.db.connection() as connection:
-            admin = connection.execute("SELECT must_change_password FROM users WHERE username='admin'").fetchone()
+            admin = connection.execute(
+                "SELECT must_change_password FROM users WHERE username='admin'"
+            ).fetchone()
         if admin and not admin["must_change_password"]:
             private_read(path, 2048)
             path.unlink()
