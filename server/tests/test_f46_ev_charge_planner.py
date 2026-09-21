@@ -194,7 +194,7 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
         command_id="confirm-1", expected_plan_hash=preview.plan_hash,
     )
     assert uncertain.status == "uncertain"
-    same = service.confirm(
+    same = planner(path, charger).confirm(
         actor(), authority=authority(), preview_id=preview.id,
         command_id="confirm-1", expected_plan_hash=preview.plan_hash,
     )
