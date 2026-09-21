@@ -3317,5 +3317,17 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "fairChoresTitle": "Household chores",
+  "fairChoresSubtitle": "Fair recurring assignments from Larenor Core",
+  "fairChoresLoading": "Loading current chores",
+  "fairChoresEmpty": "No chores are assigned",
+  "fairChoresOffline": "Core is not reachable",
+  "fairChoresError": "Current chore state could not be verified",
+  "fairChoresUncertain": "The result is uncertain. Read the receipt before trying again.",
+  "fairChoresAssignee": "Assigned to",
+  "fairChoresDue": "Due",
+  "fairChoresComplete": "Complete",
+  "fairChoresDefer": "Defer one day",
+  "fairChoresReconcile": "Check result"
 }

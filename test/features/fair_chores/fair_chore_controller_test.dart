@@ -10,6 +10,7 @@ const authorityA = FairChoreAuthority(
   accountId: 'ada',
   sessionId: 'session-a',
   routeId: 'chores-a',
+  membersRevision: 1,
 );
 const authorityB = FairChoreAuthority(
   coreId: 'core-b',
@@ -17,6 +18,7 @@ const authorityB = FairChoreAuthority(
   accountId: 'baran',
   sessionId: 'session-b',
   routeId: 'chores-b',
+  membersRevision: 1,
 );
 
 FairChoreTask task({
@@ -28,6 +30,7 @@ FairChoreTask task({
   title: 'Bitkileri sula',
   revision: revision,
   assigneeId: assignee,
+  assigneeLabel: assignee,
   dueAt: DateTime.utc(2026, 9, 22, 8),
 );
 
@@ -59,6 +62,7 @@ class FakeFairChoreApi implements FairChoreApi {
     if (timeoutCompletion) throw TimeoutException('lost receipt');
     return FairChoreReceipt(
       authority: authority,
+      eventId: 'event-complete',
       commandId: commandId,
       action: FairChoreAction.completed,
       task: task(revision: expectedRevision + 1, assignee: 'baran'),
@@ -76,6 +80,7 @@ class FakeFairChoreApi implements FairChoreApi {
     deferCalls++;
     return FairChoreReceipt(
       authority: authority,
+      eventId: 'event-defer',
       commandId: commandId,
       action: FairChoreAction.deferred,
       task: task(revision: expectedRevision + 1),
@@ -143,6 +148,7 @@ void main() {
 
       api.reconciled = FairChoreReceipt(
         authority: authorityA,
+        eventId: 'event-reconcile',
         commandId: 'complete-1',
         action: FairChoreAction.completed,
         task: task(revision: 2, assignee: 'baran'),
@@ -188,6 +194,7 @@ void main() {
       await controller.complete(lease, task());
       api.reconciled = FairChoreReceipt(
         authority: authorityA,
+        eventId: 'event-foreign',
         commandId: 'complete-1',
         action: FairChoreAction.completed,
         task: task(id: 'chore-2', revision: 2),

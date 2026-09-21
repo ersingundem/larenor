@@ -2979,5 +2979,17 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "fairChoresTitle": "Ev işleri",
+  "fairChoresSubtitle": "Larenor Core’dan adil ve yinelenen görevler",
+  "fairChoresLoading": "Güncel ev işleri yükleniyor",
+  "fairChoresEmpty": "Atanmış ev işi yok",
+  "fairChoresOffline": "Core erişilebilir değil",
+  "fairChoresError": "Güncel ev işi durumu doğrulanamadı",
+  "fairChoresUncertain": "Sonuç belirsiz. Yeniden denemeden önce makbuzu okuyun.",
+  "fairChoresAssignee": "Atanan kişi",
+  "fairChoresDue": "Son tarih",
+  "fairChoresComplete": "Tamamla",
+  "fairChoresDefer": "Bir gün ertele",
+  "fairChoresReconcile": "Sonucu denetle"
 }

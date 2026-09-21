@@ -64,12 +64,13 @@ class FairChoreService:
         }
 
     @staticmethod
-    def _task(task):
+    def _task(task, labels=None):
         return {
             "id": task.id,
             "title": task.title,
             "revision": task.revision,
             "assigneeId": task.assignee_id,
+            "assigneeLabel": (labels or {}).get(task.assignee_id, task.assignee_id),
             "dueAt": task.due_at,
         }
 
@@ -88,7 +89,7 @@ class FairChoreService:
                 {"id": identifier, "label": labels[identifier]}
                 for identifier in members.ids
             ],
-            "tasks": [self._task(task) for task in tasks],
+            "tasks": [self._task(task, labels) for task in tasks],
         }
 
     def create(self, actor, core_id, home_id, body):
@@ -111,12 +112,12 @@ class FairChoreService:
         return {
             "authority": self._authority(actor, members),
             "members": [{"id": key, "label": value} for key, value in labels.items()],
-            "task": self._task(task),
+            "task": self._task(task, labels),
         }
 
     def complete(self, actor, core_id, home_id, task_id, body):
         self._scope(core_id, home_id)
-        members, _labels = self._members(actor, write=True)
+        members, labels = self._members(actor, write=True)
         receipt = self.store.complete(
             actor,
             task_id,
@@ -127,11 +128,11 @@ class FairChoreService:
             completed_at=body.completedAt,
             members=members,
         )
-        return self._receipt(actor, members, receipt)
+        return self._receipt(actor, members, receipt, labels)
 
     def defer(self, actor, core_id, home_id, task_id, body):
         self._scope(core_id, home_id)
-        members, _labels = self._members(actor, write=True)
+        members, labels = self._members(actor, write=True)
         receipt = self.store.defer(
             actor,
             task_id,
@@ -141,21 +142,21 @@ class FairChoreService:
             command_id=body.commandId,
             days=body.days,
         )
-        return self._receipt(actor, members, receipt)
+        return self._receipt(actor, members, receipt, labels)
 
     def receipt(self, actor, core_id, home_id, command_id):
         self._scope(core_id, home_id)
-        members, _labels = self._members(actor)
+        members, labels = self._members(actor)
         receipt = self.store.receipt(
             actor, command_id, core_id=core_id, home_id=home_id
         )
-        return None if receipt is None else self._receipt(actor, members, receipt)
+        return None if receipt is None else self._receipt(actor, members, receipt, labels)
 
-    def _receipt(self, actor, members, receipt):
+    def _receipt(self, actor, members, receipt, labels):
         return {
             "authority": self._authority(actor, members),
             "eventId": receipt.event_id,
             "commandId": receipt.command_id,
             "action": receipt.action,
-            "task": self._task(receipt.task),
+            "task": self._task(receipt.task, labels),
         }

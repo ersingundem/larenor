@@ -350,12 +350,15 @@ class FairChoreStore:
         if not _identifier(command_id):
             raise ApiError("invalid_request", 400)
         with self.database.connection() as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 "SELECT task_id,actor_id,receipt_json FROM fair_chore_events "
                 "WHERE command_id=? AND task_id IN (SELECT id FROM fair_chore_tasks "
                 "WHERE core_id=? AND home_id=?)",
                 (command_id, core_id, home_id),
-            ).fetchone()
+            ).fetchall()
+            if len(rows) > 1:
+                raise StartupError("fair_chore_history_invalid")
+            row = rows[0] if rows else None
             if row is None:
                 return None
             task = self._load(connection, row["task_id"], core_id, home_id)

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/fair_chore_controller.dart';
 import '../domain/fair_chore_models.dart';
 
@@ -18,6 +19,21 @@ class FairChoreStrings {
     required this.defer,
     required this.reconcile,
   });
+
+  factory FairChoreStrings.fromLocalizations(AppLocalizations value) =>
+      FairChoreStrings(
+        title: value.fairChoresTitle,
+        loading: value.fairChoresLoading,
+        empty: value.fairChoresEmpty,
+        offline: value.fairChoresOffline,
+        error: value.fairChoresError,
+        uncertain: value.fairChoresUncertain,
+        assignee: value.fairChoresAssignee,
+        due: value.fairChoresDue,
+        complete: value.fairChoresComplete,
+        defer: value.fairChoresDefer,
+        reconcile: value.fairChoresReconcile,
+      );
 
   static const en = FairChoreStrings(
     title: 'Household chores',
@@ -207,7 +223,7 @@ class _FairChoreScreenState extends State<FairChoreScreen> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            Text('${strings.assignee}: ${task.assigneeId}'),
+            Text('${strings.assignee}: ${task.assigneeLabel}'),
             Text(
               '${strings.due}: ${task.dueAt.toLocal().toIso8601String().substring(0, 16)}',
             ),

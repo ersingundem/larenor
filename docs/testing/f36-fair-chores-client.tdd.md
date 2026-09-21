@@ -1,6 +1,7 @@
 # F36 fair chore Android Client slice
 
-Status: independent Client contract and tablet surface; F36 remains `pending`.
+Status: Core and Android tablet integration complete; F36 remains `pending`
+until its declared F05 and F54 dependencies close.
 
 ## Three accepted criteria
 
@@ -24,8 +25,18 @@ Status: independent Client contract and tablet surface; F36 remains `pending`.
 - RED `16843f42`: a receipt for another task could incorrectly clear an
   uncertain operation; the exact task/revision receipt check closes that gap.
 
-The authenticated HTTP implementation, app route/AppLocalizations adapter,
-real household-member names, notification delivery, and Client-to-isolated-Core
-E2E stay open. This slice touches no global route or localization files, so it
-can merge independently from the current F54 and tablet pull requests. The
-queue remains 18/125 and selected features remain 0/63.
+- Core now derives the ordered active account set and an HMAC-bound membership
+  revision inside the authenticated session. List, complete, defer and retained
+  receipt endpoints reject another Core, home, account, session or membership
+  authority and survive process restart.
+- The Android account gateway revalidates the exact endpoint, account generation,
+  Core/home identity, session family, route, lifecycle, view and window before
+  every read or write. The Core home surface exposes the localized tablet route.
+- Focused verification covers the durable Core reducer and real HTTP boundary,
+  strict Client wire parsing, no-replay lost acknowledgement recovery, EN/TR
+  600/1200 layouts, 2x text, 48dp controls, keyboard and TalkBack semantics.
+
+Completion notification delivery remains gated by F54, and Today integration
+remains gated by F05. Physical Huawei/DeX and background-delivery acceptance
+stays in the MANUAL matrix. The queue remains 22/125 and selected features
+remain 0/63; this integration does not advance either counter early.
