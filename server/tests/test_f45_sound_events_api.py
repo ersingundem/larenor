@@ -1,9 +1,7 @@
 import sqlite3
 
 from conftest import auth, ready
-
-from larenor_server.sound_events import SoundClassifierBinding, SoundEvent, SoundEventAuthority
-
+from larenor_server.sound_events import SoundEvent, SoundEventAuthority
 
 ROOM = "5" * 32
 DEVICE = "6" * 32
@@ -113,9 +111,12 @@ def test_acknowledgement_requires_exact_revision_and_verified_readback(server):
     assert value["accountId"] == actor.id
     assert value["sessionFamilyId"] == actor.family_id
     assert value["acknowledged"] is True
-    assert client.post(
-        f"{root}/{EVENT}/acknowledgements", headers=auth(pair), json=command
-    ).json() == value
+    assert (
+        client.post(
+            f"{root}/{EVENT}/acknowledgements", headers=auth(pair), json=command
+        ).json()
+        == value
+    )
 
     after = client.get(root, headers=auth(pair)).json()
     assert after["repositoryRevision"] == value["repositoryRevision"]
@@ -124,7 +125,7 @@ def test_acknowledgement_requires_exact_revision_and_verified_readback(server):
 
 
 def test_scope_revision_session_and_storage_tamper_fail_closed(server):
-    app, client, _settings, _clock = server
+    app, client, settings, _clock = server
     pair, _actor, _authority, root = _seed(server)
     before = client.get(root, headers=auth(pair)).json()
     wrong = client.post(
@@ -141,7 +142,27 @@ def test_scope_revision_session_and_storage_tamper_fail_closed(server):
         409,
         "revision_conflict",
     )
-    assert client.get(root.replace(app.state.core.context.homeId, "f" * 32), headers=auth(pair)).status_code == 404
+    assert (
+        client.get(
+            root.replace(app.state.core.context.homeId, "f" * 32), headers=auth(pair)
+        ).status_code
+        == 404
+    )
+
+    exact_command = {
+        "schemaVersion": 1,
+        "requestId": REQUEST,
+        "expectedRepositoryRevision": before["repositoryRevision"],
+        "expectedEventRevision": 1,
+    }
+    assert (
+        client.post(
+            f"{root}/{EVENT}/acknowledgements",
+            headers=auth(pair),
+            json=exact_command,
+        ).status_code
+        == 200
+    )
 
     second = client.post(
         "/api/v1/auth/login",
@@ -154,12 +175,7 @@ def test_scope_revision_session_and_storage_tamper_fail_closed(server):
     replay = client.post(
         f"{root}/{EVENT}/acknowledgements",
         headers=auth(second),
-        json={
-            "schemaVersion": 1,
-            "requestId": REQUEST,
-            "expectedRepositoryRevision": before["repositoryRevision"],
-            "expectedEventRevision": 1,
-        },
+        json=exact_command,
     )
     assert replay.status_code == 409
 
@@ -173,3 +189,26 @@ def test_scope_revision_session_and_storage_tamper_fail_closed(server):
         503,
         "sound_event_integrity_failed",
     )
+
+    with sqlite3.connect(app.state.core.sound_events.path) as connection:
+        connection.execute(
+            "UPDATE sound_events SET evidence_digest=? WHERE event_id=?",
+            ("a" * 64, EVENT),
+        )
+        connection.execute("DROP TABLE sound_event_receipts")
+    from larenor_server.errors import StartupError
+    from larenor_server.sound_events.repository import SoundEventRepository
+
+    try:
+        SoundEventRepository(
+            settings.data_dir / "sound-events.db",
+            settings.key_file.read_bytes(),
+            app.state.core.db,
+            app.state.core.auth,
+            app.state.core.context,
+            settings.clock,
+        )
+    except StartupError as error:
+        assert str(error) == "sound_event_storage_invalid"
+    else:
+        raise AssertionError("partial sound-event schema must fail closed")

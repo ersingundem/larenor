@@ -104,6 +104,7 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .sound_events.repository import SoundEventRepository
 
 
 class CoreServices:
@@ -301,6 +302,14 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.sound_events = SoundEventRepository(
+                settings.data_dir / "sound-events.db",
+                key,
+                self.db,
+                self.auth,
+                self.context,
+                settings.clock,
+            )
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None

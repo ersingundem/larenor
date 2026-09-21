@@ -56,7 +56,7 @@ SoundEventAuthority authority() => const SoundEventAuthority(
 );
 
 SoundEventSnapshot snapshot({required bool acknowledged}) => SoundEventSnapshot(
-  authority: authority(),
+  authority: authority().withRepositoryRevision(acknowledged ? 2 : 1),
   repositoryRevision: acknowledged ? 2 : 1,
   events: [
     SoundEventItem(
@@ -67,7 +67,7 @@ SoundEventSnapshot snapshot({required bool acknowledged}) => SoundEventSnapshot(
       confidence: .91,
       observedAt: DateTime.fromMillisecondsSinceEpoch(10000, isUtc: true),
       retentionExpiresAt: DateTime.fromMillisecondsSinceEpoch(
-        100000,
+        10000000000000,
         isUtc: true,
       ),
       eventRevision: acknowledged ? 2 : 1,
@@ -78,8 +78,8 @@ SoundEventSnapshot snapshot({required bool acknowledged}) => SoundEventSnapshot(
 );
 
 final class _Api implements SoundEventApi {
-  _Api({Future<SoundEventSnapshot>? loadResult}) : _loadResult = loadResult;
-  final Future<SoundEventSnapshot>? _loadResult;
+  _Api({this.loadResult});
+  final Future<SoundEventSnapshot>? loadResult;
   int ackCalls = 0;
   bool acknowledged = false;
 
@@ -87,7 +87,7 @@ final class _Api implements SoundEventApi {
   Future<SoundEventSnapshot> load(
     SoundEventAuthority expected,
     SoundEventFilter filter,
-  ) => _loadResult ?? Future.value(snapshot(acknowledged: acknowledged));
+  ) => loadResult ?? Future.value(snapshot(acknowledged: acknowledged));
 
   @override
   Future<SoundEventAcknowledgement> acknowledge(
