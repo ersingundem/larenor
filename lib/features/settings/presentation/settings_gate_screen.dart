@@ -11,6 +11,7 @@ import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import '../../core_ha/direct_migration/transfer_screen.dart';
 import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
@@ -24,6 +25,7 @@ enum SettingsGateDestination {
   settings,
   clientUpdates,
   serverAccount,
+  tabletFleet,
   homeSource,
   homeResources,
   homePeople,
@@ -142,6 +144,15 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
+      if (widget.initialDestination == SettingsGateDestination.tabletFleet &&
+          (next.isLoading ||
+              next.hasError ||
+              (previous?.hasValue == true &&
+                  next.hasValue &&
+                  previous?.value != next.value))) {
+        _lockSettings();
+        return;
+      }
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
               widget.initialDestination ==
                   SettingsGateDestination.coreHaTransfer ||
@@ -223,9 +234,43 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             : widget.initialDestination ==
                                   SettingsGateDestination.serverAccount
                             ? ServerConnectionScreen(
+                                adminGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.tabletFleet
+                            ? ServerTabletFleetScreen(
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.coreHaTransfer
@@ -402,6 +447,21 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                       !value.hasError &&
                                       value.hasValue &&
                                       (value.value == null || _unlocked);
+                                },
+                                tabletFleetGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
                                 },
                                 runFileDialog: _runFileDialog,
                                 onExit: Navigator.of(context).canPop()
