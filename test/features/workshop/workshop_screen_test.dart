@@ -5,34 +5,91 @@ import 'package:larenor/features/workshop/data/workshop_controller.dart';
 import 'package:larenor/features/workshop/domain/workshop_models.dart';
 import 'package:larenor/features/workshop/presentation/workshop_screen.dart';
 
-WorkshopPrinter safePrinter() => WorkshopPrinter.fixture(
-  id: 'a' * 32,
-  name: 'Workshop One',
-  availableActions: const [WorkshopAction.pause, WorkshopAction.cancel],
-);
+WorkshopPrinter printer({required String id, required bool safe}) =>
+    WorkshopPrinter(
+      coreId: 'a' * 32,
+      homeId: 'b' * 32,
+      id: id * 32,
+      revision: 4,
+      name: safe ? 'Workshop One' : 'Workshop Two',
+      service: WorkshopServiceRef(id: 'e' * 32, revision: 3),
+      job: WorkshopJob(
+        revision: 7,
+        id: 'f' * 32,
+        state: WorkshopJobState.printing,
+        progressPermille: 420,
+        remainingSeconds: 900,
+      ),
+      material: const WorkshopMaterial(
+        revision: 5,
+        kind: WorkshopMaterialKind.pla,
+        remainingGrams: 280,
+      ),
+      safety: WorkshopSafety(
+        revision: 9,
+        connectivity: WorkshopConnectivity.online,
+        thermal: safe ? WorkshopThermal.normal : WorkshopThermal.runaway,
+        filament: WorkshopFilament.available,
+        door: WorkshopDoor.closed,
+        emergency: WorkshopEmergency.clear,
+        observedAt: DateTime.utc(2026, 9, 21),
+        freshness: WorkshopFreshness.current,
+      ),
+      availableActions: safe
+          ? const [WorkshopAction.pause, WorkshopAction.cancel]
+          : const [],
+    );
 
-WorkshopPrinter hazardPrinter() => WorkshopPrinter.fixture(
-  id: 'b' * 32,
-  name: 'Workshop Two',
-  availableActions: const [],
-  safety: WorkshopSafety.fixture(thermal: WorkshopThermal.runaway),
-);
+WorkshopPrinter safePrinter() => printer(id: 'a', safe: true);
+WorkshopPrinter hazardPrinter() => printer(id: 'b', safe: false);
+
+WorkshopPreview previewFor(WorkshopPrinter printer, WorkshopAction action) =>
+    WorkshopPreview(
+      coreId: printer.coreId,
+      homeId: printer.homeId,
+      id: '1' * 32,
+      printerId: printer.id,
+      action: action,
+      confirmationToken: 't' * 43,
+      expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
+    );
+
+WorkshopIntentReceipt receiptFor(WorkshopPreview preview) =>
+    WorkshopIntentReceipt(
+      id: '2' * 32,
+      sequence: 1,
+      printerId: preview.printerId,
+      action: preview.action,
+      effect: WorkshopIntentEffect.notDispatched,
+      authority: const WorkshopIntentAuthority(
+        printerRevision: 4,
+        serviceRevision: 3,
+        jobRevision: 7,
+        materialRevision: 5,
+        safetyRevision: 9,
+      ),
+      createdAt: DateTime.now().toUtc(),
+    );
 
 final class _Gateway implements WorkshopGateway {
   int confirmations = 0;
   @override
-  Future<List<WorkshopPrinter>> load() async => [safePrinter(), hazardPrinter()];
+  Future<List<WorkshopPrinter>> load() async => [
+    safePrinter(),
+    hazardPrinter(),
+  ];
   @override
   Future<WorkshopPreview> preview({
     required WorkshopPrinter printer,
     required WorkshopAction action,
     required String requestKey,
-  }) async => WorkshopPreview.fixture(printer: printer, action: action);
+  }) async => previewFor(printer, action);
   @override
   Future<WorkshopIntentReceipt> confirm(WorkshopPreview preview) async {
     confirmations++;
-    return WorkshopIntentReceipt.fixture(preview: preview);
+    return receiptFor(preview);
   }
+
   @override
   void retire() {}
 }
@@ -77,8 +134,12 @@ void main() {
         expect(find.text(entry.$1.title), findsOneWidget);
         expect(find.text(entry.$1.thermalRunaway), findsOneWidget);
         expect(tester.takeException(), isNull);
-        final first = tester.getTopLeft(find.byKey(const ValueKey('workshop-a')));
-        final second = tester.getTopLeft(find.byKey(const ValueKey('workshop-b')));
+        final first = tester.getTopLeft(
+          find.byKey(const ValueKey('workshop-a')),
+        );
+        final second = tester.getTopLeft(
+          find.byKey(const ValueKey('workshop-b')),
+        );
         if (width >= 1000) {
           expect(second.dx, greaterThan(first.dx));
           expect(second.dy, first.dy);
@@ -96,7 +157,9 @@ void main() {
     }
   }
 
-  testWidgets('keyboard and TalkBack keep confirmation explicit', (tester) async {
+  testWidgets('keyboard and TalkBack keep confirmation explicit', (
+    tester,
+  ) async {
     final gateway = await pump(
       tester,
       width: 1280,

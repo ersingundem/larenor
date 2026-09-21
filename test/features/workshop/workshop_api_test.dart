@@ -38,11 +38,7 @@ Map<String, Object?> printerJson({
   List<String> actions = const ['pause', 'cancel'],
 }) => {
   'schemaVersion': 1,
-  'ref': {
-    ...context().toJson(),
-    'kind': 'workshop_printer',
-    'id': 'd' * 32,
-  },
+  'ref': {...context().toJson(), 'kind': 'workshop_printer', 'id': 'd' * 32},
   'revision': 4,
   'name': 'Workshop printer',
   'serviceRef': {'id': 'e' * 32, 'revision': 3},
@@ -113,68 +109,81 @@ http.Response response(Object value, [int status = 200]) => http.Response(
 );
 
 void main() {
-  test('typed API keeps exact scope and sends only bounded action fields', () async {
-    final requests = <http.Request>[];
-    final transport = LarenorServerApi(
-      endpoint: session().endpoint,
-      client: MockClient((request) async {
-        requests.add(request);
-        expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
-        if (request.method == 'GET') {
-          return response({'schemaVersion': 1, 'printers': [printerJson()]});
-        }
-        if (request.url.path.endsWith('/previews')) {
-          return response(previewJson(), 201);
-        }
-        return response(receiptJson(), 201);
-      }),
-    );
-    addTearDown(transport.close);
-    final api = WorkshopApi(transport, session(), isCurrent: () => true);
-    final printers = await api.load();
-    final printer = printers.single;
-    final preview = await api.preview(
-      printer: printer,
-      action: WorkshopAction.pause,
-      requestKey: 'pause-request-key-0001',
-    );
-    final receipt = await api.confirm(preview);
+  test(
+    'typed API keeps exact scope and sends only bounded action fields',
+    () async {
+      final requests = <http.Request>[];
+      final transport = LarenorServerApi(
+        endpoint: session().endpoint,
+        client: MockClient((request) async {
+          requests.add(request);
+          expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
+          if (request.method == 'GET') {
+            return response({
+              'schemaVersion': 1,
+              'printers': [printerJson()],
+            });
+          }
+          if (request.url.path.endsWith('/previews')) {
+            return response(previewJson(), 201);
+          }
+          return response(receiptJson(), 201);
+        }),
+      );
+      addTearDown(transport.close);
+      final api = WorkshopApi(transport, session(), isCurrent: () => true);
+      final printers = await api.load();
+      final printer = printers.single;
+      final preview = await api.preview(
+        printer: printer,
+        action: WorkshopAction.pause,
+        requestKey: 'pause-request-key-0001',
+      );
+      final receipt = await api.confirm(preview);
 
-    expect(receipt.effect, WorkshopIntentEffect.notDispatched);
-    expect(requests, hasLength(3));
-    final previewBody = jsonDecode(requests[1].body) as Map<String, dynamic>;
-    expect(previewBody, {
-      'schemaVersion': 1,
-      'expectedPrinterRevision': 4,
-      'expectedServiceRevision': 3,
-      'expectedJobRevision': 7,
-      'expectedMaterialRevision': 5,
-      'expectedSafetyRevision': 9,
-      'requestKey': 'pause-request-key-0001',
-      'action': 'pause',
-    });
-    final wire = requests.map((request) => request.body).join();
-    for (final forbidden in ['gcode', 'path', 'credential', 'apiKey']) {
-      expect(wire.toLowerCase(), isNot(contains(forbidden.toLowerCase())));
-    }
-  });
+      expect(receipt.effect, WorkshopIntentEffect.notDispatched);
+      expect(requests, hasLength(3));
+      final previewBody = jsonDecode(requests[1].body) as Map<String, dynamic>;
+      expect(previewBody, {
+        'schemaVersion': 1,
+        'expectedPrinterRevision': 4,
+        'expectedServiceRevision': 3,
+        'expectedJobRevision': 7,
+        'expectedMaterialRevision': 5,
+        'expectedSafetyRevision': 9,
+        'requestKey': 'pause-request-key-0001',
+        'action': 'pause',
+      });
+      final wire = requests.map((request) => request.body).join();
+      for (final forbidden in ['gcode', 'path', 'credential', 'apiKey']) {
+        expect(wire.toLowerCase(), isNot(contains(forbidden.toLowerCase())));
+      }
+    },
+  );
 
   test('foreign, secret-bearing or unsafe action projections fail closed', () {
-    for (final mutation in <Map<String, Object?> Function(Map<String, Object?>)>[
-      (value) => {...value, 'gcode': 'M112'},
-      (value) => {
-        ...value,
-        'ref': {...value['ref']! as Map<String, Object?>, 'homeId': '0' * 32},
-      },
-      (value) => {...value, 'credentials': {'apiKey': 'secret'}},
-      (value) => {
-        ...value,
-        'safety': {
-          ...value['safety']! as Map<String, Object?>,
-          'connectivity': 'offline',
-        },
-      },
-    ]) {
+    for (final mutation
+        in <Map<String, Object?> Function(Map<String, Object?>)>[
+          (value) => {...value, 'gcode': 'M112'},
+          (value) => {
+            ...value,
+            'ref': {
+              ...value['ref']! as Map<String, Object?>,
+              'homeId': '0' * 32,
+            },
+          },
+          (value) => {
+            ...value,
+            'credentials': {'apiKey': 'secret'},
+          },
+          (value) => {
+            ...value,
+            'safety': {
+              ...value['safety']! as Map<String, Object?>,
+              'connectivity': 'offline',
+            },
+          },
+        ]) {
       expect(
         () => WorkshopPrinter.fromJson(mutation(printerJson()), context()),
         throwsA(isA<LarenorServerException>()),
