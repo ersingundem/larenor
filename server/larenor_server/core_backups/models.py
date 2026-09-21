@@ -33,7 +33,7 @@ Blocker = Literal[
 
 class BackupResource(StrictModel):
     id: ResourceId
-    kind: Literal["database", "vaultKey", "configuration", "componentData"]
+    kind: Literal["database", "vaultKey", "configuration", "componentData", "familyBoard"]
     version: SafeVersion
     byteLength: Annotated[int, Field(ge=1, le=512 * 1024 * 1024)]
     sha256: Digest
@@ -46,7 +46,7 @@ class BackupManifest(StrictModel):
     coreVersion: SafeVersion
     databaseSchemaVersion: Annotated[int, Field(ge=1, le=2**31 - 1)]
     componentSchemaVersions: dict[str, int] = Field(max_length=128)
-    resources: list[BackupResource] = Field(min_length=4, max_length=4)
+    resources: list[BackupResource] = Field(min_length=4, max_length=5)
 
     @field_validator("componentSchemaVersions", mode="before")
     @classmethod
@@ -71,16 +71,21 @@ class BackupManifest(StrictModel):
             "core-database": "database",
             "vault-key": "vaultKey",
         }
+        if self.contractVersion >= 2:
+            expected["family-board"] = "familyBoard"
         found = {resource.id: resource.kind for resource in self.resources}
         if found != expected or len(found) != len(self.resources):
             raise ValueError("invalid_backup_resources")
         versions = {resource.id: resource.version for resource in self.resources}
-        if versions != {
+        expected_versions = {
             "component-index": "1",
             "core-configuration": "1",
             "core-database": str(self.databaseSchemaVersion),
             "vault-key": "aes256-v1",
-        }:
+        }
+        if self.contractVersion >= 2:
+            expected_versions["family-board"] = "1"
+        if versions != expected_versions:
             raise ValueError("invalid_backup_resource_versions")
         return self
 

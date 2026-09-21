@@ -657,6 +657,7 @@
   "serverBackupsVaultKey": "Kasa anahtarı",
   "serverBackupsConfiguration": "Core yapılandırması",
   "serverBackupsComponents": "Bileşen dizini",
+  "serverBackupsFamilyBoard": "Aile panosu",
   "serverBackupsOfflineRestoreTitle": "Boş Core kurtarma sınırı",
   "serverBackupsOfflineRestoreHint": "Geri yükleme, boş bir Core başlamadan önce Larenor Server tarafından doğrulanır ve tamamlanır. Android uygulaması çalışan Core'un veritabanını veya anahtarını değiştirmez.",
   "backupIntro": "Larenor yapılandırmasının şifreli bir kopyasını saklayın. İçeriği seçip Dosyalar ile kaydedin.",

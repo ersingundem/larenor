@@ -1,9 +1,11 @@
 """S09.2 empty-target restore and crash recovery contract."""
 
 import os
+import secrets
 from dataclasses import replace
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from conftest import auth, document, login, ready
 from fastapi.testclient import TestClient
 from larenor_server import cli
@@ -11,6 +13,7 @@ from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.core_backups import restore as restore_module
 from larenor_server.core_backups.restore import restore_empty
+from larenor_server.core_backups.service import BackupCapture, CoreBackupContract, MAGIC
 from larenor_server.errors import ApiError, StartupError
 from larenor_server.files import private_create
 
@@ -74,6 +77,140 @@ def test_empty_restore_reopens_key_context_connection_and_vault_after_restart(
     assert not (target.data_dir / ".restore-state.json").exists()
 
 
+def test_legacy_four_resource_bundle_still_restores(server, tmp_path):
+    app, _client, settings, clock = server
+    bundle, key, context = _bundle(server)
+    opened = app.state.core.core_backups.open_bundle(bundle, PASSPHRASE)
+    legacy = BackupCapture(
+        manifest=opened.manifest.model_copy(
+            update={
+                "contractVersion": 1,
+                "resources": [
+                    item for item in opened.manifest.resources
+                    if item.id != "family-board"
+                ],
+            }
+        ),
+        payloads={
+            name: value for name, value in opened.payloads.items()
+            if name != "family-board"
+        },
+    )
+    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+    aad = MAGIC + salt + nonce
+    legacy_bundle = aad + AESGCM(
+        CoreBackupContract._derive_key(PASSPHRASE, salt)
+    ).encrypt(nonce, CoreBackupContract._archive(legacy), aad)
+
+    target = _target(tmp_path, clock)
+    restore_empty(target, legacy_bundle, PASSPHRASE)
+
+    _assert_restored(target, key, context)
+    assert (target.data_dir / "family-board.sqlite3").exists()
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_empty_restore_preserves_family_board_snapshot_and_delta(
+    server, tmp_path, monkeypatch, interrupted
+):
+    app, client, _settings, clock = server
+    pair = ready(server)
+    context = app.state.core.context
+    root = f"/api/v1/family-boards/{context.coreId}/{context.homeId}"
+    authority = client.get(root + "/authority", headers=auth(pair)).json()
+    board = root + "/" + authority["boardId"]
+    card = {
+        "schemaVersion": 1,
+        "id": "8" * 32,
+        "kind": "card",
+        "text": "Movie night",
+        "x": 24.0,
+        "y": 24.0,
+        "color": "yellow",
+    }
+    expectations = {
+        "expectedHomeRevision": authority["homeRevision"],
+        "expectedAccountRevision": authority["accountRevision"],
+        "expectedMemberRevision": authority["memberRevision"],
+        "expectedSessionFamilyId": authority["sessionFamilyId"],
+    }
+    response = client.post(
+        board + "/commands",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "requestId": "9" * 32,
+            "expectedBoardRevision": 0,
+            "action": "append",
+            "element": card,
+            "elementId": None,
+            **expectations,
+        },
+    )
+    assert response.status_code == 200
+    bundle = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": PASSPHRASE},
+    )
+    assert bundle.status_code == 200
+    assert b"Movie night" not in bundle.content
+
+    target = _target(tmp_path, clock)
+    if interrupted:
+        real_replace = os.replace
+        calls = 0
+
+        def interrupt_after_board(source, destination):
+            nonlocal calls
+            calls += 1
+            if calls == 4:
+                raise OSError("synthetic interruption after board publication")
+            return real_replace(source, destination)
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(restore_module.os, "replace", interrupt_after_board)
+            with pytest.raises(OSError, match="after board publication"):
+                restore_empty(target, bundle.content, PASSPHRASE)
+        assert (target.data_dir / "family-board.sqlite3").exists()
+        assert not target.database_file.exists()
+        assert (target.data_dir / ".restore-state.json").exists()
+    else:
+        restore_empty(target, bundle.content, PASSPHRASE)
+    restored = create_app(target)
+    with TestClient(restored) as target_client:
+        restored_pair = login(
+            target_client, "admin", "Synthetic new password 2026"
+        ).json()
+        restored_authority = target_client.get(
+            root + "/authority", headers=auth(restored_pair)
+        ).json()
+        assert restored_authority["boardId"] == authority["boardId"]
+        snapshot = target_client.get(
+            board, headers=auth(restored_pair)
+        )
+        assert snapshot.status_code == 200
+        assert snapshot.json()["elements"] == [card]
+        restored_expectations = {
+            "expectedHomeRevision": restored_authority["homeRevision"],
+            "expectedAccountRevision": restored_authority["accountRevision"],
+            "expectedMemberRevision": restored_authority["memberRevision"],
+            "expectedSessionFamilyId": restored_authority["sessionFamilyId"],
+        }
+        delta = target_client.post(
+            board + "/delta",
+            headers=auth(restored_pair),
+            json={
+                "schemaVersion": 1,
+                "afterSequence": 0,
+                "limit": 100,
+                **restored_expectations,
+            },
+        )
+        assert delta.status_code == 200
+        assert len(delta.json()["events"]) == 1
+
+
 @pytest.mark.parametrize("damage", ["wrong-password", "truncated", "tampered"])
 def test_authentication_failures_leave_zero_partial_target(server, tmp_path, damage):
     bundle, _key, _context = _bundle(server)
@@ -113,7 +250,7 @@ def test_incompatible_bundle_is_rejected_before_staging(server, tmp_path, monkey
     assert not list(target.data_dir.glob(".restore-*"))
 
 
-def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, monkeypatch):
+def test_restart_finishes_interrupted_publication(server, tmp_path, monkeypatch):
     bundle, key, context = _bundle(server)
     target = _target(tmp_path, server[3])
     real_replace = os.replace
@@ -123,7 +260,7 @@ def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, mon
         nonlocal calls
         calls += 1
         # Journal promotion is the first replace; interrupt after publishing
-        # the key, before publishing the database.
+        # the key, before publishing the board and Core databases.
         if calls == 3:
             raise OSError("synthetic interruption")
         return real_replace(source, destination)
