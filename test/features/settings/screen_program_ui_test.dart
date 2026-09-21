@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -11,6 +12,8 @@ import 'package:larenor/features/settings/presentation/screen_program_screen.dar
 import 'package:larenor/features/settings/providers/screen_program_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 class _Store implements ScreenProgramStore {
   _Store([ScreenProgram? initial])
@@ -44,6 +47,7 @@ Future<void> _mount(
   WidgetTester tester,
   _Store store, {
   AppInteractionController? interaction,
+  ValueNotifier<bool>? ticker,
   Size size = const Size(600, 1000),
   double scale = 1,
   Locale locale = const Locale('en'),
@@ -54,6 +58,8 @@ Future<void> _mount(
   addTearDown(tester.view.reset);
   final controller = interaction ?? AppInteractionController();
   if (interaction == null) addTearDown(controller.dispose);
+  final tickerState = ticker ?? ValueNotifier(true);
+  if (ticker == null) addTearDown(tickerState.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [screenProgramStoreProvider.overrideWithValue(store)],
@@ -69,7 +75,12 @@ Future<void> _mount(
             child: child!,
           ),
         ),
-        home: const ScreenProgramScreen(),
+        home: ValueListenableBuilder<bool>(
+          valueListenable: tickerState,
+          child: const ScreenProgramScreen(),
+          builder: (_, enabled, child) =>
+              TickerMode(enabled: enabled, child: child!),
+        ),
       ),
     ),
   );
@@ -84,18 +95,160 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
+CupertinoButton _programToggle(WidgetTester tester) =>
+    tester.widget<CupertinoButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('screen-program-enabled')),
+        matching: find.byType(CupertinoButton),
+      ),
+    );
+
 void main() {
+  testWidgets('hidden settings surface rejects a retained schedule callback', (
+    tester,
+  ) async {
+    final ticker = ValueNotifier(true);
+    addTearDown(ticker.dispose);
+    final store = _Store();
+    await _mount(tester, store, ticker: ticker);
+    final change = _programToggle(tester).onPressed!;
+
+    ticker.value = false;
+    await tester.pump();
+    change();
+    await tester.pumpAndSettle();
+
+    expect(store.writes, 0);
+    expect(store.program.enabled, isFalse);
+  });
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'screen program uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final store = _Store();
+          try {
+            await _mount(
+              tester,
+              store,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ScreenProgramScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('screen-program-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.screenProgramTitle);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final master = find.byKey(const ValueKey('screen-program-enabled'));
+            await tester.ensureVisible(master);
+            await tester.pumpAndSettle();
+            final masterNode = tester.getSemantics(master);
+            expect(masterNode.label, l10n.screenProgramEnabled);
+            expect(masterNode.flagsCollection.isButton, isTrue);
+            expect(tester.getSize(master).width, greaterThanOrEqualTo(48));
+            expect(tester.getSize(master).height, greaterThanOrEqualTo(48));
+
+            final add = find.byKey(const ValueKey('screen-program-add'));
+            await tester.ensureVisible(add);
+            await tester.pumpAndSettle();
+            final addNode = tester.getSemantics(add);
+            expect(addNode.label, l10n.screenProgramAdd);
+            expect(addNode.flagsCollection.isButton, isTrue);
+            expect(addNode.rect.width, greaterThanOrEqualTo(48));
+            expect(addNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: add,
+              matching: find.text(l10n.screenProgramAdd),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const ValueKey('screen-rule-name')),
+              findsOneWidget,
+            );
+            for (final key in [
+              'screen-rule-save',
+              'screen-rule-day-1',
+              'screen-rule-start',
+              'screen-rule-end',
+              'screen-rule-mode-inherit',
+            ]) {
+              final action = find.byKey(ValueKey(key));
+              await tester.ensureVisible(action);
+              await tester.pumpAndSettle();
+              final size = tester.getSize(action);
+              expect(size.width, greaterThanOrEqualTo(48), reason: key);
+              expect(size.height, greaterThanOrEqualTo(48), reason: key);
+            }
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('existing rule actions keep 48dp targets at 2x text', (
+    tester,
+  ) async {
+    final store = _Store(
+      ScreenProgram(enabled: true, rules: [_rule('first'), _rule('second')]),
+    );
+    await _mount(tester, store, size: const Size(600, 900), scale: 2);
+
+    for (final key in [
+      'screen-rule-first',
+      'screen-rule-down-first',
+      'screen-rule-delete-first',
+    ]) {
+      final action = find.byKey(ValueKey(key));
+      await tester.ensureVisible(action);
+      await tester.pumpAndSettle();
+      final size = tester.getSize(action);
+      expect(size.width, greaterThanOrEqualTo(48), reason: key);
+      expect(size.height, greaterThanOrEqualTo(48), reason: key);
+    }
+  });
+
   testWidgets(
     'opening a schedule does not write settings or issue platform commands',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final s = _Store();
-      await _mount(tester, s);
-      expect(s.writes, 0);
-      expect(
-        find.text('No time periods yet. Add one to create a weekly schedule.'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('does not lock or turn off'), findsOneWidget);
+      try {
+        await _mount(tester, s);
+        expect(s.writes, 0);
+        expect(
+          find.text(
+            'No time periods yet. Add one to create a weekly schedule.',
+          ),
+          findsOneWidget,
+        );
+        final empty = find.byKey(const ValueKey('screen-program-empty-status'));
+        expect(tester.getSemantics(empty).flagsCollection.isLiveRegion, isTrue);
+        expect(
+          find.textContaining('does not lock or turn off'),
+          findsOneWidget,
+        );
+      } finally {
+        semantics.dispose();
+      }
     },
   );
   testWidgets(
@@ -198,28 +351,38 @@ void main() {
   testWidgets('storage failure preserves prior schedule with a safe error', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final s = _Store()..fail = true;
-    await _mount(tester, s);
-    await _tap(tester, 'screen-program-enabled');
-    expect(s.program.enabled, isFalse);
-    expect(
-      find.textContaining('Your previous schedule remains in use'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('private storage'), findsNothing);
+    try {
+      await _mount(tester, s);
+      await _tap(tester, 'screen-program-enabled');
+      expect(s.program.enabled, isFalse);
+      expect(
+        find.textContaining('Your previous schedule remains in use'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('screen-program-save-error')),
+            )
+            .flagsCollection
+            .isLiveRegion,
+        isTrue,
+      );
+      expect(find.textContaining('private storage'), findsNothing);
+    } finally {
+      semantics.dispose();
+    }
   });
   testWidgets(
     'rapid captured switch callbacks serialize a single explicit save',
     (tester) async {
       final s = _Store()..pending = Completer<void>();
       await _mount(tester, s);
-      final change = tester
-          .widget<CupertinoSwitch>(
-            find.byKey(const ValueKey('screen-program-enabled')),
-          )
-          .onChanged!;
-      change(true);
-      change(true);
+      final change = _programToggle(tester).onPressed!;
+      change();
+      change();
       await tester.pump();
       expect(s.writes, 1);
       expect(s.program.enabled, isFalse);
@@ -310,12 +473,8 @@ void main() {
     await _mount(tester, s, interaction: interaction);
     final blocker = Completer<void>();
     final lock = ConfigurationWrites.run(() => blocker.future);
-    final change = tester
-        .widget<CupertinoSwitch>(
-          find.byKey(const ValueKey('screen-program-enabled')),
-        )
-        .onChanged!;
-    change(true);
+    final change = _programToggle(tester).onPressed!;
+    change();
     await tester.pump();
     interaction.setActive(false);
     await tester.pump();

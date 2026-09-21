@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,8 @@ import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import '../server/server_account_test.dart' as account_fixture;
 import 'client_updates_test.dart' as update_fixture;
@@ -35,6 +38,7 @@ void main() {
     bool login = true,
     Size size = const Size(900, 1000),
     double scale = 1,
+    Locale locale = const Locale('en'),
   }) async {
     // Construct the controller's serial-write Future in this widget test's
     // async zone, not the outer setUp zone.
@@ -87,7 +91,7 @@ void main() {
           ),
         ],
         child: CupertinoApp(
-          locale: const Locale('en'),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
@@ -112,6 +116,58 @@ void main() {
     await tester.ensureVisible(target);
     await tester.tap(target);
     await tester.pumpAndSettle();
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'client updates uses the shared tablet surface $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await mount(
+              tester,
+              size: Size(width, 1100),
+              scale: 2,
+              locale: Locale(language),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(ClientUpdatesScreen)),
+            );
+
+            expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+            expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(1));
+            final heading = find.byKey(
+              const ValueKey('client-updates-status-heading'),
+            );
+            final headingNode = tester.getSemantics(heading);
+            expect(headingNode.label, l10n.clientUpdatesStatus);
+            expect(headingNode.flagsCollection.isHeader, isTrue);
+            expect(headingNode.flagsCollection.isButton, isFalse);
+
+            final check = find.byKey(const ValueKey('updates-check'));
+            final checkNode = tester.getSemantics(check);
+            expect(checkNode.label, l10n.clientUpdatesCheck);
+            expect(checkNode.flagsCollection.isButton, isTrue);
+            expect(checkNode.rect.width, greaterThanOrEqualTo(48));
+            expect(checkNode.rect.height, greaterThanOrEqualTo(48));
+
+            final label = find.descendant(
+              of: check,
+              matching: find.text(l10n.clientUpdatesCheck),
+            );
+            Focus.of(tester.element(label)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(reads, 2);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
   }
 
   testWidgets(
@@ -249,6 +305,77 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'resume discards retained release evidence and performs one fresh check',
+    (tester) async {
+      await mount(tester);
+      expect(reads, 1);
+      expect(find.text('2.0 (20)'), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(find.text('2.0 (20)'), findsNothing);
+
+      response = http.Response(
+        jsonEncode({
+          ...update_fixture.releaseJson(),
+          'versionCode': 21,
+          'versionName': '2.1',
+          'downloadPath': '/api/v1/client/releases/21/apk',
+        }),
+        200,
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(reads, 2);
+      expect(find.text('2.0 (20)'), findsNothing);
+      expect(find.text('2.1 (21)'), findsOneWidget);
+      expect(api.downloads, 0);
+      expect(api.installs, 0);
+    },
+  );
+
+  testWidgets('retained cancel cannot stop a newer download generation', (
+    tester,
+  ) async {
+    final first = Completer<StagedClientUpdate>();
+    api.pending = first;
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('updates-download')));
+    await tester.pump();
+    final oldCancel = tester
+        .widget<CupertinoButton>(find.byKey(const ValueKey('updates-cancel')))
+        .onPressed!;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    first.complete(api.staged());
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    final second = Completer<StagedClientUpdate>();
+    api.pending = second;
+    await tester.tap(find.byKey(const ValueKey('updates-download')));
+    await tester.pump();
+    final cancelsBefore = api.cancels;
+    oldCancel();
+    await tester.pump();
+    expect(api.cancels, cancelsBefore);
+    second.complete(api.staged());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('updates-install')), findsOneWidget);
+  });
 
   testWidgets('narrow DeX window with large text stays scrollable', (
     tester,
