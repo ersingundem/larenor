@@ -270,6 +270,37 @@ void main() {
     },
   );
 
+  test('revoke rejects a stale readback revision', () async {
+    final fixture = TabletFleetFixture();
+    await fixture.account.initialize();
+    await fixture.account.withSession((raw, session) async {
+      final api = ServerTabletFleetApi(
+        raw,
+        session.accessToken,
+        session.context!,
+      );
+      final tablet = (await api.list()).first;
+      fixture.respond = (request) async {
+        if (request.method == 'DELETE') {
+          fixture.records.first['state'] = 'revoked';
+          return http.Response('', 204);
+        }
+        return fixture.response(request);
+      };
+      await expectLater(
+        api.revoke(tablet),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+    });
+    fixture.account.dispose();
+  });
+
   test(
     'poll and completion merge replays and verify exact completion receipt',
     () async {
@@ -336,6 +367,22 @@ void main() {
       }),
       throwsA(isA<LarenorServerException>()),
     );
+    for (final malformed in [
+      fleetCommand(expiresAt: 1789977599.0),
+      {
+        ...fleetCommand(state: 'completed', result: 'succeeded'),
+        'completedAt': 1789977599.0,
+      },
+      {
+        ...fleetCommand(state: 'completed', result: 'succeeded'),
+        'completedAt': 1789977661.0,
+      },
+    ]) {
+      expect(
+        () => ManagedTabletCommand.fromJson(malformed),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
   });
 
   test('malformed command readback blocks mutations until refresh', () async {
