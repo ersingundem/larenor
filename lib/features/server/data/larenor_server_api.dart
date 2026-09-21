@@ -331,9 +331,8 @@ class LarenorServerApi {
           revisionNumber < 9223372036854775807;
       final personalProfileDeleteQuery =
           method == 'DELETE' &&
-          RegExp(
-            r'^/personal-profiles/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
-          ).hasMatch(path) &&
+          RegExp(r'^/personal-profiles/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$')
+              .hasMatch(path) &&
           queryParameters.length == 1 &&
           canonicalRevision(revision);
       if (!readQuery &&
