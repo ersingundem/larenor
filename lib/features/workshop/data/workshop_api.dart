@@ -114,12 +114,64 @@ final class WorkshopApi implements WorkshopGateway {
             'confirmationToken': preview.confirmationToken,
           },
         );
-        return WorkshopIntentReceipt.fromJson(
+        final submitted = WorkshopIntentReceipt.fromJson(
           response,
           _context,
           printerId: preview.printerId,
           action: preview.action,
         );
+        final readback = serverObject(
+          await _api.request(
+            'GET',
+            '$_root/printers/${preview.printerId}/intents',
+            token: _session.accessToken,
+            queryParameters: const {'limit': '100'},
+          ),
+        );
+        if (readback.length != 2 || readback['schemaVersion'] != 1) {
+          throw const LarenorServerException('invalid_response');
+        }
+        final values = readback['intents'];
+        if (values is! List || values.length > 100) {
+          throw const LarenorServerException('invalid_response');
+        }
+        final receipts = values.map((raw) {
+          final value = serverObject(raw);
+          final action = switch (value['action']) {
+            'pause' => WorkshopAction.pause,
+            'cancel' => WorkshopAction.cancel,
+            _ => throw const LarenorServerException('invalid_response'),
+          };
+          return WorkshopIntentReceipt.fromJson(
+            {'receipt': value},
+            _context,
+            printerId: preview.printerId,
+            action: action,
+          );
+        }).toList(growable: false);
+        final matches = receipts.where((receipt) => receipt.id == submitted.id);
+        if (matches.length != 1) {
+          throw const LarenorServerException('invalid_response');
+        }
+        final retained = matches.single;
+        if (retained.sequence != submitted.sequence ||
+            retained.printerId != submitted.printerId ||
+            retained.action != submitted.action ||
+            retained.effect != submitted.effect ||
+            retained.createdAt != submitted.createdAt ||
+            retained.authority.printerRevision !=
+                submitted.authority.printerRevision ||
+            retained.authority.serviceRevision !=
+                submitted.authority.serviceRevision ||
+            retained.authority.jobRevision !=
+                submitted.authority.jobRevision ||
+            retained.authority.materialRevision !=
+                submitted.authority.materialRevision ||
+            retained.authority.safetyRevision !=
+                submitted.authority.safetyRevision) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return retained;
       });
 
   @override
