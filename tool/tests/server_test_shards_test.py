@@ -8,15 +8,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 class ServerTestShardsTest(unittest.TestCase):
-    def test_ci_uses_four_parallel_shards_with_the_existing_runtime_bound(self):
+    def test_ci_uses_four_parallel_shards_with_a_setup_margin(self):
         workflow = (
             Path(__file__).resolve().parents[2]
             / ".github/workflows/server-test.yml"
         ).read_text()
         self.assertIn("shard: [0, 1, 2, 3]", workflow)
         self.assertIn("--root tests --count 4", workflow)
-        self.assertIn("timeout-minutes: 15", workflow)
+        self.assertIn("timeout-minutes: 20", workflow)
         self.assertNotIn("shard: [0, 1, 2]\n", workflow)
+
+    def test_measured_weights_remain_valid_as_new_tests_join_the_suite(self):
+        from server_test_shards import load_weights, partition_test_files
+
+        root = Path(__file__).resolve().parents[2] / "server/tests"
+        weights = load_weights(
+            Path(__file__).resolve().parents[1] / "server_test_durations.json"
+        )
+        shards = partition_test_files(root, 4, weights)
+        expected = {
+            path.relative_to(root.parent).as_posix()
+            for path in root.rglob("test_*.py")
+        }
+        # Measurements are a snapshot of a previous CI run. Newly added tests
+        # receive the partitioner's conservative fallback until remeasured.
+        self.assertLessEqual(set(weights), expected)
+        self.assertEqual(set().union(*map(set, shards)), expected)
+        fallback = max(weights.values())
+        seconds = [sum(weights.get(path, fallback) for path in shard) for shard in shards]
+        self.assertLess(max(seconds) - min(seconds), 1.0)
 
     def test_partition_is_complete_disjoint_balanced_and_stable(self):
         from server_test_shards import partition_test_files
@@ -90,6 +110,32 @@ class ServerTestShardsTest(unittest.TestCase):
             zero_weights = {path: 0.0 for path in weights}
             zero_shards = partition_test_files(root, 3, zero_weights)
             self.assertEqual([len(shard) for shard in zero_shards], [2, 2, 2])
+
+    def test_new_test_file_is_assigned_with_a_conservative_weight(self):
+        from server_test_shards import partition_test_files
+
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "tests"
+            root.mkdir()
+            for name in ("test_old_a.py", "test_old_b.py", "test_old_c.py", "test_new.py"):
+                (root / name).write_text("def test_fixture(): pass\n")
+            weights = {
+                "tests/test_old_a.py": 4.0,
+                "tests/test_old_b.py": 2.0,
+                "tests/test_old_c.py": 2.0,
+            }
+
+            shards = partition_test_files(root, 2, weights)
+
+            self.assertEqual(
+                set().union(*map(set, shards)),
+                {"tests/test_old_a.py", "tests/test_old_b.py", "tests/test_old_c.py", "tests/test_new.py"},
+            )
+            self.assertLessEqual(
+                max(sum(weights.get(path, 4.0) for path in shard) for shard in shards),
+                6.0,
+            )
 
     def test_load_weights_validates_provenance_and_total(self):
         from server_test_shards import ShardError, load_weights
