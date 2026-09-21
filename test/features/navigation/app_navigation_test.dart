@@ -154,6 +154,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Unlock'), findsOneWidget);
       expect(find.text('Backup and restore'), findsNothing);
+      router.go('/settings/tablet-fleet');
+      await tester.pumpAndSettle();
+      expect(find.text('Unlock'), findsOneWidget);
+      expect(find.text('Managed tablets'), findsNothing);
       router.go('/rooms/deleted-room');
       await tester.pumpAndSettle();
       expect(find.byType(MissingDestinationScreen), findsOneWidget);
