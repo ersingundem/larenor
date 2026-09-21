@@ -1,6 +1,7 @@
 """S08.10 resumable download, explicit cancellation, and lease cleanup."""
 
 from concurrent.futures import ThreadPoolExecutor
+import struct
 from threading import Event
 import uuid
 
@@ -30,6 +31,22 @@ def _open(core, actor, record, values, *, cancelled=lambda: False):
 
 def _payload(frame):
     return frame[49:]
+
+
+def _decode_payloads(body):
+    header = struct.Struct(">4s32sQBI")
+    payloads = []
+    offset = 0
+    while offset < len(body):
+        magic, _, _, final, length = header.unpack_from(body, offset)
+        assert magic == b"LRB1"
+        offset += header.size
+        payload = body[offset:offset + length]
+        assert len(payload) == length
+        offset += length
+        payloads.append((bool(final), payload))
+    assert offset == len(body)
+    return payloads
 
 
 def test_interrupted_transfer_resumes_exact_bytes_and_cleans_both_leases(tmp_path):
@@ -186,8 +203,8 @@ def test_http_resume_and_cancel_routes_keep_closed_metadata(tmp_path):
             len(content)
         )
         assert response.headers["accept-ranges"] == "none"
-        assert b"def" in response.content and b"ghi" in response.content
-        assert b"abc" not in response.content
+        payloads = _decode_payloads(response.content)
+        assert payloads == [(False, b"def"), (False, b"ghi"), (True, b"")]
 
         cancelled = client.delete(
             path + "/transfers/" + first["requestId"],
