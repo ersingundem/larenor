@@ -143,6 +143,16 @@ def test_degraded_provider_privacy_and_live_authority_fail_closed():
     for forbidden in ("sessionFamilyId", "auditKey", "image/jpeg", "boundingBox", "raw"):
         assert forbidden not in encoded
 
+    continuity = engine()
+    continuity.ingest(authority(), rule(), batch("7" * 32, 1_000))
+    continuity.ingest(
+        authority(), rule(), batch("8" * 32, 2_000, status="degraded"),
+    )
+    resumed = continuity.ingest(authority(), rule(), batch("9" * 32, 4_000))
+    assert resumed.transition == "holding_on"
+    assert resumed.state == "off"
+    assert resumed.automationEligible is False
+
     current[ACCOUNT] = authority(member_revision=4)
     with pytest.raises(ApiError, match="revision_conflict"):
         service.ingest(authority(), rule(), batch("e" * 32, 21_000))
@@ -211,4 +221,6 @@ def test_contract_bounds_reject_unsafe_labels_expired_evidence_and_unknown_camer
         service.ingest(authority(), rule(), expired)
     foreign = rule().model_copy(update={"cameraId": "0" * 32})
     with pytest.raises(ApiError, match="not_found"):
-        service.ingest(authority(), foreign, batch("3" * 32, 41_000))
+        engine(current_rule={RULE: foreign}).ingest(
+            authority(), foreign, batch("3" * 32, 41_000),
+        )
