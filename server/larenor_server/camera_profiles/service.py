@@ -48,7 +48,11 @@ class CameraProfileEngine:
             raise ApiError("forbidden", 403) from None
         if current != value:
             raise ApiError("revision_conflict", 409)
-        if not value.active or value.role != "admin" or not value.canManageCameraProfiles:
+        if (
+            not value.active
+            or value.role != "admin"
+            or not value.canManageCameraProfiles
+        ):
             raise ApiError("forbidden", 403)
         return value
 
@@ -106,7 +110,10 @@ class CameraProfileEngine:
         if (policy.coreId, policy.homeId) != (authority.coreId, authority.homeId):
             raise ApiError("not_found", 404)
         if (signal.coreId, signal.homeId, signal.sourceId, signal.sourceRevision) != (
-            policy.coreId, policy.homeId, policy.presenceSourceId, policy.presenceSourceRevision
+            policy.coreId,
+            policy.homeId,
+            policy.presenceSourceId,
+            policy.presenceSourceRevision,
         ):
             raise ApiError("revision_conflict", 409)
         if signal.observedAtMs > nowMs:
@@ -119,10 +126,18 @@ class CameraProfileEngine:
                 override = ManualCameraOverride.model_validate(manualOverride)
             except ValueError:
                 raise ApiError("invalid_request") from None
-            if (override.coreId, override.homeId, override.profileId,
-                    override.expectedProfileRevision, override.actorAccountId) != (
-                policy.coreId, policy.homeId, policy.profileId,
-                policy.profileRevision, authority.accountId
+            if (
+                override.coreId,
+                override.homeId,
+                override.profileId,
+                override.expectedProfileRevision,
+                override.actorAccountId,
+            ) != (
+                policy.coreId,
+                policy.homeId,
+                policy.profileId,
+                policy.profileRevision,
+                authority.accountId,
             ):
                 raise ApiError("revision_conflict", 409)
             if override.createdAtMs > nowMs:
@@ -138,7 +153,9 @@ class CameraProfileEngine:
         elif signal.state == "unknown":
             mode, reason = policy.failSafeMode, "presence_unknown"
         else:
-            delay = policy.enterDelayMs if signal.state == "home" else policy.exitDelayMs
+            delay = (
+                policy.enterDelayMs if signal.state == "home" else policy.exitDelayMs
+            )
             if nowMs - observed.stable_since_ms < delay + policy.hysteresisMs:
                 mode, reason = policy.failSafeMode, "presence_stabilizing"
             elif signal.state == "home":
@@ -146,8 +163,9 @@ class CameraProfileEngine:
             else:
                 mode, reason = policy.awayMode, "presence_away"
         policy_hash = hashlib.sha256(
-            json.dumps(policy.model_dump(mode="json"), sort_keys=True,
-                       separators=(",", ":")).encode()
+            json.dumps(
+                policy.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            ).encode()
         ).hexdigest()
         return CameraProfileDecision(
             schemaVersion=1,
@@ -166,15 +184,19 @@ class CameraProfileEngine:
             evaluatedAtMs=nowMs,
             reason=reason,
             mode=mode,
-            targets=[CameraDesiredState(schemaVersion=1, camera=item, mode=mode)
-                     for item in policy.cameras],
+            targets=[
+                CameraDesiredState(schemaVersion=1, camera=item, mode=mode)
+                for item in policy.cameras
+            ],
         )
 
 
 class CameraProfileCoordinator:
     """Dispatches each accepted command once; unknown effects require explicit review."""
 
-    def __init__(self, *, audit, authorityResolver, policyResolver, maxBatches: int = 1024):
+    def __init__(
+        self, *, audit, authorityResolver, policyResolver, maxBatches: int = 1024
+    ):
         if type(maxBatches) is not int or not 1 <= maxBatches <= 4096:
             raise ValueError("invalid_batch_limit")
         self._audit = audit
@@ -187,27 +209,47 @@ class CameraProfileCoordinator:
     @staticmethod
     def _digest(decision):
         value = decision.model_dump(mode="json")
-        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
 
-    def apply(self, presentedAuthority, rawDecision, rawReadbacks, *, requestId, nowMs, worker):
+    def apply(
+        self, presentedAuthority, rawDecision, rawReadbacks, *, requestId, nowMs, worker
+    ):
         try:
             authority = CameraProfileAuthority.model_validate(presentedAuthority)
             decision = CameraProfileDecision.model_validate(rawDecision)
             readbacks = [CameraReadback.model_validate(item) for item in rawReadbacks]
-            if (not isinstance(requestId, str) or len(requestId) != 32
-                    or any(char not in "0123456789abcdef" for char in requestId)
-                    or type(nowMs) is not int or nowMs < decision.evaluatedAtMs):
+            if (
+                not isinstance(requestId, str)
+                or len(requestId) != 32
+                or any(char not in "0123456789abcdef" for char in requestId)
+                or type(nowMs) is not int
+                or nowMs < decision.evaluatedAtMs
+            ):
                 raise ValueError
         except ValueError:
             raise ApiError("invalid_request") from None
-        if not authority.active or authority.role != "admin" or not authority.canManageCameraProfiles:
+        if (
+            not authority.active
+            or authority.role != "admin"
+            or not authority.canManageCameraProfiles
+        ):
             raise ApiError("forbidden", 403)
         if (
-            authority.coreId, authority.homeId, authority.homeRevision,
-            authority.accountId, authority.accountRevision, authority.sessionFamilyId,
+            authority.coreId,
+            authority.homeId,
+            authority.homeRevision,
+            authority.accountId,
+            authority.accountRevision,
+            authority.sessionFamilyId,
         ) != (
-            decision.coreId, decision.homeId, decision.homeRevision,
-            decision.actorAccountId, decision.accountRevision, decision.sessionFamilyId,
+            decision.coreId,
+            decision.homeId,
+            decision.homeRevision,
+            decision.actorAccountId,
+            decision.accountRevision,
+            decision.sessionFamilyId,
         ):
             raise ApiError("revision_conflict", 409)
         try:
@@ -222,15 +264,22 @@ class CameraProfileCoordinator:
         if current_authority != authority:
             raise ApiError("revision_conflict", 409)
         current_policy_hash = hashlib.sha256(
-            json.dumps(current_policy.model_dump(mode="json"), sort_keys=True,
-                       separators=(",", ":")).encode()
+            json.dumps(
+                current_policy.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
         ).hexdigest()
         if current_policy_hash != decision.policyHash:
             raise ApiError("revision_conflict", 409)
         with self._lock:
             return self._apply_once(
-                authority, decision, readbacks, requestId=requestId,
-                nowMs=nowMs, worker=worker,
+                authority,
+                decision,
+                readbacks,
+                requestId=requestId,
+                nowMs=nowMs,
+                worker=worker,
             )
 
     def _apply_once(self, authority, decision, readbacks, *, requestId, nowMs, worker):
@@ -241,7 +290,9 @@ class CameraProfileCoordinator:
         for camera_id, target in targets.items():
             observed = current[camera_id]
             if (observed.coreId, observed.homeId, observed.camera) != (
-                decision.coreId, decision.homeId, target.camera
+                decision.coreId,
+                decision.homeId,
+                target.camera,
             ) or observed.observedAtMs > nowMs:
                 raise ApiError("revision_conflict", 409)
 
@@ -256,9 +307,14 @@ class CameraProfileCoordinator:
 
         self._audit.ensure_capacity(2)
         self._audit.append(
-            kind="command_batch", profileId=decision.profileId,
-            profileRevision=decision.profileRevision, actorAccountId=authority.accountId,
-            requestId=requestId, status="accepted", payloadHash=digest, atMs=nowMs,
+            kind="command_batch",
+            profileId=decision.profileId,
+            profileRevision=decision.profileRevision,
+            actorAccountId=authority.accountId,
+            requestId=requestId,
+            status="accepted",
+            payloadHash=digest,
+            atMs=nowMs,
         )
         results = []
         for camera_id in sorted(targets):
@@ -267,33 +323,57 @@ class CameraProfileCoordinator:
                 (requestId + camera_id + str(decision.profileRevision)).encode("ascii")
             ).hexdigest()[:32]
             if observed.mode == target.mode:
-                results.append(CameraCommandResult(
-                    schemaVersion=1, commandId=command_id, cameraId=camera_id,
-                    status="skipped", code="already_applied", readback=None,
-                ))
+                results.append(
+                    CameraCommandResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="skipped",
+                        code="already_applied",
+                        readback=None,
+                    )
+                )
                 continue
             command = CameraWorkerCommand(
-                schemaVersion=1, commandId=command_id, requestId=requestId,
-                coreId=decision.coreId, homeId=decision.homeId,
-                profileId=decision.profileId, profileRevision=decision.profileRevision,
-                actorAccountId=authority.accountId, camera=target.camera,
-                expectedStateRevision=observed.stateRevision, desiredMode=target.mode,
+                schemaVersion=1,
+                commandId=command_id,
+                requestId=requestId,
+                coreId=decision.coreId,
+                homeId=decision.homeId,
+                profileId=decision.profileId,
+                profileRevision=decision.profileRevision,
+                actorAccountId=authority.accountId,
+                camera=target.camera,
+                expectedStateRevision=observed.stateRevision,
+                desiredMode=target.mode,
             )
             try:
                 raw_returned = worker(command)
             except Exception:
-                results.append(CameraCommandResult(
-                    schemaVersion=1, commandId=command_id, cameraId=camera_id,
-                    status="unknown", code="worker_ack_unknown", readback=None,
-                ))
+                results.append(
+                    CameraCommandResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="unknown",
+                        code="worker_ack_unknown",
+                        readback=None,
+                    )
+                )
                 continue
             try:
                 returned = WorkerReadback.model_validate(raw_returned)
             except ValueError:
-                results.append(CameraCommandResult(
-                    schemaVersion=1, commandId=command_id, cameraId=camera_id,
-                    status="failed", code="worker_response_invalid", readback=None,
-                ))
+                results.append(
+                    CameraCommandResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="failed",
+                        code="worker_response_invalid",
+                        readback=None,
+                    )
+                )
                 continue
             exact = (
                 returned.commandId == command.commandId
@@ -302,12 +382,16 @@ class CameraProfileCoordinator:
                 and returned.mode == command.desiredMode
                 and returned.observedAtMs >= observed.observedAtMs
             )
-            results.append(CameraCommandResult(
-                schemaVersion=1, commandId=command_id, cameraId=camera_id,
-                status="applied" if exact else "failed",
-                code="applied" if exact else "readback_mismatch",
-                readback=returned,
-            ))
+            results.append(
+                CameraCommandResult(
+                    schemaVersion=1,
+                    commandId=command_id,
+                    cameraId=camera_id,
+                    status="applied" if exact else "failed",
+                    code="applied" if exact else "readback_mismatch",
+                    readback=returned,
+                )
+            )
         statuses = {item.status for item in results}
         if statuses == {"skipped"}:
             status = "already_applied"
@@ -320,18 +404,28 @@ class CameraProfileCoordinator:
         else:
             status = "unknown"
         receipt = CameraCommandReceipt(
-            schemaVersion=1, requestId=requestId, profileId=decision.profileId,
-            profileRevision=decision.profileRevision, status=status,
-            results=results, createdAtMs=nowMs,
+            schemaVersion=1,
+            requestId=requestId,
+            profileId=decision.profileId,
+            profileRevision=decision.profileRevision,
+            status=status,
+            results=results,
+            createdAtMs=nowMs,
         )
         receipt_hash = hashlib.sha256(
-            json.dumps(receipt.model_dump(mode="json"), sort_keys=True,
-                       separators=(",", ":")).encode()
+            json.dumps(
+                receipt.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            ).encode()
         ).hexdigest()
         self._audit.append(
-            kind="result", profileId=decision.profileId,
-            profileRevision=decision.profileRevision, actorAccountId=authority.accountId,
-            requestId=requestId, status=status, payloadHash=receipt_hash, atMs=nowMs,
+            kind="result",
+            profileId=decision.profileId,
+            profileRevision=decision.profileRevision,
+            actorAccountId=authority.accountId,
+            requestId=requestId,
+            status=status,
+            payloadHash=receipt_hash,
+            atMs=nowMs,
         )
         self._receipts[requestId] = (digest, receipt)
         return receipt

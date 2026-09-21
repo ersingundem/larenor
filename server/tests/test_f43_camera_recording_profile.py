@@ -148,8 +148,12 @@ def test_presence_is_not_authority_and_home_transition_waits_then_fails_safe():
     assert settled.mode == policy().atHomeMode
     assert settled.targets[0].camera == scope()
 
-    unknown = service.evaluate(authority(), policy(), signal("unknown", revision=2, observed=1_050_000),
-                               nowMs=1_050_000)
+    unknown = service.evaluate(
+        authority(),
+        policy(),
+        signal("unknown", revision=2, observed=1_050_000),
+        nowMs=1_050_000,
+    )
     assert unknown.reason == "presence_unknown"
     assert unknown.mode == policy().failSafeMode
 
@@ -168,20 +172,31 @@ def test_manual_override_is_explicit_revision_bound_and_expires_to_fail_safe():
         createdAtMs=1_000_000,
         expiresAtMs=1_060_000,
     )
-    active = service.evaluate(authority(), policy(), signal("unknown"), nowMs=1_050_000,
-                              manualOverride=override)
+    active = service.evaluate(
+        authority(),
+        policy(),
+        signal("unknown"),
+        nowMs=1_050_000,
+        manualOverride=override,
+    )
     assert active.reason == "manual_override"
     assert active.mode == override.mode
 
-    expired = service.evaluate(authority(), policy(), signal("unknown"), nowMs=1_060_000,
-                               manualOverride=override)
+    expired = service.evaluate(
+        authority(),
+        policy(),
+        signal("unknown"),
+        nowMs=1_060_000,
+        manualOverride=override,
+    )
     assert expired.reason == "manual_override_expired"
     assert expired.mode == policy().failSafeMode
     next_policy = policy(revision=12)
     next_service = engine(current_policy={PROFILE: next_policy})
     with pytest.raises(ApiError, match="revision_conflict"):
-        next_service.evaluate(authority(), next_policy, signal(), nowMs=1_040_000,
-                              manualOverride=override)
+        next_service.evaluate(
+            authority(), next_policy, signal(), nowMs=1_040_000, manualOverride=override
+        )
 
 
 def test_stale_authority_policy_presence_and_camera_scope_fail_before_decision():
@@ -191,16 +206,27 @@ def test_stale_authority_policy_presence_and_camera_scope_fail_before_decision()
     with pytest.raises(ApiError, match="revision_conflict"):
         service.evaluate(authority(), policy(revision=12), signal(), nowMs=1_040_000)
     with pytest.raises(ApiError, match="revision_conflict"):
-        service.evaluate(authority(account_revision=4), policy(), signal(), nowMs=1_040_000)
+        service.evaluate(
+            authority(account_revision=4), policy(), signal(), nowMs=1_040_000
+        )
 
     current = policy(cameras=[scope(), scope(CAMERA_2)])
-    service = engine(current_authority={ADMIN: authority()}, current_policy={PROFILE: current})
+    service = engine(
+        current_authority={ADMIN: authority()}, current_policy={PROFILE: current}
+    )
     with pytest.raises(ApiError, match="revision_conflict"):
-        service.evaluate(authority(), current, signal(source_revision=2), nowMs=1_040_000)
+        service.evaluate(
+            authority(), current, signal(source_revision=2), nowMs=1_040_000
+        )
     with pytest.raises(ApiError, match="revision_conflict"):
-        service.evaluate(authority(), current.model_copy(update={
-            "cameras": [scope(camera_revision=3), scope(CAMERA_2)]
-        }), signal(), nowMs=1_040_000)
+        service.evaluate(
+            authority(),
+            current.model_copy(
+                update={"cameras": [scope(camera_revision=3), scope(CAMERA_2)]}
+            ),
+            signal(),
+            nowMs=1_040_000,
+        )
 
 
 def test_worker_boundary_requires_exact_readback_and_exposes_partial_unknown_without_replay():
@@ -225,7 +251,8 @@ def test_worker_boundary_requires_exact_readback_and_exposes_partial_unknown_wit
         )
 
     receipt = coordinator_service.apply(
-        authority(), decision,
+        authority(),
+        decision,
         [readback(), readback(CAMERA_2)],
         requestId="e" * 32,
         nowMs=1_035_000,
@@ -237,7 +264,8 @@ def test_worker_boundary_requires_exact_readback_and_exposes_partial_unknown_wit
     assert receipt.results[1].readback is None
 
     replay = coordinator_service.apply(
-        authority(), decision,
+        authority(),
+        decision,
         [readback(), readback(CAMERA_2)],
         requestId="e" * 32,
         nowMs=1_035_000,
@@ -255,7 +283,8 @@ def test_matching_readback_skips_provider_and_mismatched_result_is_not_success()
     called = []
 
     skipped = coordinator_service.apply(
-        authority(), decision,
+        authority(),
+        decision,
         [readback(mode=policy().atHomeMode)],
         requestId="0" * 32,
         nowMs=1_035_000,
@@ -274,8 +303,12 @@ def test_matching_readback_skips_provider_and_mismatched_result_is_not_success()
         )
 
     failed = coordinator_service.apply(
-        authority(), decision,
-        [readback()], requestId="f" * 32, nowMs=1_035_000, worker=wrong,
+        authority(),
+        decision,
+        [readback()],
+        requestId="f" * 32,
+        nowMs=1_035_000,
+        worker=wrong,
     )
     assert failed.status == "failed"
     assert failed.results[0].status == "failed"
@@ -283,13 +316,23 @@ def test_matching_readback_skips_provider_and_mismatched_result_is_not_success()
 
 
 def test_audit_export_detects_payload_chain_and_head_tampering_and_is_bounded():
-    audit = TamperEvidentCameraAudit(key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8)
-    audit.append(kind="decision", profileId=PROFILE, profileRevision=11,
-                 actorAccountId=ADMIN, requestId="e" * 32, status="planned",
-                 payloadHash="1" * 64, atMs=1_000_000)
+    audit = TamperEvidentCameraAudit(
+        key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8
+    )
+    audit.append(
+        kind="decision",
+        profileId=PROFILE,
+        profileRevision=11,
+        actorAccountId=ADMIN,
+        requestId="e" * 32,
+        status="planned",
+        payloadHash="1" * 64,
+        atMs=1_000_000,
+    )
     exported = audit.export()
     restored = TamperEvidentCameraAudit.restore(
-        exported, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8)
+        exported, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8
+    )
     assert restored.events()[0].status == "planned"
 
     for field, value in (("status", "applied"), ("entryHash", "0" * 64)):
@@ -297,32 +340,55 @@ def test_audit_export_detects_payload_chain_and_head_tampering_and_is_bounded():
         changed["events"][0][field] = value
         with pytest.raises(StartupError, match="camera_profile_audit_invalid"):
             TamperEvidentCameraAudit.restore(
-                changed, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8)
+                changed, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8
+            )
     changed = copy.deepcopy(exported)
     changed["headTag"] = "0" * 64
     with pytest.raises(StartupError, match="camera_profile_audit_invalid"):
         TamperEvidentCameraAudit.restore(
-            changed, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8)
+            changed, key=b"a" * 32, coreId=CORE, homeId=HOME, maxEvents=8
+        )
 
     for index in range(7):
-        audit.append(kind="result", profileId=PROFILE, profileRevision=11,
-                     actorAccountId=ADMIN, requestId=f"{index + 1:032x}",
-                     status="applied", payloadHash="2" * 64, atMs=1_000_001 + index)
+        audit.append(
+            kind="result",
+            profileId=PROFILE,
+            profileRevision=11,
+            actorAccountId=ADMIN,
+            requestId=f"{index + 1:032x}",
+            status="applied",
+            payloadHash="2" * 64,
+            atMs=1_000_001 + index,
+        )
     with pytest.raises(ApiError, match="camera_profile_audit_limit"):
-        audit.append(kind="result", profileId=PROFILE, profileRevision=11,
-                     actorAccountId=ADMIN, requestId="f" * 32,
-                     status="applied", payloadHash="2" * 64, atMs=1_000_009)
+        audit.append(
+            kind="result",
+            profileId=PROFILE,
+            profileRevision=11,
+            actorAccountId=ADMIN,
+            requestId="f" * 32,
+            status="applied",
+            payloadHash="2" * 64,
+            atMs=1_000_009,
+        )
 
 
 def test_concurrent_duplicate_dispatches_once_and_live_revision_changes_fail_closed():
     current_authority = {ADMIN: authority()}
     current_policy = {PROFILE: policy()}
-    decision = engine(current_authority=current_authority, current_policy=current_policy).evaluate(
-        authority(), policy(), signal(), nowMs=1_035_000,
+    decision = engine(
+        current_authority=current_authority, current_policy=current_policy
+    ).evaluate(
+        authority(),
+        policy(),
+        signal(),
+        nowMs=1_035_000,
     )
     audit = TamperEvidentCameraAudit(key=b"a" * 32, coreId=CORE, homeId=HOME)
     service = coordinator(
-        audit, current_authority=current_authority, current_policy=current_policy,
+        audit,
+        current_authority=current_authority,
+        current_policy=current_policy,
     )
     start = threading.Barrier(2)
     calls = []
@@ -330,15 +396,21 @@ def test_concurrent_duplicate_dispatches_once_and_live_revision_changes_fail_clo
     def apply_once():
         start.wait()
         return service.apply(
-            authority(), decision, [readback()], requestId="a" * 32,
+            authority(),
+            decision,
+            [readback()],
+            requestId="a" * 32,
             nowMs=1_035_000,
             worker=lambda command: (
                 calls.append(command.commandId),
                 time.sleep(0.02),
                 WorkerReadback(
-                    schemaVersion=1, commandId=command.commandId, camera=command.camera,
+                    schemaVersion=1,
+                    commandId=command.commandId,
+                    camera=command.camera,
                     stateRevision=command.expectedStateRevision + 1,
-                    mode=command.desiredMode, observedAtMs=1_036_000,
+                    mode=command.desiredMode,
+                    observedAtMs=1_036_000,
                 ),
             )[-1],
         )
@@ -350,11 +422,23 @@ def test_concurrent_duplicate_dispatches_once_and_live_revision_changes_fail_clo
 
     current_authority[ADMIN] = authority(account_revision=4)
     with pytest.raises(ApiError, match="revision_conflict"):
-        service.apply(authority(), decision, [readback()], requestId="a" * 32,
-                      nowMs=1_035_000, worker=lambda _command: None)
+        service.apply(
+            authority(),
+            decision,
+            [readback()],
+            requestId="a" * 32,
+            nowMs=1_035_000,
+            worker=lambda _command: None,
+        )
 
     current_authority[ADMIN] = authority()
     current_policy[PROFILE] = policy().model_copy(update={"enterDelayMs": 31_000})
     with pytest.raises(ApiError, match="revision_conflict"):
-        service.apply(authority(), decision, [readback()], requestId="b" * 32,
-                      nowMs=1_035_000, worker=lambda _command: None)
+        service.apply(
+            authority(),
+            decision,
+            [readback()],
+            requestId="b" * 32,
+            nowMs=1_035_000,
+            worker=lambda _command: None,
+        )

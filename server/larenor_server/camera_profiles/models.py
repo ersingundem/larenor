@@ -62,7 +62,9 @@ class CameraProfilePolicy(FrozenModel):
     def valid_policy(self):
         camera_ids = [item.cameraId for item in self.cameras]
         binding_ids = [item.bindingId for item in self.cameras]
-        if len(camera_ids) != len(set(camera_ids)) or len(binding_ids) != len(set(binding_ids)):
+        if len(camera_ids) != len(set(camera_ids)) or len(binding_ids) != len(
+            set(binding_ids)
+        ):
             raise ValueError("duplicate_camera_scope")
         if self.failSafeMode.recording != "enabled":
             raise ValueError("unsafe_fail_safe_mode")
@@ -94,7 +96,10 @@ class ManualCameraOverride(FrozenModel):
 
     @model_validator(mode="after")
     def valid_window(self):
-        if self.expiresAtMs <= self.createdAtMs or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000:
+        if (
+            self.expiresAtMs <= self.createdAtMs
+            or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000
+        ):
             raise ValueError("invalid_override_window")
         return self
 
@@ -121,8 +126,13 @@ class CameraProfileDecision(FrozenModel):
     signalRevision: Revision
     evaluatedAtMs: TimestampMs
     reason: Literal[
-        "presence_home", "presence_away", "presence_unknown", "presence_stale",
-        "presence_stabilizing", "manual_override", "manual_override_expired",
+        "presence_home",
+        "presence_away",
+        "presence_unknown",
+        "presence_stale",
+        "presence_stabilizing",
+        "manual_override",
+        "manual_override_expired",
     ]
     mode: CameraMode
     targets: list[CameraDesiredState] = Field(min_length=1, max_length=64)
@@ -167,8 +177,11 @@ class CameraCommandResult(FrozenModel):
     cameraId: Identity
     status: Literal["applied", "skipped", "failed", "unknown"]
     code: Literal[
-        "applied", "already_applied", "readback_mismatch",
-        "worker_ack_unknown", "worker_response_invalid",
+        "applied",
+        "already_applied",
+        "readback_mismatch",
+        "worker_ack_unknown",
+        "worker_response_invalid",
     ]
     readback: WorkerReadback | None
 
