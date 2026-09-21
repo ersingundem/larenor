@@ -155,6 +155,8 @@ def test_entity_projection_is_revision_bound_and_marks_stale_or_missing_state(tm
         expected_layout_revision=0, layout=layout(),
     )
     current = authority(layout_revision=1)
+    with pytest.raises(ApiError, match="floor_plan_authority_changed"):
+        plans.read(actor(), authority=replace(current, resource_revision=14))
     live = plans.project_entities(
         actor(), authority=current, snapshots=(
             EntitySnapshot("light.living", 23, 11, "verified", "on", NOW),
@@ -182,4 +184,3 @@ def test_entity_projection_is_revision_bound_and_marks_stale_or_missing_state(tm
                 EntitySnapshot("switch.unknown", 1, 11, "verified", "on", NOW),
             ),
         )
-
