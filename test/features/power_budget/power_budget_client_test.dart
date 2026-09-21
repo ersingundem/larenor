@@ -66,7 +66,10 @@ void main() {
   test('late provider result is discarded after route retirement', () async {
     var current = true;
     final api = _Api();
-    final controller = PowerBudgetController(api: api, isCurrent: () => current);
+    final controller = PowerBudgetController(
+      api: api,
+      isCurrent: () => current,
+    );
     addTearDown(controller.dispose);
     final gate = Completer<PowerBudgetSnapshot>();
     api.gate = gate;
@@ -99,7 +102,8 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
               child: child!,
             ),
             home: PowerBudgetScreen(controller: controller),
@@ -107,7 +111,9 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('EV charger'), findsOneWidget);
-        expect(find.byKey(const ValueKey('power-budget-refresh')), findsOneWidget);
+        final refresh = find.byKey(const ValueKey('power-budget-refresh'));
+        expect(refresh, findsOneWidget);
+        expect(tester.getSize(refresh).height, greaterThanOrEqualTo(48));
         expect(tester.takeException(), isNull);
       });
     }

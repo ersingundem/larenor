@@ -9,6 +9,7 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/integration_health_status.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../health/data/integration_health.dart';
@@ -86,6 +87,15 @@ class _EnergyMaintenanceScreenState
                     header: _SectionHeader(l10n.energyRecorded),
                     footer: Text(l10n.energyHint),
                     children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('energy-power-budget'),
+                        leading: const Icon(CupertinoIcons.bolt_circle),
+                        title: Text(l10n.powerBudgetTitle),
+                        additionalInfo: Text(l10n.powerBudgetManualOnly),
+                        onTap: active
+                            ? () => context.push('/energy/power-budget')
+                            : null,
+                      ),
                       Padding(
                         padding: Insets.tile,
                         child: Column(
