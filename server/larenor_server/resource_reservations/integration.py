@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+from itertools import pairwise
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -144,7 +145,7 @@ class ResourceReservationService:
         days = (starts[1].date() - starts[0].date()).days
         frequency = "daily" if days == 1 else "weekly" if days == 7 else None
         if frequency is None or any((right.date() - left.date()).days != days
-                                    for left, right in zip(starts, starts[1:])):
+                                    for left, right in pairwise(starts)):
             raise ApiError("server_unavailable", 503)
         return {"frequency": frequency, "count": count}
 

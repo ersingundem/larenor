@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 V1_TABLES = {
     "resource_reservations": """CREATE TABLE resource_reservations (
         id TEXT PRIMARY KEY,

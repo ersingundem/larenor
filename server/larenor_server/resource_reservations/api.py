@@ -9,7 +9,6 @@ from ..dependencies import get_core, require_ready_user
 from ..home_resources.models import FrozenModel, Identity
 from ..models import ErrorResponse
 
-
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]

@@ -224,6 +224,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_resource_reservations(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
