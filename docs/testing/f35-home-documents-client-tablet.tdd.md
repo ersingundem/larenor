@@ -28,13 +28,13 @@ verified Core account; it introduces no second URL, token or state owner.
 
 ## TDD evidence
 
-- RED `579ae201`: Core registration and durable restart tests failed because
+- RED `babde62e`: Core registration and durable restart tests failed because
   `CoreServices.home_documents` did not exist.
-- GREEN `1c2a8e3b`: the encrypted schema/repository and HTTP router made the
+- GREEN `857eb9ea`: the encrypted schema/repository and HTTP router made the
   Core contract plus restart suite pass.
-- RED `621c962d`: Client HTTP and bounded-upload tests failed because the
+- RED `aea95763`: Client HTTP and bounded-upload tests failed because the
   production adapter did not exist.
-- GREEN `14e3e094`: real HTTP, bounded upload, route ownership and shell entry
+- GREEN `db8777ed`: real HTTP, bounded upload, route ownership and shell entry
   pass the focused Server and Flutter suites.
 
 Validated commands:
