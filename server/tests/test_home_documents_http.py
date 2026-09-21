@@ -55,7 +55,9 @@ def test_http_registration_and_encrypted_state_survive_core_restart(server):
     assert created.json()["document"]["title"] == "Buzdolabı faturası"
 
     listed = client.get(
-        f"{root}/documents", headers=auth(admin), params={"query": "Buzdolabı", "limit": 50}
+        f"{root}/documents",
+        headers=auth(admin),
+        params={"query": "Buzdolabı", "limit": 50},
     )
     assert listed.status_code == 200
     assert [row["ref"]["id"] for row in listed.json()["items"]] == ["b" * 32]
@@ -65,9 +67,14 @@ def test_http_registration_and_encrypted_state_survive_core_restart(server):
             f"{root}/documents", headers=auth(admin), params={"query": "", "limit": 50}
         )
         assert durable.status_code == 200, durable.text
-        assert durable.json() == client.get(
-            f"{root}/documents", headers=auth(admin), params={"query": "", "limit": 50}
-        ).json()
+        assert (
+            durable.json()
+            == client.get(
+                f"{root}/documents",
+                headers=auth(admin),
+                params={"query": "", "limit": 50},
+            ).json()
+        )
         replay = restarted.post(f"{root}/documents", headers=auth(admin), json=body)
         assert replay.status_code == 201
         assert replay.json()["replayed"] is True
@@ -100,4 +107,3 @@ def test_http_scope_revision_and_session_authority_fail_closed(server):
         f"{root}/documents", headers=auth(admin), params={"query": "x\n", "limit": 50}
     )
     assert malformed.status_code == 400
-

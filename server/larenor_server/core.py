@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .home_documents.schema import migrate_home_documents
+from .home_documents.repository import HomeDocumentRepository
 
 
 class CoreServices:
@@ -222,6 +224,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_home_documents(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -295,6 +298,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context,
                 self.home_resources, self.product_blobs)
             self.inventory.validate_storage()
+            self.home_documents = HomeDocumentRepository(
+                self.db, self.auth, settings, key, self.context,
+                self.product_blobs, self.inventory)
             self.local_notifications = LocalNotificationService(
                 self.db, self.auth, settings, key, self.context)
             self.local_notifications.validate_storage()

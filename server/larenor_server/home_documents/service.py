@@ -1,6 +1,7 @@
 import hashlib
 import json
 import math
+import re
 import threading
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -70,6 +71,124 @@ class HomeDocumentLibrary:
     @property
     def revision(self):
         return self._revision
+
+    def snapshot_state(self):
+        return {
+            "schemaVersion": 1,
+            "scope": self.scope.model_dump(mode="json"),
+            "revision": self._revision,
+            "documents": [
+                {
+                    "document": record.document.model_dump(mode="json"),
+                    "createdBy": record.created_by,
+                    "readerIds": sorted(record.readers),
+                    "reminderLeadDays": list(record.reminder_days),
+                    "libraryRevision": record.library_revision,
+                }
+                for _identity, record in sorted(self._documents.items())
+            ],
+            "receipts": [
+                {
+                    "familyId": family_id,
+                    "requestId": request_id,
+                    "fingerprint": fingerprint,
+                    "result": result.model_dump(mode="json"),
+                }
+                for (family_id, request_id), (fingerprint, result) in sorted(
+                    self._receipts.items()
+                )
+            ],
+        }
+
+    def restore_state(self, value):
+        if (
+            type(value) is not dict
+            or set(value)
+            != {
+                "schemaVersion",
+                "scope",
+                "revision",
+                "documents",
+                "receipts",
+            }
+            or value["schemaVersion"] != 1
+            or HomeScope.model_validate(value["scope"]) != self.scope
+            or type(value["revision"]) is not int
+            or not 0 <= value["revision"] <= 2**63 - 1
+            or type(value["documents"]) is not list
+            or len(value["documents"]) > MAX_DOCUMENTS
+            or type(value["receipts"]) is not list
+            or len(value["receipts"]) > MAX_RECEIPTS
+        ):
+            raise ValueError("invalid_home_document_state")
+        documents = {}
+        for raw in value["documents"]:
+            if type(raw) is not dict or set(raw) != {
+                "document",
+                "createdBy",
+                "readerIds",
+                "reminderLeadDays",
+                "libraryRevision",
+            }:
+                raise ValueError("invalid_home_document_record")
+            document = HomeDocument.model_validate(raw["document"])
+            readers, days = raw["readerIds"], raw["reminderLeadDays"]
+            if (
+                document.ref.coreId != self.scope.coreId
+                or document.ref.homeId != self.scope.homeId
+                or document.ref.id in documents
+                or not isinstance(raw["createdBy"], str)
+                or re.fullmatch(r"[0-9a-f]{32}", raw["createdBy"]) is None
+                or type(readers) is not list
+                or len(readers) > 64
+                or readers != sorted(set(readers))
+                or any(
+                    re.fullmatch(r"[0-9a-f]{32}", item or "") is None
+                    for item in readers
+                )
+                or type(days) is not list
+                or days != sorted(set(days), reverse=True)
+                or any(type(day) is not int or not 0 <= day <= 365 for day in days)
+                or type(raw["libraryRevision"]) is not int
+                or not 1 <= raw["libraryRevision"] <= value["revision"]
+                or document.revision > raw["libraryRevision"]
+            ):
+                raise ValueError("invalid_home_document_record")
+            documents[document.ref.id] = _Record(
+                document=document,
+                created_by=raw["createdBy"],
+                readers=frozenset(readers),
+                reminder_days=tuple(days),
+                library_revision=raw["libraryRevision"],
+            )
+        receipts = {}
+        for raw in value["receipts"]:
+            if type(raw) is not dict or set(raw) != {
+                "familyId",
+                "requestId",
+                "fingerprint",
+                "result",
+            }:
+                raise ValueError("invalid_home_document_receipt")
+            result = DocumentCommandResult.model_validate(raw["result"])
+            key = (raw["familyId"], raw["requestId"])
+            if (
+                key in receipts
+                or any(
+                    re.fullmatch(r"[0-9a-f]{32}", item or "") is None for item in key
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", raw["fingerprint"] or "") is None
+                or result.replayed
+                or result.authority.coreId != self.scope.coreId
+                or result.authority.homeId != self.scope.homeId
+                or result.authority.sessionFamilyId != raw["familyId"]
+                or result.authority.libraryRevision > value["revision"]
+            ):
+                raise ValueError("invalid_home_document_receipt")
+            receipts[key] = (raw["fingerprint"], result)
+        self._revision = value["revision"]
+        self._documents = documents
+        self._receipts = receipts
 
     @staticmethod
     def _fingerprint(command):
