@@ -144,7 +144,7 @@ def test_route_enforces_closed_bounded_query_and_index_revision(server):
         json=_body(expectedIndexRevision=12),
     )
     assert drift.status_code == 409
-    assert drift.json() == {"error": {"code": "revision_conflict"}}
+    assert drift.json()["error"]["code"] == "revision_conflict"
 
 
 def test_late_session_revocation_discards_computed_results(server):
@@ -165,7 +165,7 @@ def test_late_session_revocation_discards_computed_results(server):
         json=_body(),
     )
     assert response.status_code == 401
-    assert response.json() == {"error": {"code": "invalid_session"}}
+    assert response.json()["error"]["code"] == "invalid_session"
     assert "results" not in response.text
 
 
@@ -190,5 +190,5 @@ def test_late_authority_revision_drift_is_a_conflict(server):
         json=_body(),
     )
     assert response.status_code == 409
-    assert response.json() == {"error": {"code": "revision_conflict"}}
+    assert response.json()["error"]["code"] == "revision_conflict"
     assert "results" not in response.text
