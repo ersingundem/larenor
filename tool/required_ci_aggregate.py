@@ -89,7 +89,7 @@ def decide(kind: str, statuses: Mapping[str, str], superseded: Callable[[], bool
     # Never turn a real shard failure, unknown result, or unexpected skip into
     # success. A canceled *old* revision is no longer the PR's required head.
     if ("cancelled" not in results or
-            any(result not in ("success", "cancelled", "skipped") for result in results)):
+            any(result not in ("success", "cancelled") for result in results)):
         return False
     try:
         return superseded()

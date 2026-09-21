@@ -55,6 +55,9 @@ class RequiredCiAggregateTest(unittest.TestCase):
             ("native", {"SCOPE_RESULT": "success", "RUN_NATIVE": "true",
                         "MATRIX_RESULT": "skipped"}),
             ("flutter", {"STATIC_RESULT": "success", "TEST_RESULT": "skipped"}),
+            ("flutter", {"STATIC_RESULT": "skipped", "TEST_RESULT": "cancelled"}),
+            ("native", {"SCOPE_RESULT": "skipped", "RUN_NATIVE": "",
+                        "MATRIX_RESULT": "cancelled"}),
         ):
             with self.subTest(kind=kind, statuses=statuses):
                 self.assertFalse(decide(kind, statuses, forbidden))
