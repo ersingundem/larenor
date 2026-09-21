@@ -33,6 +33,7 @@ final class _Api implements KioskSensorApi {
   Object? readValue = _sample();
   Object? stopValue = {'version': 1, 'sessionId': _session, 'stopped': true};
   Completer<KioskSensorStopReceipt>? pendingStop;
+  final pendingReads = <Completer<KioskSensorSnapshot>>[];
   int stops = 0;
 
   @override
@@ -41,7 +42,12 @@ final class _Api implements KioskSensorApi {
 
   @override
   Future<KioskSensorSnapshot> read(String sessionId) async =>
-      KioskSensorSnapshot.fromChannel(readValue, expectedSessionId: sessionId);
+      pendingReads.isNotEmpty
+          ? pendingReads.removeAt(0).future
+          : KioskSensorSnapshot.fromChannel(
+              readValue,
+              expectedSessionId: sessionId,
+            );
 
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
@@ -129,6 +135,30 @@ void main() {
     );
     await pending;
     expect(api.stops, 1);
+  });
+
+  test('late refresh cannot roll the sensor sequence backward', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    final firstGate = Completer<KioskSensorSnapshot>();
+    final secondGate = Completer<KioskSensorSnapshot>();
+    api.pendingReads.addAll([firstGate, secondGate]);
+    final first = controller.refresh();
+    final second = controller.refresh();
+    secondGate.complete(
+      KioskSensorSnapshot.fromChannel(
+        {..._sample(sequence: 2), 'observedAtElapsedMillis': 1002},
+      ),
+    );
+    expect((await second).sequence, 2);
+    firstGate.complete(
+      KioskSensorSnapshot.fromChannel(
+        {..._sample(sequence: 1), 'observedAtElapsedMillis': 1001},
+      ),
+    );
+    await expectLater(first, throwsA(isA<KioskSensorException>()));
+    expect(controller.snapshot?.sequence, 2);
   });
 
   test(
