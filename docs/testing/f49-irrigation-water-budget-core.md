@@ -35,5 +35,5 @@ preview/confirm, flow and lost-ACK readback, idempotency and audit tamper checks
 This foundation does not register HTTP routes, persist preview/receipt state
 across restart, implement Home Assistant or valve-vendor workers, provide the
 Android Client E2E, or prove a real valve/flow meter. Those F49 gates remain open,
-so progress stays **18/125 (14.4%)** and selected-feature acceptance stays
+so progress stays **22/125 (17.6%)** and selected-feature acceptance stays
 **0/63 (0.0%)**.

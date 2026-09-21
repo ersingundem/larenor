@@ -6,7 +6,6 @@ from pydantic import Field, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision
 
-
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 
 
@@ -62,7 +61,10 @@ class IrrigationPolicy(FrozenModel):
         bindings = [item.valveBindingId for item in self.zones]
         if len(ids) != len(set(ids)) or len(bindings) != len(set(bindings)):
             raise ValueError("duplicate_zone")
-        if any((item.coreId, item.homeId) != (self.coreId, self.homeId) for item in self.zones):
+        if any(
+            (item.coreId, item.homeId) != (self.coreId, self.homeId)
+            for item in self.zones
+        ):
             raise ValueError("zone_scope_mismatch")
         return self
 
@@ -142,7 +144,10 @@ class ManualWaterOverride(FrozenModel):
 
     @model_validator(mode="after")
     def valid_window(self):
-        if self.expiresAtMs <= self.createdAtMs or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000:
+        if (
+            self.expiresAtMs <= self.createdAtMs
+            or self.expiresAtMs - self.createdAtMs > 24 * 60 * 60 * 1000
+        ):
             raise ValueError("invalid_override_window")
         return self
 
@@ -165,9 +170,16 @@ class IrrigationPlanItem(FrozenModel):
     zone: IrrigationZone
     status: Literal["planned", "deferred", "skipped", "blocked"]
     reason: Literal[
-        "moisture_deficit", "manual_override", "rain_forecast",
-        "moisture_sufficient", "budget_exhausted", "leak_detected",
-        "freeze_risk", "wind_risk", "safety_stale", "soil_sensor_stale",
+        "moisture_deficit",
+        "manual_override",
+        "rain_forecast",
+        "moisture_sufficient",
+        "budget_exhausted",
+        "leak_detected",
+        "freeze_risk",
+        "wind_risk",
+        "safety_stale",
+        "soil_sensor_stale",
     ]
     durationSeconds: int = Field(ge=0, le=7_200)
     estimatedWaterMl: int = Field(ge=0, le=10_000_000_000)
@@ -230,7 +242,9 @@ class WorkerValveReadback(FrozenModel):
 class IrrigationPreview(FrozenModel):
     schemaVersion: Literal[1]
     previewId: Identity
-    confirmToken: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
+    confirmToken: str = Field(
+        min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"
+    )
     requestId: Identity
     planId: Identity
     policyRevision: Revision
@@ -244,8 +258,11 @@ class ValveCommandResult(FrozenModel):
     zoneId: Identity
     status: Literal["applied", "failed", "unknown"]
     code: Literal[
-        "applied", "flow_not_verified", "flow_out_of_bounds",
-        "readback_mismatch", "worker_ack_unknown",
+        "applied",
+        "flow_not_verified",
+        "flow_out_of_bounds",
+        "readback_mismatch",
+        "worker_ack_unknown",
     ]
     readback: WorkerValveReadback | None
 
