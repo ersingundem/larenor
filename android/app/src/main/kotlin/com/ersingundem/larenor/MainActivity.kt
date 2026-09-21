@@ -14,6 +14,7 @@ import com.ersingundem.larenor.vnc.VncNativeBridge
 import com.ersingundem.larenor.rdp.RdpNativeBridge
 import com.ersingundem.larenor.inventory.InventoryShareBridge
 import com.ersingundem.larenor.notifications.LocalNotificationBridge
+import com.ersingundem.larenor.game.GameStreamNativeBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -26,6 +27,7 @@ class MainActivity : FlutterActivity() {
     private var rdpNative: RdpNativeBridge? = null
     private var inventoryShare: InventoryShareBridge? = null
     private var localNotifications: LocalNotificationBridge? = null
+    private var gameStreamNative: GameStreamNativeBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -37,6 +39,7 @@ class MainActivity : FlutterActivity() {
         rdpNative = RdpNativeBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         inventoryShare = InventoryShareBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         localNotifications = LocalNotificationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        gameStreamNative = GameStreamNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -49,6 +52,7 @@ class MainActivity : FlutterActivity() {
         rdpNative?.setResumed(true)
         inventoryShare?.setResumed(true)
         localNotifications?.setResumed(true)
+        gameStreamNative?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -60,6 +64,7 @@ class MainActivity : FlutterActivity() {
         rdpNative?.setResumed(false)
         inventoryShare?.setResumed(false)
         localNotifications?.setResumed(false)
+        gameStreamNative?.setResumed(false)
         super.onPause()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -72,6 +77,7 @@ class MainActivity : FlutterActivity() {
         rdpNative?.setWindowFocused(hasFocus)
         inventoryShare?.windowChanged()
         localNotifications?.windowChanged()
+        gameStreamNative?.setWindowFocused(hasFocus)
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -96,6 +102,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         inventoryShare?.dispose()
         inventoryShare = null
+        gameStreamNative?.dispose()
+        gameStreamNative = null
         localNotifications?.dispose()
         localNotifications = null
         rdpNative?.dispose()
