@@ -55,3 +55,9 @@ Focused evidence:
 The five focused suites pass **67/67** after these fixes. Real update install,
 physical Huawei/DeX layout, keyboard and TalkBack acceptance remain manual, so
 queue progress stays 17/125 and selected-feature progress stays 0/63.
+
+## Immutable head validation refresh
+
+The acceptance head was refreshed after the progress gate began reading the
+pull-request head tree directly. This records the new synchronize event; it
+does not change the accepted product scope or claim additional progress.
