@@ -8,15 +8,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 class ServerTestShardsTest(unittest.TestCase):
-    def test_ci_uses_four_parallel_shards_with_the_existing_runtime_bound(self):
+    def test_ci_uses_four_parallel_shards_with_a_setup_margin(self):
         workflow = (
             Path(__file__).resolve().parents[2]
             / ".github/workflows/server-test.yml"
         ).read_text()
         self.assertIn("shard: [0, 1, 2, 3]", workflow)
         self.assertIn("--root tests --count 4", workflow)
-        self.assertIn("timeout-minutes: 15", workflow)
+        self.assertIn("timeout-minutes: 20", workflow)
         self.assertNotIn("shard: [0, 1, 2]\n", workflow)
+
+    def test_measured_weights_cover_current_suite_and_balance_four_shards(self):
+        from server_test_shards import load_weights, partition_test_files
+
+        root = Path(__file__).resolve().parents[2] / "server/tests"
+        weights = load_weights(
+            Path(__file__).resolve().parents[1] / "server_test_durations.json"
+        )
+        shards = partition_test_files(root, 4, weights)
+        expected = {
+            path.relative_to(root.parent).as_posix()
+            for path in root.rglob("test_*.py")
+        }
+        self.assertEqual(set(weights), expected)
+        self.assertEqual(set().union(*map(set, shards)), expected)
+        seconds = [sum(weights[path] for path in shard) for shard in shards]
+        self.assertLess(max(seconds) - min(seconds), 1.0)
 
     def test_partition_is_complete_disjoint_balanced_and_stable(self):
         from server_test_shards import partition_test_files
