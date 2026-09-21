@@ -118,13 +118,15 @@ void main() {
         client: MockClient((request) async {
           requests.add(request);
           expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
-          if (request.method == 'GET' && request.url.path.endsWith('/printers')) {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/printers')) {
             return response({
               'schemaVersion': 1,
               'printers': [printerJson()],
             });
           }
-          if (request.method == 'GET' && request.url.path.endsWith('/intents')) {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/intents')) {
             return response({
               'schemaVersion': 1,
               'intents': [receiptJson()['receipt']],
@@ -174,7 +176,10 @@ void main() {
       endpoint: session().endpoint,
       client: MockClient((request) async {
         if (request.method == 'GET' && request.url.path.endsWith('/printers')) {
-          return response({'schemaVersion': 1, 'printers': [printerJson()]});
+          return response({
+            'schemaVersion': 1,
+            'printers': [printerJson()],
+          });
         }
         if (request.method == 'GET') {
           return response({'schemaVersion': 1, 'intents': []});

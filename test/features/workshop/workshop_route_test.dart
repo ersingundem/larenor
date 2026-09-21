@@ -128,11 +128,7 @@ void main() {
       return fixture.defaultResponse(request);
     };
     await tester.pumpWidget(const SizedBox.shrink());
-    await mount(
-      tester,
-      WorkshopRoute(gateCurrent: () => true),
-      settle: false,
-    );
+    await mount(tester, WorkshopRoute(gateCurrent: () => true), settle: false);
     await tester.pump();
     unawaited(fixture.account.signOut());
     delayed.complete(fixture.json({'schemaVersion': 1, 'printers': []}));
