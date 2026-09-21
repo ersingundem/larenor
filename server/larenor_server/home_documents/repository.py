@@ -11,7 +11,6 @@ from ..home_resources.models import HomeScope
 from .models import CreateHomeDocumentCommand, DocumentActor
 from .service import HomeDocumentLibrary
 
-
 MAX_STATE_BYTES = 16 * 1024 * 1024
 
 
@@ -165,7 +164,7 @@ class HomeDocumentRepository:
             )
         except ApiError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 -- reference providers fail closed.
             valid = False
         if not valid:
             raise ApiError("not_found", 404)

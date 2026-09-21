@@ -3,10 +3,10 @@ import json
 import math
 import re
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from functools import wraps
-from typing import Callable
 
 from ..errors import ApiError
 from ..home_resources.models import HomeScope
@@ -24,7 +24,6 @@ from .models import (
     WarrantyReminderPage,
     WarrantyState,
 )
-
 
 MAX_DOCUMENTS = 512
 MAX_RECEIPTS = 2048
@@ -247,7 +246,7 @@ class HomeDocumentLibrary:
             blob = self._blob_current(actor, command.blob)
             inventory = self._inventory_current(actor, command.inventoryItemId)
             valid = blob is True and inventory is True
-        except Exception:
+        except Exception:  # noqa: BLE001 -- reference providers fail closed.
             valid = False
         if not valid:
             raise ApiError("not_found", 404)

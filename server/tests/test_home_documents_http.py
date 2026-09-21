@@ -1,6 +1,5 @@
-from fastapi.testclient import TestClient
-
 from conftest import auth, ready
+from fastapi.testclient import TestClient
 from larenor_server.app import create_app
 
 

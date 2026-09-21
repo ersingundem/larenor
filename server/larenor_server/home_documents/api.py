@@ -15,7 +15,6 @@ from .models import (
     WarrantyReminderPage,
 )
 
-
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 router = APIRouter(

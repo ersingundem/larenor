@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 TABLE = """CREATE TABLE home_document_state (
     singleton INTEGER PRIMARY KEY CHECK(singleton=1),
     revision INTEGER NOT NULL CHECK(revision >= 0),

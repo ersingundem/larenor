@@ -1,5 +1,4 @@
 import pytest
-
 from larenor_server.errors import ApiError
 from larenor_server.home_documents.models import (
     ConfirmWarrantyCommand,
@@ -10,7 +9,6 @@ from larenor_server.home_documents.models import (
 )
 from larenor_server.home_documents.service import HomeDocumentLibrary
 from larenor_server.home_resources.models import HomeScope
-
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -47,28 +45,28 @@ def blob(revision=3):
 
 
 def create_command(**changes):
-    values = dict(
-        schemaVersion=1,
-        coreId=CORE,
-        homeId=HOME,
-        requestId=REQUEST,
-        expectedAccountRevision=4,
-        expectedRevision=0,
-        documentId=DOCUMENT,
-        title="Buzdolabı faturası",
-        kind="invoice",
-        inventoryItemId=INVENTORY,
-        blob=blob(),
-        readerIds=[READER],
-        ocrCandidate=OcrWarrantyCandidate(
+    values = {
+        "schemaVersion": 1,
+        "coreId": CORE,
+        "homeId": HOME,
+        "requestId": REQUEST,
+        "expectedAccountRevision": 4,
+        "expectedRevision": 0,
+        "documentId": DOCUMENT,
+        "title": "Buzdolabı faturası",
+        "kind": "invoice",
+        "inventoryItemId": INVENTORY,
+        "blob": blob(),
+        "readerIds": [READER],
+        "ocrCandidate": OcrWarrantyCandidate(
             schemaVersion=1,
             extractedDate="2028-05-10",
             confidencePermille=810,
             sourceRevision=12,
             sourceDigest="d" * 64,
         ),
-        reminderLeadDays=[30, 7],
-    )
+        "reminderLeadDays": [30, 7],
+    }
     values.update(changes)
     return CreateHomeDocumentCommand(**values)
 
