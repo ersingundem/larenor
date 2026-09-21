@@ -17,6 +17,9 @@ import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/home_scope/presentation/core_layout_archive_file_access.dart';
+import 'package:larenor/features/local_notifications/data/local_notification_controller.dart';
+import 'package:larenor/features/local_notifications/domain/local_notification_models.dart';
+import 'package:larenor/features/local_notifications/providers/local_notification_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
 import 'package:larenor/features/settings/domain/screen_program.dart';
 import 'package:larenor/features/ha_client/data/ws_client.dart';
@@ -63,6 +66,15 @@ class FixtureVaultFiles extends BackupFileAccess {
 class _NoNetworkDiscovery extends HaDiscoveryService {
   @override
   Future<void> start() async {}
+}
+
+/// Generic journeys intentionally expose no notification fixture. A denied
+/// permission stops the production runtime before it can probe an endpoint
+/// that this strict synthetic Core does not implement.
+class _NoNotificationPermission implements LocalNotificationPermissionGateway {
+  @override
+  Future<LocalNotificationPermission> read() async =>
+      LocalNotificationPermission.denied;
 }
 
 class AppHarness {
@@ -190,6 +202,9 @@ class AppHarness {
                 _NoNetworkDiscovery.new,
               ),
               backupFileAccessProvider.overrideWithValue(files),
+              localNotificationPermissionProvider.overrideWithValue(
+                _NoNotificationPermission(),
+              ),
               // dart:io caches its default WebSocket HttpClient for the entire
               // isolate. Give each real HA client its fixture-bound transport,
               // so a previous journey's closed port cannot survive a new test.
