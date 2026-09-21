@@ -13,6 +13,9 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
+    'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
+    'sound_event_integrity_failed': 'The sound event history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
@@ -42,6 +45,8 @@ MESSAGES = {
     'tablet_limit_reached': 'The managed tablet limit has been reached.',
     'tablet_command_limit_reached': 'The managed tablet command limit has been reached.',
     'tablet_fleet_storage_unavailable': 'The managed tablet registry is unavailable.',
+    'tablet_rollout_replay_changed': 'The kiosk rollout preview no longer matches this request.',
+    'tablet_release_unavailable': 'No verified Larenor Client release is available for this rollout.',
     'outbound_denied': 'This component has no current permission for that destination.',
     'ha_migration_changed': 'The selected migration source or target changed. Review it again.',
     'ha_migration_preview_invalid': 'The migration preview is no longer available. Review it again.',

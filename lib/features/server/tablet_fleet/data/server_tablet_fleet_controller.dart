@@ -50,6 +50,7 @@ class ServerTabletFleetController extends ChangeNotifier {
   String? announcement;
   List<ManagedTablet> tablets = const [];
   Map<String, ManagedTabletCommand> latestCommands = const {};
+  KioskProfileRolloutPreview? rolloutPreview;
   _PendingTabletIssue? _uncertainIssue;
 
   static String _randomRequestKey() {
@@ -96,6 +97,7 @@ class ServerTabletFleetController extends ChangeNotifier {
     announcement = null;
     tablets = const [];
     latestCommands = const {};
+    rolloutPreview = null;
     _uncertainIssue = null;
     _emit();
   }
@@ -105,6 +107,7 @@ class ServerTabletFleetController extends ChangeNotifier {
 
   Future<void> load({required bool Function() current}) =>
       _run(current, (api, valid) async {
+        rolloutPreview = null;
         final value = await api.list();
         if (!valid()) return;
         tablets = value;
@@ -156,6 +159,31 @@ class ServerTabletFleetController extends ChangeNotifier {
     }
     return api.updateProfile(tablet, tablet.desiredProfileRevision + 1);
   }, announcementCode: 'profile_updated');
+
+  Future<void> previewRollout({
+    required int rolloutPercent,
+    required bool Function() current,
+  }) async {
+    final active = tablets
+        .where((tablet) => tablet.state == TabletFleetState.active)
+        .toList();
+    if (active.isEmpty || busy || needsRefresh) return;
+    final next =
+        active.map((tablet) => tablet.desiredProfileRevision).reduce(max) + 1;
+    if (next > 9223372036854775807) return;
+    final epoch = _epoch;
+    await _run(current, (api, valid) async {
+      rolloutPreview = null;
+      final value = await api.previewRollout(
+        tablets: active,
+        profileRevision: next,
+        rolloutPercent: rolloutPercent,
+      );
+      if (!valid()) return;
+      rolloutPreview = value;
+      announcement = 'rollout_preview_verified';
+    }, expectedEpoch: epoch);
+  }
 
   Future<void> revoke(
     ManagedTablet tablet, {
@@ -217,6 +245,7 @@ class ServerTabletFleetController extends ChangeNotifier {
     await _run(
       current,
       (api, valid) async {
+        rolloutPreview = null;
         final value = await action(api);
         if (!valid()) return;
         final old = tablets.where((item) => item.id == tablet.id).toList();
@@ -250,6 +279,7 @@ class ServerTabletFleetController extends ChangeNotifier {
     final epoch = expectedEpoch ?? _epoch;
     bool valid() => _current(epoch, current);
     busy = true;
+    if (mutation) rolloutPreview = null;
     failure = null;
     announcement = null;
     _emit();
@@ -281,6 +311,7 @@ class ServerTabletFleetController extends ChangeNotifier {
       }.contains(failure)) {
         tablets = const [];
         latestCommands = const {};
+        rolloutPreview = null;
       }
     } finally {
       if (!_disposed && epoch == _epoch) {

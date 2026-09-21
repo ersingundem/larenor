@@ -57,7 +57,15 @@ def rule(*, revision=2):
     )
 
 
-def batch(request_id, captured_at, *, confidence=9000, status="ready", detections=None):
+def batch(
+    request_id,
+    captured_at,
+    *,
+    confidence=9000,
+    status="ready",
+    frame_status="complete",
+    detections=None,
+):
     detections = (
         [Detection(schemaVersion=1, label="person", confidenceBps=confidence, count=1)]
         if detections is None
@@ -77,6 +85,7 @@ def batch(request_id, captured_at, *, confidence=9000, status="ready", detection
         modelRevision=9,
         capturedAtMs=captured_at,
         providerStatus=status,
+        frameStatus=frame_status,
         evidence=EvidenceDescriptor(
             schemaVersion=1,
             digest="a" * 64,
@@ -251,4 +260,45 @@ def test_contract_bounds_reject_unsafe_labels_expired_evidence_and_unknown_camer
             authority(),
             foreign,
             batch("3" * 32, 41_000),
+        )
+
+
+@pytest.mark.parametrize("frame_status", ["missing", "corrupt", "wrong_camera"])
+def test_incomplete_or_wrong_frame_is_explicit_unknown_and_never_automation(
+    frame_status,
+):
+    service = engine()
+    reading = service.ingest(
+        authority(),
+        rule(),
+        batch(
+            "4" * 32,
+            50_000,
+            status="degraded",
+            frame_status=frame_status,
+            detections=[],
+        ),
+    )
+    assert reading.state == "unknown"
+    assert reading.status == "degraded"
+    assert reading.automationEligible is False
+
+    with pytest.raises(ValueError):
+        DetectionBatch.model_validate(
+            batch(
+                "5" * 32,
+                51_000,
+                status="ready",
+                frame_status=frame_status,
+                detections=[],
+            ).model_dump()
+        )
+    with pytest.raises(ValueError):
+        DetectionBatch.model_validate(
+            batch(
+                "6" * 32,
+                52_000,
+                status="degraded",
+                frame_status=frame_status,
+            ).model_dump()
         )
