@@ -182,6 +182,17 @@ class PowerBudgetService:
         self._worker = worker
         self._clock = clock
 
+    def validate_storage(self) -> None:
+        """Fail startup if any retained scope or signed record was altered."""
+        with self.database.connection() as connection:
+            scopes = connection.execute(
+                "SELECT core_id,home_id,meter_id FROM power_budget_previews "
+                "UNION SELECT core_id,home_id,meter_id FROM power_budget_commands "
+                "UNION SELECT core_id,home_id,meter_id FROM power_budget_events"
+            ).fetchall()
+            for row in scopes:
+                self._verified_history(connection, tuple(row))
+
     def _fingerprint(self, domain: bytes, value: bytes) -> str:
         return hmac.new(
             self._audit_key,
