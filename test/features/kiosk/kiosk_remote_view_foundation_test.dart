@@ -60,10 +60,12 @@ final class Port implements KioskRemoteViewPort {
     this.startGate,
     this.stopObserved = true,
     this.throwDuringReadback = false,
+    this.expectedStopBinding,
   });
   final Completer<void>? startGate;
   final bool stopObserved;
   final bool throwDuringReadback;
+  final KioskDeviceAuthority? expectedStopBinding;
   int starts = 0, readbacks = 0, stops = 0;
 
   @override
@@ -104,11 +106,65 @@ final class Port implements KioskRemoteViewPort {
     KioskRemoteViewContext trusted,
   ) async {
     stops++;
-    return stopObserved;
+    return stopObserved &&
+        (expectedStopBinding == null || trusted.binding == expectedStopBinding);
   }
 }
 
 void main() {
+  test('authority drift stops the originally observed session', () async {
+    final port = Port(expectedStopBinding: authority);
+    final controller = KioskRemoteViewController(
+      port: port,
+      isCurrent: (candidate) => candidate == authority,
+      requestIds: () => '0123456789abcdef0123456789abcdef',
+    );
+    final preview = controller.prepare(KioskRemoteViewMode.appSurface, context());
+    expect(
+      (await controller.confirm(preview, context())).status,
+      KioskRemoteViewStatus.active,
+    );
+    final changed = context(
+      binding: const KioskDeviceAuthority(
+        coreId: 'core-main',
+        homeId: 'home-main',
+        accountId: 'account-admin',
+        deviceId: 'tablet-wall',
+        deviceRevision: 8,
+        policyRevision: 11,
+        sessionEpoch: 13,
+        routeEpoch: 17,
+        lifecycleEpoch: 19,
+      ),
+    );
+    expect(
+      (await controller.reconcile(changed)).status,
+      KioskRemoteViewStatus.retired,
+    );
+    expect(port.stops, 1);
+  });
+
+  test('request ledger stops accepting IDs at a bounded limit', () {
+    var generated = 0;
+    final controller = KioskRemoteViewController(
+      port: Port(),
+      isCurrent: (candidate) => candidate == authority,
+      requestIds: () => (++generated).toRadixString(16).padLeft(32, '0'),
+    );
+    for (var i = 0; i < 256; i++) {
+      expect(
+        controller.prepare(KioskRemoteViewMode.appSurface, context()).status,
+        KioskRemoteViewStatus.needsConfirmation,
+      );
+      controller.invalidate();
+    }
+    expect(
+      controller.prepare(KioskRemoteViewMode.appSurface, context()).status,
+      KioskRemoteViewStatus.denied,
+    );
+    expect(generated, 256);
+  });
+
   test('device metrics are strict bounded read-only and publicly redacted', () {
     final snapshot = KioskDeviceSnapshot.fromChannel(
       metrics(),
