@@ -6,7 +6,12 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../server/data/server_account_controller.dart';
+import '../../today/domain/today_models.dart';
+import '../../today/presentation/today_support.dart';
+import '../../today/providers/today_providers.dart';
+import '../data/recipe_shopping_handoff.dart';
 import '../data/weekly_meal_plan_api.dart';
+import '../data/weekly_meal_shopping_gateway.dart';
 import 'weekly_meal_plan_screen.dart';
 
 class WeeklyMealPlanRoute extends ConsumerStatefulWidget {
@@ -64,6 +69,45 @@ class _WeeklyMealPlanRouteState extends ConsumerState<WeeklyMealPlanRoute> {
     setState(() {});
   }
 
+  TodayTodoList? _shoppingList(TodaySnapshot? snapshot) {
+    if (snapshot == null) return null;
+    for (final id in const ['todo.shopping_list', 'todo.shopping']) {
+      for (final list in snapshot.todoLists) {
+        if (list.entityId == id &&
+            list.canAdd &&
+            todayListWritable(snapshot, list)) {
+          return list;
+        }
+      }
+    }
+    return null;
+  }
+
+  WeeklyMealShoppingGateway? _shoppingGateway() {
+    final snapshot = ref.watch(todayProvider).value;
+    final actions = ref.watch(todayActionsProvider);
+    final list = _shoppingList(snapshot);
+    final home = _home;
+    if (actions == null || list == null || home == null) return null;
+    return VerifiedWeeklyMealShoppingGateway(
+      list: list,
+      actions: actions,
+      authoritySource: HomeRecipeShoppingAuthoritySource(home),
+      listCurrent: () {
+        if (!_bindingCurrent() ||
+            !identical(ref.read(todayActionsProvider), actions)) {
+          return false;
+        }
+        final latest = ref.read(todayProvider).value;
+        final current = _shoppingList(latest);
+        return current != null &&
+            current.entityId == list.entityId &&
+            current.title == list.title &&
+            current.supportedFeatures == list.supportedFeatures;
+      },
+    );
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -104,7 +148,11 @@ class _WeeklyMealPlanRouteState extends ConsumerState<WeeklyMealPlanRoute> {
     ref.watch(homeSessionControllerProvider);
     final gateway = _gateway;
     if (gateway != null && _current()) {
-      return WeeklyMealPlanScreen(gateway: gateway, isCurrent: _current);
+      return WeeklyMealPlanScreen(
+        gateway: gateway,
+        shoppingGateway: _shoppingGateway(),
+        isCurrent: _current,
+      );
     }
     final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(

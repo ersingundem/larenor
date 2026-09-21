@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/meal_planner/data/recipe_shopping_handoff.dart';
+import 'package:larenor/features/meal_planner/data/weekly_meal_shopping_gateway.dart';
 import 'package:larenor/features/meal_planner/domain/recipe_shopping_draft.dart';
 import 'package:larenor/features/meal_planner/domain/weekly_meal_plan.dart';
 import 'package:larenor/features/today/data/today_actions.dart';
@@ -216,4 +217,39 @@ void main() {
     );
     expect(actions.calls, isEmpty);
   });
+
+  test(
+    'weekly gateway rechecks the exact writable list during handoff',
+    () async {
+      final source = _Source()..facts = _facts();
+      final actions = _Actions()..first = Completer<void>();
+      var listCurrent = true;
+      final plan = _plan();
+      final future =
+          VerifiedWeeklyMealShoppingGateway(
+            list: _list,
+            actions: actions,
+            authoritySource: source,
+            listCurrent: () => listCurrent,
+          ).add(
+            plan: plan,
+            entry: plan.entries.single,
+            locale: 'tr',
+            visible: () => true,
+          );
+      await Future<void>.delayed(Duration.zero);
+      listCurrent = false;
+      actions.first!.complete();
+
+      await expectLater(
+        future,
+        throwsA(
+          isA<RecipeShoppingException>()
+              .having((error) => error.code, 'code', 'stale_authority')
+              .having((error) => error.completedCount, 'completedCount', 1),
+        ),
+      );
+      expect(actions.calls, ['2 adet Mercimek']);
+    },
+  );
 }

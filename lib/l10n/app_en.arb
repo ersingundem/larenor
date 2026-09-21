@@ -3333,5 +3333,11 @@
   "weeklyMealPlanSnack": "Snack",
   "weeklyMealPlanShoppingPreview": "Shopping preview",
   "weeklyMealPlanShoppingHint": "Review the scaled ingredients before adding them to a writable Home Assistant shopping list.",
+  "weeklyMealPlanShoppingAdd": "Add to shopping list",
+  "weeklyMealPlanShoppingAdding": "Adding and verifying ingredients…",
+  "weeklyMealPlanShoppingAdded": "{count, plural, =1{1 ingredient verified in {list}.} other{{count} ingredients verified in {list}.}}",
+  "@weeklyMealPlanShoppingAdded": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "weeklyMealPlanShoppingChanged": "The home, account, list, or screen changed. Remaining ingredients were not sent.",
+  "weeklyMealPlanShoppingUnavailable": "A verified, writable Home Assistant shopping list is not available.",
   "weeklyMealPlanClose": "Close"
 }

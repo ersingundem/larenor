@@ -2995,5 +2995,11 @@
   "weeklyMealPlanSnack": "Ara öğün",
   "weeklyMealPlanShoppingPreview": "Alışveriş önizlemesi",
   "weeklyMealPlanShoppingHint": "Malzemeleri yazılabilir Home Assistant alışveriş listesine eklemeden önce ölçeklenmiş miktarları inceleyin.",
+  "weeklyMealPlanShoppingAdd": "Alışveriş listesine ekle",
+  "weeklyMealPlanShoppingAdding": "Malzemeler ekleniyor ve doğrulanıyor…",
+  "weeklyMealPlanShoppingAdded": "{count} malzeme {list} listesinde doğrulandı.",
+  "@weeklyMealPlanShoppingAdded": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "weeklyMealPlanShoppingChanged": "Ev, hesap, liste veya ekran değişti. Kalan malzemeler gönderilmedi.",
+  "weeklyMealPlanShoppingUnavailable": "Doğrulanmış ve yazılabilir bir Home Assistant alışveriş listesi yok.",
   "weeklyMealPlanClose": "Kapat"
 }

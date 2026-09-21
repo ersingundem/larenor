@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/meal_planner/data/weekly_meal_plan_api.dart';
+import 'package:larenor/features/meal_planner/data/weekly_meal_shopping_gateway.dart';
+import 'package:larenor/features/meal_planner/domain/recipe_shopping_draft.dart';
 import 'package:larenor/features/meal_planner/domain/weekly_meal_plan.dart';
 import 'package:larenor/features/meal_planner/presentation/weekly_meal_plan_screen.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -84,12 +86,40 @@ final class FakeGateway implements WeeklyMealPlanGateway {
   }) => throw UnimplementedError();
 }
 
+final class FakeShoppingGateway implements WeeklyMealShoppingGateway {
+  FakeShoppingGateway(this.result);
+
+  final Future<int> result;
+  int calls = 0;
+
+  @override
+  String get listTitle => 'Shopping';
+
+  @override
+  Future<int> add({
+    required WeeklyMealPlan plan,
+    required MealPlanEntry entry,
+    required String locale,
+    required bool Function() visible,
+  }) async {
+    expect(plan.entries.single.id, entry.id);
+    expect(visible(), isTrue);
+    calls++;
+    final count = await result;
+    if (!visible()) {
+      throw const RecipeShoppingException('stale_authority');
+    }
+    return count;
+  }
+}
+
 Future<void> mount(
   WidgetTester tester, {
   required Locale locale,
   required double width,
   required WeeklyMealPlanGateway gateway,
   required bool Function() current,
+  WeeklyMealShoppingGateway? shoppingGateway,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -104,7 +134,11 @@ Future<void> mount(
             .copyWith(textScaler: const TextScaler.linear(2)),
         child: child!,
       ),
-      home: WeeklyMealPlanScreen(gateway: gateway, isCurrent: current),
+      home: WeeklyMealPlanScreen(
+        gateway: gateway,
+        shoppingGateway: shoppingGateway,
+        isCurrent: current,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -156,5 +190,67 @@ void main() {
     result.complete(snapshot());
     await tester.pumpAndSettle();
     expect(find.text('Mercimek çorbası'), findsNothing);
+  });
+
+  testWidgets('planned meal writes once and announces verified ingredients', (
+    tester,
+  ) async {
+    final shopping = FakeShoppingGateway(Future.value(1));
+    await mount(
+      tester,
+      locale: const Locale('en'),
+      width: 600,
+      gateway: FakeGateway(Future.value(snapshot())),
+      shoppingGateway: shopping,
+      current: () => true,
+    );
+    final preview = find.byKey(const ValueKey('meal-shopping-$entry'));
+    await tester.ensureVisible(preview);
+    await tester.tap(preview);
+    await tester.pumpAndSettle();
+    final add = find.byKey(const ValueKey('meal-shopping-add'));
+    await tester.ensureVisible(add);
+    expect(tester.getSize(add).height, greaterThanOrEqualTo(48));
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+
+    expect(shopping.calls, 1);
+    expect(find.text('1 ingredient verified in Shopping.'), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('meal-shopping-status')))
+          .flagsCollection
+          .isLiveRegion,
+      isTrue,
+    );
+  });
+
+  testWidgets('backgrounded shopping write cannot publish late success', (
+    tester,
+  ) async {
+    final pending = Completer<int>();
+    final shopping = FakeShoppingGateway(pending.future);
+    await mount(
+      tester,
+      locale: const Locale('tr'),
+      width: 1280,
+      gateway: FakeGateway(Future.value(snapshot())),
+      shoppingGateway: shopping,
+      current: () => true,
+    );
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-$entry')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('meal-shopping-add')));
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-add')));
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    pending.complete(1);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(shopping.calls, 1);
+    expect(find.textContaining('doğrulandı'), findsNothing);
   });
 }
