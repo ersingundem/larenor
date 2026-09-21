@@ -104,6 +104,7 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .family_board.service import FamilyBoardService
 
 
 class CoreServices:
@@ -311,6 +312,8 @@ class CoreServices:
                     clock=settings.clock,
                 )
             )
+            self.family_board = FamilyBoardService(
+                self.db, self.auth, settings, key, self.context)
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

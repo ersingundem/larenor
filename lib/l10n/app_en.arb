@@ -2374,8 +2374,12 @@
   "coreResourceUploadComplete": "Verified file stored · {bytes} bytes · revision {revision}.",
   "@coreResourceUploadComplete": {
     "placeholders": {
-      "bytes": {"type": "int"},
-      "revision": {"type": "int"}
+      "bytes": {
+        "type": "int"
+      },
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "coreResourceUploadCancelled": "File selection cancelled.",
@@ -2387,7 +2391,11 @@
   "coreResourceTransferHistoryLoading": "Loading verified transfer history…",
   "coreResourceTransferHistoryVerified": "Event chain verified · cursor {sequence}.",
   "@coreResourceTransferHistoryVerified": {
-    "placeholders": {"sequence": {"type": "int"}}
+    "placeholders": {
+      "sequence": {
+        "type": "int"
+      }
+    }
   },
   "coreResourceTransferHistoryEmpty": "No transfer receipts yet.",
   "coreResourceTransferAccepted": "Transfer accepted",
@@ -2413,8 +2421,12 @@
   "coreTransferTrustDetail": "Receipt {receipt} · {bytes} bytes",
   "@coreTransferTrustDetail": {
     "placeholders": {
-      "receipt": {"type": "String"},
-      "bytes": {"type": "int"}
+      "receipt": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
     }
   },
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
@@ -2820,8 +2832,12 @@
   "coreHaEventTrustDetail": "Head {sequence} · Chain {chain}",
   "@coreHaEventTrustDetail": {
     "placeholders": {
-      "sequence": {"type": "int"},
-      "chain": {"type": "String"}
+      "sequence": {
+        "type": "int"
+      },
+      "chain": {
+        "type": "String"
+      }
     }
   },
   "coreHaActivityFailed": "Activity could not be read. Refresh to try again.",
@@ -3317,5 +3333,19 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "familyBoardTitle": "Family board",
+  "familyBoardEntrySubtitle": "Shared cards and whiteboard for this home",
+  "familyBoardCards": "Cards",
+  "familyBoardWhiteboard": "Whiteboard",
+  "familyBoardNewCard": "New card",
+  "familyBoardEditCard": "Edit card",
+  "familyBoardAddMark": "Add accessible mark",
+  "familyBoardRefresh": "Refresh changes",
+  "familyBoardOffline": "Offline snapshot · read only",
+  "familyBoardConflict": "Board changed · reload required",
+  "familyBoardEmpty": "No cards yet",
+  "familyBoardDrawingHint": "Draw with touch or add a mark with keyboard",
+  "familyBoardLoading": "Loading family board",
+  "familyBoardUnavailable": "Family board is unavailable for this session"
 }

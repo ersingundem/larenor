@@ -39,6 +39,14 @@ void main() {
             );
             expect(inventory, findsOneWidget);
             expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
+            final familyBoard = find.byKey(
+              const ValueKey('core-home-family-board-action'),
+            );
+            expect(familyBoard, findsOneWidget);
+            expect(
+              tester.getRect(familyBoard).height,
+              greaterThanOrEqualTo(48),
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -73,6 +81,10 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('core-home-inventory-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-family-board-action')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);
