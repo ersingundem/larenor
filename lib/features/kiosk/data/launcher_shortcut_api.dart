@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/launcher_shortcut_models.dart';
@@ -17,9 +17,7 @@ final class AndroidLauncherShortcutApi implements LauncherShortcutApi {
     bool? isAndroid,
   }) : _methods = methods ?? const MethodChannel(methodChannelName),
        _events = events ?? const EventChannel(eventChannelName),
-       _android =
-           isAndroid ??
-           (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+       _android = isAndroid ?? Platform.isAndroid;
 
   static const methodChannelName = 'com.ersingundem.larenor/launcher_shortcuts';
   static const eventChannelName =

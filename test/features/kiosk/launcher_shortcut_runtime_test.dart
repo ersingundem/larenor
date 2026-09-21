@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/kiosk/data/launcher_shortcut_api.dart';
 import 'package:larenor/features/kiosk/domain/launcher_shortcut_models.dart';
@@ -23,6 +25,31 @@ final class _Api implements LauncherShortcutApi {
 }
 
 void main() {
+  testWidgets('Android visual target on a host never opens native channels', (
+    tester,
+  ) async {
+    if (Platform.isAndroid) return;
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final routes = <String>[];
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: LauncherShortcutRuntimeScope(
+            navigate: routes.add,
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(routes, isEmpty);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   test('closed parser rejects unknown and malformed native values', () {
     expect(LauncherShortcutAction.parse('home'), LauncherShortcutAction.home);
     expect(LauncherShortcutAction.parse('kiosk'), LauncherShortcutAction.kiosk);

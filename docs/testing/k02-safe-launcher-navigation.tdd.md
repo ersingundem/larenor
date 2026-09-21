@@ -38,6 +38,11 @@ RED commit: `4af6285f`.
   the kiosk controls until the settings PIN succeeds.
 - Existing `kiosk_screen_test.dart` continues to prove observed capability,
   PIN-protected exit, late callback invalidation and truthful receipts.
+- CI regression: Flutter's Android visual target on a desktop host must never
+  open a native EventChannel or leave the five-second initial-action timer
+  pending. Native availability now uses the actual Android runtime; the new
+  widget regression plus 55 affected shortcut, transfer, people and resource
+  tests passed locally. The exact PR-head CI shard remains the merge gate.
 
 ## Honest remaining boundaries
 
