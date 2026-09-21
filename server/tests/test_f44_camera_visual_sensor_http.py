@@ -1,9 +1,8 @@
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
-
 from conftest import auth, ready
+from fastapi.testclient import TestClient
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
 from test_f44_camera_visual_sensors import rule
@@ -102,5 +101,12 @@ def test_scope_shape_and_storage_tamper_fail_closed(server):
             "UPDATE camera_visual_sensor_rules SET rule_json='{}' WHERE id=?",
             (rule_id,),
         )
+    overwritten = client.put(
+        root + f"/rules/{rule_id}",
+        headers=auth(pair),
+        json={"schemaVersion": 1, "expectedRevision": 1, "rule": _rule(app, 2)},
+    )
+    assert overwritten.status_code == 503
+    assert overwritten.json()["error"]["code"] == "visual_sensor_storage_unavailable"
     with pytest.raises(StartupError, match="camera_visual_sensor_storage_invalid"):
         create_app(settings)

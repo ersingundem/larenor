@@ -14,7 +14,6 @@ from .http_models import (
 )
 from .models import VisualSensorRule
 
-
 MAX_RULES = 64
 
 
@@ -162,6 +161,8 @@ class CameraVisualSensorService:
                 old = connection.execute(
                     "SELECT * FROM camera_visual_sensor_rules WHERE id=?", (rule_id,)
                 ).fetchone()
+                if old is not None:
+                    self._rule(old)
                 current = 0 if old is None else old["revision"]
                 if (
                     body.expectedRevision != current
