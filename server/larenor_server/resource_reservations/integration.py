@@ -3,8 +3,8 @@
 import hashlib
 import hmac
 import json
-from itertools import pairwise
 from datetime import UTC, datetime
+from itertools import pairwise
 from zoneinfo import ZoneInfo
 
 from ..errors import ApiError
