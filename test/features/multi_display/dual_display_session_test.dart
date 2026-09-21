@@ -373,6 +373,85 @@ void main() {
     },
   );
 
+  test(
+    'disconnect and reconnect require the new exact display generation',
+    () async {
+      var live = topology();
+      final port = FakeDisplayPort();
+      final coordinator = DualDisplayCoordinator(
+        authorityResolver: authority,
+        topologyResolver: () => live,
+        port: port,
+      );
+      await coordinator.activate(
+        authority: authority(),
+        topology: live,
+        secondaryDisplayId: 7,
+        selection: selection(),
+      );
+
+      live = topology(withExternal: false, revision: 10);
+      await coordinator.updateTopology(live);
+      live = DisplayTopology(
+        revision: 11,
+        surfaces: [primary(), external(generation: 5)],
+      );
+      await expectLater(
+        coordinator.activate(
+          authority: authority(),
+          topology: topology(revision: 9),
+          secondaryDisplayId: 7,
+          selection: selection(),
+        ),
+        throwsA(isA<DualDisplayException>()),
+      );
+      final reconnected = await coordinator.activate(
+        authority: authority(),
+        topology: live,
+        secondaryDisplayId: 7,
+        selection: selection(),
+      );
+      expect(reconnected.status, DualDisplayStatus.active);
+      expect(port.requests.last.display.generation, 5);
+      expect(port.dismissals, hasLength(1));
+    },
+  );
+
+  test(
+    'wrong display and unknown route fail before the platform port',
+    () async {
+      final port = FakeDisplayPort();
+      final coordinator = DualDisplayCoordinator(
+        authorityResolver: authority,
+        topologyResolver: topology,
+        port: port,
+      );
+      final missing = await coordinator.activate(
+        authority: authority(),
+        topology: topology(),
+        secondaryDisplayId: 63,
+        selection: selection(),
+      );
+      expect(missing.reason, DualDisplayReason.secondaryUnavailable);
+      await expectLater(
+        coordinator.activate(
+          authority: authority(),
+          topology: topology(),
+          secondaryDisplayId: 7,
+          selection: DisplayRouteSelection(
+            primaryRouteId: 'dashboard.home',
+            secondaryRouteId: 'admin.secrets',
+            secondarySensitivity: RouteSensitivity.public,
+            focusOwner: DisplayOwner.primary,
+            playerOwner: DisplayOwner.none,
+          ),
+        ),
+        throwsA(isA<DualDisplayException>()),
+      );
+      expect(port.requests, isEmpty);
+    },
+  );
+
   test('topology and public state stay bounded and secret-free', () {
     expect(
       () => DisplayTopology(

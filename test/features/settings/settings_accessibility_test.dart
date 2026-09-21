@@ -233,6 +233,11 @@ void main() {
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, remote, reverse: true);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await _tabUntilFocused(tester, tabletFleet, reverse: true);
+            expect(
+              Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
+              isTrue,
+            );
             await _tabUntilFocused(tester, server, reverse: true);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, display);
