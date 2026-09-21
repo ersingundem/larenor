@@ -233,6 +233,7 @@ class FairChoreStore:
         timezone_name: str,
         interval_days: int,
         due_at: float,
+        command_id: str | None = None,
     ) -> ChoreTask:
         self._validate_scope(core_id, home_id)
         if actor.role != "admin":
@@ -249,12 +250,15 @@ class FairChoreStore:
             or not isinstance(due_at, (int, float))
             or isinstance(due_at, bool)
             or not math.isfinite(due_at)
+            or (command_id is not None and not _identifier(command_id))
         ):
             raise ApiError("invalid_request", 400)
         datetime.fromtimestamp(due_at, timezone)
         now = time.time()
+        task_id = uuid.uuid4().hex
+        command_id = command_id or f"create:{task_id}"
         task = ChoreTask(
-            id=uuid.uuid4().hex,
+            id=task_id,
             core_id=core_id,
             home_id=home_id,
             title=title.strip(),
@@ -267,6 +271,28 @@ class FairChoreStore:
             due_at=float(due_at),
         )
         with self.database.transaction() as connection:
+            previous = connection.execute(
+                "SELECT task_id,actor_id,receipt_json FROM fair_chore_events "
+                "WHERE command_id=?",
+                (command_id,),
+            ).fetchone()
+            if previous is not None:
+                stored = self._load(connection, previous["task_id"], core_id, home_id)
+                self._assert_current(connection, stored)
+                receipt = self._receipt(previous["receipt_json"])
+                if previous["actor_id"] != actor.id and actor.role != "admin":
+                    raise ApiError("forbidden", 403)
+                if (
+                    receipt.action != "created"
+                    or stored.title != task.title
+                    or stored.members_revision != task.members_revision
+                    or stored.member_order != task.member_order
+                    or stored.timezone_name != task.timezone_name
+                    or stored.interval_days != task.interval_days
+                    or stored.due_at != task.due_at
+                ):
+                    raise ApiError("idempotency_conflict", 409)
+                return stored
             connection.execute(
                 "INSERT INTO fair_chore_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
@@ -288,7 +314,7 @@ class FairChoreStore:
             self._append(
                 connection,
                 task=task,
-                command_id=f"create:{task.id}",
+                command_id=command_id,
                 action="created",
                 actor_id=actor.id,
                 occurred_at=now,

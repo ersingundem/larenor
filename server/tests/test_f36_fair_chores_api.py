@@ -26,6 +26,20 @@ def test_authenticated_chore_flow_and_lost_ack_receipt(server):
     )
     assert created.status_code == 201
     task = created.json()["task"]
+    repeated = client.post(
+        root,
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "commandId": "10" * 16,
+            "title": "Clean kitchen",
+            "timezone": "Europe/Istanbul",
+            "intervalDays": 7,
+            "dueAt": clock.now + 3600,
+        },
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["task"] == task
 
     page = client.get(root, headers=auth(pair))
     assert page.status_code == 200

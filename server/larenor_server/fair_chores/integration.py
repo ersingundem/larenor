@@ -108,6 +108,7 @@ class FairChoreService:
             timezone_name=body.timezone,
             interval_days=body.intervalDays,
             due_at=body.dueAt,
+            command_id=body.commandId,
         )
         return {
             "authority": self._authority(actor, members),
@@ -150,7 +151,9 @@ class FairChoreService:
         receipt = self.store.receipt(
             actor, command_id, core_id=core_id, home_id=home_id
         )
-        return None if receipt is None else self._receipt(actor, members, receipt, labels)
+        return (
+            None if receipt is None else self._receipt(actor, members, receipt, labels)
+        )
 
     def _receipt(self, actor, members, receipt, labels):
         return {
