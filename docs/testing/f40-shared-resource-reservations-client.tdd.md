@@ -2,7 +2,7 @@
 
 Status: **authenticated software integration ready; F40 remains pending**
 
-Program counters remain **21/125** and **0/63** until physical-device
+Program counters remain **22/125** and **0/63** until physical-device
 acceptance closes the feature.
 
 This package is stacked on the accepted F40 Core foundation and is not
