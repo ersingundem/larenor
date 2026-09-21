@@ -151,6 +151,7 @@ class _ServerTabletFleetScreenState
         'profile_updated' => l10n.serverTabletFleetProfileVerified,
         'tablet_revoked' => l10n.serverTabletFleetRevokedVerified,
         'command_verified' => l10n.serverTabletFleetCommandVerified,
+        'rollout_preview_verified' => l10n.serverTabletFleetRolloutVerified,
         _ => '',
       },
       'tablet_device_changed' ||
@@ -204,7 +205,10 @@ class _ServerTabletFleetScreenState
               SliverFilledMessage(child: Text(l10n.serverTabletFleetLocked))
             else if (_loaded && _fleet.tablets.isEmpty)
               SliverFilledMessage(child: Text(l10n.serverTabletFleetEmpty))
-            else
+            else ...[
+              SliverToBoxAdapter(
+                child: _rolloutSection(context, enabled: canAct),
+              ),
               SliverToBoxAdapter(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -230,6 +234,7 @@ class _ServerTabletFleetScreenState
                   },
                 ),
               ),
+            ],
             if (message.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
@@ -355,6 +360,59 @@ class _ServerTabletFleetScreenState
           title: Text(l10n.serverTabletFleetRevoke),
           onTap: enabled && active ? () => _confirmRevoke(tablet) : null,
         ),
+      ],
+    );
+  }
+
+  Widget _rolloutSection(BuildContext context, {required bool enabled}) {
+    final l10n = AppLocalizations.of(context);
+    final preview = _fleet.rolloutPreview;
+    int count(KioskRolloutDeviceState state) =>
+        preview?.devices.where((device) => device.state == state).length ?? 0;
+    return SettingsSection(
+      header: Text(l10n.serverTabletFleetRolloutTitle),
+      footer: Text(l10n.serverTabletFleetRolloutIntro),
+      children: [
+        SettingsActionTile(
+          buttonKey: const ValueKey('tablet-rollout-preview'),
+          leading: const Icon(CupertinoIcons.doc_text_search),
+          title: Text(l10n.serverTabletFleetRolloutPreview),
+          onTap: enabled
+              ? () => _fleet.previewRollout(
+                  rolloutPercent: 10,
+                  current: () => mounted && _active,
+                )
+              : null,
+        ),
+        if (preview != null) ...[
+          CupertinoListTile(
+            key: const ValueKey('tablet-rollout-release'),
+            title: Text(
+              l10n.serverTabletFleetRolloutRelease(
+                preview.release.versionName,
+                preview.release.versionCode,
+                preview.release.certificateSha256.substring(0, 8),
+              ),
+            ),
+            subtitle: Text(
+              l10n.serverTabletFleetRolloutRevision(
+                preview.profileRevision,
+                preview.rolloutPercent,
+              ),
+            ),
+          ),
+          CupertinoListTile(
+            key: const ValueKey('tablet-rollout-counts'),
+            title: Text(
+              l10n.serverTabletFleetRolloutCounts(
+                count(KioskRolloutDeviceState.ready),
+                count(KioskRolloutDeviceState.deferred),
+                count(KioskRolloutDeviceState.appUpdateRequired),
+                count(KioskRolloutDeviceState.current),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
