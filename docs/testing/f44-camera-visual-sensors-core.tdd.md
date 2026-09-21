@@ -26,9 +26,9 @@ camera accuracy.
 
 ## TDD evidence and remaining work
 
-- RED `10cfc667`: four authority, hysteresis, degradation, replay, privacy and
+- RED `5ab55d3a`: four authority, hysteresis, degradation, replay, privacy and
   tamper scenarios failed because the module did not exist.
-- GREEN `7b664e97`: all four focused scenarios pass using synthetic metadata
+- GREEN `7788ff83`: all four focused scenarios pass using synthetic metadata
   and no production account, camera, image, provider or secret.
 
 The private detector worker, encrypted durable store, authenticated HTTP route,
