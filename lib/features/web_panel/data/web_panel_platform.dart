@@ -31,8 +31,9 @@ WebViewController createWebPanelController() {
 /// Configures public plugin APIs; no JavaScript/native bridge is registered.
 Future<void> restrictWebPanelPlatform(
   WebViewController controller,
-  Future<void> Function(Future<void> Function()) step,
-) async {
+  Future<void> Function(Future<void> Function()) step, {
+  Future<List<String>> Function(FileSelectorParams)? selectUpload,
+}) async {
   await step(() => controller.setOnJavaScriptAlertDialog((_) async {}));
   await step(() => controller.setOnJavaScriptConfirmDialog((_) async => false));
   await step(() => controller.setOnJavaScriptTextInputDialog((_) async => ''));
@@ -43,7 +44,9 @@ Future<void> restrictWebPanelPlatform(
     await step(() => platform.setGeolocationEnabled(false));
     await step(() => platform.setMixedContentMode(MixedContentMode.neverAllow));
     await step(() => platform.setMediaPlaybackRequiresUserGesture(true));
-    await step(() => platform.setOnShowFileSelector((_) async => []));
+    await step(
+      () => platform.setOnShowFileSelector(selectUpload ?? (_) async => []),
+    );
     final cookies = WebViewCookieManager().platform;
     if (cookies is AndroidWebViewCookieManager) {
       await step(() => cookies.setAcceptThirdPartyCookies(platform, false));
