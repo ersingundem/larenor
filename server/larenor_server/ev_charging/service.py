@@ -154,6 +154,7 @@ class ChargePreview:
     id: str
     status: str
     plan_hash: str
+    authority_hash: str
     charger_revision: int
     schedule_revision: int
     tariff_revision: int
@@ -353,11 +354,8 @@ class ChargePlanner:
             state_values + (self._state_hash(state_values),),
         )
 
-    def _validate_inputs(
-        self,
-        authority: ChargeAuthority,
-        inputs: EnergyInputs,
-        goal: ChargeGoal,
+    def _verified_providers(
+        self, authority: ChargeAuthority, inputs: EnergyInputs
     ) -> dict[str, str]:
         if (
             inputs.tariff_revision != authority.tariff_revision
@@ -387,6 +385,16 @@ class ChargePlanner:
             )
         ):
             raise ApiError("energy_inputs_unverified", 409)
+        return {name: states[name].status for name in sorted(states)}
+
+    def _validate_inputs(
+        self,
+        authority: ChargeAuthority,
+        inputs: EnergyInputs,
+        goal: ChargeGoal,
+    ) -> dict[str, str]:
+        statuses = self._verified_providers(authority, inputs)
+        now = self._clock()
         if (
             type(goal.current_soc) is not int
             or type(goal.minimum_soc) is not int
@@ -427,7 +435,7 @@ class ChargePlanner:
             ):
                 raise ApiError("energy_inputs_unverified", 409)
             previous_end = slot.end_at
-        return {name: states[name].status for name in sorted(states)}
+        return statuses
 
     def _preview_from_row(self, row: sqlite3.Row) -> ChargePreview:
         try:
@@ -538,6 +546,9 @@ class ChargePlanner:
                 raise ApiError("charge_target_unreachable", 409)
         payload = {
             "status": status,
+            "authority_hash": self._fingerprint(
+                b"authority", _canonical(asdict(authority))
+            ),
             "charger_revision": authority.charger_revision,
             "schedule_revision": authority.schedule_revision,
             "tariff_revision": authority.tariff_revision,
@@ -660,13 +671,31 @@ class ChargePlanner:
         actor: Principal,
         *,
         authority: ChargeAuthority,
+        inputs: EnergyInputs,
         preview_id: str,
         command_id: str,
         expected_plan_hash: str,
     ) -> ChargeCommandReceipt:
         self._authorize(actor, authority)
+        if not authority.can_control:
+            raise ApiError("forbidden", 403)
         if not _identifier(preview_id) or not _identifier(command_id):
             raise ApiError("invalid_request", 400)
+        self._verified_providers(authority, inputs)
+        override = inputs.manual_override
+        if override is not None:
+            if (
+                not isinstance(override, ManualOverride)
+                or type(override.expires_at) not in (int, float)
+                or not math.isfinite(override.expires_at)
+                or type(override.max_current_amp) is not int
+                or not 1 <= override.max_current_amp <= authority.max_current_amp
+                or not isinstance(override.reason, str)
+                or not 1 <= len(override.reason) <= 200
+            ):
+                raise ApiError("charge_safety_limit", 400)
+            if override.expires_at > self._clock():
+                raise ApiError("charge_preview_changed", 409)
         scope = self._scope(authority)
         request_hash = self._fingerprint(
             b"confirm",
@@ -699,9 +728,21 @@ class ChargePlanner:
                 or preview.tariff_revision != authority.tariff_revision
                 or preview.power_budget_revision != authority.power_budget_revision
                 or preview.status != "ready"
+                or not hmac.compare_digest(
+                    preview.authority_hash,
+                    self._fingerprint(
+                        b"authority", _canonical(asdict(authority))
+                    ),
+                )
                 or not hmac.compare_digest(preview.plan_hash, expected_plan_hash)
             ):
                 raise ApiError("charge_preview_changed", 409)
+            prior = connection.execute(
+                "SELECT command_id FROM ev_charge_commands WHERE preview_id=? LIMIT 1",
+                (preview_id,),
+            ).fetchone()
+            if prior is not None:
+                raise ApiError("charge_command_conflict", 409)
             now = self._clock()
             values = (
                 command_id,

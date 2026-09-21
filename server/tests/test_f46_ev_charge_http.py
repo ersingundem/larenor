@@ -12,6 +12,7 @@ from larenor_server.ev_charging import (
     ChargeProviderSnapshot,
     EnergyInputs,
     EnergySlot,
+    ManualOverride,
     ProviderState,
 )
 
@@ -40,7 +41,12 @@ class Provider:
     def __init__(self):
         self.schedule_revision = 7
         self.tariff_revision = 5
+        self.solar_revision = 6
         self.power_budget_revision = 7
+        self.override_revision = 8
+        self.override_until = None
+        self.provider_observed_at = NOW
+        self.authority_can_control = True
         self.capability_value = ChargeProviderCapability(
             "ready",
             "ocpp",
@@ -69,31 +75,33 @@ class Provider:
             charger_id=charger_id,
             charger_revision=4,
             tariff_revision=self.tariff_revision,
-            solar_revision=6,
+            solar_revision=self.solar_revision,
             power_budget_revision=self.power_budget_revision,
-            override_revision=8,
+            override_revision=self.override_revision,
             schedule_revision=self.schedule_revision,
             max_current_amp=16,
             voltage=230,
             max_session_wh=20_000,
-            can_control=True,
+            can_control=self.authority_can_control,
         )
         states = tuple(
-            ProviderState(name, revision, "verified", NOW)
+            ProviderState(name, revision, "verified", self.provider_observed_at)
             for name, revision in (
                 ("tariff", self.tariff_revision),
-                ("solar", 6),
+                ("solar", self.solar_revision),
                 ("power_budget", self.power_budget_revision),
             )
         )
         inputs = EnergyInputs(
             tariff_revision=self.tariff_revision,
-            solar_revision=6,
+            solar_revision=self.solar_revision,
             power_budget_revision=self.power_budget_revision,
-            override_revision=8,
+            override_revision=self.override_revision,
             provider_states=states,
             slots=(EnergySlot(NOW, NOW + 3600, 100, 0, 3680),),
-            manual_override=None,
+            manual_override=None
+            if self.override_until is None
+            else ManualOverride(self.override_until, 8, "driver-control"),
         )
         return ChargeProviderSnapshot(authority, inputs)
 
@@ -309,3 +317,87 @@ def test_confirm_is_capability_gated_idempotent_and_stale_safe(tmp_path):
             ).status_code
             == 503
         )
+
+
+def test_confirm_rejects_changed_solar_override_and_stale_provider_evidence(tmp_path):
+    app, settings, provider, charger = configured(tmp_path)
+    context = app.state.core.context
+    root = f"/api/v1/ev-charging/{context.coreId}/{context.homeId}"
+    with TestClient(app) as client:
+        pair = ready((app, client, settings, Clock(NOW)))
+        plan = client.post(
+            root + f"/chargers/{CHARGER}/previews",
+            headers=auth(pair),
+            json=preview_body(),
+        ).json()["preview"]
+        body = {
+            "schemaVersion": 1,
+            "previewId": PREVIEW,
+            "expectedPlanHash": plan["planHash"],
+            "expectedChargerRevision": 4,
+            "expectedScheduleRevision": 7,
+        }
+
+        provider.solar_revision = 7
+        solar = client.post(
+            root + f"/chargers/{CHARGER}/commands",
+            headers=auth(pair),
+            json={**body, "commandId": "6" * 32},
+        )
+        assert solar.status_code == 409
+
+        provider.solar_revision = 6
+        provider.override_revision = 9
+        provider.override_until = NOW + 300
+        override = client.post(
+            root + f"/chargers/{CHARGER}/commands",
+            headers=auth(pair),
+            json={**body, "commandId": "7" * 32},
+        )
+        assert override.status_code == 409
+
+        provider.override_revision = 8
+        override_same_revision = client.post(
+            root + f"/chargers/{CHARGER}/commands",
+            headers=auth(pair),
+            json={**body, "commandId": "9" * 32},
+        )
+        assert override_same_revision.status_code == 409
+
+        provider.override_until = None
+        provider.provider_observed_at = NOW - 301
+        stale = client.post(
+            root + f"/chargers/{CHARGER}/commands",
+            headers=auth(pair),
+            json={**body, "commandId": "8" * 32},
+        )
+        assert stale.status_code == 409
+        assert charger.applies == 0
+
+
+def test_admin_cannot_override_provider_control_denial(tmp_path):
+    app, settings, provider, charger = configured(tmp_path)
+    context = app.state.core.context
+    root = f"/api/v1/ev-charging/{context.coreId}/{context.homeId}"
+    with TestClient(app) as client:
+        pair = ready((app, client, settings, Clock(NOW)))
+        plan = client.post(
+            root + f"/chargers/{CHARGER}/previews",
+            headers=auth(pair),
+            json=preview_body(),
+        ).json()["preview"]
+        provider.authority_can_control = False
+        response = client.post(
+            root + f"/chargers/{CHARGER}/commands",
+            headers=auth(pair),
+            json={
+                "schemaVersion": 1,
+                "previewId": PREVIEW,
+                "commandId": COMMAND,
+                "expectedPlanHash": plan["planHash"],
+                "expectedChargerRevision": 4,
+                "expectedScheduleRevision": 7,
+            },
+        )
+        assert response.status_code == 403
+        assert charger.applies == 0

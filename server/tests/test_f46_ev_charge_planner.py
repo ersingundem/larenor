@@ -222,14 +222,26 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
     uncertain = service.confirm(
         actor(),
         authority=authority(),
+        inputs=inputs(),
         preview_id=preview.id,
         command_id="confirm-1",
         expected_plan_hash=preview.plan_hash,
     )
     assert uncertain.status == "uncertain"
+    with pytest.raises(ApiError, match="charge_command_conflict"):
+        service.confirm(
+            actor(),
+            authority=authority(),
+            inputs=inputs(),
+            preview_id=preview.id,
+            command_id="confirm-2",
+            expected_plan_hash=preview.plan_hash,
+        )
+    assert charger.apply_calls == 1
     same = planner(path, charger).confirm(
         actor(),
         authority=authority(),
+        inputs=inputs(),
         preview_id=preview.id,
         command_id="confirm-1",
         expected_plan_hash=preview.plan_hash,

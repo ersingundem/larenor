@@ -220,6 +220,8 @@ class EvChargeRuntime:
             or authority.max_current_amp != device.max_current_amp
         ):
             raise ApiError("energy_authority_changed", 409)
+        if control and not authority.can_control:
+            raise ApiError("forbidden", 403)
         self._actor(actor)
         return snapshot, device
 
@@ -303,6 +305,7 @@ class EvChargeRuntime:
         value = self.planner.confirm(
             actor,
             authority=authority,
+            inputs=snapshot.inputs,
             preview_id=body.previewId,
             command_id=body.commandId,
             expected_plan_hash=body.expectedPlanHash,
