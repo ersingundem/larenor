@@ -189,7 +189,10 @@ def test_confidence_hysteresis_dedup_and_provider_degradation_are_explicit():
     calls = []
     detector = engine(clock=clock, handoff=verified_handoff(calls))
 
-    assert detector.ingest(authority(), observation(1, confidence=0.79)).status == "suppressed"
+    assert (
+        detector.ingest(authority(), observation(1, confidence=0.79)).status
+        == "suppressed"
+    )
     assert detector.ingest(authority(), observation(2)).status == "suppressed"
     first = detector.ingest(authority(), observation(3))
     assert first.status == "event"
@@ -206,9 +209,10 @@ def test_confidence_hysteresis_dedup_and_provider_degradation_are_explicit():
     clock.ms += 5_001
     detector.ingest(authority(), observation(8, confidence=0.4, observed_at=15_002))
     detector.ingest(authority(), observation(9, observed_at=15_003))
-    assert detector.ingest(
-        authority(), observation(10, observed_at=15_004)
-    ).status == "event"
+    assert (
+        detector.ingest(authority(), observation(10, observed_at=15_004)).status
+        == "event"
+    )
     assert len(calls) == 2
 
     degraded_calls = []

@@ -85,7 +85,9 @@ class SoundEventEngine:
         try:
             authority = SoundEventAuthority.model_validate(presented)
             current = self._resolve_authority(authority.accountId)
-            current = None if current is None else SoundEventAuthority.model_validate(current)
+            current = (
+                None if current is None else SoundEventAuthority.model_validate(current)
+            )
         except Exception:
             raise ApiError("forbidden", 403) from None
         if current is None:
@@ -122,7 +124,11 @@ class SoundEventEngine:
             raise ApiError("not_found", 404)
         try:
             binding = self._resolve_binding(observation.deviceId)
-            binding = None if binding is None else SoundClassifierBinding.model_validate(binding)
+            binding = (
+                None
+                if binding is None
+                else SoundClassifierBinding.model_validate(binding)
+            )
         except Exception:
             return None
         if binding is None:
@@ -134,7 +140,9 @@ class SoundEventEngine:
         return binding
 
     def _entry_hash(self, values):
-        payload = json.dumps(values, separators=(",", ":"), allow_nan=False).encode("ascii")
+        payload = json.dumps(values, separators=(",", ":"), allow_nan=False).encode(
+            "ascii"
+        )
         return hmac.new(
             self._audit_key,
             b"larenor:sound-event-audit:v1\0" + payload,
@@ -161,7 +169,8 @@ class SoundEventEngine:
             expected = self._entry_hash(values)
             if (
                 row.sequence != sequence
-                or row.action not in {
+                or row.action
+                not in {
                     "suppressed",
                     "provider_degraded",
                     "detected",
@@ -238,7 +247,9 @@ class SoundEventEngine:
 
     def _purge(self):
         now = self._clock()
-        self._events = [event for event in self._events if event.retentionExpiresAtMs > now]
+        self._events = [
+            event for event in self._events if event.retentionExpiresAtMs > now
+        ]
 
     def ingest(self, presentedAuthority, rawObservation) -> SoundIngestResult:
         authority = self._authority(presentedAuthority)
@@ -368,7 +379,9 @@ class SoundEventEngine:
                 )
             else:
                 result = self._degraded(
-                    "automation_unavailable" if self._handoff is None else "automation_unverified",
+                    "automation_unavailable"
+                    if self._handoff is None
+                    else "automation_unverified",
                     event,
                 )
             return self._remember(observation, result)

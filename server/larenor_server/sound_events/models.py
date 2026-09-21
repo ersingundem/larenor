@@ -167,22 +167,29 @@ class AutomationReceipt(FrozenModel):
 class SoundIngestResult(FrozenModel):
     schemaVersion: Literal[1]
     status: Literal["suppressed", "event", "degraded"]
-    reason: Literal[
-        "below_threshold",
-        "awaiting_confirmation",
-        "hysteresis_active",
-        "deduplicated",
-        "provider_unavailable",
-        "automation_unavailable",
-        "automation_unverified",
-    ] | None
+    reason: (
+        Literal[
+            "below_threshold",
+            "awaiting_confirmation",
+            "hysteresis_active",
+            "deduplicated",
+            "provider_unavailable",
+            "automation_unavailable",
+            "automation_unverified",
+        ]
+        | None
+    )
     event: SoundEvent | None
     automationVerified: bool
 
     @model_validator(mode="after")
     def coherent_result(self):
         if self.status == "event":
-            if self.event is None or not self.automationVerified or self.reason is not None:
+            if (
+                self.event is None
+                or not self.automationVerified
+                or self.reason is not None
+            ):
                 raise ValueError("invalid_result")
         elif self.status == "suppressed":
             if self.event is not None or self.automationVerified or self.reason is None:
