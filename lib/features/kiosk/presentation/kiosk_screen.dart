@@ -11,6 +11,7 @@ import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
+import 'kiosk_hid_scan_screen.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
   KioskAction.allowApp => l.kioskAllow,
@@ -409,6 +410,21 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                         ? _refresh
                         : null,
                     child: Text(l.commonRefresh),
+                  ),
+                  CupertinoButton(
+                    key: const ValueKey('kiosk-hid-open'),
+                    minimumSize: const Size.fromHeight(48),
+                    onPressed: _current(sessionGeneration)
+                        ? () {
+                            if (!_current(sessionGeneration)) return;
+                            Navigator.of(context).push(
+                              CupertinoPageRoute<void>(
+                                builder: (_) => const KioskHidScanScreen(),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Text(l.kioskHidOpen),
                   ),
                   SettingsSection(
                     header: Semantics(
