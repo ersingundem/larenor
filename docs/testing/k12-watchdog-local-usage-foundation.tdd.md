@@ -9,9 +9,11 @@ physical 24-hour tablet result.
 
 1. **Bounded explicit recovery.** `KioskRecoveryGate` permits at most three
    user-requested recoveries in a rolling ten-minute window. The next attempt
-   enters safe maintenance state. The gate owns no timer, reconnect callback or
-   command replay path, and explicitly reports that no automatic recovery is
-   pending.
+   enters safe maintenance state. A separate, closed-schema three-timestamp
+   throttle survives gate recreation and process restart; malformed or failed
+   storage denies recovery. Concurrent gates share one read/write queue. The
+   gate owns no timer, reconnect callback or command replay path, and
+   explicitly reports that no automatic recovery is pending.
 2. **Content-free durable usage.** The local journal stores only a UTC day and
    five closed integer counters. It retains at most 30 days, rejects unknown or
    malformed fields and journals over 8192 characters before parsing,
@@ -35,13 +37,15 @@ physical 24-hour tablet result.
   concurrent event, and a valid JSON journal padded with 9000 spaces was
   accepted. Both now fail closed or serialize correctly; the watchdog and
   maintenance suites pass together across widget-test zones.
+- Review RED/GREEN: gate recreation previously reset the three-attempt budget.
+  Recreated and concurrent owners now share the persisted ten-minute throttle;
+  corrupt or unwritable throttle state grants no recovery. Its timestamps are
+  operational gate state and never enter the aggregate usage CSV.
 
 ## Remaining K12 gates
 
 - Wire the gate to the final `K03.remaining` renderer-death and reconnect
   receipts after that contract lands; source identity must remain bounded and
-  must not enter the journal. The rolling recovery budget is currently scoped
-  to a live gate; restart-safe budget persistence is required before enabling
-  actual renderer recovery.
+  must not enter the journal.
 - Run physical Huawei/DeX process-death and long-idle checks. Android
   force-stop and OS relaunch remain unsupported claims.

@@ -32,6 +32,20 @@ final class _DelayedStore implements KioskUsageStore {
   }
 }
 
+final class _AttemptStore implements KioskRecoveryAttemptStore {
+  String? value;
+  bool failWrites = false;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String next) async {
+    if (failWrites) throw const KioskUsageException();
+    value = next;
+  }
+}
+
 void main() {
   test(
     'explicit recovery is bounded and never schedules an automatic retry',
@@ -39,7 +53,11 @@ void main() {
       var now = DateTime.utc(2026, 9, 21, 10);
       final store = _Store();
       final repository = KioskUsageRepository(store: store, now: () => now);
-      final gate = KioskRecoveryGate(repository: repository, now: () => now);
+      final gate = KioskRecoveryGate(
+        repository: repository,
+        attemptStore: _AttemptStore(),
+        now: () => now,
+      );
 
       for (var i = 0; i < 3; i++) {
         expect(await gate.allowExplicitRecovery(), isTrue);
@@ -53,6 +71,56 @@ void main() {
       expect(gate.maintenanceRequired, isFalse);
     },
   );
+
+  test(
+    'recreated and concurrent gates share the durable ten-minute limit',
+    () async {
+      final today = DateTime.utc(2026, 9, 21, 10);
+      var now = today;
+      final usage = KioskUsageRepository(store: _Store(), now: () => now);
+      final attempts = _AttemptStore();
+      KioskRecoveryGate gate() => KioskRecoveryGate(
+        repository: usage,
+        attemptStore: attempts,
+        now: () => now,
+      );
+
+      expect(await gate().allowExplicitRecovery(), isTrue);
+      expect(await gate().allowExplicitRecovery(), isTrue);
+      final results = await Future.wait([
+        gate().allowExplicitRecovery(),
+        gate().allowExplicitRecovery(),
+      ]);
+      expect(results.where((accepted) => accepted), hasLength(1));
+      final restarted = gate();
+      expect(await restarted.allowExplicitRecovery(), isFalse);
+      expect(restarted.maintenanceRequired, isTrue);
+      expect((await usage.read()).count(KioskUsageEvent.recoveryAttempt), 3);
+
+      now = today.add(const Duration(minutes: 10));
+      expect(await gate().allowExplicitRecovery(), isTrue);
+    },
+  );
+
+  test('corrupt or unwritable attempt ledger never grants recovery', () async {
+    final now = DateTime.utc(2026, 9, 21, 10);
+    final usage = KioskUsageRepository(store: _Store(), now: () => now);
+    final attempts = _AttemptStore()
+      ..value = '{"version":1,"attempts":["secret"]}';
+    final gate = KioskRecoveryGate(
+      repository: usage,
+      attemptStore: attempts,
+      now: () => now,
+    );
+    expect(await gate.allowExplicitRecovery(), isFalse);
+    expect(gate.maintenanceRequired, isTrue);
+    expect((await usage.read()).count(KioskUsageEvent.recoveryAttempt), 0);
+
+    attempts.value = null;
+    attempts.failWrites = true;
+    expect(await gate.allowExplicitRecovery(), isFalse);
+    expect((await usage.read()).count(KioskUsageEvent.recoveryAttempt), 0);
+  });
 
   test(
     'local usage is content-free, bounded to 30 days and restart durable',
