@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
+    'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
@@ -174,6 +176,10 @@ MESSAGES = {
     'remote_command_forbidden': 'This legacy remote command is not allowed by the current profile.',
     'remote_preview_expired': 'Create and review a new legacy remote preview.',
     'remote_command_integrity_failed': 'The legacy remote command history could not be verified.',
+    'backup_blocked': 'Wait for active Core operations to finish before creating a backup.',
+    'backup_busy': 'Another Core backup is already being created.',
+    'backup_too_large': 'The Core backup exceeds the supported size.',
+    'backup_decryption_failed': 'The Core backup could not be opened.',
 }
 
 
