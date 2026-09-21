@@ -17,6 +17,8 @@ from .models import (
 )
 from .http import LegacyRemoteHttpGateway
 from .service import LegacyRemoteManager, RemoteAuditEntry
+from .runtime import LegacyRemoteProvider, build_legacy_remote_gateway
+from .store import LegacyRemoteStore
 
 __all__ = [
     "LegacyRemoteManager",
@@ -35,4 +37,7 @@ __all__ = [
     "RemoteConfirmRequest",
     "RemotePreviewRequest",
     "LegacyRemoteHttpGateway",
+    "LegacyRemoteProvider",
+    "LegacyRemoteStore",
+    "build_legacy_remote_gateway",
 ]

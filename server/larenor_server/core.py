@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .legacy_remote.schema import migrate_legacy_remote
+from .legacy_remote.runtime import build_legacy_remote_gateway
 
 
 class CoreServices:
@@ -111,7 +113,8 @@ class CoreServices:
                  transfer_limits: TransferLimits | None = None,
                  proxmox_guest_provider=None, proxmox_power_executor=None,
                  media_archive_binding_reader=None,
-                 media_archive_worker=None, mesh_center_provider=None):
+                 media_archive_worker=None, mesh_center_provider=None,
+                 legacy_remote_provider=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -120,6 +123,7 @@ class CoreServices:
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
         self._mesh_center_provider = mesh_center_provider
+        self._legacy_remote_provider = legacy_remote_provider
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -255,6 +259,7 @@ class CoreServices:
                         scope, chain, sequence, head, key
                     ),
                 )
+                migrate_legacy_remote(connection, key, self.context)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -459,6 +464,13 @@ class CoreServices:
                 actor_revision=keenetic_actor_revision,
                 journal=self.keenetic_command_journal,
                 wall_clock=settings.clock,
+            )
+            self.legacy_remote_gateway = build_legacy_remote_gateway(
+                self.db,
+                settings,
+                key,
+                self.context,
+                self._legacy_remote_provider,
             )
             self.clear_inactive_bootstrap()
 

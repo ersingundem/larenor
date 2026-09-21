@@ -81,7 +81,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                proxmox_power_executor=None,
                media_archive_binding_reader=None,
                media_archive_worker=None,
-               mesh_center_provider=None) -> FastAPI:
+               mesh_center_provider=None,
+               legacy_remote_provider=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -177,7 +178,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         proxmox_power_executor=proxmox_power_executor,
         media_archive_binding_reader=media_archive_binding_reader,
         media_archive_worker=media_archive_worker,
-        mesh_center_provider=mesh_center_provider)
+        mesh_center_provider=mesh_center_provider,
+        legacy_remote_provider=legacy_remote_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -188,7 +190,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
-    app.state.legacy_remote_gateway = None
+    app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)

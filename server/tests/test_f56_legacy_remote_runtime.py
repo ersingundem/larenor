@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from larenor_server.app import create_app
 from larenor_server.config import Settings
+from larenor_server.errors import ApiError
 from larenor_server.legacy_remote import (
     RemoteAuthority,
     RemoteCatalog,
@@ -270,4 +271,57 @@ def test_lost_ack_is_durable_and_restart_never_replays(tmp_path):
         assert client.get(
             root + f"/results/{REQUEST}", headers=auth(pair)
         ).json()["result"] == result
+    assert len(provider.calls) == 1
+
+
+def test_restart_recovers_persisted_dispatch_attempt_as_uncertain_without_replay(
+    tmp_path, monkeypatch
+):
+    settings = _settings(tmp_path)
+    provider = FakeRemoteProvider()
+    first = _start(settings, provider)
+    with TestClient(first) as client:
+        pair = _ready(client, settings)
+        context = first.state.core.context
+        root = f"/api/v1/admin/legacy-remotes/{context.coreId}/{context.homeId}"
+        catalog = client.get(root, headers=auth(pair)).json()["catalog"]
+        preview = client.post(
+            root + "/previews", headers=auth(pair), json=_preview_body(catalog)
+        ).json()["preview"]
+        store = first.state.core.legacy_remote_gateway._manager._store
+        original = store.save
+        saves = 0
+
+        def fail_final_receipt(snapshot):
+            nonlocal saves
+            saves += 1
+            if saves == 2:
+                raise ApiError("remote_command_integrity_failed", 503)
+            return original(snapshot)
+
+        monkeypatch.setattr(store, "save", fail_final_receipt)
+        response = client.post(
+            root + f"/previews/{REQUEST}/confirm",
+            headers=auth(pair),
+            json={
+                "schemaVersion": 1,
+                "authority": catalog["authority"],
+                "preview": preview,
+                "confirmationToken": preview["confirmationToken"],
+            },
+        )
+        assert response.status_code == 503
+    assert len(provider.calls) == 1
+
+    second = _start(settings, provider)
+    with TestClient(second) as client:
+        assert client.get(root, headers=auth(pair)).status_code == 200
+        recovered = client.get(
+            root + f"/results/{REQUEST}", headers=auth(pair)
+        )
+        assert recovered.status_code == 200
+        assert (
+            recovered.json()["result"]["status"],
+            recovered.json()["result"]["reason"],
+        ) == ("uncertain", "lost_ack")
     assert len(provider.calls) == 1
