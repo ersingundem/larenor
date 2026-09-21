@@ -3349,5 +3349,17 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "kioskMaintenanceTitle": "Kiosk recovery",
+  "kioskMaintenanceHint": "Review bounded WebPanel recovery counters without website addresses, page content, credentials or sensor data.",
+  "kioskMaintenanceThirtyDays": "Last 30 days",
+  "kioskMaintenanceFailures": "Renderer and load failures",
+  "kioskMaintenanceTimeouts": "Load timeouts",
+  "kioskMaintenanceRecoveries": "Explicit recovery attempts",
+  "kioskMaintenanceBlocked": "Recovery loops blocked",
+  "kioskMaintenanceReady": "Verified ready loads",
+  "kioskMaintenanceCsvTitle": "CSV preview",
+  "kioskMaintenanceCsvHint": "The preview contains a UTC day and aggregate counters only.",
+  "kioskMaintenanceUnavailable": "Local kiosk usage could not be verified. Stale counters are hidden.",
+  "kioskMaintenanceBoundary": "Larenor can bound recovery while it is running. Android force-stop, OS termination and automatic relaunch are outside this software boundary."
 }
