@@ -1,11 +1,15 @@
 import argparse
 import sys
+from pathlib import Path
 
 import uvicorn
 
-from .runtime import create_configured_app
 from .config import Settings
-from .errors import StartupError
+from .core_backups.restore import restore_empty
+from .core_backups.service import MAX_BUNDLE_BYTES
+from .errors import ApiError, StartupError
+from .files import private_read
+from .runtime import create_configured_app
 
 
 def main(argv=None) -> int:
@@ -13,11 +17,26 @@ def main(argv=None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8098)
     parser.add_argument("--initialize-only", action="store_true")
+    parser.add_argument("--restore", type=Path, metavar="BUNDLE")
+    parser.add_argument("--restore-passphrase-file", type=Path, metavar="FILE")
     args = parser.parse_args(argv)
+    if (args.restore is None) != (args.restore_passphrase_file is None):
+        parser.error("--restore and --restore-passphrase-file must be used together")
     try:
         settings = Settings.from_environment()
+        if args.restore is not None:
+            bundle = private_read(args.restore, MAX_BUNDLE_BYTES)
+            encoded = private_read(args.restore_passphrase_file, 129)
+            try:
+                passphrase = encoded.decode("utf-8").removesuffix("\n")
+            except UnicodeError:
+                raise StartupError("restore_passphrase_invalid") from None
+            restore_empty(settings, bundle, passphrase)
+            create_configured_app(settings)
+            print("Larenor Core restore completed.")
+            return 0
         app = create_configured_app(settings)
-    except StartupError as error:
+    except (ApiError, StartupError) as error:
         print(f"Larenor Server initialization failed: {error}", file=sys.stderr)
         return 1
     if app.state.core.bootstrap_created:
