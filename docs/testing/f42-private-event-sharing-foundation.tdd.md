@@ -32,8 +32,8 @@ sanitized artifact.
 
 ## Evidence
 
-- RED `73ee16a7`: the package import failed before production code existed.
-- GREEN `95e725d6`: three focused pytest scenarios pass for consent/proof,
+- RED `c2ed1433`: the package import failed before production code existed.
+- GREEN `d596328c`: three focused pytest scenarios pass for consent/proof,
   one-time/time-bound/revoke/idempotency, encrypted persistence, role isolation,
   secret-free export and audit tampering.
 - Python compilation, security policy, execution queue, progress trailers,
