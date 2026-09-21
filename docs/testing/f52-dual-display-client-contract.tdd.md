@@ -19,4 +19,4 @@ F52 remains open for the native Android display bridge, real Client-to-isolated
 service E2E, full-app UI/resize integration, exact-commit CI, and the separate
 physical Samsung DeX/dock/touch/keyboard/protected-media acceptance. This
 software fixture is not physical DeX evidence. Queue progress therefore stays
-at the inherited **20/125** and selected-feature progress stays **0/63**.
+at the inherited **21/125** and selected-feature progress stays **0/63**.
