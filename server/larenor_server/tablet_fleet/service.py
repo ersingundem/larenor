@@ -16,6 +16,7 @@ from . import schema
 from .models import (
     CompleteTabletCommand,
     IssueTabletCommand,
+    PreviewKioskProfileRollout,
     PollTabletCommands,
     RegisterTablet,
     StoredTablet,
@@ -45,6 +46,33 @@ class TabletFleetService:
         self.db, self.auth, self.settings, self._key = db, auth, settings, key
         self.scope = HomeScope.model_validate(context.model_dump())
         self._cipher = AESGCM(key)
+        self._release_catalog = None
+        self._release_signer = None
+
+    def bind_release_catalog(self, provider, signer_sha256):
+        if (self._release_catalog is not None or not callable(provider)
+                or not isinstance(signer_sha256, str)
+                or _DIGEST.fullmatch(signer_sha256) is None):
+            raise StartupError("tablet_fleet_release_binding_invalid")
+        self._release_catalog = provider
+        self._release_signer = signer_sha256
+
+    @staticmethod
+    def _release_identity(value, signer):
+        # Import at request time: the releases package imports the API router,
+        # while CoreServices constructs this registry during app startup.
+        from ..releases.models import validate_manifest
+
+        manifest = validate_manifest(value)
+        if not hmac.compare_digest(manifest["certificateSha256"], signer):
+            raise ValueError("invalid_release_identity")
+        return {
+            "applicationId": manifest["applicationId"],
+            "certificateSha256": manifest["certificateSha256"],
+            "versionCode": manifest["versionCode"],
+            "versionName": manifest["versionName"],
+            "apkSha256": manifest["apkSha256"],
+        }
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
@@ -372,6 +400,100 @@ class TabletFleetService:
                     device_id=device_id, occurred_at=now,
                 )
                 return output
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, sqlite3.Error):
+            raise ApiError("tablet_fleet_storage_unavailable", 503) from None
+
+    @staticmethod
+    def _profile_request_digest(body):
+        payload = [
+            1,
+            body.channel,
+            body.profileRevision,
+            body.rolloutPercent,
+            [body.settings.fullscreen, body.settings.idleTimeoutSeconds],
+            [[target.deviceId, target.expectedDeviceRevision]
+             for target in body.targets],
+        ]
+        encoded = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode()
+        return hashlib.sha256(encoded).hexdigest()
+
+    def preview_profile_rollout(self, actor, core_id, home_id, value):
+        body = PreviewKioskProfileRollout.model_validate(value)
+        digest = self._profile_request_digest(body)
+        if not hmac.compare_digest(digest, body.requestDigest):
+            raise ApiError("tablet_rollout_replay_changed", 409)
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                self._actor(connection, actor, admin=True)
+                provider = self._release_catalog
+                signer = self._release_signer
+                if provider is None or signer is None:
+                    raise ApiError("tablet_release_unavailable", 503)
+                try:
+                    release = self._release_identity(provider(body.channel), signer)
+                except (ApiError, KeyError, TypeError, ValueError):
+                    raise ApiError("tablet_release_unavailable", 503) from None
+                seal_payload = json.dumps([
+                    self.scope.coreId,
+                    self.scope.homeId,
+                    body.profileRevision,
+                    [body.settings.fullscreen, body.settings.idleTimeoutSeconds],
+                    list(release.values()),
+                ], separators=(",", ":"), allow_nan=False).encode()
+                seal = hmac.new(
+                    self._key, b"larenor-kiosk-profile-v1\0" + seal_payload,
+                    hashlib.sha256,
+                ).hexdigest()
+                output = []
+                for target in body.targets:
+                    row, tablet = self._device(
+                        connection,
+                        target.deviceId,
+                        expected=target.expectedDeviceRevision,
+                    )
+                    if body.profileRevision < max(
+                        tablet.appliedProfileRevision,
+                        tablet.desiredProfileRevision,
+                    ):
+                        raise ApiError("tablet_profile_changed", 409)
+                    differences = []
+                    if tablet.clientVersion != release["versionName"]:
+                        differences.append("applicationVersion")
+                    if tablet.appliedProfileRevision != body.profileRevision:
+                        differences.append("profileRevision")
+                    selected = int(hashlib.sha256(
+                        f"{seal}:{row['id']}".encode("ascii")
+                    ).hexdigest()[:8], 16) % 100 < body.rolloutPercent
+                    if not row["active"]:
+                        state = "revoked"
+                    elif "applicationVersion" in differences:
+                        state = "appUpdateRequired"
+                    elif not differences:
+                        state = "current"
+                    elif selected:
+                        state = "ready"
+                    else:
+                        state = "deferred"
+                    output.append({
+                        "deviceId": row["id"],
+                        "deviceRevision": row["revision"],
+                        "appliedProfileRevision": tablet.appliedProfileRevision,
+                        "desiredProfileRevision": tablet.desiredProfileRevision,
+                        "state": state,
+                        "differences": differences,
+                    })
+                return {
+                    "schemaVersion": 1,
+                    "scope": self.scope.model_dump(),
+                    "requestDigest": digest,
+                    "profileRevision": body.profileRevision,
+                    "rolloutPercent": body.rolloutPercent,
+                    "profileSeal": seal,
+                    "release": release,
+                    "devices": output,
+                }
         except ApiError:
             raise
         except (InvalidTag, ValueError, sqlite3.Error):
