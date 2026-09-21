@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -53,6 +54,7 @@ class Harness {
     bool ha = false,
     Size? size,
     double scale = 1,
+    Locale locale = const Locale('en'),
     WebPanelOptions? options,
     WebPanelDataCoordinator? coordinator,
   }) async {
@@ -83,7 +85,7 @@ class Harness {
           controller: interaction,
           child: CupertinoApp(
             navigatorKey: nav,
-            locale: const Locale('en'),
+            locale: locale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) => MediaQuery(
@@ -139,6 +141,53 @@ void resume(WidgetTester tester) {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('HA frontend toolbar is tablet ready $language $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final h = Harness();
+        try {
+          await h.mount(
+            tester,
+            ha: true,
+            size: Size(width, 900),
+            scale: 2,
+            locale: Locale(language),
+          );
+          for (final entry in [
+            ('ha-frontend-back', h.l10n.commonBack),
+            ('ha-frontend-retry', h.l10n.commonRetry),
+          ]) {
+            final button = find.byKey(ValueKey(entry.$1));
+            expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+            expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
+            expect(
+              tester
+                  .getSemantics(find.bySemanticsLabel(entry.$2))
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
+          }
+          Focus.of(tester.element(find.bySemanticsLabel(h.l10n.commonRetry)))
+              .requestFocus();
+          await tester.pump();
+          final before = h.platform.controllers.length;
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          await tester.pump();
+          expect(h.platform.controllers, hasLength(before + 1));
+          expect(tester.takeException(), isNull);
+          await h.close(tester);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
+
   testWidgets(
     'explicit source origins and zoom preferences reach only the configured panel',
     (tester) async {

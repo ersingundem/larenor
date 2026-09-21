@@ -35,7 +35,6 @@ tests/test_api_boundary.py` passed **125/125** tests. Python compilation,
 `git diff --check`, the 125-task/63-feature execution-queue validator, and the
 repository gitleaks policy also passed.
 
-S07.3 remains **pending** because its declared dependency S07.1 has not merged.
-This branch therefore keeps execution progress at **17/125** and records no
-feature completion. After S07.1 merges, this exact software evidence must be
-rebased and CI must pass before S07.3 can close.
+S07.1 is merged and the integrated software evidence is accepted in
+`docs/s07-2-s07-3-software-closure-2026-09-21.md`. Physical providers and
+receivers remain separate manual gates.

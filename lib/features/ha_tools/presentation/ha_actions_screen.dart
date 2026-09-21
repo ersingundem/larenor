@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../admin/data/models/flow_schema_field.dart';
 import '../../admin/presentation/widgets/dynamic_form_field.dart';
 import '../../dashboard/presentation/entity_multi_picker_screen.dart';
@@ -179,11 +180,11 @@ class _HaActionsScreenState extends HaSessionState<HaActionsScreen> {
                     itemCount: visible.length,
                     itemBuilder: (context, index) {
                       final action = visible[index];
-                      return CupertinoListTile(
+                      return SettingsActionTile(
+                        buttonKey: ValueKey('ha-action-${action.id}'),
                         leading: const Icon(CupertinoIcons.bolt),
                         title: Text(action.name),
-                        subtitle: Text(action.id),
-                        trailing: const CupertinoListTileChevron(),
+                        additionalInfo: Text(action.id),
                         onTap: _opening
                             ? null
                             : haCallback(() => _open(action)),
@@ -380,6 +381,8 @@ class _HaActionScreenState extends HaSessionState<HaActionScreen> {
                   if (widget.entityId == null) ...[
                     HaHint(l10n.haTargetHint),
                     CupertinoButton(
+                      key: const ValueKey('ha-action-pick-entities'),
+                      minimumSize: const Size.fromHeight(48),
                       onPressed: _busy || !available
                           ? null
                           : haCallback(_chooseEntities),
@@ -419,6 +422,8 @@ class _HaActionScreenState extends HaSessionState<HaActionScreen> {
                   ),
                 const SizedBox(height: 16),
                 CupertinoButton.filled(
+                  key: const ValueKey('ha-action-run'),
+                  minimumSize: const Size.fromHeight(48),
                   onPressed: _busy || !available ? null : haCallback(_run),
                   child: _sending
                       ? const CupertinoActivityIndicator()

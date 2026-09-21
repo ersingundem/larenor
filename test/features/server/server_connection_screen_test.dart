@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -209,6 +212,57 @@ Future<void> resume(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('server login is tablet ready $language $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final api = Api()..requireChange = false;
+        final account = ServerAccountController(
+          store: Store(),
+          apiFactory: (_) => api,
+        );
+        try {
+          await mount(
+            tester,
+            account,
+            width: width,
+            scale: 2,
+            language: language,
+          );
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+          await loginFields(tester);
+          await tester.enterText(
+            find.byKey(const ValueKey('server-device-name')),
+            'Tablet',
+          );
+          final action = find.byKey(const ValueKey('server-sign-in'));
+          await tester.ensureVisible(action);
+          await tester.pumpAndSettle();
+          expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.widget<CupertinoButton>(action).minimumSize?.height ?? 0,
+            greaterThanOrEqualTo(48),
+          );
+          final label = find.descendant(
+            of: action,
+            matching: find.byType(Text),
+          );
+          Focus.of(tester.element(label)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(api.logins, 1);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
+
   for (final language in ['en', 'tr']) {
     testWidgets(
       'password success then real context 404 keeps tokens and offers GET-only recovery ($language tablet 2x)',

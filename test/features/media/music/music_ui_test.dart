@@ -147,9 +147,12 @@ class _Harness {
   }
 
   Future<void> library(WidgetTester tester) async {
-    await tester.tap(find.text('Library'));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(MusicCenterScreen)),
+    );
+    await tester.tap(find.text(l10n.musicLibrary));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Choose a Music Assistant connection').first);
+    await tester.tap(find.text(l10n.musicChooseServer).first);
     await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(CupertinoActionSheetAction, 'Home music'),
@@ -236,6 +239,61 @@ void main() {
           expect(find.byType(LocalAudioScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
           semantics.dispose();
+        },
+      );
+    }
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language playback actions stay 48dp and keyboard operable at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            final h = _Harness();
+            await h.mount(tester, size: size, scale: 2, language: language);
+            await h.playback(tester);
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(MusicPlaybackScreen)),
+            );
+            final refresh = find.widgetWithText(
+              CupertinoButton,
+              l10n.commonRefresh,
+            );
+            final target = find.widgetWithText(CupertinoButton, 'Kitchen');
+            for (final action in [refresh, target]) {
+              expect(tester.getRect(action).height, greaterThan(47.9));
+            }
+            expect(
+              tester
+                  .getSemantics(find.bySemanticsLabel(l10n.commonRefresh).first)
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
+            expect(
+              tester
+                  .getSemantics(find.bySemanticsLabel('Kitchen').last)
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
+
+            Focus.of(tester.element(find.text('Kitchen').last)).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pump(const Duration(milliseconds: 400));
+            expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+            expect(find.text(l10n.musicPlayConfirm), findsOneWidget);
+            await tester.tap(
+              find.widgetWithText(CupertinoDialogAction, l10n.commonCancel),
+            );
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
         },
       );
     }

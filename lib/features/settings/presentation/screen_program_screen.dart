@@ -5,9 +5,12 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/screen_program.dart';
 import '../providers/screen_program_provider.dart';
+import 'panes/settings_nav_row.dart';
 
 String _time(int minutes) =>
     '${(minutes ~/ 60).toString().padLeft(2, '0')}:${(minutes % 60).toString().padLeft(2, '0')}';
@@ -42,6 +45,8 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       sessionCurrent(epoch) &&
       (ModalRoute.of(context)?.isCurrent == true ||
           (ownRoute && _ownedRoute?.isCurrent == true));
+  bool _visible(int epoch) =>
+      _current(epoch) && TickerMode.valuesOf(context).enabled;
   bool _same(ScreenProgram original, int epoch) {
     if (!_current(epoch)) return false;
     final reading = ref.read(screenProgramProvider);
@@ -53,9 +58,13 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
   Future<void> _save(
     ScreenProgram next,
     ScreenProgram original,
-    int epoch,
-  ) async {
-    if (_saving || !_same(original, epoch)) return;
+    int epoch, {
+    bool requireVisible = true,
+  }) async {
+    bool authorized() =>
+        _same(original, epoch) &&
+        (!requireVisible || TickerMode.valuesOf(context).enabled);
+    if (_saving || !authorized()) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -63,7 +72,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
     try {
       await ref
           .read(screenProgramProvider.notifier)
-          .save(next, isCurrent: () => _same(original, epoch));
+          .save(next, isCurrent: authorized);
     } catch (_) {
       if (_current(epoch)) {
         setState(
@@ -77,7 +86,12 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   Future<void> _edit(ScreenProgram program, [ScreenProgramRule? rule]) async {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch) || _ownedRoute != null) return;
+    if (_saving ||
+        !_visible(epoch) ||
+        !_same(program, epoch) ||
+        _ownedRoute != null) {
+      return;
+    }
     if (rule == null && program.rules.length >= ScreenProgram.maxRules) return;
     final route = CupertinoPageRoute<ScreenProgramRule>(
       builder: (_) => _ScreenRuleEditor(
@@ -107,12 +121,18 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       ScreenProgram(enabled: program.enabled, rules: rules),
       program,
       epoch,
+      requireVisible: false,
     );
   }
 
   Future<void> _remove(ScreenProgram program, ScreenProgramRule rule) async {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch) || _ownedRoute != null) return;
+    if (_saving ||
+        !_visible(epoch) ||
+        !_same(program, epoch) ||
+        _ownedRoute != null) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     final route = CupertinoDialogRoute<bool>(
       context: context,
@@ -145,6 +165,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       ),
       program,
       epoch,
+      requireVisible: false,
     );
   }
 
@@ -159,7 +180,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
 
   void _move(ScreenProgram program, int index, int offset) {
     final epoch = sessionGeneration;
-    if (_saving || !_same(program, epoch)) return;
+    if (_saving || !_visible(epoch) || !_same(program, epoch)) return;
     final next = index + offset;
     if (next < 0 || next >= program.rules.length) return;
     final rules = List<ScreenProgramRule>.of(program.rules);
@@ -179,90 +200,124 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
         ? null
         : reading.value;
     final epoch = sessionGeneration;
-    final enabled = _current(epoch) && !_saving;
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
-          l10n.screenProgramTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 740),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(l10n.screenProgramHint, style: AppText.body),
-                  const SizedBox(height: 12),
-                  if (reading.isLoading)
-                    const Center(child: CupertinoActivityIndicator())
-                  else if (program == null)
-                    Text(l10n.screenProgramSaveFailed)
-                  else ...[
-                    MergeSemantics(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              l10n.screenProgramEnabled,
-                              style: AppText.headline,
+    final enabled = _visible(epoch) && !_saving;
+    return SettingsPaneScaffold(
+      title: l10n.screenProgramTitle,
+      children: [
+        SettingsSection(
+          header: Semantics(
+            key: const ValueKey('screen-program-heading'),
+            container: true,
+            header: true,
+            child: Text(l10n.screenProgramTitle),
+          ),
+          footer: Text(l10n.screenProgramHint),
+          children: [
+            if (reading.isLoading)
+              _ScreenProgramStatus(
+                key: const ValueKey('screen-program-loading-status'),
+                label: l10n.commonLoading,
+                loading: true,
+              )
+            else if (program == null)
+              _ScreenProgramStatus(
+                key: const ValueKey('screen-program-read-error'),
+                label: l10n.screenProgramSaveFailed,
+              )
+            else ...[
+              if (program.rules.length < ScreenProgram.maxRules)
+                Semantics(
+                  container: true,
+                  child: SettingsActionTile(
+                    buttonKey: const ValueKey('screen-program-add'),
+                    leading: const Icon(CupertinoIcons.add_circled),
+                    title: Text(l10n.screenProgramAdd),
+                    onTap: enabled ? () => _edit(program) : null,
+                  ),
+                ),
+              if (program.rules.isNotEmpty)
+                for (var index = 0; index < program.rules.length; index++)
+                  _ruleCard(program, index, enabled),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.screenProgramEnabled,
+                            style: AppText.headline,
+                          ),
+                        ),
+                        Semantics(
+                          key: const ValueKey('screen-program-enabled'),
+                          label: l10n.screenProgramEnabled,
+                          button: true,
+                          toggled: program.enabled,
+                          enabled: enabled,
+                          container: true,
+                          explicitChildNodes: true,
+                          child: ExcludeSemantics(
+                            child: CupertinoButton(
+                              minimumSize: const Size(60, 48),
+                              padding: EdgeInsets.zero,
+                              onPressed: enabled
+                                  ? () => _save(
+                                      ScreenProgram(
+                                        enabled: !program.enabled,
+                                        rules: program.rules,
+                                      ),
+                                      program,
+                                      epoch,
+                                    )
+                                  : null,
+                              child: IgnorePointer(
+                                child: CupertinoSwitch(
+                                  value: program.enabled,
+                                  onChanged: null,
+                                ),
+                              ),
                             ),
                           ),
-                          CupertinoSwitch(
-                            key: const ValueKey('screen-program-enabled'),
-                            value: program.enabled,
-                            onChanged: enabled
-                                ? (value) => _save(
-                                    ScreenProgram(
-                                      enabled: value,
-                                      rules: program.rules,
-                                    ),
-                                    program,
-                                    epoch,
-                                  )
-                                : null,
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     Text(l10n.screenProgramDefault, style: AppText.footnote),
-                    const SizedBox(height: 16),
-                    if (program.rules.isEmpty) Text(l10n.screenProgramEmpty),
-                    for (var index = 0; index < program.rules.length; index++)
-                      _ruleCard(program, index, enabled),
-                    if (program.rules.length < ScreenProgram.maxRules)
-                      CupertinoButton(
-                        key: const ValueKey('screen-program-add'),
-                        onPressed: enabled ? () => _edit(program) : null,
-                        child: Text(l10n.screenProgramAdd),
-                      ),
                   ],
-                  if (_saving)
-                    const Center(child: CupertinoActivityIndicator()),
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: TextStyle(
-                        color: CupertinoColors.systemRed.resolveFrom(context),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  Text(l10n.screenProgramPriority, style: AppText.footnote),
-                  const SizedBox(height: 12),
-                  Text(l10n.screenProgramLocalTime, style: AppText.footnote),
-                  const SizedBox(height: 12),
-                  Text(l10n.screenProgramLimit, style: AppText.footnote),
-                ],
+                ),
               ),
-            ),
-          ),
+              if (program.rules.isEmpty)
+                _ScreenProgramStatus(
+                  key: const ValueKey('screen-program-empty-status'),
+                  label: l10n.screenProgramEmpty,
+                ),
+            ],
+          ],
         ),
-      ),
+        if (_saving)
+          _ScreenProgramStatus(
+            key: const ValueKey('screen-program-saving-status'),
+            label: l10n.commonLoading,
+            loading: true,
+          ),
+        if (_error != null)
+          _ScreenProgramStatus(
+            key: const ValueKey('screen-program-save-error'),
+            label: _error!,
+            error: true,
+          ),
+        SettingsSection(
+          footer: Text(l10n.screenProgramLimit),
+          children: [
+            CupertinoListTile(
+              title: Text(l10n.screenProgramPriority),
+              subtitle: Text(l10n.screenProgramLocalTime),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -283,6 +338,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
         children: [
           CupertinoButton(
             key: ValueKey('screen-rule-${rule.id}'),
+            minimumSize: const Size(48, 48),
             padding: EdgeInsets.zero,
             onPressed: enabled ? () => _edit(program, rule) : null,
             child: Align(
@@ -309,6 +365,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
             children: [
               CupertinoButton(
                 key: ValueKey('screen-rule-up-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled && index > 0
                     ? () => _move(program, index, -1)
                     : null,
@@ -319,6 +376,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
               ),
               CupertinoButton(
                 key: ValueKey('screen-rule-down-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled && index < program.rules.length - 1
                     ? () => _move(program, index, 1)
                     : null,
@@ -329,6 +387,7 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
               ),
               CupertinoButton(
                 key: ValueKey('screen-rule-delete-${rule.id}'),
+                minimumSize: const Size(48, 48),
                 onPressed: enabled ? () => _remove(program, rule) : null,
                 child: Icon(
                   CupertinoIcons.delete,
@@ -341,6 +400,47 @@ class _ScreenProgramScreenState extends MediaSessionState<ScreenProgramScreen> {
       ),
     );
   }
+}
+
+class _ScreenProgramStatus extends StatelessWidget {
+  const _ScreenProgramStatus({
+    super.key,
+    required this.label,
+    this.loading = false,
+    this.error = false,
+  });
+
+  final String label;
+  final bool loading, error;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: label,
+    excludeSemantics: true,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          if (loading) ...[
+            const CupertinoActivityIndicator(),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              style: error
+                  ? TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    )
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ScreenRuleEditor extends ConsumerStatefulWidget {
@@ -383,7 +483,10 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
   }
 
   bool get _ready =>
-      sessionCurrent(sessionGeneration) && !_expired && widget.sourceCurrent();
+      sessionCurrent(sessionGeneration) &&
+      TickerMode.valuesOf(context).enabled &&
+      !_expired &&
+      widget.sourceCurrent();
   @override
   void dispose() {
     _name.dispose();
@@ -435,6 +538,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
             mainAxisSize: MainAxisSize.min,
             children: [
               CupertinoButton(
+                minimumSize: const Size(48, 48),
                 onPressed: () {
                   if (_ready &&
                       epoch == sessionGeneration &&
@@ -492,12 +596,6 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.screenProgramRule),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          key: const ValueKey('screen-rule-save'),
-          onPressed: ready ? _save : null,
-          child: Text(l10n.commonSave),
-        ),
       ),
       child: SafeArea(
         child: Center(
@@ -508,6 +606,18 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  SettingsSection(
+                    margin: EdgeInsets.zero,
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('screen-rule-save'),
+                        leading: const Icon(CupertinoIcons.check_mark_circled),
+                        title: Text(l10n.commonSave),
+                        onTap: ready ? _save : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   if (!ready) Text(l10n.screenProgramExpired),
                   CupertinoTextField(
                     key: const ValueKey('screen-rule-name'),
@@ -541,6 +651,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                           button: true,
                           child: CupertinoButton(
                             key: ValueKey('screen-rule-day-$day'),
+                            minimumSize: const Size(48, 48),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             color: _days.contains(day)
                                 ? CupertinoColors.activeBlue
@@ -582,6 +693,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                   if (!allDay) ...[
                     CupertinoButton(
                       key: const ValueKey('screen-rule-start'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready ? () => _pickTime(true) : null,
                       child: Text(
                         '${l10n.settingsNightStarts}: ${_time(_start)}',
@@ -589,6 +701,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                     ),
                     CupertinoButton(
                       key: const ValueKey('screen-rule-end'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready ? () => _pickTime(false) : null,
                       child: Text('${l10n.settingsNightEnds}: ${_time(_end)}'),
                     ),
@@ -598,6 +711,7 @@ class _ScreenRuleEditorState extends MediaSessionState<_ScreenRuleEditor> {
                   for (final mode in ScreenAwakeMode.values)
                     CupertinoButton(
                       key: ValueKey('screen-rule-mode-${mode.name}'),
+                      minimumSize: const Size(48, 48),
                       onPressed: ready
                           ? () => setState(() => _awakeMode = mode)
                           : null,

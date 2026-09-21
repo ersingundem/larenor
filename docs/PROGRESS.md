@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 21 Eylül 2026 — `4e6236e8` main, Larenor Core ile altı yönetilen medya/müzik bileşenini tek canonical pakette birleştirdi. PR #182 üzerinde 41 zorunlu kapı ile unified stack ve altı bileşenin amd64/arm64 gerçek Docker kabulü geçti; S07.1 kapandı ve kuyruk 18/125 oldu. Fiziksel ev ve sağlayıcı kabulü ayrı manuel işlerdir.**
+**Son güncelleme: 21 Eylül 2026 — S07.2 istekten oynatılabilir medyaya otomatik akış ve S07.3 tek Music Assistant sağlayıcı/kuyruk/alıcı API'si, birleşmiş S07.1 paketi üzerinde test, inceleme ve CI kanıtıyla kapandı. Kuyruk 20/125 oldu; fiziksel ev, sağlayıcı ve alıcı kabulü ayrı manuel işlerdir.**
 
 ```text
-Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  18/125 iş (%14,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  20/125 iş (%16,0; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,14 +17,31 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış kabul kaynağı: PR `b0f778dc` / main `4e6236e8`.**
-PR kaynağında Android analiz/test, API35 E2E, dört Server shardı, unified stack
-ve altı medya/müzik bileşeninin amd64/arm64 gerçek runtime kapıları geçti.
+**Son tam doğrulanmış birleşik kaynak: main `bf470d95`.** S07.2 ve S07.3'ü
+oluşturan PR #230 ve #231 sırasıyla 29 ve 31 zorunlu kapıyı hatasız tamamladı;
+S07.1 paket kabulü ayrıca amd64/arm64 gerçek runtime kapılarından geçti.
 [Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35538624142) ·
 [Security](https://github.com/ersingundem/larenor/actions/runs/35538624021) ·
 [iki mimarili unified stack](https://github.com/ersingundem/larenor/actions/runs/35538623984) ·
 [PR #182 kapıları](https://github.com/ersingundem/larenor/pull/182/checks).
 Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
+
+### S07.2 otomatik medya akışı ve S07.3 tek müzik API'si — kabul edildi
+
+Seerr isteği, qBittorrent indirmesi, Sonarr/Radarr içe aktarımı ve Jellyfin
+oynatılabilir sonucu tek revision-bound akışta birleşti. Eksik sezon, kısmi
+içe aktarma, hardlink/canonical yol, kesinti, idempotent retry ve belirsiz etki
+durumları açık ve fail-closed kaldı. Music Assistant tarafında provider setup,
+katalog, kuyruk, HomePod/AirPlay/Cast alıcı türleri ve oynatma komutları tek
+Larenor Core otoritesinden sunuluyor; ayrı MA adresi veya tokenı istenmiyor.
+Şifreli özel anahtar yenilemesi restart, kayıp yanıt, replay, eşzamanlı işlem
+ve yetki driftinde kapalı davranıyor.
+
+Birleşik main ağacında 87 odaklı Server/API testi geçti. PR #230 ve #231 tam
+zorunlu kapıları, S07.1 de iki mimarili paket yaşam döngüsünü geçti. Bu iki iş
+ile kuyruk **20/125 (%16,0)** oldu; gerçek abonelik girişleri, HomePod/Cast
+eşleştirme ve fiziksel oynatma MANUAL kapılarında kalır. [Üç kabul ölçütü ve
+kanıt](s07-2-s07-3-software-closure-2026-09-21.md).
 
 ### S07.1 tek Larenor medya/müzik paketi — kabul edildi
 

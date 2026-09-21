@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_notification_channel_name">Larenor uyarıları</string>
+    <string name="local_notification_channel_description">Larenor Core tarafından iletilen özel uyarılar</string>
+    <string name="local_notification_private_preview">Özel bildirim. Görmek için Larenor’un kilidini açın.</string>
+</resources>

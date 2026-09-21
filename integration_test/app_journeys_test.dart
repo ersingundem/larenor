@@ -449,7 +449,10 @@ void main() {
         expect(
           tester
               .widget<CupertinoSwitch>(
-                find.byKey(const ValueKey('screen-program-enabled')),
+                find.descendant(
+                  of: find.byKey(const ValueKey('screen-program-enabled')),
+                  matching: find.byType(CupertinoSwitch),
+                ),
               )
               .value,
           isTrue,
@@ -785,6 +788,16 @@ void main() {
         );
         await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
         await waitFor(tester, room);
+        // The notification inbox is a real Core-home destination. Its entry
+        // makes the second lazy resource row start below the viewport, so
+        // reveal that row through the production scroll surface before
+        // asserting the member projection.
+        await tester.scrollUntilVisible(
+          lamp,
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         await waitFor(tester, lamp);
         expect(core.user['role'], 'member');
         expect(find.byKey(ValueKey('home-resource-${'2' * 32}')), findsNothing);
@@ -815,6 +828,12 @@ void main() {
         await remount('İkinci ev · Salon');
         expect(find.text('Salon'), findsNothing);
         expect(find.text('Okuma lambası'), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text('İkinci ev · Okuma lambası'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         expect(find.text('İkinci ev · Okuma lambası'), findsOneWidget);
         expect(resources.requestedScopes.last, ('c' * 32, 'd' * 32));
         expect(resources.reads, 4);
@@ -826,6 +845,12 @@ void main() {
         await remount('Salon');
         expect(find.text('İkinci ev · Salon'), findsNothing);
         expect(find.text('İkinci ev · Okuma lambası'), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text('Okuma lambası'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 5,
+        );
         expect(find.text('Okuma lambası'), findsOneWidget);
         expect(resources.requestedScopes.last, ('a' * 32, 'b' * 32));
         expect(resources.reads, 5);
