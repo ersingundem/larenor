@@ -24,6 +24,7 @@ import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
 import '../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import '../../proxmox/presentation/proxmox_nodes_screen.dart';
+import '../../sound_events/presentation/sound_event_route.dart';
 import '../../settings/data/app_service.dart';
 import '../../settings/providers/enabled_services_providers.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
@@ -88,6 +89,34 @@ class SystemScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Text(l10n.backupPrivacyReviewRequired),
                 ),
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Text(
+              Localizations.localeOf(context).languageCode == 'tr'
+                  ? 'Ev olayları'
+                  : 'Home events',
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('system-sound-events'),
+                leading: const IconBadge(
+                  icon: CupertinoIcons.waveform,
+                  color: CupertinoColors.systemOrange,
+                ),
+                title: Text(
+                  Localizations.localeOf(context).languageCode == 'tr'
+                      ? 'Ses olayları'
+                      : 'Sound events',
+                ),
+                onTap: () => Navigator.of(context).push(
+                  CupertinoPageRoute<void>(
+                    builder: (_) => SoundEventRoute(gateCurrent: () => true),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

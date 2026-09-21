@@ -155,3 +155,61 @@ class TabletCommandPage(FrozenModel):
         if sequences != sorted(set(sequences)):
             raise ValueError("invalid_command_order")
         return self
+
+
+class KioskProfileSettings(FrozenModel):
+    fullscreen: bool
+    idleTimeoutSeconds: int = Field(ge=30, le=86_400)
+
+
+class KioskProfileTarget(FrozenModel):
+    deviceId: Identity
+    expectedDeviceRevision: Revision
+
+
+class PreviewKioskProfileRollout(Versioned):
+    requestDigest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    channel: Literal["stable", "beta"]
+    profileRevision: Revision
+    rolloutPercent: int = Field(ge=1, le=100)
+    settings: KioskProfileSettings
+    targets: list[KioskProfileTarget] = Field(min_length=1, max_length=256)
+
+    @model_validator(mode="after")
+    def unique_targets(self):
+        ids = [target.deviceId for target in self.targets]
+        if ids != sorted(set(ids)):
+            raise ValueError("invalid_target_order")
+        return self
+
+
+class KioskReleaseIdentity(FrozenModel):
+    applicationId: Literal["com.ersingundem.larenor"]
+    certificateSha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    versionCode: int = Field(ge=1, le=2_147_483_647)
+    versionName: str = Field(min_length=1, max_length=80)
+    apkSha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class KioskRolloutDevice(FrozenModel):
+    deviceId: Identity
+    deviceRevision: Revision
+    appliedProfileRevision: Revision
+    desiredProfileRevision: Revision
+    state: Literal[
+        "current", "ready", "deferred", "appUpdateRequired", "revoked"
+    ]
+    differences: list[Literal["applicationVersion", "profileRevision"]] = Field(
+        max_length=2
+    )
+
+
+class KioskProfileRolloutPreview(FrozenModel):
+    schemaVersion: Literal[1]
+    scope: HomeScope
+    requestDigest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    profileRevision: Revision
+    rolloutPercent: int = Field(ge=1, le=100)
+    profileSeal: str = Field(pattern=r"^[0-9a-f]{64}$")
+    release: KioskReleaseIdentity
+    devices: list[KioskRolloutDevice] = Field(min_length=1, max_length=256)

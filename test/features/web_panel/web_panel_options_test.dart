@@ -10,6 +10,8 @@ void main() {
       additionalOrigins: ['https://login.invalid:8443'],
       zoomEnabled: false,
       textZoom: 150,
+      allowUploads: true,
+      allowDownloads: true,
     );
     final tile = TileConfig(
       id: 'web',
@@ -52,6 +54,8 @@ void main() {
     expect(tile.webPanel, null);
     expect(WebPanelOptions.fromJson({}).zoomEnabled, true);
     expect(WebPanelOptions.fromJson({}).textZoom, 100);
+    expect(WebPanelOptions.fromJson({}).allowUploads, false);
+    expect(WebPanelOptions.fromJson({}).allowDownloads, false);
   });
   test('grant rejects paths OAuth queries wildcard credentials and ambiguous encodings', () {
     for (final value in [
@@ -94,6 +98,8 @@ void main() {
         {'textZoom': 201},
         {'textZoom': 100.5},
         {'zoomEnabled': 1},
+        {'allowUploads': 1},
+        {'allowDownloads': 'yes'},
         {'unknown': 'field'},
       ]) {
         expect(
