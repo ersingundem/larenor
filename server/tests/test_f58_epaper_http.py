@@ -240,3 +240,34 @@ def test_session_and_revision_drift_fail_closed_without_replay(server):
     )
     assert accepted.status_code == 200
     assert accepted.json()["status"] == "uncertain"
+
+
+def test_remapped_device_invalidates_old_preview_even_with_same_source_revisions(server):
+    _app, client, _settings, clock = server
+    pair = ready(server)
+    context, current = _authority(server, pair)
+    expected = _authority_body(current)
+    admin_root = f"/api/v1/admin/epaper/{context.coreId}/{context.homeId}"
+    first_mapping = _mapping(context, expected, int(clock.now * 1000))
+    assert client.put(
+        f"{admin_root}/devices/{DEVICE}", headers=auth(pair), json=first_mapping,
+    ).status_code == 200
+    preview = client.post(
+        f"{admin_root}/devices/{DEVICE}/previews",
+        headers=auth(pair),
+        json={**expected, "expectedDeviceRevision": "7", "action": "refresh"},
+    )
+    assert preview.status_code == 201
+
+    remapped = _mapping(context, expected, int(clock.now * 1000))
+    remapped["expectedMappingRevision"] = 1
+    remapped["data"]["cards"][0]["value"] = "23.0"
+    assert client.put(
+        f"{admin_root}/devices/{DEVICE}", headers=auth(pair), json=remapped,
+    ).status_code == 200
+    stale = client.post(
+        f"{admin_root}/previews/{preview.json()['requestId']}/confirm",
+        headers=auth(pair), json=expected,
+    )
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "revision_conflict"
