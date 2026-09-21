@@ -11,6 +11,7 @@ import '../../camera_visual_sensors/presentation/camera_visual_sensor_route.dart
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
+import '../../room_comfort/presentation/room_comfort_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
@@ -28,6 +29,7 @@ enum SettingsCategory {
   server,
   tabletFleet,
   remoteAccess,
+  roomComfort,
   display,
   security,
   homeAssistant,
@@ -51,6 +53,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.backupGateCurrent,
     this.remoteGateCurrent,
     this.meshGateCurrent,
+    this.comfortGateCurrent,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
   });
@@ -60,6 +63,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
+  final bool Function()? comfortGateCurrent;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
 
@@ -151,6 +155,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      comfortGateCurrent: widget.comfortGateCurrent,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
@@ -176,6 +181,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            comfortGateCurrent: widget.comfortGateCurrent,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
@@ -217,6 +223,7 @@ Widget paneFor(
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
+  bool Function()? comfortGateCurrent,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
 }) {
@@ -227,6 +234,8 @@ Widget paneFor(
       return RemoteProfilesScreen(
         gateCurrent: remoteGateCurrent ?? () => false,
       );
+    case SettingsCategory.roomComfort:
+      return RoomComfortRoute(gateCurrent: comfortGateCurrent ?? () => false);
     case SettingsCategory.server:
       return ServerConnectionScreen(adminGateCurrent: tabletFleetGateCurrent);
     case SettingsCategory.tabletFleet:
@@ -300,6 +309,14 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.desktopcomputer,
         CupertinoColors.systemTeal,
         l10n.remoteAccessTitle,
+      ),
+      (
+        SettingsCategory.roomComfort,
+        CupertinoIcons.thermometer,
+        CupertinoColors.systemGreen,
+        Localizations.localeOf(context).languageCode == 'tr'
+            ? 'Oda konforu'
+            : 'Room comfort',
       ),
       (
         SettingsCategory.display,
