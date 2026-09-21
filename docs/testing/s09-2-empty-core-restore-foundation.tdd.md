@@ -10,7 +10,7 @@ then journals publication of the two files. Normal Core startup completes an
 interrupted journal before it can initialize or accept traffic.
 
 The package rejects a wrong passphrase, truncation, authenticated tampering,
-Core/schema/component incompatibility, existing targets, malformed recovery
+Core/schema/component incompatibility, existing or non-empty targets, malformed recovery
 journals and mismatched staged or published digests. Errors use static codes;
 the passphrase and decrypted configuration never enter output or the journal.
 

@@ -147,6 +147,14 @@ def test_restore_refuses_initialized_or_partially_owned_target(server, tmp_path)
     with pytest.raises(StartupError, match="restore_target_not_empty"):
         restore_empty(target, bundle, PASSPHRASE)
 
+    unrelated = _target(tmp_path / "unrelated", server[3])
+    unrelated.data_dir.mkdir(parents=True, mode=0o700)
+    unrelated.data_dir.chmod(0o700)
+    (unrelated.data_dir / "unknown-state").write_text("do not replace")
+    with pytest.raises(StartupError, match="restore_target_not_empty"):
+        restore_empty(unrelated, bundle, PASSPHRASE)
+    assert (unrelated.data_dir / "unknown-state").read_text() == "do not replace"
+
 
 def test_cli_reads_private_files_and_never_prints_passphrase(
     server, tmp_path, monkeypatch, capsys

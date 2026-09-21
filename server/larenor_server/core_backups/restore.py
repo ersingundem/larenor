@@ -164,7 +164,16 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
         if _read_journal(settings) is not None:
             raise StartupError("restore_already_in_progress")
         marker = settings.data_dir / ".initialized"
-        if settings.database_file.exists() or settings.key_file.exists() or marker.exists():
+        unexpected = [
+            entry for entry in settings.data_dir.iterdir()
+            if entry.name != lock_path.name
+        ]
+        if (
+            unexpected
+            or settings.database_file.exists()
+            or settings.key_file.exists()
+            or marker.exists()
+        ):
             raise StartupError("restore_target_not_empty")
 
         capture = open_backup_bundle(bundle, passphrase)
