@@ -63,8 +63,10 @@ from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .tablet_fleet.api import router as tablet_fleet_router
+from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .resource_reservations.api import router as resource_reservations_router
+from .sound_events.api import router as sound_events_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -280,8 +282,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
+    app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(resource_reservations_router, prefix="/api/v1")
+    app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")

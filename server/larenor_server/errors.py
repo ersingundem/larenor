@@ -20,6 +20,7 @@ MESSAGES = {
     'reservation_export_limit_reached': 'The reservation export is too large.',
     'reservation_already_cancelled': 'This reservation is already cancelled.',
     'audit_tampered': 'The reservation audit could not be verified.',
+    'sound_event_integrity_failed': 'The sound event history could not be verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
