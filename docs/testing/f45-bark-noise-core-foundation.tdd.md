@@ -12,4 +12,4 @@ This independent slice defines the privacy and authority boundary between a loca
 
 - RED: `cd server && uv run pytest -q tests/test_f45_bark_noise_events.py` failed during collection because the sound-event module did not exist.
 - GREEN: the same focused pytest target passes all three acceptance tests, including parameterized revision drift, retention expiry, hysteresis, deduplication, provider degradation, receipt mismatch and audit tampering.
-- Queue progress remains **18/125 (14.4%)** and selected-feature progress remains **0/63 (0.0%)**. F45 stays open until a packaged local classifier, persistent Core repository, automation UI, Android notification flow and physical-device evidence are verified.
+- Queue progress remains **21/125 (16.8%)** and selected-feature progress remains **0/63 (0.0%)**. F45 stays open until a packaged local classifier, persistent Core repository, automation UI, Android notification flow and physical-device evidence are verified.
