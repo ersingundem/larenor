@@ -1,7 +1,7 @@
 # B5.2 personal profile Client/Core sync acceptance
 
 Status: implementation complete on the integration branch; program progress
-stays **18/125** and feature progress stays **0/63** because this software
+stays **20/125** and feature progress stays **0/63** because this software
 slice does not close the physical remote-session and release gates.
 
 ## Acceptance matrix
@@ -22,3 +22,8 @@ flutter test test/features/remote_access/personal_session_boundary_test.dart tes
 flutter analyze lib/features/remote_access lib/features/server/data/larenor_server_api.dart test/features/remote_access/core_personal_profiles_test.dart test/features/remote_access/core_personal_profiles_tablet_test.dart
 python -m pytest -q server/tests/test_personal_profiles.py
 ```
+
+After rebasing onto the merged notification runtime and direct-connect tablet
+changes, the combined five-file Flutter gate passed **38/38** tests and the
+scoped analyzer reported no issues. EN/TR ARB files were regenerated and
+validated as JSON; the queue, security and commit-progress policies also pass.
