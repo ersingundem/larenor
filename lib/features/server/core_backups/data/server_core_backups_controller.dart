@@ -51,6 +51,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     final epoch = _generation, accountEpoch = account.generation;
     busy = true;
     failure = null;
+    plan = null;
     _emit();
     try {
       await account.withSession((api, session) async {

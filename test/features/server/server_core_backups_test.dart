@@ -146,6 +146,11 @@ void main() {
         'Bearer synthetic_admin_access_12345',
       );
 
+      fixture.response = {...readyPlan(), 'status': 'invalid'};
+      await controller.load(current: () => true);
+      expect(controller.plan, isNull);
+      expect(controller.failure, 'invalid_response');
+
       fixture.pending = Completer<http.Response>();
       final pending = controller.load(current: () => true);
       controller.invalidate();
