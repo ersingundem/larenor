@@ -75,6 +75,7 @@ Map<String, Object?> homeDocumentPageFixture({
   int documentRevision = 1,
   String? confirmedDate,
   bool empty = false,
+  bool hasMore = false,
   String? accountId,
   String? familyId,
 }) => {
@@ -88,7 +89,7 @@ Map<String, Object?> homeDocumentPageFixture({
             confirmedDate: confirmedDate,
           ),
         ],
-  'hasMore': false,
+  'hasMore': hasMore,
 };
 
 Map<String, Object?> reminderPageFixture({
@@ -119,13 +120,32 @@ HomeDocumentPage page({
   int documentRevision = 1,
   String? confirmedDate,
   bool empty = false,
+  bool hasMore = false,
 }) => HomeDocumentPage.fromJson(
   homeDocumentPageFixture(
     revision: revision,
     documentRevision: documentRevision,
     confirmedDate: confirmedDate,
     empty: empty,
+    hasMore: hasMore,
   ),
+  expectedContext: context(),
+  expectedAccountId: account,
+);
+
+HomeDocumentReadback readback({
+  int revision = 1,
+  int documentRevision = 1,
+  String? confirmedDate,
+}) => HomeDocumentReadback.fromJson(
+  {
+    'schemaVersion': 1,
+    'authority': authority(revision),
+    'document': documentJson(
+      revision: documentRevision,
+      confirmedDate: confirmedDate,
+    ),
+  },
   expectedContext: context(),
   expectedAccountId: account,
 );

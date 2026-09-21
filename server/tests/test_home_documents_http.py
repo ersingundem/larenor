@@ -67,6 +67,16 @@ def test_http_registration_and_encrypted_state_survive_core_restart(server):
     assert listed.status_code == 200
     assert [row["ref"]["id"] for row in listed.json()["items"]] == ["b" * 32]
 
+    exact = client.get(f"{root}/documents/{'b' * 32}", headers=auth(admin))
+    assert exact.status_code == 200
+    assert exact.json()["document"] == created.json()["document"]
+    assert exact.json()["authority"] == created.json()["authority"]
+    assert client.get(f"{root}/documents/{'b' * 32}").status_code == 401
+    assert (
+        client.get(f"{root}/documents/{'c' * 32}", headers=auth(admin)).status_code
+        == 404
+    )
+
     with TestClient(create_app(settings)) as restarted:
         durable = restarted.get(
             f"{root}/documents", headers=auth(admin), params={"query": "", "limit": 50}

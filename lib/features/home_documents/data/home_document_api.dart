@@ -52,6 +52,23 @@ final class HomeDocumentApi implements HomeDocumentGateway {
   );
 
   @override
+  Future<HomeDocumentReadback> readDocument(String documentId) =>
+      _guard(() async {
+        if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(documentId)) {
+          throw const LarenorServerException('invalid_request');
+        }
+        return HomeDocumentReadback.fromJson(
+          await _api.request(
+            'GET',
+            '$_root/documents/$documentId',
+            token: _token,
+          ),
+          expectedContext: _context,
+          expectedAccountId: _accountId,
+        );
+      });
+
+  @override
   Future<HomeWarrantyReminderPage> reminders(String today) => _guard(
     () async => HomeWarrantyReminderPage.fromJson(
       await _api.request(
@@ -307,6 +324,10 @@ final class HomeDocumentAccountGateway implements HomeDocumentGateway {
   @override
   Future<HomeDocumentPage> search(String query) async =>
       (await _authorized()).search(query);
+
+  @override
+  Future<HomeDocumentReadback> readDocument(String documentId) async =>
+      (await _authorized()).readDocument(documentId);
 
   @override
   Future<HomeWarrantyReminderPage> reminders(String today) async =>

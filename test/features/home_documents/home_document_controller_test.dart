@@ -9,9 +9,11 @@ import 'home_document_fixture.dart';
 final class _Gateway implements HomeDocumentGateway {
   final searches = <Future<HomeDocumentPage>>[];
   final due = <Future<HomeWarrantyReminderPage>>[];
+  final readbacks = <Future<HomeDocumentReadback>>[];
   Future<HomeDocumentUploadEvidence?>? uploadResult;
   HomeDocumentCommandResult? createResult, confirmResult;
   int searchIndex = 0,
+      readbackIndex = 0,
       dueIndex = 0,
       uploadCalls = 0,
       createCalls = 0,
@@ -20,6 +22,12 @@ final class _Gateway implements HomeDocumentGateway {
 
   @override
   Future<HomeDocumentPage> search(String query) => searches[searchIndex++];
+  @override
+  Future<HomeDocumentReadback> readDocument(String documentId) {
+    expect(documentId, document);
+    return readbacks[readbackIndex++];
+  }
+
   @override
   Future<HomeWarrantyReminderPage> reminders(String today) => due[dueIndex++];
   @override
@@ -87,6 +95,15 @@ void main() {
           Future.value(reminders(revision: 0)),
           Future.value(reminders(revision: 2, confirmedDate: '2028-06-01')),
         ])
+        ..readbacks.add(
+          Future.value(
+            readback(
+              revision: 2,
+              documentRevision: 2,
+              confirmedDate: '2028-06-01',
+            ),
+          ),
+        )
         ..uploadResult = Future.value(upload())
         ..createResult = result(revision: 1)
         ..confirmResult = result(
@@ -127,6 +144,69 @@ void main() {
     expect(gateway.uploadCalls, 0);
     expect(controller.canUpload, isFalse);
     expect(controller.page?.items.length, 1);
+  });
+
+  test(
+    'verified write succeeds when new document is outside first 50 rows',
+    () async {
+      final gateway = _Gateway()
+        ..searches.addAll([
+          Future.value(page(empty: true, revision: 0)),
+          Future.value(page(empty: true, hasMore: true, revision: 1)),
+        ])
+        ..readbacks.add(Future.value(readback()))
+        ..due.addAll([
+          Future.value(reminders(revision: 0)),
+          Future.value(reminders(revision: 1)),
+        ])
+        ..uploadResult = Future.value(upload())
+        ..createResult = result();
+      final controller = _controller(gateway);
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.stageUpload(blobId);
+      await controller.publish(
+        title: 'Buzdolabı faturası',
+        kind: HomeDocumentKind.invoice,
+        inventoryItemId: inventory,
+        readerIds: ['a' * 32],
+        confirmWarranty: false,
+        warrantyDate: null,
+      );
+      expect(controller.failure, isNull);
+      expect(controller.page!.hasMore, isTrue);
+      expect(controller.page!.items, isEmpty);
+      expect(controller.recentlyPublished?.id, document);
+    },
+  );
+
+  test('late exact readback cannot publish after route retirement', () async {
+    final delayed = Completer<HomeDocumentReadback>();
+    final gateway = _Gateway()
+      ..searches.add(Future.value(page(empty: true, revision: 0)))
+      ..readbacks.add(delayed.future)
+      ..due.add(Future.value(reminders(revision: 0)))
+      ..uploadResult = Future.value(upload())
+      ..createResult = result();
+    final controller = _controller(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    await controller.stageUpload(blobId);
+    final pending = controller.publish(
+      title: 'Buzdolabı faturası',
+      kind: HomeDocumentKind.invoice,
+      inventoryItemId: inventory,
+      readerIds: ['a' * 32],
+      confirmWarranty: false,
+      warrantyDate: null,
+    );
+    await Future<void>.delayed(Duration.zero);
+    controller.setActive(false);
+    delayed.complete(readback());
+    await pending;
+    expect(controller.page, isNull);
+    expect(controller.recentlyPublished, isNull);
+    expect(controller.failure, HomeDocumentFailure.stale);
   });
 
   test('route and lifecycle authority reject late private results', () async {

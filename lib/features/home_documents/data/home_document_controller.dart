@@ -5,6 +5,7 @@ import '../domain/home_document_models.dart';
 
 abstract interface class HomeDocumentGateway {
   Future<HomeDocumentPage> search(String query);
+  Future<HomeDocumentReadback> readDocument(String documentId);
   Future<HomeWarrantyReminderPage> reminders(String today);
   Future<HomeDocumentUploadEvidence?> pickAndUpload(
     String resourceId,
@@ -55,6 +56,7 @@ final class HomeDocumentController extends ChangeNotifier {
   bool busy = false;
   HomeDocumentFailure? failure;
   HomeDocumentPage? page;
+  HomeDocument? recentlyPublished;
   HomeWarrantyReminderPage? reminderPage;
   HomeDocumentUploadEvidence? upload;
 
@@ -72,6 +74,7 @@ final class HomeDocumentController extends ChangeNotifier {
   void _clear(HomeDocumentFailure next) {
     busy = false;
     page = null;
+    recentlyPublished = null;
     reminderPage = null;
     upload = null;
     _family = null;
@@ -144,6 +147,7 @@ final class HomeDocumentController extends ChangeNotifier {
         throw const LarenorServerException('invalid_response');
       }
       page = next;
+      recentlyPublished = null;
       reminderPage = reminders;
       upload = null;
     } catch (error) {
@@ -250,27 +254,39 @@ final class HomeDocumentController extends ChangeNotifier {
           throw const LarenorServerException('invalid_response');
         }
       }
+      final exact = await gateway.readDocument(result.document.id);
       final readback = await gateway.search('');
       final reminders = await gateway.reminders(_date());
       if (!_current() || operation != _epoch) return _stale(operation);
-      final match = readback.items
-          .where((item) => item.id == result.document.id)
-          .toList();
-      if (!_authority(readback.authority) ||
+      final matched = exact.document;
+      if (!_authority(exact.authority) ||
+          !_authority(readback.authority) ||
           !_authority(reminders.authority) ||
+          !exact.authority.sameSession(result.authority) ||
           !readback.authority.sameSession(result.authority) ||
           !reminders.authority.sameSession(result.authority) ||
+          exact.authority.libraryRevision != result.authority.libraryRevision ||
           readback.authority.libraryRevision !=
               result.authority.libraryRevision ||
           reminders.authority.libraryRevision !=
               result.authority.libraryRevision ||
-          match.length != 1 ||
-          match.single.revision != result.document.revision ||
-          match.single.warranty.confirmedDate !=
+          matched.id != result.document.id ||
+          matched.revision != result.document.revision ||
+          matched.title != result.document.title ||
+          matched.kind != result.document.kind ||
+          matched.inventoryItemId != result.document.inventoryItemId ||
+          matched.blob.resourceId != result.document.blob.resourceId ||
+          matched.blob.serviceRevision !=
+              result.document.blob.serviceRevision ||
+          matched.blob.sha256 != result.document.blob.sha256 ||
+          matched.blob.contentLength != result.document.blob.contentLength ||
+          matched.blob.contentType != result.document.blob.contentType ||
+          matched.warranty.confirmedDate !=
               result.document.warranty.confirmedDate) {
         throw const LarenorServerException('invalid_response');
       }
       page = readback;
+      recentlyPublished = matched;
       reminderPage = reminders;
       upload = null;
     } catch (error) {

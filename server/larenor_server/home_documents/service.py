@@ -18,6 +18,7 @@ from .models import (
     DocumentBlobRef,
     DocumentCommandResult,
     DocumentPage,
+    DocumentReadback,
     HomeDocument,
     HomeDocumentRef,
     WarrantyReminder,
@@ -358,6 +359,18 @@ class HomeDocumentLibrary:
             actor.role == "admin"
             or actor.accountId == record.created_by
             or actor.accountId in record.readers
+        )
+
+    @_synchronized
+    def get(self, actor, document_id):
+        actor = DocumentActor.model_validate(actor)
+        record = self._documents.get(document_id)
+        if record is None or not self._visible(actor, record):
+            raise ApiError("not_found", 404)
+        return DocumentReadback(
+            schemaVersion=1,
+            authority=self._authority(actor, projected=True),
+            document=record.document,
         )
 
     @_synchronized

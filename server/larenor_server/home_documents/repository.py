@@ -226,6 +226,13 @@ class HomeDocumentRepository:
             self._sync()
             return self._library.search(self._actor(principal), query, limit=limit)
 
+    def get(self, principal, core_id, home_id, document_id):
+        self._scope(core_id, home_id)
+        self.auth.rate_limit([("home_document_read", principal.id, 120)])
+        with self._lock:
+            self._sync()
+            return self._library.get(self._actor(principal), document_id)
+
     def reminders(self, principal, core_id, home_id, today, *, limit):
         self._scope(core_id, home_id)
         self.auth.rate_limit([("home_document_read", principal.id, 120)])

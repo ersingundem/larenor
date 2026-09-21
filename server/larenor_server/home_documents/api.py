@@ -12,6 +12,7 @@ from .models import (
     CreateHomeDocumentCommand,
     DocumentCommandResult,
     DocumentPage,
+    DocumentReadback,
     WarrantyReminderPage,
 )
 
@@ -37,6 +38,17 @@ def search_documents(
     limit: int = Query(default=50, ge=1, le=50),
 ):
     return core.home_documents.search(actor, core_id, home_id, query, limit=limit)
+
+
+@router.get(ROOT + "/documents/{document_id}", response_model=DocumentReadback)
+def read_document(
+    core_id: Identity,
+    home_id: Identity,
+    document_id: Identity,
+    actor: Ready,
+    core: Core,
+):
+    return core.home_documents.get(actor, core_id, home_id, document_id)
 
 
 @router.get(ROOT + "/reminders", response_model=WarrantyReminderPage)

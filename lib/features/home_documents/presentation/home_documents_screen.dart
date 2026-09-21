@@ -362,6 +362,7 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
 
   Widget _library(_Copy copy) {
     final items = widget.controller.page?.items ?? const <HomeDocument>[];
+    final recent = widget.controller.recentlyPublished;
     final reminders =
         widget.controller.reminderPage?.items ?? const <HomeWarrantyReminder>[];
     return Column(
@@ -394,6 +395,11 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
                 ],
               ),
               const SizedBox(height: 8),
+              if (recent != null && !items.any((item) => item.id == recent.id))
+                Semantics(
+                  liveRegion: true,
+                  child: _Notice('${copy.saved}: ${recent.title}'),
+                ),
               if (items.isEmpty)
                 Text(copy.empty)
               else
@@ -584,6 +590,7 @@ class _Copy {
   String get privateReaders =>
       tr ? 'Özel belge okuyucuları' : 'Private document readers';
   String get publish => tr ? 'Belgeyi kaydet' : 'Save document';
+  String get saved => tr ? 'Kaydedildi' : 'Saved';
   String get library => tr ? 'Yetkili belgeler' : 'Authorized documents';
   String get refresh => tr ? 'Belgeleri yenile' : 'Refresh documents';
   String get empty => tr ? 'Görülebilir belge yok.' : 'No visible documents.';

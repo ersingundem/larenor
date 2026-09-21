@@ -46,3 +46,14 @@ Validated commands:
 F35 remains at the current main counters, **22/125** and **0/63**. Physical
 Huawei/DeX document-provider, real OCR provider and printed warranty workflow
 are manual or dependent acceptance gates; this slice does not claim them.
+
+## Pagination readback review
+
+The original publish readback searched only the first 50 alphabetic document
+rows. A successful write outside that page was falsely shown as an invalid
+response. The Client now obtains an authenticated exact-ID readback, verifies
+its session/revision/document evidence, then refreshes the bounded list and
+reminders. When the new item is outside the first page, a live EN/TR saved
+status names the verified document. A member without read access receives 404;
+late route retirement discards the exact readback. The new regression covers
+the 50-row boundary without changing the queue counters.

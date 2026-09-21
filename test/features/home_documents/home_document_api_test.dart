@@ -58,6 +58,16 @@ void main() {
           'replayed': false,
         },
       ),
+      (
+        method: 'GET',
+        path: '/api/v1/home-documents/$core/$home/documents/$document',
+        body: null,
+        response: {
+          'schemaVersion': 1,
+          'authority': authority(2),
+          'document': documentJson(revision: 2, confirmedDate: '2028-06-01'),
+        },
+      ),
     ];
     var index = 0;
     final seen = <({String method, String path, Object? body})>[];
@@ -104,7 +114,10 @@ void main() {
       confirmedDate: '2028-06-01',
     );
     expect(confirmed.document.warranty.correctedFromOcr, isTrue);
-    expect(index, 4);
+    final exact = await api.readDocument(document);
+    expect(exact.document.id, document);
+    expect(exact.authority.libraryRevision, 2);
+    expect(index, 5);
     for (var i = 0; i < steps.length; i++) {
       expect(seen[i].method, steps[i].method);
       expect(seen[i].path, steps[i].path);

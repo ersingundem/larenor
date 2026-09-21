@@ -394,6 +394,30 @@ final class HomeDocumentPage {
   final bool hasMore;
 }
 
+final class HomeDocumentReadback {
+  const HomeDocumentReadback._(this.authority, this.document);
+
+  factory HomeDocumentReadback.fromJson(
+    Object? raw, {
+    required ServerContext expectedContext,
+    required String expectedAccountId,
+  }) {
+    final value = _object(raw, {'schemaVersion', 'authority', 'document'});
+    if (value['schemaVersion'] != 1) _invalid();
+    final authority = HomeDocumentAuthority.fromJson(
+      value['authority'],
+      expectedContext: expectedContext,
+      expectedAccountId: expectedAccountId,
+    );
+    final document = HomeDocument.fromJson(value['document'], expectedContext);
+    if (document.revision > authority.libraryRevision) _invalid();
+    return HomeDocumentReadback._(authority, document);
+  }
+
+  final HomeDocumentAuthority authority;
+  final HomeDocument document;
+}
+
 final class HomeWarrantyReminder {
   const HomeWarrantyReminder._({
     required this.documentId,

@@ -14,6 +14,9 @@ final class _ScreenGateway implements HomeDocumentGateway {
   @override
   Future<HomeDocumentPage> search(String query) async => pageValue;
   @override
+  Future<HomeDocumentReadback> readDocument(String documentId) async =>
+      readback();
+  @override
   Future<HomeWarrantyReminderPage> reminders(String today) async =>
       reminderValue;
   @override

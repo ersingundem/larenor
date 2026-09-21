@@ -198,6 +198,12 @@ class DocumentPage(FrozenModel):
     hasMore: bool
 
 
+class DocumentReadback(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: DocumentAuthority
+    document: HomeDocument
+
+
 class WarrantyReminder(FrozenModel):
     schemaVersion: Literal[1]
     documentId: Identity

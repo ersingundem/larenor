@@ -164,6 +164,11 @@ def test_private_search_and_due_projection_are_bounded_and_confirmed_only():
     assert [item.ref.id for item in reader_page.items] == [DOCUMENT]
     assert reader_page.authority.accountId == READER
     assert reader_page.authority.libraryRevision == 2
+    exact = store.get(actor(READER, role="member"), DOCUMENT)
+    assert exact.document.ref.id == DOCUMENT
+    assert exact.authority.accountId == READER
+    with pytest.raises(ApiError, match="not_found"):
+        store.get(actor(STRANGER, role="member"), DOCUMENT)
     stranger_page = store.search(actor(STRANGER, role="member"), "fatura")
     assert stranger_page.items == []
     assert stranger_page.authority.libraryRevision == 0
