@@ -32,10 +32,16 @@ final class _Api implements KioskRemoteApi {
   bool retired = false;
   int revokeCalls = 0;
   @override
-  Future<KioskRemoteSnapshot> load() => loadGate?.future ?? Future.value(snapshot);
+  Future<KioskRemoteSnapshot> load() =>
+      loadGate?.future ?? Future.value(snapshot);
   @override
-  Future<KioskRemoteCreated> create(KioskRemoteDevice device, Set<String> scopes) async =>
-      const KioskRemoteCreated(pairing: pairing, token: 'synthetic-one-time-token');
+  Future<KioskRemoteCreated> create(
+    KioskRemoteDevice device,
+    Set<String> scopes,
+  ) async => const KioskRemoteCreated(
+    pairing: pairing,
+    token: 'synthetic-one-time-token',
+  );
   @override
   Future<void> revoke(KioskRemotePairing pairing) async => revokeCalls++;
   @override
@@ -46,7 +52,10 @@ void main() {
   test('late pairing inventory is cleared after route retirement', () async {
     var current = true;
     final api = _Api();
-    final controller = KioskRemoteController(api: api, isCurrent: () => current);
+    final controller = KioskRemoteController(
+      api: api,
+      isCurrent: () => current,
+    );
     addTearDown(controller.dispose);
     final gate = Completer<KioskRemoteSnapshot>();
     api.loadGate = gate;
@@ -62,27 +71,40 @@ void main() {
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1280.0]) {
-      testWidgets('paired remote management $width ${locale.languageCode} 2x', (tester) async {
+      testWidgets('paired remote management $width ${locale.languageCode} 2x', (
+        tester,
+      ) async {
         tester.view.physicalSize = Size(width, 1200);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        final controller = KioskRemoteController(api: _Api(), isCurrent: () => true)
-          ..snapshot = snapshot
-          ..state = KioskRemoteViewState.ready;
+        final controller =
+            KioskRemoteController(api: _Api(), isCurrent: () => true)
+              ..snapshot = snapshot
+              ..state = KioskRemoteViewState.ready;
         addTearDown(controller.dispose);
-        await tester.pumpWidget(CupertinoApp(
-          locale: locale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: KioskRemoteScreen(controller: controller),
           ),
-          home: KioskRemoteScreen(controller: controller),
-        ));
+        );
         await tester.pumpAndSettle();
         expect(find.text('Kitchen tablet'), findsOneWidget);
         final revoke = find.byKey(const ValueKey('remote-pairing-revoke'));
+        if (revoke.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(
+            revoke,
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
         expect(revoke, findsOneWidget);
         expect(tester.getSize(revoke).height, greaterThanOrEqualTo(48));
         expect(tester.takeException(), isNull);

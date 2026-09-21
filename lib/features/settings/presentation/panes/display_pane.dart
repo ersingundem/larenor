@@ -10,6 +10,7 @@ import 'settings_nav_row.dart';
 import '../settings_file_dialog.dart';
 import '../../../ambient/presentation/ambient_settings_screen.dart';
 import '../../../kiosk/presentation/kiosk_screen.dart';
+import '../../../kiosk_remote/presentation/kiosk_remote_route.dart';
 import '../../../web_panel/presentation/web_panel_data_screen.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
@@ -73,6 +74,12 @@ class DisplayPane extends ConsumerWidget {
               color: CupertinoColors.systemIndigo,
               title: l10n.kioskTitle,
               builder: (_) => const KioskScreen(),
+            ),
+            SettingsNavRow(
+              icon: CupertinoIcons.antenna_radiowaves_left_right,
+              color: CupertinoColors.systemGreen,
+              title: l10n.kioskRemoteTitle,
+              builder: (_) => const KioskRemoteRoute(),
             ),
             SettingsActionTile(
               buttonKey: const ValueKey('display-playback-power-action'),
