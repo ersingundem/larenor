@@ -16,6 +16,22 @@ final class _Store implements KioskUsageStore {
   }
 }
 
+final class _DelayedStore implements KioskUsageStore {
+  String? value;
+
+  @override
+  Future<String?> read() async {
+    final observed = value;
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    return observed;
+  }
+
+  @override
+  Future<void> write(String next) async {
+    value = next;
+  }
+}
+
 void main() {
   test(
     'explicit recovery is bounded and never schedules an automatic retry',
@@ -82,6 +98,27 @@ void main() {
       store.value =
           '{"version":1,"days":[{"day":"2026-09-21","url":"secret"}]}';
       await expectLater(repository.read(), throwsA(isA<KioskUsageException>()));
+
+      store.value = '{"version":1,"days":[]}${' ' * 9000}';
+      await expectLater(repository.read(), throwsA(isA<KioskUsageException>()));
+    },
+  );
+
+  test(
+    'separate repository owners cannot lose concurrent daily events',
+    () async {
+      final store = _DelayedStore();
+      final today = DateTime.utc(2026, 9, 21);
+      final first = KioskUsageRepository(store: store, now: () => today);
+      final second = KioskUsageRepository(store: store, now: () => today);
+      await Future.wait([
+        first.record(KioskUsageEvent.rendererFailure),
+        second.record(KioskUsageEvent.timeout),
+      ]);
+      final summary = await first.read();
+      expect(summary.count(KioskUsageEvent.rendererFailure), 1);
+      expect(summary.count(KioskUsageEvent.timeout), 1);
+      expect(await second.csvPreview(), contains('2026-09-21,1,1,0,0,0'));
     },
   );
 }

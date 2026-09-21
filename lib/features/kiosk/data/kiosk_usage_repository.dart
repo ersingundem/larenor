@@ -102,17 +102,21 @@ final class KioskUsageRepository {
 
   final KioskUsageStore _store;
   final DateTime Function() _now;
-  Future<void> _tail = Future.value();
+  // SharedPreferences uses one process-wide key. Every repository instance
+  // must join the same read-modify-write queue or daily counters can be lost.
+  static Future<void>? _tail;
 
   Future<T> _serial<T>(Future<T> Function() operation) async {
     final before = _tail;
     final done = Completer<void>();
-    _tail = done.future;
-    await before;
+    final completion = done.future;
+    _tail = completion;
     try {
+      if (before != null) await before;
       return await operation();
     } finally {
       done.complete();
+      if (identical(_tail, completion)) _tail = null;
     }
   }
 
@@ -164,6 +168,9 @@ final class KioskUsageRepository {
     try {
       final raw = await _store.read();
       if (raw == null) return KioskUsageSnapshot(const []);
+      // A valid 30-day counter journal is far smaller. Reject inflated local
+      // data before JSON parsing or CSV rendering can consume tablet resources.
+      if (raw.length > 8192) throw const KioskUsageException();
       final json = jsonDecode(raw);
       if (json is! Map<String, dynamic> ||
           json.length != 2 ||

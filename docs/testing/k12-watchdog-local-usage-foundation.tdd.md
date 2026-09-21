@@ -14,7 +14,9 @@ physical 24-hour tablet result.
    pending.
 2. **Content-free durable usage.** The local journal stores only a UTC day and
    five closed integer counters. It retains at most 30 days, rejects unknown or
-   malformed fields, serializes concurrent updates, and exposes a fixed-schema
+   malformed fields and journals over 8192 characters before parsing,
+   serializes concurrent updates across repository owners in one process,
+   and exposes a fixed-schema
    CSV preview. URLs, page content, credentials, sensor values and raw platform
    errors have no field in the model.
 3. **Accessible maintenance surface.** Display settings exposes a read-only
@@ -29,11 +31,17 @@ physical 24-hour tablet result.
 - GREEN: focused Flutter tests cover policy, restart persistence, retention,
   strict parsing, CSV output, four EN/TR tablet viewports and the existing
   Display pane accessibility/lifecycle suite.
+- Review RED/GREEN: two repository owners sharing one store previously lost a
+  concurrent event, and a valid JSON journal padded with 9000 spaces was
+  accepted. Both now fail closed or serialize correctly; the watchdog and
+  maintenance suites pass together across widget-test zones.
 
 ## Remaining K12 gates
 
 - Wire the gate to the final `K03.remaining` renderer-death and reconnect
   receipts after that contract lands; source identity must remain bounded and
-  must not enter the journal.
+  must not enter the journal. The rolling recovery budget is currently scoped
+  to a live gate; restart-safe budget persistence is required before enabling
+  actual renderer recovery.
 - Run physical Huawei/DeX process-death and long-idle checks. Android
   force-stop and OS relaunch remain unsupported claims.
