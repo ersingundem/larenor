@@ -19,10 +19,10 @@ boundary that a later Core pantry adapter must implement.
 
 ## TDD evidence
 
-- RED `264c65e0`: production contract and controller were absent.
-- RED `c0e91d9d`: a retained receipt remained visible after account authority
+- RED `7e3bef0d`: production contract and controller were absent.
+- RED `3a812902`: a retained receipt remained visible after account authority
   changed.
-- GREEN: the focused Flutter contract suite passes 5 tests and focused analysis
+- GREEN `f25f8faa` and `3ade5ae7`: the focused Flutter contract suite passes 5 tests and focused analysis
   reports zero findings.
 
 F33 remains pending at 18/125 and 0/63. A real Core pantry adapter, grant and
