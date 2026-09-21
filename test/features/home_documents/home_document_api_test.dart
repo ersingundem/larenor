@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -199,4 +200,39 @@ void main() {
       expect(calls, 2);
     },
   );
+
+  test('late HTTP response after route retirement is discarded', () async {
+    final pending = Completer<http.Response>();
+    var current = true, calls = 0;
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://synthetic.invalid'),
+      client: MockClient((_) {
+        calls++;
+        return pending.future;
+      }),
+    );
+    addTearDown(transport.close);
+    final api = HomeDocumentApi(
+      transport,
+      'synthetic_token',
+      context(),
+      account,
+      isCurrent: () => current,
+    );
+    final result = api.search('');
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    pending.complete(_json(homeDocumentPageFixture()));
+    await expectLater(
+      result,
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'cancelled',
+        ),
+      ),
+    );
+    expect(calls, 1);
+  });
 }

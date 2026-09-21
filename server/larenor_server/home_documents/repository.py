@@ -1,5 +1,4 @@
 import json
-import re
 import secrets
 import sqlite3
 import threading
@@ -9,12 +8,11 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
-from .models import CreateHomeDocumentCommand, DocumentActor, DocumentBlobRef
+from .models import CreateHomeDocumentCommand, DocumentActor
 from .service import HomeDocumentLibrary
 
 
 MAX_STATE_BYTES = 16 * 1024 * 1024
-_IDENTITY = re.compile(r"^[0-9a-f]{32}$")
 
 
 class HomeDocumentRepository:

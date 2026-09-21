@@ -207,15 +207,6 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
         children: [
           Semantics(header: true, child: Text(copy.add, style: _heading)),
           const SizedBox(height: 12),
-          _semanticButton(
-            key: const ValueKey('home-doc-upload'),
-            label: copy.upload,
-            enabled: widget.controller.canUpload,
-            onPressed: () =>
-                widget.controller.stageUpload(_resource.text.trim()),
-            child: Text(copy.upload),
-          ),
-          const SizedBox(height: 12),
           _field(
             key: const ValueKey('home-doc-resource'),
             controller: _resource,
@@ -228,6 +219,15 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
               }
             },
             max: 32,
+          ),
+          const SizedBox(height: 12),
+          _semanticButton(
+            key: const ValueKey('home-doc-upload'),
+            label: copy.upload,
+            enabled: widget.controller.canUpload,
+            onPressed: () =>
+                widget.controller.stageUpload(_resource.text.trim()),
+            child: Text(copy.upload),
           ),
           if (upload != null) ...[
             const SizedBox(height: 12),

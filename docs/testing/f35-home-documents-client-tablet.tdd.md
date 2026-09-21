@@ -40,7 +40,7 @@ verified Core account; it introduces no second URL, token or state owner.
 Validated commands:
 
 - `uv run --project server --locked python -m pytest -q server/tests/test_home_documents_contract.py server/tests/test_home_documents_http.py` — 5 passed.
-- `flutter test test/features/home_documents test/features/home_scope/core_home_status_tablet_accessibility_test.dart` — 15 passed.
+- `flutter test test/features/home_documents test/features/home_scope/core_home_status_tablet_accessibility_test.dart` — 16 passed.
 - Focused `flutter analyze` — no issues.
 
 F35 remains at the current main counters, **21/125** and **0/63**. Physical
