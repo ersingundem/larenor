@@ -183,6 +183,7 @@ void main() {
                 )
                 .first;
             final server = find.text(l10n.serverTitle).first;
+            final tabletFleet = find.text(l10n.serverTabletFleetTitle).first;
             final remote = find.text(l10n.remoteAccessTitle).first;
             final mesh = find.text(l10n.meshCenterTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
@@ -199,17 +200,35 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            expect(
+              Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
+              isTrue,
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            final comfort = find.text(
+              language == 'tr' ? 'Oda konforu' : 'Room comfort',
+            ).first;
+            expect(Focus.of(tester.element(comfort)).hasPrimaryFocus, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            expect(Focus.of(tester.element(comfort)).hasPrimaryFocus, isTrue);
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
             expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-            expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
+            expect(
+              Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
+              isTrue,
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
