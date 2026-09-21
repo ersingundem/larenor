@@ -41,19 +41,21 @@ final class KioskSensorController {
     }
     final generation = _generation;
     final value = await _api.read(previous.sessionId);
+    final current = _snapshot;
     if (generation != _generation ||
-        _snapshot?.sessionId != previous.sessionId ||
+        current == null ||
+        current.sessionId != previous.sessionId ||
         !value.sampling ||
-        value.sequence < previous.sequence ||
-        value.observedAtElapsedMillis < previous.observedAtElapsedMillis) {
+        value.sequence < current.sequence ||
+        value.observedAtElapsedMillis < current.observedAtElapsedMillis) {
       throw const KioskSensorException(KioskSensorFailure.expired);
     }
-    if (value.sequence == previous.sequence &&
-        (value.lux != previous.lux ||
-            value.motionDelta != previous.motionDelta ||
-            value.lightAvailable != previous.lightAvailable ||
-            value.motionAvailable != previous.motionAvailable ||
-            value.cameraStatus != previous.cameraStatus)) {
+    if (value.sequence == current.sequence &&
+        (value.lux != current.lux ||
+            value.motionDelta != current.motionDelta ||
+            value.lightAvailable != current.lightAvailable ||
+            value.motionAvailable != current.motionAvailable ||
+            value.cameraStatus != current.cameraStatus)) {
       throw const KioskSensorException(KioskSensorFailure.unavailable);
     }
     _snapshot = value;
@@ -63,15 +65,19 @@ final class KioskSensorController {
   Future<void> stop() async {
     final previous = _snapshot;
     if (previous == null) return;
-    final generation = _generation;
-    final receipt = await _api.stop(previous.sessionId);
-    if (generation != _generation ||
-        receipt.sessionId != previous.sessionId ||
-        !receipt.stopped) {
-      throw const KioskSensorException(KioskSensorFailure.unavailable);
-    }
-    _generation++;
+    final generation = ++_generation;
     _snapshot = null;
+    _busy = true;
+    try {
+      final receipt = await _api.stop(previous.sessionId);
+      if (generation != _generation ||
+          receipt.sessionId != previous.sessionId ||
+          !receipt.stopped) {
+        throw const KioskSensorException(KioskSensorFailure.unavailable);
+      }
+    } finally {
+      _busy = false;
+    }
   }
 
   Future<void> retire() async {

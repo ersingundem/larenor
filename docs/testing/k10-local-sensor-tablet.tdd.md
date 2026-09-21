@@ -14,3 +14,9 @@ The 24-hour battery, thermal, wake-lock and OEM sensor matrix remains a physical
 Huawei/Samsung/manual acceptance gate. Software evidence must not advance the
 queue or selected-feature counters until exact-head CI and that required manual
 scope are recorded.
+
+Regression review added deterministic route-cover retirement, immediate local
+retirement before a native stop receipt, and concurrent out-of-order read
+rejection. A denied or uncertain stop cannot keep showing private sampling as
+active. Native permission grant/revocation and sensor availability remain
+device-verification work.

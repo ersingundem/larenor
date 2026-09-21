@@ -29,6 +29,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
   String? _error;
   bool _pending = false;
   bool _foreground = true;
+  bool _routeVisible = true;
   AppInteractionController? _interaction;
   int _epoch = 0;
 
@@ -58,11 +59,19 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    if (visible != _routeVisible) {
+      _routeVisible = visible;
+      if (!visible) unawaited(_retire());
+    }
     final next = AppInteractionScope.maybeOf(context);
-    if (identical(next, _interaction)) return;
-    _interaction?.removeListener(_interactionChanged);
-    _interaction = next?..addListener(_interactionChanged);
-    if (_interaction?.active == false) unawaited(_retire());
+    if (!identical(next, _interaction)) {
+      _interaction?.removeListener(_interactionChanged);
+      _interaction = next?..addListener(_interactionChanged);
+      if (_interaction?.active == false) unawaited(_retire());
+    }
   }
 
   void _interactionChanged() {
@@ -82,8 +91,9 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
   }
 
   Future<void> _start() async {
+    if (_pending) return;
     final epoch = ++_epoch;
-    if (!_current(epoch) || _pending) return;
+    if (!_current(epoch)) return;
     setState(() {
       _pending = true;
       _error = null;
@@ -101,7 +111,12 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
         (_) => unawaited(_refresh(epoch)),
       );
     } catch (error) {
-      if (_current(epoch)) setState(() => _error = _failure(error));
+      if (_current(epoch)) {
+        setState(() {
+          _snapshot = null;
+          _error = _failure(error);
+        });
+      }
     } finally {
       if (_current(epoch)) setState(() => _pending = false);
     }
@@ -128,7 +143,12 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
       await _controller.stop();
       if (_current(epoch)) setState(() => _snapshot = null);
     } catch (error) {
-      if (_current(epoch)) setState(() => _error = _failure(error));
+      if (_current(epoch)) {
+        setState(() {
+          _snapshot = null;
+          _error = _failure(error);
+        });
+      }
     } finally {
       _poller?.cancel();
       if (_current(epoch)) setState(() => _pending = false);

@@ -43,11 +43,11 @@ final class _Api implements KioskSensorApi {
   @override
   Future<KioskSensorSnapshot> read(String sessionId) async =>
       pendingReads.isNotEmpty
-          ? pendingReads.removeAt(0).future
-          : KioskSensorSnapshot.fromChannel(
-              readValue,
-              expectedSessionId: sessionId,
-            );
+      ? pendingReads.removeAt(0).future
+      : KioskSensorSnapshot.fromChannel(
+          readValue,
+          expectedSessionId: sessionId,
+        );
 
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
@@ -147,15 +147,17 @@ void main() {
     final first = controller.refresh();
     final second = controller.refresh();
     secondGate.complete(
-      KioskSensorSnapshot.fromChannel(
-        {..._sample(sequence: 2), 'observedAtElapsedMillis': 1002},
-      ),
+      KioskSensorSnapshot.fromChannel({
+        ..._sample(sequence: 2),
+        'observedAtElapsedMillis': 1002,
+      }),
     );
     expect((await second).sequence, 2);
     firstGate.complete(
-      KioskSensorSnapshot.fromChannel(
-        {..._sample(sequence: 1), 'observedAtElapsedMillis': 1001},
-      ),
+      KioskSensorSnapshot.fromChannel({
+        ..._sample(sequence: 1),
+        'observedAtElapsedMillis': 1001,
+      }),
     );
     await expectLater(first, throwsA(isA<KioskSensorException>()));
     expect(controller.snapshot?.sequence, 2);
