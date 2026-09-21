@@ -157,3 +157,49 @@ def test_pairing_identity_has_a_bounded_rate_limit(server):
     blocked = server[1].get(endpoint, headers=headers)
     assert blocked.status_code == 429
     assert blocked.json()["error"]["code"] == "rate_limited"
+
+
+def test_ack_rechecks_pairing_after_authentication_race(server, monkeypatch):
+    pair, remote, created, _tablet, _body = create_pairing(server)
+    pairing, token = created["pairing"], created["token"]
+    endpoint = remote + f"/pairings/{pairing['id']}/mqtt/commands"
+    accepted = server[1].post(
+        endpoint, headers=paired_headers(token), json=command(sequence=1)
+    )
+    assert accepted.status_code == 201
+    command_id = accepted.json()["ack"]["commandId"]
+    service = server[0].state.core.kiosk_remote
+    authenticate = service._authenticate
+
+    def revoke_after_auth(pairing_id, presented_token, scope):
+        result = authenticate(pairing_id, presented_token, scope)
+        with service.db.transaction() as connection:
+            current = connection.execute(
+                "SELECT * FROM kiosk_remote_pairings WHERE id=?", (pairing_id,)
+            ).fetchone()
+            updated = dict(current)
+            updated.update(
+                revision=current["revision"] + 1,
+                active=0,
+                updated_at=server[3].now,
+            )
+            updated["record_tag"] = service._pairing_tag(updated)
+            connection.execute(
+                "UPDATE kiosk_remote_pairings SET revision=?,active=0,updated_at=?,record_tag=? WHERE id=?",
+                (updated["revision"], updated["updated_at"], updated["record_tag"], pairing_id),
+            )
+        return result
+
+    monkeypatch.setattr(service, "_authenticate", revoke_after_auth)
+    ack = server[1].post(
+        endpoint + f"/{command_id}/ack",
+        headers=paired_headers(token),
+        json={"schemaVersion": 1, "sequence": 1, "result": "succeeded"},
+    )
+    assert ack.status_code == 409
+    assert ack.json()["error"]["code"] == "pairing_changed"
+    with service.db.connection() as connection:
+        state = connection.execute(
+            "SELECT state FROM kiosk_remote_commands WHERE id=?", (command_id,)
+        ).fetchone()["state"]
+    assert state == "accepted"
