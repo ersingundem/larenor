@@ -14,6 +14,7 @@ import '../../server/presentation/server_connection_screen.dart';
 import '../../core_ha/direct_migration/transfer_screen.dart';
 import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
+import '../../legacy_remote/presentation/legacy_remote_route.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
@@ -29,6 +30,7 @@ enum SettingsGateDestination {
   homePeople,
   coreHaTransfer,
   proxmoxPower,
+  legacyRemote,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -147,6 +149,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                   SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
               widget.initialDestination ==
+                  SettingsGateDestination.legacyRemote ||
+              widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
@@ -160,6 +164,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination == SettingsGateDestination.homePeople ||
+              widget.initialDestination ==
+                  SettingsGateDestination.legacyRemote ||
               widget.initialDestination ==
                   SettingsGateDestination.proxmoxPower) &&
           previous?.value != next.value) {
@@ -342,6 +348,25 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.legacyRemote
+                            ? LegacyRemoteRoute(
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                               )
                             : SettingsSplitScreen(
                                 meshGateCurrent: () {

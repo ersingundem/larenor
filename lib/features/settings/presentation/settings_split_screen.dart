@@ -10,6 +10,7 @@ import '../../backup/presentation/backup_screen.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
+import '../../legacy_remote/presentation/legacy_remote_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
@@ -25,6 +26,7 @@ enum SettingsCategory {
   connection,
   server,
   remoteAccess,
+  legacyRemote,
   display,
   security,
   homeAssistant,
@@ -213,6 +215,8 @@ Widget paneFor(
       return RemoteProfilesScreen(
         gateCurrent: remoteGateCurrent ?? () => false,
       );
+    case SettingsCategory.legacyRemote:
+      return LegacyRemoteRoute(gateCurrent: remoteGateCurrent ?? () => false);
     case SettingsCategory.server:
       return const ServerConnectionScreen();
     case SettingsCategory.display:
@@ -272,6 +276,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.desktopcomputer,
         CupertinoColors.systemTeal,
         l10n.remoteAccessTitle,
+      ),
+      (
+        SettingsCategory.legacyRemote,
+        CupertinoIcons.game_controller_solid,
+        CupertinoColors.systemPurple,
+        l10n.legacyRemoteTitle,
       ),
       (
         SettingsCategory.display,

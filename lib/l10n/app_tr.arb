@@ -2305,6 +2305,7 @@
   "coreHaTransferCredentials": "Doğrudan ayarlarda Home Assistant bağlantısını yeniden kurup bu aktarımı tekrar önizleyin.",
   "remoteAccessTitle": "Uzak erişim",
   "meshCenterTitle": "Zigbee ve Thread ağı",
+  "legacyRemoteTitle": "Akıllı kumandalar",
   "remoteAccessPrivacy": "Kişisel hedef profilleri bu tabletin güvenli deposunda kalır. Core veya Proxmox hesabı gerekmez. Burada parola ve anahtar saklanmaz.",
   "remoteAccessLocked": "Bu özel görünümü açmak için Ayarlar’a dönün.",
   "remoteAccessEmpty": "Kayıtlı uzak hedef yok",

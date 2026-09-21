@@ -64,6 +64,7 @@ from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .tablet_fleet.api import router as tablet_fleet_router
 from .mesh_center.api import router as mesh_center_router
+from .legacy_remote.api import router as legacy_remote_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -187,6 +188,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
+    app.state.legacy_remote_gateway = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -280,6 +282,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
+    app.include_router(legacy_remote_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")

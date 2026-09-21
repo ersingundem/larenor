@@ -10,7 +10,12 @@ from .models import (
     RemoteDeliveryReceipt,
     RemoteDevice,
     RemoteWorkerCommand,
+    RemoteCatalog,
+    RemoteCatalogItem,
+    RemoteConfirmRequest,
+    RemotePreviewRequest,
 )
+from .http import LegacyRemoteHttpGateway
 from .service import LegacyRemoteManager, RemoteAuditEntry
 
 __all__ = [
@@ -25,4 +30,9 @@ __all__ = [
     "RemoteDeliveryReceipt",
     "RemoteDevice",
     "RemoteWorkerCommand",
+    "RemoteCatalog",
+    "RemoteCatalogItem",
+    "RemoteConfirmRequest",
+    "RemotePreviewRequest",
+    "LegacyRemoteHttpGateway",
 ]

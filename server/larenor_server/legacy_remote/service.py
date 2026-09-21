@@ -102,6 +102,10 @@ class LegacyRemoteManager:
             raise ApiError("forbidden", 403)
         return authority
 
+    def authorize(self, presented):
+        """Validate a catalog read against the same live authority as effects."""
+        return self._authority(presented)
+
     def _entry_hash(self, values):
         return hmac.new(
             self._key,
@@ -441,3 +445,32 @@ class LegacyRemoteManager:
             state.result = result
             self._append_audit(action, preview)
             return result
+
+    def result(self, presentedAuthority, requestId):
+        """Read one completed result without retrying or redispatching it."""
+        authority = self._authority(presentedAuthority)
+        with self._lock:
+            self._validate_audit()
+            state = self._commands.get(requestId)
+            if state is None or state.result is None:
+                raise ApiError("not_found", 404)
+            preview = state.preview
+            if (
+                preview.coreId,
+                preview.homeId,
+                preview.homeRevision,
+                preview.accountId,
+                preview.accountRevision,
+                preview.memberRevision,
+                preview.sessionFamilyId,
+            ) != (
+                authority.coreId,
+                authority.homeId,
+                authority.homeRevision,
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("not_found", 404)
+            return state.result
