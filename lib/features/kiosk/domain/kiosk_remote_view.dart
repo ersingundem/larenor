@@ -523,9 +523,19 @@ final class KioskRemoteViewController {
             'start_unconfirmed',
           );
         case KioskRemotePortOutcome.accepted:
-          final observed = await port
-              .readback(started.receiptHandle!, record.mode, trusted)
-              .timeout(_portTimeout);
+          late final bool observed;
+          try {
+            observed = await port
+                .readback(started.receiptHandle!, record.mode, trusted)
+                .timeout(_portTimeout);
+          } catch (_) {
+            await _compensate(started.receiptHandle!, record.mode, trusted);
+            return record.receipt = _receipt(
+              record,
+              KioskRemoteViewStatus.unconfirmed,
+              'start_unconfirmed',
+            );
+          }
           if (!observed ||
               record.generation != _generation ||
               trusted.binding != record.binding ||

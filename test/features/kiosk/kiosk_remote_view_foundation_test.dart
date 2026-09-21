@@ -56,9 +56,14 @@ KioskRemoteViewContext context({
 );
 
 final class Port implements KioskRemoteViewPort {
-  Port({this.startGate, this.stopObserved = true});
+  Port({
+    this.startGate,
+    this.stopObserved = true,
+    this.throwDuringReadback = false,
+  });
   final Completer<void>? startGate;
   final bool stopObserved;
+  final bool throwDuringReadback;
   int starts = 0, readbacks = 0, stops = 0;
 
   @override
@@ -88,6 +93,7 @@ final class Port implements KioskRemoteViewPort {
     KioskRemoteViewContext trusted,
   ) async {
     readbacks++;
+    if (throwDuringReadback) throw StateError('native readback unavailable');
     return true;
   }
 
@@ -290,4 +296,31 @@ void main() {
       expect(port.starts, 1);
     },
   );
+
+  test('accepted start with unreadable readback is compensated once', () async {
+    final port = Port(throwDuringReadback: true);
+    final controller = KioskRemoteViewController(
+      port: port,
+      isCurrent: (candidate) => candidate == authority,
+      requestIds: () => '0123456789abcdef0123456789abcdef',
+    );
+    final preview = controller.prepare(
+      KioskRemoteViewMode.fullDeviceProjection,
+      context(),
+    );
+
+    final receipt = await controller.confirm(preview, context());
+
+    expect(receipt.status, KioskRemoteViewStatus.unconfirmed);
+    expect(receipt.reasonCode, 'start_unconfirmed');
+    expect(port.starts, 1);
+    expect(port.readbacks, 1);
+    expect(port.stops, 1);
+    expect(
+      (await controller.confirm(preview, context())).status,
+      KioskRemoteViewStatus.unconfirmed,
+    );
+    expect(port.starts, 1);
+    expect(port.stops, 1);
+  });
 }

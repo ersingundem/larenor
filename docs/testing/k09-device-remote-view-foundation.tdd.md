@@ -33,15 +33,17 @@ MediaProjection engine, or queue-progress claim.
 
 | Stage | Command | Result |
 | --- | --- | --- |
-| RED | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart` before production code | Expected compile failure because the K09 contract did not exist; checkpoint `6a44a428` |
-| GREEN | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart --coverage` | 4/4 tests passed; checkpoint `d2a6dd4d` |
-| Coverage | Focused LCOV entry for `kiosk_remote_view.dart` | 210/248 lines, **84.7%** |
+| RED | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart` before production code | Expected compile failure because the K09 contract did not exist; checkpoint `441a139` |
+| Regression RED | focused unreadable-readback test before compensation fix | Expected failure: accepted native start performed 0 stops |
+| GREEN | `flutter test test/features/kiosk/kiosk_remote_view_foundation_test.dart --coverage` | 5/5 tests passed |
+| Coverage | Focused LCOV entry for `kiosk_remote_view.dart` | 212/250 lines, **84.8%** |
 | Static analysis | Focused `flutter analyze` | 0 issues |
 
 The focused tests cover strict telemetry parsing and redaction, stale samples,
 mode separation, missing consent, sensitive routes, exact revision drift,
 concurrent start, stale-start compensation, preview expiry, consent loss,
-lost stop acknowledgement, and receipt redaction.
+lost stop acknowledgement, unreadable-readback compensation, and receipt
+redaction.
 
 ## Dependent and manual boundary
 
