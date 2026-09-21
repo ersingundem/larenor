@@ -262,6 +262,27 @@ Future<void> waitFor(
   await tester.pump(const Duration(milliseconds: 350));
 }
 
+/// Core resources live in a lazy sliver. A successful fixture read does not
+/// imply that a row below the tablet viewport has been built yet.
+Future<void> revealCoreResource(
+  WidgetTester tester,
+  Finder resource, {
+  required bool Function() loaded,
+}) async {
+  await waitUntil(
+    tester,
+    loaded,
+    describe: () => 'Core resource fixture did not complete its read',
+  );
+  await tester.scrollUntilVisible(
+    resource,
+    200,
+    scrollable: find.byType(Scrollable).last,
+    maxScrolls: 12,
+  );
+  await waitFor(tester, resource);
+}
+
 Future<void> waitUntil(
   WidgetTester tester,
   bool Function() condition, {

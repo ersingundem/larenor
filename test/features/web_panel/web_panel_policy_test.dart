@@ -75,4 +75,21 @@ void main() {
       expect(budget.take(), true);
     },
   );
+  test(
+    'renderer recovery is rate-limited and resets only after its window',
+    () {
+      var now = DateTime.utc(2026, 9, 21);
+      final budget = WebPanelRecoveryBudget(now: () => now);
+      expect(budget.take(), true);
+      expect(budget.take(), false);
+      now = now.add(const Duration(seconds: 2));
+      expect(budget.take(), true);
+      now = now.add(const Duration(seconds: 2));
+      expect(budget.take(), true);
+      now = now.add(const Duration(seconds: 2));
+      expect(budget.take(), false);
+      now = now.add(const Duration(minutes: 5));
+      expect(budget.take(), true);
+    },
+  );
 }
