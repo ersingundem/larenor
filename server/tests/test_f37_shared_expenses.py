@@ -52,7 +52,9 @@ def test_integer_currency_split_is_deterministic_and_conserves_every_unit(tmp_pa
 
     assert receipt.ledger_revision == 2
     assert receipt.expense.currency_scale == 0
-    assert [(share.account_id, share.amount_minor) for share in receipt.expense.shares] == [
+    assert [
+        (share.account_id, share.amount_minor) for share in receipt.expense.shares
+    ] == [
         ("ada", 34),
         ("baran", 33),
         ("cem", 33),
@@ -61,10 +63,17 @@ def test_integer_currency_split_is_deterministic_and_conserves_every_unit(tmp_pa
 
     with pytest.raises(ApiError, match="invalid_request"):
         expenses.create(
-            actor("cem"), core_id="core-a", home_id="home-a",
-            expected_ledger_revision=2, command_id="expense-float", title="Bad",
-            currency="TRY", total_minor=10.5, payer_id="cem",
-            participant_ids=("cem",), members=members,
+            actor("cem"),
+            core_id="core-a",
+            home_id="home-a",
+            expected_ledger_revision=2,
+            command_id="expense-float",
+            title="Bad",
+            currency="TRY",
+            total_minor=10.5,
+            payer_id="cem",
+            participant_ids=("cem",),
+            members=members,
         )
 
 
@@ -72,31 +81,47 @@ def test_scope_revision_membership_and_idempotency_fail_closed(tmp_path):
     expenses = store(tmp_path / "core.sqlite3")
     members = HouseholdAccounts(3, ("ada", "baran"))
     request = dict(
-        core_id="core-a", home_id="home-a", expected_ledger_revision=1,
-        command_id="expense-1", title="İnternet", currency="TRY",
-        total_minor=45000, payer_id="ada", participant_ids=("ada", "baran"),
+        core_id="core-a",
+        home_id="home-a",
+        expected_ledger_revision=1,
+        command_id="expense-1",
+        title="İnternet",
+        currency="TRY",
+        total_minor=45000,
+        payer_id="ada",
+        participant_ids=("ada", "baran"),
         members=members,
     )
     first = expenses.create(actor("ada"), **request)
     assert expenses.create(actor("ada"), **request) == first
-    assert len(expenses.history(
-        actor("ada"), core_id="core-a", home_id="home-a", members=members
-    )) == 1
+    assert (
+        len(
+            expenses.history(
+                actor("ada"), core_id="core-a", home_id="home-a", members=members
+            )
+        )
+        == 1
+    )
 
     with pytest.raises(ApiError, match="idempotency_conflict"):
         expenses.create(actor("ada"), **{**request, "total_minor": 45001})
     with pytest.raises(ApiError, match="revision_conflict"):
         expenses.create(actor("ada"), **{**request, "command_id": "expense-2"})
     with pytest.raises(ApiError, match="forbidden"):
-        expenses.create(actor("mallory"), **{**request, "command_id": "expense-3",
-            "expected_ledger_revision": 2})
+        expenses.create(
+            actor("mallory"),
+            **{**request, "command_id": "expense-3", "expected_ledger_revision": 2},
+        )
     with pytest.raises(ApiError, match="forbidden"):
         expenses.export(
             actor("mallory"), core_id="core-a", home_id="home-a", members=members
         )
-    assert expenses.export(
-        actor("ada"), core_id="core-a", home_id="home-b", members=members
-    )["expenses"] == []
+    assert (
+        expenses.export(
+            actor("ada"), core_id="core-a", home_id="home-b", members=members
+        )["expenses"]
+        == []
+    )
 
 
 def test_authorized_export_is_bounded_secret_free_and_history_detects_tamper(tmp_path):
@@ -104,16 +129,30 @@ def test_authorized_export_is_bounded_secret_free_and_history_detects_tamper(tmp
     expenses = store(path)
     members = HouseholdAccounts(5, ("ada", "baran", "cem"))
     first = expenses.create(
-        actor("ada"), core_id="core-a", home_id="home-a",
-        expected_ledger_revision=1, command_id="expense-1", title="Elektrik",
-        currency="TRY", total_minor=9000, payer_id="ada",
-        participant_ids=("ada", "baran"), members=members,
+        actor("ada"),
+        core_id="core-a",
+        home_id="home-a",
+        expected_ledger_revision=1,
+        command_id="expense-1",
+        title="Elektrik",
+        currency="TRY",
+        total_minor=9000,
+        payer_id="ada",
+        participant_ids=("ada", "baran"),
+        members=members,
     )
     expenses.create(
-        actor("cem"), core_id="core-a", home_id="home-a",
-        expected_ledger_revision=2, command_id="expense-2", title="Atölye",
-        currency="EUR", total_minor=3000, payer_id="cem",
-        participant_ids=("cem",), members=members,
+        actor("cem"),
+        core_id="core-a",
+        home_id="home-a",
+        expected_ledger_revision=2,
+        command_id="expense-2",
+        title="Atölye",
+        currency="EUR",
+        total_minor=3000,
+        payer_id="cem",
+        participant_ids=("cem",),
+        members=members,
     )
 
     member_export = expenses.export(
@@ -123,14 +162,27 @@ def test_authorized_export_is_bounded_secret_free_and_history_detects_tamper(tmp
     admin_export = expenses.export(
         actor("admin", "admin"), core_id="core-a", home_id="home-a", members=members
     )
-    assert [item["title"] for item in admin_export["expenses"]] == ["Elektrik", "Atölye"]
-    assert set(admin_export) == {"schemaVersion", "coreId", "homeId", "ledgerRevision", "expenses"}
-    assert not any("bank" in key.lower() or "payment" in key.lower()
-                   for item in admin_export["expenses"] for key in item)
+    assert [item["title"] for item in admin_export["expenses"]] == [
+        "Elektrik",
+        "Atölye",
+    ]
+    assert set(admin_export) == {
+        "schemaVersion",
+        "coreId",
+        "homeId",
+        "ledgerRevision",
+        "expenses",
+    }
+    assert not any(
+        "bank" in key.lower() or "payment" in key.lower()
+        for item in admin_export["expenses"]
+        for key in item
+    )
 
     with Database(path).connection() as connection:
         ciphertext = connection.execute(
-            "SELECT ciphertext FROM shared_expense_records WHERE id=?", (first.expense.id,)
+            "SELECT ciphertext FROM shared_expense_records WHERE id=?",
+            (first.expense.id,),
         ).fetchone()[0]
     assert b"Elektrik" not in ciphertext
 

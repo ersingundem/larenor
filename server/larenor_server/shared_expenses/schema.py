@@ -61,13 +61,19 @@ def migrate_shared_expenses(connection: sqlite3.Connection) -> None:
                 connection.execute(statement)
             for statement in INDEXES.values():
                 connection.execute(statement)
-            connection.execute("INSERT INTO metadata VALUES('shared_expense_schema','1')")
+            connection.execute(
+                "INSERT INTO metadata VALUES('shared_expense_schema','1')"
+            )
             return
         expected = TABLES | INDEXES
-        if marker["value"] != "1" or set(actual) != set(expected) or any(
-            row["type"] != ("table" if name in TABLES else "index")
-            or " ".join(row["sql"].split()) != " ".join(expected[name].split())
-            for name, row in actual.items()
+        if (
+            marker["value"] != "1"
+            or set(actual) != set(expected)
+            or any(
+                row["type"] != ("table" if name in TABLES else "index")
+                or " ".join(row["sql"].split()) != " ".join(expected[name].split())
+                for name, row in actual.items()
+            )
         ):
             raise ValueError("invalid_shared_expense_storage")
     except (sqlite3.Error, TypeError, ValueError):

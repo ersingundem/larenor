@@ -22,8 +22,10 @@ MAX_TOTAL_MINOR = 10**12
 
 
 def _identifier(value: str) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 128 and all(
-        character.isalnum() or character in "-_.:" for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 128
+        and all(character.isalnum() or character in "-_.:" for character in value)
     )
 
 
@@ -137,7 +139,10 @@ class ExpenseStore:
         ).hexdigest()
 
     def _state(
-        self, connection: sqlite3.Connection, core_id: str, home_id: str,
+        self,
+        connection: sqlite3.Connection,
+        core_id: str,
+        home_id: str,
     ) -> sqlite3.Row | None:
         row = connection.execute(
             "SELECT * FROM shared_expense_state WHERE core_id=? AND home_id=?",
@@ -204,13 +209,15 @@ class ExpenseStore:
 
     def _decrypt(self, row: sqlite3.Row) -> ExpenseRecord:
         try:
-            aad = f'{row["core_id"]}\0{row["home_id"]}\0{row["id"]}'.encode()
+            aad = f"{row['core_id']}\0{row['home_id']}\0{row['id']}".encode()
             raw = self._cipher.decrypt(row["nonce"], row["ciphertext"], aad)
             if hashlib.sha256(raw).hexdigest() != row["payload_hash"]:
                 raise ValueError
             value = json.loads(raw)
             shares = tuple(ExpenseShare(**share) for share in value.pop("shares"))
-            record = ExpenseRecord(id=row["id"], revision=row["revision"], shares=shares, **value)
+            record = ExpenseRecord(
+                id=row["id"], revision=row["revision"], shares=shares, **value
+            )
             if sum(share.amount_minor for share in shares) != record.total_minor:
                 raise ValueError
             return record
@@ -218,7 +225,9 @@ class ExpenseStore:
             raise StartupError("shared_expense_storage_invalid") from None
 
     def _record(
-        self, connection: sqlite3.Connection, record_id: str,
+        self,
+        connection: sqlite3.Connection,
+        record_id: str,
     ) -> ExpenseRecord:
         row = connection.execute(
             "SELECT * FROM shared_expense_records WHERE id=?", (record_id,)
@@ -228,7 +237,10 @@ class ExpenseStore:
         return self._decrypt(row)
 
     def _verified_history(
-        self, connection: sqlite3.Connection, core_id: str, home_id: str,
+        self,
+        connection: sqlite3.Connection,
+        core_id: str,
+        home_id: str,
     ) -> tuple[ExpenseEvent, ...]:
         state = self._state(connection, core_id, home_id)
         rows = connection.execute(
@@ -244,9 +256,17 @@ class ExpenseStore:
         seen: set[str] = set()
         for row in rows:
             values = (
-                row["sequence"], row["event_id"], row["core_id"], row["home_id"],
-                row["command_id"], row["action"], row["actor_id"], row["record_id"],
-                row["ledger_revision"], row["occurred_at"], row["request_hash"],
+                row["sequence"],
+                row["event_id"],
+                row["core_id"],
+                row["home_id"],
+                row["command_id"],
+                row["action"],
+                row["actor_id"],
+                row["record_id"],
+                row["ledger_revision"],
+                row["occurred_at"],
+                row["request_hash"],
                 row["previous_hash"],
             )
             if row["previous_hash"] != previous or not hmac.compare_digest(
@@ -264,13 +284,22 @@ class ExpenseStore:
                 "shares": [asdict(share) for share in record.shares],
                 "members_revision": record.members_revision,
             }
-            if hashlib.sha256(self._canonical(request_value)).hexdigest() != row["request_hash"]:
+            if (
+                hashlib.sha256(self._canonical(request_value)).hexdigest()
+                != row["request_hash"]
+            ):
                 raise StartupError("shared_expense_history_invalid")
             seen.add(row["record_id"])
-            events.append(ExpenseEvent(
-                row["event_id"], row["action"], row["actor_id"], row["record_id"],
-                row["ledger_revision"], row["occurred_at"],
-            ))
+            events.append(
+                ExpenseEvent(
+                    row["event_id"],
+                    row["action"],
+                    row["actor_id"],
+                    row["record_id"],
+                    row["ledger_revision"],
+                    row["occurred_at"],
+                )
+            )
             previous = row["event_hash"]
         record_count = connection.execute(
             "SELECT COUNT(*) FROM shared_expense_records WHERE core_id=? AND home_id=?",
@@ -322,10 +351,15 @@ class ExpenseStore:
                 (core_id, home_id, command_id),
             ).fetchone()
             if replay is not None:
-                if replay["actor_id"] != actor.id or replay["request_hash"] != request_hash:
+                if (
+                    replay["actor_id"] != actor.id
+                    or replay["request_hash"] != request_hash
+                ):
                     raise ApiError("idempotency_conflict", 409)
                 return ExpenseReceipt(
-                    replay["event_id"], command_id, replay["ledger_revision"],
+                    replay["event_id"],
+                    command_id,
+                    replay["ledger_revision"],
                     self._record(connection, replay["record_id"]),
                 )
             state = self._state(connection, core_id, home_id)
@@ -338,7 +372,8 @@ class ExpenseStore:
             now = time.time()
             record_id, event_id = uuid.uuid4().hex, uuid.uuid4().hex
             record_value = {
-                key: value for key, value in request.items()
+                key: value
+                for key, value in request.items()
                 if key != "expected_ledger_revision"
             }
             record_value["created_at"] = now
@@ -347,8 +382,16 @@ class ExpenseStore:
             aad = f"{core_id}\0{home_id}\0{record_id}".encode()
             connection.execute(
                 "INSERT INTO shared_expense_records VALUES(?,?,?,?,?,?,?,?)",
-                (record_id, core_id, home_id, 1, nonce, self._cipher.encrypt(nonce, raw, aad),
-                 hashlib.sha256(raw).hexdigest(), now),
+                (
+                    record_id,
+                    core_id,
+                    home_id,
+                    1,
+                    nonce,
+                    self._cipher.encrypt(nonce, raw, aad),
+                    hashlib.sha256(raw).hexdigest(),
+                    now,
+                ),
             )
             sequence = connection.execute(
                 "SELECT COALESCE(MAX(sequence),0)+1 FROM shared_expense_events"
@@ -356,8 +399,18 @@ class ExpenseStore:
             ledger_revision = current_revision + 1
             previous = "" if state is None else state["last_hash"]
             event_values = (
-                sequence, event_id, core_id, home_id, command_id, "created", actor.id,
-                record_id, ledger_revision, now, request_hash, previous,
+                sequence,
+                event_id,
+                core_id,
+                home_id,
+                command_id,
+                "created",
+                actor.id,
+                record_id,
+                ledger_revision,
+                now,
+                request_hash,
+                previous,
             )
             event_hash = self._event_hash(event_values)
             connection.execute(
@@ -378,7 +431,11 @@ class ExpenseStore:
         return ExpenseReceipt(event_id, command_id, ledger_revision, record)
 
     def history(
-        self, actor: Principal, *, core_id: str, home_id: str,
+        self,
+        actor: Principal,
+        *,
+        core_id: str,
+        home_id: str,
         members: HouseholdAccounts,
     ) -> tuple[ExpenseEvent, ...]:
         self._scope(core_id, home_id)
@@ -387,7 +444,11 @@ class ExpenseStore:
             return self._verified_history(connection, core_id, home_id)
 
     def export(
-        self, actor: Principal, *, core_id: str, home_id: str,
+        self,
+        actor: Principal,
+        *,
+        core_id: str,
+        home_id: str,
         members: HouseholdAccounts,
     ) -> dict:
         self._scope(core_id, home_id)
@@ -404,7 +465,8 @@ class ExpenseStore:
                 raise StartupError("shared_expense_storage_invalid")
             records = [self._decrypt(row) for row in rows]
         visible = [
-            record for record in records
+            record
+            for record in records
             if actor.role == "admin"
             or actor.id == record.payer_id
             or any(share.account_id == actor.id for share in record.shares)
@@ -424,7 +486,10 @@ class ExpenseStore:
                     "totalMinor": record.total_minor,
                     "payerId": record.payer_id,
                     "shares": [
-                        {"accountId": share.account_id, "amountMinor": share.amount_minor}
+                        {
+                            "accountId": share.account_id,
+                            "amountMinor": share.amount_minor,
+                        }
                         for share in record.shares
                     ],
                     "createdAt": record.created_at,
