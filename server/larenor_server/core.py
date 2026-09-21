@@ -101,6 +101,8 @@ from .inventory.schema import migrate_inventory
 from .inventory.service import InventoryRegistry
 from .local_notifications.schema import migrate_local_notifications
 from .local_notifications.service import LocalNotificationService
+from .tablet_fleet.schema import migrate_tablet_fleet
+from .tablet_fleet.service import TabletFleetService
 
 
 class CoreServices:
@@ -217,6 +219,7 @@ class CoreServices:
                 migrate_personal_profiles(connection)
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
+                migrate_tablet_fleet(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -293,6 +296,9 @@ class CoreServices:
             self.local_notifications = LocalNotificationService(
                 self.db, self.auth, settings, key, self.context)
             self.local_notifications.validate_storage()
+            self.tablet_fleet = TabletFleetService(
+                self.db, self.auth, settings, key, self.context)
+            self.tablet_fleet.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
