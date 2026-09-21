@@ -11,6 +11,7 @@ import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../mesh_center/presentation/mesh_center_route.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../server/tablet_fleet/presentation/server_tablet_fleet_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
 import 'panes/display_pane.dart';
@@ -24,6 +25,7 @@ import 'settings_file_dialog.dart';
 enum SettingsCategory {
   connection,
   server,
+  tabletFleet,
   remoteAccess,
   display,
   security,
@@ -47,6 +49,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.backupGateCurrent,
     this.remoteGateCurrent,
     this.meshGateCurrent,
+    this.tabletFleetGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
@@ -54,6 +57,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
   final bool Function()? meshGateCurrent;
+  final bool Function()? tabletFleetGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -143,6 +147,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
                       meshGateCurrent: widget.meshGateCurrent,
+                      tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
                   ),
                 ),
@@ -166,6 +171,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
             meshGateCurrent: widget.meshGateCurrent,
+            tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
         ),
       ),
@@ -205,6 +211,7 @@ Widget paneFor(
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
   bool Function()? meshGateCurrent,
+  bool Function()? tabletFleetGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -214,7 +221,11 @@ Widget paneFor(
         gateCurrent: remoteGateCurrent ?? () => false,
       );
     case SettingsCategory.server:
-      return const ServerConnectionScreen();
+      return ServerConnectionScreen(adminGateCurrent: tabletFleetGateCurrent);
+    case SettingsCategory.tabletFleet:
+      return ServerTabletFleetScreen(
+        gateCurrent: tabletFleetGateCurrent ?? () => false,
+      );
     case SettingsCategory.display:
       return DisplayPane(runFileDialog: runFileDialog);
     case SettingsCategory.security:
@@ -266,6 +277,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.cloud,
         CupertinoColors.systemIndigo,
         l10n.serverTitle,
+      ),
+      (
+        SettingsCategory.tabletFleet,
+        CupertinoIcons.device_phone_portrait,
+        CupertinoColors.systemPurple,
+        l10n.serverTabletFleetTitle,
       ),
       (
         SettingsCategory.remoteAccess,
