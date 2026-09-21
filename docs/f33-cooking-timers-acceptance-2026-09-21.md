@@ -22,9 +22,9 @@ stock data or depend on the first cooking-step PR.
 
 ## TDD evidence
 
-- RED `0b0a262f`: the timer model, controller, and tablet screen did not exist.
-- RED `8bbce6bf`: the concrete restart store did not exist.
-- GREEN `6b5e6441`: `flutter test test/features/cooking_assistant/cooking_timers_controller_test.dart
+- RED `71d8355e`: the timer model, controller, and tablet screen did not exist.
+- RED `7fe9b155`: the concrete restart store did not exist.
+- GREEN `e288eb1a`: `flutter test test/features/cooking_assistant/cooking_timers_controller_test.dart
   test/features/cooking_assistant/cooking_timers_screen_test.dart` passes 6 tests.
 - Focused analysis reports zero findings; queue, progress, security, diff and
   redacted secret checks are required before publication.
