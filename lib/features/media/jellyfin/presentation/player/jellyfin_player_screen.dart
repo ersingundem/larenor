@@ -12,7 +12,9 @@ import 'package:screen_brightness/screen_brightness.dart';
 import '../../../../../core/app_interaction_scope.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/jellyfin_client.dart';
+import '../../data/jellyfin_track_preferences_store.dart';
 import '../../data/models/jellyfin_item.dart';
+import '../../domain/jellyfin_track_preferences.dart';
 import '../../providers/jellyfin_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
@@ -207,6 +209,10 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   Tracks _tracks = const Tracks();
   Track _currentTrack = const Track();
   int? _selectedMaxBitrate;
+  JellyfinTrackPreferenceRecord? _preferredTracks;
+  int _sourceEpoch = 0;
+  int _preferredAudioEpoch = -1;
+  int _preferredSubtitleEpoch = -1;
 
   bool _loading = true;
   String? _error;
@@ -342,7 +348,13 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _reporter = null;
       if (!current()) return false;
       // Old track IDs cannot authorize selection in a replacement source.
+      _tracksSub?.cancel();
+      _tracksSub = null;
+      _trackSub?.cancel();
+      _trackSub = null;
       setState(() {
+        _sourceEpoch++;
+        _preferredTracks = null;
         _tracks = const Tracks();
         _currentTrack = const Track();
       });
@@ -357,6 +369,15 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         await _player.seek(startPosition);
         if (!current()) return false;
       }
+      try {
+        _preferredTracks = await ref
+            .read(jellyfinTrackPreferencesStoreProvider)
+            .read(client.config, isCurrent: current);
+      } catch (_) {
+        // A missing or untrusted local preference must never prevent playback.
+        _preferredTracks = null;
+      }
+      if (!current()) return false;
       final reporter = PlaybackReporter(
         client: client,
         itemId: widget.item.id,
@@ -380,11 +401,12 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _playingSub = _player.stream.playing.listen((playing) {
         if (mounted) setState(() => _playing = playing);
       });
-      _tracksSub?.cancel();
+      final sourceEpoch = _sourceEpoch;
       _tracksSub = _player.stream.tracks.listen((tracks) {
-        if (mounted) setState(() => _tracks = tracks);
+        if (!mounted) return;
+        setState(() => _tracks = tracks);
+        unawaited(_applyPreferredTracks(tracks, sourceEpoch, client));
       });
-      _trackSub?.cancel();
       _trackSub = _player.stream.track.listen((track) {
         if (mounted) setState(() => _currentTrack = track);
       });
@@ -393,6 +415,138 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       return true;
     } finally {
       _opening = false;
+    }
+  }
+
+  Future<void> _applyPreferredTracks(
+    Tracks tracks,
+    int sourceEpoch,
+    JellyfinClient client,
+  ) async {
+    final interactionGeneration = _interactionGeneration;
+    bool current() =>
+        sourceEpoch == _sourceEpoch &&
+        identical(_client, client) &&
+        _interactionCurrent(interactionGeneration) &&
+        identical(ref.read(jellyfinClientProvider), client) &&
+        !_pickerBusy;
+    if (!current()) return;
+    final preferred = _preferredTracks;
+    if (preferred == null) return;
+    if (_preferredAudioEpoch != sourceEpoch) {
+      final audio = JellyfinTrackPreferences.audio(
+        tracks.audio,
+        preferred.audioLanguage,
+      );
+      if (audio != null &&
+          _tracks.audio.any((available) => identical(available, audio)) &&
+          current()) {
+        _preferredAudioEpoch = sourceEpoch;
+        try {
+          await _player.setAudioTrack(audio);
+        } catch (_) {
+          // The player rejected this choice; do not claim it was selected.
+        }
+      }
+    }
+    if (!current() || _preferredSubtitleEpoch == sourceEpoch) return;
+    final subtitle = JellyfinTrackPreferences.subtitle(
+      tracks.subtitle,
+      preferred.subtitleLanguage,
+    );
+    if (subtitle != null &&
+        (subtitle.id == 'no' ||
+            _tracks.subtitle.any(
+              (available) => identical(available, subtitle),
+            )) &&
+        current()) {
+      _preferredSubtitleEpoch = sourceEpoch;
+      try {
+        await _player.setSubtitleTrack(subtitle);
+      } catch (_) {
+        // The active media source remains authoritative.
+      }
+    }
+  }
+
+  Future<void> _selectPreferredAudio(AudioTrack track, int generation) async {
+    final client = _client;
+    final sourceEpoch = _sourceEpoch;
+    if (client == null || !_interactionCurrent(generation)) return;
+    try {
+      await _player.setAudioTrack(track);
+      if (!_interactionCurrent(generation) ||
+          sourceEpoch != _sourceEpoch ||
+          !_tracks.audio.any((available) => identical(available, track))) {
+        return;
+      }
+      final language = JellyfinTrackPreferences.normalize(track.language);
+      if (language == null) return;
+      await ref
+          .read(jellyfinTrackPreferencesStoreProvider)
+          .save(
+            client.config,
+            audioLanguage: language,
+            subtitleLanguage: _preferredTracks?.subtitleLanguage,
+            isCurrent: () =>
+                sourceEpoch == _sourceEpoch &&
+                _interactionCurrent(generation) &&
+                identical(ref.read(jellyfinClientProvider), client),
+          );
+      if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
+        _preferredTracks = JellyfinTrackPreferenceRecord(
+          audioLanguage: language,
+          subtitleLanguage: _preferredTracks?.subtitleLanguage,
+        );
+        _preferredAudioEpoch = sourceEpoch;
+      }
+    } catch (_) {
+      // The selection may have played, but an uncertain preference write is
+      // never shown as an applied cross-session preference.
+    }
+  }
+
+  Future<void> _selectPreferredSubtitle(
+    SubtitleTrack track,
+    int generation,
+  ) async {
+    final client = _client;
+    final sourceEpoch = _sourceEpoch;
+    if (client == null || !_interactionCurrent(generation)) return;
+    try {
+      await _player.setSubtitleTrack(track);
+      if (!_interactionCurrent(generation) ||
+          sourceEpoch != _sourceEpoch ||
+          (track.id != 'no' &&
+              !_tracks.subtitle.any(
+                (available) => identical(available, track),
+              ))) {
+        return;
+      }
+      final language = track.id == 'no'
+          ? 'off'
+          : JellyfinTrackPreferences.normalize(track.language, allowOff: true);
+      if (language == null) return;
+      await ref
+          .read(jellyfinTrackPreferencesStoreProvider)
+          .save(
+            client.config,
+            audioLanguage: _preferredTracks?.audioLanguage,
+            subtitleLanguage: language,
+            isCurrent: () =>
+                sourceEpoch == _sourceEpoch &&
+                _interactionCurrent(generation) &&
+                identical(ref.read(jellyfinClientProvider), client),
+          );
+      if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
+        _preferredTracks = JellyfinTrackPreferenceRecord(
+          audioLanguage: _preferredTracks?.audioLanguage,
+          subtitleLanguage: language,
+        );
+        _preferredSubtitleEpoch = sourceEpoch;
+      }
+    } catch (_) {
+      // Do not replay a lost or stale player command.
     }
   }
 
@@ -530,6 +684,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   Future<void> _pick<R>({
     required String title,
+    String? message,
     required List<R> options,
     required Widget Function(R) label,
     required bool Function(R) available,
@@ -555,6 +710,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     route = CupertinoModalPopupRoute<R>(
       builder: (_) => CupertinoActionSheet(
         title: Text(title),
+        message: message == null ? null : Text(message),
         actions: [
           for (final option in options)
             CupertinoActionSheetAction(
@@ -587,10 +743,16 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     }
   }
 
+  String get _languagePreferenceHint =>
+      Localizations.localeOf(context).languageCode == 'tr'
+      ? 'Dil etiketi olan bir parça seçmek bu Jellyfin hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
+      : 'Choosing a track with a language label saves that language for this Jellyfin account. If a later title lacks it, playback keeps an available track.';
+
   Future<void> _showSubtitlePicker() {
     final l10n = AppLocalizations.of(context);
     return _pick<SubtitleTrack>(
       title: l10n.jellyfinPlayerSubtitlesTitle,
+      message: _languagePreferenceHint,
       options: [
         SubtitleTrack.no(),
         ..._tracks.subtitle.where((track) => track.id != 'no'),
@@ -604,8 +766,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       available: (track) =>
           track.id == 'no' ||
           _tracks.subtitle.any((current) => identical(current, track)),
-      apply: (track, _) =>
-          _ignoreFailure(() => _player.setSubtitleTrack(track)),
+      apply: _selectPreferredSubtitle,
     );
   }
 
@@ -614,6 +775,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     if (_tracks.audio.isEmpty) return Future.value();
     return _pick<AudioTrack>(
       title: l10n.jellyfinPlayerAudioTitle,
+      message: _languagePreferenceHint,
       options: List.of(_tracks.audio),
       label: (track) => Text(
         _trackLabel(track, l10n, isOff: false),
@@ -623,7 +785,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       ),
       available: (track) =>
           _tracks.audio.any((current) => identical(current, track)),
-      apply: (track, _) => _ignoreFailure(() => _player.setAudioTrack(track)),
+      apply: _selectPreferredAudio,
     );
   }
 

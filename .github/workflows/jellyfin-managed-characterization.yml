@@ -137,15 +137,27 @@
       "timeout-minutes": 5,
       "steps": [
         {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
           "name": "Require the scoped native result",
           "env": {
             "RUN_NATIVE": "${{ needs.native-scope.outputs.run }}",
             "SCOPE_RESULT": "${{ needs.native-scope.result }}",
-            "MATRIX_RESULT": "${{ needs.characterize.result }}"
+            "MATRIX_RESULT": "${{ needs.characterize.result }}",
+            "GITHUB_TOKEN": "${{ github.token }}"
           },
-          "run": "test \"$SCOPE_RESULT\" = success\ncase \"$RUN_NATIVE:$MATRIX_RESULT\" in\n  true:success|false:skipped) ;;\n  *) exit 1 ;;\nesac"
+          "run": "python3 tool/required_ci_aggregate.py native"
         }
-      ]
+      ],
+      "permissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
     }
   }
 }

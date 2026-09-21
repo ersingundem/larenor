@@ -3,11 +3,11 @@
 Uses Python's standard library so this check requires no package downloads.
 Runtime/API authorization remains covered by the Flutter regression suite.
 """
-from pathlib import Path
 import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 DOMAINS = {"root", "file", "database", "sharedpref", "external"}
@@ -143,7 +143,10 @@ def validate_signed_android_workflow(text):
     if "    needs: [build-debug-apk, analyze-test, end-to-end, server-test]" not in job.split("    steps:", 1)[0]:
         errors.append("Signed release must wait for native/debug, analysis/unit, Android E2E and Server API checks")
     for name, workflow in (("analyze-test", "analyze-test.yml"), ("end-to-end", "android-e2e.yml"), ("server-test", "server-test.yml")):
-        if f"  {name}:\n    uses: ./.github/workflows/{workflow}\n" not in text:
+        read_only_pr = ("    permissions:\n"
+                        "      contents: read\n"
+                        "      pull-requests: read\n") if name != "end-to-end" else ""
+        if f"  {name}:\n{read_only_pr}    uses: ./.github/workflows/{workflow}\n" not in text:
             errors.append("Missing same-revision reusable test workflow: " + name)
     checks = ["python3 tool/android_signing.py check-ci",
               "python3 tool/android_signing.py prepare-ci",
