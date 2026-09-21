@@ -14,6 +14,7 @@ const scope = WebPanelBridgeScope(
   policyRevision: 11,
   routeEpoch: 13,
   lifecycleEpoch: 17,
+  topOrigin: 'https://panel.example',
 );
 
 WebPanelBridgeTrustedFrame frame({
@@ -140,6 +141,7 @@ void main() {
       frame(mainFrame: false),
       frame(newWindow: true),
       frame(topOrigin: 'http://panel.example'),
+      frame(topOrigin: 'https://foreign.example'),
       frame(
         binding: const WebPanelBridgeScope(
           coreId: 'core-main',
@@ -151,6 +153,7 @@ void main() {
           policyRevision: 11,
           routeEpoch: 13,
           lifecycleEpoch: 17,
+          topOrigin: 'https://panel.example',
         ),
       ),
       frame(routeVisible: false),
@@ -223,6 +226,43 @@ void main() {
         controller.preview(command(sequence: 3), frame()).status,
         WebPanelBridgeStatus.denied,
       );
+    },
+  );
+  test(
+    'unsupported capability and timed out native port fail closed',
+    () async {
+      final unsupported = WebPanelNativeBridgeController(
+        port: const UnsupportedWebPanelNativeBridgePort(),
+        isCurrent: (candidate) => candidate == scope,
+        grantIds: () => 'abcdef0123456789abcdef0123456789',
+        previewIds: () => 'fedcba9876543210fedcba9876543210',
+      );
+      unsupported.arm(WebPanelNativeMethod.scanQr, scope);
+      expect(
+        unsupported
+            .preview(command(method: 'scanQr', payload: const {}), frame())
+            .status,
+        WebPanelBridgeStatus.unsupported,
+      );
+
+      final port = Port(gate: Completer<void>());
+      final timed = WebPanelNativeBridgeController(
+        port: port,
+        isCurrent: (candidate) => candidate == scope,
+        grantIds: () => 'abcdef0123456789abcdef0123456789',
+        previewIds: () => 'fedcba9876543210fedcba9876543210',
+        portTimeout: const Duration(milliseconds: 1),
+      );
+      timed.arm(WebPanelNativeMethod.speak, scope);
+      final preview = timed.preview(command(), frame());
+      final receipt = await timed.confirm(preview, frame());
+      expect(receipt.status, WebPanelBridgeStatus.unconfirmed);
+      expect(port.executes, 1);
+      expect(
+        (await timed.confirm(preview, frame())).status,
+        WebPanelBridgeStatus.unconfirmed,
+      );
+      expect(port.executes, 1);
     },
   );
 }
