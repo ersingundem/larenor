@@ -140,161 +140,167 @@ final class _Api implements LegacyRemoteManagementApi {
 }
 
 void main() {
-  test('safe device and command state rejects private or stale authority', () async {
-    var current = true;
-    final api = _Api();
-    final controller = LegacyRemoteManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'safe device and command state rejects private or stale authority',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = LegacyRemoteManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.load();
-    final device = controller.devices.single;
-    expect(device.stored, isTrue);
-    expect(device.reachable, isTrue);
-    expect(device.providerVerified, isTrue);
-    expect(device.commands, const [_command]);
-    expect(device.toString(), isNot(contains('raw')));
+      await controller.load();
+      final device = controller.devices.single;
+      expect(device.stored, isTrue);
+      expect(device.reachable, isTrue);
+      expect(device.providerVerified, isTrue);
+      expect(device.commands, const [_command]);
+      expect(device.toString(), isNot(contains('raw')));
+      await controller.preview(device, _command, repeats: 2);
+      expect(api.previewCalls, 0);
 
-    api.values = [_device(providerVerified: false)];
-    await controller.load();
-    await controller.preview(controller.devices.single, _command);
-    expect(api.previewCalls, 0);
+      api.values = [_device(providerVerified: false)];
+      await controller.load();
+      await controller.preview(controller.devices.single, _command);
+      expect(api.previewCalls, 0);
 
-    final gate = Completer<List<LegacyRemoteDevice>>();
-    api.listGate = gate;
-    final late = controller.load();
-    current = false;
-    gate.complete([_device()]);
-    await late;
-    expect(controller.devices, isEmpty);
-    expect(controller.state, LegacyRemoteManagementState.stale);
-  });
+      final gate = Completer<List<LegacyRemoteDevice>>();
+      api.listGate = gate;
+      final late = controller.load();
+      current = false;
+      gate.complete([_device()]);
+      await late;
+      expect(controller.devices, isEmpty);
+      expect(controller.state, LegacyRemoteManagementState.stale);
+    },
+  );
 
-  test('command requires preview confirmation and exact delivery readback', () async {
-    var current = true;
-    final api = _Api();
-    final controller = LegacyRemoteManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
-    await controller.load();
-    await controller.preview(controller.devices.single, _command);
-    api.lastPreview = controller.pendingPreview;
-    expect(controller.pendingPreview, isNotNull);
-    expect(api.confirmCalls, 0);
+  test(
+    'command requires preview confirmation and exact delivery readback',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = LegacyRemoteManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.preview(controller.devices.single, _command);
+      api.lastPreview = controller.pendingPreview;
+      expect(controller.pendingPreview, isNotNull);
+      expect(controller.pendingPreview.toString(), isNot(contains('b' * 64)));
+      expect(api.confirmCalls, 0);
 
-    final gate = Completer<LegacyRemoteCommandResult>();
-    api.confirmGate = gate;
-    final late = controller.confirmPending();
-    current = false;
-    gate.complete(api._result(api.lastPreview!));
-    await late;
-    expect(controller.state, LegacyRemoteManagementState.stale);
-    expect(api.readbackCalls, 0);
+      final gate = Completer<LegacyRemoteCommandResult>();
+      api.confirmGate = gate;
+      final late = controller.confirmPending();
+      current = false;
+      gate.complete(api._result(api.lastPreview!));
+      await late;
+      expect(controller.state, LegacyRemoteManagementState.stale);
+      expect(api.readbackCalls, 0);
 
-    current = true;
-    api.confirmGate = null;
-    await controller.load();
-    await controller.preview(controller.devices.single, _command);
-    api.lastPreview = controller.pendingPreview;
-    await controller.confirmPending();
-    expect(controller.state, LegacyRemoteManagementState.verified);
-    expect(controller.lastResult!.deliveryVerified, isTrue);
-    expect(controller.lastResult!.deviceStateVerified, isFalse);
-    expect(api.confirmCalls, 2);
-    expect(api.readbackCalls, 1);
-  });
+      current = true;
+      api.confirmGate = null;
+      await controller.load();
+      await controller.preview(controller.devices.single, _command);
+      api.lastPreview = controller.pendingPreview;
+      await controller.confirmPending();
+      expect(controller.state, LegacyRemoteManagementState.verified);
+      expect(controller.lastResult!.deliveryVerified, isTrue);
+      expect(controller.lastResult!.deviceStateVerified, isFalse);
+      expect(api.confirmCalls, 2);
+      expect(api.readbackCalls, 1);
+    },
+  );
 
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1280, 900)]) {
-      testWidgets(
-        '$language remote is accessible at ${size.width}px and 2x',
-        (tester) async {
-          tester.view.physicalSize = size;
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.reset);
-          final semantics = tester.ensureSemantics();
-          final api = _Api();
-          final controller = LegacyRemoteManagementController(
-            api: api,
-            authority: _authority,
-            isCurrent: () => true,
-          );
-          addTearDown(controller.dispose);
+      testWidgets('$language remote is accessible at ${size.width}px and 2x', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final semantics = tester.ensureSemantics();
+        final api = _Api();
+        final controller = LegacyRemoteManagementController(
+          api: api,
+          authority: _authority,
+          isCurrent: () => true,
+        );
+        addTearDown(controller.dispose);
 
-          await tester.pumpWidget(
-            CupertinoApp(
-              locale: Locale(language),
-              localizationsDelegates:
-                  AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: const TextScaler.linear(2),
-                ),
-                child: child!,
-              ),
-              home: LegacyRemoteManagementScreen(controller: controller),
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: Locale(language),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
             ),
-          );
-          await tester.pumpAndSettle();
+            home: LegacyRemoteManagementScreen(controller: controller),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-          expect(find.byType(AppSurface), findsOneWidget);
-          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
-          final action = find.byKey(
-            const ValueKey('legacy-remote-living-tv-powerToggle'),
-          );
-          expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
-          expect(tester.getSemantics(action).flagsCollection.isButton, isTrue);
-          expect(
-            tester
-                .getSemantics(
-                  find.byKey(const ValueKey('legacy-remote-state-living-tv')),
-                )
-                .label,
-            contains(
-              language == 'tr'
-                  ? 'Cihaz durumu doğrulanmadı'
-                  : 'Device state not verified',
-            ),
-          );
-          expect(tester.takeException(), isNull);
+        expect(find.byType(AppSurface), findsOneWidget);
+        expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+        final action = find.byKey(
+          const ValueKey('legacy-remote-living-tv-powerToggle'),
+        );
+        expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
+        expect(tester.getSemantics(action).flagsCollection.isButton, isTrue);
+        expect(
+          tester
+              .getSemantics(
+                find.byKey(const ValueKey('legacy-remote-state-living-tv')),
+              )
+              .label,
+          contains(
+            language == 'tr'
+                ? 'Cihaz durumu doğrulanmadı'
+                : 'Device state not verified',
+          ),
+        );
+        expect(tester.takeException(), isNull);
 
-          Focus.of(
-            tester.element(
-              find.descendant(of: action, matching: find.byType(Text)),
-            ),
-          ).requestFocus();
-          await tester.pump();
-          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
-          api.lastPreview = controller.pendingPreview;
-          expect(find.byType(CupertinoAlertDialog), findsOneWidget);
-          expect(api.confirmCalls, 0);
+        Focus.of(
+          tester.element(
+            find.descendant(of: action, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        api.lastPreview = controller.pendingPreview;
+        expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+        expect(api.confirmCalls, 0);
 
-          final confirm = find.byKey(
-            const ValueKey('legacy-remote-confirm-action'),
-          );
-          expect(tester.getRect(confirm).height, greaterThanOrEqualTo(48));
-          Focus.of(
-            tester.element(
-              find.descendant(of: confirm, matching: find.byType(Text)),
-            ),
-          ).requestFocus();
-          await tester.pump();
-          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-          await tester.pumpAndSettle();
-          expect(api.confirmCalls, 1);
-          expect(api.readbackCalls, 1);
-          expect(tester.takeException(), isNull);
-          semantics.dispose();
-        },
-      );
+        final confirm = find.byKey(
+          const ValueKey('legacy-remote-confirm-action'),
+        );
+        expect(tester.getRect(confirm).height, greaterThanOrEqualTo(48));
+        Focus.of(
+          tester.element(
+            find.descendant(of: confirm, matching: find.byType(Text)),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(api.confirmCalls, 1);
+        expect(api.readbackCalls, 1);
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
     }
   }
 }
