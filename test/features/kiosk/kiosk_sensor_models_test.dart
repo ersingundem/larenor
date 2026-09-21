@@ -12,6 +12,7 @@ Map<String, Object?> _sample({
   bool sampling = true,
   double? lux = 12,
   double? motionDelta = 0.8,
+  String cameraStatus = 'available',
 }) => {
   'version': 1,
   'sessionId': sessionId,
@@ -22,6 +23,7 @@ Map<String, Object?> _sample({
   'observedAtElapsedMillis': 1000,
   'lux': lux,
   'motionDelta': motionDelta,
+  'cameraStatus': cameraStatus,
 };
 
 final class _Api implements KioskSensorApi {
@@ -58,6 +60,7 @@ void main() {
     expect(value.motionAvailable, isFalse);
     expect(value.isDark, isNull);
     expect(value.isMoving(KioskSensorSensitivity.medium), isNull);
+    expect(value.cameraStatus, KioskSensorCameraStatus.available);
 
     for (final invalid in [
       {..._sample(), 'secret': 'must-not-be-accepted'},
@@ -65,6 +68,7 @@ void main() {
       {..._sample(), 'lux': -1.0},
       {..._sample(), 'motionDelta': double.infinity},
       {..._sample(), 'sequence': -1},
+      {..._sample(), 'cameraStatus': 'recording'},
     ]) {
       expect(
         () => KioskSensorSnapshot.fromChannel(invalid),

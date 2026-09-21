@@ -22,6 +22,7 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
   observedAtElapsedMillis: 1000 + sequence,
   lux: sequence == 0 ? null : 8,
   motionDelta: null,
+  cameraStatus: KioskSensorCameraStatus.busy,
 );
 
 final class _Api implements KioskSensorApi {
@@ -100,6 +101,7 @@ void main() {
         expect(api.starts, 1);
         expect(find.byKey(const ValueKey('kiosk-sensor-stop')), findsOneWidget);
         expect(find.textContaining(locale.languageCode == 'tr' ? 'kullanılamıyor' : 'unavailable'), findsOneWidget);
+        expect(find.textContaining(locale.languageCode == 'tr' ? 'meşgul' : 'busy'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

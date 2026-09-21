@@ -9,7 +9,8 @@ class KioskSensorPolicyTest {
         var started = 0
         var stopped = 0
         var now = 1000L
-        override fun availability() = KioskSensorAvailability(light = true, motion = true)
+        var camera = "available"
+        override fun availability() = KioskSensorAvailability(light = true, motion = true, camera = camera)
         override fun start(listener: (KioskSensorSample) -> Unit) { started++; this.listener = listener }
         override fun stop() { stopped++; listener = null }
         override fun nowMillis() = now
@@ -58,5 +59,18 @@ class KioskSensorPolicyTest {
         assertEquals(mapOf("version" to 1, "sessionId" to id, "stopped" to true), receipt)
         assertEquals(1, host.stopped)
         fails("expired") { policy.stop(mapOf("sessionId" to id)) }
+    }
+
+    @Test fun cameraBusyAndPermissionRevocationStayExplicitWithoutOpeningCamera() {
+        val host = Host(); val policy = KioskSensorPolicy(host); policy.setInteractive(true)
+        val id = policy.start(mapOf("intervalMillis" to 1000))["sessionId"]
+        assertEquals("available", policy.read(mapOf("sessionId" to id))["cameraStatus"])
+        host.camera = "busy"
+        assertEquals("busy", policy.read(mapOf("sessionId" to id))["cameraStatus"])
+        host.camera = "permissionDenied"
+        val denied = policy.read(mapOf("sessionId" to id))
+        assertEquals("permissionDenied", denied["cameraStatus"])
+        assertFalse(denied.containsKey("cameraFrame"))
+        assertTrue(policy.hasSession())
     }
 }
