@@ -121,4 +121,78 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('late completion from previous item cannot skip current item', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final first = AmbientContent.web(
+      id: 'e' * 64,
+      url: 'https://panel.example/first',
+    );
+    final second = AmbientContent.web(
+      id: 'f' * 64,
+      url: 'https://panel.example/second',
+    );
+    VoidCallback? oldNext;
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: AmbientContentSequence(
+          repository: repository,
+          items: [first, second],
+          interval: const Duration(minutes: 1),
+          active: true,
+          reducedMotion: true,
+          renderer: (item, bytes, active, next) {
+            if (item == first) oldNext ??= next;
+            return Text(item == first ? 'first' : 'second');
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    oldNext!();
+    await tester.pump();
+    expect(find.text('second'), findsOneWidget);
+    oldNext!();
+    await tester.pump();
+    expect(find.text('second'), findsOneWidget);
+  });
+
+  testWidgets('callback from retired content generation cannot advance', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final first = AmbientContent.web(
+      id: '1' * 64,
+      url: 'https://panel.example/first',
+    );
+    final second = AmbientContent.web(
+      id: '2' * 64,
+      url: 'https://panel.example/second',
+    );
+    VoidCallback? previous;
+    Widget surface(List<AmbientContent> items) => CupertinoApp(
+      home: AmbientContentSequence(
+        repository: repository,
+        items: items,
+        interval: const Duration(minutes: 1),
+        active: true,
+        reducedMotion: true,
+        renderer: (item, bytes, active, next) {
+          previous ??= next;
+          return Text(item == first ? 'first' : 'second');
+        },
+      ),
+    );
+    await tester.pumpWidget(surface([first, second]));
+    await tester.pump();
+    final stale = previous!;
+    await tester.pumpWidget(surface([first, second]));
+    await tester.pump();
+    stale();
+    await tester.pump();
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('second'), findsNothing);
+  });
 }

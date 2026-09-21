@@ -30,3 +30,10 @@ format/origin validation, offline quota and digest readback, corrupt-item skip,
 lifecycle retirement, exact-origin redirects, reduced-motion behavior, and the
 four-locale/size accessibility matrix. Existing ambient/photo, idle media lease
 and WebPanel suites remain regression gates.
+
+Follow-up race regression: the outgoing item's completion callback and callbacks
+from a retired playlist generation cannot advance the new item. Video native
+open is paused by default, and foreground/route authority is checked again after
+muting, opening and playing; a late return pauses playback. The first stale-item
+callback test failed before the fix and passes afterward. Physical decoder and
+OEM display acceptance remains manual.

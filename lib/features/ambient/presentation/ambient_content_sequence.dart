@@ -140,15 +140,20 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
   Widget build(BuildContext context) {
     final item = _item;
     if (!widget.active || item == null) return widget.placeholder;
+    final generation = _generation;
+    void nextIfCurrent() {
+      if (_current(generation) && identical(_item, item)) _next();
+    }
+
     final renderer = widget.renderer;
     final child = renderer != null
-        ? renderer(item, _bytes, widget.active, _next)
+        ? renderer(item, _bytes, widget.active, nextIfCurrent)
         : _AmbientContentSurface(
             item: item,
             bytes: _bytes,
             active: widget.active,
             reducedMotion: widget.reducedMotion,
-            onComplete: _next,
+            onComplete: nextIfCurrent,
           );
     return AnimatedSwitcher(
       duration: widget.reducedMotion
@@ -276,9 +281,33 @@ class _AmbientVideoState extends State<_AmbientVideo> {
         return;
       }
       await _player.setVolume(0);
-      await _player.open(media, play: _foreground);
+      if (!mounted || generation != _generation || !widget.active) {
+        return;
+      }
+      // Opening never autoplays: a foreground/route change can arrive while
+      // native media setup is pending. Verify the owner again after every await.
+      await _player.open(media, play: false);
+      if (!mounted ||
+          generation != _generation ||
+          !widget.active ||
+          !_foreground) {
+        await _player.pause();
+        return;
+      }
+      await _player.play();
+      if (!mounted ||
+          generation != _generation ||
+          !widget.active ||
+          !_foreground) {
+        await _player.pause();
+      }
     } catch (_) {
-      if (mounted && generation == _generation) widget.onComplete();
+      if (mounted &&
+          generation == _generation &&
+          widget.active &&
+          _foreground) {
+        widget.onComplete();
+      }
     }
   }
 
