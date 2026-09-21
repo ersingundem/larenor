@@ -63,8 +63,9 @@ final class AmbientContent {
   final int sizeBytes;
   final String? webUrl;
 
-  WebPanelPolicy? get policy =>
-      kind == AmbientContentKind.web ? WebPanelPolicy.fromUrl(webUrl!) : null;
+  WebPanelPolicy? get policy => kind == AmbientContentKind.web
+      ? WebPanelPolicy.fromUrl(webUrl!, cleanNavigationOnly: true)
+      : null;
 
   String get extension => switch (kind) {
     AmbientContentKind.video => 'mp4',

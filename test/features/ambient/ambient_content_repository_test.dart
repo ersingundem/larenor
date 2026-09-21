@@ -56,6 +56,15 @@ void main() {
       ]);
       expect(items.last.webUrl, 'https://panel.example/status');
       expect(
+        items.last.policy!.allows('https://panel.example/status?token=secret'),
+        isFalse,
+      );
+      expect(
+        items.last.policy!.allows('https://panel.example/status#session'),
+        isFalse,
+      );
+      expect(items.last.policy!.allows('https://panel.example/next'), isTrue);
+      expect(
         items.every((e) => !e.toJson().toString().contains(parent.path)),
         isTrue,
       );

@@ -10,7 +10,8 @@ Exactly three user acceptance criteria are in scope:
 1. A user can explicitly select bounded local MP4/PDF files or approve an HTTPS
    page. The private manifest retains no picker path, username, password, query
    or fragment; local copies are digest verified, limited to 24 items and 256
-   MiB total, and web navigation remains on the approved origin.
+   MiB total, and web navigation remains on the approved origin without
+   same-origin query or fragment redirects.
 2. The ambient playlist loads one item at a time, skips a corrupt entry and
    continues, uses the existing bounded WebPanel policy, disables video motion
    when reduced motion is enabled, and retires timers, players, reads and web
@@ -37,3 +38,10 @@ open is paused by default, and foreground/route authority is checked again after
 muting, opening and playing; a late return pauses playback. The first stale-item
 callback test failed before the fix and passes afterward. Physical decoder and
 OEM display acceptance remains manual.
+
+Follow-up URL regression: an approved ambient page previously inherited the
+general WebPanel same-origin policy, which allowed later query/fragment
+navigation even though the ambient source rejected those addresses on import.
+Ambient content now requests a clean-navigation policy while ordinary WebPanel
+pages retain their existing behavior. Repository and WebView delegate tests
+cover same-origin secret-bearing redirects.

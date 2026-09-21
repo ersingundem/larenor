@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/ambient/data/ambient_content_repository.dart';
 import 'package:larenor/features/ambient/domain/ambient_content.dart';
 import 'package:larenor/features/ambient/presentation/ambient_content_sequence.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
+
+import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
 
 class _Repository implements AmbientContentStore {
   final failed = <String>{};
@@ -18,6 +22,46 @@ class _Repository implements AmbientContentStore {
 }
 
 void main() {
+  testWidgets('ambient web blocks same-origin secret-bearing redirects', (
+    tester,
+  ) async {
+    final previous = WebViewPlatform.instance;
+    final platform = TestWebViewPlatform();
+    WebViewPlatform.instance = platform;
+    addTearDown(
+      () => WebViewPlatform.instance = previous ?? TestWebViewPlatform(),
+    );
+    final item = AmbientContent.web(
+      id: '9' * 64,
+      url: 'https://panel.example/status',
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: AmbientContentSequence(
+          repository: _Repository(),
+          items: [item],
+          interval: const Duration(minutes: 1),
+          active: true,
+          reducedMotion: true,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final delegate = platform.controllers.single.delegate;
+    expect(
+      await delegate.navigation(
+        const NavigationRequest(
+          url: 'https://panel.example/status?token=private',
+          isMainFrame: true,
+        ),
+      ),
+      NavigationDecision.prevent,
+    );
+  });
+
   testWidgets('skips broken content and retires callbacks when inactive', (
     tester,
   ) async {
