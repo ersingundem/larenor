@@ -58,7 +58,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
   }
 
   Future<bool> _run(String target, Future<void> Function() operation) async {
-    if (!mounted || !foreground || _pending.contains(target)) return false;
+    if (!actionCurrent(generation) || _pending.contains(target)) return false;
     final epoch = generation;
     setState(() {
       _pending.add(target);
@@ -256,7 +256,8 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         children: [
                           Text(l10n.todayReadError),
                           CupertinoButton(
-                            onPressed: _refresh,
+                            minimumSize: const Size(48, 48),
+                            onPressed: guarded(_refresh),
                             child: Text(l10n.commonRetry),
                           ),
                         ],
@@ -278,7 +279,8 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         textAlign: TextAlign.center,
                       ),
                       CupertinoButton(
-                        onPressed: () => context.push('/settings'),
+                        minimumSize: const Size(48, 48),
+                        onPressed: guarded(() => context.push('/settings')),
                         child: Text(l10n.navigationConfigure),
                       ),
                     ],
@@ -321,19 +323,23 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                           key: const ValueKey('today-retained-status'),
                           style: AppText.headline,
                         ),
-                      CupertinoButton(
-                        key: const ValueKey('today-refresh'),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        onPressed: _pending.contains('refresh')
-                            ? null
-                            : _refresh,
-                        child: _pending.contains('refresh')
-                            ? Semantics(
-                                liveRegion: true,
-                                label: l10n.todayRefreshing,
-                                child: const CupertinoActivityIndicator(),
-                              )
-                            : Text(l10n.commonRefresh),
+                      Semantics(
+                        container: true,
+                        child: CupertinoButton(
+                          key: const ValueKey('today-refresh'),
+                          minimumSize: const Size(48, 48),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          onPressed: _pending.contains('refresh')
+                              ? null
+                              : guarded(_refresh),
+                          child: _pending.contains('refresh')
+                              ? Semantics(
+                                  liveRegion: true,
+                                  label: l10n.todayRefreshing,
+                                  child: const CupertinoActivityIndicator(),
+                                )
+                              : Text(l10n.commonRefresh),
+                        ),
                       ),
                       if (snapshot.issues.isNotEmpty) ...[
                         Text(l10n.todayPartial, style: AppText.headline),
@@ -685,25 +691,33 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
           Wrap(
             spacing: 12,
             children: [
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                key: ValueKey('today-list-${list.entityId}'),
-                onPressed: guarded(
-                  () => _open(_TodayView.tasks, id: list.entityId),
+              Semantics(
+                container: true,
+                child: CupertinoButton(
+                  minimumSize: const Size(48, 48),
+                  padding: EdgeInsets.zero,
+                  key: ValueKey('today-list-${list.entityId}'),
+                  onPressed: guarded(
+                    () => _open(_TodayView.tasks, id: list.entityId),
+                  ),
+                  child: Text(l10n.todayViewAll(items.length)),
                 ),
-                child: Text(l10n.todayViewAll(items.length)),
               ),
               if (list.canAdd)
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  key: ValueKey('today-add-${list.entityId}'),
-                  onPressed:
-                      actionsAvailable &&
-                          todayListWritable(snapshot, list) &&
-                          !_pending.contains(list.entityId)
-                      ? guarded(() => _edit(list))
-                      : null,
-                  child: Text(l10n.todayAddTask),
+                Semantics(
+                  container: true,
+                  child: CupertinoButton(
+                    minimumSize: const Size(48, 48),
+                    padding: EdgeInsets.zero,
+                    key: ValueKey('today-add-${list.entityId}'),
+                    onPressed:
+                        actionsAvailable &&
+                            todayListWritable(snapshot, list) &&
+                            !_pending.contains(list.entityId)
+                        ? guarded(() => _edit(list))
+                        : null,
+                    child: Text(l10n.todayAddTask),
+                  ),
                 ),
               if (list.canAdd && actions != null)
                 RecipeShoppingLaunchButton(
@@ -743,28 +757,32 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CupertinoButton(
-            padding: const EdgeInsets.only(right: 12, top: 4, bottom: 8),
-            key: ValueKey('today-toggle-${list.entityId}-${item.uid}'),
-            onPressed: writable && item.status != TodayTodoStatus.unknown
-                ? guarded(
-                    () => _toggle(
-                      list.entityId,
-                      item.uid!,
-                      done
-                          ? TodayTodoStatus.needsAction
-                          : TodayTodoStatus.completed,
-                    ),
-                  )
-                : null,
-            child: Semantics(
-              label: done ? l10n.todayMarkIncomplete : l10n.todayMarkDone,
-              child: Icon(
-                done
-                    ? CupertinoIcons.check_mark_circled_solid
-                    : item.status == TodayTodoStatus.unknown
-                    ? CupertinoIcons.question_circle
-                    : CupertinoIcons.circle,
+          Semantics(
+            container: true,
+            child: CupertinoButton(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.only(right: 12, top: 4, bottom: 8),
+              key: ValueKey('today-toggle-${list.entityId}-${item.uid}'),
+              onPressed: writable && item.status != TodayTodoStatus.unknown
+                  ? guarded(
+                      () => _toggle(
+                        list.entityId,
+                        item.uid!,
+                        done
+                            ? TodayTodoStatus.needsAction
+                            : TodayTodoStatus.completed,
+                      ),
+                    )
+                  : null,
+              child: Semantics(
+                label: done ? l10n.todayMarkIncomplete : l10n.todayMarkDone,
+                child: Icon(
+                  done
+                      ? CupertinoIcons.check_mark_circled_solid
+                      : item.status == TodayTodoStatus.unknown
+                      ? CupertinoIcons.question_circle
+                      : CupertinoIcons.circle,
+                ),
               ),
             ),
           ),
@@ -857,7 +875,10 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                       'completed': l10n.todayCompleted,
                     }.entries)
                       CupertinoButton(
-                        onPressed: () => setState(() => _filter = entry.key),
+                        minimumSize: const Size(48, 48),
+                        onPressed: guarded(
+                          () => setState(() => _filter = entry.key),
+                        ),
                         child: Text(
                           entry.value,
                           style: TextStyle(
@@ -869,6 +890,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                       ),
                     if (list.canAdd)
                       CupertinoButton(
+                        minimumSize: const Size(48, 48),
                         key: ValueKey('today-add-${list.entityId}'),
                         onPressed:
                             actionsAvailable &&
@@ -1064,6 +1086,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                     const SizedBox(height: 16),
                     Text(l10n.todayDismissConfirm, style: AppText.headline),
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       key: const ValueKey('today-confirm-dismiss'),
                       onPressed: canDismiss
                           ? guarded(() => _dismiss(notification.id))
@@ -1071,13 +1094,17 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                       child: Text(l10n.todayDismissNotification),
                     ),
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       onPressed: _pending.contains('notifications')
                           ? null
-                          : () => setState(() => _confirmDismiss = false),
+                          : guarded(
+                              () => setState(() => _confirmDismiss = false),
+                            ),
                       child: Text(l10n.commonCancel),
                     ),
                   ] else
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       key: const ValueKey('today-dismiss'),
                       onPressed: canDismiss
                           ? guarded(

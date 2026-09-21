@@ -1055,14 +1055,17 @@
       "kind": "task",
       "parent": "S07",
       "title": "İndirme, istek ve kütüphane otomatik eşleştirmesi",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S07.1"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/testing/s07-2-automatic-media-flow.md",
+        "docs/testing/s07-2-delivery-continuity-retry.md",
+        "docs/s07-2-s07-3-software-closure-2026-09-21.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
@@ -1073,23 +1076,68 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Integrated main tree: 87 focused media flow, music manager/playback/runtime/setup/key-rotation and API-boundary tests passed; S07.2 covers request, download, import, playable, hardlink, retry and partial-state fixtures."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent closure review bound the merged S07.1 package to the private worker flow and kept real filesystem, provider account and playback acceptance in manual gates."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541058995",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #230 exact head Server aggregate completed with 29 total required checks and no failure or pending job; media continuity and retry source passed."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541058800",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Unified stack native amd64 and arm64 jobs passed together with qBittorrent, Arr, Jellyfin and Music Assistant native gates."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538623984",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "S07.1 exact unified package dependency passed real Docker create, start, restart, mount, network and DNS acceptance on linux/amd64 and linux/arm64."
+        }
+      ],
+      "completionCommit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+      "reason": "S07.1 is merged; request-to-playable authority, hardlink/path continuity, partial state, idempotent retry and private worker integration are present together on main and passed focused tests, review, exact PR CI and two-architecture package acceptance. Live home imports remain manual."
     },
     {
       "id": "S07.3",
       "kind": "task",
       "parent": "S07",
       "title": "Müzik sağlayıcı, kuyruk ve alıcı Server API’si",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S07.1"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/s07-3-music-core-api-acceptance-2026-09-20.md",
+        "docs/s07-3-music-client-tablet-acceptance-2026-09-20.md",
+        "docs/testing/s07-3-provider-key-rotation.tdd.md",
+        "docs/s07-2-s07-3-software-closure-2026-09-21.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
@@ -1100,9 +1148,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Integrated main tree: 87 focused tests cover one manager surface, strict provider/catalog/queue/receiver revisions, post-effect readback and encrypted restart-safe private key rotation."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core and tablet contracts use only the Larenor account and private worker; no Music Assistant address/token onboarding or second state owner is exposed. Physical subscription and receiver results remain manual."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541127468",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #231 exact head Server aggregate completed with 31 total required checks and no failure or pending job; key rotation and existing music contracts passed together."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541127302",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Music Assistant native acceptance passed with the rotation addition; unified amd64 and arm64 stack jobs and security policy also passed."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538623984",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "S07.1 exact unified package dependency passed the two-architecture managed Music Assistant lifecycle inside the one Larenor distribution."
+        }
+      ],
+      "completionCommit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+      "reason": "S07.1 is merged; provider setup/cancel, catalog, queue, receiver and verified playback commands plus encrypted idempotent private key rotation coexist on main behind one Larenor authority. Software tests, review, CI and native package gates passed; live provider/HomePod/Cast acceptance remains manual."
     },
     {
       "id": "S07.4",
@@ -2015,7 +2104,7 @@
       "kind": "task",
       "parent": "B5",
       "title": "Ortak tablet düzeni ve erişilebilirlik sözleşmesi",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "B0"
       ],
@@ -2040,7 +2129,8 @@
         "docs/core-account-ime-navigation-2026-09-08.md",
         "docs/core-services-ime-integration-2026-09-08.md",
         "docs/client-delivery-116-2026-09-08.md",
-        "docs/direct-ha-migration-client-implementation-2026-09-08.md"
+        "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+        "docs/b51-shared-tablet-software-closure-2026-09-21.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -2053,264 +2143,32 @@
       ],
       "evidence": [
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260527888",
-          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct tablet source exactbd1:5436Flutter/3867Server/17E2E ve signedAPK122 geçti; apksig package/code/minSdk/nondebug/imza ve SHA21cc73b9 doğrulandı."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33988283337",
-          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
-          "state": "completed",
-          "result": "passed",
-          "label": "Ayarlar ve emülatör hazırlığı:2739Flutter/98JVM/8E2E+imzalıAPK93; yeni dashboard bunun kapsamında değil."
-        },
-        {
           "kind": "test",
-          "ref": "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
-          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "ref": "docs/b51-shared-tablet-software-closure-2026-09-21.md",
+          "commit": "ee25ae45fd6fad02534200fa639e011c677dea27",
           "state": "completed",
           "result": "passed",
-          "label": "Dashboard343/son49delta ve birleşik2815Flutter PASS; owned5dosya satır kapsamı88.1%."
+          "label": "Final integrated preview regenerated build-runner and localization sources and passed 240/240 focused Flutter tests across the last Core settings, direct connection, Home Assistant/player, Today, media and Keenetic tablet slices."
         },
         {
           "kind": "review",
-          "ref": "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
-          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "ref": "docs/b51-shared-tablet-software-closure-2026-09-21.md",
+          "commit": "ee25ae45fd6fad02534200fa639e011c677dea27",
           "state": "completed",
           "result": "passed",
-          "label": "Native kart, lifecycle/epoch, context menu, odak ve semantics bağımsız incelemesi temiz."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/tablet-media-accessibility-implementation-2026-09-05.md",
-          "commit": "14b7b62c05d2b1475818acecc9d2270d55f9f2c9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Medya733 ilgili/22 son test ve birleşik2837Client PASS; analiz0,803dosya format0değişiklik; iki dosya satır kapsamı%92,5."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/tablet-media-accessibility-implementation-2026-09-05.md",
-          "commit": "14b7b62c05d2b1475818acecc9d2270d55f9f2c9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Ortak poster/grid ve gerçek MediaHub/Jellyfin davranışları bağımsız incelendi; gerçek-font açık/koyu tablet PNG temiz."
+          "label": "Independent closure review confirmed the shared tablet design, exact account/route/lifecycle/revision authority and secret-free state grammar; physical Huawei, DeX, TalkBack and live-service checks remain manual."
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33989941216",
-          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35548667441",
+          "commit": "ee25ae45fd6fad02534200fa639e011c677dea27",
           "state": "completed",
           "result": "passed",
-          "label": "Ayarlar/dashboard kaynak kapısı:2815 Flutter,98 JVM,9E2E ve bağımsız APK94 doğrulaması geçti. Yeni medya posterleri bu sürüme dahil değil."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33991460336",
-          "commit": "394de0fc5e0f7e672dda8847c83b6e8d3b50e61b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Medya kaynak kapısı:2837 Flutter,98 JVM,9E2E ve signed APK95 build geçti. Bağımsız Java17/apksig doğrulaması da başarılı."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/application-window-focus-implementation-2026-09-06.md",
-          "commit": "6c5fbb24c31527413661a5de501c2b31c5d5d21f",
-          "state": "completed",
-          "result": "passed",
-          "label": "Native viewfocus:24PASS2FAIL→26PASS,252 ilgiliPASS;102/106satır, bağımsız CLEAR. EskiHAonayı0HTTP; diğerwindow ve nativeaudio korundu; yeniCI/fizikselDeX açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/application-window-focus-implementation-2026-09-06.md",
-          "commit": "6c5fbb24c31527413661a5de501c2b31c5d5d21f",
-          "state": "completed",
-          "result": "passed",
-          "label": "Native viewfocus:24PASS2FAIL→26PASS,252 ilgiliPASS;102/106satır, bağımsız CLEAR. EskiHAonayı0HTTP; diğerwindow ve nativeaudio korundu; yeniCI/fizikselDeX açık."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34002121963",
-          "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
-          "state": "completed",
-          "result": "passed",
-          "label": "Native pencere odağı düzeltmesi exact4bc79dc/APK99:3941Flutter/98JVM/11E2E ve bağımsız imza kontrolü geçti. Sonraki yeni Core yönetim UI dahil değil; tümB5.1kabulü değil."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-plugins-integration-verification-2026-09-06.md",
-          "commit": "9ca1ffed2a06f7c06533ea7c1196ac5077919055",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core eklenti kataloğu birleşimi:5088 tam ClientPASS, analiz0,967format0. Bağımsız B5kaynak ve rootbirleşim/gerçekfont2xgörsel inceleme CLEAR. Server/contracts/android/CI ağaçları e7aynı; kendiCI ve fizikselkabul açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-plugins-integration-verification-2026-09-06.md",
-          "commit": "9ca1ffed2a06f7c06533ea7c1196ac5077919055",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core eklenti kataloğu birleşimi:5088 tam ClientPASS, analiz0,967format0. Bağımsız B5kaynak ve rootbirleşim/gerçekfont2xgörsel inceleme CLEAR. Server/contracts/android/CI ağaçları e7aynı; kendiCI ve fizikselkabul açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
-          "commit": "25d49fb0c403432b5328d71b1b29baf24abcb064",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jobs tablet ekranı:34 yeni/55 son kaynak testiPASS;381/395satır,analiz2/0format2/0. Effective48px,normal1x boyananmetin,EN/TR600/1280 2x,Tabodağı; root+bağımsız CLEAR. Önceki307 farklısource kontrolüne eklenmez; tam birleşim/CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
-          "commit": "25d49fb0c403432b5328d71b1b29baf24abcb064",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jobs tablet ekranı:34 yeni/55 son kaynak testiPASS;381/395satır,analiz2/0format2/0. Effective48px,normal1x boyananmetin,EN/TR600/1280 2x,Tabodağı; root+bağımsız CLEAR. Önceki307 farklısource kontrolüne eklenmez; tam birleşim/CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/restore-dialog-targets-2026-09-06.md",
-          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/restore-dialog-targets-2026-09-06.md",
-          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
-          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "completed",
-          "result": "passed",
-          "label": "Android108: exact 960691c, ilk deneme; 5150 Flutter, 98 JVM, 17 E2E / 133 faz ve bağımsız APK108 doğrulaması geçti. Sonraki Services/IME paketi dahil değil."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
-          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
-          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "completed",
-          "result": "passed",
-          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-services-tablet-accessibility-2026-09-06.md",
-          "commit": "09c04b7ef8367fecf6a4bc75f6fc5cecb4810c86",
-          "state": "completed",
-          "result": "passed",
-          "label": "Services tablet:46odaklı/186ilgiliPASS,son16deltaPASS ayrı;538/551satır,analiz2/0format2/0. Effectiveheader/actionadları,modal48px/IMEtekNext/lightfocus; rootfinalsource+2PNG CLEAR. Mainbirleşti, CI108dahil değil. TamClientve yeniCI ayrı açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-services-tablet-accessibility-2026-09-06.md",
-          "commit": "09c04b7ef8367fecf6a4bc75f6fc5cecb4810c86",
-          "state": "completed",
-          "result": "passed",
-          "label": "Services tablet:46odaklı/186ilgiliPASS,son16deltaPASS ayrı;538/551satır,analiz2/0format2/0. Effectiveheader/actionadları,modal48px/IMEtekNext/lightfocus; rootfinalsource+2PNG CLEAR. Mainbirleşti, CI108dahil değil. TamClientve yeniCI ayrı açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-account-ime-navigation-2026-09-08.md",
-          "commit": "bd441c00b1638b64b0f0a88a96511b853412f5f9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core hesap IME: 12 gerçek hata → 12 geçti; genişletilmiş 24 ve 163 ilgili test geçti. Üretimde dört satır yinelenen callback kaldırıldı; root incelemesi temiz. Services ile yeni tam Client koşusu ayrı sürüyor."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-account-ime-navigation-2026-09-08.md",
-          "commit": "bd441c00b1638b64b0f0a88a96511b853412f5f9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core hesap IME: 12 gerçek hata → 12 geçti; genişletilmiş 24 ve 163 ilgili test geçti. Üretimde dört satır yinelenen callback kaldırıldı; root incelemesi temiz. Services ile yeni tam Client koşusu ayrı sürüyor."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-services-ime-integration-2026-09-08.md",
-          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
-          "state": "completed",
-          "result": "failed",
-          "label": "Birleşik cd961ac: 5218 PASS / 2 timeout; uzun host uykuları kaydedildi. Bu tam koşu başarılı sayılmıyor; hata logu korunur."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-services-ime-integration-2026-09-08.md",
-          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Aynı kaynak/süre sınırıyla yalnız iki başarısız test 2 PASS; tam analiz 0 sorun, 973 dosyada 0 biçim değişikliği. Tek temiz tam suite iddiası değildir; yeni CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-services-ime-integration-2026-09-08.md",
-          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Services ve IME kaynak incelemeleri, 10 değişmeyen Git nesnesi ve 6 log özeti root tarafından doğrulandı. SDK süreçleri reap edildi; ev işlemi yok."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34212319493",
-          "commit": "5cbff217cdcf719d9162b9b2b33bf22dd47a1996",
-          "state": "completed",
-          "result": "passed",
-          "label": "Android116: exact5cbff21, ilk deneme; 5220Flutter/98JVM/17E2E/133faz ve bağımsız imzalı APK116 doğrulaması geçti. Services+hesapIME dahildir; fiziksel tablet kabulü ayrı açıktır."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
-          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct aktarım tablet yüzeyi:EN/TR 320/600/1280 2x, effective48x48 semantics ve native Tab/ShiftTab/Enter/Space;92odaklı/599ilgiliPASS."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
-          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
-          "state": "completed",
-          "result": "passed",
-          "label": "TR600dark ve EN1280light 2x gerçek-font PNG ile Apple/tablet/a11y incelemesi CLEAR; sarma, eylem ve focus ring taşmasız."
+          "label": "PR #259 exact source 0d43b7f8 passed API 35 emulator journeys, debug APK and native contracts, static analysis, four Flutter shards, four Server shards, security and managed-stack gates."
         }
       ],
-      "completionCommit": null,
-      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS; fixture onarımı sonrası exactbd1 5436Flutter/3867Server/17E2E ve signedAPK122/apksig doğrulaması geçti. Genel B5.1 kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
+      "completionCommit": "ee25ae45fd6fad02534200fa639e011c677dea27",
+      "reason": "All shared tablet software surfaces are merged and the final 240-test integration preview, independent review and exact PR #259 CI passed. Physical Huawei MatePad, Samsung DeX, keyboard, TalkBack and live Home Assistant/media/router acceptance remains in the manual release matrix."
     },
     {
       "id": "B5.2",

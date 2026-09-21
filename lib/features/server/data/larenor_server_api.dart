@@ -301,6 +301,26 @@ class LarenorServerApi {
             },
           );
       final revisionNumber = int.tryParse(revision ?? '');
+      final localNotificationsQuery =
+          method == 'GET' &&
+          RegExp(
+            r'^/local-notifications/[0-9a-f]{32}/[0-9a-f]{32}/subscriptions/[0-9a-f]{32}/events$',
+          ).hasMatch(path) &&
+          queryParameters.containsKey('expectedRevision') &&
+          queryParameters.entries.every((entry) {
+            final number = int.tryParse(entry.value);
+            if (number == null ||
+                !RegExp(r'^(0|[1-9][0-9]{0,18})$').hasMatch(entry.value) ||
+                number > 0x7fffffffffffffff) {
+              return false;
+            }
+            return switch (entry.key) {
+              'expectedRevision' => number >= 1,
+              'after' => number >= 0,
+              'limit' => number >= 1 && number <= 100,
+              _ => false,
+            };
+          });
       final forgetQuery =
           method == 'DELETE' &&
           RegExp(r'^/admin/services/[0-9a-f]{32}$').hasMatch(path) &&
@@ -318,6 +338,7 @@ class LarenorServerApi {
           !homeAssistantHistory &&
           !homeAssistantEvents &&
           !homeAssistantVerification &&
+          !localNotificationsQuery &&
           !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');
       }
@@ -517,7 +538,16 @@ class LarenorServerApi {
             'media_installation_changed',
             'media_archive_authority_changed',
             'media_archive_snapshot_stale',
+            'notification_subscription_changed',
+            'notification_subscription_inactive',
+            'notification_registration_replay',
+            'notification_not_delivered',
+            'notification_event_conflict',
+            'notification_limit_reached',
           }.contains(code)) {
+        return code as String;
+      }
+      if (status == 503 && code == 'notification_storage_unavailable') {
         return code as String;
       }
     } catch (_) {

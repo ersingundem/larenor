@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -661,44 +662,89 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final size in [const Size(320, 900), const Size(1100, 900)]) {
-    testWidgets(
-      'progress and season controls fit ${size.width}px Turkish text at 2x',
-      (tester) async {
-        final harness = _Harness();
-        harness.jellyfin = _jf(
-          (request) async => _json({
-            'Items': request.url.path.endsWith('/Seasons')
-                ? [
-                    {
-                      'Id': 'season-0',
-                      'Name': 'Uzun özel bölümler sezonu',
-                      'Type': 'Season',
-                      'IndexNumber': 0,
-                    },
-                  ]
-                : [
-                    {
-                      'Id': 'episode',
-                      'Name': 'Uzun bir bölüm başlığı',
-                      'Type': 'Episode',
-                      'LocationType': 'Virtual',
-                    },
-                  ],
-          }),
-        );
-        await harness.mount(
-          tester,
-          const JellyfinSeriesScreen(series: _series),
-          size: size,
-          scale: 2,
-          locale: const Locale('tr'),
-        );
-        expect(tester.takeException(), isNull);
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-      },
-    );
+  for (final locale in [const Locale('en'), const Locale('tr')]) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '${locale.languageCode} series actions are 48dp keyboard controls at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          var seasonReads = 0;
+          final harness = _Harness();
+          harness.jellyfin = _jf((request) async {
+            if (request.url.path.endsWith('/Seasons')) seasonReads++;
+            return _json({
+              'Items': request.url.path.endsWith('/Seasons')
+                  ? [
+                      {
+                        'Id': 'season-0',
+                        'Name': 'Uzun özel bölümler sezonu',
+                        'Type': 'Season',
+                        'IndexNumber': 0,
+                      },
+                    ]
+                  : [
+                      {
+                        'Id': 'episode',
+                        'Name': 'Uzun bir bölüm başlığı',
+                        'Type': 'Episode',
+                        'LocationType': 'Virtual',
+                      },
+                    ],
+            });
+          });
+          await harness.mount(
+            tester,
+            const JellyfinSeriesScreen(series: _series),
+            size: size,
+            scale: 2,
+            locale: locale,
+          );
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(JellyfinSeriesScreen)),
+          );
+          final refresh = find.widgetWithText(
+            CupertinoButton,
+            l10n.commonRefresh,
+          );
+          final season = find.byKey(const ValueKey('media-season-number:0'));
+          for (final action in [refresh, season]) {
+            expect(tester.getRect(action).height, greaterThan(47.9));
+          }
+          expect(
+            tester
+                .getSemantics(find.bySemanticsLabel(l10n.commonRefresh).first)
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          expect(
+            tester
+                .getSemantics(
+                  find.bySemanticsLabel('Uzun özel bölümler sezonu').first,
+                )
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: season, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(seasonReads, 2);
+          expect(tester.takeException(), isNull);
+          await tester.drag(
+            find.byType(CustomScrollView),
+            const Offset(0, -500),
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          semantics.dispose();
+        },
+      );
+    }
   }
 }

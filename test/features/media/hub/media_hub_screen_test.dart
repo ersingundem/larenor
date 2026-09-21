@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
@@ -20,6 +21,7 @@ import 'package:larenor/features/media/jellyfin/data/jellyfin_client.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_series_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
+import 'package:larenor/features/media/music/presentation/music_center_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 const film = MediaTitle(
@@ -44,6 +46,7 @@ Widget app(
   JellyfinClient? client,
   double scale = 1,
   String language = 'en',
+  AppInteractionController? interaction,
 }) => ProviderScope(
   overrides: [
     jellyfinClientProvider.overrideWith((ref) => client),
@@ -65,7 +68,9 @@ Widget app(
           .copyWith(textScaler: TextScaler.linear(scale)),
       child: child!,
     ),
-    home: child,
+    home: interaction == null
+        ? child
+        : AppInteractionScope(controller: interaction, child: child),
   ),
 );
 
@@ -83,6 +88,72 @@ Future<void> tabToMediaSearch(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'media hub destinations are 48dp keyboard actions $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            tester.view.physicalSize = Size(width, 900);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            await tester.pumpWidget(
+              app(const MediaHubScreen(), scale: 2, language: language),
+            );
+            await tester.pumpAndSettle();
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(MediaHubScreen)),
+            );
+            for (final label in [l10n.musicTitle, l10n.haMediaTitle]) {
+              final action = find.widgetWithText(CupertinoButton, label).first;
+              expect(tester.getRect(action).height, greaterThan(47.9));
+              final node = tester.getSemantics(
+                find.bySemanticsLabel(label).first,
+              );
+              expect(node.flagsCollection.isButton, isTrue);
+              expect(node.label, contains(label));
+            }
+
+            Focus.of(tester.element(find.text(l10n.musicTitle).first))
+                .requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(find.byType(MusicCenterScreen), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('retired hub destination callback cannot open a route', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await tester.pumpWidget(
+      app(const MediaHubScreen(), interaction: interaction),
+    );
+    await tester.pumpAndSettle();
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(MediaHubScreen)),
+    );
+    final action = tester
+        .widget<CupertinoButton>(
+          find.widgetWithText(CupertinoButton, l10n.musicTitle).first,
+        )
+        .onPressed!;
+    interaction.setActive(false);
+    await tester.pump();
+    action();
+    await tester.pumpAndSettle();
+    expect(find.byType(MusicCenterScreen), findsNothing);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1280.0]) {
       testWidgets(

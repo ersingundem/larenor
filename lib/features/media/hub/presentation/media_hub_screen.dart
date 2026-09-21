@@ -17,6 +17,7 @@ import '../domain/media_identity.dart';
 import 'widgets/media_theme.dart';
 import '../providers/media_catalog_providers.dart';
 import 'media_search_screen.dart';
+import 'media_session_state.dart';
 import 'media_title_detail_screen.dart';
 import 'widgets/media_hero.dart';
 import 'widgets/media_row.dart';
@@ -40,20 +41,38 @@ class MediaHubScreen extends ConsumerStatefulWidget {
   ConsumerState<MediaHubScreen> createState() => _MediaHubScreenState();
 }
 
-class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
+class _MediaHubScreenState extends MediaSessionState<MediaHubScreen> {
   int _filter = 0;
   int _catalogGeneration = 0;
 
   @override
   Widget build(BuildContext context) {
+    watchMediaAccounts();
     ref.listen(mediaHubRowsProvider, (previous, next) {
       if (next.isLoading || next.hasError) _catalogGeneration++;
     });
+    if (!foreground || sessionExpired) {
+      final l10n = AppLocalizations.of(context);
+      return AppPageScaffold(
+        child: !foreground
+            ? const SizedBox.expand()
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    l10n.mediaAccountChanged,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+      );
+    }
     return MediaTheme(builder: _build);
   }
 
   Widget _build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final generation = sessionGeneration;
     final rowsAsync = ref.watch(mediaHubRowsProvider);
     final archiveHealth = ref.watch(mediaArchiveHealthControllerProvider);
 
@@ -75,9 +94,11 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                       minimumSize: const Size(48, 48),
                       padding: EdgeInsets.zero,
                       focusColor: CupertinoTheme.of(context).primaryColor,
-                      onPressed: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const MediaSearchScreen(),
+                      onPressed: guardedMediaAction(
+                        () => Navigator.of(context).push(
+                          CupertinoPageRoute(
+                            builder: (_) => const MediaSearchScreen(),
+                          ),
                         ),
                       ),
                       child: const ExcludeSemantics(
@@ -96,8 +117,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   CupertinoButton(
+                    minimumSize: const Size(48, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    onPressed: () {
+                    onPressed: guardedMediaAction(() {
                       if (widget.embedded) {
                         context.push('/media/music');
                       } else {
@@ -107,7 +129,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                           ),
                         );
                       }
-                    },
+                    }),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -118,8 +140,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                     ),
                   ),
                   CupertinoButton(
+                    minimumSize: const Size(48, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    onPressed: () {
+                    onPressed: guardedMediaAction(() {
                       if (widget.embedded) {
                         context.push('/media/sources');
                       } else {
@@ -129,7 +152,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                           ),
                         );
                       }
-                    },
+                    }),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -155,15 +178,21 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                         child: Text(l10n.mediaFilterTv),
                       ),
                     },
-                    onValueChanged: (value) =>
-                        setState(() => _filter = value ?? 0),
+                    onValueChanged: (value) {
+                      if (value != null && mediaActionCurrent(generation)) {
+                        setState(() => _filter = value);
+                      }
+                    },
                   ),
                   if (ref.watch(jellyfinClientProvider) != null)
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      onPressed: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => const JellyfinHomeScreen(),
+                      onPressed: guardedMediaAction(
+                        () => Navigator.of(context).push(
+                          CupertinoPageRoute(
+                            builder: (_) => const JellyfinHomeScreen(),
+                          ),
                         ),
                       ),
                       child: Row(
@@ -290,8 +319,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
 
   VoidCallback _openCurrentTitle(MediaTitle title) {
     final generation = _catalogGeneration;
+    final session = sessionGeneration;
     return () {
-      if (!mounted) return;
+      if (!mediaActionCurrent(session)) return;
       final current = ref.read(mediaHubRowsProvider);
       if (generation != _catalogGeneration ||
           current.isLoading ||
@@ -304,8 +334,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
 
   void Function(MediaTitle) _openRowTitle() {
     final generation = _catalogGeneration;
+    final session = sessionGeneration;
     return (title) {
-      if (!mounted) return;
+      if (!mediaActionCurrent(session)) return;
       final current = ref.read(mediaHubRowsProvider);
       if (generation != _catalogGeneration ||
           current.isLoading ||
