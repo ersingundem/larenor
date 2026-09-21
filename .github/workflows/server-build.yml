@@ -36,7 +36,11 @@
   "jobs": {
     "server-test": {
       "if": "github.repository == 'ersingundem/larenor' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
-      "uses": "./.github/workflows/server-test.yml"
+      "uses": "./.github/workflows/server-test.yml",
+      "permissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
     },
     "build-test": {
       "if": "github.repository == 'ersingundem/larenor' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
