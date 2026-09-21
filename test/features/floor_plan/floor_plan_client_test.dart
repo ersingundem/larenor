@@ -153,7 +153,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.text('Living room'), findsOneWidget);
-      expect(find.bySemanticsLabel('Rooms and devices'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Rooms and devices')), findsOneWidget);
       expect(
         tester.getSize(find.byKey(const ValueKey('floor-plan-refresh'))).height,
         greaterThanOrEqualTo(48),

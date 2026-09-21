@@ -2979,5 +2979,16 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "floorPlanTitle": "Etkileşimli ev planı",
+  "floorPlanLoading": "Ev planı yükleniyor",
+  "floorPlanEmpty": "Henüz kayıtlı bir ev planı yok.",
+  "floorPlanOffline": "Larenor Core çevrimdışı.",
+  "floorPlanStale": "Hesap, ev veya rota değişti; sonuç kullanılmadı.",
+  "floorPlanInvalid": "Larenor Core doğrulanamayan bir ev planı döndürdü.",
+  "floorPlanRefresh": "Yenile",
+  "floorPlanZoomIn": "Yakınlaştır",
+  "floorPlanZoomOut": "Uzaklaştır",
+  "floorPlanAccessibleRooms": "Odalar ve cihazlar",
+  "floorPlanRequired": "Ev planını görmek için bu evin doğrulanmış Larenor Core bağlantısını kullanın."
 }

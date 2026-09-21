@@ -17,6 +17,7 @@ import '../features/settings/data/app_service.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
+import '../features/floor_plan/presentation/floor_plan_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
@@ -36,6 +37,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       routes: [
         GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
         GoRoute(path: '/inventory', builder: (_, _) => const InventoryRoute()),
+        GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),
@@ -164,6 +166,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           entityId: state.pathParameters['entityId']!,
         ),
       ),
+      GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
       GoRoute(
         path: '/search',
         builder: (context, state) => LocalSearchScreen(

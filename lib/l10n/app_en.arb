@@ -3317,5 +3317,16 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "floorPlanTitle": "Interactive floor plan",
+  "floorPlanLoading": "Loading floor plan",
+  "floorPlanEmpty": "No floor plan has been saved.",
+  "floorPlanOffline": "Larenor Core is offline.",
+  "floorPlanStale": "The account, home or route changed; the result was discarded.",
+  "floorPlanInvalid": "Larenor Core returned an unverified floor plan.",
+  "floorPlanRefresh": "Refresh",
+  "floorPlanZoomIn": "Zoom in",
+  "floorPlanZoomOut": "Zoom out",
+  "floorPlanAccessibleRooms": "Rooms and devices",
+  "floorPlanRequired": "Connect to the verified Larenor Core for this home to view the floor plan."
 }
