@@ -14,7 +14,7 @@ Flutter or Server runtime products.
    themselves, invalid revisions and unavailable Git evidence continue to fail
    open into the complete suites.
 
-RED `5e733e49` records both scope decisions running the expensive suites for
+RED `39cf07f9` records both scope decisions running the expensive suites for
 every reviewed progress-only path. The full Android and Server scope-policy
 unit suites, platform security tests, queue validation, diff and secret scan
 are the GREEN gates.
