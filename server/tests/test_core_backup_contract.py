@@ -3,7 +3,10 @@ import hashlib
 import hmac
 import sqlite3
 
+import pytest
 from conftest import auth, ready
+
+from larenor_server.errors import ApiError
 
 
 def plan(client, pair):
@@ -177,3 +180,128 @@ def test_backup_contract_is_admin_only_strict_and_documented(server):
     paths = contract["paths"]
     assert "/api/v1/admin/backups/plan" in paths
     assert "/api/v1/admin/backups/restore/validate" in paths
+    assert "/api/v1/admin/backups/export" in paths
+    export_content = paths["/api/v1/admin/backups/export"]["post"]["responses"]["200"][
+        "content"
+    ]
+    assert "application/vnd.larenor.core-backup" in export_content
+
+
+def test_encrypted_export_roundtrip_contains_exact_captured_resources(server):
+    app, client, settings, _clock = server
+    pair = ready(server)
+    response = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": "Correct horse battery staple 2026"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.larenor.core-backup"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="larenor-core-backup.larenor-core"'
+    )
+    bundle = response.content
+    assert bundle.startswith(b"LARENOR-CORE-BACKUP\x00\x01")
+    assert settings.key_file.read_bytes() not in bundle
+    assert b"CREATE TABLE" not in bundle
+    assert b"admin" not in bundle
+
+    opened = app.state.core.core_backups.open_bundle(
+        bundle, "Correct horse battery staple 2026"
+    )
+    assert set(opened.payloads) == {
+        "component-index",
+        "core-configuration",
+        "core-database",
+        "vault-key",
+    }
+    by_id = {resource.id: resource for resource in opened.manifest.resources}
+    for identifier, payload in opened.payloads.items():
+        assert by_id[identifier].byteLength == len(payload)
+        assert by_id[identifier].sha256 == hashlib.sha256(payload).hexdigest()
+
+
+def test_encrypted_export_rejects_wrong_passphrase_tamper_and_weak_input(server):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    bundle = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": "Correct horse battery staple 2026"},
+    ).content
+
+    for changed, passphrase in (
+        (bundle, "Wrong horse battery staple 2026"),
+        (bundle[:-1] + bytes([bundle[-1] ^ 1]), "Correct horse battery staple 2026"),
+        (bundle[:20], "Correct horse battery staple 2026"),
+    ):
+        with pytest.raises(ApiError) as raised:
+            app.state.core.core_backups.open_bundle(changed, passphrase)
+        assert raised.value.code == "backup_decryption_failed"
+        assert str(raised.value) == "backup_decryption_failed"
+
+    weak = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": "too short"},
+    )
+    assert weak.status_code == 400
+    assert weak.json()["error"]["code"] == "invalid_request"
+
+
+def test_export_never_runs_through_an_active_effect(server):
+    app, client, _settings, clock = server
+    pair = ready(server)
+    actor = app.state.core.auth.authenticate(pair["accessToken"])
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "INSERT INTO bounded_transfer_receipts VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "7" * 32,
+                actor.id,
+                app.state.core.context.coreId,
+                app.state.core.context.homeId,
+                "8" * 32,
+                "9" * 64,
+                "accepted",
+                "a" * 32,
+                1,
+                "b" * 64,
+                "application/octet-stream",
+                1,
+                clock(),
+                clock(),
+                "c" * 64,
+            ),
+        )
+
+    response = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": "Correct horse battery staple 2026"},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "backup_blocked"
+
+
+def test_export_has_one_bounded_expensive_worker_and_never_echoes_passphrase(server):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    lock = app.state.core.core_backups._export_lock
+    assert lock.acquire(blocking=False)
+    try:
+        response = client.post(
+            "/api/v1/admin/backups/export",
+            headers=auth(pair),
+            json={"passphrase": "Never echo this backup passphrase 2026"},
+        )
+    finally:
+        lock.release()
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "backup_busy",
+        "message": "Another Core backup is already being created.",
+    }
+    assert "Never echo" not in response.text

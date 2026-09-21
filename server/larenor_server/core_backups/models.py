@@ -116,3 +116,20 @@ class RestoreValidationResponse(StrictModel):
         if self.compatible == bool(self.reasons):
             raise ValueError("invalid_restore_validation")
         return self
+
+
+class BackupExportRequest(StrictModel):
+    passphrase: Annotated[
+        str,
+        StringConstraints(min_length=16, max_length=128),
+        Field(repr=False, json_schema_extra={"writeOnly": True}),
+    ]
+
+    @field_validator("passphrase")
+    @classmethod
+    def safe_passphrase(cls, value):
+        if len(value.encode("utf-8")) > 512 or any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        ):
+            raise ValueError("invalid_passphrase")
+        return value
