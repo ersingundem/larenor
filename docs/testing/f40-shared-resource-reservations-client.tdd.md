@@ -2,6 +2,9 @@
 
 Status: **stacked Client software package ready; F40 remains pending**
 
+Program counters remain **21/125** and **0/63** until the HTTP, app-route and
+physical-device acceptance packages close the feature.
+
 This package is stacked on the F40 Core foundation and does not publish either
 branch. It adds an independently testable tablet presentation/controller
 boundary; route wiring and a real HTTP adapter remain part of the later E2E
