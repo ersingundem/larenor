@@ -110,6 +110,20 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                                 }
                               },
                       ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-weekly-menu-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-weekly-menu-action',
+                        ),
+                        title: Text(l10n.weeklyMealPlanTitle),
+                        additionalInfo: Text(l10n.weeklyMealPlanEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/weekly-menu');
+                              },
+                      ),
                     if (controller.failure == null && !controller.busy)
                       SettingsActionTile(
                         key: const ValueKey('core-home-manage-account-entry'),
