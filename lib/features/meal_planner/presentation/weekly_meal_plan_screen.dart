@@ -56,12 +56,37 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     }
   }
 
-  void _retire() {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_current) {
+      _clear();
+    } else if (_snapshot == null && !_loading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant WeeklyMealPlanScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.gateway, widget.gateway) || !_current) {
+      _clear();
+      if (_current) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+      }
+    }
+  }
+
+  void _clear() {
     _operation++;
     _snapshot = null;
     _loading = false;
     _failed = false;
     widget.onRetire?.call();
+  }
+
+  void _retire() {
+    _clear();
     if (mounted) setState(() {});
   }
 
@@ -100,7 +125,7 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final plan = _snapshot?.plan;
+    final plan = _current ? _snapshot?.plan : null;
     return CupertinoPageScaffold(
       child: CustomScrollView(
         key: const PageStorageKey('weekly-meal-plan-scroll'),

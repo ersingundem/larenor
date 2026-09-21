@@ -84,6 +84,26 @@ final class FakeGateway implements WeeklyMealPlanGateway {
   }) => throw UnimplementedError();
 }
 
+final class RefreshGateway implements WeeklyMealPlanGateway {
+  final secondRead = Completer<WeeklyMealPlanSnapshot>();
+  int reads = 0;
+
+  @override
+  Future<WeeklyMealPlanSnapshot> read() {
+    reads++;
+    return reads == 1 ? Future.value(snapshot()) : secondRead.future;
+  }
+
+  @override
+  Future<WeeklyMealPlanSnapshot> save({
+    required WeeklyMealPlanSnapshot base,
+    required String requestId,
+    required String weekStart,
+    required List<MealRecipe> recipes,
+    required List<MealPlanEntry> entries,
+  }) => throw UnimplementedError();
+}
+
 Future<void> mount(
   WidgetTester tester, {
   required Locale locale,
@@ -162,6 +182,7 @@ void main() {
     tester,
   ) async {
     final active = ValueNotifier(true);
+    final gateway = RefreshGateway();
     addTearDown(active.dispose);
     await tester.pumpWidget(
       CupertinoApp(
@@ -172,7 +193,7 @@ void main() {
           builder: (context, enabled, _) => TickerMode(
             enabled: enabled,
             child: WeeklyMealPlanScreen(
-              gateway: FakeGateway(Future.value(snapshot())),
+              gateway: gateway,
               isCurrent: () => true,
             ),
           ),
@@ -184,5 +205,12 @@ void main() {
     active.value = false;
     await tester.pumpAndSettle();
     expect(find.text('Mercimek çorbası'), findsNothing);
+    active.value = true;
+    await tester.pump();
+    expect(gateway.reads, 2);
+    expect(find.text('Mercimek çorbası'), findsNothing);
+    gateway.secondRead.complete(snapshot());
+    await tester.pumpAndSettle();
+    expect(find.text('Mercimek çorbası'), findsOneWidget);
   });
 }

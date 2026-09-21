@@ -29,3 +29,8 @@ action after the new home entry. The GREEN phase uses a vertical, full-width
 meal action and scrolls to the protected account entry. Focused widget, real
 loopback Core contract and logout regression tests pass in both locales and
 tablet widths, and targeted Flutter analysis reports no issues.
+
+RED `32f27c19` exposed a loaded menu remaining visible while its route became
+inactive. The screen now retires the prior snapshot on route/TickerMode and
+lifecycle changes, then performs a fresh read on activation; late results remain
+bound to the current operation.
