@@ -25,16 +25,16 @@ criteria are in scope:
 
 ## TDD and verification evidence
 
-- RED `9e6ac8b6`: restart, encrypted storage, authenticated HTTP, calibration,
+- RED `46eccf2f`: restart, encrypted storage, authenticated HTTP, calibration,
   and foreign-authority tests failed because Core had no durable registry.
-- GREEN `0782f2d0`: the encrypted repository, signed authority contract, local
+- GREEN `a3c02439`: the encrypted repository, signed authority contract, local
   fusion checkpoint restoration, and five HTTP routes passed 18 Server tests.
-- Client RED `a2b432ee` defined privacy, confirmation/readback, stale callback,
+- Client RED `02182df1` defined privacy, confirmation/readback, stale callback,
   and tablet accessibility boundaries.
-- Client GREEN `48b35c1f` adds the real HTTP adapter, account gateway, route
+- Client GREEN `3519d64e` adds the real HTTP adapter, account gateway, route
   ownership, Core Home/Settings discovery, and passes 17 focused Flutter tests
   plus focused analysis with no findings.
-- Hardening `51677356` rejects a tampered body on completed calibration replay
+- Hardening `e5550748` rejects a tampered body on completed calibration replay
   and makes failed route bootstrap retry explicit instead of looping.
 
 Queue and selected-feature counters remain **21/125** and **0/63**. Real
