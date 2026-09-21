@@ -38,7 +38,52 @@ final class Access implements WebPanelTransferAccess {
   }
 }
 
+final class ThrowingAccess implements WebPanelTransferAccess {
+  @override
+  Future<List<String>> pickUpload(FileSelectorParams request) async =>
+      throw StateError('picker unavailable');
+
+  @override
+  Future<bool> download(
+    Uri uri,
+    WebPanelPolicy policy,
+    bool Function() isCurrent,
+  ) async => throw StateError('transport unavailable');
+}
+
 void main() {
+  test('picker failure retires working state and allows explicit retry', () async {
+    final controller = WebPanelTransferController(
+      policy: WebPanelPolicy.fromUrl('https://panel.invalid')!,
+      access: ThrowingAccess(),
+      uploadsEnabled: true,
+      downloadsEnabled: false,
+      isCurrent: () => true,
+    );
+    controller.armUpload();
+    expect(await controller.selectUpload(upload), isEmpty);
+    expect(controller.status, WebPanelTransferStatus.failed);
+    controller.armUpload();
+    expect(controller.status, WebPanelTransferStatus.uploadArmed);
+    controller.dispose();
+  });
+
+  test('transport failure retires working state without download replay', () async {
+    final controller = WebPanelTransferController(
+      policy: WebPanelPolicy.fromUrl('https://panel.invalid')!,
+      access: ThrowingAccess(),
+      uploadsEnabled: false,
+      downloadsEnabled: true,
+      isCurrent: () => true,
+    );
+    controller.armDownload();
+    expect(controller.captureDownload('https://panel.invalid/file.pdf'), true);
+    await pumpEventQueue();
+    expect(controller.status, WebPanelTransferStatus.failed);
+    expect(controller.captureDownload('https://panel.invalid/file.pdf'), false);
+    controller.dispose();
+  });
+
   test(
     'upload requires a fresh one-shot grant and rejects late completion',
     () async {
