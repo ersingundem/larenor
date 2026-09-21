@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+
 import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_tablet_fleet_models.dart';
@@ -11,6 +16,117 @@ class ServerTabletFleetApi {
 
   String get _root =>
       '/tablet-fleet/${context.coreId}/${context.homeId}/devices';
+
+  Future<KioskProfileRolloutPreview> previewRollout({
+    required List<ManagedTablet> tablets,
+    required int profileRevision,
+    required int rolloutPercent,
+    bool fullscreen = true,
+    int idleTimeoutSeconds = 300,
+    String channel = 'stable',
+  }) async {
+    if (tablets.isEmpty ||
+        tablets.length > 256 ||
+        tablets.any((tablet) => tablet.context != context) ||
+        tablets.map((tablet) => tablet.id).toSet().length != tablets.length ||
+        profileRevision < 1 ||
+        profileRevision > 9223372036854775807 ||
+        rolloutPercent < 1 ||
+        rolloutPercent > 100 ||
+        idleTimeoutSeconds < 30 ||
+        idleTimeoutSeconds > 86400 ||
+        !{'stable', 'beta'}.contains(channel)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final ordered = [...tablets]..sort((a, b) => a.id.compareTo(b.id));
+    final targets = [
+      for (final tablet in ordered)
+        {'deviceId': tablet.id, 'expectedDeviceRevision': tablet.revision},
+    ];
+    final digest = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              1,
+              channel,
+              profileRevision,
+              rolloutPercent,
+              [fullscreen, idleTimeoutSeconds],
+              [
+                for (final tablet in ordered) [tablet.id, tablet.revision],
+              ],
+            ]),
+          ),
+        )
+        .toString();
+    final preview = KioskProfileRolloutPreview.fromJson(
+      await api.request(
+        'POST',
+        '/tablet-fleet/${context.coreId}/${context.homeId}/profiles/dry-run',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'requestDigest': digest,
+          'channel': channel,
+          'profileRevision': profileRevision,
+          'rolloutPercent': rolloutPercent,
+          'settings': {
+            'fullscreen': fullscreen,
+            'idleTimeoutSeconds': idleTimeoutSeconds,
+          },
+          'targets': targets,
+        },
+      ),
+    );
+    if (preview.context != context ||
+        preview.requestDigest != digest ||
+        preview.profileRevision != profileRevision ||
+        preview.rolloutPercent != rolloutPercent ||
+        preview.devices.length != ordered.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (var index = 0; index < ordered.length; index++) {
+      final expected = ordered[index];
+      final observed = preview.devices[index];
+      final differences = <String>[
+        if (expected.clientVersion != preview.release.versionName)
+          'applicationVersion',
+        if (expected.appliedProfileRevision != profileRevision)
+          'profileRevision',
+      ];
+      final selected =
+          int.parse(
+                sha256
+                    .convert(
+                      utf8.encode('${preview.profileSeal}:${expected.id}'),
+                    )
+                    .toString()
+                    .substring(0, 8),
+                radix: 16,
+              ) %
+              100 <
+          rolloutPercent;
+      final state = switch (expected.state) {
+        TabletFleetState.revoked => KioskRolloutDeviceState.revoked,
+        TabletFleetState.active
+            when differences.contains('applicationVersion') =>
+          KioskRolloutDeviceState.appUpdateRequired,
+        TabletFleetState.active when differences.isEmpty =>
+          KioskRolloutDeviceState.current,
+        TabletFleetState.active when selected => KioskRolloutDeviceState.ready,
+        TabletFleetState.active => KioskRolloutDeviceState.deferred,
+      };
+      if (observed.deviceId != expected.id ||
+          observed.deviceRevision != expected.revision ||
+          observed.appliedProfileRevision != expected.appliedProfileRevision ||
+          observed.desiredProfileRevision != expected.desiredProfileRevision ||
+          observed.state != state ||
+          !listEquals(observed.differences, differences)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    return preview;
+  }
 
   Future<List<ManagedTablet>> list() async {
     final result = ManagedTabletList.fromJson(

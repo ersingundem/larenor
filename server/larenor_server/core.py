@@ -107,6 +107,7 @@ from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
 from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
+from .sound_events.repository import SoundEventRepository
 
 
 class CoreServices:
@@ -308,6 +309,14 @@ class CoreServices:
             self.kiosk_remote = KioskRemoteService(
                 self.db, self.auth, settings, key, self.context)
             self.kiosk_remote.validate_storage()
+            self.sound_events = SoundEventRepository(
+                settings.data_dir / "sound-events.db",
+                key,
+                self.db,
+                self.auth,
+                self.context,
+                settings.clock,
+            )
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None
