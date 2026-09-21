@@ -151,9 +151,24 @@ def test_bounded_digest_only_events_require_exact_consent_scope_and_retention():
     assert (error.value.code, error.value.status) == ("forbidden", 403)
     assert denied.events(authority()) == ()
 
-    stale = engine()
+    for field in (
+        "roomRevision",
+        "deviceRevision",
+        "modelRevision",
+        "providerRevision",
+        "policyRevision",
+        "consentRevision",
+    ):
+        stale = engine()
+        with pytest.raises(ApiError) as error:
+            stale.ingest(authority(), observation(1, **{field: 99}))
+        assert (error.value.code, error.value.status) == (
+            "revision_conflict",
+            409,
+        )
+    stale_authority = engine()
     with pytest.raises(ApiError) as error:
-        stale.ingest(authority(), observation(1, modelRevision=99))
+        stale_authority.ingest(authority(homeRevision=99), observation(1))
     assert (error.value.code, error.value.status) == ("revision_conflict", 409)
 
     clock = Clock()
@@ -165,7 +180,7 @@ def test_bounded_digest_only_events_require_exact_consent_scope_and_retention():
     assert result.event.evidenceDigest == DIGEST
     assert "audio" not in result.event.model_dump_json().lower()
     assert len(accepted.events(authority())) == 1
-    clock.ms += 60_001
+    clock.ms += 60_002
     assert accepted.events(authority()) == ()
 
 
@@ -176,7 +191,9 @@ def test_confidence_hysteresis_dedup_and_provider_degradation_are_explicit():
 
     assert detector.ingest(authority(), observation(1, confidence=0.79)).status == "suppressed"
     assert detector.ingest(authority(), observation(2)).status == "suppressed"
-    assert detector.ingest(authority(), observation(3)).status == "event"
+    first = detector.ingest(authority(), observation(3))
+    assert first.status == "event"
+    assert detector.ingest(authority(), observation(3)) == first
     assert detector.ingest(authority(), observation(4)).reason == "hysteresis_active"
     assert len(calls) == 1
 
