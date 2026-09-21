@@ -1,33 +1,34 @@
 # F55 Zigbee/Thread tablet management acceptance
 
-This package adds an Android tablet and DeX management surface over the F55
-Core boundary. Queue progress remains 21/125 and selected-feature progress
-remains 0/63. An authenticated HTTP adapter, durable command storage,
-production coordinator workers, signed vendor catalogs, and physical Zigbee or
-Thread device acceptance remain open delivery gates.
+This package connects the Android tablet management surface to the F55 Core
+boundary. Queue progress remains 22/125 and selected-feature progress remains
+0/63. Durable command storage, production coordinator workers, provider
+discovery and physical Zigbee or Thread device acceptance remain open delivery
+gates; this package therefore does not mark F55 complete.
 
 Exactly three user acceptance criteria are in scope:
 
-1. The screen separates topology health, coordinator reachability, device
-   reachability, and signed update metadata. Channel and interference guidance
-   stays explicitly read-only; every trusted response is bound to the exact
-   Core, home, account, session-family, route, topology, provider, coordinator,
-   device, catalog, and interference revisions.
-2. A supported Zigbee update obtains a bounded preview and requires explicit
-   confirmation. Success appears only after exact receipt and authenticated
-   readback of the device, provider, route, version, and digest; Thread OTA,
-   stale revisions, unsafe power or route state, lost responses, and malformed
-   readback fail closed without automatic replay.
-3. English and Turkish layouts work at 600 and 1280 logical pixels with 200%
-   text, 48 dp actions, one- and two-column tablet layouts, keyboard Enter or
-   Space activation, TalkBack button/header/read-only semantics, and live status
-   announcements. Background, route, account, or session changes retire late
-   callbacks and clear trusted state.
+1. Admin-authenticated Core HTTP returns topology, interference, signed catalog
+   and health only for the exact Core, home, account and session family. The
+   server verifies the current vendor catalog signature before display; stale,
+   foreign, duplicate-auth and query-bearing requests fail closed.
+2. A route-owned Client session obtains one bounded Zigbee preview and requires
+   explicit confirmation. Success appears only after the exact authenticated
+   readback of device, provider, route, version and digest. Thread OTA, unsafe
+   power/route state, account replacement, logout, lost responses and malformed
+   readback do not dispatch or replay a command.
+3. The shared Settings shell exposes the mesh center in English and Turkish.
+   The existing 600/1280 logical pixel, 200% text matrix verifies 48 dp actions,
+   keyboard use, TalkBack semantics and read-only channel guidance. Background,
+   route, PIN, account or session changes retire late callbacks and clear trusted
+   state.
 
 ## TDD evidence
 
 The RED commit `825b1691` failed because the F55 Client models, API boundary,
-controller, and management screen did not exist. The GREEN matrix contains one
-authority/topology/stale-callback test, one preview-confirm-exact-readback test,
-and one parameterized EN/TR tablet accessibility test across both target widths
-at 200% text.
+controller and management screen did not exist. The GREEN matrix now contains
+six Core service/API tests, two authenticated HTTP Client tests, two controller
+tests and four parameterized EN/TR tablet accessibility tests. The broader
+Settings matrix adds ten PIN, keyboard and 600/1200 @2x checks. Targeted Flutter
+analysis is clean; the exact source also passes queue, security, progress and
+secret policy checks.
