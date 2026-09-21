@@ -24,6 +24,7 @@ class WebPanelView extends StatefulWidget {
     this.sourceCurrent,
     this.options,
     this.dataCoordinator,
+    this.requireActiveInteraction = true,
     this.transferAccess,
   });
   final WebPanelPolicy? policy;
@@ -31,6 +32,7 @@ class WebPanelView extends StatefulWidget {
   final bool Function()? sourceCurrent;
   final WebPanelOptions? options;
   final WebPanelDataCoordinator? dataCoordinator;
+  final bool requireActiveInteraction;
   final WebPanelTransferAccess? transferAccess;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
@@ -102,6 +104,7 @@ class WebPanelViewState extends State<WebPanelView> {
     if (oldWidget.policy != widget.policy ||
         oldWidget.sourceIdentity != widget.sourceIdentity ||
         oldWidget.options != widget.options ||
+        oldWidget.requireActiveInteraction != widget.requireActiveInteraction ||
         oldWidget.transferAccess != widget.transferAccess) {
       _retire();
       _failure = null;
@@ -114,7 +117,7 @@ class WebPanelViewState extends State<WebPanelView> {
       _foreground &&
       _visible &&
       !_data.blocked &&
-      (_interaction?.active ?? true) &&
+      (!widget.requireActiveInteraction || (_interaction?.active ?? true)) &&
       _route?.isCurrent != false &&
       (widget.sourceCurrent?.call() ?? true);
   bool _current(int generation) => _active && generation == _generation;

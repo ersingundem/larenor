@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 21 Eylül 2026 — B5.2 kişisel uzak bağlantı profillerini tablet içi ve Larenor Core kaynakları olarak ayırdı; exact revision, conflict/readback ve hassas oturum sınırları test, inceleme ve CI ile kabul edildi. Kuyruk 22/125 oldu; fiziksel uzak oturum ve cihaz kabulü ayrı manuel kapılardır.**
+**Son durum: 21 Eylül 2026, main `d0a3a43f` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.10 yazılım kapısı #301 ile birleşti; 35 açık PR ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  22/125 iş (%17,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  23/125 iş (%18,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,11 +17,20 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış birleşik kaynak: main `e313328f`.** B5.2'nin kişisel
+**B5.2 kabulünün tam doğrulanmış birleşik kaynağı: main `e313328f`.** B5.2'nin kişisel
 profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve
 scoped analizi geçti. PR #271 tüm zorunlu Android, API 35 E2E, Server ve
 güvenlik kapılarını tamamladı. [B5.2 kapanış kanıtı](b52-personal-profile-software-closure-2026-09-21.md).
 Gerçek uzak sunucu ve fiziksel tablet kabulü henüz yapılmadı.
+
+### S08.10 olay, komut ve sınırlı transfer — yazılım kabul edildi
+
+PR #301'in exact CI kabulü main `d0a3a43f` içinde birleşti. Kalıcı olay
+zinciri ve bounded ürün transferi, kaynak/yetki/revision kapsamı, kesinti
+makbuzu ve Android Client'ın geç yanıt korumalarıyla yazılım kapısını geçti.
+[Üç ölçüt ve kapanış kanıtı](testing/s08-10-software-closure-2026-09-21.md).
+Kuyruk **23/125 (%18,4)** oldu; gerçek SAF sağlayıcısı ve fiziksel tabletteki
+dosya akışı **MANUAL** kalır.
 
 ### B5.2 kişisel profil ve hassas oturum — yazılım kabul edildi
 
@@ -116,7 +125,7 @@ bağımsız incelemede başarısız Jellyfin bootstrap'ının eski readback ile
 `verified` görünmesi engellendi. S06.6 `done`, kuyruk **17/125 (%13,6)** ve S06
 koordinatörü **6/6** oldu. Fiziksel kurulum kanıt yerine sayılmaz.
 
-## Şimdi yapılan işler
+## Tarihsel ara teslimler ve korunan kanıtlar
 
 ### Beşinci toplu aday — olay, transfer, Seerr ve ortak medya eylemi
 
@@ -1168,7 +1177,7 @@ aynı pakette gelen body’yi koruyan okuyucuya çevrildi; ürün Engine timeout
 retry davranışı değiştirilmedi. İlgili 307 test ve yük altında ikinci 64 tekrar
 geçti. Güncel exact-source main CI bu fixture commit’i için yeniden koşmalıdır.
 
-## Canlı takip ve sıradaki işler
+## Önceki canlı takip notları (arşiv)
 
 - [Yürütme kuyruğu](EXECUTION_QUEUE.md): durumlar, bağımlılıklar ve kabul kapıları.
 - [Makinece doğrulanan kuyruk](execution-queue.json): tamamlanan ve kalan 125 iş.
@@ -1858,7 +1867,7 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 
 </details>
 
-## Şu anda çalışılanlar
+## Önceki çalışma görünümü (arşiv)
 
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
@@ -1879,7 +1888,7 @@ güncelleme ve geri yükleme S07–S09'da sürüyor.
 DeX ayrı bir uygulama değil; aynı uygulamanın değişken pencere ve harici ekran
 desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncellendi.
 
-## Backend, Music Assistant ve HomePod: bugün nerede?
+## Backend, Music Assistant ve HomePod: önceki durum notu
 
 | Özellik | Çalıştığı yer / mevcut durum | Eksik adım |
 | --- | --- | --- |
@@ -1947,7 +1956,11 @@ GitHub saklama politikası ve günlük görevin çalışma koşulları
 Codex hostunun kullanılabilir olması gerekir; GitHub Actions cron işi değildir.
 Container paketleri bu otomasyonun silme kapsamında değildir.
 
-## Sıradaki geliştirme paketleri
+## Önceki geliştirme sırası (arşiv)
+
+Bu tablonun sırası ve durumları yazıldığı tarihteki checkpoint'i anlatır.
+Geçerli bağımlılıklar ve PR durumu için [güncel teslim sırasına](current-delivery-plan-2026-09-21.md)
+ve [makinece doğrulanan kuyruğa](execution-queue.json) bakın.
 
 Aşağıdaki mevcut işler korunur. Yeni G01–G11 grupları
 [ayrıntılı plana](feature-expansion-plan-2026-09-05.md) göre bu işlerin arasına
@@ -1998,7 +2011,7 @@ için [yayın hazırlık planı](readme-publication-plan.md) eklendi. GitHub aç
 Üretim Home Assistant üzerindeki kontroller salt okunur kalır. Native iOS
 platform dosyaları kaldırılmıştır; Client Android tablet ve DeX ürünüdür.
 
-## Son test kanıtı
+## Önceki test kanıtı
 
 | Çalıştırma | Sonuç | Sınır |
 | --- | --- | --- |
