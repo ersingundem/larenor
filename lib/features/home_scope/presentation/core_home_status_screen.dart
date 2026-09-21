@@ -120,6 +120,39 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                                 if (current()) context.push('/inventory');
                               },
                       ),
+                    if (controller.account.session?.user.canAdminister == true)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-resource-catalog-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-resource-catalog-action',
+                        ),
+                        title: Text(l10n.resourceCatalogEntry),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/reservations/manage');
+                                }
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-reservations-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-reservations-action',
+                        ),
+                        title: Text(l10n.resourceReservationsTitle),
+                        additionalInfo: Text(
+                          l10n.resourceReservationsEntrySubtitle,
+                        ),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/reservations');
+                                }
+                              },
+                      ),
                     if (controller.account.context != null)
                       SettingsActionTile(
                         key: const ValueKey('core-home-documents-entry'),

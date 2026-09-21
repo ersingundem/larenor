@@ -117,6 +117,8 @@ from .room_presence.schema import migrate_room_presence
 from .room_presence.repository import RoomPresenceRepository
 from .home_documents.schema import migrate_home_documents
 from .home_documents.repository import HomeDocumentRepository
+from .resource_reservations.schema import migrate_resource_reservations
+from .resource_reservations.integration import ResourceReservationService
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -254,6 +256,7 @@ class CoreServices:
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
+                migrate_resource_reservations(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -388,6 +391,8 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.room_presence.validate_storage()
+            self.resource_reservations = ResourceReservationService(
+                self.db, self.auth, settings, key, self.context)
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)

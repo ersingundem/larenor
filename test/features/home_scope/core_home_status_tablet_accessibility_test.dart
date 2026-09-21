@@ -64,6 +64,27 @@ void main() {
             expect(find.byType(HomeDocumentsRoute), findsOneWidget);
             await tester.pageBack();
             await tester.pumpAndSettle();
+            final reservations = find.byKey(
+              const ValueKey('core-home-reservations-action'),
+            );
+            expect(reservations, findsOneWidget);
+            expect(
+              tester.getRect(reservations).height,
+              greaterThanOrEqualTo(48),
+            );
+            expect(
+              tester.getSemantics(reservations).label,
+              contains(l10n.resourceReservationsTitle),
+            );
+            final catalog = find.byKey(
+              const ValueKey('core-home-resource-catalog-action'),
+            );
+            expect(catalog, findsOneWidget);
+            expect(tester.getRect(catalog).height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(catalog).label,
+              contains(l10n.resourceCatalogEntry),
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -106,6 +127,14 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('core-home-documents-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-reservations-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-resource-catalog-action')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);
