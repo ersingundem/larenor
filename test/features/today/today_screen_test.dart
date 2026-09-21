@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -266,6 +267,69 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final size in [const Size(600, 900), const Size(1200, 900)]) {
+      testWidgets(
+        '$language Today actions are 48dp keyboard targets at ${size.width}px and 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            final harness = _Harness(_snapshot(list: _list()));
+            await harness.mount(
+              tester,
+              size: size,
+              scale: 2,
+              locale: Locale(language),
+            );
+            final actions = [
+              find.byKey(const ValueKey('today-refresh')),
+              find.byKey(const ValueKey('today-list-todo.shopping')),
+              find.byKey(const ValueKey('today-add-todo.shopping')),
+              find.byKey(const ValueKey('today-toggle-todo.shopping-uid-1')),
+            ];
+            for (final action in actions) {
+              await tester.ensureVisible(action);
+              expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
+              expect(
+                tester.getSemantics(action).flagsCollection.isButton,
+                isTrue,
+              );
+            }
+
+            final add = actions[2];
+            Focus.of(
+              tester.element(
+                find.descendant(of: add, matching: find.byType(Text)).first,
+              ),
+            ).requestFocus();
+            await tester.pump();
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await tester.pumpAndSettle();
+            expect(find.byType(TodayTaskEditor), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('covered Today route rejects a retained refresh callback', (
+    tester,
+  ) async {
+    final harness = _Harness(_snapshot(list: _list()));
+    await harness.mount(tester);
+    final callback = tester
+        .widget<CupertinoButton>(find.byKey(const ValueKey('today-refresh')))
+        .onPressed!;
+    harness.router.push('/settings');
+    await tester.pumpAndSettle();
+    callback();
+    await tester.pump();
+    expect(harness.controller.reads, 0);
+  });
+
   testWidgets('wide Today keeps four summary selections in master-detail', (
     tester,
   ) async {

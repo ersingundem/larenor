@@ -118,9 +118,17 @@ abstract class TodayConsumerState<T extends ConsumerStatefulWidget>
   VoidCallback guarded(VoidCallback operation) {
     final epoch = generation;
     return () {
-      if (isCurrent(epoch)) operation();
+      if (actionCurrent(epoch)) operation();
     };
   }
+
+  /// User-initiated work must belong to the visible route as well as the
+  /// current account and interaction session. Async completions keep using
+  /// [isCurrent] because a dialog or detail route may legitimately be open.
+  bool actionCurrent(int epoch) =>
+      isCurrent(epoch) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent == true;
 
   bool isCurrent(int epoch) =>
       mounted && foreground && interactionActive && generation == epoch;
