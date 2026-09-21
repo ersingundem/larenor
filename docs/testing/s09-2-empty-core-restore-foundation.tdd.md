@@ -16,11 +16,15 @@ the passphrase and decrypted configuration never enter output or the journal.
 
 ## Acceptance evidence
 
-- Eight restore tests cover two restarts with the same Core identity, admin
+- The original eight restore tests cover two restarts with the same Core identity, admin
   login, encrypted connection document and vault key; three authentication
   failures with zero published state; pre-stage incompatibility; interruption
   after the key move followed by startup recovery; non-empty refusal; and the
   private-file CLI boundary.
+- Two journal fault tests cover a failed journal write (staged secrets removed,
+  empty target reusable) and a failure after atomic journal promotion (startup
+  completes the restore). The journal is written and synced in the private
+  stage before publication, so a partial journal cannot become authoritative.
 - The broader backup, CLI, Core context and storage set passes 67 tests.
 - Queue, commit-progress and security policy suites pass 50 tests. Ruff is
   clean for the new/changed surface except the pre-existing unsorted import

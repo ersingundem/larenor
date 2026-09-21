@@ -122,7 +122,9 @@ def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, mon
     def interrupted(source, destination):
         nonlocal calls
         calls += 1
-        if calls == 2:
+        # Journal promotion is the first replace; interrupt after publishing
+        # the key, before publishing the database.
+        if calls == 3:
             raise OSError("synthetic interruption")
         return real_replace(source, destination)
 
@@ -135,6 +137,55 @@ def test_restart_finishes_interrupted_two_file_publication(server, tmp_path, mon
     assert not target.database_file.exists()
     assert (target.data_dir / ".restore-state.json").exists()
 
+    _assert_restored(target, key, context)
+    assert not (target.data_dir / ".restore-state.json").exists()
+
+
+def test_journal_write_failure_discards_stage_and_allows_retry(
+    server, tmp_path, monkeypatch
+):
+    bundle, key, context = _bundle(server)
+    target = _target(tmp_path, server[3])
+    real_create = restore_module.private_create
+
+    def fail_journal(path, contents):
+        if path.name == "restore-journal.json":
+            raise OSError("synthetic journal write failure")
+        return real_create(path, contents)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(restore_module, "private_create", fail_journal)
+        with pytest.raises(OSError, match="synthetic journal write failure"):
+            restore_empty(target, bundle, PASSPHRASE)
+
+    assert not target.database_file.exists()
+    assert not target.key_file.exists()
+    assert not list(target.data_dir.glob(".restore-*"))
+    assert not list(target.key_file.parent.glob(".restore-*"))
+    assert not (target.data_dir / ".restore-state.json").exists()
+    restore_empty(target, bundle, PASSPHRASE)
+    _assert_restored(target, key, context)
+
+
+def test_failure_after_journal_promotion_recovers_on_restart(
+    server, tmp_path, monkeypatch
+):
+    bundle, key, context = _bundle(server)
+    target = _target(tmp_path, server[3])
+    real_sync = restore_module.sync_directory
+
+    def fail_after_promotion(path):
+        if path == target.data_dir and (path / ".restore-state.json").exists():
+            raise OSError("synthetic directory sync failure")
+        return real_sync(path)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(restore_module, "sync_directory", fail_after_promotion)
+        with pytest.raises(OSError, match="synthetic directory sync failure"):
+            restore_empty(target, bundle, PASSPHRASE)
+
+    assert (target.data_dir / ".restore-state.json").exists()
+    assert not target.database_file.exists()
     _assert_restored(target, key, context)
     assert not (target.data_dir / ".restore-state.json").exists()
 

@@ -220,9 +220,20 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
             "databaseSha256": _digest(database),
             "keySha256": _digest(key),
         }
-        private_create(
-            journal_path,
-            json.dumps(journal, sort_keys=True, separators=(",", ":")).encode(),
-        )
+        # A failed write must not leave a partial recovery journal alongside
+        # private staged bytes. Publish the fully synced journal atomically;
+        # once it exists, startup owns recovery even if directory sync fails.
+        staged_journal = stage_dir / "restore-journal.json"
+        try:
+            private_create(
+                staged_journal,
+                json.dumps(journal, sort_keys=True, separators=(",", ":")).encode(),
+            )
+            os.replace(staged_journal, journal_path)
+        except Exception:
+            if not journal_path.exists():
+                _cleanup_stage(stage_dir, stage_key)
+            raise
+        sync_directory(settings.data_dir)
         recover_empty_restore(settings)
         return snapshot_id
