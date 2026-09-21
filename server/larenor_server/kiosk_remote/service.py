@@ -38,6 +38,7 @@ class KioskRemoteService:
     def _pairing_aad(self, row):
         return json.dumps([
             self.core_id, self.home_id, row["id"], row["request_id"],
+            row["request_hash"],
             row["device_id"], row["owner_id"], row["family_id"], row["revision"],
             row["name"], row["scopes"], row["expires_at"], row["active"],
             row["created_at"], row["updated_at"],
@@ -71,6 +72,8 @@ class KioskRemoteService:
             or row["active"] not in (0, 1)
             or type(row["revision"]) is not int
             or row["revision"] < 1
+            or not isinstance(row["request_hash"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["request_hash"]) is None
             or not isinstance(row["token_nonce"], bytes)
             or len(row["token_nonce"]) != 12
             or not isinstance(row["token_ciphertext"], bytes)
@@ -106,6 +109,7 @@ class KioskRemoteService:
         if body.expiresAt <= now + 60 or body.expiresAt > now + _MAX_TTL:
             raise ApiError("pairing_expiry_invalid", 409)
         scopes = json.dumps(sorted(body.scopes), separators=(",", ":"))
+        request_hash = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
         self.auth.rate_limit([("kiosk_remote_create", actor.id, 30)])
         try:
             with self.db.transaction() as connection:
@@ -116,8 +120,23 @@ class KioskRemoteService:
                 old = connection.execute("SELECT * FROM kiosk_remote_pairings WHERE request_id=?", (body.requestId,)).fetchone()
                 if old is not None:
                     old_scopes = self._validate_pairing(old)
-                    # A create token is recoverable only for the byte-identical request.
-                    raise ApiError("pairing_request_conflict", 409)
+                    if (
+                        old["owner_id"] != actor.id
+                        or old["family_id"] != actor.family_id
+                        or not hmac.compare_digest(old["request_hash"], request_hash)
+                        or not old["active"]
+                        or now >= old["expires_at"]
+                    ):
+                        raise ApiError("pairing_request_conflict", 409)
+                    token = self._cipher.decrypt(
+                        old["token_nonce"], old["token_ciphertext"],
+                        self._pairing_aad(old),
+                    ).decode("ascii")
+                    if not hmac.compare_digest(
+                        old["token_hash"], self._token_hash(token)
+                    ):
+                        raise ValueError("invalid_pairing_token")
+                    return {"pairing": self._public(old, old_scopes), "token": token}
                 device = connection.execute("SELECT id,revision,active FROM managed_tablets WHERE id=?", (body.deviceId,)).fetchone()
                 if device is None or not device["active"]:
                     raise ApiError("not_found", 404)
@@ -128,6 +147,7 @@ class KioskRemoteService:
                 token = secrets.token_urlsafe(32)
                 row = {
                     "id": uuid.uuid4().hex, "request_id": body.requestId,
+                    "request_hash": request_hash,
                     "device_id": body.deviceId, "owner_id": actor.id,
                     "family_id": actor.family_id, "revision": 1,
                     "name": body.name, "scopes": scopes,
@@ -139,8 +159,9 @@ class KioskRemoteService:
                 row["token_ciphertext"] = self._cipher.encrypt(row["token_nonce"], token.encode("ascii"), self._pairing_aad(row))
                 row["record_tag"] = self._pairing_tag(row)
                 connection.execute(
-                    "INSERT INTO kiosk_remote_pairings VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (row["id"], row["request_id"], row["device_id"],
+                    "INSERT INTO kiosk_remote_pairings VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (row["id"], row["request_id"], row["request_hash"],
+                     row["device_id"],
                      row["owner_id"], row["family_id"], row["revision"],
                      row["name"], row["scopes"], row["token_hash"],
                      row["token_nonce"], row["token_ciphertext"],
@@ -280,6 +301,8 @@ class KioskRemoteService:
                     if old["result"] != body.result:
                         raise ApiError("mqtt_command_changed", 409)
                     return self._ack(old, True)
+                if self.settings.clock() >= old["expires_at"]:
+                    raise ApiError("mqtt_command_expired", 409)
                 updated = dict(old)
                 updated.update(state="completed", result=body.result, completed_at=float(self.settings.clock()))
                 updated["record_tag"] = self._command_tag(updated)

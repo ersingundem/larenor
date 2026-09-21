@@ -28,7 +28,7 @@ def create_pairing(server, scopes=("read", "control")):
     pair = ready(server)
     fleet, remote = roots(app)
     tablet = register(client, pair, fleet)
-    response = client.post(remote + "/pairings", headers=auth(pair), json={
+    body = {
         "schemaVersion": 1,
         "requestId": uuid.uuid4().hex,
         "deviceId": tablet["ref"]["id"],
@@ -36,9 +36,10 @@ def create_pairing(server, scopes=("read", "control")):
         "name": "Home Assistant bridge",
         "scopes": list(scopes),
         "expiresAt": clock.now + 3600.0,
-    })
+    }
+    response = client.post(remote + "/pairings", headers=auth(pair), json=body)
     assert response.status_code == 201, response.text
-    return pair, remote, response.json(), tablet
+    return pair, remote, response.json(), tablet, body
 
 
 def paired_headers(token):
@@ -46,10 +47,13 @@ def paired_headers(token):
 
 
 def test_pairing_identity_scope_revoke_and_secret_free_inventory(server):
-    pair, remote, created, tablet = create_pairing(server, ("read",))
+    pair, remote, created, tablet, create_body = create_pairing(server, ("read",))
     pairing, token = created["pairing"], created["token"]
     assert len(token) == 43
     assert pairing["deviceId"] == tablet["ref"]["id"]
+    retry = server[1].post(remote + "/pairings", headers=auth(pair), json=create_body)
+    assert retry.status_code == 201
+    assert retry.json() == created
     listed = server[1].get(remote + "/pairings", headers=auth(pair))
     assert listed.status_code == 200
     assert token not in listed.text
@@ -98,7 +102,7 @@ def command(*, request_id=None, sequence=1, retained=False):
 
 
 def test_mqtt_command_replay_retained_and_ack_are_fail_closed(server):
-    pair, remote, created, _tablet = create_pairing(server)
+    pair, remote, created, _tablet, _body = create_pairing(server)
     pairing, token = created["pairing"], created["token"]
     endpoint = remote + f"/pairings/{pairing['id']}/mqtt/commands"
     body = command(request_id="a" * 32, sequence=1)
@@ -139,3 +143,17 @@ def test_mqtt_command_replay_retained_and_ack_are_fail_closed(server):
             "SELECT COUNT(*) FROM kiosk_remote_commands"
         ).fetchone()[0]
     assert rows == 1
+
+
+def test_pairing_identity_has_a_bounded_rate_limit(server):
+    _pair, remote, created, _tablet, _body = create_pairing(
+        server, ("read",)
+    )
+    pairing, token = created["pairing"], created["token"]
+    endpoint = remote + f"/pairings/{pairing['id']}/mqtt/discovery"
+    headers = paired_headers(token)
+    for _ in range(300):
+        assert server[1].get(endpoint, headers=headers).status_code == 200
+    blocked = server[1].get(endpoint, headers=headers)
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "rate_limited"

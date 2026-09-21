@@ -6,6 +6,7 @@ from ..errors import StartupError
 TABLES = {
     "kiosk_remote_pairings": """CREATE TABLE kiosk_remote_pairings (
         id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
+        request_hash TEXT NOT NULL,
         device_id TEXT NOT NULL, owner_id TEXT NOT NULL, family_id TEXT NOT NULL,
         revision INTEGER NOT NULL CHECK(revision > 0),
         name TEXT NOT NULL, scopes TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
