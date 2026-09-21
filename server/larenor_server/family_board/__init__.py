@@ -13,7 +13,15 @@ from .models import (
 from .store import FamilyBoardStore
 
 __all__ = [
-    "BoardAuditEvent", "BoardAuthority", "BoardCard", "BoardCommand", "BoardDelta",
-    "BoardPoint", "BoardReceipt", "BoardSnapshot", "BoardStroke", "FamilyBoardStore",
+    "BoardAuditEvent",
+    "BoardAuthority",
+    "BoardCard",
+    "BoardCommand",
+    "BoardDelta",
+    "BoardPoint",
+    "BoardReceipt",
+    "BoardSnapshot",
+    "BoardStroke",
+    "FamilyBoardStore",
     "PublicBoardSnapshot",
 ]

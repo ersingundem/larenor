@@ -119,6 +119,7 @@ from .home_documents.schema import migrate_home_documents
 from .home_documents.repository import HomeDocumentRepository
 from .resource_reservations.schema import migrate_resource_reservations
 from .resource_reservations.integration import ResourceReservationService
+from .family_board.service import FamilyBoardService
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -392,6 +393,8 @@ class CoreServices:
             )
             self.room_presence.validate_storage()
             self.resource_reservations = ResourceReservationService(
+                self.db, self.auth, settings, key, self.context)
+            self.family_board = FamilyBoardService(
                 self.db, self.auth, settings, key, self.context)
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
