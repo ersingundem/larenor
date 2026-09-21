@@ -29,6 +29,8 @@ Status: **software slice ready; K03.remaining stays open**
   download, redirect/MIME/size bounds, stale completion, iframe non-capture,
   settings persistence, EN/TR tablet layout, renderer recovery and existing
   origin/auth/TLS/data-retirement protections.
+- A rejecting picker or transport port ends the one-shot operation as failed;
+  it cannot strand the controller in `working` or replay a download.
 - Focused Flutter analysis, formatting, diff, security, queue, progress and
   secret scans are required before merge.
 

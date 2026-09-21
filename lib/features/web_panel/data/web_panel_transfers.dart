@@ -305,14 +305,21 @@ final class WebPanelTransferController extends ChangeNotifier {
   Future<List<String>> selectUpload(FileSelectorParams request) async {
     if (!_consume(WebPanelTransferStatus.uploadArmed)) return const [];
     final operation = ++_epoch;
-    final result = await access.pickUpload(request);
-    if (!_current || operation != _epoch) return const [];
-    _set(
-      result.isEmpty
-          ? WebPanelTransferStatus.denied
-          : WebPanelTransferStatus.completed,
-    );
-    return result;
+    try {
+      final result = await access.pickUpload(request);
+      if (!_current || operation != _epoch) return const [];
+      _set(
+        result.isEmpty
+            ? WebPanelTransferStatus.denied
+            : WebPanelTransferStatus.completed,
+      );
+      return result;
+    } catch (_) {
+      if (_current && operation == _epoch) {
+        _set(WebPanelTransferStatus.failed);
+      }
+      return const [];
+    }
   }
 
   /// Returns true when navigation was consumed as an explicit download.
@@ -325,11 +332,16 @@ final class WebPanelTransferController extends ChangeNotifier {
     }
     final operation = ++_epoch;
     unawaited(() async {
-      final saved = await access.download(
-        Uri.parse(rawUrl),
-        policy,
-        () => _current && operation == _epoch,
-      );
+      bool saved;
+      try {
+        saved = await access.download(
+          Uri.parse(rawUrl),
+          policy,
+          () => _current && operation == _epoch,
+        );
+      } catch (_) {
+        saved = false;
+      }
       if (!_current || operation != _epoch) return;
       _set(
         saved
