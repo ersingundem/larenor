@@ -51,12 +51,16 @@ def test_authenticated_authority_empty_snapshot_and_exact_command(server):
     assert empty.status_code == 200
     assert empty.json()["boardRevision"] == 0
     assert empty.json()["elements"] == []
-    empty_delta = client.post(board + "/delta", headers=auth(pair), json={
-        "schemaVersion": 1,
-        "afterSequence": 0,
-        "limit": 100,
-        **_expectations(authority),
-    })
+    empty_delta = client.post(
+        board + "/delta",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "afterSequence": 0,
+            "limit": 100,
+            **_expectations(authority),
+        },
+    )
     assert empty_delta.status_code == 200
     assert empty_delta.json()["boardRevision"] == 0
     assert empty_delta.json()["events"] == []
@@ -93,13 +97,20 @@ def test_delta_is_bounded_and_session_revision_drift_fails_closed(server):
         "elementId": None,
         **_expectations(authority),
     }
-    assert client.post(board + "/commands", headers=auth(first), json=command).status_code == 200
+    assert (
+        client.post(board + "/commands", headers=auth(first), json=command).status_code
+        == 200
+    )
 
     delta = client.post(
         board + "/delta",
         headers=auth(first),
-        json={"schemaVersion": 1, "afterSequence": 0, "limit": 100,
-              **_expectations(authority)},
+        json={
+            "schemaVersion": 1,
+            "afterSequence": 0,
+            "limit": 100,
+            **_expectations(authority),
+        },
     )
     assert delta.status_code == 200
     assert delta.json()["nextAfter"] == 1
@@ -109,23 +120,34 @@ def test_delta_is_bounded_and_session_revision_drift_fails_closed(server):
     # board, but cannot replay the first family's retained authority.
     second_login = client.post(
         "/api/v1/auth/login",
-        json={"username": "admin", "password": "Synthetic new password 2026",
-              "deviceName": "Second tablet"},
+        json={
+            "username": "admin",
+            "password": "Synthetic new password 2026",
+            "deviceName": "Second tablet",
+        },
     ).json()
-    conflict = client.post(board + "/delta", headers=auth(second_login), json={
-        "schemaVersion": 1,
-        "afterSequence": 0,
-        "limit": 100,
-        **_expectations(authority),
-    })
+    conflict = client.post(
+        board + "/delta",
+        headers=auth(second_login),
+        json={
+            "schemaVersion": 1,
+            "afterSequence": 0,
+            "limit": 100,
+            **_expectations(authority),
+        },
+    )
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "revision_conflict"
-    oversized = client.post(board + "/delta", headers=auth(first), json={
-        "schemaVersion": 1,
-        "afterSequence": 0,
-        "limit": 101,
-        **_expectations(authority),
-    })
+    oversized = client.post(
+        board + "/delta",
+        headers=auth(first),
+        json={
+            "schemaVersion": 1,
+            "afterSequence": 0,
+            "limit": 101,
+            **_expectations(authority),
+        },
+    )
     assert oversized.status_code == 400
 
 

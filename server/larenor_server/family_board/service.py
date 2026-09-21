@@ -16,8 +16,7 @@ class FamilyBoardService:
         self.key, self.context = key, context
         self.path = Path(settings.data_dir) / "family-board.sqlite3"
         # Startup validates the complete encrypted store before serving traffic.
-        FamilyBoardStore(self.path, key, lambda _account_id: None,
-                         clock=settings.clock)
+        FamilyBoardStore(self.path, key, lambda _account_id: None, clock=settings.clock)
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.context.coreId, self.context.homeId):
@@ -25,8 +24,7 @@ class FamilyBoardService:
 
     def _default_board_id(self):
         payload = (
-            f"larenor-family-board-v1:{self.context.coreId}:"
-            f"{self.context.homeId}"
+            f"larenor-family-board-v1:{self.context.coreId}:{self.context.homeId}"
         ).encode("ascii")
         return hashlib.sha256(payload).hexdigest()[:32]
 
@@ -39,9 +37,10 @@ class FamilyBoardService:
             self.auth.assert_current(connection, actor)
             row = connection.execute(
                 "SELECT revision,role,disabled,must_change_password "
-                "FROM users WHERE id=?", (actor.id,),
+                "FROM users WHERE id=?",
+                (actor.id,),
             ).fetchone()
-        if (row is None or row["disabled"] or row["must_change_password"]):
+        if row is None or row["disabled"] or row["must_change_password"]:
             raise ApiError("invalid_session", 401)
         if row["role"] != actor.role:
             raise ApiError("invalid_session", 401)
@@ -69,11 +68,17 @@ class FamilyBoardService:
             if account_id != actor.id:
                 return None
             return self._authority(
-                actor, current.coreId, current.homeId, current.boardId,
+                actor,
+                current.coreId,
+                current.homeId,
+                current.boardId,
             )
 
         return FamilyBoardStore(
-            self.path, self.key, resolve, clock=self.settings.clock,
+            self.path,
+            self.key,
+            resolve,
+            clock=self.settings.clock,
         )
 
     @staticmethod
@@ -109,7 +114,9 @@ class FamilyBoardService:
         self._expect(current, body)
         try:
             return self._store(actor, current).delta(
-                current, after_sequence=body.afterSequence, limit=body.limit,
+                current,
+                after_sequence=body.afterSequence,
+                limit=body.limit,
             )
         except ApiError as error:
             if error.code != "not_found" or body.afterSequence != 0:

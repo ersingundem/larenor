@@ -51,8 +51,12 @@ class CommandRequest(AuthorityExpectations):
         return BoardCommand.model_validate(
             self.model_dump(
                 include={
-                    "schemaVersion", "requestId", "expectedBoardRevision",
-                    "action", "element", "elementId",
+                    "schemaVersion",
+                    "requestId",
+                    "expectedBoardRevision",
+                    "action",
+                    "element",
+                    "elementId",
                 }
             )
         )
@@ -74,18 +78,31 @@ def authority(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
 
 
 @router.get(ROOT + "/{board_id}", response_model=BoardSnapshot)
-def snapshot(core_id: Identity, home_id: Identity, board_id: Identity,
-             actor: Ready, core: Core):
+def snapshot(
+    core_id: Identity, home_id: Identity, board_id: Identity, actor: Ready, core: Core
+):
     return core.family_board.snapshot(actor, core_id, home_id, board_id)
 
 
 @router.post(ROOT + "/{board_id}/delta", response_model=BoardDelta)
-def delta(core_id: Identity, home_id: Identity, board_id: Identity,
-          body: DeltaRequest, actor: Ready, core: Core):
+def delta(
+    core_id: Identity,
+    home_id: Identity,
+    board_id: Identity,
+    body: DeltaRequest,
+    actor: Ready,
+    core: Core,
+):
     return core.family_board.delta(actor, core_id, home_id, board_id, body)
 
 
 @router.post(ROOT + "/{board_id}/commands", response_model=BoardReceipt)
-def command(core_id: Identity, home_id: Identity, board_id: Identity,
-            body: CommandRequest, actor: Ready, core: Core):
+def command(
+    core_id: Identity,
+    home_id: Identity,
+    board_id: Identity,
+    body: CommandRequest,
+    actor: Ready,
+    core: Core,
+):
     return core.family_board.apply(actor, core_id, home_id, board_id, body)
