@@ -312,6 +312,7 @@ class CoreServices:
                     data_dir=settings.data_dir,
                     clock=settings.clock,
                 )
+            )
             self.shared_expenses = SharedExpenseService(
                 self.db, self.auth, settings, self.context, key
             )

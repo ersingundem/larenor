@@ -78,18 +78,18 @@ def test_integer_currency_split_is_deterministic_and_conserves_every_unit(tmp_pa
 def test_scope_revision_membership_and_idempotency_fail_closed(tmp_path):
     expenses = store(tmp_path / "core.sqlite3")
     members = HouseholdAccounts(3, ("ada", "baran"))
-    request = dict(
-        core_id="core-a",
-        home_id="home-a",
-        expected_ledger_revision=1,
-        command_id="expense-1",
-        title="İnternet",
-        currency="TRY",
-        total_minor=45000,
-        payer_id="ada",
-        participant_ids=("ada", "baran"),
-        members=members,
-    )
+    request = {
+        "core_id": "core-a",
+        "home_id": "home-a",
+        "expected_ledger_revision": 1,
+        "command_id": "expense-1",
+        "title": "İnternet",
+        "currency": "TRY",
+        "total_minor": 45000,
+        "payer_id": "ada",
+        "participant_ids": ("ada", "baran"),
+        "members": members,
+    }
     first = expenses.create(actor("ada"), **request)
     assert expenses.create(actor("ada"), **request) == first
     assert (
