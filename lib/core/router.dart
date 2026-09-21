@@ -20,6 +20,7 @@ import '../features/inventory/presentation/inventory_route.dart';
 import '../features/floor_plan/presentation/floor_plan_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
 import '../features/meal_planner/presentation/weekly_meal_plan_route.dart';
+import '../features/shared_expenses/presentation/shared_expense_route.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
 import '../features/power_budget/presentation/power_budget_route.dart';
@@ -47,6 +48,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/notifications',
           builder: (_, _) => const LocalNotificationScreen(),
+        ),
+        GoRoute(
+          path: '/shared-expenses',
+          builder: (_, _) => const SharedExpenseRoute(),
         ),
         GoRoute(
           path: '/settings',

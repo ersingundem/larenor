@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 TABLES = {
     "shared_expense_records": """CREATE TABLE shared_expense_records (
         id TEXT PRIMARY KEY,
