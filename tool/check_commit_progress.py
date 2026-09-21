@@ -32,6 +32,7 @@ class ProgressValues:
 class ProgressEntry:
     commit: str
     values: ProgressValues
+    parents: tuple[str, ...] = ()
 
 
 def _parse_value(match):
@@ -71,6 +72,26 @@ def validate_sequence(history, expected):
         raise ProgressCheckError('head_progress_mismatch')
 
 
+def validate_graph(entries, expected):
+    """Parallel histories may differ; progress must advance along ancestry."""
+    if not entries:
+        raise ProgressCheckError('empty_commit_range')
+    values_by_commit = {entry.commit: entry.values for entry in entries}
+    for entry in entries:
+        for parent in entry.parents:
+            previous = values_by_commit.get(parent)
+            if previous is None:
+                continue  # A parent on the already accepted base is outside the PR range.
+            current = entry.values
+            if (current.queue[0] < previous.queue[0]
+                    or current.queue[1] < previous.queue[1]
+                    or current.feature[0] < previous.feature[0]
+                    or current.feature[1] < previous.feature[1]):
+                raise ProgressCheckError('progress_regressed')
+    if entries[-1].values != expected:
+        raise ProgressCheckError('head_progress_mismatch')
+
+
 def read_progress_entries(repo, base, head):
     common = subprocess.run(
         ['git', 'merge-base', base, head], cwd=repo, check=False, text=True,
@@ -81,14 +102,15 @@ def read_progress_entries(repo, base, head):
     merge_base = merge_bases[0]
     commits = subprocess.run(
         ['git', 'rev-list', '--reverse', '--topo-order',
-         f'{merge_base}..{head}'],
+         '--parents', f'{merge_base}..{head}'],
         cwd=repo, check=True, text=True, capture_output=True).stdout.splitlines()
     history = []
-    for commit in commits:
+    for line in commits:
+        commit, *parents = line.split()
         message = subprocess.run(
             ['git', 'show', '-s', '--format=%B', commit], cwd=repo,
             check=True, text=True, capture_output=True).stdout
-        history.append(ProgressEntry(commit, parse_message(message)))
+        history.append(ProgressEntry(commit, parse_message(message), tuple(parents)))
     return history
 
 
@@ -178,12 +200,11 @@ def main(argv=None, stdout=None, stderr=None):
     try:
         args = parser.parse_args(argv)
         entries = read_progress_entries(args.repo, args.base, args.head)
-        history = [entry.values for entry in entries]
-        validate_sequence(
-            history,
+        validate_graph(
+            entries,
             expected_progress_at(args.repo, args.head, args.queue),
         )
-        stdout.write(f'Commit ilerleme kapısı: {len(history)} commit doğrulandı.\n')
+        stdout.write(f'Commit ilerleme kapısı: {len(entries)} commit doğrulandı.\n')
         report = format_report(entries)
         stdout.write(report)
         if args.summary is not None:
