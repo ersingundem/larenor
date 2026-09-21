@@ -40,11 +40,13 @@ RoomPresenceEvidence _evidence({
   configuredRoomId: 'living-room',
   configuredRoomName: 'Living room',
   configuredRoomRevision: 'room-r6',
-  detectedRoomId: state == PresenceEvidenceState.present ||
+  detectedRoomId:
+      state == PresenceEvidenceState.present ||
           state == PresenceEvidenceState.uncertain
       ? 'living-room'
       : null,
-  detectedRoomRevision: state == PresenceEvidenceState.present ||
+  detectedRoomRevision:
+      state == PresenceEvidenceState.present ||
           state == PresenceEvidenceState.uncertain
       ? 'room-r6'
       : null,
@@ -78,6 +80,7 @@ final class _Api implements RoomPresenceManagementApi {
     RoomPresenceClientAuthority authority, {
     required String deviceId,
     required String expectedDeviceRevision,
+    required String expectedModelRevision,
     required String roomId,
     required String expectedRoomRevision,
     required String expectedPolicyRevision,
@@ -90,6 +93,7 @@ final class _Api implements RoomPresenceManagementApi {
       requestId: '0123456789abcdef0123456789abcdef',
       deviceId: deviceId,
       deviceRevision: expectedDeviceRevision,
+      modelRevision: expectedModelRevision,
       roomId: roomId,
       roomRevision: expectedRoomRevision,
       policyRevision: expectedPolicyRevision,
@@ -113,6 +117,7 @@ final class _Api implements RoomPresenceManagementApi {
             requestId: preview.requestId,
             deviceId: preview.deviceId,
             deviceRevision: preview.deviceRevision,
+            modelRevision: preview.modelRevision,
             roomId: preview.roomId,
             roomRevision: preview.roomRevision,
             policyRevision: preview.policyRevision,
@@ -130,94 +135,101 @@ final class _Api implements RoomPresenceManagementApi {
     required String deviceId,
   }) async {
     readbackCalls++;
-    return values.single.copyWith(
-      calibrationRevision: readbackCalibration,
-    );
+    return values.single.copyWith(calibrationRevision: readbackCalibration);
   }
 }
 
 void main() {
-  test('public room evidence stays private and stale authority clears it', () async {
-    var current = true;
-    final api = _Api();
-    final controller = RoomPresenceManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
-
-    await controller.load();
-    final value = controller.evidence.single;
-    expect(value.advisoryOnly, isTrue);
-    expect(value.grantsAccess, isFalse);
-    expect(value.stored, isTrue);
-    expect(value.providerReachable, isTrue);
-    expect(value.toString(), isNot(contains('BLE-AA:BB')));
-
-    api.values = [_evidence(providerReachable: false)];
-    await controller.load();
-    await controller.previewCalibration(controller.evidence.single);
-    expect(api.previewCalls, 0);
-
-    final gate = Completer<List<RoomPresenceEvidence>>();
-    api.listGate = gate;
-    final late = controller.load();
-    current = false;
-    gate.complete([_evidence(state: PresenceEvidenceState.uncertain)]);
-    await late;
-    expect(controller.evidence, isEmpty);
-    expect(controller.state, RoomPresenceManagementState.stale);
-  });
-
-  test('calibration needs exact preview confirmation and verified readback', () async {
-    var current = true;
-    final api = _Api();
-    final controller = RoomPresenceManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-    );
-    addTearDown(controller.dispose);
-    await controller.load();
-    await controller.previewCalibration(controller.evidence.single);
-    expect(controller.pendingPreview, isNotNull);
-    expect(api.confirmCalls, 0);
-
-    final gate = Completer<PresenceCalibrationReceipt>();
-    api.confirmGate = gate;
-    final late = controller.confirmPending();
-    current = false;
-    final preview = controller.pendingPreview!;
-    gate.complete(
-      PresenceCalibrationReceipt(
+  test(
+    'public room evidence stays private and stale authority clears it',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = RoomPresenceManagementController(
+        api: api,
         authority: _authority,
-        requestId: preview.requestId,
-        deviceId: preview.deviceId,
-        deviceRevision: preview.deviceRevision,
-        roomId: preview.roomId,
-        roomRevision: preview.roomRevision,
-        policyRevision: preview.policyRevision,
-        consentRevision: preview.consentRevision,
-        previousCalibrationRevision: preview.previousCalibrationRevision,
-        observedCalibrationRevision: preview.nextCalibrationRevision,
-        status: PresenceCalibrationStatus.applied,
-      ),
-    );
-    await late;
-    expect(controller.state, RoomPresenceManagementState.stale);
-    expect(api.readbackCalls, 0);
+        isCurrent: () => current,
+        clock: () => DateTime.utc(2026, 9, 21, 12),
+      );
+      addTearDown(controller.dispose);
 
-    current = true;
-    api.confirmGate = null;
-    await controller.load();
-    await controller.previewCalibration(controller.evidence.single);
-    await controller.confirmPending();
-    expect(controller.state, RoomPresenceManagementState.verified);
-    expect(controller.evidence.single.calibrationRevision, 'cal-r4');
-    expect(api.confirmCalls, 2);
-    expect(api.readbackCalls, 1);
-  });
+      await controller.load();
+      final value = controller.evidence.single;
+      expect(value.advisoryOnly, isTrue);
+      expect(value.grantsAccess, isFalse);
+      expect(value.stored, isTrue);
+      expect(value.providerReachable, isTrue);
+      expect(value.toString(), isNot(contains('BLE-AA:BB')));
+
+      api.values = [_evidence(providerReachable: false)];
+      await controller.load();
+      await controller.previewCalibration(controller.evidence.single);
+      expect(api.previewCalls, 0);
+
+      final gate = Completer<List<RoomPresenceEvidence>>();
+      api.listGate = gate;
+      final late = controller.load();
+      current = false;
+      gate.complete([_evidence(state: PresenceEvidenceState.uncertain)]);
+      await late;
+      expect(controller.evidence, isEmpty);
+      expect(controller.state, RoomPresenceManagementState.stale);
+    },
+  );
+
+  test(
+    'calibration needs exact preview confirmation and verified readback',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = RoomPresenceManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+        clock: () => DateTime.utc(2026, 9, 21, 12),
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.previewCalibration(controller.evidence.single);
+      expect(controller.pendingPreview, isNotNull);
+      expect(api.confirmCalls, 0);
+
+      final gate = Completer<PresenceCalibrationReceipt>();
+      api.confirmGate = gate;
+      final late = controller.confirmPending();
+      current = false;
+      final preview = controller.pendingPreview!;
+      gate.complete(
+        PresenceCalibrationReceipt(
+          authority: _authority,
+          requestId: preview.requestId,
+          deviceId: preview.deviceId,
+          deviceRevision: preview.deviceRevision,
+          modelRevision: preview.modelRevision,
+          roomId: preview.roomId,
+          roomRevision: preview.roomRevision,
+          policyRevision: preview.policyRevision,
+          consentRevision: preview.consentRevision,
+          previousCalibrationRevision: preview.previousCalibrationRevision,
+          observedCalibrationRevision: preview.nextCalibrationRevision,
+          status: PresenceCalibrationStatus.applied,
+        ),
+      );
+      await late;
+      expect(controller.state, RoomPresenceManagementState.stale);
+      expect(api.readbackCalls, 0);
+
+      current = true;
+      api.confirmGate = null;
+      await controller.load();
+      await controller.previewCalibration(controller.evidence.single);
+      await controller.confirmPending();
+      expect(controller.state, RoomPresenceManagementState.verified);
+      expect(controller.evidence.single.calibrationRevision, 'cal-r4');
+      expect(api.confirmCalls, 2);
+      expect(api.readbackCalls, 1);
+    },
+  );
 
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1280, 900)]) {
@@ -233,19 +245,18 @@ void main() {
             api: api,
             authority: _authority,
             isCurrent: () => true,
+            clock: () => DateTime.utc(2026, 9, 21, 12),
           );
           addTearDown(controller.dispose);
 
           await tester.pumpWidget(
             CupertinoApp(
               locale: Locale(language),
-              localizationsDelegates:
-                  AppLocalizations.localizationsDelegates,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: const TextScaler.linear(2),
-                ),
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
                 child: child!,
               ),
               home: RoomPresenceManagementScreen(controller: controller),
@@ -268,6 +279,7 @@ void main() {
                 .label,
             contains(language == 'tr' ? 'Yalnız öneri' : 'Advisory only'),
           );
+          expect(tester.takeException(), isNull);
 
           Focus.of(
             tester.element(
@@ -279,6 +291,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(CupertinoAlertDialog), findsOneWidget);
           expect(api.confirmCalls, 0);
+          expect(tester.takeException(), isNull);
 
           final confirm = find.byKey(
             const ValueKey('presence-confirm-calibration'),
