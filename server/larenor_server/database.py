@@ -71,11 +71,14 @@ class Database:
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        # A valid write can take more than five seconds under CI or on slower
+        # Core storage. Keep concurrent writers bounded, but let the first
+        # transaction commit before rejecting the next one as busy.
+        connection = sqlite3.connect(self.path, timeout=15, isolation_level=None)
         connection.row_factory = sqlite3.Row
         try:
             connection.execute("PRAGMA foreign_keys=ON")
-            connection.execute("PRAGMA busy_timeout=5000")
+            connection.execute("PRAGMA busy_timeout=15000")
             connection.execute("PRAGMA synchronous=FULL")
             yield connection
         finally:
