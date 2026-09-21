@@ -23,9 +23,9 @@ resolver; display names or time proximity never grant authority.
 
 ## TDD evidence and remaining work
 
-- RED `6787e6af`: the three isolated SQLite acceptance scenarios failed because
+- RED `2891675e`: the three isolated SQLite acceptance scenarios failed because
   `larenor_server.shared_expenses` did not exist.
-- GREEN `94b6bbc6`: deterministic splitting, exact authority/idempotency,
+- GREEN `83bd6c6c`: deterministic splitting, exact authority/idempotency,
   encryption, filtered export, restart, and tamper checks pass.
 
 The authenticated HTTP contract, actual household-account resolver, edit and
