@@ -73,6 +73,32 @@ def test_authenticated_route_creates_reads_and_exports_bounded_state(server):
     assert "commandId" not in str(exported.json())
 
 
+def test_snapshot_and_export_each_use_one_verified_calendar_read(server, monkeypatch):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    root, bootstrap = _scope(client, pair)
+    store = app.state.core.resource_reservations.store
+    original = store._verified
+    reads = 0
+
+    def count_verified(connection, authority):
+        nonlocal reads
+        reads += 1
+        return original(connection, authority)
+
+    monkeypatch.setattr(store, "_verified", count_verified)
+    snapshot = client.post(root + "/snapshot", headers=auth(pair), json=_authority(bootstrap))
+    assert snapshot.status_code == 200
+    assert reads == 1, "a snapshot must not mix separate calendar revisions"
+
+    reads = 0
+    exported = client.post(root + "/export", headers=auth(pair), json={
+        **_authority(bootstrap), "limit": 256,
+    })
+    assert exported.status_code == 200
+    assert reads == 1, "an export must not mix separate calendar revisions"
+
+
 def test_lost_ack_receipt_is_read_once_without_replaying_the_command(server):
     _app, client, _settings, _clock = server
     pair = ready(server)
