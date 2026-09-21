@@ -112,15 +112,44 @@ ExpenseLedgerSnapshot snapshot(
   SharedExpenseAuthority authority, {
   int ledgerRevision = 4,
   List<SharedExpenseRecord> records = const [],
+  List<ExpenseParticipant> members = participants,
 }) => ExpenseLedgerSnapshot(
   authority: authority,
   ledgerRevision: ledgerRevision,
   membersRevision: 9,
-  participants: participants,
+  participants: members,
   records: records,
 );
 
 void main() {
+  test('256 household members load while one expense stays share-bounded', () async {
+    final api = FakeSharedExpenseApi();
+    final controller = SharedExpenseController(api, commandIds: () => 'cmd');
+    final lease = controller.bind(expenseAuthorityA);
+    final members = [
+      const ExpenseParticipant(id: 'ada', label: 'Ada'),
+      for (var index = 1; index < 256; index++)
+        ExpenseParticipant(id: 'user-$index', label: 'Member $index'),
+    ];
+    final load = controller.load(lease);
+    api.snapshots.single.complete(snapshot(expenseAuthorityA, members: members));
+    await load;
+    expect(controller.state, SharedExpenseViewState.empty);
+    expect(controller.participants, hasLength(256));
+
+    final tooMany = controller.load(lease);
+    api.snapshots.last.complete(snapshot(
+      expenseAuthorityA,
+      members: [
+        ...members,
+        const ExpenseParticipant(id: 'extra', label: 'Extra'),
+      ],
+    ));
+    await tooMany;
+    expect(controller.state, SharedExpenseViewState.error);
+    expect(controller.participants, isEmpty);
+  });
+
   test('minor-unit preview rejects ambiguity and preserves every kuruş', () {
     final preview = ExpenseDraft.tryParse(
       title: 'Akşam yemeği',

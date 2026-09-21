@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from larenor_server.admin.service import MAX_USERS
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.errors import ApiError, StartupError
@@ -29,6 +30,42 @@ def store(path: Path) -> ExpenseStore:
         encryption_key=ENCRYPTION_KEY,
         audit_key=AUDIT_KEY,
     )
+
+
+def test_large_household_keeps_expenses_bounded_to_32_participants(tmp_path):
+    assert MAX_USERS == 256
+    members = HouseholdAccounts(5, tuple(f"user-{index}" for index in range(256)))
+    expenses = store(tmp_path / "large-household.sqlite3")
+    receipt = expenses.create(
+        actor("user-0"),
+        core_id="core-a",
+        home_id="home-a",
+        expected_ledger_revision=1,
+        command_id="expense-1",
+        title="Shared bill",
+        currency="TRY",
+        total_minor=100,
+        payer_id="user-0",
+        participant_ids=("user-0", "user-255"),
+        members=members,
+    )
+    assert len(receipt.expense.shares) == 2
+    with pytest.raises(ValueError, match="invalid_household_accounts"):
+        HouseholdAccounts(5, tuple(f"user-{index}" for index in range(257)))
+    with pytest.raises(ApiError, match="invalid_request"):
+        expenses.create(
+            actor("user-0"),
+            core_id="core-a",
+            home_id="home-a",
+            expected_ledger_revision=2,
+            command_id="expense-2",
+            title="Too many shares",
+            currency="TRY",
+            total_minor=100,
+            payer_id="user-0",
+            participant_ids=tuple(f"user-{index}" for index in range(33)),
+            members=members,
+        )
 
 
 def test_integer_currency_split_is_deterministic_and_conserves_every_unit(tmp_path):

@@ -15,6 +15,7 @@ from ..errors import ApiError, StartupError
 
 CURRENCY_SCALES = {"EUR": 2, "GBP": 2, "JPY": 0, "TRY": 2, "USD": 2}
 MAX_ACCOUNTS = 32
+MAX_HOUSEHOLD_MEMBERS = 256
 MAX_EXPENSES = 1000
 MAX_TITLE_LENGTH = 200
 MAX_TOTAL_MINOR = 10**12
@@ -38,7 +39,7 @@ class HouseholdAccounts:
             type(self.revision) is not int
             or self.revision < 1
             or not isinstance(self.ids, tuple)
-            or not 1 <= len(self.ids) <= MAX_ACCOUNTS
+            or not 1 <= len(self.ids) <= MAX_HOUSEHOLD_MEMBERS
             or len(set(self.ids)) != len(self.ids)
             or any(not _identifier(identifier) for identifier in self.ids)
         ):

@@ -113,7 +113,7 @@ class SharedExpenseController extends ChangeNotifier {
           result.ledgerRevision < 1 ||
           result.membersRevision != lease.authority.membersRevision ||
           result.participants.isEmpty ||
-          result.participants.length > 32 ||
+          result.participants.length > 256 ||
           result.records.length > 1000 ||
           !result.participants.any(
             (participant) => participant.id == lease.authority.accountId,
