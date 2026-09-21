@@ -71,6 +71,7 @@ from .energy_priorities.api import router as energy_priorities_router
 from .ev_charging.api import router as ev_charging_router
 from .epaper_snapshots.api import router as epaper_router
 from .room_presence.api import router as room_presence_router
+from .home_documents.api import router as home_documents_router
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -309,6 +310,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(ev_charging_router, prefix="/api/v1")
     app.include_router(epaper_router, prefix="/api/v1")
     app.include_router(room_presence_router, prefix="/api/v1")
+    app.include_router(home_documents_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")

@@ -1,5 +1,4 @@
 import pytest
-
 from larenor_server.errors import ApiError
 from larenor_server.home_documents.models import (
     ConfirmWarrantyCommand,
@@ -10,7 +9,6 @@ from larenor_server.home_documents.models import (
 )
 from larenor_server.home_documents.service import HomeDocumentLibrary
 from larenor_server.home_resources.models import HomeScope
-
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -47,28 +45,28 @@ def blob(revision=3):
 
 
 def create_command(**changes):
-    values = dict(
-        schemaVersion=1,
-        coreId=CORE,
-        homeId=HOME,
-        requestId=REQUEST,
-        expectedAccountRevision=4,
-        expectedRevision=0,
-        documentId=DOCUMENT,
-        title="Buzdolabı faturası",
-        kind="invoice",
-        inventoryItemId=INVENTORY,
-        blob=blob(),
-        readerIds=[READER],
-        ocrCandidate=OcrWarrantyCandidate(
+    values = {
+        "schemaVersion": 1,
+        "coreId": CORE,
+        "homeId": HOME,
+        "requestId": REQUEST,
+        "expectedAccountRevision": 4,
+        "expectedRevision": 0,
+        "documentId": DOCUMENT,
+        "title": "Buzdolabı faturası",
+        "kind": "invoice",
+        "inventoryItemId": INVENTORY,
+        "blob": blob(),
+        "readerIds": [READER],
+        "ocrCandidate": OcrWarrantyCandidate(
             schemaVersion=1,
             extractedDate="2028-05-10",
             confidencePermille=810,
             sourceRevision=12,
             sourceDigest="d" * 64,
         ),
-        reminderLeadDays=[30, 7],
-    )
+        "reminderLeadDays": [30, 7],
+    }
     values.update(changes)
     return CreateHomeDocumentCommand(**values)
 
@@ -166,6 +164,11 @@ def test_private_search_and_due_projection_are_bounded_and_confirmed_only():
     assert [item.ref.id for item in reader_page.items] == [DOCUMENT]
     assert reader_page.authority.accountId == READER
     assert reader_page.authority.libraryRevision == 2
+    exact = store.get(actor(READER, role="member"), DOCUMENT)
+    assert exact.document.ref.id == DOCUMENT
+    assert exact.authority.accountId == READER
+    with pytest.raises(ApiError, match="not_found"):
+        store.get(actor(STRANGER, role="member"), DOCUMENT)
     stranger_page = store.search(actor(STRANGER, role="member"), "fatura")
     assert stranger_page.items == []
     assert stranger_page.authority.libraryRevision == 0

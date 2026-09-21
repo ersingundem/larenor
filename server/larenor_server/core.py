@@ -115,6 +115,8 @@ from .epaper_snapshots.schema import migrate_epaper_snapshots
 from .epaper_snapshots.management import EpaperManagement
 from .room_presence.schema import migrate_room_presence
 from .room_presence.repository import RoomPresenceRepository
+from .home_documents.schema import migrate_home_documents
+from .home_documents.repository import HomeDocumentRepository
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -251,6 +253,7 @@ class CoreServices:
                 migrate_ev_charging(connection)
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
+                migrate_home_documents(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -325,6 +328,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context,
                 self.home_resources, self.product_blobs)
             self.inventory.validate_storage()
+            self.home_documents = HomeDocumentRepository(
+                self.db, self.auth, settings, key, self.context,
+                self.product_blobs, self.inventory)
             self.local_notifications = LocalNotificationService(
                 self.db, self.auth, settings, key, self.context)
             self.local_notifications.validate_storage()

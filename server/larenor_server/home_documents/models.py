@@ -5,7 +5,6 @@ from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
 
-
 LibraryRevision = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 CanonicalDate = Annotated[str, Field(min_length=10, max_length=10)]
@@ -197,6 +196,12 @@ class DocumentPage(FrozenModel):
     authority: DocumentAuthority
     items: list[HomeDocument] = Field(max_length=50)
     hasMore: bool
+
+
+class DocumentReadback(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: DocumentAuthority
+    document: HomeDocument
 
 
 class WarrantyReminder(FrozenModel):

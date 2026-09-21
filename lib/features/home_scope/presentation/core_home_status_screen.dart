@@ -122,6 +122,17 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                       ),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('core-home-documents-entry'),
+                        buttonKey: const ValueKey('core-home-documents-action'),
+                        title: Text(l10n.inventoryDocuments),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) context.push('/documents');
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('local-notification-entry'),
                         buttonKey: const ValueKey(
                           'local-notification-entry-action',
