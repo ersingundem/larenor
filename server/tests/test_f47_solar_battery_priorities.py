@@ -205,6 +205,7 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
     clock = Clock()
     source = inputs()
     plan = planner(source, clock=clock).plan(authority(), source)
+    live_plan = [plan]
     worker_calls = []
 
     def worker(command):
@@ -227,7 +228,7 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
     manager = InverterCommandManager(
         auditKey=b"audit-key-for-f47-energy-priority",
         authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
-        planResolver=lambda plan_id: plan if plan_id == plan.planId else None,
+        planResolver=lambda plan_id: live_plan[0] if plan_id == plan.planId else None,
         worker=worker,
         clockMs=clock,
     )
@@ -242,6 +243,35 @@ def test_preview_confirm_exact_readback_lost_ack_and_audit_tamper_fail_closed():
     confirmed = manager.confirm(authority(), preview, preview.confirmationToken)
     assert (confirmed.status, confirmed.readbackVerified) == ("confirmed", True)
     assert manager.confirm(authority(), preview, preview.confirmationToken) == confirmed
+    assert len(worker_calls) == 1
+
+    stale_preview = manager.preview(
+        authority(),
+        plan,
+        slotIndex=1,
+        requestId="d" * 32,
+        inverterId=INVERTER,
+        expectedInverterRevision=14,
+    )
+    live_plan[0] = plan.model_copy(update={"reserveRevision": 99})
+    with pytest.raises(ApiError) as stale_error:
+        manager.confirm(authority(), stale_preview, stale_preview.confirmationToken)
+    assert (stale_error.value.code, stale_error.value.status) == (
+        "revision_conflict",
+        409,
+    )
+    assert len(worker_calls) == 1
+    live_plan[0] = plan
+    with pytest.raises(ApiError) as foreign_session_error:
+        manager.confirm(
+            authority(sessionFamilyId="e" * 32),
+            stale_preview,
+            stale_preview.confirmationToken,
+        )
+    assert (foreign_session_error.value.code, foreign_session_error.value.status) == (
+        "revision_conflict",
+        409,
+    )
     assert len(worker_calls) == 1
 
     lost_calls = []
