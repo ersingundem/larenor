@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 21 Eylül 2026 — B5.1 ortak tablet düzeninin kalan Core ayarları, Direct bağlantı, Home Assistant/oynatıcı, Bugün, medya ve Keenetic yüzeyleri birleşti. 240/240 birleşik test ve PR #259 exact CI geçti; kuyruk 21/125 oldu. Fiziksel Huawei MatePad, Samsung DeX, TalkBack ve canlı servis kabulü ayrı manuel kapılardır.**
+**Son güncelleme: 21 Eylül 2026 — B5.2 kişisel uzak bağlantı profillerini tablet içi ve Larenor Core kaynakları olarak ayırdı; exact revision, conflict/readback ve hassas oturum sınırları test, inceleme ve CI ile kabul edildi. Kuyruk 22/125 oldu; fiziksel uzak oturum ve cihaz kabulü ayrı manuel kapılardır.**
 
 ```text
-Kuyruk kabulü       ███░░░░░░░░░░░░░░░░░  21/125 iş (%16,8; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  22/125 iş (%17,6; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,13 +17,25 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış birleşik kaynak: main `ee25ae45`.** B5.1'in son
-dört tablet paketi birleşik önizlemede 240/240 odaklı Flutter testini geçti.
-PR #259 exact kaynak `0d43b7f8` üzerinde API 35 E2E, debug APK/native
-sözleşmeleri, analiz, Flutter ve Server shardları ile güvenlik kapıları geçti.
-[Android/Server CI](https://github.com/ersingundem/larenor/actions/runs/35548667441) ·
-[B5.1 kapanış kanıtı](b51-shared-tablet-software-closure-2026-09-21.md).
-Gerçek ev kurulumu ve fiziksel tablet/alıcı kabulü henüz yapılmadı.
+**Son tam doğrulanmış birleşik kaynak: main `e313328f`.** B5.2'nin kişisel
+profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve
+scoped analizi geçti. PR #271 tüm zorunlu Android, API 35 E2E, Server ve
+güvenlik kapılarını tamamladı. [B5.2 kapanış kanıtı](b52-personal-profile-software-closure-2026-09-21.md).
+Gerçek uzak sunucu ve fiziksel tablet kabulü henüz yapılmadı.
+
+### B5.2 kişisel profil ve hassas oturum — yazılım kabul edildi
+
+Remote Access, bu tablette saklanan profillerle Larenor Core profillerini açıkça
+ayırıyor. Core satırları exact Core, ev, hesap, authenticated session-family ve
+collection revision ile bağlanıyor. 409 çakışması eski satırı salt okunur stale
+duruma getiriyor; kayıp yanıt yeniden yazılmadan doğrulanmış readback ile
+uzlaştırılıyor. Parola, token, secret, PIN ve lease alanları kapalı modelde
+reddediliyor.
+
+Birleşik dal **44/44** odaklı testi geçti ve PR #271 exact CI kapılarını
+tamamladı. Böylece kuyruk **22/125 (%17,6)** oldu. Gerçek RDP/VNC/SSH
+oturumları, Huawei MatePad, Samsung DeX, klavye ve TalkBack kabulü MANUAL
+yayın matrisinde kalır.
 
 ### B5.1 ortak tablet düzeni — yazılım kabul edildi
 
@@ -321,6 +333,7 @@ olarak korunuyor.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Kabul edildi**; typed switch, kalıcı komut/makbuz, Direct→Core ve kapalı salt okunur standart/özel domain projeksiyonu PR17 tam CI ile ana dala alındı | Registry/servis keşfi ve domain'e özel typed komutlar sonraki HA dilimi |
 | B5.1 — ortak tablet tasarımı | **Kabul edildi**; final birleşik önizleme 240/240 PASS, PR #259 exact CI ve API 35 E2E yeşil, main `ee25ae45` | Fiziksel Huawei/DeX/klavye/TalkBack ve canlı servis matrisi MANUAL |
+| B5.2 — kişisel profil ve hassas oturum | **Kabul edildi**; 44/44 odaklı PASS, exact conflict/readback ve kapalı secret modeli, PR #271 CI yeşil, main `e313328f` | Fiziksel RDP/VNC/SSH ve cihaz matrisi MANUAL |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |

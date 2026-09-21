@@ -2175,14 +2175,15 @@
       "kind": "task",
       "parent": "B5",
       "title": "Kişisel profil ve hassas oturum Client sınırları",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B5.1"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/remote-access-plan-2026-09-05.md"
+        "docs/remote-access-plan-2026-09-05.md",
+        "docs/b52-personal-profile-software-closure-2026-09-21.md"
       ],
       "scope": "F61–F63 kişisel bağlantı başlangıcı Core/Proxmox/medya kurulumu istemez.",
       "acceptance": [
@@ -2193,9 +2194,34 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/b52-personal-profile-software-closure-2026-09-21.md",
+          "commit": "e313328f9709e9d5900cfec58c8ecfcfc1e04974",
+          "state": "completed",
+          "result": "passed",
+          "label": "Integrated branch passed 44/44 focused Flutter tests, scoped analysis and EN/TR 320/600/1280 at 2x text for local/Core source separation, conflict recovery, readback and personal-session retirement."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/b52-personal-profile-software-closure-2026-09-21.md",
+          "commit": "e313328f9709e9d5900cfec58c8ecfcfc1e04974",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent review confirmed exact Core/home/account/session/collection authority, no automatic conflict overwrite or uncertain replay, and a closed secret-free Core profile model."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35551804424",
+          "commit": "e313328f9709e9d5900cfec58c8ecfcfc1e04974",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #271 exact source passed all required Client, Android artifact, API 35 emulator, Server and security gates before merge."
+        }
+      ],
+      "completionCommit": "e313328f9709e9d5900cfec58c8ecfcfc1e04974",
+      "reason": "Local and Core personal profiles, revision-bound conflict recovery, verified readback, sensitive-session retirement and secret-free tablet UI coexist on main and passed focused tests, review and exact CI. Physical remote sessions and device accessibility remain manual."
     },
     {
       "id": "PRODUCT",
