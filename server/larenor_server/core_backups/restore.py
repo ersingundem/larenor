@@ -113,9 +113,12 @@ def recover_empty_restore(settings: Settings) -> bool:
         private_create(marker, b"larenor-schema-1\n")
     elif private_read(marker, 64) != b"larenor-schema-1\n":
         raise StartupError("restore_recovery_invalid")
+    # Keep the journal authoritative until every staged artifact is gone.
+    # If cleanup is interrupted, the next startup verifies both published
+    # files and retries cleanup instead of orphaning private stage data.
+    _cleanup_stage(stage_dir, stage_key)
     journal_path.unlink()
     sync_directory(settings.data_dir)
-    _cleanup_stage(stage_dir, stage_key)
     return True
 
 

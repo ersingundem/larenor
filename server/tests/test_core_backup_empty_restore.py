@@ -190,6 +190,31 @@ def test_failure_after_journal_promotion_recovers_on_restart(
     assert not (target.data_dir / ".restore-state.json").exists()
 
 
+def test_stage_cleanup_failure_keeps_journal_for_restart_recovery(
+    server, tmp_path, monkeypatch
+):
+    bundle, key, context = _bundle(server)
+    target = _target(tmp_path, server[3])
+    real_cleanup = restore_module._cleanup_stage
+
+    def fail_cleanup(stage_dir, stage_key):
+        if target.database_file.exists():
+            raise OSError("synthetic cleanup interruption")
+        return real_cleanup(stage_dir, stage_key)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(restore_module, "_cleanup_stage", fail_cleanup)
+        with pytest.raises(OSError, match="synthetic cleanup interruption"):
+            restore_empty(target, bundle, PASSPHRASE)
+
+    assert target.database_file.exists()
+    assert target.key_file.exists()
+    assert (target.data_dir / ".restore-state.json").exists()
+    _assert_restored(target, key, context)
+    assert not (target.data_dir / ".restore-state.json").exists()
+    assert not list(target.data_dir.glob(".restore-*"))
+
+
 def test_restore_refuses_initialized_or_partially_owned_target(server, tmp_path):
     bundle, _key, _context = _bundle(server)
     target = _target(tmp_path, server[3])
