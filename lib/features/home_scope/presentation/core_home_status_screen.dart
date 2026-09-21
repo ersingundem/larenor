@@ -123,6 +123,22 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                                 if (current()) context.push('/settings');
                               },
                       ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
+                        key: const ValueKey('core-home-shared-expenses-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-shared-expenses-action',
+                        ),
+                        title: Text(l10n.sharedExpensesTitle),
+                        additionalInfo: Text(l10n.sharedExpensesEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/shared-expenses');
+                                }
+                              },
+                      ),
                     SettingsActionTile(
                       key: const ValueKey('core-home-source-entry'),
                       buttonKey: const ValueKey('core-home-source-action'),

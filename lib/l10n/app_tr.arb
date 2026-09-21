@@ -2043,8 +2043,12 @@
   "coreResourceUploadComplete": "Doğrulanmış dosya kaydedildi · {bytes} bayt · revizyon {revision}.",
   "@coreResourceUploadComplete": {
     "placeholders": {
-      "bytes": {"type": "int"},
-      "revision": {"type": "int"}
+      "bytes": {
+        "type": "int"
+      },
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "coreResourceUploadCancelled": "Dosya seçimi iptal edildi.",
@@ -2056,7 +2060,11 @@
   "coreResourceTransferHistoryLoading": "Doğrulanmış aktarım geçmişi yükleniyor…",
   "coreResourceTransferHistoryVerified": "Olay zinciri doğrulandı · imleç {sequence}.",
   "@coreResourceTransferHistoryVerified": {
-    "placeholders": {"sequence": {"type": "int"}}
+    "placeholders": {
+      "sequence": {
+        "type": "int"
+      }
+    }
   },
   "coreResourceTransferHistoryEmpty": "Henüz aktarım makbuzu yok.",
   "coreResourceTransferAccepted": "Aktarım kabul edildi",
@@ -2082,8 +2090,12 @@
   "coreTransferTrustDetail": "Makbuz {receipt} · {bytes} bayt",
   "@coreTransferTrustDetail": {
     "placeholders": {
-      "receipt": {"type": "String"},
-      "bytes": {"type": "int"}
+      "receipt": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
     }
   },
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
@@ -2482,8 +2494,12 @@
   "coreHaEventTrustDetail": "Baş {sequence} · Zincir {chain}",
   "@coreHaEventTrustDetail": {
     "placeholders": {
-      "sequence": {"type": "int"},
-      "chain": {"type": "String"}
+      "sequence": {
+        "type": "int"
+      },
+      "chain": {
+        "type": "String"
+      }
     }
   },
   "coreHaActivityFailed": "Etkinlik okunamadı. Yenilemek için tekrar deneyin.",
@@ -2979,5 +2995,24 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "sharedExpensesTitle": "Ortak giderler",
+  "sharedExpensesEntrySubtitle": "Doğrulanmış paylar ve makbuzlarla ev gider defteri",
+  "sharedExpensesNew": "Yeni gider",
+  "sharedExpensesExpenseTitle": "Gider başlığı",
+  "sharedExpensesAmount": "Tutar",
+  "sharedExpensesParticipants": "Katılımcılar",
+  "sharedExpensesPayer": "Ödeyen",
+  "sharedExpensesSplitPreview": "Paylaşım önizlemesi",
+  "sharedExpensesCreate": "Gideri kaydet",
+  "sharedExpensesHistory": "Gider geçmişi",
+  "sharedExpensesExport": "Bana ait gider dışa aktarımını oku",
+  "sharedExpensesExportReady": "Filtrelenmiş dışa aktarım hazır",
+  "sharedExpensesLoading": "Güncel gider defteri yükleniyor",
+  "sharedExpensesEmpty": "Kayıtlı gider yok",
+  "sharedExpensesOffline": "Core erişilebilir değil",
+  "sharedExpensesError": "Güncel gider durumu doğrulanamadı",
+  "sharedExpensesUncertain": "Kayıt sonucu belirsiz. Yeniden denemeden önce makbuzu okuyun.",
+  "sharedExpensesReconcile": "Kayıt sonucunu denetle",
+  "sharedExpensesDecimalSeparator": ","
 }

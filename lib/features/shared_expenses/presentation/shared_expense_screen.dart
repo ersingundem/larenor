@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/shared_expense_controller.dart';
 import '../domain/shared_expense_models.dart';
 
@@ -67,6 +68,28 @@ class SharedExpenseStrings {
     reconcile: 'Kayıt sonucunu denetle',
     decimalSeparator: ',',
   );
+
+  factory SharedExpenseStrings.fromLocalizations(AppLocalizations l10n) =>
+      SharedExpenseStrings(
+        title: l10n.sharedExpensesTitle,
+        newExpense: l10n.sharedExpensesNew,
+        expenseTitle: l10n.sharedExpensesExpenseTitle,
+        amount: l10n.sharedExpensesAmount,
+        participants: l10n.sharedExpensesParticipants,
+        payer: l10n.sharedExpensesPayer,
+        splitPreview: l10n.sharedExpensesSplitPreview,
+        create: l10n.sharedExpensesCreate,
+        history: l10n.sharedExpensesHistory,
+        export: l10n.sharedExpensesExport,
+        exportReady: l10n.sharedExpensesExportReady,
+        loading: l10n.sharedExpensesLoading,
+        empty: l10n.sharedExpensesEmpty,
+        offline: l10n.sharedExpensesOffline,
+        error: l10n.sharedExpensesError,
+        uncertain: l10n.sharedExpensesUncertain,
+        reconcile: l10n.sharedExpensesReconcile,
+        decimalSeparator: l10n.sharedExpensesDecimalSeparator,
+      );
 
   final String title;
   final String newExpense;

@@ -10,6 +10,7 @@ const expenseAuthorityA = SharedExpenseAuthority(
   accountId: 'ada',
   sessionId: 'session-a',
   routeId: 'expenses-a',
+  membersRevision: 9,
 );
 const expenseAuthorityB = SharedExpenseAuthority(
   coreId: 'core-b',
@@ -17,6 +18,7 @@ const expenseAuthorityB = SharedExpenseAuthority(
   accountId: 'baran',
   sessionId: 'session-b',
   routeId: 'expenses-b',
+  membersRevision: 9,
 );
 const participants = [
   ExpenseParticipant(id: 'cem', label: 'Cem'),
@@ -71,6 +73,7 @@ class FakeSharedExpenseApi implements SharedExpenseApi {
     if (timeoutCreate) throw TimeoutException('lost receipt');
     return SharedExpenseReceipt(
       authority: authority,
+      eventId: 'event-create',
       commandId: commandId,
       ledgerRevision: expectedLedgerRevision + 1,
       record: SharedExpenseRecord.fromDraft('expense-new', draft),
@@ -201,6 +204,7 @@ void main() {
 
       api.reconciled = SharedExpenseReceipt(
         authority: expenseAuthorityA,
+        eventId: 'event-reconcile',
         commandId: 'create-1',
         ledgerRevision: 5,
         record: SharedExpenseRecord.fromDraft('expense-new', draft),

@@ -13,6 +13,7 @@ class SharedExpenseAuthority {
     required this.accountId,
     required this.sessionId,
     required this.routeId,
+    required this.membersRevision,
   });
 
   final String coreId;
@@ -20,6 +21,46 @@ class SharedExpenseAuthority {
   final String accountId;
   final String sessionId;
   final String routeId;
+  final int membersRevision;
+
+  factory SharedExpenseAuthority.fromJson(
+    Map<String, dynamic> json, {
+    required String routeId,
+    required String coreId,
+    required String homeId,
+    required String accountId,
+  }) {
+    if (json.length != 6 || json['schemaVersion'] != 1) {
+      throw const FormatException('invalid_authority');
+    }
+    String id(String key) {
+      final value = json[key];
+      if (!_expenseId(value)) throw const FormatException('invalid_authority');
+      return value as String;
+    }
+
+    final actualCore = id('coreId');
+    final actualHome = id('homeId');
+    final actualAccount = id('accountId');
+    final session = id('sessionId');
+    final revision = json['membersRevision'];
+    if (actualCore != coreId ||
+        actualHome != homeId ||
+        actualAccount != accountId ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 9223372036854775807) {
+      throw const FormatException('authority_changed');
+    }
+    return SharedExpenseAuthority(
+      coreId: actualCore,
+      homeId: actualHome,
+      accountId: actualAccount,
+      sessionId: session,
+      routeId: routeId,
+      membersRevision: revision,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -28,11 +69,18 @@ class SharedExpenseAuthority {
       other.homeId == homeId &&
       other.accountId == accountId &&
       other.sessionId == sessionId &&
-      other.routeId == routeId;
+      other.routeId == routeId &&
+      other.membersRevision == membersRevision;
 
   @override
-  int get hashCode =>
-      Object.hash(coreId, homeId, accountId, sessionId, routeId);
+  int get hashCode => Object.hash(
+    coreId,
+    homeId,
+    accountId,
+    sessionId,
+    routeId,
+    membersRevision,
+  );
 }
 
 class ExpenseParticipant {
@@ -40,6 +88,17 @@ class ExpenseParticipant {
 
   final String id;
   final String label;
+
+  factory ExpenseParticipant.fromJson(Map<String, dynamic> json) {
+    if (json.length != 2 || !_expenseId(json['id'])) {
+      throw const FormatException('invalid_participant');
+    }
+    final label = json['label'];
+    if (label is! String || label.isEmpty || label.length > 128) {
+      throw const FormatException('invalid_participant');
+    }
+    return ExpenseParticipant(id: json['id'] as String, label: label);
+  }
 }
 
 class ExpenseShare {
@@ -158,6 +217,69 @@ class SharedExpenseRecord {
         shares: draft.shares,
       );
 
+  factory SharedExpenseRecord.fromJson(Map<String, dynamic> json) {
+    if ((json.length != 8 && json.length != 9) ||
+        !_expenseId(json['id']) ||
+        !_expenseId(json['payerId'])) {
+      throw const FormatException('invalid_expense');
+    }
+    final revision = json['revision'];
+    final title = json['title'];
+    final currency = json['currency'];
+    final scale = json['currencyScale'];
+    final total = json['totalMinor'];
+    final rawShares = json['shares'];
+    final createdAt = json['createdAt'];
+    if (revision is! int ||
+        revision < 1 ||
+        title is! String ||
+        title.isEmpty ||
+        title.length > 200 ||
+        currency is! String ||
+        sharedExpenseCurrencyScales[currency] != scale ||
+        total is! int ||
+        total < 1 ||
+        total > 1000000000000 ||
+        rawShares is! List ||
+        rawShares.isEmpty ||
+        rawShares.length > 32 ||
+        (json.containsKey('createdAt') &&
+            (createdAt is! num || !createdAt.isFinite || createdAt <= 0))) {
+      throw const FormatException('invalid_expense');
+    }
+    final shares = <ExpenseShare>[];
+    final seen = <String>{};
+    for (final raw in rawShares) {
+      if (raw is! Map<String, dynamic> ||
+          raw.length != 2 ||
+          !_expenseId(raw['accountId']) ||
+          raw['amountMinor'] is! int ||
+          (raw['amountMinor'] as int) < 0 ||
+          !seen.add(raw['accountId'] as String)) {
+        throw const FormatException('invalid_expense');
+      }
+      shares.add(
+        ExpenseShare(
+          accountId: raw['accountId'] as String,
+          amountMinor: raw['amountMinor'] as int,
+        ),
+      );
+    }
+    if (shares.fold<int>(0, (sum, value) => sum + value.amountMinor) != total) {
+      throw const FormatException('invalid_expense');
+    }
+    return SharedExpenseRecord(
+      id: json['id'] as String,
+      revision: revision,
+      title: title,
+      currency: currency,
+      currencyScale: scale as int,
+      totalMinor: total,
+      payerId: json['payerId'] as String,
+      shares: List.unmodifiable(shares),
+    );
+  }
+
   final String id;
   final int revision;
   final String title;
@@ -207,16 +329,23 @@ class ExpenseLedgerSnapshot {
 class SharedExpenseReceipt {
   const SharedExpenseReceipt({
     required this.authority,
+    required this.eventId,
     required this.commandId,
     required this.ledgerRevision,
     required this.record,
   });
 
   final SharedExpenseAuthority authority;
+  final String eventId;
   final String commandId;
   final int ledgerRevision;
   final SharedExpenseRecord record;
 }
+
+bool _expenseId(Object? value) =>
+    value is String &&
+    value.length == 32 &&
+    RegExp(r'^[0-9a-f]{32}$').hasMatch(value);
 
 class ExpenseExport {
   ExpenseExport(

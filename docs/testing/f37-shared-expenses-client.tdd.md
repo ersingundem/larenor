@@ -1,6 +1,8 @@
 # F37 shared expenses Android Client slice
 
-Status: stacked on the local F37 Core foundation; F37 remains `pending`.
+Status: authenticated Core-to-Android integration is implemented; F37 remains
+`pending` until its edit/reversal journal, downloadable CSV artifact, and real
+tablet-to-isolated-Core acceptance are complete.
 
 ## Three accepted criteria
 
@@ -24,6 +26,13 @@ Status: stacked on the local F37 Core foundation; F37 remains `pending`.
 - RED `32ef66e2`: a foreign participant export was retained; `a512295f` rejects
   it and disables create outside a current ready/empty authority state.
 
-The authenticated HTTP adapter, app route/AppLocalizations adapter, current
-household resolver, persisted export artifact, edit/reversal journal, and real
-Client-to-isolated-Core E2E remain open. No progress counter changes are claimed.
+- `089bc63f` exposes the authenticated Core contract with the live account
+  membership resolver, HMAC-bound membership revision, idempotent command
+  receipts, and participant-filtered export.
+- The Android route now retires data on account, session, home, route, window,
+  lifecycle, or focus replacement. It uses localized EN/TR copy and requires an
+  explicit retry after a failed connection instead of reconnecting in a loop.
+
+The downloadable CSV artifact, edit/reversal journal, and real
+Client-to-isolated-Core device acceptance remain open. No progress counter
+changes are claimed.
