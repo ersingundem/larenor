@@ -47,6 +47,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ),
         GoRoute(
+          path: '/settings/tablet-fleet',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.tabletFleet,
+          ),
+        ),
+        GoRoute(
           path: '/settings/home-source',
           builder: (_, _) => const SettingsGateScreen(
             initialDestination: SettingsGateDestination.homeSource,
@@ -181,6 +187,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      GoRoute(
+        path: '/settings/tablet-fleet',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.tabletFleet,
+        ),
+      ),
       if (home != null)
         GoRoute(
           path: '/settings/home-source',
