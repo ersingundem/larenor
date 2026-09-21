@@ -1,4 +1,6 @@
 {
+  "roomPresenceTitle": "Room presence",
+  "roomPresenceEntrySubtitle": "Private local room evidence and calibration",
   "@@locale": "en",
   "appTitle": "Larenor Client",
   "@appTitle": {

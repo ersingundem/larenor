@@ -1,4 +1,6 @@
 {
+  "roomPresenceTitle": "Oda varlığı",
+  "roomPresenceEntrySubtitle": "Mahrem yerel oda kanıtı ve kalibrasyon",
   "@@locale": "tr",
   "appTitle": "Larenor Client",
   "commonOff": "Kapalı",

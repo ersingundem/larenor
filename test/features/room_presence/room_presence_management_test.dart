@@ -12,11 +12,11 @@ import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 
 const _authority = RoomPresenceClientAuthority(
-  coreId: 'core-main',
-  homeId: 'home-a',
-  accountId: 'account-admin',
-  sessionFamilyId: 'family-a',
-  routeId: 'presence-management',
+  coreId: '11111111111111111111111111111111',
+  homeId: '22222222222222222222222222222222',
+  accountId: '33333333333333333333333333333333',
+  sessionFamilyId: '44444444444444444444444444444444',
+  routeId: '55555555555555555555555555555555',
   homeRevision: 4,
   accountRevision: 8,
   sessionRevision: 3,
@@ -30,20 +30,20 @@ RoomPresenceEvidence _evidence({
   String calibrationRevision = 'cal-r3',
 }) => RoomPresenceEvidence(
   authority: _authority,
-  deviceId: 'phone-a',
+  deviceId: '66666666666666666666666666666666',
   deviceName: 'Tablet owner',
   deviceRevision: 'device-r7',
   modelRevision: 'model-r2',
   policyRevision: 'policy-r5',
   consentRevision: 'consent-r4',
   consentActive: true,
-  configuredRoomId: 'living-room',
+  configuredRoomId: '99999999999999999999999999999999',
   configuredRoomName: 'Living room',
   configuredRoomRevision: 'room-r6',
   detectedRoomId:
       state == PresenceEvidenceState.present ||
           state == PresenceEvidenceState.uncertain
-      ? 'living-room'
+      ? '99999999999999999999999999999999'
       : null,
   detectedRoomRevision:
       state == PresenceEvidenceState.present ||
@@ -267,14 +267,20 @@ void main() {
           expect(find.byType(AppSurface), findsOneWidget);
           expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
           final action = find.byKey(
-            const ValueKey('presence-calibrate-phone-a'),
+            const ValueKey(
+              'presence-calibrate-66666666666666666666666666666666',
+            ),
           );
           expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
           expect(tester.getSemantics(action).flagsCollection.isButton, isTrue);
           expect(
             tester
                 .getSemantics(
-                  find.byKey(const ValueKey('presence-state-phone-a')),
+                  find.byKey(
+                    const ValueKey(
+                      'presence-state-66666666666666666666666666666666',
+                    ),
+                  ),
                 )
                 .label,
             contains(language == 'tr' ? 'Yalnız öneri' : 'Advisory only'),
