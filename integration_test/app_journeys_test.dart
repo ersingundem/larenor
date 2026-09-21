@@ -753,10 +753,26 @@ void main() {
 
       Future<void> remount(String expectedLabel) async {
         final meReads = core.meReads, contextReads = core.contextReads;
+        final resourceReads = resources.reads;
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 200));
         await app.mount(tester);
-        await waitFor(tester, find.text(expectedLabel));
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        await waitUntil(
+          tester,
+          () => resources.reads > resourceReads,
+          describe: () => 'Core resources were not refreshed after remount',
+        );
+        final expected = find.text(expectedLabel);
+        if (expected.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(
+            expected,
+            200,
+            scrollable: find.byType(Scrollable).last,
+            maxScrolls: 5,
+          );
+        }
+        await waitFor(tester, expected);
         expect(core.meReads, greaterThan(meReads));
         expect(core.contextReads, greaterThan(contextReads));
       }
