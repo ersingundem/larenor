@@ -1,4 +1,17 @@
 from conftest import auth, login, ready
+from larenor_server.resource_reservations.integration import _members_revision
+
+
+def test_membership_revision_cannot_collide_when_revision_sums_match():
+    key = b"f40-membership-revision-test-key"
+    before = [{"id": "a", "revision": 1}, {"id": "b", "revision": 3}]
+    after = [{"id": "a", "revision": 2}, {"id": "b", "revision": 2}]
+
+    assert sum(row["revision"] for row in before) == sum(
+        row["revision"] for row in after
+    )
+    assert _members_revision(key, before) != _members_revision(key, after)
+    assert _members_revision(key, before) == _members_revision(key, reversed(before))
 
 
 def _scope(client, pair):

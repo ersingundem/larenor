@@ -1,9 +1,9 @@
 """Bind the F40 reducer to the authenticated Core home and account."""
 
-from datetime import UTC, datetime
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from ..errors import ApiError
@@ -11,9 +11,24 @@ from .catalog import ResourceCatalog
 from .service import ReservationAuthority, ReservationStore, ResourceRule
 
 
+def _members_revision(key, rows):
+    members = sorted((row["id"], row["revision"]) for row in rows)
+    payload = json.dumps(members, separators=(",", ":")).encode("ascii")
+    digest = hmac.new(
+        key,
+        b"resource-reservations-members-revision-v1\0" + payload,
+        hashlib.sha256,
+    ).digest()
+    revision = int.from_bytes(digest[:8], "big") & (2**63 - 1)
+    return revision or 1
+
+
 class ResourceReservationService:
     def __init__(self, db, auth, settings, key, context):
         self.db, self.auth, self.settings, self.context = db, auth, settings, context
+        self._members_revision_key = hmac.new(
+            key, b"resource-reservations-members-revision-key-v1", hashlib.sha256,
+        ).digest()
         encryption = hmac.new(key, b"resource-reservations-encryption-v1", hashlib.sha256).digest()
         audit = hmac.new(key, b"resource-reservations-audit-v1", hashlib.sha256).digest()
         self.store = ReservationStore(db, encryption_key=encryption, audit_key=audit)
@@ -54,9 +69,7 @@ class ResourceReservationService:
         member_ids = tuple(row["id"] for row in members)
         if actor.id not in member_ids:
             raise ApiError("forbidden", 403)
-        members_revision = sum(row["revision"] for row in members)
-        if not 1 <= members_revision <= 2**63 - 1:
-            raise ApiError("authority_changed", 409)
+        members_revision = _members_revision(self._members_revision_key, members)
         return account, member_ids, members_revision, 1 if state is None else state["revision"]
 
     def authority(self, actor, core_id, home_id, resource_id=None):

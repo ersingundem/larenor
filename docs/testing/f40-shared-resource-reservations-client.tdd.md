@@ -69,7 +69,10 @@ transport, route-owned runtime, app-shell entry and localized tablet surface.
 - Adversarial repair `d8b4ef89`: exact receipt actor/event/resource validation,
   canonical UTC window checks, ordered history, duplicate rejection and
   byte-equivalent export comparison were added.
-- Core reducer, catalog, authenticated API, runtime and storage suite: 39 passed.
+- Final review replaced the additive member revision with an order-stable HMAC
+  revision, so different membership changes with the same numeric sum cannot
+  retain stale write authority.
+- Core reducer, catalog, authenticated API, runtime and storage suite: 9 passed.
 - Focused Flutter controller/screen/home-entry/transport suite: 19 passed.
 - Focused Flutter analyze: no issues.
 - Security, queue, progress, diff, redacted gitleaks and merge-tree checks are
