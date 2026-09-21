@@ -8,19 +8,21 @@ behavior remain MANUAL gates.
 Exactly three acceptance criteria are in scope:
 
 1. Android returns one bounded, secret-free topology containing exactly one
-   primary display and at most four external displays with exact topology and
-   display generations.
-2. A public allowlisted secondary route uses an exact session, topology,
-   display-generation, present receipt, and explicit dismissal. Background,
-   focus loss, detach, malformed, private, duplicate, or stale requests fail
-   before the native host and never replay.
-3. The Flutter platform port validates the closed native map before exposing a
-   topology or receipt to `DualDisplayCoordinator`; unknown keys, private data,
-   malformed values, and foreign callbacks fail closed.
+   primary display and at most four external displays. Hotplug, reconnect,
+   focus, configuration and lifecycle changes advance exact topology/display
+   generations and retire the previous presentation.
+2. Settings exposes a route-owned tablet task manager that separates the
+   primary and external screens, selects Dashboard or Now Playing, refreshes
+   topology and explicitly disconnects. Its EN/TR controls stay at least 48dp,
+   keyboard/TalkBack operable, and usable at 600/1280 logical pixels with 2x
+   text.
+3. The Flutter port and coordinator bind every operation to the exact account,
+   home, session, lifecycle, route, topology and display generation. Unknown
+   routes, wrong/reconnected displays, malformed receipts, late hidden-route
+   callbacks fail closed; duplicate native intents remain idempotent.
 
-The RED tests preceded the Android bridge and Flutter platform adapter. The
-production bridge is registered with `MainActivity`, observes Android display,
-focus, configuration and lifecycle changes, and retires its presentation on
-detach or authority loss. Nine Flutter contract tests and three Android unit
-tests pass. A later slice will connect the verified bridge to a route-owned
-tablet management surface and isolated secondary Flutter renderer.
+RED commits `e550cf05` and `c897927e` preceded the Android bridge and tablet
+manager. Twenty-three focused Flutter contract/widget tests and three Android unit
+tests pass. The native presentation deliberately renders a secret-free bounded
+placeholder; isolated secondary Flutter rendering plus physical Samsung DeX,
+dock, touch, keyboard and protected-media verification remain MANUAL gates.

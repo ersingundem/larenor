@@ -2979,5 +2979,19 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "dualDisplayTitle": "Harici ekranlar",
+  "dualDisplayStatus": "Ekran durumu",
+  "dualDisplayScreens": "Kullanılabilir ekranlar",
+  "dualDisplayPrimary": "Tablet ekranı",
+  "dualDisplayExternal": "Harici ekran",
+  "dualDisplayLoading": "Bağlı ekranlar denetleniyor",
+  "dualDisplayReady": "Harici ekran hazır",
+  "dualDisplayActive": "Harici görev doğrulandı",
+  "dualDisplayNoExternal": "Bağlı harici ekran yok",
+  "dualDisplayUnavailable": "Ekran durumu doğrulanamadı",
+  "dualDisplayDisconnect": "Harici görevi durdur",
+  "dualDisplayShowDashboard": "Dashboard'u göster",
+  "dualDisplayShowMedia": "Şimdi çalanı göster",
+  "dualDisplayPrivacyHint": "Harici ekranda yalnızca genel dashboard veya oynatma kontrolleri gösterilebilir. Özel hesap ve ayar içerikleri tablette kalır."
 }

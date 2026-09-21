@@ -3317,5 +3317,19 @@
   "remoteAccessCoreEmpty": "No Core profiles for this account and home.",
   "remoteAccessCoreConflict": "This profile changed on Core. Refresh before choosing how to continue; your edit was not overwritten.",
   "remoteAccessCoreResolve": "Refresh to resolve conflict",
-  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache."
+  "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
+  "dualDisplayTitle": "External displays",
+  "dualDisplayStatus": "Display status",
+  "dualDisplayScreens": "Available screens",
+  "dualDisplayPrimary": "Tablet screen",
+  "dualDisplayExternal": "External screen",
+  "dualDisplayLoading": "Checking connected displays",
+  "dualDisplayReady": "External display ready",
+  "dualDisplayActive": "External task verified",
+  "dualDisplayNoExternal": "No external display connected",
+  "dualDisplayUnavailable": "Display state could not be verified",
+  "dualDisplayDisconnect": "Stop external task",
+  "dualDisplayShowDashboard": "Show dashboard",
+  "dualDisplayShowMedia": "Show now playing",
+  "dualDisplayPrivacyHint": "Only public dashboard or playback controls can appear externally. Private account and settings content stays on the tablet."
 }

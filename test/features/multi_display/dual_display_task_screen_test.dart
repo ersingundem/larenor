@@ -98,7 +98,8 @@ void main() {
         expect(find.byKey(const ValueKey('dual-display-external-4')), findsOne);
         expect(tester.takeException(), isNull);
 
-        Focus.of(tester.element(media)).requestFocus();
+        final label = find.descendant(of: media, matching: find.byType(Text));
+        Focus.of(tester.element(label)).requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();

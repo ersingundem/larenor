@@ -4,12 +4,19 @@ import '../domain/dual_display_session.dart';
 
 const _defaultChannel = MethodChannel('com.ersingundem.larenor/dual_display');
 
-final class MethodChannelSecondaryDisplayPort implements SecondaryDisplayPort {
+abstract interface class DualDisplayPlatformPort
+    implements SecondaryDisplayPort {
+  Future<DisplayTopology> snapshot();
+}
+
+final class MethodChannelSecondaryDisplayPort
+    implements DualDisplayPlatformPort {
   const MethodChannelSecondaryDisplayPort({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   final MethodChannel _channel;
 
+  @override
   Future<DisplayTopology> snapshot() async {
     try {
       final raw = await _channel.invokeMethod<Object?>('snapshot');
