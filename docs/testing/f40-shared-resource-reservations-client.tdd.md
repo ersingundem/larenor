@@ -72,6 +72,11 @@ transport, route-owned runtime, app-shell entry and localized tablet surface.
 - Final review replaced the additive member revision with an order-stable HMAC
   revision, so different membership changes with the same numeric sum cannot
   retain stale write authority.
+- RED `2a660067`: snapshot assembled export, history and reservation rows from
+  three separate verified transactions, allowing a concurrent calendar change
+  to mix revisions. Snapshot and export now derive all visible records, busy
+  intervals and history from one verified read; changed resource revisions fail
+  closed before publication.
 - Core reducer, catalog, authenticated API, runtime and storage suite: 9 passed.
 - Focused Flutter controller/screen/home-entry/transport suite: 19 passed.
 - Focused Flutter analyze: no issues.

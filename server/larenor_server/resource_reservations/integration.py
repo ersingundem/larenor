@@ -261,35 +261,34 @@ class ResourceReservationService:
 
     def snapshot(self, actor, core_id, home_id, resource_id, body):
         authority = self._expected(actor, core_id, home_id, resource_id, body)
-        exported = self.store.export(actor, authority=authority, limit=256)
-        events = self.store.history(actor, authority=authority, limit=256)
-        reservations = []
-        # Export intentionally omits internal receipt data. Re-open verified
-        # records only through the reducer's bounded read.
-        with self.db.connection() as connection:
-            _, records = self.store._verified(connection, authority)
-        for item in sorted(records.values(), key=lambda value: (value.created_at, value.id)):
-            reservations.append(self._reservation(item, actor))
+        revision, events, records = self.store._read(actor, authority)
+        if len(records) > 256:
+            raise ApiError("reservation_export_limit_reached", 413)
+        resources = self.catalog.list()[1]
+        resource = next((item for item in resources if item.id == authority.resource.id), None)
+        if (
+            resource is None
+            or resource.revision != authority.resource.revision
+            or resource.timezone != authority.resource.timezone
+            or resource.capacity != authority.resource.capacity
+        ):
+            raise ApiError("authority_changed", 409)
+        ordered = sorted(records.values(), key=lambda value: (value.created_at, value.id))
+        reservations = [self._reservation(item, actor) for item in ordered]
         busy = [
-            {"startUtc": occurrence["startUtc"], "endUtc": occurrence["endUtc"],
-             "units": item["units"]}
-            for item in exported["reservations"] if not item["cancelled"]
-            for occurrence in item["occurrences"]
+            {"startUtc": occurrence.start_utc, "endUtc": occurrence.end_utc,
+             "units": item.units}
+            for item in ordered if item.cancelled_at is None
+            for occurrence in item.occurrences
         ]
         if len(busy) > 256:
             raise ApiError("availability_limit_reached", 413)
         return {
             "schemaVersion": 1,
             "authority": self._authority_json(authority, actor),
-            "calendarRevision": authority.calendar_revision,
-            "resource": self._resource_json(next(
-                item for item in self.catalog.list()[1]
-                if item.id == authority.resource.id
-            )),
-            "canCreate": next(
-                item.active for item in self.catalog.list()[1]
-                if item.id == authority.resource.id
-            ),
+            "calendarRevision": revision,
+            "resource": self._resource_json(resource),
+            "canCreate": resource.active,
             "reservations": reservations,
             "history": [{
                 "eventId": event.event_id,
@@ -297,7 +296,7 @@ class ResourceReservationService:
                 "actorId": event.actor_id,
                 "reservationId": event.reservation_id,
                 "calendarRevision": event.calendar_revision,
-            } for event in events],
+            } for event in events[-256:]],
             "busy": sorted(busy, key=lambda value: (value["startUtc"], value["endUtc"])),
         }
 
@@ -339,19 +338,17 @@ class ResourceReservationService:
 
     def export(self, actor, core_id, home_id, resource_id, body):
         authority = self._expected(actor, core_id, home_id, resource_id, body)
-        value = self.store.export(actor, authority=authority, limit=body.limit)
-        exported_ids = {item["id"] for item in value["reservations"]}
-        records = [item for item in self._verified_records(authority)
-                   if item.id in exported_ids]
-        if len(records) != len(exported_ids):
-            raise ApiError("audit_tampered", 503)
+        revision, _events, records = self.store._read(actor, authority)
+        if len(records) > body.limit:
+            raise ApiError("reservation_export_limit_reached", 413)
+        ordered = sorted(records.values(), key=lambda value: (value.created_at, value.id))
         return {
             "schemaVersion": 1,
             "authority": self._authority_json(authority, actor),
-            "calendarRevision": value["calendarRevision"],
+            "calendarRevision": revision,
             "reservations": [
                 self._reservation(item, actor)
-                for item in records
+                for item in ordered
             ],
         }
 
