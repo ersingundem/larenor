@@ -1913,7 +1913,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Olay, komut sonucu ve sınırlı dosya/medya taşıma",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S08.6",
         "S08.7"
@@ -1938,7 +1938,7 @@
         {
           "kind": "test",
           "ref": "server/tests/test_command_event_history.py",
-          "commit": "f40f87f804f69b7bd0f1696d9a693119afd8bcc7",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
           "state": "completed",
           "result": "passed",
           "label": "Kaynak ve aktör yetkili görünümüne özel monotonic chain/cursor, pending→final append snapshotları, restartta no-replay ve kapalı query/OpenAPI sözleşmesi; 71 ilgili komut geçmişi testi PASS."
@@ -1946,7 +1946,7 @@
         {
           "kind": "test",
           "ref": "server/tests/test_bounded_transfer_receipts.py",
-          "commit": "7b653c1fbe42fefbd7f543c398bb9836d3a70881",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
           "state": "completed",
           "result": "passed",
           "label": "HMAC doğrulamalı kalıcı bounded-transfer makbuzu; completed/interrupted, restart recovery, exact replay ve değişen istek çatışması provider açılmadan ayrılıyor. Exact SQLite şema/satır doğrulaması ve kapalı query sınırı; 191 ilgili test PASS. Ürün providerı, upload/media ve fiziksel SAF açık."
@@ -1954,14 +1954,46 @@
         {
           "kind": "review",
           "ref": "server/larenor_server/bounded_transfer/receipts.py",
-          "commit": "7b653c1fbe42fefbd7f543c398bb9836d3a70881",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
           "state": "completed",
           "result": "passed",
           "label": "Yetki/query, pre-provider idempotency zarfı ve SQLite şema/satır bütünlüğü incelemesindeki açıklar kapatıldı; gizli global sıra ve çapraz aktör görünümü de olay API testlerinde reddediliyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/s08-10-software-closure-2026-09-21.md",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Güncel main üzerinde bounded transfer, provider, receipt, upload, authority, event ve command-history için 67 Server; kontrat, download, blob, preflight ve checkpoint için 58 Flutter testi PASS; hedefli analiz temiz."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s08-10-software-closure-2026-09-21.md",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız yetki ve lifecycle incelemesinde provider öncesi yetki, receipt kimliği, checkpoint kapsamı, v1 geçiş çapası, rollback/divergence ve geç yanıt sınırlarında açık blocker kalmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35522856631",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR179 tam yazılım zincirinin exact headinde statik analiz, Flutter, Server, Android build/imza ve emulator işleri dahil gerekli Android Build CI geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541864163",
+          "commit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR233 divergent replay ve checkpoint v1→v2 hardening exact headinde Android Build, security ve native kabul iş akışları geçti."
         }
       ],
-      "completionCommit": null,
-      "reason": null
+      "completionCommit": "d14901b5bf7b73ed43f11e2539da6abe7196516e",
+      "reason": "PR179 tam sınırlı taşıma yazılım zincirini, PR233 ise divergent replay ve checkpoint geçiş sertleştirmesini ana dala aldı; exact-head CI ve güncel main testleri geçti, bağımsız incelemede açık yazılım blockerı kalmadı. Fiziksel Huawei/DeX/SAF ve gerçek LAN kabulü MANUAL.TABLET ile MANUAL.SERVICES altında ayrı izlenir."
     },
     {
       "id": "S08.11",
