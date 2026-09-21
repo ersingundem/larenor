@@ -353,8 +353,7 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                     KioskQuickActionBar(
                       navigationEnabled: active,
                       exitEnabled:
-                          active &&
-                          snapshot!.actions.contains(KioskAction.exit),
+                          active && snapshot.actions.contains(KioskAction.exit),
                       onHome: () async {
                         if (_current(generation)) context.go('/');
                       },
