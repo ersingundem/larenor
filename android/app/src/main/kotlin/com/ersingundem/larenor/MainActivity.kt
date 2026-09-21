@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import com.ersingundem.larenor.audio.LocalAudioBridge
 import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
+import com.ersingundem.larenor.kiosk.KioskPeripheralBridge
 import com.ersingundem.larenor.updater.ClientUpdaterBridge
 import com.ersingundem.larenor.wellbeing.WellbeingBridge
 import com.ersingundem.larenor.vnc.VncNativeBridge
@@ -21,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private var windowPolicy: WindowPolicyBridge? = null
     private var wellbeing: WellbeingBridge? = null
     private var kiosk: KioskBridge? = null
+    private var kioskPeripherals: KioskPeripheralBridge? = null
     private var updater: ClientUpdaterBridge? = null
     private var vncNative: VncNativeBridge? = null
     private var rdpNative: RdpNativeBridge? = null
@@ -32,6 +34,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy = WindowPolicyBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        kioskPeripherals = KioskPeripheralBridge(flutterEngine.dartExecutor.binaryMessenger)
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
         rdpNative = RdpNativeBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -106,6 +109,8 @@ class MainActivity : FlutterActivity() {
         updater = null
         kiosk?.dispose()
         kiosk = null
+        kioskPeripherals?.dispose()
+        kioskPeripherals = null
         wellbeing?.dispose()
         wellbeing = null
         windowPolicy?.dispose()

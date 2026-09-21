@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/kiosk/data/kiosk_peripheral_runtime.dart';
 import 'package:larenor/features/kiosk/domain/kiosk_peripheral_contract.dart';
 import 'package:larenor/features/kiosk/presentation/kiosk_peripheral_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -74,6 +77,8 @@ class _Runtime implements KioskPeripheralRuntime {
   int consumes = 0;
   Completer<Object?>? pending;
   @override
+  int nowElapsedMs() => 50000;
+  @override
   Future<KioskPeripheralRuntimeSnapshot> snapshot() async {
     reads++;
     return KioskPeripheralRuntimeSnapshot(
@@ -97,39 +102,93 @@ Future<void> _mount(
   Size size = const Size(600, 1000),
   double scale = 1,
   Locale locale = const Locale('en'),
+  AppInteractionController? interaction,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(CupertinoApp(
-    locale: locale,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: MediaQuery(
-      data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
-      child: KioskPeripheralScreen(runtime: runtime, optInStore: store),
+  await tester.pumpWidget(
+    CupertinoApp(
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: MediaQuery(
+        data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
+        child: interaction == null
+            ? KioskPeripheralScreen(runtime: runtime, optInStore: store)
+            : AppInteractionScope(
+                controller: interaction,
+                child: KioskPeripheralScreen(
+                  runtime: runtime,
+                  optInStore: store,
+                ),
+              ),
+      ),
     ),
-  ));
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
+  test('native inventory cannot advertise an unwired input adapter', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('com.ersingundem.larenor/kiosk_peripherals');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async => _inventory());
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final runtime = AndroidKioskPeripheralRuntime(
+      channel: channel,
+      isAndroid: true,
+    );
+    final snapshot = await runtime.snapshot();
+    final inventory = KioskPeripheralInventory.fromChannel(
+      snapshot.rawInventory,
+      gmsAvailable: snapshot.gmsAvailable,
+    );
+    expect(snapshot.authority, isNull);
+    expect(
+      inventory.providers.every((provider) => !provider.supported),
+      isTrue,
+    );
+    expect(await runtime.takeNextInput('qr.local'), isNull);
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
-      testWidgets('${locale.languageCode} $width 2x lists distinct providers', (tester) async {
+      testWidgets('${locale.languageCode} $width 2x lists distinct providers', (
+        tester,
+      ) async {
         final runtime = _Runtime(ready: false);
-        await _mount(tester, runtime, _Store(),
-          size: Size(width, 1000), scale: 2, locale: locale);
-        expect(find.byKey(const ValueKey('peripheral-qr.local')), findsOneWidget);
-        expect(find.byKey(const ValueKey('peripheral-print.local')), findsOneWidget);
-        expect(find.byKey(const ValueKey('peripheral-consume-qr.local')), findsNothing);
+        await _mount(
+          tester,
+          runtime,
+          _Store(),
+          size: Size(width, 1000),
+          scale: 2,
+          locale: locale,
+        );
+        expect(
+          find.byKey(const ValueKey('peripheral-qr.local')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('peripheral-print.local')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('peripheral-consume-qr.local')),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull);
         expect(runtime.consumes, 0);
       });
     }
   }
 
-  testWidgets('opt-in persists but unsupported adapter cannot consume', (tester) async {
+  testWidgets('opt-in persists but unsupported adapter cannot consume', (
+    tester,
+  ) async {
     final runtime = _Runtime(ready: false);
     final store = _Store();
     await _mount(tester, runtime, store);
@@ -138,10 +197,43 @@ void main() {
     expect(store.value, {'qr.local'});
     expect(store.saves, 1);
     expect(runtime.consumes, 0);
-    expect(find.byKey(const ValueKey('peripheral-consume-qr.local')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('peripheral-consume-qr.local')),
+      findsNothing,
+    );
   });
 
-  testWidgets('review only consumes on explicit tap and never executes', (tester) async {
+  testWidgets('tablet toggle exposes a readable label and 48dp target', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final runtime = _Runtime(ready: false);
+    final store = _Store()..value = {'qr.local'};
+    await _mount(tester, runtime, store);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == 'QR scanner. No working adapter on this tablet. Choice enabled on this tablet. Android permission granted. Device connected',
+      ),
+      findsOneWidget,
+    );
+    final toggle = find.byKey(const ValueKey('peripheral-toggle-qr.local'));
+    final size = tester.getSize(toggle);
+    expect(size.width, greaterThanOrEqualTo(48));
+    expect(size.height, greaterThanOrEqualTo(48));
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'QR scanner. Disable choice',
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('review only consumes on explicit tap and never executes', (
+    tester,
+  ) async {
     final runtime = _Runtime();
     final store = _Store()..value = {'qr.local'};
     await _mount(tester, runtime, store);
@@ -150,7 +242,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(runtime.consumes, 1);
     expect(find.text('javascript:alert(1)'), findsOneWidget);
-    expect(find.byKey(const ValueKey('peripheral-review-only')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('peripheral-review-only')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
     await tester.pumpAndSettle();
     expect(runtime.consumes, 2);
@@ -166,6 +261,47 @@ void main() {
     await tester.pumpWidget(const CupertinoApp(home: SizedBox()));
     runtime.pending!.complete(_event());
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'interaction expiry drops late input and does not revive review',
+    (tester) async {
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      final runtime = _Runtime()..pending = Completer<Object?>();
+      final store = _Store()..value = {'qr.local'};
+      await _mount(tester, runtime, store, interaction: interaction);
+      await tester.tap(
+        find.byKey(const ValueKey('peripheral-consume-qr.local')),
+      );
+      await tester.pump();
+      interaction.setActive(false);
+      runtime.pending!.complete(_event());
+      await tester.pumpAndSettle();
+      expect(find.text('javascript:alert(1)'), findsNothing);
+      interaction.setActive(true);
+      await tester.pumpAndSettle();
+      expect(find.text('javascript:alert(1)'), findsNothing);
+      expect(runtime.consumes, 1);
+    },
+  );
+
+  testWidgets('covering route retires reviewed input before return', (
+    tester,
+  ) async {
+    final runtime = _Runtime();
+    final store = _Store()..value = {'qr.local'};
+    await _mount(tester, runtime, store);
+    await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
+    await tester.pumpAndSettle();
+    expect(find.text('javascript:alert(1)'), findsOneWidget);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(CupertinoPageRoute<void>(builder: (_) => const SizedBox()));
+    await tester.pumpAndSettle();
+    navigator.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('javascript:alert(1)'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
