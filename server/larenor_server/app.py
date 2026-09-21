@@ -25,6 +25,7 @@ from .services.api import router as services_router
 from .home_resources.api import router as home_resources_router
 from .home_people.api import router as home_people_router
 from .meal_plans.api import router as meal_plans_router
+from .personal_profiles.api import router as personal_profiles_router
 from .home_assistant.api import router as home_assistant_router
 from .home_assistant.rule_api import router as home_assistant_rule_router
 from .keenetic_resources.api import router as keenetic_resources_router
@@ -268,6 +269,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(bounded_transfer_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(meal_plans_router, prefix="/api/v1")
+    app.include_router(personal_profiles_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")

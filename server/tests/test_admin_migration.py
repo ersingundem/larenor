@@ -27,6 +27,19 @@ def downgrade_to_known_v1(app):
         for table in ('meal_plan_records', 'meal_plan_receipts'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='meal_plans_schema'")
+        # Core-managed remote profiles and their authenticated state also bind
+        # to the later Core/home identity and did not exist in schema v1.
+        for table in (
+            'personal_profile_records',
+            'personal_profile_state',
+            'personal_profile_audit',
+            'personal_profile_audit_state',
+            'personal_profile_receipts',
+        ):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute(
+            "DELETE FROM metadata WHERE key='personal_profiles_schema'"
+        )
         # QR inventory also binds encrypted records and its audit chain to
         # the later Core/home identity. Historical v1/v2 fixtures predate it.
         for table in ('inventory_items', 'inventory_audit', 'inventory_audit_state'):
