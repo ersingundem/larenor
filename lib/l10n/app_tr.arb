@@ -2979,5 +2979,21 @@
   "remoteAccessCoreEmpty": "Bu hesap ve ev için Core profili yok.",
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
-  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir."
+  "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "weeklyMealPlanTitle": "Haftalık menü",
+  "weeklyMealPlanEntrySubtitle": "Öğünler, porsiyonlar ve tarif malzemeleri",
+  "weeklyMealPlanEmpty": "Henüz haftalık menü kaydedilmemiş.",
+  "weeklyMealPlanLoading": "Haftalık menü yükleniyor…",
+  "weeklyMealPlanUnavailable": "Haftalık menü yüklenemedi. Mevcut veri değiştirilmedi.",
+  "weeklyMealPlanRetry": "Tekrar dene",
+  "weeklyMealPlanIngredients": "Malzemeler",
+  "weeklyMealPlanServings": "{count} porsiyon",
+  "@weeklyMealPlanServings": {"placeholders": {"count": {"type": "int"}}},
+  "weeklyMealPlanBreakfast": "Kahvaltı",
+  "weeklyMealPlanLunch": "Öğle",
+  "weeklyMealPlanDinner": "Akşam",
+  "weeklyMealPlanSnack": "Ara öğün",
+  "weeklyMealPlanShoppingPreview": "Alışveriş önizlemesi",
+  "weeklyMealPlanShoppingHint": "Malzemeleri yazılabilir Home Assistant alışveriş listesine eklemeden önce ölçeklenmiş miktarları inceleyin.",
+  "weeklyMealPlanClose": "Kapat"
 }
