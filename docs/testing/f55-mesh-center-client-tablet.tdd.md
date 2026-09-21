@@ -26,7 +26,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The RED commit `fb7cedef` failed because the F55 Client models, API boundary,
+The RED commit `825b1691` failed because the F55 Client models, API boundary,
 controller, and management screen did not exist. The GREEN matrix contains one
 authority/topology/stale-callback test, one preview-confirm-exact-readback test,
 and one parameterized EN/TR tablet accessibility test across both target widths
