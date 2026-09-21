@@ -264,6 +264,183 @@ final class ManagedTabletList {
   final List<ManagedTablet> tablets;
 }
 
+enum KioskRolloutDeviceState {
+  current,
+  ready,
+  deferred,
+  appUpdateRequired,
+  revoked;
+
+  static KioskRolloutDeviceState parse(Object? value) => switch (value) {
+    'current' => current,
+    'ready' => ready,
+    'deferred' => deferred,
+    'appUpdateRequired' => appUpdateRequired,
+    'revoked' => revoked,
+    _ => throw const LarenorServerException('invalid_response'),
+  };
+}
+
+final class KioskRolloutRelease {
+  const KioskRolloutRelease._({
+    required this.applicationId,
+    required this.certificateSha256,
+    required this.versionCode,
+    required this.versionName,
+    required this.apkSha256,
+  });
+
+  factory KioskRolloutRelease.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'applicationId',
+      'certificateSha256',
+      'versionCode',
+      'versionName',
+      'apkSha256',
+    });
+    final certificate = json['certificateSha256'];
+    final apk = json['apkSha256'];
+    final versionCode = json['versionCode'];
+    if (json['applicationId'] != 'com.ersingundem.larenor' ||
+        certificate is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(certificate) ||
+        apk is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(apk) ||
+        versionCode is! int ||
+        versionCode < 1 ||
+        versionCode > 2147483647) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return KioskRolloutRelease._(
+      applicationId: json['applicationId'] as String,
+      certificateSha256: certificate,
+      versionCode: versionCode,
+      versionName: _text(json['versionName'], max: 80),
+      apkSha256: apk,
+    );
+  }
+
+  final String applicationId, certificateSha256, versionName, apkSha256;
+  final int versionCode;
+}
+
+final class KioskRolloutDevice {
+  const KioskRolloutDevice._({
+    required this.deviceId,
+    required this.deviceRevision,
+    required this.appliedProfileRevision,
+    required this.desiredProfileRevision,
+    required this.state,
+    required this.differences,
+  });
+
+  factory KioskRolloutDevice.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'deviceId',
+      'deviceRevision',
+      'appliedProfileRevision',
+      'desiredProfileRevision',
+      'state',
+      'differences',
+    });
+    final state = KioskRolloutDeviceState.parse(json['state']);
+    final raw = json['differences'];
+    const allowed = {'applicationVersion', 'profileRevision'};
+    if (raw is! List ||
+        raw.length > 2 ||
+        raw.any((item) => item is! String || !allowed.contains(item)) ||
+        raw.toSet().length != raw.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final differences = List<String>.unmodifiable(raw.cast<String>());
+    final hasApp = differences.contains('applicationVersion');
+    final hasProfile = differences.contains('profileRevision');
+    if ((state == KioskRolloutDeviceState.current && differences.isNotEmpty) ||
+        (state == KioskRolloutDeviceState.appUpdateRequired && !hasApp) ||
+        ({
+              KioskRolloutDeviceState.ready,
+              KioskRolloutDeviceState.deferred,
+            }.contains(state) &&
+            (hasApp || !hasProfile))) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return KioskRolloutDevice._(
+      deviceId: _identity(json['deviceId']),
+      deviceRevision: _revision(json['deviceRevision']),
+      appliedProfileRevision: _revision(json['appliedProfileRevision']),
+      desiredProfileRevision: _revision(json['desiredProfileRevision']),
+      state: state,
+      differences: differences,
+    );
+  }
+
+  final String deviceId;
+  final int deviceRevision, appliedProfileRevision, desiredProfileRevision;
+  final KioskRolloutDeviceState state;
+  final List<String> differences;
+}
+
+final class KioskProfileRolloutPreview {
+  const KioskProfileRolloutPreview._({
+    required this.context,
+    required this.requestDigest,
+    required this.profileRevision,
+    required this.rolloutPercent,
+    required this.profileSeal,
+    required this.release,
+    required this.devices,
+  });
+
+  factory KioskProfileRolloutPreview.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'schemaVersion',
+      'scope',
+      'requestDigest',
+      'profileRevision',
+      'rolloutPercent',
+      'profileSeal',
+      'release',
+      'devices',
+    });
+    final requestDigest = json['requestDigest'];
+    final profileSeal = json['profileSeal'];
+    final rolloutPercent = json['rolloutPercent'];
+    final rawDevices = json['devices'];
+    if (json['schemaVersion'] != 1 ||
+        requestDigest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(requestDigest) ||
+        profileSeal is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(profileSeal) ||
+        rolloutPercent is! int ||
+        rolloutPercent < 1 ||
+        rolloutPercent > 100 ||
+        rawDevices is! List ||
+        rawDevices.isEmpty ||
+        rawDevices.length > 256) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final devices = rawDevices.map(KioskRolloutDevice.fromJson).toList();
+    if (devices.map((item) => item.deviceId).toSet().length != devices.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return KioskProfileRolloutPreview._(
+      context: ServerContext.fromJson(json['scope']),
+      requestDigest: requestDigest,
+      profileRevision: _revision(json['profileRevision']),
+      rolloutPercent: rolloutPercent,
+      profileSeal: profileSeal,
+      release: KioskRolloutRelease.fromJson(json['release']),
+      devices: List.unmodifiable(devices),
+    );
+  }
+
+  final ServerContext context;
+  final String requestDigest, profileSeal;
+  final int profileRevision, rolloutPercent;
+  final KioskRolloutRelease release;
+  final List<KioskRolloutDevice> devices;
+}
+
 final class ManagedTabletCommand {
   const ManagedTabletCommand._({
     required this.id,
