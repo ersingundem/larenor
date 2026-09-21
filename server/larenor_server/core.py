@@ -107,6 +107,8 @@ from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
+from .camera_visual_sensors.schema import migrate_camera_visual_sensors
+from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
 
 
@@ -230,6 +232,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_ev_charging(connection)
+                migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -312,6 +315,9 @@ class CoreServices:
             self.ev_charging = EvChargeRuntime(
                 self.db, self.auth, settings, key, self.context,
                 self._ev_charge_provider, self._ev_charge_charger)
+            self.camera_visual_sensors = CameraVisualSensorService(
+                self.db, self.auth, settings, key, self.context)
+            self.camera_visual_sensors.validate_storage()
             self.sound_events = SoundEventRepository(
                 settings.data_dir / "sound-events.db",
                 key,

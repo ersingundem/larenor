@@ -12,7 +12,9 @@ import '../../ha_client/data/models/ha_entity.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../data/ambient_repository.dart';
 import '../domain/ambient_settings.dart';
+import '../domain/ambient_content.dart';
 import '../providers/ambient_providers.dart';
+import 'ambient_content_sequence.dart';
 
 class AmbientScreen extends ConsumerStatefulWidget {
   const AmbientScreen({super.key});
@@ -98,6 +100,13 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
     final photos = library.isLoading || library.hasError
         ? const <String>[]
         : library.value ?? const <String>[];
+    final contentReading = _foreground && _visible
+        ? ref.watch(ambientContentLibraryProvider)
+        : const AsyncData<List<AmbientContent>>([]);
+    final List<AmbientContent> content =
+        contentReading.isLoading || contentReading.hasError
+        ? const <AmbientContent>[]
+        : contentReading.value ?? const [];
     final config = localHome ? ref.watch(connectionConfigProvider) : null;
     final reading = localHome ? ref.watch(publicHaEntitiesProvider) : null;
     final entities =
@@ -123,7 +132,7 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
         }
       }
     }
-    final showClock = settings.showClock || photos.isEmpty;
+    final showClock = settings.showClock || (photos.isEmpty && content.isEmpty);
     final time =
         '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
     final date = DateFormat.MMMMEEEEd(
@@ -148,7 +157,20 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (photos.isNotEmpty)
+          if (content.isNotEmpty)
+            AmbientContentSequence(
+              repository: ref.watch(ambientContentRepositoryProvider),
+              items: content,
+              interval: Duration(seconds: settings.intervalSeconds),
+              active: _foreground && _visible,
+              reducedMotion: MediaQuery.disableAnimationsOf(context),
+              placeholder: _AmbientClockFallback(
+                time: time,
+                date: date,
+                shift: shift,
+              ),
+            ),
+          if (content.isEmpty && photos.isNotEmpty)
             AmbientPhotoSequence(
               repository: ref.watch(ambientRepositoryProvider),
               ids: photos,
@@ -157,38 +179,7 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
               active: _foreground && _visible,
               placeholder: showClock
                   ? const SizedBox.expand()
-                  : SafeArea(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Transform.translate(
-                            offset: shift,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Column(
-                                key: const ValueKey('ambient-photo-fallback'),
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    time,
-                                    style: AppText.ambientClock.copyWith(
-                                      color: CupertinoColors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    date,
-                                    style: AppText.title3.copyWith(
-                                      color: CupertinoColors.systemGrey2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  : _AmbientClockFallback(time: time, date: date, shift: shift),
             ),
           if (showClock || weather != null)
             SafeArea(
@@ -204,7 +195,7 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
                         key: const ValueKey('ambient-clock-shift'),
                         offset: shift,
                         child: Column(
-                          mainAxisAlignment: photos.isEmpty
+                          mainAxisAlignment: photos.isEmpty && content.isEmpty
                               ? MainAxisAlignment.center
                               : MainAxisAlignment.end,
                           children: [
@@ -265,6 +256,50 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
       ),
     );
   }
+}
+
+class _AmbientClockFallback extends StatelessWidget {
+  const _AmbientClockFallback({
+    required this.time,
+    required this.date,
+    required this.shift,
+  });
+  final String time, date;
+  final Offset shift;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Transform.translate(
+          offset: shift,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              key: const ValueKey('ambient-photo-fallback'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  time,
+                  style: AppText.ambientClock.copyWith(
+                    color: CupertinoColors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  date,
+                  style: AppText.title3.copyWith(
+                    color: CupertinoColors.systemGrey2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// One decoded image at a time; never preloads the whole album. Corrupt entries
