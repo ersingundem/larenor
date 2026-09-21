@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/direct_home_access.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../../shared/widgets/service_route_status_scaffold.dart';
 import '../../hub/presentation/media_session_state.dart';
@@ -291,12 +293,12 @@ class _JellyfinConnectScreenState
         _startDiscovery(generation);
       });
     }
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Jellyfin')),
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 780),
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -306,10 +308,12 @@ class _JellyfinConnectScreenState
                     header: Text(l10n.commonFoundOnNetwork),
                     children: [
                       for (final server in _discovered)
-                        CupertinoListTile(
+                        SettingsActionTile(
+                          buttonKey: ValueKey(
+                            'jellyfin-discovered-${server.baseUrl}',
+                          ),
                           title: Text(server.name),
-                          subtitle: Text(server.baseUrl),
-                          trailing: const CupertinoListTileChevron(),
+                          additionalInfo: Text(server.baseUrl),
                           onTap: active
                               ? () {
                                   if (_current(generation)) {
@@ -352,16 +356,23 @@ class _JellyfinConnectScreenState
                       prefix: Text(l10n.mediaPasswordLabel),
                       obscureText: true,
                       enabled: active && !_connecting,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (active && !_connecting) _connect(generation);
+                      },
                     ),
                   ],
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: CupertinoColors.systemRed.resolveFrom(context),
+                      ),
                     ),
                   ),
                 ],
@@ -370,18 +381,25 @@ class _JellyfinConnectScreenState
                   Text(l10n.commonDone, textAlign: TextAlign.center),
                 ],
                 const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: active && !_connecting
-                      ? () => _connect(generation)
-                      : null,
-                  child: _connecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : Text(l10n.commonConnect),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton.filled(
+                    key: const ValueKey('jellyfin-connect-submit'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: active && !_connecting
+                        ? () => _connect(generation)
+                        : null,
+                    child: _connecting
+                        ? const CupertinoActivityIndicator(
+                            color: CupertinoColors.white,
+                          )
+                        : Text(l10n.commonConnect),
+                  ),
                 ),
                 if (_pendingRecovery)
                   CupertinoButton(
+                    key: const ValueKey('jellyfin-connect-remove'),
+                    minimumSize: const Size(48, 48),
                     onPressed: active && !_connecting
                         ? () => _clear(generation)
                         : null,

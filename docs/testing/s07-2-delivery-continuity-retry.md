@@ -1,8 +1,8 @@
 # S07.2 delivery continuity and retry acceptance
 
 This slice closes the three software evidence gaps found in the S07.2 audit.
-It does not advance the execution queue: S07.1, independent review, and exact
-pull-request CI remain required before S07.2 can close.
+Its S07.1 dependency, independent review, and CI evidence are bound in
+`docs/s07-2-s07-3-software-closure-2026-09-21.md`.
 
 | Acceptance | Product boundary | Automated proof |
 | --- | --- | --- |

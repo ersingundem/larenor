@@ -271,6 +271,7 @@ class _JellyfinSeriesScreenState
                         Text(l10n.mediaProgressStale, style: AppText.footnote),
                     ],
                     CupertinoButton(
+                      minimumSize: const Size(48, 48),
                       onPressed: _loading
                           ? null
                           : guardedMediaAction(() => _load()),
@@ -296,6 +297,7 @@ class _JellyfinSeriesScreenState
                       return SizedBox(
                         width: 200,
                         child: CupertinoButton(
+                          minimumSize: const Size(48, 48),
                           key: ValueKey('media-season-${season.key}'),
                           color: season.key == _season?.key
                               ? CupertinoColors.tertiarySystemFill.resolveFrom(
@@ -366,6 +368,7 @@ class _JellyfinSeriesScreenState
                       ],
                       Text(l10n.mediaCoverageUnknown, style: AppText.footnote),
                       CupertinoButton(
+                        minimumSize: const Size(48, 48),
                         padding: EdgeInsets.zero,
                         onPressed: guardedMediaAction(
                           () => context.push('/system/sonarr'),
@@ -411,6 +414,7 @@ class _JellyfinSeriesScreenState
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           CupertinoButton(
+                            minimumSize: const Size(48, 48),
                             key: ValueKey('media-episode-${episode.id}'),
                             padding: const EdgeInsets.all(12),
                             onPressed: enabled

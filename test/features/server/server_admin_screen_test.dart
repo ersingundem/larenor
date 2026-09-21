@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,8 @@ import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/app_page_scaffold.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -113,6 +116,46 @@ void main() {
         .join('\n');
     expect(text, isNot(contains(adminPassword)));
     expect(text, isNot(contains('synthetic_admin_access')));
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets('server admin is tablet ready $language $width 2x', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        try {
+          await mount(tester, width: width, scale: 2, language: language);
+          expect(find.byType(AppSurface), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(1));
+          final action = find.byKey(const ValueKey('admin-create'));
+          await tester.ensureVisible(action);
+          await tester.pumpAndSettle();
+          expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+          expect(
+            tester.widget<CupertinoButton>(action).minimumSize?.height ?? 0,
+            greaterThanOrEqualTo(48),
+          );
+          final l10n = AppLocalizations.of(tester.element(action));
+          final node = tester.getSemantics(
+            find.bySemanticsLabel(l10n.serverAdminCreate),
+          );
+          expect(node.flagsCollection.isButton, isTrue);
+          final label = find.descendant(
+            of: action,
+            matching: find.byType(Text),
+          );
+          Focus.of(tester.element(label)).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
   }
 
   testWidgets('current members cannot load administrator data', (tester) async {

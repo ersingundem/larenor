@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/app_colors.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../web_panel/domain/web_panel_policy.dart';
@@ -23,8 +24,14 @@ class _HaFrontendScreenState extends HaSessionState<HaFrontendScreen> {
 
   Future<void> _back() async {
     final route = ModalRoute.of(context);
+    final generation = sessionGeneration;
     final consumed = await (_panel.currentState?.back() ?? Future.value(false));
-    if (!mounted || consumed || route?.isCurrent != true) return;
+    if (!mounted ||
+        consumed ||
+        route?.isCurrent != true ||
+        !sessionCurrent(generation)) {
+      return;
+    }
     Navigator.of(context).pop();
   }
 
@@ -38,27 +45,25 @@ class _HaFrontendScreenState extends HaSessionState<HaFrontendScreen> {
         : null;
     final lease = captureHaSession();
     return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.haFrontend),
+      navigationBar: _HaFrontendNavigationBar(
+        title: Text(l10n.haFrontend),
         leading: CupertinoButton(
+          key: const ValueKey('ha-frontend-back'),
+          minimumSize: const Size(48, 48),
           padding: EdgeInsets.zero,
           onPressed: _back,
-          child: Semantics(
-            label: l10n.commonBack,
-            child: const Icon(CupertinoIcons.back),
-          ),
+          child: Icon(CupertinoIcons.back, semanticLabel: l10n.commonBack),
         ),
         trailing: CupertinoButton(
+          key: const ValueKey('ha-frontend-retry'),
+          minimumSize: const Size(48, 48),
           padding: EdgeInsets.zero,
           onPressed: lease == null
               ? null
               : () {
                   if (isHaSessionCurrent(lease)) _panel.currentState?.restart();
                 },
-          child: Semantics(
-            label: l10n.commonRetry,
-            child: const Icon(CupertinoIcons.refresh),
-          ),
+          child: Icon(CupertinoIcons.refresh, semanticLabel: l10n.commonRetry),
         ),
       ),
       child: SafeArea(
@@ -89,4 +94,65 @@ class _HaFrontendScreenState extends HaSessionState<HaFrontendScreen> {
       ),
     );
   }
+}
+
+class _HaFrontendNavigationBar extends StatelessWidget
+    implements ObstructingPreferredSizeWidget {
+  const _HaFrontendNavigationBar({
+    required this.title,
+    required this.leading,
+    required this.trailing,
+  });
+
+  final Widget title;
+  final Widget leading;
+  final Widget trailing;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+
+  @override
+  bool shouldFullyObstruct(BuildContext context) => true;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.navigation.resolveFrom(context),
+      border: Border(
+        bottom: BorderSide(
+          color: CupertinoColors.separator.resolveFrom(context),
+          width: .5,
+        ),
+      ),
+    ),
+    child: SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: 56,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Center(
+                  child: DefaultTextStyle(
+                    style: CupertinoTheme.of(context)
+                        .textTheme
+                        .navTitleTextStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    child: title,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

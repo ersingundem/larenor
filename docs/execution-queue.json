@@ -1055,14 +1055,17 @@
       "kind": "task",
       "parent": "S07",
       "title": "İndirme, istek ve kütüphane otomatik eşleştirmesi",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S07.1"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/testing/s07-2-automatic-media-flow.md",
+        "docs/testing/s07-2-delivery-continuity-retry.md",
+        "docs/s07-2-s07-3-software-closure-2026-09-21.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
@@ -1073,23 +1076,68 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Integrated main tree: 87 focused media flow, music manager/playback/runtime/setup/key-rotation and API-boundary tests passed; S07.2 covers request, download, import, playable, hardlink, retry and partial-state fixtures."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent closure review bound the merged S07.1 package to the private worker flow and kept real filesystem, provider account and playback acceptance in manual gates."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541058995",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #230 exact head Server aggregate completed with 29 total required checks and no failure or pending job; media continuity and retry source passed."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541058800",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Unified stack native amd64 and arm64 jobs passed together with qBittorrent, Arr, Jellyfin and Music Assistant native gates."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538623984",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "S07.1 exact unified package dependency passed real Docker create, start, restart, mount, network and DNS acceptance on linux/amd64 and linux/arm64."
+        }
+      ],
+      "completionCommit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+      "reason": "S07.1 is merged; request-to-playable authority, hardlink/path continuity, partial state, idempotent retry and private worker integration are present together on main and passed focused tests, review, exact PR CI and two-architecture package acceptance. Live home imports remain manual."
     },
     {
       "id": "S07.3",
       "kind": "task",
       "parent": "S07",
       "title": "Müzik sağlayıcı, kuyruk ve alıcı Server API’si",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S07.1"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/integrated-media-stack.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/s07-3-music-core-api-acceptance-2026-09-20.md",
+        "docs/s07-3-music-client-tablet-acceptance-2026-09-20.md",
+        "docs/testing/s07-3-provider-key-rotation.tdd.md",
+        "docs/s07-2-s07-3-software-closure-2026-09-21.md"
       ],
       "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
       "acceptance": [
@@ -1100,9 +1148,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Integrated main tree: 87 focused tests cover one manager surface, strict provider/catalog/queue/receiver revisions, post-effect readback and encrypted restart-safe private key rotation."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/s07-2-s07-3-software-closure-2026-09-21.md",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core and tablet contracts use only the Larenor account and private worker; no Music Assistant address/token onboarding or second state owner is exposed. Physical subscription and receiver results remain manual."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541127468",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #231 exact head Server aggregate completed with 31 total required checks and no failure or pending job; key rotation and existing music contracts passed together."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35541127302",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Music Assistant native acceptance passed with the rotation addition; unified amd64 and arm64 stack jobs and security policy also passed."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35538623984",
+          "commit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+          "state": "completed",
+          "result": "passed",
+          "label": "S07.1 exact unified package dependency passed the two-architecture managed Music Assistant lifecycle inside the one Larenor distribution."
+        }
+      ],
+      "completionCommit": "bf470d95247a6e9f1970f0db185e5b0f7a43a28d",
+      "reason": "S07.1 is merged; provider setup/cancel, catalog, queue, receiver and verified playback commands plus encrypted idempotent private key rotation coexist on main behind one Larenor authority. Software tests, review, CI and native package gates passed; live provider/HomePod/Cast acceptance remains manual."
     },
     {
       "id": "S07.4",
