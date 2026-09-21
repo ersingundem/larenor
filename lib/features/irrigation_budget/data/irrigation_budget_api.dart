@@ -145,8 +145,9 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
       _invalid();
     }
     final rawZones = raw['zones'];
-    if (rawZones is! List || rawZones.isEmpty || rawZones.length > 32)
+    if (rawZones is! List || rawZones.isEmpty || rawZones.length > 32) {
       _invalid();
+    }
     final seen = <String>{};
     final zones = <IrrigationZoneBudget>[];
     for (final item in rawZones) {
@@ -231,8 +232,9 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
       value is Map<String, dynamic> ? value : _invalid();
   static void _keys(Map<String, dynamic> value, Set<String> expected) {
     if (value.keys.toSet().difference(expected).isNotEmpty ||
-        expected.difference(value.keys.toSet()).isNotEmpty)
+        expected.difference(value.keys.toSet()).isNotEmpty) {
       _invalid();
+    }
   }
 
   static int _int(Object? value) => value is int ? value : _invalid();
@@ -246,8 +248,9 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
     if (value is! String ||
         value.isEmpty ||
         value.length > max ||
-        value != value.trim())
+        value != value.trim()) {
       _invalid();
+    }
     return value;
   }
 

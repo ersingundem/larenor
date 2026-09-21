@@ -60,8 +60,9 @@ class _IrrigationBudgetRouteState extends ConsumerState<IrrigationBudgetRoute> {
   }
 
   void _accountChanged() {
-    if (_api != null && !identical(_account?.session, _api?.boundSession))
+    if (_api != null && !identical(_account?.session, _api?.boundSession)) {
       _retire();
+    }
   }
 
   void _retire() {
@@ -132,8 +133,9 @@ class _IrrigationBudgetRouteState extends ConsumerState<IrrigationBudgetRoute> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (_controller case final controller?)
+    if (_controller case final controller?) {
       return IrrigationBudgetScreen(controller: controller);
+    }
     return ServiceRootScaffold(
       title: l10n.irrigationBudgetTitle,
       slivers: [

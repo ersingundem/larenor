@@ -21,8 +21,9 @@ class _IrrigationBudgetScreenState extends State<IrrigationBudgetScreen> {
     super.initState();
     widget.controller.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.controller.snapshot == null)
+      if (mounted && widget.controller.snapshot == null) {
         widget.controller.load();
+      }
     });
   }
 
