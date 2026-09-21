@@ -33,6 +33,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
   int? _generation, _homeEpoch, _viewId;
   int _operation = 0;
   bool _closed = false, _scheduled = false, _connecting = false;
+  bool _failed = false;
   bool _foreground = true, _focused = true;
   FairChoreAccountApi? _api;
   FairChoreController? _controller;
@@ -111,7 +112,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
           _retire();
           setState(() {});
         }
-      } else if (_api == null && !_connecting) {
+      } else if (_api == null && !_connecting && !_failed) {
         unawaited(_connect());
       }
     });
@@ -120,6 +121,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
   Future<void> _connect() async {
     final operation = ++_operation;
     _connecting = true;
+    _failed = false;
     if (mounted) setState(() {});
     final home = _home!;
     try {
@@ -138,6 +140,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
       _controller = FairChoreController(api, commandIds: _randomId);
     } catch (_) {
       // No cached chore state crosses a failed or replaced authority.
+      if (operation == _operation) _failed = true;
     } finally {
       if (operation == _operation) _connecting = false;
       if (mounted) setState(() {});
@@ -147,6 +150,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
   void _retire() {
     _operation++;
     _connecting = false;
+    _failed = false;
     final controller = _controller;
     _controller = null;
     _api?.close();
@@ -227,20 +231,43 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
     _schedule();
     final api = _api;
     final controller = _controller;
+    final strings = FairChoreStrings.fromLocalizations(
+      AppLocalizations.of(context),
+    );
     if (api != null && controller != null && _current()) {
       return FairChoreScreen(
         controller: controller,
         authority: api.authority,
-        strings: FairChoreStrings.fromLocalizations(
-          AppLocalizations.of(context),
-        ),
+        strings: strings,
       );
     }
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(AppLocalizations.of(context).fairChoresTitle),
+      navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),
+      child: SafeArea(
+        child: Center(
+          child: _failed
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(liveRegion: true, child: Text(strings.offline)),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 48,
+                      child: CupertinoButton.filled(
+                        onPressed: !_current()
+                            ? null
+                            : () {
+                                setState(() => _failed = false);
+                                _schedule();
+                              },
+                        child: Text(strings.reconcile),
+                      ),
+                    ),
+                  ],
+                )
+              : const CupertinoActivityIndicator(),
+        ),
       ),
-      child: const SafeArea(child: Center(child: CupertinoActivityIndicator())),
     );
   }
 }
