@@ -1,4 +1,3 @@
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
@@ -7,12 +6,12 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from typing import Protocol
 
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
-
 
 MAX_SLOTS = 192
 MAX_PREVIEWS = 256
@@ -26,8 +25,10 @@ def _canonical(value: object) -> bytes:
 
 
 def _identifier(value: object) -> bool:
-    return isinstance(value, str) and 1 <= len(value) <= 128 and all(
-        character.isalnum() or character in "-_.:" for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 128
+        and all(character.isalnum() or character in "-_.:" for character in value)
     )
 
 
@@ -58,16 +59,30 @@ class ChargeAuthority:
 
     def __post_init__(self) -> None:
         if (
-            any(not _identifier(item) for item in (
-                self.core_id, self.home_id, self.account_id, self.session_id,
-                self.charger_id,
-            ))
-            or any(not _revision(item) for item in (
-                self.core_revision, self.home_revision, self.account_revision,
-                self.charger_revision, self.tariff_revision, self.solar_revision,
-                self.power_budget_revision, self.override_revision,
-                self.schedule_revision,
-            ))
+            any(
+                not _identifier(item)
+                for item in (
+                    self.core_id,
+                    self.home_id,
+                    self.account_id,
+                    self.session_id,
+                    self.charger_id,
+                )
+            )
+            or any(
+                not _revision(item)
+                for item in (
+                    self.core_revision,
+                    self.home_revision,
+                    self.account_revision,
+                    self.charger_revision,
+                    self.tariff_revision,
+                    self.solar_revision,
+                    self.power_budget_revision,
+                    self.override_revision,
+                    self.schedule_revision,
+                )
+            )
             or type(self.max_current_amp) is not int
             or not 1 <= self.max_current_amp <= 80
             or type(self.voltage) is not int
@@ -210,7 +225,8 @@ class ChargePlanner:
         ).fetchone()
         rows = connection.execute(
             "SELECT * FROM ev_charge_events WHERE core_id=? AND home_id=? AND charger_id=? "
-            "ORDER BY sequence", scope,
+            "ORDER BY sequence",
+            scope,
         ).fetchall()
         if state is None:
             if rows:
@@ -222,9 +238,17 @@ class ChargePlanner:
         previous = ""
         for row in rows:
             values = (
-                row["sequence"], row["audit_id"], row["core_id"], row["home_id"],
-                row["charger_id"], row["action"], row["actor_id"], row["object_id"],
-                row["plan_hash"], row["occurred_at"], row["request_hash"],
+                row["sequence"],
+                row["audit_id"],
+                row["core_id"],
+                row["home_id"],
+                row["charger_id"],
+                row["action"],
+                row["actor_id"],
+                row["object_id"],
+                row["plan_hash"],
+                row["occurred_at"],
+                row["request_hash"],
                 row["previous_hash"],
             )
             if row["previous_hash"] != previous or not hmac.compare_digest(
@@ -238,8 +262,15 @@ class ChargePlanner:
             (
                 "ev_charge_previews",
                 (
-                    "id", "core_id", "home_id", "charger_id", "account_id",
-                    "schedule_revision", "plan_hash", "request_hash", "payload",
+                    "id",
+                    "core_id",
+                    "home_id",
+                    "charger_id",
+                    "account_id",
+                    "schedule_revision",
+                    "plan_hash",
+                    "request_hash",
+                    "payload",
                     "created_at",
                 ),
                 b"preview",
@@ -247,8 +278,15 @@ class ChargePlanner:
             (
                 "ev_charge_commands",
                 (
-                    "command_id", "core_id", "home_id", "charger_id", "account_id",
-                    "preview_id", "plan_hash", "request_hash", "created_at",
+                    "command_id",
+                    "core_id",
+                    "home_id",
+                    "charger_id",
+                    "account_id",
+                    "preview_id",
+                    "plan_hash",
+                    "request_hash",
+                    "created_at",
                 ),
                 b"command",
             ),
@@ -287,8 +325,16 @@ class ChargePlanner:
         ).fetchone()[0]
         audit_id = uuid.uuid4().hex
         values = (
-            sequence, audit_id, *scope, action, actor_id, object_id, plan_hash,
-            occurred_at, request_hash, previous,
+            sequence,
+            audit_id,
+            *scope,
+            action,
+            actor_id,
+            object_id,
+            plan_hash,
+            occurred_at,
+            request_hash,
+            previous,
         )
         event_hash = self._event_hash(values)
         connection.execute(
@@ -305,7 +351,10 @@ class ChargePlanner:
         )
 
     def _validate_inputs(
-        self, authority: ChargeAuthority, inputs: EnergyInputs, goal: ChargeGoal,
+        self,
+        authority: ChargeAuthority,
+        inputs: EnergyInputs,
+        goal: ChargeGoal,
     ) -> dict[str, str]:
         if (
             inputs.tariff_revision != authority.tariff_revision
@@ -321,14 +370,18 @@ class ChargePlanner:
             "power_budget": authority.power_budget_revision,
         }
         now = self._clock()
-        if len(inputs.provider_states) != len(PROVIDERS) or set(states) != PROVIDERS or any(
-            state.status != "verified"
-            or state.revision != expected_revisions[name]
-            or type(state.observed_at) not in (int, float)
-            or not math.isfinite(state.observed_at)
-            or state.observed_at > now
-            or now - state.observed_at > MAX_PROVIDER_AGE_SECONDS
-            for name, state in states.items()
+        if (
+            len(inputs.provider_states) != len(PROVIDERS)
+            or set(states) != PROVIDERS
+            or any(
+                state.status != "verified"
+                or state.revision != expected_revisions[name]
+                or type(state.observed_at) not in (int, float)
+                or not math.isfinite(state.observed_at)
+                or state.observed_at > now
+                or now - state.observed_at > MAX_PROVIDER_AGE_SECONDS
+                for name, state in states.items()
+            )
         ):
             raise ApiError("energy_inputs_unverified", 409)
         if (
@@ -345,7 +398,10 @@ class ChargePlanner:
             or goal.departure_at <= now
         ):
             raise ApiError("charge_safety_limit", 400)
-        if not isinstance(inputs.slots, tuple) or not 1 <= len(inputs.slots) <= MAX_SLOTS:
+        if (
+            not isinstance(inputs.slots, tuple)
+            or not 1 <= len(inputs.slots) <= MAX_SLOTS
+        ):
             raise ApiError("energy_inputs_unverified", 409)
         previous_end = now
         for slot in inputs.slots:
@@ -373,8 +429,15 @@ class ChargePlanner:
     def _preview_from_row(self, row: sqlite3.Row) -> ChargePreview:
         try:
             fields = (
-                "id", "core_id", "home_id", "charger_id", "account_id",
-                "schedule_revision", "plan_hash", "request_hash", "payload",
+                "id",
+                "core_id",
+                "home_id",
+                "charger_id",
+                "account_id",
+                "schedule_revision",
+                "plan_hash",
+                "request_hash",
+                "payload",
                 "created_at",
             )
             if not hmac.compare_digest(
@@ -384,7 +447,9 @@ class ChargePlanner:
                 raise StartupError("ev_charge_preview_invalid")
             value = json.loads(row["payload"])
             slots = tuple(PlannedChargeSlot(**slot) for slot in value.pop("slots"))
-            return ChargePreview(id=row["id"], plan_hash=row["plan_hash"], slots=slots, **value)
+            return ChargePreview(
+                id=row["id"], plan_hash=row["plan_hash"], slots=slots, **value
+            )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("ev_charge_preview_invalid") from None
 
@@ -417,7 +482,11 @@ class ChargePlanner:
         )
         if required_wh > authority.max_session_wh:
             raise ApiError("charge_safety_limit", 400)
-        status = "manual_override_active" if override and override.expires_at > now else "ready"
+        status = (
+            "manual_override_active"
+            if override and override.expires_at > now
+            else "ready"
+        )
         planned: list[PlannedChargeSlot] = []
         if status == "ready":
             remaining = required_wh
@@ -435,21 +504,30 @@ class ChargePlanner:
                     max_power, slot.home_budget_w + slot.solar_surplus_w
                 )
                 current_amp = min(
-                    goal.max_current_amp, math.floor(available_power / authority.voltage)
+                    goal.max_current_amp,
+                    math.floor(available_power / authority.voltage),
                 )
                 if current_amp <= 0:
                     continue
                 capacity_wh = math.floor(
-                    current_amp * authority.voltage
-                    * (slot.end_at - slot.start_at) / 3600
+                    current_amp
+                    * authority.voltage
+                    * (slot.end_at - slot.start_at)
+                    / 3600
                 )
                 energy = min(remaining, capacity_wh)
                 if energy <= 0:
                     continue
-                planned.append(PlannedChargeSlot(
-                    slot.start_at, slot.end_at, current_amp, energy,
-                    slot.tariff_micros_per_kwh, slot.solar_surplus_w,
-                ))
+                planned.append(
+                    PlannedChargeSlot(
+                        slot.start_at,
+                        slot.end_at,
+                        current_amp,
+                        energy,
+                        slot.tariff_micros_per_kwh,
+                        slot.solar_surplus_w,
+                    )
+                )
                 remaining -= energy
                 if remaining == 0:
                     break
@@ -463,15 +541,26 @@ class ChargePlanner:
             "provider_status": statuses,
             "override_expires_at": override.expires_at if status != "ready" else None,
         }
-        plan_hash = hashlib.sha256(_canonical({
-            "authority": asdict(authority),
-            "goal": asdict(goal),
-            "inputs": asdict(inputs),
-            "result": payload,
-        })).hexdigest()
-        request_hash = self._fingerprint(b"preview", _canonical({
-            "authority": asdict(authority), "goal": asdict(goal), "inputs": asdict(inputs)
-        }))
+        plan_hash = hashlib.sha256(
+            _canonical(
+                {
+                    "authority": asdict(authority),
+                    "goal": asdict(goal),
+                    "inputs": asdict(inputs),
+                    "result": payload,
+                }
+            )
+        ).hexdigest()
+        request_hash = self._fingerprint(
+            b"preview",
+            _canonical(
+                {
+                    "authority": asdict(authority),
+                    "goal": asdict(goal),
+                    "inputs": asdict(inputs),
+                }
+            ),
+        )
         scope = self._scope(authority)
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
@@ -479,7 +568,9 @@ class ChargePlanner:
                 "SELECT * FROM ev_charge_previews WHERE id=?", (preview_id,)
             ).fetchone()
             if old is not None:
-                if old["account_id"] != actor.id or not hmac.compare_digest(old["request_hash"], request_hash):
+                if old["account_id"] != actor.id or not hmac.compare_digest(
+                    old["request_hash"], request_hash
+                ):
                     raise ApiError("charge_preview_conflict", 409)
                 return self._preview_from_row(old)
             count = connection.execute(
@@ -489,16 +580,27 @@ class ChargePlanner:
             if count >= MAX_PREVIEWS:
                 raise ApiError("charge_preview_limit_reached", 413)
             values = (
-                preview_id, *scope, actor.id, authority.schedule_revision,
-                plan_hash, request_hash, json.dumps(payload, sort_keys=True), now,
+                preview_id,
+                *scope,
+                actor.id,
+                authority.schedule_revision,
+                plan_hash,
+                request_hash,
+                json.dumps(payload, sort_keys=True),
+                now,
             )
             connection.execute(
                 "INSERT INTO ev_charge_previews VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 values + (self._record_hash(b"preview", values),),
             )
             self._event(
-                connection, scope=scope, action="previewed", actor_id=actor.id,
-                object_id=preview_id, plan_hash=plan_hash, request_hash=request_hash,
+                connection,
+                scope=scope,
+                action="previewed",
+                actor_id=actor.id,
+                object_id=preview_id,
+                plan_hash=plan_hash,
+                request_hash=request_hash,
                 occurred_at=now,
             )
             row = connection.execute(
@@ -509,7 +611,8 @@ class ChargePlanner:
     def _command_status(self, connection, scope, command_id: str) -> str:
         rows = connection.execute(
             "SELECT action FROM ev_charge_events WHERE core_id=? AND home_id=? "
-            "AND charger_id=? AND object_id=? ORDER BY sequence", (*scope, command_id),
+            "AND charger_id=? AND object_id=? ORDER BY sequence",
+            (*scope, command_id),
         ).fetchall()
         if not rows:
             raise StartupError("ev_charge_audit_invalid")
@@ -523,8 +626,15 @@ class ChargePlanner:
 
     def _receipt(self, connection, row, scope) -> ChargeCommandReceipt:
         fields = (
-            "command_id", "core_id", "home_id", "charger_id", "account_id",
-            "preview_id", "plan_hash", "request_hash", "created_at",
+            "command_id",
+            "core_id",
+            "home_id",
+            "charger_id",
+            "account_id",
+            "preview_id",
+            "plan_hash",
+            "request_hash",
+            "created_at",
         )
         if not hmac.compare_digest(
             row["record_hash"],
@@ -532,8 +642,11 @@ class ChargePlanner:
         ):
             raise StartupError("ev_charge_command_invalid")
         return ChargeCommandReceipt(
-            row["command_id"], row["preview_id"], row["plan_hash"],
-            self._command_status(connection, scope, row["command_id"]), 1,
+            row["command_id"],
+            row["preview_id"],
+            row["plan_hash"],
+            self._command_status(connection, scope, row["command_id"]),
+            1,
         )
 
     def confirm(
@@ -550,7 +663,8 @@ class ChargePlanner:
             raise ApiError("invalid_request", 400)
         scope = self._scope(authority)
         request_hash = self._fingerprint(
-            b"confirm", _canonical([asdict(authority), preview_id, command_id, expected_plan_hash])
+            b"confirm",
+            _canonical([asdict(authority), preview_id, command_id, expected_plan_hash]),
         )
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
@@ -558,7 +672,9 @@ class ChargePlanner:
                 "SELECT * FROM ev_charge_commands WHERE command_id=?", (command_id,)
             ).fetchone()
             if old is not None:
-                if old["account_id"] != actor.id or not hmac.compare_digest(old["request_hash"], request_hash):
+                if old["account_id"] != actor.id or not hmac.compare_digest(
+                    old["request_hash"], request_hash
+                ):
                     raise ApiError("charge_command_conflict", 409)
                 return self._receipt(connection, old, scope)
             preview_row = connection.execute(
@@ -579,17 +695,27 @@ class ChargePlanner:
                 raise ApiError("charge_preview_changed", 409)
             now = self._clock()
             values = (
-                command_id, *scope, actor.id, preview_id, preview.plan_hash,
-                request_hash, now,
+                command_id,
+                *scope,
+                actor.id,
+                preview_id,
+                preview.plan_hash,
+                request_hash,
+                now,
             )
             connection.execute(
                 "INSERT INTO ev_charge_commands VALUES(?,?,?,?,?,?,?,?,?,?)",
                 values + (self._record_hash(b"command", values),),
             )
             self._event(
-                connection, scope=scope, action="dispatch_reserved", actor_id=actor.id,
-                object_id=command_id, plan_hash=preview.plan_hash,
-                request_hash=request_hash, occurred_at=now,
+                connection,
+                scope=scope,
+                action="dispatch_reserved",
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=preview.plan_hash,
+                request_hash=request_hash,
+                occurred_at=now,
             )
         try:
             self._charger.apply(
@@ -597,14 +723,19 @@ class ChargePlanner:
                 slots=tuple(asdict(slot) for slot in preview.slots),
             )
             action = "awaiting_readback"
-        except Exception:
+        except Exception:  # noqa: BLE001 -- hardware result is deliberately uncertain.
             action = "confirm_uncertain"
         with self.database.transaction() as connection:
             self._verified_history(connection, scope)
             self._event(
-                connection, scope=scope, action=action, actor_id=actor.id,
-                object_id=command_id, plan_hash=preview.plan_hash,
-                request_hash=request_hash, occurred_at=self._clock(),
+                connection,
+                scope=scope,
+                action=action,
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=preview.plan_hash,
+                request_hash=request_hash,
+                occurred_at=self._clock(),
             )
             row = connection.execute(
                 "SELECT * FROM ev_charge_commands WHERE command_id=?", (command_id,)
@@ -625,16 +756,22 @@ class ChargePlanner:
             row = connection.execute(
                 "SELECT * FROM ev_charge_commands WHERE command_id=?", (command_id,)
             ).fetchone()
-            if row is None or row["account_id"] != actor.id or (
-                row["core_id"], row["home_id"], row["charger_id"]
-            ) != scope:
+            if (
+                row is None
+                or row["account_id"] != actor.id
+                or (row["core_id"], row["home_id"], row["charger_id"]) != scope
+            ):
                 raise ApiError("not_found", 404)
             expected_request_hash = self._fingerprint(
                 b"confirm",
-                _canonical([
-                    asdict(authority), row["preview_id"], command_id,
-                    row["plan_hash"],
-                ]),
+                _canonical(
+                    [
+                        asdict(authority),
+                        row["preview_id"],
+                        command_id,
+                        row["plan_hash"],
+                    ]
+                ),
             )
             if not hmac.compare_digest(row["request_hash"], expected_request_hash):
                 raise ApiError("energy_authority_changed", 409)
@@ -642,19 +779,32 @@ class ChargePlanner:
             if current == "verified":
                 return self._receipt(connection, row, scope)
             observed = self._charger.readback()
-            action = "verified" if observed is not None and hmac.compare_digest(
-                observed, row["plan_hash"]
-            ) else "readback_mismatch"
+            action = (
+                "verified"
+                if observed is not None
+                and hmac.compare_digest(observed, row["plan_hash"])
+                else "readback_mismatch"
+            )
             self._event(
-                connection, scope=scope, action=action, actor_id=actor.id,
-                object_id=command_id, plan_hash=row["plan_hash"],
-                request_hash=self._fingerprint(b"readback", _canonical([command_id, observed])),
+                connection,
+                scope=scope,
+                action=action,
+                actor_id=actor.id,
+                object_id=command_id,
+                plan_hash=row["plan_hash"],
+                request_hash=self._fingerprint(
+                    b"readback", _canonical([command_id, observed])
+                ),
                 occurred_at=self._clock(),
             )
             return self._receipt(connection, row, scope)
 
     def history(
-        self, actor: Principal, *, authority: ChargeAuthority, limit: int,
+        self,
+        actor: Principal,
+        *,
+        authority: ChargeAuthority,
+        limit: int,
     ) -> tuple[dict, ...]:
         self._authorize(actor, authority)
         if type(limit) is not int or not 1 <= limit <= MAX_HISTORY:
@@ -663,11 +813,14 @@ class ChargePlanner:
             connection.execute("BEGIN")
             try:
                 rows = self._verified_history(connection, self._scope(authority))
-                return tuple({
-                    "auditId": row["audit_id"],
-                    "action": row["action"],
-                    "objectId": row["object_id"],
-                    "occurredAt": row["occurred_at"],
-                } for row in rows[-limit:])
+                return tuple(
+                    {
+                        "auditId": row["audit_id"],
+                        "action": row["action"],
+                        "objectId": row["object_id"],
+                        "occurredAt": row["occurred_at"],
+                    }
+                    for row in rows[-limit:]
+                )
             finally:
                 connection.rollback()

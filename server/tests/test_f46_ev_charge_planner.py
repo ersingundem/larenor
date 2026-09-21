@@ -2,7 +2,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.errors import ApiError, StartupError
@@ -16,7 +15,6 @@ from larenor_server.ev_charging.service import (
     ManualOverride,
     ProviderState,
 )
-
 
 AUDIT_KEY = bytes.fromhex("46" * 32)
 NOW = 1_800_000_000.0
@@ -68,7 +66,9 @@ def inputs(*, override_until: float | None = None) -> EnergyInputs:
         override_revision=29,
         provider_states=states,
         slots=slots,
-        manual_override=None if override_until is None else ManualOverride(
+        manual_override=None
+        if override_until is None
+        else ManualOverride(
             expires_at=override_until,
             max_current_amp=8,
             reason="driver-control",
@@ -120,7 +120,10 @@ def planner(path: Path, charger: FakeCharger | None = None) -> ChargePlanner:
 def test_revision_bound_inputs_produce_deterministic_bounded_safe_plan(tmp_path):
     service = planner(tmp_path / "core.sqlite3")
     preview = service.preview(
-        actor(), authority=authority(), inputs=inputs(), goal=goal(),
+        actor(),
+        authority=authority(),
+        inputs=inputs(),
+        goal=goal(),
         preview_id="preview-1",
     )
     assert preview.status == "ready"
@@ -133,22 +136,32 @@ def test_revision_bound_inputs_produce_deterministic_bounded_safe_plan(tmp_path)
     ]
     assert all(slot.current_amp <= 16 for slot in preview.slots)
     assert preview.provider_status == {
-        "power_budget": "verified", "solar": "verified", "tariff": "verified"
+        "power_budget": "verified",
+        "solar": "verified",
+        "tariff": "verified",
     }
 
-    stale = replace(inputs(), provider_states=(
-        ProviderState("tariff", 17, "stale", NOW),
-        *inputs().provider_states[1:],
-    ))
+    stale = replace(
+        inputs(),
+        provider_states=(
+            ProviderState("tariff", 17, "stale", NOW),
+            *inputs().provider_states[1:],
+        ),
+    )
     with pytest.raises(ApiError, match="energy_inputs_unverified"):
         service.preview(
-            actor(), authority=authority(), inputs=stale, goal=goal(),
+            actor(),
+            authority=authority(),
+            inputs=stale,
+            goal=goal(),
             preview_id="preview-stale",
         )
     with pytest.raises(ApiError, match="energy_authority_changed"):
         service.preview(
-            actor(), authority=authority(),
-            inputs=replace(inputs(), tariff_revision=16), goal=goal(),
+            actor(),
+            authority=authority(),
+            inputs=replace(inputs(), tariff_revision=16),
+            goal=goal(),
             preview_id="preview-revision",
         )
 
@@ -156,47 +169,70 @@ def test_revision_bound_inputs_produce_deterministic_bounded_safe_plan(tmp_path)
 def test_safety_limits_and_manual_override_expiry_fail_closed(tmp_path):
     service = planner(tmp_path / "core.sqlite3")
     active = service.preview(
-        actor(), authority=authority(), inputs=inputs(override_until=NOW + 300),
-        goal=goal(), preview_id="preview-override",
+        actor(),
+        authority=authority(),
+        inputs=inputs(override_until=NOW + 300),
+        goal=goal(),
+        preview_id="preview-override",
     )
     assert active.status == "manual_override_active"
     assert active.slots == ()
     assert active.override_expires_at == NOW + 300
 
     expired = service.preview(
-        actor(), authority=authority(), inputs=inputs(override_until=NOW - 1),
-        goal=goal(), preview_id="preview-after-override",
+        actor(),
+        authority=authority(),
+        inputs=inputs(override_until=NOW - 1),
+        goal=goal(),
+        preview_id="preview-after-override",
     )
     assert expired.status == "ready"
     with pytest.raises(ApiError, match="charge_safety_limit"):
         service.preview(
-            actor(), authority=authority(), inputs=inputs(),
-            goal=replace(goal(), max_current_amp=17), preview_id="preview-unsafe",
+            actor(),
+            authority=authority(),
+            inputs=inputs(),
+            goal=replace(goal(), max_current_amp=17),
+            preview_id="preview-unsafe",
         )
     with pytest.raises(ApiError, match="charge_target_unreachable"):
         service.preview(
-            actor(), authority=authority(), inputs=inputs(),
-            goal=replace(goal(), target_soc=80), preview_id="preview-impossible",
+            actor(),
+            authority=authority(),
+            inputs=inputs(),
+            goal=replace(goal(), target_soc=80),
+            preview_id="preview-impossible",
         )
 
 
-def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tamper(tmp_path):
+def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tamper(
+    tmp_path,
+):
     path = tmp_path / "core.sqlite3"
     charger = FakeCharger()
     service = planner(path, charger)
     preview = service.preview(
-        actor(), authority=authority(), inputs=inputs(), goal=goal(),
+        actor(),
+        authority=authority(),
+        inputs=inputs(),
+        goal=goal(),
         preview_id="preview-1",
     )
     charger.timeout = True
     uncertain = service.confirm(
-        actor(), authority=authority(), preview_id=preview.id,
-        command_id="confirm-1", expected_plan_hash=preview.plan_hash,
+        actor(),
+        authority=authority(),
+        preview_id=preview.id,
+        command_id="confirm-1",
+        expected_plan_hash=preview.plan_hash,
     )
     assert uncertain.status == "uncertain"
     same = planner(path, charger).confirm(
-        actor(), authority=authority(), preview_id=preview.id,
-        command_id="confirm-1", expected_plan_hash=preview.plan_hash,
+        actor(),
+        authority=authority(),
+        preview_id=preview.id,
+        command_id="confirm-1",
+        expected_plan_hash=preview.plan_hash,
     )
     assert same == uncertain
     assert charger.apply_calls == 1
@@ -206,13 +242,12 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
             actor(), authority=authority(schedule_revision=8), command_id="confirm-1"
         )
 
-    assert service.readback(
-        actor(), authority=authority(), command_id="confirm-1"
-    ).status == "uncertain"
-    charger.observed_hash = preview.plan_hash
-    verified = service.readback(
-        actor(), authority=authority(), command_id="confirm-1"
+    assert (
+        service.readback(actor(), authority=authority(), command_id="confirm-1").status
+        == "uncertain"
     )
+    charger.observed_hash = preview.plan_hash
+    verified = service.readback(actor(), authority=authority(), command_id="confirm-1")
     assert verified.status == "verified"
     assert charger.apply_calls == 1
 
@@ -226,7 +261,10 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
     clean_path = tmp_path / "tampered-preview.sqlite3"
     clean = planner(clean_path)
     clean.preview(
-        actor(), authority=authority(), inputs=inputs(), goal=goal(),
+        actor(),
+        authority=authority(),
+        inputs=inputs(),
+        goal=goal(),
         preview_id="preview-tampered",
     )
     with Database(clean_path).transaction() as connection:
