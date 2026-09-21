@@ -79,9 +79,11 @@ class FakeWorker:
         self.apply_calls = 0
         self.timeout = False
         self.observed_hash = None
+        self.actions = ()
 
     def apply(self, *, plan_hash: str, actions: tuple[dict, ...]) -> None:
         self.apply_calls += 1
+        self.actions = actions
         if self.timeout:
             raise TimeoutError
         self.observed_hash = plan_hash
@@ -189,6 +191,10 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
     )
     assert same == uncertain
     assert worker.apply_calls == 1
+    assert [(action["load_id"], action["reduction_w"]) for action in worker.actions] == [
+        ("ev-charger", 3_000),
+        ("dryer", 500),
+    ]
 
     with pytest.raises(ApiError, match="power_authority_changed"):
         budget.readback(
