@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'irrigation_provider_unavailable': 'The irrigation provider is unavailable.',
+    'irrigation_capability_unverified': 'The irrigation control capability is not verified.',
     'mesh_provider_unavailable': 'The Zigbee or Thread mesh provider is unavailable.',
     'mesh_snapshot_stale': 'The mesh snapshot changed. Refresh it before continuing.',
     'mesh_interference_incomplete': 'The mesh interference scan is incomplete.',
