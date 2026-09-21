@@ -49,6 +49,10 @@ class KioskPeripheralContractTest {
         assertEquals(PeripheralAvailability.gmsUnavailable, inventory.provider("ble.play_services").availability(false))
         assertEquals(PeripheralAvailability.disconnected, inventory.provider("usb.hid").availability(false))
         assertEquals(6, inventory.providers.map { it.kind }.toSet().size)
+        assertEquals(
+            PeripheralAvailability.disabled,
+            inventory.provider("qr.local_camera").copyForTest(enabledByUser = false).availability(false),
+        )
     }
 
     @Test fun inputIsBoundedReviewOnlyAndNeverExecutes() {
@@ -61,6 +65,7 @@ class KioskPeripheralContractTest {
         fails { KioskPeripheralInputGate().accept(event() + ("providerId" to "nfc.android") + ("kind" to "nfc"), capabilities(), authority, true, 50_000L) }
         fails { KioskPeripheralInputGate().accept(event() + ("providerId" to "tts.android") + ("kind" to "tts"), capabilities(), authority, true, 50_000L) }
         fails { KioskPeripheralInputGate().accept(event() + ("payload" to "x".repeat(513)), capabilities(), authority, true, 50_000L) }
+        fails { KioskPeripheralInputGate().accept(event() + ("sequence" to 1.0), capabilities(), authority, true, 50_000L) }
     }
 
     @Test fun duplicateReplayStaleAndRevokedEventsAreRejected() {
@@ -71,4 +76,8 @@ class KioskPeripheralContractTest {
         fails { gate.accept(event("2123456789abcdef0123456789abcdef", 10) + ("capturedAtElapsedMs" to 1_000L), capabilities(), authority, true, 50_000L) }
         fails { gate.accept(event("3123456789abcdef0123456789abcdef", 10), capabilities(), authority, false, 50_000L) }
     }
+
+    private fun PeripheralCapability.copyForTest(enabledByUser: Boolean) = PeripheralCapability(
+        providerId, kind, revision, supported, enabledByUser, permission, connected, requiresGms, maxPayloadBytes,
+    )
 }

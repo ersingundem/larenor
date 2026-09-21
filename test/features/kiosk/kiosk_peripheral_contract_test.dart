@@ -42,8 +42,18 @@ Map<String, Object?> inventoryRaw() => {
     provider('ble.local', 'ble'),
     provider('ble.play_services', 'ble', requiresGms: true),
     provider('usb.hid', 'usb', connected: false),
-    provider('tts.android', 'tts', permission: 'notRequired'),
-    provider('print.android', 'print', permission: 'notRequired'),
+    provider(
+      'tts.android',
+      'tts',
+      permission: 'notRequired',
+      maxPayloadBytes: 0,
+    ),
+    provider(
+      'print.android',
+      'print',
+      permission: 'notRequired',
+      maxPayloadBytes: 0,
+    ),
   ],
 };
 
@@ -176,10 +186,7 @@ void main() {
 
     for (final replay in [
       inputRaw(sequence: 9),
-      inputRaw(
-        eventId: '1123456789abcdef0123456789abcdef',
-        sequence: 8,
-      ),
+      inputRaw(eventId: '1123456789abcdef0123456789abcdef', sequence: 8),
       inputRaw(
         eventId: '2123456789abcdef0123456789abcdef',
         sequence: 10,
@@ -199,10 +206,7 @@ void main() {
     }
     expect(
       () => gate.accept(
-        inputRaw(
-          eventId: '3123456789abcdef0123456789abcdef',
-          sequence: 10,
-        ),
+        inputRaw(eventId: '3123456789abcdef0123456789abcdef', sequence: 10),
         inventory: inventory,
         expectedAuthority: authority,
         isCurrent: () => false,
