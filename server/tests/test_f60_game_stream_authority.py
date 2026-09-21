@@ -66,6 +66,13 @@ def test_host_registry_is_secret_free_revision_bound_and_tamper_evident(server):
     page = client.get(root + "/hosts", headers=headers).json()
     assert page["hosts"] == [host]
     assert page["accountRevision"] == _account_revision(app, pair["user"]["id"])
+    replay = client.post(root + "/hosts", headers=headers, json={
+        "schemaVersion": 1, "registrationId": "1" * 32,
+        "name": "Synthetic Sunshine host", "pairingRevision": 4,
+        "credentialHandle": "2" * 32, "codecs": ["h264", "hevc"],
+        "maxWidth": 3840, "maxHeight": 2160, "maxFps": 120,
+    })
+    assert replay.status_code == 409
 
     with app.state.core.db.transaction() as connection:
         connection.execute("UPDATE game_stream_hosts SET name='tampered'")

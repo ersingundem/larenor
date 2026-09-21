@@ -58,17 +58,23 @@ class GameStreamAuthorityService:
             "result", "readback_revision", "created_at", "completed_at")})
 
     def _host(self, row):
-        if row is None or not hmac.compare_digest(row["envelope_tag"], self._host_tag(row)):
+        if row is None:
+            raise ApiError("not_found", 404)
+        if not hmac.compare_digest(row["envelope_tag"], self._host_tag(row)):
             raise StartupError("game_stream_storage_invalid")
         return row
 
     def _session(self, row):
-        if row is None or not hmac.compare_digest(row["envelope_tag"], self._session_tag(row)):
+        if row is None:
+            raise ApiError("not_found", 404)
+        if not hmac.compare_digest(row["envelope_tag"], self._session_tag(row)):
             raise StartupError("game_stream_storage_invalid")
         return row
 
     def _command(self, row):
-        if row is None or not hmac.compare_digest(row["envelope_tag"], self._command_tag(row)):
+        if row is None:
+            raise ApiError("not_found", 404)
+        if not hmac.compare_digest(row["envelope_tag"], self._command_tag(row)):
             raise StartupError("game_stream_storage_invalid")
         return row
 
@@ -104,10 +110,12 @@ class GameStreamAuthorityService:
             if prior is not None:
                 prior = self._host(prior)
                 expected = hmac.new(self._key, body.credentialHandle.encode("ascii"), hashlib.sha256).hexdigest()
-                if prior["credential_digest"] != expected or prior["capabilities"] != json.dumps({
+                if (prior["pairing_revision"] != body.pairingRevision
+                        or prior["credential_digest"] != expected
+                        or prior["capabilities"] != json.dumps({
                     "codecs": body.codecs, "maxWidth": body.maxWidth,
                     "maxHeight": body.maxHeight, "maxFps": body.maxFps,
-                }, separators=(",", ":"), sort_keys=True) or prior["name"] != body.name:
+                }, separators=(",", ":"), sort_keys=True) or prior["name"] != body.name):
                     raise ApiError("idempotency_conflict", 409)
                 return self._public_host(prior)
             if connection.execute("SELECT COUNT(*) FROM game_stream_hosts").fetchone()[0] >= MAX_HOSTS:
