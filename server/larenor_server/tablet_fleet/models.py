@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -96,18 +97,29 @@ class TabletList(FrozenModel):
 
 class IssueTabletCommand(Versioned):
     expectedDeviceRevision: Revision
+    expectedPolicyRevision: Revision
     requestKey: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
     command: CommandKind
+    expiresAt: float
+
+    @field_validator("expiresAt", mode="before")
+    @classmethod
+    def finite_expiry(cls, value):
+        if type(value) is not float or not math.isfinite(value):
+            raise ValueError("invalid_expiry")
+        return value
 
 
 class PollTabletCommands(Versioned):
     expectedDeviceRevision: Revision
+    expectedPolicyRevision: Revision
     after: int = Field(default=0, ge=0, le=2**63 - 1)
     limit: int = Field(default=20, ge=1, le=50)
 
 
 class CompleteTabletCommand(Versioned):
     expectedDeviceRevision: Revision
+    expectedPolicyRevision: Revision
     sequence: int = Field(ge=1, le=2**63 - 1)
     result: CommandResult
     appliedProfileRevision: Revision
@@ -119,8 +131,10 @@ class TabletCommand(FrozenModel):
     sequence: int = Field(ge=1, le=2**63 - 1)
     command: CommandKind
     requiredMode: ManagementMode
-    state: Literal["pending", "delivered", "completed"]
-    result: CommandResult | None
+    policyRevision: Revision
+    expiresAt: float
+    state: Literal["pending", "delivered", "completed", "expired"]
+    result: CommandResult | Literal["expired"] | None
     createdAt: float
     completedAt: float | None
 

@@ -87,19 +87,21 @@ def test_registration_profile_heartbeat_and_restart_are_exact(server):
 
 
 def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
-    app, client, _settings, _clock = server
+    app, client, _settings, clock = server
     admin = ready(server)
     path = root(app)
     _body, standard = register(client, admin, path)
     device_id = standard["ref"]["id"]
     denied = client.post(path + f"/devices/{device_id}/commands", headers=auth(admin), json={
         "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
         "requestKey": "restart-standard-01", "command": "restartClient",
     })
     assert denied.status_code == 409
     assert denied.json()["error"]["code"] == "tablet_capability_unavailable"
 
     request = {"schemaVersion": 1, "expectedDeviceRevision": 1,
+               "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
                "requestKey": "sync-profile-request-01", "command": "syncProfile"}
     issued = client.post(path + f"/devices/{device_id}/commands",
                          headers=auth(admin), json=request)
@@ -110,7 +112,8 @@ def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
                            json={**request, "command": "refreshDashboard"})
     assert conflict.status_code == 409
 
-    poll_body = {"schemaVersion": 1, "expectedDeviceRevision": 1, "after": 0, "limit": 20}
+    poll_body = {"schemaVersion": 1, "expectedDeviceRevision": 1,
+                 "expectedPolicyRevision": 1, "after": 0, "limit": 20}
     first = client.post(path + f"/devices/{device_id}/commands/poll",
                         headers=auth(admin), json=poll_body)
     lost_response_retry = client.post(path + f"/devices/{device_id}/commands/poll",
@@ -120,6 +123,7 @@ def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
     assert command["state"] == "delivered"
 
     completed_body = {"schemaVersion": 1, "expectedDeviceRevision": 1,
+                      "expectedPolicyRevision": 1,
                       "sequence": command["sequence"], "result": "succeeded",
                       "appliedProfileRevision": 1}
     completed = client.post(
@@ -141,6 +145,7 @@ def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
     elevated = client.post(path + f"/devices/{owner['ref']['id']}/commands",
                            headers=auth(admin), json={
         "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
         "requestKey": "owner-restart-request-01", "command": "restartClient",
     })
     assert elevated.status_code == 201
@@ -148,7 +153,7 @@ def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
 
 
 def test_scope_session_role_and_revocation_fail_closed(server):
-    app, client, _settings, _clock = server
+    app, client, _settings, clock = server
     admin = ready(server)
     path = root(app)
     _body, tablet = register(client, admin, path)
@@ -166,7 +171,8 @@ def test_scope_session_role_and_revocation_fail_closed(server):
     }).json()
     cross_family = client.post(path + f"/devices/{device_id}/commands/poll",
                                headers=auth(fresh), json={
-        "schemaVersion": 1, "expectedDeviceRevision": 1, "after": 0, "limit": 20,
+        "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "after": 0, "limit": 20,
     })
     assert cross_family.status_code == 404
 
@@ -175,6 +181,7 @@ def test_scope_session_role_and_revocation_fail_closed(server):
     assert client.get(path + "/devices", headers=auth(member)).status_code == 403
     assert client.post(path + f"/devices/{device_id}/commands", headers=auth(member), json={
         "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
         "requestKey": "member-command-request-01", "command": "syncProfile",
     }).status_code == 403
 
@@ -195,20 +202,22 @@ def test_scope_session_role_and_revocation_fail_closed(server):
 
 
 def test_tampered_device_or_command_blocks_reads_and_restart(server):
-    app, client, settings, _clock = server
+    app, client, settings, clock = server
     admin = ready(server)
     path = root(app)
     _body, tablet = register(client, admin, path)
     device_id = tablet["ref"]["id"]
     command = client.post(path + f"/devices/{device_id}/commands", headers=auth(admin), json={
         "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
         "requestKey": "tamper-command-request-01", "command": "syncProfile",
     }).json()["command"]
     with app.state.core.db.transaction() as connection:
         connection.execute("UPDATE managed_tablet_commands SET command='refreshDashboard' WHERE id=?",
                            (command["id"],))
     broken = client.post(path + f"/devices/{device_id}/commands/poll", headers=auth(admin), json={
-        "schemaVersion": 1, "expectedDeviceRevision": 1, "after": 0, "limit": 20,
+        "schemaVersion": 1, "expectedDeviceRevision": 1,
+        "expectedPolicyRevision": 1, "after": 0, "limit": 20,
     })
     assert broken.status_code == 503
     with pytest.raises(StartupError, match="tablet_fleet_storage_invalid"):

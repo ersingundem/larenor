@@ -116,6 +116,7 @@ def test_command_policy_revision_expiry_and_idempotency_gate_before_delivery(ser
     polled = client.post(
         endpoint + "/poll", headers=auth(admin), json={
             "schemaVersion": 1, "expectedDeviceRevision": 1,
+            "expectedPolicyRevision": 1,
             "after": 0, "limit": 20,
         },
     )
@@ -123,4 +124,3 @@ def test_command_policy_revision_expiry_and_idempotency_gate_before_delivery(ser
     assert polled.json()["commands"] == []
     audit = client.get(path + "/audit", headers=auth(admin)).json()["events"]
     assert audit[-1]["action"] == "command_expired"
-

@@ -25,11 +25,18 @@ Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 Admin = Annotated[Principal, Depends(require_admin)]
 Expected = Annotated[int, Query(ge=1, le=2**63 - 1)]
+AuditLimit = Annotated[int, Query(ge=1, le=100)]
 router = APIRouter(tags=["Managed tablets"], responses={
     status: {"model": ErrorResponse}
     for status in (400, 401, 403, 404, 409, 413, 429, 503)
 })
 ROOT = "/tablet-fleet/{core_id}/{home_id}"
+
+
+@router.get(ROOT + "/audit")
+def audit(core_id: Identity, home_id: Identity, actor: Admin, core: Core,
+          limit: AuditLimit = 100):
+    return core.tablet_fleet.audit(actor, core_id, home_id, limit)
 
 
 @router.post(ROOT + "/devices", status_code=201, response_model=TabletResponse)

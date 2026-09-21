@@ -17,11 +17,28 @@ TABLES = {
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
         device_id TEXT NOT NULL, request_key TEXT NOT NULL, command TEXT NOT NULL,
         required_mode TEXT NOT NULL CHECK(required_mode IN ('standard','deviceOwner')),
-        state TEXT NOT NULL CHECK(state IN ('pending','delivered','completed')),
-        result TEXT CHECK(result IS NULL OR result IN ('succeeded','denied','failed','unsupported')),
+        policy_revision INTEGER NOT NULL CHECK(policy_revision > 0),
+        expires_at REAL NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('pending','delivered','completed','expired')),
+        result TEXT CHECK(result IS NULL OR result IN ('succeeded','denied','failed','unsupported','expired')),
         created_at REAL NOT NULL, delivered_at REAL, completed_at REAL,
         envelope_tag TEXT NOT NULL, UNIQUE(device_id,request_key),
         FOREIGN KEY(device_id) REFERENCES managed_tablets(id) ON DELETE CASCADE)""",
+    "managed_tablet_events": """CREATE TABLE managed_tablet_events (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        audit_id TEXT NOT NULL UNIQUE,
+        action TEXT NOT NULL CHECK(action IN ('registered','heartbeat','policy_updated','revoked','command_issued','command_delivered','command_completed','command_expired')),
+        actor_id TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        command_id TEXT,
+        occurred_at REAL NOT NULL,
+        previous_hash TEXT NOT NULL,
+        event_hash TEXT NOT NULL)""",
+    "managed_tablet_audit_state": """CREATE TABLE managed_tablet_audit_state (
+        id INTEGER PRIMARY KEY CHECK(id=1),
+        event_count INTEGER NOT NULL CHECK(event_count > 0),
+        last_hash TEXT NOT NULL,
+        state_hash TEXT NOT NULL)""",
 }
 
 
@@ -52,7 +69,9 @@ def migrate_tablet_fleet(connection: sqlite3.Connection) -> None:
             for name, row in actual.items()
         ):
             raise ValueError("invalid_tablet_fleet")
-        expected = {"managed_tablets": 1, "managed_tablet_commands": 2}
+        expected = {"managed_tablets": 1, "managed_tablet_commands": 2,
+                    "managed_tablet_events": 1,
+                    "managed_tablet_audit_state": 0}
         for table, count in expected.items():
             indexes = connection.execute(f"PRAGMA index_list({table})").fetchall()
             if len(indexes) != count or any(row["origin"] not in {"pk", "u"} for row in indexes):
