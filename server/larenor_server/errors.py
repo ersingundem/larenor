@@ -13,6 +13,8 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'irrigation_provider_unavailable': 'The irrigation provider is unavailable.',
+    'irrigation_capability_unverified': 'The irrigation control capability is not verified.',
     'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
     'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',
