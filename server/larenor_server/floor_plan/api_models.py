@@ -5,7 +5,6 @@ from pydantic import Field, field_validator
 from ..home_resources.models import FrozenModel, Identity, Revision
 from .service import Anchor, Floor, FloorPlanLayout, Point, Room, VectorShape
 
-
 LayoutRevision = Annotated[int, Field(ge=0, le=2**63 - 1)]
 LayoutId = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")]
 SafeLabel = Annotated[str, Field(min_length=1, max_length=80)]

@@ -1,10 +1,10 @@
 """Current Core authority adapter for the persistent floor-plan foundation."""
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import sqlite3
+from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidTag
 

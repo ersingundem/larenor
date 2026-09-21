@@ -17,7 +17,6 @@ from .api_models import (
     ReplaceLayoutRequest,
 )
 
-
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 Admin = Annotated[Principal, Depends(require_admin)]

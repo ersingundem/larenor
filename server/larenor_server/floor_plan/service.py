@@ -1,4 +1,3 @@
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
 import json
@@ -7,11 +6,11 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
-
 
 MAX_FLOORS = 8
 MAX_ROOMS = 128
