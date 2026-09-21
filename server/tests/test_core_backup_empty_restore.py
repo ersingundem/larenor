@@ -74,6 +74,85 @@ def test_empty_restore_reopens_key_context_connection_and_vault_after_restart(
     assert not (target.data_dir / ".restore-state.json").exists()
 
 
+def test_empty_restore_preserves_family_board_snapshot_and_delta(server, tmp_path):
+    app, client, _settings, clock = server
+    pair = ready(server)
+    context = app.state.core.context
+    root = f"/api/v1/family-boards/{context.coreId}/{context.homeId}"
+    authority = client.get(root + "/authority", headers=auth(pair)).json()
+    board = root + "/" + authority["boardId"]
+    card = {
+        "schemaVersion": 1,
+        "id": "8" * 32,
+        "kind": "card",
+        "text": "Movie night",
+        "x": 24.0,
+        "y": 24.0,
+        "color": "yellow",
+    }
+    expectations = {
+        "expectedHomeRevision": authority["homeRevision"],
+        "expectedAccountRevision": authority["accountRevision"],
+        "expectedMemberRevision": authority["memberRevision"],
+        "expectedSessionFamilyId": authority["sessionFamilyId"],
+    }
+    response = client.post(
+        board + "/commands",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "requestId": "9" * 32,
+            "expectedBoardRevision": 0,
+            "action": "append",
+            "element": card,
+            "elementId": None,
+            **expectations,
+        },
+    )
+    assert response.status_code == 200
+    bundle = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": PASSPHRASE},
+    )
+    assert bundle.status_code == 200
+
+    target = _target(tmp_path, clock)
+    restore_empty(target, bundle.content, PASSPHRASE)
+    restored = create_app(target)
+    with TestClient(restored) as target_client:
+        restored_pair = login(
+            target_client, "admin", "Synthetic new password 2026"
+        ).json()
+        restored_authority = target_client.get(
+            root + "/authority", headers=auth(restored_pair)
+        ).json()
+        assert restored_authority["boardId"] == authority["boardId"]
+        snapshot = target_client.get(
+            board, headers=auth(restored_pair)
+        )
+        assert snapshot.status_code == 200
+        assert snapshot.json()["elements"] == [card]
+        restored_expectations = {
+            "expectedHomeRevision": restored_authority["homeRevision"],
+            "expectedAccountRevision": restored_authority["accountRevision"],
+            "expectedMemberRevision": restored_authority["memberRevision"],
+            "expectedSessionFamilyId": restored_authority["sessionFamilyId"],
+        }
+        delta = target_client.post(
+            board + "/delta",
+            headers=auth(restored_pair),
+            json={
+                "schemaVersion": 1,
+                "afterSequence": 0,
+                "limit": 100,
+                **restored_expectations,
+            },
+        )
+        assert delta.status_code == 200
+        assert len(delta.json()["events"]) == 1
+
+
 @pytest.mark.parametrize("damage", ["wrong-password", "truncated", "tampered"])
 def test_authentication_failures_leave_zero_partial_target(server, tmp_path, damage):
     bundle, _key, _context = _bundle(server)
