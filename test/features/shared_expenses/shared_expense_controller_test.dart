@@ -261,4 +261,26 @@ void main() {
     expect(controller.state, SharedExpenseViewState.empty);
     expect(controller.exportedRecords.single.id, 'foreign-expense');
   });
+
+  test('foreign snapshot and failed refresh never retain prior ledger', () async {
+    final api = FakeSharedExpenseApi();
+    final controller = SharedExpenseController(api, commandIds: () => 'cmd');
+    final lease = controller.bind(expenseAuthorityA);
+    final first = controller.load(lease);
+    api.snapshots.single.complete(snapshot(expenseAuthorityA, records: [record()]));
+    await first;
+    expect(controller.records, hasLength(1));
+
+    final refresh = controller.load(lease);
+    api.snapshots.last.complete(snapshot(expenseAuthorityA, records: [
+      record(
+        id: 'foreign-expense',
+        payerId: 'cem',
+        shares: const [ExpenseShare(accountId: 'cem', amountMinor: 10000)],
+      ),
+    ]));
+    await refresh;
+    expect(controller.state, SharedExpenseViewState.error);
+    expect(controller.records, isEmpty);
+  });
 }
