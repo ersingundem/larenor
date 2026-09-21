@@ -1,5 +1,3 @@
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
 import hashlib
 import hmac
 import json
@@ -7,12 +5,13 @@ import math
 import sqlite3
 import time
 import uuid
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
-
 
 MAX_MEMBERS = 32
 MAX_TITLE_LENGTH = 200
@@ -62,6 +61,7 @@ class ChoreTask:
 @dataclass(frozen=True)
 class ChoreReceipt:
     event_id: str
+    command_id: str
     action: str
     task: ChoreTask
 
@@ -125,6 +125,7 @@ class FairChoreStore:
         return json.dumps(
             {
                 "event_id": receipt.event_id,
+                "command_id": receipt.command_id,
                 "action": receipt.action,
                 "task": asdict(receipt.task),
             },
@@ -139,7 +140,12 @@ class FairChoreStore:
             value = json.loads(raw)
             task = value["task"]
             task["member_order"] = tuple(task["member_order"])
-            return ChoreReceipt(value["event_id"], value["action"], ChoreTask(**task))
+            return ChoreReceipt(
+                value["event_id"],
+                value["command_id"],
+                value["action"],
+                ChoreTask(**task),
+            )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("fair_chore_history_invalid") from None
 
@@ -172,7 +178,7 @@ class FairChoreStore:
             (task.id,),
         ).fetchone()
         previous_hash = "" if previous is None else previous["event_hash"]
-        receipt = ChoreReceipt(uuid.uuid4().hex, action, task)
+        receipt = ChoreReceipt(uuid.uuid4().hex, command_id, action, task)
         raw = self._receipt_json(receipt)
         values = (
             sequence,
@@ -302,6 +308,64 @@ class FairChoreStore:
             self._assert_current(connection, task)
             self._authorize_read(actor, task)
             return task
+
+    def list(
+        self,
+        actor: Principal,
+        *,
+        core_id: str,
+        home_id: str,
+        current_members: HouseholdMembers,
+        limit: int = 256,
+    ) -> tuple[ChoreTask, ...]:
+        self._validate_scope(core_id, home_id)
+        if type(limit) is not int or not 1 <= limit <= 256:
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM fair_chore_tasks WHERE core_id=? AND home_id=? "
+                "ORDER BY due_at,id LIMIT ?",
+                (core_id, home_id, limit + 1),
+            ).fetchall()
+            if len(rows) > limit:
+                raise ApiError("fair_chore_limit_reached", 413)
+            tasks = tuple(self._task(row) for row in rows)
+            for task in tasks:
+                self._assert_current(connection, task)
+            if actor.role == "admin":
+                return tasks
+            if actor.id not in current_members.ids:
+                raise ApiError("forbidden", 403)
+            return tuple(task for task in tasks if actor.id in task.member_order)
+
+    def receipt(
+        self,
+        actor: Principal,
+        command_id: str,
+        *,
+        core_id: str,
+        home_id: str,
+    ) -> ChoreReceipt | None:
+        self._validate_scope(core_id, home_id)
+        if not _identifier(command_id):
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT task_id,actor_id,receipt_json FROM fair_chore_events "
+                "WHERE command_id=? AND task_id IN (SELECT id FROM fair_chore_tasks "
+                "WHERE core_id=? AND home_id=?)",
+                (command_id, core_id, home_id),
+            ).fetchone()
+            if row is None:
+                return None
+            task = self._load(connection, row["task_id"], core_id, home_id)
+            self._assert_current(connection, task)
+            if row["actor_id"] != actor.id and actor.role != "admin":
+                raise ApiError("forbidden", 403)
+            receipt = self._receipt(row["receipt_json"])
+            if receipt.command_id != command_id:
+                raise StartupError("fair_chore_history_invalid")
+            return receipt
 
     @staticmethod
     def _authorize_read(actor: Principal, task: ChoreTask) -> None:
@@ -513,6 +577,7 @@ class FairChoreStore:
             receipt = self._receipt(row["receipt_json"])
             if (
                 receipt.event_id != row["event_id"]
+                or receipt.command_id != row["command_id"]
                 or receipt.action != row["action"]
                 or receipt.task.id != task_id
                 or receipt.task.revision != row["revision"]

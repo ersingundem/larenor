@@ -2,7 +2,6 @@ import sqlite3
 
 from ..errors import StartupError
 
-
 TABLES = {
     "fair_chore_tasks": """CREATE TABLE fair_chore_tasks (
         id TEXT PRIMARY KEY,

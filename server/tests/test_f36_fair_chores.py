@@ -3,7 +3,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.errors import ApiError, StartupError
@@ -12,7 +11,6 @@ from larenor_server.fair_chores.service import (
     FairChoreStore,
     HouseholdMembers,
 )
-
 
 AUDIT_KEY = bytes.fromhex("42" * 32)
 
