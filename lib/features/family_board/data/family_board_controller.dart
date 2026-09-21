@@ -294,6 +294,7 @@ final class FamilyBoardController extends ChangeNotifier {
       );
       if (!_current(operation) ||
           delta.afterSequence != base.boardRevision ||
+          delta.events.isEmpty && delta.auditHead != base.auditHead ||
           delta.events.isNotEmpty &&
               delta.events.first.previousHash != base.auditHead) {
         return _stale(operation);

@@ -396,10 +396,15 @@ final class FamilyBoardSnapshot {
     if (source is! List || source.length > 512) _invalid();
     final elements = source.map(BoardElement.fromJson).toList(growable: false);
     if (elements.map((e) => e.id).toSet().length != elements.length) _invalid();
+    final revision = _revision(value['boardRevision']);
+    final auditHead = _hash(value['auditHead']);
+    if (revision == 0 && (elements.isNotEmpty || auditHead != '0' * 64)) {
+      _invalid();
+    }
     return FamilyBoardSnapshot._(
       expected,
-      _positive(value['boardRevision']),
-      _hash(value['auditHead']),
+      revision,
+      auditHead,
       List.unmodifiable(elements),
     );
   }

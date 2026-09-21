@@ -71,6 +71,7 @@ FamilyBoardSnapshot snap({int revision = 1, String text = 'Film gecesi'}) =>
 final class FakeBoardGateway implements FamilyBoardGateway {
   FamilyBoardSnapshot current = snap();
   Object? failure;
+  String? deltaHeadOverride;
   Completer<FamilyBoardSnapshot>? delayedRead;
   int reads = 0, deltas = 0, mutations = 0;
   final commands = <FamilyBoardCommand>[];
@@ -97,7 +98,7 @@ final class FakeBoardGateway implements FamilyBoardGateway {
         'boardRevision': current.boardRevision,
         'afterSequence': afterSequence,
         'nextAfter': current.boardRevision,
-        'auditHead': current.auditHead,
+        'auditHead': deltaHeadOverride ?? current.auditHead,
         'events': current.boardRevision == afterSequence
             ? <Object?>[]
             : [
@@ -162,6 +163,53 @@ final class MemoryBoardCache implements FamilyBoardCache {
 }
 
 void main() {
+  test('revision-zero board loads and accepts its first append', () async {
+    final raw = snapshotJson()
+      ..['boardRevision'] = 0
+      ..['auditHead'] = '0' * 64
+      ..['elements'] = <Object?>[];
+    final gateway = FakeBoardGateway()
+      ..current = FamilyBoardSnapshot.fromJson(raw, binding());
+    final controller = FamilyBoardController(
+      gateway: gateway,
+      cache: MemoryBoardCache(),
+      binding: binding(),
+      isCurrent: (_) => true,
+      idFactory: (() {
+        var n = 8;
+        return () => (n++).toRadixString(16).padLeft(32, '0');
+      })(),
+    );
+    await controller.load();
+    expect(controller.snapshot?.boardRevision, 0);
+    expect(controller.canMutate, isTrue);
+    await controller.createCard('İlk kart');
+    expect(gateway.commands.single.expectedBoardRevision, 0);
+    expect(controller.snapshot?.boardRevision, 1);
+
+    final impossible = Map<String, Object?>.of(raw)..['auditHead'] = 'a' * 64;
+    expect(
+      () => FamilyBoardSnapshot.fromJson(impossible, binding()),
+      throwsA(isA<FamilyBoardException>()),
+    );
+  });
+
+  test('unchanged delta cannot replace the local audit head', () async {
+    final gateway = FakeBoardGateway();
+    final controller = FamilyBoardController(
+      gateway: gateway,
+      cache: MemoryBoardCache(),
+      binding: binding(),
+      isCurrent: (_) => true,
+    );
+    await controller.load();
+    gateway.deltaHeadOverride = 'b' * 64;
+    await controller.refreshDelta();
+    expect(controller.snapshot, isNull);
+    expect(controller.failure, BoardFailure.stale);
+    expect(controller.canMutate, isFalse);
+  });
+
   test(
     'strict bounded model rejects foreign authority and oversized drawing',
     () {
