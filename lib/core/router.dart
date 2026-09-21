@@ -21,6 +21,7 @@ import '../features/local_notifications/presentation/local_notification_screen.d
 import '../features/meal_planner/presentation/weekly_meal_plan_route.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
+import '../features/power_budget/presentation/power_budget_route.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
@@ -86,6 +87,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'energy',
                     builder: (_, _) => const EnergyMaintenanceScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'power-budget',
+                        builder: (_, _) => const PowerBudgetRoute(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'today',

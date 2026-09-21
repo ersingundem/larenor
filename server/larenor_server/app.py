@@ -66,6 +66,7 @@ from .tablet_fleet.api import router as tablet_fleet_router
 from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .camera_profiles.api import router as camera_profile_router
+from .power_budget.api import router as power_budget_router
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -85,7 +86,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                media_archive_binding_reader=None,
                media_archive_worker=None,
                mesh_center_provider=None,
-               camera_profile_provider=None) -> FastAPI:
+               camera_profile_provider=None,
+               power_budget_provider=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -182,7 +184,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         media_archive_binding_reader=media_archive_binding_reader,
         media_archive_worker=media_archive_worker,
         mesh_center_provider=mesh_center_provider,
-        camera_profile_provider=camera_profile_provider)
+        camera_profile_provider=camera_profile_provider,
+        power_budget_provider=power_budget_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -194,6 +197,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_provider_setup_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.camera_profile_gateway = app.state.core.camera_profiles
+    app.state.power_budget_gateway = app.state.core.power_budget
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -289,6 +293,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(camera_profile_router, prefix="/api/v1")
+    app.include_router(power_budget_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")

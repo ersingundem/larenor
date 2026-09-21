@@ -14,6 +14,16 @@ class StartupError(Exception):
 
 MESSAGES = {
     'camera_profile_provider_unavailable': 'The camera profile provider is unavailable.',
+    'power_provider_unavailable': 'The home power provider is unavailable.',
+    'power_inputs_unverified': 'The power measurement or tariff is not verified.',
+    'power_capability_unverified': 'The load-control capability is not verified.',
+    'power_authority_changed': 'The power budget authority changed. Read it again.',
+    'power_safety_limit': 'The power budget exceeds a configured safety limit.',
+    'critical_load_protection': 'Critical-load protection blocks this plan.',
+    'power_budget_preview_conflict': 'This power budget preview belongs to different inputs.',
+    'power_budget_preview_limit_reached': 'The power budget preview limit has been reached.',
+    'power_budget_preview_changed': 'The power budget preview changed. Review it again.',
+    'power_budget_command_conflict': 'This power budget command conflicts with a prior request.',
     'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
     'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',
