@@ -69,6 +69,10 @@ from .workshop.api import router as workshop_router
 from .core_backups.api import router as core_backups_router
 from .mesh_center.api import router as mesh_center_router
 from .game_streaming.api import router as game_streaming_router
+from .camera_search.api import (
+    CameraSearchRuntime,
+    router as camera_search_router,
+)
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 
@@ -88,7 +92,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                media_archive_binding_reader=None,
                media_archive_worker=None,
                mesh_center_provider=None,
-               legacy_remote_provider=None) -> FastAPI:
+               legacy_remote_provider=None,
+               camera_search_runtime: CameraSearchRuntime | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -197,6 +202,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_provider_setup_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
+    app.state.camera_search_runtime = camera_search_runtime
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -295,6 +301,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(game_streaming_router, prefix="/api/v1")
+    app.include_router(camera_search_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
