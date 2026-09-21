@@ -1,11 +1,11 @@
 """Regression tests for fail-open native characterization scoping."""
 
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,7 +13,6 @@ sys.path.insert(0, str(ROOT / "tool"))
 
 import native_ci_scope as target
 from native_ci_scope import decide_scope, is_relevant, patterns_for_workflow
-
 
 WORKFLOWS = {
     "jellyfin-managed-characterization.yml": "characterize",
@@ -213,14 +212,17 @@ class NativeCiScopeTest(unittest.TestCase):
                     self.assertEqual(acceptance["if"], "always()")
                     self.assertEqual(acceptance["needs"], ["native-scope", job_name])
                     self.assertEqual(acceptance["runs-on"], "ubuntu-24.04")
-                    gate = acceptance["steps"][0]
+                    gate = acceptance["steps"][1]
                     self.assertEqual(gate["env"]["RUN_NATIVE"],
                                      "${{ needs.native-scope.outputs.run }}")
                     self.assertEqual(gate["env"]["SCOPE_RESULT"],
                                      "${{ needs.native-scope.result }}")
                     self.assertEqual(gate["env"]["MATRIX_RESULT"],
                                      "${{ needs." + job_name + ".result }}")
-                    self.assertIn("true:success|false:skipped", gate["run"])
+                    self.assertEqual(
+                        gate["run"],
+                        "python3 tool/required_ci_aggregate.py native",
+                    )
 
 
 if __name__ == "__main__":
