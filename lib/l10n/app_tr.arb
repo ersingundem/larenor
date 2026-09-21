@@ -1548,18 +1548,6 @@
   "webPanelZoom": "Parmak hareketiyle yakınlaştır",
   "webPanelTextSize": "Web sitesi metin boyutu",
   "webPanelTextSizeUnsupported": "Metin boyutu Android üzerinde ayarlanabilir. Diğer platformlarda web sitesinin metin ayarları kullanılır.",
-  "webPanelTransfers": "Dosya aktarımları",
-  "webPanelTransfersHint": "Her yükleme veya indirme için 30 saniyelik yeni bir işlem gerekir. İndirmeler web sitesi çerezleri ya da Larenor kimlik bilgileri olmadan anonim istek kullanır ve 25 MB ile sınırlıdır.",
-  "webPanelUploads": "Tek kullanımlık dosya yüklemelerine izin ver",
-  "webPanelDownloads": "Tek kullanımlık dosya indirmelerine izin ver",
-  "webPanelArmUpload": "Sonraki yükleme dosyasını seç",
-  "webPanelArmDownload": "Sonraki bağlantıyı indir",
-  "webPanelUploadArmed": "30 saniye içinde web sitesinden desteklenen bir dosya seçin.",
-  "webPanelDownloadArmed": "30 saniye içinde indirme bağlantısını açın.",
-  "webPanelTransferWorking": "Dosya aktarımı denetleniyor…",
-  "webPanelTransferDone": "Dosya aktarımı tamamlandı.",
-  "webPanelTransferDenied": "Dosya aktarımı iptal edildi veya engellendi.",
-  "webPanelTransferFailed": "Dosya güvenli biçimde aktarılamadı.",
   "webPanelSessionHint": "Web sitesi oturumları Larenor’un Home Assistant bağlantısından ayrıdır. Bu panel API anahtarını almaz. Bazı giriş sağlayıcıları gömülü tarayıcıları desteklemez.",
   "webPanelDataTitle": "Web sitesi verileri",
   "webPanelDataClear": "Çerezleri ve site depolamasını temizle",
@@ -1618,21 +1606,6 @@
   "kioskWindowHint": "Giriş için odaktaki ana pencere, kilidi açık cihaz ve açık görev kilidi izni gerekir. Bölünmüş ekran, masaüstü modu ve harici ekranlar kapsam dışıdır.",
   "kioskRecovery": "Kurtarma ve cihaz kurulumu",
   "kioskRecoveryHint": "Ayarlar PIN'ini ve yönetici kurtarma yolunu erişilebilir tutun. Uygulama otomatik kayıt, sıfırlama, silme, yeniden başlatma veya görev kilidi başlatma yapmaz. Kendi yönetilen kurulumunda güç menüsünü korur. Kullanıma almadan önce ayrılmış cihazda çıkış ve kurtarmayı test edin.",
-  "kioskHidTitle": "Klavye tipi tarayıcı",
-  "kioskHidIntro": "USB veya Bluetooth tarayıcıyı klavye modunda bağlayın, sonra yerel tarama oturumunu başlatın. Bitirmek için tarayıcıda Enter'a basın.",
-  "kioskHidPrivacy": "Taramalar yalnızca bu ekranın belleğinde kalır. Web sitesine, komuta veya Core'a gönderilmez. Odak kaybı, arka plan veya hareketsizlik oturumu bitirir.",
-  "kioskHidOpen": "Klavye tipi tarayıcıyı aç",
-  "kioskHidStart": "Taramayı başlat",
-  "kioskHidStop": "Durdur ve temizle",
-  "kioskHidReview": "Yakalanan kodu incele",
-  "kioskHidInactive": "Tarayıcı durduruldu. Giriş yakalanmıyor.",
-  "kioskHidScanning": "Tarayıcı dinliyor. Bitirmek için Enter, iptal için Escape kullanın.",
-  "kioskHidCaptured": "{length} karakter yakalandı. Kodu göstermek için inceleyin.",
-  "@kioskHidCaptured": {"placeholders":{"length":{"type":"int"}}},
-  "kioskHidDuplicate": "Yinelenen tarama yok sayıldı. Yeni kod için tekrar başlatın.",
-  "kioskHidInvalid": "Geçersiz tarama atıldı. Tekrar başlatın.",
-  "kioskHidTooLong": "Tarama 128 karakteri aştı ve atıldı.",
-  "kioskHidExpired": "Tarayıcı zaman aşımına uğradı. Yakalanan veri temizlendi.",
   "kioskUnsupported": "Yönetilen kiosk bu platformda kullanılamıyor.",
   "kioskUnavailable": "Kiosk durumu doğrulanamadı. Değişikliğin başarılı olduğu varsayılmıyor.",
   "kioskDenied": "Mevcut cihaz izinleri veya pencere durumu bu işleme izin vermiyor.",
@@ -1640,38 +1613,6 @@
   "kioskAccepted": "Android isteği kabul etti; istenen durum henüz gözlemlenmedi. Başka işlemden önce durumu yenileyin.",
   "kioskObserved": "İstenen durum Android'den gözlemlendi.",
   "kioskUnknown": "Sonuç belirsiz. İşlem yeniden denenmedi. Durumu yenileyin ve cihazı kontrol edin.",
-  "kioskSensorsTitle": "Yerel varlık sensörleri",
-  "kioskSensorsEntryHint": "Yalnız bu ekran açıkken ortam ışığını ve cihaz hareketini oku.",
-  "kioskSensorsHint": "Tabletin karanlıkta veya hareket etmiş olup olmadığını görmek için geçici bir yerel oturum başlatın. Sensör ölçümleri kendiliğinden Home Assistant işlemi başlatmaz.",
-  "kioskSensorsPrivacy": "Kamera görüntüsü, mikrofon, konum, ağ yüklemesi veya geçmiş kullanılmaz. Yalnız kamera kullanılabilirliği gözlenir; bu ekran kapanınca ya da uygulama ön plandan ayrılınca örnekleme durur.",
-  "kioskSensorsSensitivity": "Hareket hassasiyeti",
-  "kioskSensorsLow": "Düşük",
-  "kioskSensorsMedium": "Orta",
-  "kioskSensorsHigh": "Yüksek",
-  "kioskSensorsStatus": "Geçerli yerel gözlem",
-  "kioskSensorsLight": "Ortam ışığı",
-  "kioskSensorsDark": "Karanlık algılandı",
-  "kioskSensorsMotion": "Cihaz hareketi algılandı",
-  "kioskSensorsCamera": "Kamera kullanılabilirliği",
-  "kioskSensorsCameraAvailable": "Kullanılabilir · kamera kapalı kalır",
-  "kioskSensorsCameraBusy": "Kamera başka bir uygulamada meşgul",
-  "kioskSensorsCameraPermissionDenied": "Kamera izni verilmemiş",
-  "kioskSensorsNotAvailable": "Sensör bu cihazda kullanılamıyor",
-  "kioskSensorsLux": "{value} lüks",
-  "@kioskSensorsLux": {"placeholders": {"value": {"type": "int"}}},
-  "kioskSensorsStart": "Yerel algılamayı başlat",
-  "kioskSensorsStop": "Algılamayı durdur",
-  "kioskSensorsActive": "Yerel algılama yalnız bu ekranda etkin.",
-  "kioskSensorsStopped": "Yerel algılama durduruldu.",
-  "kioskSensorsExpired": "Sensör oturumu sona erdi. Devam etmek için yeni bir oturum başlatın.",
-  "kioskSensorsUnavailable": "Sensör durumu doğrulanamadı. Ölçüm gösterilmiyor.",
-  "kioskSensorsBackground": "Larenor ön planda değilken örnekleme kapalıdır.",
-  "kioskSensorsInactive": "Örnekleme yapılmıyor",
-  "kioskSensorsWaiting": "Sınırlı örnek bekleniyor",
-  "kioskSensorsBright": "Ortam ışığı karanlık eşiğinin üzerinde",
-  "kioskSensorsMoving": "Hareket gözlendi",
-  "kioskSensorsStill": "Hareket gözlenmedi",
-  "kioskSensorsCameraOff": "Kamera kapalı kalır",
   "connectErrorAuthentication": "Erişim anahtarı geçersiz veya süresi dolmuş.",
   "connectErrorPermission": "Bu hesabın bağlantı izni yok.",
   "connectErrorNotHomeAssistant": "Bu adresten Home Assistant API yanıtı alınamadı.",
@@ -1689,7 +1630,16 @@
   "serverTabletFleetRevoked": "İptal edildi",
   "serverTabletFleetProfile": "Yönetim profili",
   "serverTabletFleetProfileRevisions": "Uygulanan {applied} · istenen {desired}",
-  "@serverTabletFleetProfileRevisions": {"placeholders":{"applied":{"type":"int"},"desired":{"type":"int"}}},
+  "@serverTabletFleetProfileRevisions": {
+    "placeholders": {
+      "applied": {
+        "type": "int"
+      },
+      "desired": {
+        "type": "int"
+      }
+    }
+  },
   "serverTabletFleetProfileCurrent": "Güncel",
   "serverTabletFleetProfilePending": "Güncelleme gerekli",
   "serverTabletFleetAdvanceProfile": "Sonraki profil revizyonunu yayınla",
@@ -1699,9 +1649,21 @@
   "serverTabletFleetRevoke": "Tableti iptal et",
   "serverTabletFleetRevokeTitle": "Bu tablet iptal edilsin mi?",
   "serverTabletFleetRevokeHint": "{name} artık profil ve komut almayacak. Erişimi geri getirmek için yeniden kaydedin.",
-  "@serverTabletFleetRevokeHint": {"placeholders":{"name":{"type":"String"}}},
+  "@serverTabletFleetRevokeHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "serverTabletFleetReceipt": "Core makbuzu: {state}",
-  "@serverTabletFleetReceipt": {"placeholders":{"state":{"type":"String"}}},
+  "@serverTabletFleetReceipt": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      }
+    }
+  },
   "serverTabletFleetProfileVerified": "Profil revizyonu yeni Core okumasıyla doğrulandı.",
   "serverTabletFleetRevokedVerified": "İptal işlemi yeni Core okumasıyla doğrulandı.",
   "serverTabletFleetCommandVerified": "Komut günlüğü kaydı idempotency anahtarıyla doğrulandı.",
@@ -2162,8 +2124,12 @@
   "coreResourceUploadComplete": "Doğrulanmış dosya kaydedildi · {bytes} bayt · revizyon {revision}.",
   "@coreResourceUploadComplete": {
     "placeholders": {
-      "bytes": {"type": "int"},
-      "revision": {"type": "int"}
+      "bytes": {
+        "type": "int"
+      },
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "coreResourceUploadCancelled": "Dosya seçimi iptal edildi.",
@@ -2175,7 +2141,11 @@
   "coreResourceTransferHistoryLoading": "Doğrulanmış aktarım geçmişi yükleniyor…",
   "coreResourceTransferHistoryVerified": "Olay zinciri doğrulandı · imleç {sequence}.",
   "@coreResourceTransferHistoryVerified": {
-    "placeholders": {"sequence": {"type": "int"}}
+    "placeholders": {
+      "sequence": {
+        "type": "int"
+      }
+    }
   },
   "coreResourceTransferHistoryEmpty": "Henüz aktarım makbuzu yok.",
   "coreResourceTransferAccepted": "Aktarım kabul edildi",
@@ -2201,8 +2171,12 @@
   "coreTransferTrustDetail": "Makbuz {receipt} · {bytes} bayt",
   "@coreTransferTrustDetail": {
     "placeholders": {
-      "receipt": {"type": "String"},
-      "bytes": {"type": "int"}
+      "receipt": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
     }
   },
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
@@ -2602,8 +2576,12 @@
   "coreHaEventTrustDetail": "Baş {sequence} · Zincir {chain}",
   "@coreHaEventTrustDetail": {
     "placeholders": {
-      "sequence": {"type": "int"},
-      "chain": {"type": "String"}
+      "sequence": {
+        "type": "int"
+      },
+      "chain": {
+        "type": "String"
+      }
     }
   },
   "coreHaActivityFailed": "Etkinlik okunamadı. Yenilemek için tekrar deneyin.",
@@ -3100,6 +3078,63 @@
   "remoteAccessCoreConflict": "Bu profil Core üzerinde değişti. Nasıl devam edeceğinizi seçmeden önce yenileyin; düzenlemenizin üzerine yazılmadı.",
   "remoteAccessCoreResolve": "Çakışmayı çözmek için yenile",
   "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
+  "kioskPeripheralTitle": "Kiosk çevre birimleri",
+  "kioskPeripheralHint": "Her çevre birimi isteğe bağlıdır. Sağlayıcıyı etkinleştirmek seçiminizi kaydeder; Android izni vermez veya desteklenmeyen donanımı bağlamaz. Taranan içerik yalnızca inceleme için gösterilir.",
+  "kioskPeripheralUnavailable": "Çevre birimi durumu doğrulanamadı. İşlem yapılmadı.",
+  "kioskPeripheralReviewOnly": "Yalnızca inceleme · komut veya web işlemi yok",
+  "kioskPeripheralQr": "QR tarayıcı",
+  "kioskPeripheralNfc": "NFC okuyucu",
+  "kioskPeripheralBle": "Bluetooth LE",
+  "kioskPeripheralUsb": "USB okuyucu",
+  "kioskPeripheralTts": "Metin seslendirme",
+  "kioskPeripheralPrint": "Yazdırma",
+  "kioskPeripheralReady": "İzinli ve kullanılabilir",
+  "kioskPeripheralChoiceEnabled": "Bu tablette seçim açık",
+  "kioskPeripheralDisabled": "Bu tablette kapalı",
+  "kioskPeripheralUnsupported": "Bu tablette çalışan bağdaştırıcı yok",
+  "kioskPeripheralDenied": "Android izni reddedildi",
+  "kioskPeripheralPermissionUnknown": "Android izni doğrulanmadı",
+  "kioskPeripheralPermissionGranted": "Android izni verildi",
+  "kioskPeripheralPermissionNotRequired": "Android izni gerekmiyor",
+  "kioskPeripheralConnected": "Cihaz bağlı",
+  "kioskPeripheralDisconnected": "Cihaz bağlı değil",
+  "kioskPeripheralGmsUnavailable": "Google servisleri gerekli",
+  "kioskPeripheralEnable": "Seçimi aç",
+  "kioskPeripheralDisable": "Seçimi kapat",
+  "kioskPeripheralReviewInput": "Sonraki girdiyi incele",
+  "webPanelTransfers": "Dosya aktarımları",
+  "webPanelTransfersHint": "Her yükleme veya indirme için 30 saniyelik yeni bir işlem gerekir. İndirmeler web sitesi çerezleri ya da Larenor kimlik bilgileri olmadan anonim istek kullanır ve 25 MB ile sınırlıdır.",
+  "webPanelUploads": "Tek kullanımlık dosya yüklemelerine izin ver",
+  "webPanelDownloads": "Tek kullanımlık dosya indirmelerine izin ver",
+  "webPanelArmUpload": "Sonraki yükleme dosyasını seç",
+  "webPanelArmDownload": "Sonraki bağlantıyı indir",
+  "webPanelUploadArmed": "30 saniye içinde web sitesinden desteklenen bir dosya seçin.",
+  "webPanelDownloadArmed": "30 saniye içinde indirme bağlantısını açın.",
+  "webPanelTransferWorking": "Dosya aktarımı denetleniyor…",
+  "webPanelTransferDone": "Dosya aktarımı tamamlandı.",
+  "webPanelTransferDenied": "Dosya aktarımı iptal edildi veya engellendi.",
+  "webPanelTransferFailed": "Dosya güvenli biçimde aktarılamadı.",
+  "kioskHidTitle": "Klavye tipi tarayıcı",
+  "kioskHidIntro": "USB veya Bluetooth tarayıcıyı klavye modunda bağlayın, sonra yerel tarama oturumunu başlatın. Bitirmek için tarayıcıda Enter'a basın.",
+  "kioskHidPrivacy": "Taramalar yalnızca bu ekranın belleğinde kalır. Web sitesine, komuta veya Core'a gönderilmez. Odak kaybı, arka plan veya hareketsizlik oturumu bitirir.",
+  "kioskHidOpen": "Klavye tipi tarayıcıyı aç",
+  "kioskHidStart": "Taramayı başlat",
+  "kioskHidStop": "Durdur ve temizle",
+  "kioskHidReview": "Yakalanan kodu incele",
+  "kioskHidInactive": "Tarayıcı durduruldu. Giriş yakalanmıyor.",
+  "kioskHidScanning": "Tarayıcı dinliyor. Bitirmek için Enter, iptal için Escape kullanın.",
+  "kioskHidCaptured": "{length} karakter yakalandı. Kodu göstermek için inceleyin.",
+  "@kioskHidCaptured": {
+    "placeholders": {
+      "length": {
+        "type": "int"
+      }
+    }
+  },
+  "kioskHidDuplicate": "Yinelenen tarama yok sayıldı. Yeni kod için tekrar başlatın.",
+  "kioskHidInvalid": "Geçersiz tarama atıldı. Tekrar başlatın.",
+  "kioskHidTooLong": "Tarama 128 karakteri aştı ve atıldı.",
+  "kioskHidExpired": "Tarayıcı zaman aşımına uğradı. Yakalanan veri temizlendi.",
   "kioskMaintenanceTitle": "Kiosk kurtarma",
   "kioskMaintenanceHint": "Web sitesi adresi, sayfa içeriği, kimlik bilgisi veya sensör verisi olmadan sınırlı WebPanel kurtarma sayaçlarını inceleyin.",
   "kioskMaintenanceThirtyDays": "Son 30 gün",
@@ -3113,34 +3148,51 @@
   "kioskMaintenanceUnavailable": "Yerel kiosk kullanımı doğrulanamadı. Eski sayaçlar gizlendi.",
   "kioskMaintenanceBoundary": "Larenor çalışırken kurtarmayı sınırlayabilir. Android zorla durdurma, işletim sistemi sonlandırması ve otomatik yeniden başlatma bu yazılım sınırının dışındadır.",
   "kioskSensorsTitle": "Yerel sensörler",
+  "kioskSensorsEntryHint": "Yalnız bu ekran açıkken ortam ışığını ve cihaz hareketini oku.",
   "kioskSensorsHint": "Ortam ışığını ve tablet hareketini yalnızca bu sayfa etkinken gözlemleyin. Yerel okumalar otomasyon veya cihaz komutu çalıştırmaz.",
+  "kioskSensorsPrivacy": "Yalnızca son sınırlı ışık ve hareket değerleri bellekte tutulur. Görüntü, ses, ham sensör geçmişi veya komut oluşturulmaz.",
   "kioskSensorsSensitivity": "Hareket hassasiyeti",
   "kioskSensorsLow": "Düşük",
   "kioskSensorsMedium": "Orta",
   "kioskSensorsHigh": "Yüksek",
-  "kioskSensorsObserved": "Gözlemlenen cihaz durumu",
+  "kioskSensorsStatus": "Geçerli yerel gözlem",
   "kioskSensorsLight": "Ortam ışığı",
-  "kioskSensorsMovement": "Tablet hareketi",
-  "kioskSensorsCamera": "Kamera kullanılabilirliği",
-  "kioskSensorsInactive": "Örnekleme kapalı",
-  "kioskSensorsSensorUnavailable": "Sensör kullanılamıyor",
-  "kioskSensorsWaiting": "İlk sınırlı örnek bekleniyor",
-  "kioskSensorsLux": "{lux} lx · {state}",
-  "@kioskSensorsLux": {"placeholders": {"lux": {"type": "String"}, "state": {"type": "String"}}},
   "kioskSensorsDark": "Karanlık",
+  "kioskSensorsMotion": "Cihaz hareketi algılandı",
+  "kioskSensorsCamera": "Kamera kullanılabilirliği",
+  "kioskSensorsCameraAvailable": "Kamera kullanılabilir · kamera kapalı kalır",
+  "kioskSensorsCameraBusy": "Kamera meşgul · kamera kapalı kalır",
+  "kioskSensorsCameraPermissionDenied": "Kamera izni verilmemiş",
+  "kioskSensorsNotAvailable": "Sensör bu cihazda kullanılamıyor",
+  "kioskSensorsLux": "{lux} lx · {state}",
+  "@kioskSensorsLux": {
+    "placeholders": {
+      "lux": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "kioskSensorsStart": "Yerel örneklemeyi başlat",
+  "kioskSensorsStop": "Yerel örneklemeyi durdur",
+  "kioskSensorsActive": "Yerel algılama yalnız bu ekranda etkin.",
+  "kioskSensorsStopped": "Yerel algılama durduruldu.",
+  "kioskSensorsExpired": "Sensör oturumu sona erdi. Devam etmek için yeni bir oturum başlatın.",
+  "kioskSensorsUnavailable": "Sensör durumu doğrulanamadı. Örnekleme durduruldu.",
+  "kioskSensorsBackground": "Larenor ön planda değilken örnekleme duraklatıldı.",
+  "kioskSensorsInactive": "Örnekleme kapalı",
+  "kioskSensorsWaiting": "İlk sınırlı örnek bekleniyor",
   "kioskSensorsBright": "Aydınlık",
   "kioskSensorsMoving": "Hareket algılandı",
   "kioskSensorsStill": "Hareket algılanmadı",
   "kioskSensorsCameraOff": "Kamera kapalı kalır",
-  "kioskSensorsCameraAvailable": "Kamera kullanılabilir · kamera kapalı kalır",
-  "kioskSensorsCameraBusy": "Kamera meşgul · kamera kapalı kalır",
+  "kioskSensorsObserved": "Gözlemlenen cihaz durumu",
+  "kioskSensorsMovement": "Tablet hareketi",
+  "kioskSensorsSensorUnavailable": "Sensör kullanılamıyor",
   "kioskSensorsCameraDenied": "Kamera izni yok · kamera kapalı kalır",
   "kioskSensorsCameraUnavailable": "Kamera kullanılamıyor · kamera kapalı kalır",
-  "kioskSensorsBackground": "Larenor ön planda değilken örnekleme duraklatıldı.",
-  "kioskSensorsStart": "Yerel örneklemeyi başlat",
-  "kioskSensorsStop": "Yerel örneklemeyi durdur",
-  "kioskSensorsPrivacy": "Yalnızca son sınırlı ışık ve hareket değerleri bellekte tutulur. Görüntü, ses, ham sensör geçmişi veya komut oluşturulmaz.",
   "kioskSensorsUnsupported": "Yerel sensör izleme bu platformda kullanılamıyor.",
-  "kioskSensorsDenied": "Mevcut ön plan veya cihaz izin durumu örneklemeye izin vermiyor.",
-  "kioskSensorsUnavailable": "Sensör durumu doğrulanamadı. Örnekleme durduruldu."
+  "kioskSensorsDenied": "Mevcut ön plan veya cihaz izin durumu örneklemeye izin vermiyor."
 }
