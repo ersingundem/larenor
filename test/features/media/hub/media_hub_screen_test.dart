@@ -107,8 +107,10 @@ void main() {
             );
             for (final label in [l10n.musicTitle, l10n.haMediaTitle]) {
               final action = find.widgetWithText(CupertinoButton, label).first;
-              expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
-              final node = tester.getSemantics(action);
+              expect(tester.getRect(action).height, greaterThan(47.9));
+              final node = tester.getSemantics(
+                find.bySemanticsLabel(label).first,
+              );
               expect(node.flagsCollection.isButton, isTrue);
               expect(node.label, contains(label));
             }

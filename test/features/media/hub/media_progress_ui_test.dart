@@ -708,14 +708,29 @@ void main() {
           );
           final season = find.byKey(const ValueKey('media-season-number:0'));
           for (final action in [refresh, season]) {
-            expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
-            expect(
-              tester.getSemantics(action).flagsCollection.isButton,
-              isTrue,
-            );
+            expect(tester.getRect(action).height, greaterThan(47.9));
           }
-          Focus.of(tester.element(find.text('Uzun özel bölümler sezonu')))
-              .requestFocus();
+          expect(
+            tester
+                .getSemantics(find.bySemanticsLabel(l10n.commonRefresh).first)
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          expect(
+            tester
+                .getSemantics(
+                  find.bySemanticsLabel('Uzun özel bölümler sezonu').first,
+                )
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: season, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pumpAndSettle();

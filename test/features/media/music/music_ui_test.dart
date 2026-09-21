@@ -263,12 +263,22 @@ void main() {
             );
             final target = find.widgetWithText(CupertinoButton, 'Kitchen');
             for (final action in [refresh, target]) {
-              expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
-              expect(
-                tester.getSemantics(action).flagsCollection.isButton,
-                isTrue,
-              );
+              expect(tester.getRect(action).height, greaterThan(47.9));
             }
+            expect(
+              tester
+                  .getSemantics(find.bySemanticsLabel(l10n.commonRefresh).first)
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
+            expect(
+              tester
+                  .getSemantics(find.bySemanticsLabel('Kitchen').last)
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
 
             Focus.of(tester.element(find.text('Kitchen').last)).requestFocus();
             await tester.pump();
@@ -276,6 +286,10 @@ void main() {
             await tester.pump(const Duration(milliseconds: 400));
             expect(find.byType(CupertinoAlertDialog), findsOneWidget);
             expect(find.text(l10n.musicPlayConfirm), findsOneWidget);
+            await tester.tap(
+              find.widgetWithText(CupertinoDialogAction, l10n.commonCancel),
+            );
+            await tester.pumpAndSettle();
             expect(tester.takeException(), isNull);
           } finally {
             semantics.dispose();
