@@ -2635,6 +2635,7 @@
   "coreHaTransferRecover": "Check transfer result",
   "coreHaTransferCredentials": "Reconnect Home Assistant in Direct settings, then preview this transfer again.",
   "remoteAccessTitle": "Remote access",
+  "meshCenterTitle": "Zigbee and Thread mesh",
   "remoteAccessPrivacy": "Personal target profiles stay in this tablet’s secure storage. No Core or Proxmox account is required. Passwords and keys are not saved here.",
   "remoteAccessLocked": "Return to Settings to unlock this private view.",
   "remoteAccessEmpty": "No saved remote targets",

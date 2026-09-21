@@ -3,7 +3,6 @@ from dataclasses import replace
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from larenor_server.errors import ApiError
 from larenor_server.mesh_center import (
     BorderRouterNode,
@@ -13,6 +12,7 @@ from larenor_server.mesh_center import (
     FirmwareCatalogEntry,
     FirmwareUpdateManager,
     FirmwareUpdateReadback,
+    FirmwareUpdateStore,
     InterferenceSnapshot,
     MeshAuthority,
     MeshDevice,
@@ -20,7 +20,6 @@ from larenor_server.mesh_center import (
     MeshTopology,
     firmware_catalog_payload,
 )
-
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -199,7 +198,9 @@ def signed_catalog(private, *, entries=None, **changes):
 
 def health_service(current_topology, current_interference):
     return MeshHealthService(
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        authorityResolver=lambda account_id: (
+            authority() if account_id == ACCOUNT else None
+        ),
         topologyResolver=lambda home_id: current_topology if home_id == HOME else None,
         interferenceResolver=lambda home_id: (
             current_interference if home_id == HOME else None
@@ -208,16 +209,117 @@ def health_service(current_topology, current_interference):
     )
 
 
-def update_manager(current_topology, catalog, public_key, worker, clock=None):
+def update_manager(
+    current_topology, catalog, public_key, worker, clock=None, state_store=None
+):
     return FirmwareUpdateManager(
         auditKey=b"f55-zigbee-thread-update-audit-key",
-        authorityResolver=lambda account_id: authority() if account_id == ACCOUNT else None,
+        authorityResolver=lambda account_id: (
+            authority() if account_id == ACCOUNT else None
+        ),
         topologyResolver=lambda home_id: current_topology if home_id == HOME else None,
         catalogResolver=lambda catalog_id: catalog if catalog_id == CATALOG else None,
         signingKeyResolver=lambda key_id: public_key if key_id == KEY_ID else None,
         worker=worker,
         clockMs=clock or Clock(),
+        stateStore=state_store,
     )
+
+
+def exact_readback(command):
+    return FirmwareUpdateReadback(
+        schemaVersion=1,
+        requestId=command.requestId,
+        coreId=command.coreId,
+        homeId=command.homeId,
+        deviceId=command.deviceId,
+        previousDeviceRevision=command.expectedDeviceRevision,
+        deviceRevision=command.expectedResultRevision,
+        providerRevision=command.expectedProviderRevision,
+        routeRevision=command.expectedRouteRevision,
+        installedVersion=command.targetVersion,
+        installedSha256=command.firmwareSha256,
+        status="installed",
+    )
+
+
+def test_encrypted_update_state_survives_restart_without_command_replay(tmp_path):
+    private, public = signing_key()
+    current_topology = topology(devices=[zigbee_device()])
+    catalog = signed_catalog(private)
+    state_path = tmp_path / "mesh-updates.state"
+    state_key = b"m" * 32
+    worker_calls = []
+
+    preview_manager = update_manager(
+        current_topology,
+        catalog,
+        public,
+        lambda command: worker_calls.append(command),
+        state_store=FirmwareUpdateStore(state_path, state_key),
+    )
+    preview = preview_manager.preview(
+        authority(),
+        current_topology,
+        catalog,
+        deviceId=DEVICE,
+        firmwareId=FIRMWARE,
+        requestId="b" * 32,
+    )
+
+    confirm_manager = update_manager(
+        current_topology,
+        catalog,
+        public,
+        lambda command: worker_calls.append(command) or exact_readback(command),
+        state_store=FirmwareUpdateStore(state_path, state_key),
+    )
+    result = confirm_manager.confirm(authority(), preview, preview.confirmationToken)
+    assert result.status == "confirmed"
+    assert len(worker_calls) == 1
+
+    recovered = update_manager(
+        current_topology,
+        catalog,
+        public,
+        lambda command: worker_calls.append(command) or exact_readback(command),
+        state_store=FirmwareUpdateStore(state_path, state_key),
+    )
+    assert recovered.result(authority(), preview.requestId) == result
+    assert recovered.confirm(authority(), preview, preview.confirmationToken) == result
+    assert len(worker_calls) == 1
+    assert state_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_update_state_authentication_rejects_tamper_at_startup(tmp_path):
+    private, public = signing_key()
+    current_topology = topology(devices=[zigbee_device()])
+    catalog = signed_catalog(private)
+    state_path = tmp_path / "mesh-updates.state"
+    store = FirmwareUpdateStore(state_path, b"m" * 32)
+    manager = update_manager(
+        current_topology,
+        catalog,
+        public,
+        exact_readback,
+        state_store=store,
+    )
+    manager.preview(
+        authority(),
+        current_topology,
+        catalog,
+        deviceId=DEVICE,
+        firmwareId=FIRMWARE,
+        requestId="c" * 32,
+    )
+    payload = bytearray(state_path.read_bytes())
+    payload[-1] ^= 1
+    state_path.write_bytes(payload)
+
+    from larenor_server.errors import StartupError
+
+    with pytest.raises(StartupError, match="mesh_update_storage_invalid"):
+        FirmwareUpdateStore(state_path, b"m" * 32)
 
 
 def test_exact_topology_health_is_read_only_and_channel_changes_are_advisory():
@@ -302,12 +404,12 @@ def test_signed_firmware_compatibility_power_and_route_safety_fail_closed():
     assert preview.expectedRouteRevision == 19
 
     tampered = catalog.model_copy(
-        update={
-            "entries": [catalog.entries[0].model_copy(update={"sha256": "e" * 64})]
-        }
+        update={"entries": [catalog.entries[0].model_copy(update={"sha256": "e" * 64})]}
     )
     with pytest.raises(ApiError) as signature_error:
-        update_manager(current_topology, tampered, public, lambda command: None).preview(
+        update_manager(
+            current_topology, tampered, public, lambda command: None
+        ).preview(
             authority(),
             current_topology,
             tampered,
@@ -439,8 +541,16 @@ def test_preview_confirm_exact_readback_lost_ack_no_replay_and_audit_tamper():
     )
     result = manager.confirm(authority(), preview, preview.confirmationToken)
     assert (result.status, result.readbackVerified) == ("confirmed", True)
+    assert manager.result(authority(), preview.requestId) == result
     assert manager.confirm(authority(), preview, preview.confirmationToken) == result
     assert len(worker_calls) == 1
+
+    with pytest.raises(ApiError) as missing_result:
+        manager.result(authority(), "0" * 32)
+    assert (missing_result.value.code, missing_result.value.status) == (
+        "not_found",
+        404,
+    )
 
     lost_calls = []
 
@@ -457,13 +567,13 @@ def test_preview_confirm_exact_readback_lost_ack_no_replay_and_audit_tamper():
         firmwareId=FIRMWARE,
         requestId="e" * 32,
     )
-    uncertain = lost.confirm(
-        authority(), lost_preview, lost_preview.confirmationToken
-    )
+    uncertain = lost.confirm(authority(), lost_preview, lost_preview.confirmationToken)
     assert (uncertain.status, uncertain.reason) == ("uncertain", "lost_ack")
-    assert lost.confirm(
-        authority(), lost_preview, lost_preview.confirmationToken
-    ) == uncertain
+    assert (
+        lost.confirm(authority(), lost_preview, lost_preview.confirmationToken)
+        == uncertain
+    )
+    assert lost.result(authority(), lost_preview.requestId) == uncertain
     assert len(lost_calls) == 1
     assert "private coordinator detail" not in uncertain.model_dump_json()
 

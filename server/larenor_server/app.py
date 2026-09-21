@@ -63,6 +63,7 @@ from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .tablet_fleet.api import router as tablet_fleet_router
+from .mesh_center.api import router as mesh_center_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -78,7 +79,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                proxmox_guest_provider=None,
                proxmox_power_executor=None,
                media_archive_binding_reader=None,
-               media_archive_worker=None) -> FastAPI:
+               media_archive_worker=None,
+               mesh_center_provider=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -173,7 +175,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         proxmox_guest_provider=proxmox_guest_provider,
         proxmox_power_executor=proxmox_power_executor,
         media_archive_binding_reader=media_archive_binding_reader,
-        media_archive_worker=media_archive_worker)
+        media_archive_worker=media_archive_worker,
+        mesh_center_provider=mesh_center_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -183,6 +186,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.seerr_bootstrap_dispatcher = None
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
+    app.state.mesh_center_gateway = app.state.core.mesh_center
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -275,6 +279,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
+    app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")

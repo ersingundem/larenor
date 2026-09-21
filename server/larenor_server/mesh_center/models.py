@@ -6,12 +6,15 @@ from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
 
-
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Percent = Annotated[int, Field(ge=0, le=100)]
 Version = Annotated[
     str,
-    Field(min_length=5, max_length=32, pattern=r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"),
+    Field(
+        min_length=5,
+        max_length=32,
+        pattern=r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
+    ),
 ]
 SafeText = Annotated[
     str,
@@ -283,8 +286,67 @@ class FirmwareUpdateResult(FrozenModel):
     @model_validator(mode="after")
     def coherent_result(self):
         if self.status == "confirmed":
-            if not self.readbackVerified or self.readback is None or self.reason is not None:
+            if (
+                not self.readbackVerified
+                or self.readback is None
+                or self.reason is not None
+            ):
                 raise ValueError("invalid_result")
         elif self.readbackVerified or self.readback is not None or self.reason is None:
             raise ValueError("invalid_result")
         return self
+
+
+class MeshCenterSnapshot(FrozenModel):
+    """Exact provider material returned to one authenticated Client route."""
+
+    schemaVersion: Literal[1]
+    authority: MeshAuthority
+    topology: MeshTopology
+    interference: InterferenceSnapshot
+    catalog: FirmwareCatalog
+    health: MeshHealthReport
+
+    @model_validator(mode="after")
+    def coherent_scope(self):
+        if (
+            (
+                self.authority.coreId,
+                self.authority.homeId,
+                self.authority.homeRevision,
+            )
+            != (
+                self.topology.coreId,
+                self.topology.homeId,
+                self.topology.homeRevision,
+            )
+            or (self.interference.coreId, self.interference.homeId)
+            != (
+                self.authority.coreId,
+                self.authority.homeId,
+            )
+            or (self.health.coreId, self.health.homeId)
+            != (
+                self.authority.coreId,
+                self.authority.homeId,
+            )
+        ):
+            raise ValueError("mesh_scope_mismatch")
+        return self
+
+
+class MeshPreviewRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: MeshAuthority
+    topology: MeshTopology
+    catalog: FirmwareCatalog
+    deviceId: Identity
+    firmwareId: Identity
+    requestId: Identity
+
+
+class MeshConfirmRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    authority: MeshAuthority
+    preview: FirmwareUpdatePreview
+    confirmationToken: Snapshot

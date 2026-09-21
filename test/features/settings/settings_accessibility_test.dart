@@ -184,6 +184,7 @@ void main() {
                 .first;
             final server = find.text(l10n.serverTitle).first;
             final remote = find.text(l10n.remoteAccessTitle).first;
+            final mesh = find.text(l10n.meshCenterTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
             final node = tester.getSemantics(connection);
             expect(node.flagsCollection.isButton, isTrue);
@@ -192,6 +193,8 @@ void main() {
               isTrue,
             );
             expect(node.rect.height, greaterThanOrEqualTo(48));
+            expect(tester.getSemantics(mesh).flagsCollection.isButton, isTrue);
+            expect(tester.getRect(mesh).height, greaterThanOrEqualTo(48));
             await _focus(tester, connection);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
