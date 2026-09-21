@@ -245,6 +245,8 @@ void main() {
               Focus.of(tester.element(tabletFleet)).hasPrimaryFocus,
               isTrue,
             );
+            await _tabUntilFocused(tester, server, reverse: true);
+            expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await _tabUntilFocused(tester, display);
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
             await tester.pumpAndSettle();

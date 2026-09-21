@@ -39,6 +39,15 @@ void main() {
             );
             expect(inventory, findsOneWidget);
             expect(tester.getRect(inventory).height, greaterThanOrEqualTo(48));
+            final presence = find.byKey(
+              const ValueKey('core-home-room-presence-action'),
+            );
+            expect(presence, findsOneWidget);
+            expect(tester.getRect(presence).height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(presence).flagsCollection.isButton,
+              isTrue,
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -73,6 +82,10 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('core-home-inventory-action')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('core-home-room-presence-action')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);

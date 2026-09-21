@@ -25,6 +25,7 @@ import '../../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart
 import '../../../media/qbittorrent/providers/qbittorrent_providers.dart';
 import '../../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../../proxmox/providers/proxmox_providers.dart';
+import '../../../room_presence/presentation/room_presence_route.dart';
 import '../../data/app_service.dart';
 import '../../providers/enabled_services_providers.dart';
 import '../manage_integrations_screen.dart';
@@ -187,6 +188,13 @@ class IntegrationsPane extends ConsumerWidget {
               color: CupertinoColors.systemRed,
               title: l10n.mediaHubTitle,
               builder: (_) => const MediaHubScreen(),
+            ),
+            SettingsNavRow(
+              key: const ValueKey('integrations-room-presence-action'),
+              icon: CupertinoIcons.location_circle,
+              color: CupertinoColors.systemTeal,
+              title: l10n.roomPresenceTitle,
+              builder: (_) => const RoomPresenceRoute(),
             ),
             ...rows,
             SettingsNavRow(

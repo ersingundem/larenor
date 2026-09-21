@@ -18,6 +18,7 @@ import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
+import '../features/room_presence/presentation/room_presence_route.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
 import '../features/irrigation_budget/presentation/irrigation_budget_route.dart';
@@ -45,6 +46,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/epaper',
           builder: (_, _) => const EpaperManagementRoute(),
+          path: '/room-presence',
+          builder: (_, _) => const RoomPresenceRoute(),
         ),
         GoRoute(
           path: '/settings',

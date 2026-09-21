@@ -95,6 +95,22 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                       ),
                     if (controller.account.context != null)
                       SettingsActionTile(
+                        key: const ValueKey('core-home-room-presence-entry'),
+                        buttonKey: const ValueKey(
+                          'core-home-room-presence-action',
+                        ),
+                        title: Text(l10n.roomPresenceTitle),
+                        additionalInfo: Text(l10n.roomPresenceEntrySubtitle),
+                        onTap: !current()
+                            ? null
+                            : () {
+                                if (current()) {
+                                  context.push('/room-presence');
+                                }
+                              },
+                      ),
+                    if (controller.account.context != null)
+                      SettingsActionTile(
                         key: const ValueKey('core-home-inventory-entry'),
                         buttonKey: const ValueKey('core-home-inventory-action'),
                         title: Text(l10n.inventoryTitle),

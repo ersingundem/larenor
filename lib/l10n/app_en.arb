@@ -1,6 +1,8 @@
 {
   "epaperTitle": "E-paper displays",
   "epaperEntrySubtitle": "Map displays, preview shared snapshots, and review delivery reports",
+  "roomPresenceTitle": "Room presence",
+  "roomPresenceEntrySubtitle": "Private local room evidence and calibration",
   "@@locale": "en",
   "appTitle": "Larenor Client",
   "@appTitle": {

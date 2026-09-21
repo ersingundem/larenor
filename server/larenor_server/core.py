@@ -113,6 +113,8 @@ from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
 from .epaper_snapshots.schema import migrate_epaper_snapshots
 from .epaper_snapshots.management import EpaperManagement
+from .room_presence.schema import migrate_room_presence
+from .room_presence.repository import RoomPresenceRepository
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .sound_events.repository import SoundEventRepository
@@ -248,6 +250,7 @@ class CoreServices:
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
                 migrate_epaper_snapshots(connection)
+                migrate_room_presence(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -375,6 +378,10 @@ class CoreServices:
             self.epaper = EpaperManagement(
                 self.db, self.auth, settings, key, self.context)
             self.epaper.validate_storage()
+            self.room_presence = RoomPresenceRepository(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.room_presence.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)

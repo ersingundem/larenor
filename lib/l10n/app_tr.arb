@@ -1,6 +1,8 @@
 {
   "epaperTitle": "E-paper ekranlar",
   "epaperEntrySubtitle": "Ekranları eşle, ortak görüntüyü önizle ve teslim bildirimlerini incele",
+  "roomPresenceTitle": "Oda varlığı",
+  "roomPresenceEntrySubtitle": "Mahrem yerel oda kanıtı ve kalibrasyon",
   "@@locale": "tr",
   "appTitle": "Larenor Client",
   "commonOff": "Kapalı",
