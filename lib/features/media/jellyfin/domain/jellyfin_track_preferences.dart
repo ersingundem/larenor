@@ -14,6 +14,24 @@ final class JellyfinTrackPreferenceRecord {
 
 abstract final class JellyfinTrackPreferences {
   static final _language = RegExp(r'^[a-z]{2,3}(?:-[a-z]{2}|-[0-9]{3})?$');
+  static const _iso639Aliases = {
+    'eng': 'en',
+    'tur': 'tr',
+    'deu': 'de',
+    'ger': 'de',
+    'fra': 'fr',
+    'fre': 'fr',
+    'spa': 'es',
+    'ita': 'it',
+    'por': 'pt',
+    'nld': 'nl',
+    'dut': 'nl',
+    'jpn': 'ja',
+    'kor': 'ko',
+    'zho': 'zh',
+    'chi': 'zh',
+    'rus': 'ru',
+  };
 
   static String? normalize(String? value, {bool allowOff = false}) {
     if (value == null) return null;
@@ -22,13 +40,20 @@ abstract final class JellyfinTrackPreferences {
     if (!_language.hasMatch(result)) {
       throw const FormatException('Invalid language');
     }
-    return result;
+    final parts = result.split('-');
+    parts[0] = _iso639Aliases[parts[0]] ?? parts[0];
+    return parts.join('-');
   }
 
   static bool _matches(String? actual, String expected, {required bool exact}) {
     if (actual == null) return false;
-    final normalized = actual.trim().toLowerCase();
-    if (!_language.hasMatch(normalized)) return false;
+    String? normalized;
+    try {
+      normalized = normalize(actual);
+    } on FormatException {
+      return false;
+    }
+    if (normalized == null) return false;
     return normalized == expected ||
         (!exact && normalized.split('-').first == expected.split('-').first);
   }

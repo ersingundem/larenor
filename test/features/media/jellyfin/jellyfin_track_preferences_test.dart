@@ -32,6 +32,18 @@ void main() {
     expect(JellyfinTrackPreferences.audio(audio, 'tr')?.id, '2');
     expect(
       JellyfinTrackPreferences.audio(const [
+        AudioTrack('8', 'English (ISO 639-2)', 'eng'),
+      ], 'en')?.id,
+      '8',
+    );
+    expect(
+      JellyfinTrackPreferences.subtitle(const [
+        SubtitleTrack('9', 'Turkish (ISO 639-2)', 'tur'),
+      ], 'tr')?.id,
+      '9',
+    );
+    expect(
+      JellyfinTrackPreferences.audio(const [
         AudioTrack('6', 'Cyprus Turkish', 'tr-CY'),
         AudioTrack('7', 'Turkey Turkish', 'tr-TR'),
       ], 'tr-TR')?.id,

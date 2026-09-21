@@ -14,8 +14,9 @@ generate subtitles, or claim that a missing audio language exists.
    write that record. Corrupt records are ignored, never interpreted as a
    verified track or used to block video playback.
 2. **Only actual tracks.** A new media source applies the preferred language
-   only when the native player reports that track. Exact regional matches win
-   before primary-language fallback; an unavailable language leaves the
+   only when the native player reports that track. Common ISO 639-1/2 forms
+   normalize together; exact regional matches win before primary-language
+   fallback. An unavailable language leaves the
    source's current selection intact. A source change invalidates old track
    IDs, and the selector does not replay an uncertain native command.
 3. **Tablet and lifecycle boundary.** EN/TR selection sheets explain local
