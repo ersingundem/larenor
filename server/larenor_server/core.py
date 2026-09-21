@@ -116,6 +116,8 @@ from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
 from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
+from .game_streaming.schema import migrate_game_streaming
+from .game_streaming.service import GameStreamAuthorityService
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .vault import VaultService
@@ -289,6 +291,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
                 migrate_kiosk_remote(connection)
+                migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -415,6 +418,9 @@ class CoreServices:
                     clock=settings.clock,
                 )
             )
+            self.game_streaming = GameStreamAuthorityService(
+                self.db, self.auth, settings, key, self.context)
+            self.game_streaming.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
