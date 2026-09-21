@@ -104,6 +104,8 @@ from .local_notifications.service import LocalNotificationService
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .mesh_center.runtime import build_mesh_center_gateway
+from .ev_charging.runtime import EvChargeRuntime
+from .ev_charging.schema import migrate_ev_charging
 
 
 class CoreServices:
@@ -111,7 +113,8 @@ class CoreServices:
                  transfer_limits: TransferLimits | None = None,
                  proxmox_guest_provider=None, proxmox_power_executor=None,
                  media_archive_binding_reader=None,
-                 media_archive_worker=None, mesh_center_provider=None):
+                 media_archive_worker=None, mesh_center_provider=None,
+                 ev_charge_provider=None, ev_charge_charger=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
@@ -120,6 +123,8 @@ class CoreServices:
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
         self._mesh_center_provider = mesh_center_provider
+        self._ev_charge_provider = ev_charge_provider
+        self._ev_charge_charger = ev_charge_charger
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -222,6 +227,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_tablet_fleet(connection)
+                migrate_ev_charging(connection)
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -301,6 +307,9 @@ class CoreServices:
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context)
             self.tablet_fleet.validate_storage()
+            self.ev_charging = EvChargeRuntime(
+                self.db, self.auth, settings, key, self.context,
+                self._ev_charge_provider, self._ev_charge_charger)
             self.mesh_center = (
                 None
                 if self._mesh_center_provider is None

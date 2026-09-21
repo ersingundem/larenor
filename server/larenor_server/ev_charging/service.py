@@ -154,7 +154,10 @@ class ChargePreview:
     id: str
     status: str
     plan_hash: str
+    charger_revision: int
     schedule_revision: int
+    tariff_revision: int
+    power_budget_revision: int
     required_wh: int
     slots: tuple[PlannedChargeSlot, ...]
     provider_status: dict[str, str]
@@ -535,7 +538,10 @@ class ChargePlanner:
                 raise ApiError("charge_target_unreachable", 409)
         payload = {
             "status": status,
+            "charger_revision": authority.charger_revision,
             "schedule_revision": authority.schedule_revision,
+            "tariff_revision": authority.tariff_revision,
+            "power_budget_revision": authority.power_budget_revision,
             "required_wh": required_wh,
             "slots": [asdict(slot) for slot in planned],
             "provider_status": statuses,
@@ -688,7 +694,10 @@ class ChargePlanner:
                 or preview_row["home_id"] != authority.home_id
                 or preview_row["charger_id"] != authority.charger_id
                 or preview_row["account_id"] != actor.id
+                or preview.charger_revision != authority.charger_revision
                 or preview.schedule_revision != authority.schedule_revision
+                or preview.tariff_revision != authority.tariff_revision
+                or preview.power_budget_revision != authority.power_budget_revision
                 or preview.status != "ready"
                 or not hmac.compare_digest(preview.plan_hash, expected_plan_hash)
             ):
