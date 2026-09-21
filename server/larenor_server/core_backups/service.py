@@ -205,11 +205,16 @@ class CoreBackupContract:
         return BackupCapture(manifest=manifest, payloads=payloads)
 
     def plan(self, actor: Principal):
+        if not self._export_lock.acquire(blocking=False):
+            raise ApiError("backup_busy", 409)
         try:
-            capture = self.capture(actor)
-        except BackupBlocked as error:
-            return {"status": "blocked", "blockers": error.blockers, "manifest": None}
-        return {"status": "ready", "blockers": [], "manifest": capture.manifest}
+            try:
+                capture = self.capture(actor)
+            except BackupBlocked as error:
+                return {"status": "blocked", "blockers": error.blockers, "manifest": None}
+            return {"status": "ready", "blockers": [], "manifest": capture.manifest}
+        finally:
+            self._export_lock.release()
 
     def validate_restore(self, manifest: BackupManifest):
         reasons = []

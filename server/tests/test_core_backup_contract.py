@@ -5,7 +5,6 @@ import sqlite3
 
 import pytest
 from conftest import auth, ready
-
 from larenor_server.errors import ApiError
 
 
@@ -305,3 +304,17 @@ def test_export_has_one_bounded_expensive_worker_and_never_echoes_passphrase(ser
         "message": "Another Core backup is already being created.",
     }
     assert "Never echo" not in response.text
+
+
+def test_plan_shares_the_expensive_capture_gate_with_export(server):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    lock = app.state.core.core_backups._export_lock
+    assert lock.acquire(blocking=False)
+    try:
+        response = client.get("/api/v1/admin/backups/plan", headers=auth(pair))
+    finally:
+        lock.release()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "backup_busy"
+    assert plan(client, pair)["status"] == "ready"
