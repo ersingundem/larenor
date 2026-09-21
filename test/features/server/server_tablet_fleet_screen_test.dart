@@ -90,6 +90,13 @@ void main() {
               find.byKey(const ValueKey('tablet-restart-$standardTabletId')),
               findsNothing,
             );
+            final rollout = find.byKey(
+              const ValueKey('tablet-rollout-preview'),
+            );
+            await reveal(tester, rollout);
+            final rolloutNode = actionNode(tester, rollout);
+            expect(rolloutNode.flagsCollection.isButton, isTrue);
+            expect(rolloutNode.rect.height, greaterThanOrEqualTo(48));
             final standard = find.byKey(
               const ValueKey('tablet-refresh-$standardTabletId'),
             );
@@ -157,6 +164,57 @@ void main() {
       await tester.tap(cancel);
       await tester.pumpAndSettle();
       expect(fixture.calls.where((call) => call.method == 'DELETE'), isEmpty);
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('keyboard dry-run renders verified rollout summary only', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await mount(tester, language: 'en', width: 600);
+      final action = find.byKey(const ValueKey('tablet-rollout-preview'));
+      await reveal(tester, action);
+      Focus.of(
+        tester.element(
+          find.descendant(of: action, matching: find.byType(Text)).first,
+        ),
+      ).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('tablet-rollout-release')), findsOne);
+      expect(find.byKey(const ValueKey('tablet-rollout-counts')), findsOne);
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/profiles/dry-run'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        fixture.calls.where(
+          (call) =>
+              call.url.path.endsWith('/profile') ||
+              call.url.path.endsWith('/commands'),
+        ),
+        isEmpty,
+      );
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('tablet-fleet-live-status')),
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('tablet-fleet-live-status')),
+            )
+            .flagsCollection
+            .isLiveRegion,
+        isTrue,
+      );
       expect(tester.takeException(), isNull);
     } finally {
       semantics.dispose();
