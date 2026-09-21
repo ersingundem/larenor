@@ -109,10 +109,14 @@ class VisualSensorEngine:
 
     @staticmethod
     def _fingerprint(rule: VisualSensorRule, batch: DetectionBatch) -> str:
-        return hashlib.sha256(_canonical({
-            "rule": rule.model_dump(mode="json"),
-            "batch": batch.model_dump(mode="json"),
-        })).hexdigest()
+        return hashlib.sha256(
+            _canonical(
+                {
+                    "rule": rule.model_dump(mode="json"),
+                    "batch": batch.model_dump(mode="json"),
+                }
+            )
+        ).hexdigest()
 
     def _append_event(
         self,
@@ -142,7 +146,9 @@ class VisualSensorEngine:
             "evidenceDigest": reading.evidenceDigest,
             "previous": previous,
         }
-        signature = hmac.new(self._audit_key, _canonical(public), hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            self._audit_key, _canonical(public), hashlib.sha256
+        ).hexdigest()
         self._events.append({**public, "signature": signature})
 
     def ingest(
@@ -300,11 +306,15 @@ class VisualSensorEngine:
         with self._lock:
             previous = "0" * 64
             for stored in self._events:
-                public = {key: value for key, value in stored.items() if key != "signature"}
+                public = {
+                    key: value for key, value in stored.items() if key != "signature"
+                }
                 if public.get("previous") != previous:
                     return False
                 expected = hmac.new(
-                    self._audit_key, _canonical(public), hashlib.sha256,
+                    self._audit_key,
+                    _canonical(public),
+                    hashlib.sha256,
                 ).hexdigest()
                 if not hmac.compare_digest(stored.get("signature", ""), expected):
                     return False

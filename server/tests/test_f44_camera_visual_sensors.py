@@ -113,14 +113,16 @@ def test_exact_authority_hysteresis_and_verified_automation_projection():
     assert active.evidenceDigest == "a" * 64
 
     holding = service.ingest(
-        authority(), rule(),
+        authority(),
+        rule(),
         batch("b" * 32, 13_000, detections=[]),
     )
     assert holding.state == "on"
     assert holding.transition == "holding_off"
     assert holding.automationEligible is False
     cleared = service.ingest(
-        authority(), rule(),
+        authority(),
+        rule(),
         batch("c" * 32, 16_100, detections=[]),
     )
     assert cleared.state == "off"
@@ -132,7 +134,9 @@ def test_degraded_provider_privacy_and_live_authority_fail_closed():
     current = {ACCOUNT: authority()}
     service = engine(current=current)
     degraded = service.ingest(
-        authority(), rule(), batch("d" * 32, 20_000, status="degraded"),
+        authority(),
+        rule(),
+        batch("d" * 32, 20_000, status="degraded"),
     )
     assert degraded.state == "unknown"
     assert degraded.transition == "provider_degraded"
@@ -140,13 +144,21 @@ def test_degraded_provider_privacy_and_live_authority_fail_closed():
     exported = service.export(authority(), RULE)
     assert exported["status"] == "degraded"
     encoded = str(exported)
-    for forbidden in ("sessionFamilyId", "auditKey", "image/jpeg", "boundingBox", "raw"):
+    for forbidden in (
+        "sessionFamilyId",
+        "auditKey",
+        "image/jpeg",
+        "boundingBox",
+        "raw",
+    ):
         assert forbidden not in encoded
 
     continuity = engine()
     continuity.ingest(authority(), rule(), batch("7" * 32, 1_000))
     continuity.ingest(
-        authority(), rule(), batch("8" * 32, 2_000, status="degraded"),
+        authority(),
+        rule(),
+        batch("8" * 32, 2_000, status="degraded"),
     )
     resumed = continuity.ingest(authority(), rule(), batch("9" * 32, 4_000))
     assert resumed.transition == "holding_on"
@@ -164,8 +176,13 @@ def test_degraded_provider_privacy_and_live_authority_fail_closed():
         )
     with pytest.raises(ValueError):
         Detection.model_validate(
-            {"schemaVersion": 1, "label": "person", "confidenceBps": 9000,
-             "count": 1, "boundingBox": [0, 0, 1, 1]}
+            {
+                "schemaVersion": 1,
+                "label": "person",
+                "confidenceBps": 9000,
+                "count": 1,
+                "boundingBox": [0, 0, 1, 1],
+            }
         )
 
 
@@ -178,9 +195,16 @@ def test_replay_order_rule_and_audit_integrity_are_fail_closed():
     assert service.eventCount == 1
 
     changed = original.model_copy(
-        update={"detections": [Detection(
-            schemaVersion=1, label="person", confidenceBps=9500, count=1,
-        )]},
+        update={
+            "detections": [
+                Detection(
+                    schemaVersion=1,
+                    label="person",
+                    confidenceBps=9500,
+                    count=1,
+                )
+            ]
+        },
     )
     with pytest.raises(ApiError, match="idempotency_conflict"):
         service.ingest(authority(), rule(), changed)
@@ -209,18 +233,22 @@ def test_contract_bounds_reject_unsafe_labels_expired_evidence_and_unknown_camer
 
     service = engine()
     expired = batch("2" * 32, 40_000).model_copy(
-        update={"evidence": EvidenceDescriptor(
-            schemaVersion=1,
-            digest="b" * 64,
-            byteLength=1,
-            mediaType="image/jpeg",
-            expiresAtMs=39_999,
-        )},
+        update={
+            "evidence": EvidenceDescriptor(
+                schemaVersion=1,
+                digest="b" * 64,
+                byteLength=1,
+                mediaType="image/jpeg",
+                expiresAtMs=39_999,
+            )
+        },
     )
     with pytest.raises(ApiError, match="invalid_request"):
         service.ingest(authority(), rule(), expired)
     foreign = rule().model_copy(update={"cameraId": "0" * 32})
     with pytest.raises(ApiError, match="not_found"):
         engine(current_rule={RULE: foreign}).ingest(
-            authority(), foreign, batch("3" * 32, 41_000),
+            authority(),
+            foreign,
+            batch("3" * 32, 41_000),
         )
