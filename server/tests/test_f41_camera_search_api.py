@@ -95,11 +95,15 @@ def _body(**updates):
 def test_route_binds_authenticated_account_home_camera_and_private_scope(server):
     app, client, _settings, _clock = server
     pair = ready(server)
-    _principal, installed = _install(app, pair)
     context = app.state.core.context
     path = f"/api/v1/camera-search/{context.coreId}/{context.homeId}/search"
 
     assert client.post(path, json=_body()).status_code == 401
+    unavailable = client.post(path, headers=auth(pair), json=_body())
+    assert unavailable.status_code == 503
+    assert unavailable.json()["error"]["code"] == "service_unavailable"
+
+    _principal, installed = _install(app, pair)
     foreign = client.post(
         f"/api/v1/camera-search/{context.coreId}/{'0' * 32}/search",
         headers=auth(pair),
