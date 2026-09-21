@@ -2,7 +2,7 @@
 
 This package establishes a fail-closed Core foundation for read-only Zigbee
 and Thread diagnostics plus explicitly supported Zigbee OTA. Queue progress
-remains at 18/125 and selected-feature progress remains at 0/63. Durable command
+remains at 21/125 and selected-feature progress remains at 0/63. Durable command
 storage, authenticated HTTP APIs, coordinator backup/restore, production radio
 workers, Android tablet UI, and physical device validation remain open delivery
 gates; Thread health does not claim Matter ownership or universal Thread OTA.
@@ -25,7 +25,7 @@ Exactly three user acceptance criteria are in scope:
 
 ## TDD evidence
 
-The RED commit `981f6fc4` failed collection because the
+The RED commit `e5f52322` failed collection because the
 `larenor_server.mesh_center` package did not exist. The GREEN matrix contains
 exactly three focused tests covering nested topology drift and channel advice,
 signed catalog/compatibility/power/route boundaries, and confirmed or uncertain
