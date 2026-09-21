@@ -329,8 +329,8 @@ class EpaperSnapshotService:
             result = EpaperAckResult(
                 schemaVersion=1,
                 requestId=ack.requestId,
-                status="verified" if ack.status == "complete" else "partial",
-                verified=ack.status == "complete",
+                status="acknowledged" if ack.status == "complete" else "partial",
+                verified=False,
                 snapshotDigest=snapshot.renderDigest,
             )
             prior = self._acks.get(ack.requestId)
@@ -367,9 +367,5 @@ class EpaperSnapshotService:
                 deviceId=device.deviceId,
                 snapshotDigest=snapshot.renderDigest,
                 status=status,
-                verifiedDigest=(
-                    snapshot.renderDigest
-                    if result is not None and result.verified
-                    else None
-                ),
+                verifiedDigest=None,
             )

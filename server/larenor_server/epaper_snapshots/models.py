@@ -244,13 +244,13 @@ class EpaperDeliveryAck(FrozenModel):
 class EpaperAckResult(FrozenModel):
     schemaVersion: Literal[1]
     requestId: Identity
-    status: Literal["verified", "partial"]
+    status: Literal["acknowledged", "partial"]
     verified: bool
     snapshotDigest: Snapshot
 
     @model_validator(mode="after")
     def coherent_result(self):
-        if (self.status == "verified") != self.verified:
+        if self.verified:
             raise ValueError("invalid_ack_result")
         return self
 
@@ -259,11 +259,11 @@ class EpaperDeliveryStatus(FrozenModel):
     schemaVersion: Literal[1]
     deviceId: Identity
     snapshotDigest: Snapshot | None
-    status: Literal["empty", "pending", "partial", "verified", "stale"]
+    status: Literal["empty", "pending", "partial", "acknowledged", "stale"]
     verifiedDigest: Snapshot | None
 
     @model_validator(mode="after")
     def coherent_status(self):
-        if (self.status == "verified") != (self.verifiedDigest is not None):
+        if self.verifiedDigest is not None:
             raise ValueError("invalid_delivery_status")
         return self

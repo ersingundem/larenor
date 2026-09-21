@@ -10,7 +10,6 @@ enum EpaperManagementState {
   awaitingConfirmation,
   busy,
   pendingDelivery,
-  verified,
   failed,
   stale,
 }
@@ -18,7 +17,8 @@ enum EpaperManagementState {
 /// Owns one visible account/session-bound management interaction.
 ///
 /// Lost or late command results are deliberately not replayed. A command is
-/// successful only after an exact Core receipt and a fresh device readback.
+/// acknowledged only after an exact Core receipt and a fresh Core readback.
+/// A user-supplied ACK never proves delivery to the physical display.
 final class EpaperManagementController extends ChangeNotifier {
   EpaperManagementController({
     required this.api,
@@ -240,15 +240,6 @@ final class EpaperManagementController extends ChangeNotifier {
         _stale();
         return;
       }
-      final exact =
-          readback.authority == authority &&
-          readback.deviceId == preview.deviceId &&
-          readback.deviceRevision == preview.deviceRevision &&
-          readback.layoutRevision == preview.expectedLayoutRevision &&
-          readback.snapshotTrust == EpaperSnapshotTrust.verified &&
-          readback.snapshotDigest == receipt.observedSnapshotDigest &&
-          readback.verifiedDigest == receipt.observedSnapshotDigest &&
-          readback.isCoherentAt(_clock());
       final pending =
           receipt.status == EpaperCommandStatus.uncertain &&
           readback.authority == authority &&
@@ -258,9 +249,10 @@ final class EpaperManagementController extends ChangeNotifier {
           const {
             EpaperSnapshotTrust.pending,
             EpaperSnapshotTrust.partial,
+            EpaperSnapshotTrust.acknowledged,
           }.contains(readback.snapshotTrust) &&
           readback.isCoherentAt(_clock());
-      if (!exact && !pending) {
+      if (!pending) {
         pendingPreview = null;
         state = EpaperManagementState.failed;
       } else {
@@ -273,9 +265,7 @@ final class EpaperManagementController extends ChangeNotifier {
         } else {
           _devices[index] = readback;
           pendingPreview = null;
-          state = exact
-              ? EpaperManagementState.verified
-              : EpaperManagementState.pendingDelivery;
+          state = EpaperManagementState.pendingDelivery;
         }
       }
     } catch (_) {

@@ -90,9 +90,21 @@ void main() {
     'reachable': true,
     'snapshotTrust': trust,
     'snapshotDigest': '1' * 64,
-    'verifiedDigest': trust == 'verified' ? '1' * 64 : null,
+    'verifiedDigest': null,
     'expiresAtMs': DateTime.utc(2030).millisecondsSinceEpoch,
   };
+
+  test('legacy verified device claims cannot enter the client trust model', () {
+    expect(
+      () => EpaperDeviceStatus.fromJson(device(trust: 'verified')),
+      throwsArgumentError,
+    );
+    final staleDigest = EpaperDeviceStatus.fromJson({
+      ...device(trust: 'acknowledged'),
+      'verifiedDigest': '1' * 64,
+    });
+    expect(staleDigest.isCoherentAt(DateTime.utc(2029)), isFalse);
+  });
 
   test(
     'transport binds session and route and never replays late commands',

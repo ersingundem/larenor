@@ -1,6 +1,5 @@
 from conftest import auth, ready
 from fastapi.testclient import TestClient
-
 from larenor_server.app import create_app
 
 DEVICE = "1" * 32
@@ -96,7 +95,7 @@ def _authority_body(value):
 
 
 def test_persistent_mapping_authenticated_management_and_bounded_poll(server):
-    _app, client, settings, clock = server
+    app, client, settings, clock = server
     pair = ready(server)
     context, current = _authority(server, pair)
     expected = _authority_body(current)
@@ -176,19 +175,33 @@ def test_persistent_mapping_authenticated_management_and_bounded_poll(server):
         ack_path, headers=auth(pair), json={**expected, "ack": acknowledgement},
     )
     assert accepted.status_code == 200
-    assert accepted.json()["verified"] is True
+    assert accepted.json()["status"] == "acknowledged"
+    assert accepted.json()["verified"] is False
     assert client.post(
         ack_path, headers=auth(pair), json={**expected, "ack": acknowledgement},
     ).json() == accepted.json()
+
+    # An earlier release stored a complete user ACK as a device verification.
+    # Its authenticated legacy row must not regain physical trust on upgrade.
+    with app.state.core.db.transaction() as connection:
+        legacy = dict(connection.execute(
+            "SELECT * FROM epaper_devices WHERE device_id=?", (DEVICE,),
+        ).fetchone())
+        legacy["verified_digest"] = snapshot["renderDigest"]
+        legacy["authentication_tag"] = app.state.core.epaper._device_tag(legacy)
+        connection.execute(
+            "UPDATE epaper_devices SET verified_digest=?,authentication_tag=? WHERE device_id=?",
+            (legacy["verified_digest"], legacy["authentication_tag"], DEVICE),
+        )
 
     readback = client.post(
         f"/api/v1/epaper/{context.coreId}/{context.homeId}/devices/{DEVICE}",
         headers=auth(pair), json=expected,
     )
-    assert readback.json()["snapshotTrust"] == "verified"
-    assert readback.json()["verifiedDigest"] == snapshot["renderDigest"]
+    assert readback.json()["snapshotTrust"] == "acknowledged"
+    assert readback.json()["verifiedDigest"] is None
 
-    # The second Core process reads the durable mapping and verified receipt.
+    # Restart preserves the ACK without promoting it to physical proof.
     with TestClient(create_app(settings)) as restarted:
         login = restarted.post(
             "/api/v1/auth/login",
@@ -204,7 +217,8 @@ def test_persistent_mapping_authenticated_management_and_bounded_poll(server):
             headers=auth(login), json=_authority_body(new_authority),
         )
         assert after.status_code == 200
-        assert after.json()["devices"][0]["snapshotTrust"] == "verified"
+        assert after.json()["devices"][0]["snapshotTrust"] == "acknowledged"
+        assert after.json()["devices"][0]["verifiedDigest"] is None
 
 
 def test_session_and_revision_drift_fail_closed_without_replay(server):

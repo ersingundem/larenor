@@ -1,7 +1,6 @@
 # ruff: noqa: C408
 
 import pytest
-
 from larenor_server.epaper_snapshots import (
     EpaperAuthority,
     EpaperCardData,
@@ -281,13 +280,10 @@ def test_offline_pull_and_exact_complete_ack_are_idempotent():
         status="complete",
     )
     accepted = core.acknowledge(authority(), ack)
-    assert (accepted.status, accepted.verified) == ("verified", True)
+    assert (accepted.status, accepted.verified) == ("acknowledged", False)
     assert core.acknowledge(authority(), ack) == accepted
     verified = core.delivery_status(authority(), deviceId=DEVICE)
-    assert (verified.status, verified.verifiedDigest) == (
-        "verified",
-        snapshot.renderDigest,
-    )
+    assert (verified.status, verified.verifiedDigest) == ("acknowledged", None)
 
 
 def test_new_partial_or_expired_snapshot_never_reuses_old_verified_state():
@@ -319,7 +315,7 @@ def test_new_partial_or_expired_snapshot_never_reuses_old_verified_state():
         receivedFrames=old_pull.frameCount,
         status="complete",
     )
-    assert core.acknowledge(authority(), old_ack).verified is True
+    assert core.acknowledge(authority(), old_ack).verified is False
 
     current_data[0] = data(revision=24)
     with pytest.raises(ApiError) as drift_error:

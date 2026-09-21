@@ -82,7 +82,7 @@ final class EpaperClientAuthority {
   String toString() => 'EpaperClientAuthority(redacted)';
 }
 
-enum EpaperSnapshotTrust { empty, pending, partial, verified, stale }
+enum EpaperSnapshotTrust { empty, pending, partial, acknowledged, stale }
 
 enum EpaperManagementAction { refresh }
 
@@ -190,12 +190,10 @@ final class EpaperDeviceStatus {
     return switch (snapshotTrust) {
       EpaperSnapshotTrust.empty =>
         snapshotDigest == null && verifiedDigest == null,
-      EpaperSnapshotTrust.pending || EpaperSnapshotTrust.partial =>
+      EpaperSnapshotTrust.pending ||
+      EpaperSnapshotTrust.partial ||
+      EpaperSnapshotTrust.acknowledged =>
         snapshotDigest != null && verifiedDigest == null,
-      EpaperSnapshotTrust.verified =>
-        snapshotDigest != null &&
-            snapshotDigest == verifiedDigest &&
-            expiresAt.isAfter(now),
       EpaperSnapshotTrust.stale => snapshotDigest != null,
     };
   }

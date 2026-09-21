@@ -100,6 +100,22 @@ class EpaperManagement:
             row["command_digest"],
         ])
 
+    def _command_digest(
+        self, authority_fields, device_id, mapping_revision,
+        device_revision, layout_revision, action,
+    ):
+        command = {
+            "authority": authority_fields,
+            "deviceId": device_id,
+            "mappingRevision": mapping_revision,
+            "deviceRevision": device_revision,
+            "layoutRevision": layout_revision,
+            "action": action,
+        }
+        return hashlib.sha256(
+            b"larenor-epaper-command-v2\0" + self._canonical(command).encode("utf-8")
+        ).hexdigest()
+
     def _poll_tag(self, row):
         return self._tag("poll", [
             row["request_id"], row["device_id"], row["device_revision"],
@@ -236,16 +252,24 @@ class EpaperManagement:
             trust = "empty"
         elif now_ms >= snapshot.expiresAtMs:
             trust = "stale"
-        elif row["verified_digest"] == snapshot.renderDigest:
-            trust = "verified"
         else:
             poll = None
             with self.db.connection() as connection:
                 poll = connection.execute(
-                    "SELECT status FROM epaper_polls WHERE device_id=? AND render_digest=? "
+                    "SELECT * FROM epaper_polls WHERE device_id=? AND render_digest=? "
                     "ORDER BY rowid DESC LIMIT 1", (device.deviceId, snapshot.renderDigest),
                 ).fetchone()
-            trust = "partial" if poll is not None and poll["status"] == "partial" else "pending"
+            if poll is not None and not hmac.compare_digest(
+                poll["authentication_tag"], self._poll_tag(poll)
+            ):
+                raise StartupError("epaper_snapshot_storage_invalid")
+            # Historical `verified` rows only record an account-supplied ACK.
+            # No paired bridge can attest physical delivery yet.
+            trust = (
+                "acknowledged" if poll is not None and poll["status"] == "verified"
+                else "partial" if poll is not None and poll["status"] == "partial"
+                else "pending"
+            )
         return {
             "schemaVersion": 1,
             "authority": {key: authority[key] for key in (
@@ -264,7 +288,7 @@ class EpaperManagement:
             "reachable": device.active and device.connectivity == "online",
             "snapshotTrust": trust,
             "snapshotDigest": None if snapshot is None else snapshot.renderDigest,
-            "verifiedDigest": row["verified_digest"],
+            "verifiedDigest": None,
             "expiresAtMs": 0 if snapshot is None else snapshot.expiresAtMs,
         }
 
@@ -300,20 +324,16 @@ class EpaperManagement:
             if body.expectedDeviceRevision != str(device.revision):
                 raise ApiError("revision_conflict", 409)
             request_id = uuid.uuid4().hex
-            command = {
-                "authority": body.authority_fields(), "deviceId": device_id,
-                "deviceRevision": device.revision, "layoutRevision": layout.revision,
-                "action": body.action,
-            }
             row = {
                 "request_id": request_id, "device_id": device_id,
                 "actor_id": actor.id, "session_family_id": actor.family_id,
                 "action": body.action, "device_revision": device.revision,
                 "layout_revision": layout.revision,
                 "expires_at": now + PREVIEW_TTL_SECONDS, "state": "pending",
-                "command_digest": hashlib.sha256(
-                    b"larenor-epaper-command-v1\0" + self._canonical(command).encode("utf-8")
-                ).hexdigest(),
+                "command_digest": self._command_digest(
+                    body.authority_fields(), device_id, device_row["revision"],
+                    device.revision, layout.revision, body.action,
+                ),
             }
             row["authentication_tag"] = self._preview_tag(row)
             connection.execute(
@@ -374,6 +394,14 @@ class EpaperManagement:
             if (
                 config["device"].revision != preview["device_revision"]
                 or config["layout"].revision != preview["layout_revision"]
+                or not hmac.compare_digest(
+                    preview["command_digest"],
+                    self._command_digest(
+                        body.authority_fields(), preview["device_id"],
+                        row["revision"], config["device"].revision,
+                        config["layout"].revision, preview["action"],
+                    ),
+                )
             ):
                 raise ApiError("revision_conflict", 409)
             snapshot = self._compose(authority, config)
@@ -485,11 +513,14 @@ class EpaperManagement:
                 ack.status == "complete" and ack.receivedFrames != ack.frameCount
             ) or (ack.status == "partial" and ack.receivedFrames >= ack.frameCount):
                 raise ApiError("revision_conflict", 409)
+            # Keep the legacy SQLite value for backward-compatible idempotency;
+            # it is never exposed as physical verification.
             status = "verified" if ack.status == "complete" else "partial"
+            public_status = "acknowledged" if status == "verified" else "partial"
             if poll["status"] != "pending":
                 if poll["status"] == status and poll["received_frames"] == ack.receivedFrames:
                     return {"schemaVersion": 1, "requestId": ack.requestId,
-                            "status": status, "verified": status == "verified",
+                            "status": public_status, "verified": False,
                             "snapshotDigest": snapshot.renderDigest}
                 raise ApiError("revision_conflict", 409)
             changed = dict(poll)
@@ -499,16 +530,8 @@ class EpaperManagement:
                 "UPDATE epaper_polls SET status=?,received_frames=?,authentication_tag=? WHERE request_id=?",
                 (status, ack.receivedFrames, changed["authentication_tag"], ack.requestId),
             )
-            if status == "verified":
-                updated = dict(device_row)
-                updated["verified_digest"] = snapshot.renderDigest
-                updated["authentication_tag"] = self._device_tag(updated)
-                connection.execute(
-                    "UPDATE epaper_devices SET verified_digest=?,authentication_tag=? WHERE device_id=?",
-                    (snapshot.renderDigest, updated["authentication_tag"], device_id),
-                )
         return {"schemaVersion": 1, "requestId": ack.requestId,
-                "status": status, "verified": status == "verified",
+                "status": public_status, "verified": False,
                 "snapshotDigest": snapshot.renderDigest}
 
     def validate_storage(self):

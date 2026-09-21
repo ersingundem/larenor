@@ -23,7 +23,7 @@ const _authority = EpaperClientAuthority(
 );
 
 EpaperDeviceStatus _device({
-  EpaperSnapshotTrust trust = EpaperSnapshotTrust.verified,
+  EpaperSnapshotTrust trust = EpaperSnapshotTrust.acknowledged,
   bool stored = true,
   bool reachable = true,
   String layoutRevision = 'layout-r4',
@@ -40,7 +40,7 @@ EpaperDeviceStatus _device({
   reachable: reachable,
   snapshotTrust: trust,
   snapshotDigest: trust == EpaperSnapshotTrust.empty ? null : 'a' * 64,
-  verifiedDigest: trust == EpaperSnapshotTrust.verified ? 'a' * 64 : null,
+  verifiedDigest: null,
   expiresAt: DateTime.utc(2030),
 );
 
@@ -53,8 +53,8 @@ final class _Api implements EpaperManagementApi {
   var readbackCalls = 0;
   var cancelCalls = 0;
   var mapCalls = 0;
-  var confirmStatus = EpaperCommandStatus.applied;
-  var readbackTrust = EpaperSnapshotTrust.verified;
+  var confirmStatus = EpaperCommandStatus.uncertain;
+  var readbackTrust = EpaperSnapshotTrust.acknowledged;
 
   @override
   Future<EpaperDeviceStatus> map(
@@ -156,9 +156,7 @@ final class _Api implements EpaperManagementApi {
       reachable: pending.reachable,
       snapshotTrust: readbackTrust,
       snapshotDigest: 'a' * 64,
-      verifiedDigest: readbackTrust == EpaperSnapshotTrust.verified
-          ? 'a' * 64
-          : null,
+      verifiedDigest: null,
       expiresAt: pending.expiresAt,
     );
   }
@@ -184,7 +182,7 @@ void main() {
       expect(controller.devices.single.reachable, isTrue);
       expect(
         controller.devices.single.snapshotTrust,
-        EpaperSnapshotTrust.verified,
+        EpaperSnapshotTrust.acknowledged,
       );
 
       api.devices = [_device(reachable: false)];
@@ -274,7 +272,7 @@ void main() {
     expect(api.mapCalls, 1);
   });
 
-  test('refresh requires confirmation plus exact verified readback', () async {
+  test('refresh remains unverified after exact Core readback', () async {
     var current = true;
     final api = _Api();
     final controller = EpaperManagementController(
@@ -321,7 +319,7 @@ void main() {
       EpaperManagementAction.refresh,
     );
     await controller.confirmPending();
-    expect(controller.state, EpaperManagementState.verified);
+    expect(controller.state, EpaperManagementState.pendingDelivery);
     expect(controller.devices.single.layoutRevision, 'layout-r4');
     expect(api.confirmCalls, 2);
     expect(api.readbackCalls, 1);
@@ -378,7 +376,9 @@ void main() {
                   find.byKey(const ValueKey('epaper-state-hall-display')),
                 )
                 .label,
-            contains(language == 'tr' ? 'Doğrulandı' : 'Verified'),
+            contains(
+              language == 'tr' ? 'cihaz doğrulanmadı' : 'device unverified',
+            ),
           );
 
           Focus.of(

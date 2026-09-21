@@ -21,8 +21,8 @@ final class _EpaperStrings {
   String get title => tr ? 'E-paper ekranlar' : 'E-paper displays';
   String get overview => tr ? 'Güvenli durum' : 'Safe status';
   String get overviewHint => tr
-      ? 'Kayıt, erişim ve doğrulanmış görüntü ayrı kanıtlardır.'
-      : 'Stored, reachable, and verified image are separate evidence.';
+      ? 'Kayıt, erişim ve teslim bildirimi ayrı durumlardır.'
+      : 'Storage, reachability, and delivery reports are separate states.';
   String get loading => tr ? 'Ekranlar yükleniyor' : 'Loading displays';
   String get empty => tr ? 'Kayıtlı ekran yok' : 'No stored displays';
   String get failed => tr
@@ -31,12 +31,9 @@ final class _EpaperStrings {
   String get stale => tr
       ? 'Oturum veya ekran görünürlüğü değişti. Durum temizlendi.'
       : 'Session or screen visibility changed. Status was cleared.';
-  String get verifiedAction => tr
-      ? 'İşlem ve yeni ekran durumu doğrulandı.'
-      : 'Action and new display state verified.';
   String get pendingDelivery => tr
-      ? 'Görüntü yayınlandı; cihaz teslim doğrulaması bekleniyor.'
-      : 'Snapshot published; waiting for device delivery verification.';
+      ? 'Görüntü yayınlandı; cihazda gösterildiği henüz doğrulanmadı.'
+      : 'Snapshot published; display delivery is not yet verified.';
   String get retry => tr ? 'Tekrar dene' : 'Retry';
   String get add => tr ? 'Ekran eşle' : 'Map display';
   String get addTitle => tr ? 'E-paper ekran eşle' : 'Map e-paper display';
@@ -55,7 +52,10 @@ final class _EpaperStrings {
     EpaperSnapshotTrust.empty => tr ? 'Görüntü yok' : 'No snapshot',
     EpaperSnapshotTrust.pending => tr ? 'Bekliyor' : 'Pending',
     EpaperSnapshotTrust.partial => tr ? 'Kısmi' : 'Partial',
-    EpaperSnapshotTrust.verified => tr ? 'Doğrulandı' : 'Verified',
+    EpaperSnapshotTrust.acknowledged =>
+      tr
+          ? 'Teslim bildirimi alındı; cihaz doğrulanmadı'
+          : 'ACK received; device unverified',
     EpaperSnapshotTrust.stale => tr ? 'Güncel değil' : 'Stale',
   };
   String get refresh => tr ? 'Ekranı yenile' : 'Refresh display';
@@ -66,8 +66,8 @@ final class _EpaperStrings {
   String confirmBody(EpaperManagementAction action) => switch (action) {
     EpaperManagementAction.refresh =>
       tr
-          ? 'Larenor Core güncel görüntüyü hazırlayıp cihaza iletecek. Sonuç cihazdan tekrar okunmadan başarılı sayılmaz.'
-          : 'Larenor Core will prepare and deliver the current image. Success requires a device readback.',
+          ? 'Larenor Core güncel görüntüyü hazırlayacak. Teslim bildirimi cihazda gösterildiğini kanıtlamaz.'
+          : 'Larenor Core will prepare the current image. A delivery report does not prove it appeared on the display.',
   };
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Onayla' : 'Confirm';
@@ -282,10 +282,6 @@ class _StatusMessage extends StatelessWidget {
         CupertinoIcons.lock_shield,
         strings.stale,
       ),
-      EpaperManagementState.verified => (
-        CupertinoIcons.checkmark_circle,
-        strings.verifiedAction,
-      ),
       EpaperManagementState.pendingDelivery => (
         CupertinoIcons.clock,
         strings.pendingDelivery,
@@ -368,9 +364,7 @@ class _DeviceSection extends StatelessWidget {
                       : strings.unreachable,
                 ),
                 _Evidence(
-                  icon: device.snapshotTrust == EpaperSnapshotTrust.verified
-                      ? CupertinoIcons.checkmark_shield
-                      : CupertinoIcons.clock,
+                  icon: CupertinoIcons.clock,
                   label: strings.trust(device.snapshotTrust),
                 ),
               ],
@@ -562,7 +556,11 @@ class _Evidence extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
-    children: [Icon(icon, size: 18), const SizedBox(width: 6), Text(label)],
+    children: [
+      Icon(icon, size: 18),
+      const SizedBox(width: 6),
+      Flexible(child: Text(label)),
+    ],
   );
 }
 
