@@ -134,4 +134,3 @@ class VisualSensorReading(FrozenModel):
     evidenceDigest: Digest
     confidenceBps: int = Field(ge=0, le=10_000)
     count: int = Field(ge=0, le=1_000)
-
