@@ -128,10 +128,16 @@ abstract class MediaSessionState<T extends ConsumerStatefulWidget>
       !sessionExpired &&
       generation == sessionGeneration;
 
+  /// A captured action belongs only to the visible route and exact session.
+  bool mediaActionCurrent(int generation) =>
+      sessionCurrent(generation) &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent != false;
+
   VoidCallback guardedMediaAction(VoidCallback action) {
     final generation = sessionGeneration;
     return () {
-      if (sessionCurrent(generation)) action();
+      if (mediaActionCurrent(generation)) action();
     };
   }
 
