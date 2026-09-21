@@ -35,6 +35,7 @@ final class WorkshopStrings {
     required this.confirm,
     required this.dismiss,
     required this.intentRecorded,
+    required this.locked,
   });
 
   final String title, refresh, loading, empty, unavailable, stale;
@@ -43,6 +44,7 @@ final class WorkshopStrings {
   final String doorOpen, emergency, progress, material;
   final String previewPause, previewCancel, confirmTitle, confirmBody;
   final String confirm, dismiss, intentRecorded;
+  final String locked;
 
   static const en = WorkshopStrings(
     title: 'Workshop',
@@ -70,6 +72,7 @@ final class WorkshopStrings {
     confirm: 'Confirm request',
     dismiss: 'Not now',
     intentRecorded: 'Request recorded. Delivery has not been claimed.',
+    locked: 'Unlock Settings and verify an administrator Core session to manage workshop printers.',
   );
 
   static const tr = WorkshopStrings(
@@ -98,6 +101,7 @@ final class WorkshopStrings {
     confirm: 'İsteği onayla',
     dismiss: 'Şimdi değil',
     intentRecorded: 'İstek kaydedildi. İletildiği iddia edilmedi.',
+    locked: 'Atölye yazıcılarını yönetmek için Ayarlar kilidini açın ve yönetici Core oturumunu doğrulayın.',
   );
 }
 

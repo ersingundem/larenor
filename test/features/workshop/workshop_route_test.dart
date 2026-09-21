@@ -21,6 +21,7 @@ void main() {
     Widget home, {
     String language = 'en',
     double width = 600,
+    bool settle = true,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
@@ -43,7 +44,11 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
   }
 
   setUp(() async {
@@ -123,9 +128,13 @@ void main() {
       return fixture.defaultResponse(request);
     };
     await tester.pumpWidget(const SizedBox.shrink());
-    await mount(tester, WorkshopRoute(gateCurrent: () => true));
+    await mount(
+      tester,
+      WorkshopRoute(gateCurrent: () => true),
+      settle: false,
+    );
     await tester.pump();
-    await fixture.account.signOut();
+    unawaited(fixture.account.signOut());
     delayed.complete(fixture.json({'schemaVersion': 1, 'printers': []}));
     await tester.pumpAndSettle();
     expect(find.byType(WorkshopScreen), findsNothing);

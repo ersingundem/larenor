@@ -1,4 +1,5 @@
 import '../../server/data/larenor_server_api.dart';
+import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/workshop_models.dart';
 
@@ -135,20 +136,22 @@ final class WorkshopApi implements WorkshopGateway {
         if (values is! List || values.length > 100) {
           throw const LarenorServerException('invalid_response');
         }
-        final receipts = values.map((raw) {
-          final value = serverObject(raw);
-          final action = switch (value['action']) {
-            'pause' => WorkshopAction.pause,
-            'cancel' => WorkshopAction.cancel,
-            _ => throw const LarenorServerException('invalid_response'),
-          };
-          return WorkshopIntentReceipt.fromJson(
-            {'receipt': value},
-            _context,
-            printerId: preview.printerId,
-            action: action,
-          );
-        }).toList(growable: false);
+        final receipts = values
+            .map((raw) {
+              final value = serverObject(raw);
+              final action = switch (value['action']) {
+                'pause' => WorkshopAction.pause,
+                'cancel' => WorkshopAction.cancel,
+                _ => throw const LarenorServerException('invalid_response'),
+              };
+              return WorkshopIntentReceipt.fromJson(
+                {'receipt': value},
+                _context,
+                printerId: preview.printerId,
+                action: action,
+              );
+            })
+            .toList(growable: false);
         final matches = receipts.where((receipt) => receipt.id == submitted.id);
         if (matches.length != 1) {
           throw const LarenorServerException('invalid_response');
@@ -163,8 +166,7 @@ final class WorkshopApi implements WorkshopGateway {
                 submitted.authority.printerRevision ||
             retained.authority.serviceRevision !=
                 submitted.authority.serviceRevision ||
-            retained.authority.jobRevision !=
-                submitted.authority.jobRevision ||
+            retained.authority.jobRevision != submitted.authority.jobRevision ||
             retained.authority.materialRevision !=
                 submitted.authority.materialRevision ||
             retained.authority.safetyRevision !=
@@ -179,4 +181,82 @@ final class WorkshopApi implements WorkshopGateway {
 
   @override
   String toString() => 'WorkshopApi';
+}
+
+/// Rebinds every request to the account controller's current authenticated
+/// session. The retained route authority must still match after token refresh
+/// and after the HTTP response; account/home changes permanently fail closed.
+final class AccountWorkshopGateway implements WorkshopGateway {
+  AccountWorkshopGateway({
+    required ServerAccountController account,
+    required bool Function() isCurrent,
+  }) : _account = account,
+       _current = isCurrent,
+       _generation = account.generation,
+       _context = account.session?.context,
+       _userId = account.session?.user.id,
+       _endpoint = account.session?.endpoint.baseUrl;
+
+  final ServerAccountController _account;
+  final bool Function() _current;
+  final int _generation;
+  final ServerContext? _context;
+  final String? _userId, _endpoint;
+  bool _retired = false;
+
+  bool _valid() {
+    if (_retired || !_account.isCurrent(_generation)) return false;
+    try {
+      final session = _account.session;
+      return _current() &&
+          session != null &&
+          session.context == _context &&
+          session.user.id == _userId &&
+          session.user.canAdminister &&
+          !session.user.mustChangePassword &&
+          session.endpoint.baseUrl == _endpoint;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<T> _run<T>(Future<T> Function(WorkshopApi api) operation) async {
+    if (!_valid()) throw const LarenorServerException('cancelled');
+    return _account.withSession((raw, session) async {
+      if (!_valid() ||
+          session.context != _context ||
+          session.user.id != _userId ||
+          session.endpoint.baseUrl != _endpoint) {
+        throw const LarenorServerException('cancelled');
+      }
+      final api = WorkshopApi(raw, session, isCurrent: _valid);
+      try {
+        final result = await operation(api);
+        if (!_valid()) throw const LarenorServerException('cancelled');
+        return result;
+      } finally {
+        api.retire();
+      }
+    });
+  }
+
+  @override
+  Future<List<WorkshopPrinter>> load() => _run((api) => api.load());
+
+  @override
+  Future<WorkshopPreview> preview({
+    required WorkshopPrinter printer,
+    required WorkshopAction action,
+    required String requestKey,
+  }) => _run(
+    (api) =>
+        api.preview(printer: printer, action: action, requestKey: requestKey),
+  );
+
+  @override
+  Future<WorkshopIntentReceipt> confirm(WorkshopPreview preview) =>
+      _run((api) => api.confirm(preview));
+
+  @override
+  void retire() => _retired = true;
 }

@@ -10,6 +10,7 @@ import '../../backup/presentation/backup_screen.dart';
 import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../workshop/presentation/workshop_route.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
 import 'panes/display_pane.dart';
@@ -25,6 +26,7 @@ enum SettingsCategory {
   server,
   remoteAccess,
   display,
+  workshop,
   security,
   homeAssistant,
   intercom,
@@ -44,12 +46,14 @@ class SettingsSplitScreen extends StatefulWidget {
     this.onExit,
     this.backupGateCurrent,
     this.remoteGateCurrent,
+    this.workshopGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
   final bool Function()? remoteGateCurrent;
+  final bool Function()? workshopGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -138,6 +142,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       runFileDialog: widget.runFileDialog,
                       backupGateCurrent: widget.backupGateCurrent,
                       remoteGateCurrent: widget.remoteGateCurrent,
+                      workshopGateCurrent: widget.workshopGateCurrent,
                     ),
                   ),
                 ),
@@ -160,6 +165,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
             remoteGateCurrent: widget.remoteGateCurrent,
+            workshopGateCurrent: widget.workshopGateCurrent,
           ),
         ),
       ),
@@ -198,6 +204,7 @@ Widget paneFor(
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
   bool Function()? remoteGateCurrent,
+  bool Function()? workshopGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -210,6 +217,8 @@ Widget paneFor(
       return const ServerConnectionScreen();
     case SettingsCategory.display:
       return DisplayPane(runFileDialog: runFileDialog);
+    case SettingsCategory.workshop:
+      return WorkshopRoute(gateCurrent: workshopGateCurrent ?? () => false);
     case SettingsCategory.security:
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
@@ -269,6 +278,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.brightness,
         CupertinoColors.systemYellow,
         l10n.settingsCategoryDisplay,
+      ),
+      (
+        SettingsCategory.workshop,
+        CupertinoIcons.cube_box_fill,
+        CupertinoColors.systemPurple,
+        l10n.settingsCategoryWorkshop,
       ),
       (
         SettingsCategory.security,

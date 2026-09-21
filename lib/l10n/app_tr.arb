@@ -160,6 +160,7 @@
   "connectErrorUnreachable": "Sunucuya ulaşılamadı. URL'yi ve ağınızı kontrol edin.",
   "settingsCategoryConnection": "Bağlantı",
   "settingsCategoryDisplay": "Ekran ve Parlaklık",
+  "settingsCategoryWorkshop": "Atölye ve 3D Yazıcılar",
   "settingsCategorySecurity": "Güvenlik",
   "settingsCategoryHomeAssistant": "Home Assistant",
   "settingsCategoryIntegrations": "Entegrasyonlar",

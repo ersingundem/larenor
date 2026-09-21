@@ -265,6 +265,7 @@
   "connectErrorUnreachable": "Could not reach the server. Check the URL and your network.",
   "settingsCategoryConnection": "Connection",
   "settingsCategoryDisplay": "Display & Brightness",
+  "settingsCategoryWorkshop": "Workshop & 3D Printers",
   "settingsCategorySecurity": "Security",
   "settingsCategoryHomeAssistant": "Home Assistant",
   "settingsCategoryIntegrations": "Integrations",
