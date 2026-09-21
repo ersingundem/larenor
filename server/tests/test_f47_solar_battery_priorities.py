@@ -107,7 +107,7 @@ def inputs(*, override=None, battery_changes=None, **changes):
         reserve=ReservePolicy(
             schemaVersion=1,
             revision=12,
-            backupReserveWh=4_000,
+            backupReservePercent=40,
         ),
         manualOverride=override,
     )
