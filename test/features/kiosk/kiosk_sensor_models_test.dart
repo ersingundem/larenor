@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/kiosk/data/kiosk_sensor_api.dart';
@@ -30,6 +32,7 @@ final class _Api implements KioskSensorApi {
   Object? startValue = _sample(sequence: 0, lux: null, motionDelta: null);
   Object? readValue = _sample();
   Object? stopValue = {'version': 1, 'sessionId': _session, 'stopped': true};
+  Completer<KioskSensorStopReceipt>? pendingStop;
   int stops = 0;
 
   @override
@@ -43,6 +46,7 @@ final class _Api implements KioskSensorApi {
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
     stops++;
+    if (pendingStop != null) return pendingStop!.future;
     return KioskSensorStopReceipt.fromChannel(
       stopValue,
       expectedSessionId: sessionId,
@@ -101,12 +105,31 @@ void main() {
         controller.stop(),
         throwsA(isA<KioskSensorException>()),
       );
-      expect(controller.active, isTrue);
+      expect(controller.active, isFalse);
+      await controller.start();
       api.stopValue = {'version': 1, 'sessionId': _session, 'stopped': true};
       await controller.stop();
       expect(controller.active, isFalse);
     },
   );
+
+  test('stop intent retires sampling before native receipt returns', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    api.pendingStop = Completer<KioskSensorStopReceipt>();
+    final pending = controller.stop();
+    expect(controller.active, isFalse);
+    await expectLater(
+      controller.refresh(),
+      throwsA(isA<KioskSensorException>()),
+    );
+    api.pendingStop!.complete(
+      const KioskSensorStopReceipt(sessionId: _session, stopped: true),
+    );
+    await pending;
+    expect(api.stops, 1);
+  });
 
   test(
     'Android channel uses exact bounded requests and redacts failures',

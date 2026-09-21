@@ -139,4 +139,21 @@ void main() {
     expect(api.stops, 1);
     expect(find.textContaining('8'), findsNothing);
   });
+
+  testWidgets('covering the route retires private sensor sampling', (
+    tester,
+  ) async {
+    final api = _Api();
+    await _pump(tester, locale: const Locale('en'), width: 600, api: api);
+    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    await tester.pumpAndSettle();
+    expect(api.starts, 1);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(CupertinoPageRoute<void>(builder: (_) => const SizedBox()));
+    await tester.pumpAndSettle();
+    expect(api.stops, 1);
+    navigator.pop();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kiosk-sensor-start')), findsOneWidget);
+  });
 }
