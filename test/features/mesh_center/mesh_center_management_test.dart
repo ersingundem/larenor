@@ -82,6 +82,7 @@ final class _Api implements MeshCenterManagementApi {
   var previewCalls = 0;
   var confirmCalls = 0;
   var readbackCalls = 0;
+  var corruptReadback = false;
   MeshFirmwareUpdatePreview? lastPreview;
 
   @override
@@ -148,77 +149,107 @@ final class _Api implements MeshCenterManagementApi {
     required String requestId,
   }) async {
     readbackCalls++;
+    if (corruptReadback) {
+      final value = _result(lastPreview!);
+      return MeshFirmwareUpdateResult(
+        authority: value.authority,
+        requestId: value.requestId,
+        deviceId: value.deviceId,
+        previousDeviceRevision: value.previousDeviceRevision,
+        deviceRevision: value.deviceRevision,
+        providerRevision: value.providerRevision,
+        routeRevision: 'foreign-route',
+        installedVersion: value.installedVersion,
+        installedSha256: value.installedSha256,
+        status: value.status,
+        readbackVerified: value.readbackVerified,
+      );
+    }
     return _result(lastPreview!);
   }
 }
 
 void main() {
-  test('topology and update state are exact, advisory, and stale-safe', () async {
-    var current = true;
-    final api = _Api();
-    final controller = MeshCenterManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-      clock: () => DateTime.utc(2026, 9, 21, 10, 1),
-    );
-    addTearDown(controller.dispose);
+  test(
+    'topology and update state are exact, advisory, and stale-safe',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = MeshCenterManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+        clock: () => DateTime.utc(2026, 9, 21, 10, 1),
+      );
+      addTearDown(controller.dispose);
 
-    await controller.load();
-    final snapshot = controller.snapshot!;
-    expect(snapshot.channelAdviceReadOnly, isTrue);
-    expect(snapshot.devices.single.update!.signedMetadataVerified, isTrue);
-    expect(snapshot.toString(), isNot(contains('signature')));
+      await controller.load();
+      final snapshot = controller.snapshot!;
+      expect(snapshot.channelAdviceReadOnly, isTrue);
+      expect(snapshot.devices.single.update!.signedMetadataVerified, isTrue);
+      expect(snapshot.toString(), isNot(contains('signature')));
 
-    api.value = _snapshot(reachable: false);
-    await controller.load();
-    await controller.previewUpdate(controller.snapshot!.devices.single);
-    expect(api.previewCalls, 0);
+      api.value = _snapshot(reachable: false);
+      await controller.load();
+      await controller.previewUpdate(controller.snapshot!.devices.single);
+      expect(api.previewCalls, 0);
 
-    final gate = Completer<MeshCenterSnapshot>();
-    api.loadGate = gate;
-    final late = controller.load();
-    current = false;
-    gate.complete(_snapshot());
-    await late;
-    expect(controller.snapshot, isNull);
-    expect(controller.state, MeshCenterManagementState.stale);
-  });
+      final gate = Completer<MeshCenterSnapshot>();
+      api.loadGate = gate;
+      final late = controller.load();
+      current = false;
+      gate.complete(_snapshot());
+      await late;
+      expect(controller.snapshot, isNull);
+      expect(controller.state, MeshCenterManagementState.stale);
+    },
+  );
 
-  test('firmware update requires confirmation and exact verified readback', () async {
-    var current = true;
-    final api = _Api();
-    final controller = MeshCenterManagementController(
-      api: api,
-      authority: _authority,
-      isCurrent: () => current,
-      clock: () => DateTime.utc(2026, 9, 21, 10, 1),
-    );
-    addTearDown(controller.dispose);
-    await controller.load();
-    await controller.previewUpdate(controller.snapshot!.devices.single);
-    expect(controller.pendingPreview, isNotNull);
-    expect(api.confirmCalls, 0);
+  test(
+    'firmware update requires confirmation and exact verified readback',
+    () async {
+      var current = true;
+      final api = _Api();
+      final controller = MeshCenterManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => current,
+        clock: () => DateTime.utc(2026, 9, 21, 10, 1),
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      await controller.previewUpdate(controller.snapshot!.devices.single);
+      expect(controller.pendingPreview, isNotNull);
+      expect(api.confirmCalls, 0);
 
-    final gate = Completer<MeshFirmwareUpdateResult>();
-    api.confirmGate = gate;
-    final late = controller.confirmPending();
-    current = false;
-    gate.complete(api._result(api.lastPreview!));
-    await late;
-    expect(controller.state, MeshCenterManagementState.stale);
-    expect(api.readbackCalls, 0);
+      final gate = Completer<MeshFirmwareUpdateResult>();
+      api.confirmGate = gate;
+      final late = controller.confirmPending();
+      current = false;
+      gate.complete(api._result(api.lastPreview!));
+      await late;
+      expect(controller.state, MeshCenterManagementState.stale);
+      expect(api.readbackCalls, 0);
 
-    current = true;
-    api.confirmGate = null;
-    await controller.load();
-    await controller.previewUpdate(controller.snapshot!.devices.single);
-    await controller.confirmPending();
-    expect(controller.state, MeshCenterManagementState.verified);
-    expect(controller.lastResult!.readbackVerified, isTrue);
-    expect(api.confirmCalls, 2);
-    expect(api.readbackCalls, 1);
-  });
+      current = true;
+      api.confirmGate = null;
+      api.corruptReadback = true;
+      await controller.load();
+      await controller.previewUpdate(controller.snapshot!.devices.single);
+      await controller.confirmPending();
+      expect(controller.state, MeshCenterManagementState.failed);
+      expect(controller.lastResult, isNull);
+
+      api.corruptReadback = false;
+      await controller.load();
+      await controller.previewUpdate(controller.snapshot!.devices.single);
+      await controller.confirmPending();
+      expect(controller.state, MeshCenterManagementState.verified);
+      expect(controller.lastResult!.readbackVerified, isTrue);
+      expect(api.confirmCalls, 3);
+      expect(api.readbackCalls, 2);
+    },
+  );
 
   for (final language in ['en', 'tr']) {
     for (final size in [const Size(600, 900), const Size(1280, 900)]) {
@@ -241,13 +272,11 @@ void main() {
           await tester.pumpWidget(
             CupertinoApp(
               locale: Locale(language),
-              localizationsDelegates:
-                  AppLocalizations.localizationsDelegates,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: const TextScaler.linear(2),
-                ),
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
                 child: child!,
               ),
               home: MeshCenterManagementScreen(controller: controller),
