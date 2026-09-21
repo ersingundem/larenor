@@ -27,9 +27,17 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
     private var motionStarted = false
     private val unavailableCameras = mutableSetOf<String>()
     private var watchingCameras = false
+    private var cameraAvailabilityObserved = false
     private val cameraCallback = object : CameraManager.AvailabilityCallback() {
-        override fun onCameraAvailable(cameraId: String) { unavailableCameras.remove(cameraId) }
-        override fun onCameraUnavailable(cameraId: String) { unavailableCameras.add(cameraId) }
+        override fun onCameraAvailable(cameraId: String) {
+            cameraAvailabilityObserved = true
+            unavailableCameras.remove(cameraId)
+        }
+
+        override fun onCameraUnavailable(cameraId: String) {
+            cameraAvailabilityObserved = true
+            unavailableCameras.add(cameraId)
+        }
     }
 
     override fun availability(): KioskSensorAvailability {
@@ -43,6 +51,7 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
         val camera = when {
             !granted -> "permissionDenied"
             ids.isEmpty() -> "unavailable"
+            !cameraAvailabilityObserved -> "unavailable"
             ids.all(unavailableCameras::contains) -> "busy"
             else -> "available"
         }
@@ -70,6 +79,7 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
             try { cameras.unregisterAvailabilityCallback(cameraCallback) } catch (_: RuntimeException) { }
         }
         watchingCameras = false
+        cameraAvailabilityObserved = false
         lightStarted = false
         motionStarted = false
         unavailableCameras.clear()
