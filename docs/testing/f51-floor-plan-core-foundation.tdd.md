@@ -27,12 +27,12 @@ camera/device calibration, or physical tablet acceptance is claimed here.
 
 ## TDD evidence
 
-- RED: `be16e4c5` introduced the three acceptance tests before the production
+- RED: `54219e57` introduced the three acceptance tests before the production
   module existed; collection failed on the missing `floor_plan` package.
-- GREEN: `c8628319` added strict storage, bounded validation, optimistic edits,
+- GREEN: `d1ad5eef` added strict storage, bounded validation, optimistic edits,
   role grants, signed audit/export, and revision-bound entity projection.
 - Focused command:
-  `PYTHONPATH=server /Users/ersingundem/oikos/server/.venv/bin/python -m pytest -q server/tests/test_f51_floor_plan_core.py`
+  `uv run --project server --locked python -m pytest -q server/tests/test_f51_floor_plan_core.py`
 - Result: `3 passed`.
 
 ## Remaining acceptance gates
