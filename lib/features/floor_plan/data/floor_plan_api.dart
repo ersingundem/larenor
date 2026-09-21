@@ -32,9 +32,10 @@ final class FloorPlanAccountGateway implements FloorPlanGateway {
     ServerApiFactory? apiFactory,
   }) : _generation = account.generation,
        _endpoint = account.session!.endpoint,
-       _api = (apiFactory ?? ((endpoint) => LarenorServerApi(endpoint: endpoint)))(
-         account.session!.endpoint,
-       );
+       _api =
+           (apiFactory ?? ((endpoint) => LarenorServerApi(endpoint: endpoint)))(
+             account.session!.endpoint,
+           );
 
   final ServerAccountController account;
   final ServerContext context;
@@ -57,7 +58,11 @@ final class FloorPlanAccountGateway implements FloorPlanGateway {
         session.endpoint.baseUrl != _endpoint.baseUrl) {
       throw const LarenorServerException('cancelled');
     }
-    final result = await FloorPlanApi(_api, session.accessToken, context).read();
+    final result = await FloorPlanApi(
+      _api,
+      session.accessToken,
+      context,
+    ).read();
     if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
       throw const LarenorServerException('cancelled');
     }

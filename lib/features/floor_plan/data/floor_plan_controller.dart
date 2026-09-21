@@ -44,7 +44,11 @@ final class FloorPlanController extends ChangeNotifier {
       }
       _fail(
         error is LarenorServerException &&
-                {'connection_failed', 'timeout', 'server_unavailable'}.contains(error.code)
+                {
+                  'connection_failed',
+                  'timeout',
+                  'server_unavailable',
+                }.contains(error.code)
             ? FloorPlanFailure.offline
             : error is LarenorServerException && error.code == 'cancelled'
             ? FloorPlanFailure.stale

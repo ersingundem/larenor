@@ -75,7 +75,12 @@ final class FloorPlanFloor {
 final class FloorPlanRoom {
   const FloorPlanRoom(this.id, this.floorId, this.label, this.polygon);
   factory FloorPlanRoom.fromJson(Object? value) {
-    final json = _object(value, const {'roomId', 'floorId', 'label', 'polygon'});
+    final json = _object(value, const {
+      'roomId',
+      'floorId',
+      'label',
+      'polygon',
+    });
     return FloorPlanRoom(
       _id(json['roomId']),
       _id(json['floorId']),
@@ -102,8 +107,14 @@ final class FloorPlanAnchor {
   });
   factory FloorPlanAnchor.fromJson(Object? value) {
     final json = _object(value, const {
-      'anchorId', 'roomId', 'targetKind', 'targetId', 'targetRevision',
-      'x', 'y', 'rotation',
+      'anchorId',
+      'roomId',
+      'targetKind',
+      'targetId',
+      'targetRevision',
+      'x',
+      'y',
+      'rotation',
     });
     final kind = json['targetKind'];
     final rotation = json['rotation'];
@@ -138,7 +149,9 @@ final class FloorPlanVector {
       _id(json['shapeId']),
       _id(json['floorId']),
       _id(json['kind']),
-      List.unmodifiable(_list(json['points'], 2, 128).map(FloorPlanPoint.fromJson)),
+      List.unmodifiable(
+        _list(json['points'], 2, 128).map(FloorPlanPoint.fromJson),
+      ),
     );
   }
   final String id, floorId, kind;
@@ -161,14 +174,32 @@ final class FloorPlanSnapshot {
     required ServerContext expected,
   }) {
     final json = _object(value, const {'layoutRevision', 'layout'});
-    final layout = _object(
-      json['layout'],
-      const {'floors', 'rooms', 'anchors', 'vectors'},
-    );
-    final floors = _list(layout['floors'], 1, 8).map(FloorPlanFloor.fromJson).toList();
-    final rooms = _list(layout['rooms'], 1, 128).map(FloorPlanRoom.fromJson).toList();
-    final anchors = _list(layout['anchors'], 0, 512).map(FloorPlanAnchor.fromJson).toList();
-    final vectors = _list(layout['vectors'], 0, 512).map(FloorPlanVector.fromJson).toList();
+    final layout = _object(json['layout'], const {
+      'floors',
+      'rooms',
+      'anchors',
+      'vectors',
+    });
+    final floors = _list(
+      layout['floors'],
+      1,
+      8,
+    ).map(FloorPlanFloor.fromJson).toList();
+    final rooms = _list(
+      layout['rooms'],
+      1,
+      128,
+    ).map(FloorPlanRoom.fromJson).toList();
+    final anchors = _list(
+      layout['anchors'],
+      0,
+      512,
+    ).map(FloorPlanAnchor.fromJson).toList();
+    final vectors = _list(
+      layout['vectors'],
+      0,
+      512,
+    ).map(FloorPlanVector.fromJson).toList();
     final floorIds = floors.map((item) => item.id).toSet();
     final roomIds = rooms.map((item) => item.id).toSet();
     if (floorIds.length != floors.length ||

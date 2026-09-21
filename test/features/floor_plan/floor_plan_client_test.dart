@@ -108,21 +108,26 @@ void main() {
     );
   });
 
-  test('controller discards late result after route authority retires', () async {
-    final result = Completer<FloorPlanSnapshot>();
-    var current = true;
-    final controller = FloorPlanController(
-      gateway: _Gateway(result.future),
-      isCurrent: () => current,
-    );
-    final load = controller.load();
-    current = false;
-    controller.retire();
-    result.complete(FloorPlanSnapshot.fromResponse(response(), expected: context));
-    await load;
-    expect(controller.snapshot, isNull);
-    expect(controller.failure, FloorPlanFailure.stale);
-  });
+  test(
+    'controller discards late result after route authority retires',
+    () async {
+      final result = Completer<FloorPlanSnapshot>();
+      var current = true;
+      final controller = FloorPlanController(
+        gateway: _Gateway(result.future),
+        isCurrent: () => current,
+      );
+      final load = controller.load();
+      current = false;
+      controller.retire();
+      result.complete(
+        FloorPlanSnapshot.fromResponse(response(), expected: context),
+      );
+      await load;
+      expect(controller.snapshot, isNull);
+      expect(controller.failure, FloorPlanFailure.stale);
+    },
+  );
 
   for (final width in [600.0, 1280.0]) {
     testWidgets('tablet $width supports 2x text keyboard and TalkBack', (
@@ -134,7 +139,9 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final controller = FloorPlanController(
         gateway: _Gateway(
-          Future.value(FloorPlanSnapshot.fromResponse(response(), expected: context)),
+          Future.value(
+            FloorPlanSnapshot.fromResponse(response(), expected: context),
+          ),
         ),
         isCurrent: () => true,
       );
@@ -153,7 +160,10 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.text('Living room'), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('Rooms and devices')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Rooms and devices')),
+        findsOneWidget,
+      );
       expect(
         tester.getSize(find.byKey(const ValueKey('floor-plan-refresh'))).height,
         greaterThanOrEqualTo(48),

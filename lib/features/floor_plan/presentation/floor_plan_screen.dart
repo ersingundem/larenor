@@ -134,7 +134,9 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
             _button(
               const ValueKey('floor-plan-refresh'),
               widget.strings.refresh,
-              widget.controller.busy ? null : () => unawaited(widget.controller.load()),
+              widget.controller.busy
+                  ? null
+                  : () => unawaited(widget.controller.load()),
             ),
             _button(
               const ValueKey('floor-plan-zoom-in'),
@@ -230,7 +232,10 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
                 header: true,
                 child: Text(
                   room.label,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -275,14 +280,22 @@ final class _FloorPlanPainter extends CustomPainter {
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
     for (final room in snapshot.rooms) {
-      final path = Path()..moveTo(room.polygon.first.x * size.width, room.polygon.first.y * size.height);
+      final path = Path()
+        ..moveTo(
+          room.polygon.first.x * size.width,
+          room.polygon.first.y * size.height,
+        );
       for (final point in room.polygon.skip(1)) {
         path.lineTo(point.x * size.width, point.y * size.height);
       }
       canvas.drawPath(path..close(), roomPaint);
     }
     for (final vector in snapshot.vectors) {
-      final path = Path()..moveTo(vector.points.first.x * size.width, vector.points.first.y * size.height);
+      final path = Path()
+        ..moveTo(
+          vector.points.first.x * size.width,
+          vector.points.first.y * size.height,
+        );
       for (final point in vector.points.skip(1)) {
         path.lineTo(point.x * size.width, point.y * size.height);
       }
@@ -290,7 +303,11 @@ final class _FloorPlanPainter extends CustomPainter {
     }
     final anchorPaint = Paint()..color = const Color(0xFF0A84FF);
     for (final anchor in snapshot.anchors) {
-      canvas.drawCircle(Offset(anchor.x * size.width, anchor.y * size.height), 8, anchorPaint);
+      canvas.drawCircle(
+        Offset(anchor.x * size.width, anchor.y * size.height),
+        8,
+        anchorPaint,
+      );
     }
   }
 
