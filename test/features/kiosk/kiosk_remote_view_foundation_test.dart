@@ -108,6 +108,7 @@ void main() {
       metrics(),
       expected: authority,
       isCurrent: () => true,
+      nowElapsedMs: 50000,
     );
     expect(snapshot.batteryPercent, 82);
     expect(snapshot.network, KioskNetworkClass.wifi);
@@ -127,12 +128,14 @@ void main() {
       {...metrics(), 'memoryUsedMb': 513},
       metrics(deviceRevision: 8),
       {...metrics(), 'network': '192.168.1.20'},
+      {...metrics(), 'capturedAtElapsedMs': 1000},
     ]) {
       expect(
         () => KioskDeviceSnapshot.fromChannel(
           invalid,
           expected: authority,
           isCurrent: () => true,
+          nowElapsedMs: 50000,
         ),
         throwsA(isA<FormatException>()),
       );
@@ -246,6 +249,45 @@ void main() {
         jsonEncode(stopped.toPublicJson()),
         isNot(contains('projection-local-1')),
       );
+    },
+  );
+  test(
+    'stale start is compensated once and delayed confirmation expires',
+    () async {
+      var current = true;
+      var now = DateTime.utc(2026, 9, 21);
+      final gate = Completer<void>();
+      final port = Port(startGate: gate);
+      final controller = KioskRemoteViewController(
+        port: port,
+        isCurrent: (_) => current,
+        requestIds: () => '0123456789abcdef0123456789abcdef',
+        now: () => now,
+      );
+      final preview = controller.prepare(
+        KioskRemoteViewMode.fullDeviceProjection,
+        context(),
+      );
+      final pending = controller.confirm(preview, context());
+      current = false;
+      gate.complete();
+      expect((await pending).status, KioskRemoteViewStatus.unconfirmed);
+      expect(port.starts, 1);
+      expect(port.readbacks, 0);
+      expect(port.stops, 1);
+
+      current = true;
+      controller.invalidate();
+      final delayed = controller.prepare(
+        KioskRemoteViewMode.fullDeviceProjection,
+        context(),
+      );
+      now = now.add(const Duration(seconds: 31));
+      expect(
+        (await controller.confirm(delayed, context())).status,
+        KioskRemoteViewStatus.denied,
+      );
+      expect(port.starts, 1);
     },
   );
 }
