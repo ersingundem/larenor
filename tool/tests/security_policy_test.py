@@ -1,10 +1,15 @@
-from pathlib import Path
 import json
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_security_policy import check_repository, validate_backup, validate_workflow, validate_signed_android_workflow
+from check_security_policy import (
+    check_repository,
+    validate_backup,
+    validate_signed_android_workflow,
+    validate_workflow,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 RES = ROOT / "android/app/src/main"
@@ -127,6 +132,20 @@ class SecurityPolicyTest(unittest.TestCase):
                 changed = workflow.replace(f"./.github/workflows/{path}",
                                            f"./.github/workflows/unchecked-{path}")
                 self.assertTrue(validate_signed_android_workflow(changed))
+
+    def test_aggregate_pr_read_permission_cannot_be_removed_or_promoted(self):
+        workflow = (ROOT / ".github/workflows/android-build.yml").read_text()
+        for name in ("analyze-test", "server-test"):
+            anchor = (f"  {name}:\n    permissions:\n"
+                      "      contents: read\n      pull-requests: read\n")
+            self.assertIn(anchor, workflow)
+            for changed in (
+                workflow.replace(anchor, f"  {name}:\n", 1),
+                workflow.replace(anchor, anchor.replace(
+                    "pull-requests: read", "pull-requests: write"), 1),
+            ):
+                with self.subTest(name=name):
+                    self.assertTrue(validate_signed_android_workflow(changed))
 
     def test_server_publication_requires_fresh_main_or_safe_core_pull_noop(self):
         workflow = (ROOT / ".github/workflows/android-build.yml").read_text()
