@@ -22,14 +22,15 @@ kadar açık kalır.
 
 ## RED / GREEN ve doğrulama
 
-- RED `426b18d0`: Flutter ve Robolectric sözleşmeleri üretim köprüleri yokken
+- RED `5ebcccaf`: Flutter ve Robolectric sözleşmeleri üretim köprüleri yokken
   derleme/test hatasını kaydetti.
-- `InventoryShareBridgeTest` iki testi art arda üç çalıştırmada geçti. Test
+- `InventoryShareBridgeTest` hedefli Android görevinde **2/2 PASS**. Test
   izolasyonu Robolectric'in süreç çapındaki `FileProvider` önbelleğini her test
   öncesi temizler; üretim yolu değişmez.
-- Flutter QR paylaşım ve export paketi **3/3 PASS**; hedefli analiz temizdir.
-- `flutter build apk --debug`: **PASS**; manifest, Kotlin köprüsü ve provider
-  Android debug APK içine başarıyla derlendi.
+- Flutter QR paylaşım paketi **2/2 PASS**; hedefli analiz temizdir.
+- Android `MainActivity`, QR paylaşım köprüsüyle yerel bildirim köprüsünü aynı
+  lifecycle ve pencere odağı akışında birlikte çalıştırır. Hedefli Gradle testi
+  bu birleşik giriş noktasını da derledi.
 - `python3 tool/check_security_policy.py`, kuyruk doğrulaması,
   `git diff --check` ve dal secret taraması kapanış kapılarıdır.
 
