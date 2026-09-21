@@ -189,7 +189,7 @@ class WorkshopService:
 
     def _binding(self, connection, service_id, revision):
         try:
-            return self.services._octoprint_connection(
+            return self.services._workshop_connection(
                 connection, service_id, revision
             )
         except ApiError:

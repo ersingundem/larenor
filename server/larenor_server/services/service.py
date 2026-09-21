@@ -169,12 +169,12 @@ class ServiceManagement:
             raise ApiError("keenetic_service_unverified", 409)
         return self._private(row, record)
 
-    def _octoprint_connection(self, connection, service_id: str,
-                              revision: int) -> ServiceConnection:
+    def _workshop_connection(self, connection, service_id: str,
+                             revision: int) -> ServiceConnection:
         """Private, transaction-bound workshop source; never returns through HTTP."""
         row, record = self._record(connection, service_id, revision)
         if (
-            record["kind"] != "octoprint"
+            record["kind"] not in {"octoprint", "moonraker"}
             or set(record["credentials"]) != {"apiKey"}
             or record["verification"]["state"] != "authenticated"
         ):
