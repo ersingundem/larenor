@@ -2,9 +2,8 @@ import copy
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
-
 from conftest import auth, ready
+from fastapi.testclient import TestClient
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
 from test_f50_room_comfort import climate, occupancy, policy, weather
@@ -147,6 +146,21 @@ def test_authenticated_plan_preview_confirm_is_persistent_and_no_replay(server):
     with TestClient(create_app(settings)) as restarted:
         assert restarted.get(root + "/plan", headers=headers).json()["plan"] == plan
         assert restarted.post(confirm_path, headers=headers, json=confirm_body).json() == receipt.json()
+
+
+def test_duplicate_device_readback_is_rejected_before_plan_is_published(server):
+    app, client, _settings, clock = server
+    pair = ready(server)
+    context = app.state.core.context
+    root = f"/api/v1/room-comfort/{context.coreId}/{context.homeId}"
+    body = _publish_body(app, int(clock.now * 1000))
+    body["readbacks"].append(copy.deepcopy(body["readbacks"][0]))
+
+    response = client.put(root + "/plan", headers=auth(pair), json=body)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "revision_conflict"
+    assert client.get(root + "/plan", headers=auth(pair)).status_code == 404
 
 
 def test_storage_tamper_and_non_admin_access_fail_closed(server):

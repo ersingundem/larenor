@@ -18,7 +18,6 @@ from .models import (
 )
 from .planner import ComfortPlanner
 
-
 MAX_PLANS = 64
 MAX_PREVIEWS = 128
 
@@ -164,7 +163,7 @@ class RoomComfortService:
                     for device in (item.room.hvac, item.room.window)
                 }
                 observed = {(item.roomId, item.device.kind): item.device for item in body.readbacks}
-                if expected != observed:
+                if len(observed) != len(body.readbacks) or expected != observed:
                     raise ApiError("revision_conflict", 409)
                 policy_json = body.policy.model_dump_json()
                 plan_json = plan.model_dump_json()
@@ -226,7 +225,7 @@ class RoomComfortService:
             for item in plan.items
         }
         observed = {(item.roomId, item.device.kind): item for item in readbacks}
-        if set(desired) != set(observed):
+        if len(observed) != len(readbacks) or set(desired) != set(observed):
             raise ApiError("revision_conflict", 409)
         return [(key, desired[key], observed[key]) for key in sorted(desired)
                 if desired[key][1] != observed[key].state]
