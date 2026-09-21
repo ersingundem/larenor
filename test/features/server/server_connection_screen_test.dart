@@ -484,6 +484,7 @@ void main() {
     );
     await mount(tester, account);
     expect(find.byKey(const ValueKey('server-admin')), findsNothing);
+    expect(find.byKey(const ValueKey('server-core-backups')), findsNothing);
     expect(find.byKey(const ValueKey('server-vault')), findsOneWidget);
     expect(find.byKey(const ValueKey('server-client-updates')), findsOneWidget);
   });
@@ -498,6 +499,7 @@ void main() {
         apiFactory: (_) => api,
       );
       await mount(tester, account, fresh: true);
+      expect(find.byKey(const ValueKey('server-core-backups')), findsOneWidget);
       expect(find.byKey(const ValueKey('server-vault')), findsOneWidget);
       await tap(tester, 'server-vault');
       await tester.pumpAndSettle();
