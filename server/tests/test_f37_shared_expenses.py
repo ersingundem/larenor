@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.errors import ApiError, StartupError
@@ -10,7 +9,6 @@ from larenor_server.shared_expenses.service import (
     ExpenseStore,
     HouseholdAccounts,
 )
-
 
 ENCRYPTION_KEY = bytes.fromhex("31" * 32)
 AUDIT_KEY = bytes.fromhex("73" * 32)
