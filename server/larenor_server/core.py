@@ -105,6 +105,7 @@ from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
+from .core_backups.service import CoreBackupContract
 from .mesh_center.runtime import build_mesh_center_gateway
 
 
@@ -318,6 +319,7 @@ class CoreServices:
                 )
             )
             self.admin = AdminService(self.db, self.auth, settings)
+            self.core_backups = CoreBackupContract(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
