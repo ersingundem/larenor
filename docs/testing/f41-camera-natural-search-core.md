@@ -37,5 +37,5 @@ projection. This foundation intentionally does not register an HTTP route or
 claim camera-provider discovery, clip playback, correction feedback, Android
 Client-to-Core E2E, or physical camera validation. F41 remains open until those
 queue acceptance gates and its F43/F08 dependencies are proven. Queue progress
-therefore remains **21/125 (16.8%)** and selected-feature progress remains
+therefore remains **22/125 (17.6%)** and selected-feature progress remains
 **0/63 (0.0%)**.
