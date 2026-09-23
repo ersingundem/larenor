@@ -55,6 +55,13 @@ lifecycle retirement. The grouped meal-planner tests and targeted Flutter
 analysis are the local gate; exact-head CI and independent review remain the
 formal completion gate.
 
+Independent review RED commit `fcb3cda5` replaced `todayActionsProvider`
+while the first ingredient readback was delayed and proved the old Home
+Assistant repository could still receive the second ingredient. GREEN commit
+`64f3be71` retires the operation and its visible receipt when the exact action
+owner changes. The focused batch now passes 46 tests with scoped analysis
+clean.
+
 ## Existing F31 foundation confirmed by audit
 
 - Core stores account-owned meal plans and receipts encrypted, scopes them to
