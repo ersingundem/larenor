@@ -619,6 +619,8 @@ def test_container_engine_effect_accepts_exact_204_empty_framing(action, reply):
     b'HTTP/1.1 204 No Content\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n',
     b'HTTP/1.1 204 No Content\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n',
     b'HTTP/1.1 204 No Content\r\nContent-Length: 2\r\n\r\n{}',
+    b'HTTP/1.1 204 No Content\r\n\r\n{}',
+    b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n{}',
 ])
 def test_container_engine_effect_rejects_redirect_transfer_encoding_and_body(reply):
     with server(reply=reply) as (client, calls):
