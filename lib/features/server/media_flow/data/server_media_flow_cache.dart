@@ -9,6 +9,8 @@ import '../domain/server_media_flow_models.dart';
 abstract interface class ServerMediaFlowCacheBackend {
   Future<String?> read();
   Future<void> write(String value);
+  Future<bool> compareAndWrite(String? expected, String value);
+  Future<bool> compareAndClear(String expected);
   Future<void> clear();
 }
 
@@ -35,6 +37,30 @@ final class SharedPreferencesServerMediaFlowCacheBackend
       throw StateError('media_flow_cache_write_failed');
     }
   });
+
+  @override
+  Future<bool> compareAndWrite(String? expected, String value) =>
+      ConfigurationWrites.run(() async {
+        final preferences = await _loadPreferences();
+        await preferences.reload();
+        if (preferences.getString(key) != expected) return false;
+        if (!await preferences.setString(key, value)) {
+          throw StateError('media_flow_cache_write_failed');
+        }
+        return true;
+      });
+
+  @override
+  Future<bool> compareAndClear(String expected) =>
+      ConfigurationWrites.run(() async {
+        final preferences = await _loadPreferences();
+        await preferences.reload();
+        if (preferences.getString(key) != expected) return false;
+        if (!await preferences.remove(key)) {
+          throw StateError('media_flow_cache_clear_failed');
+        }
+        return true;
+      });
 
   @override
   Future<void> clear() => ConfigurationWrites.run(() async {
@@ -116,7 +142,7 @@ final class ServerMediaFlowCache {
     }
     if (raw == null) return null;
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
-      await _clearQuietly();
+      await _clearIfCurrent(raw);
       return null;
     }
     try {
@@ -127,7 +153,9 @@ final class ServerMediaFlowCache {
         'savedAt',
         'flow',
       });
-      if (record['schemaVersion'] != 1) throw const FormatException();
+      if (record['schemaVersion'] is! int || record['schemaVersion'] != 1) {
+        throw const FormatException();
+      }
       final storedScope = _object(record['scope'], {
         'coreId',
         'homeId',
@@ -169,8 +197,7 @@ final class ServerMediaFlowCache {
           savedAt.toIso8601String() != record['savedAt'] ||
           instant.isBefore(savedAt) ||
           !instant.isBefore(savedAt.add(timeToLive))) {
-        await _clearQuietly();
-        return null;
+        throw const FormatException();
       }
       final flow = ServerMediaFlowStatus.fromJson(record['flow']);
       if (flow.mediaKey != authority.mediaKey ||
@@ -186,12 +213,12 @@ final class ServerMediaFlowCache {
       }
       return flow;
     } catch (_) {
-      await _clearQuietly();
+      await _clearIfCurrent(raw);
       return null;
     }
   }
 
-  Future<void> write(
+  Future<bool> write(
     ServerMediaFlowCacheScope scope,
     ServerMediaFlowStatus flow,
   ) async {
@@ -205,6 +232,7 @@ final class ServerMediaFlowCache {
     )) {
       throw StateError('media_flow_cache_time_invalid');
     }
+    final expected = await _backend.read();
     final raw = jsonEncode({
       'schemaVersion': 1,
       'scope': scope.toJson(),
@@ -220,12 +248,12 @@ final class ServerMediaFlowCache {
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
       throw StateError('media_flow_cache_quota_exceeded');
     }
-    await _backend.write(raw);
+    return _backend.compareAndWrite(expected, raw);
   }
 
-  Future<void> _clearQuietly() async {
+  Future<void> _clearIfCurrent(String raw) async {
     try {
-      await _backend.clear();
+      await _backend.compareAndClear(raw);
     } catch (_) {}
   }
 }

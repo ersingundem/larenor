@@ -273,6 +273,7 @@ void main() {
         final cache = ServerMediaFlowCache(backend: backend, now: () => now);
         await cache.write(_scope, _flow());
         final valid = backend.value!;
+        final replacement = '$valid ';
 
         switch (invalid) {
           case 'malformed':
@@ -285,10 +286,10 @@ void main() {
           case 'oversized':
             backend.value = 'x' * (ServerMediaFlowCache.maximumBytes + 1);
         }
-        backend.replacementBeforeMutation = valid;
+        backend.replacementBeforeMutation = replacement;
 
         expect(await cache.read(_scope, _authority()), isNull, reason: invalid);
-        expect(backend.value, valid, reason: invalid);
+        expect(backend.value, replacement, reason: invalid);
       }
     },
   );
@@ -299,14 +300,14 @@ void main() {
       backend: backend,
       now: () => DateTime.utc(2026, 9, 23, 8),
     );
-    await cache.write(_scope, _flow());
+    expect(await cache.write(_scope, _flow()), isTrue);
     final stale = backend.value!;
-    await cache.write(_scope, _flow(flowRevision: 10));
+    expect(await cache.write(_scope, _flow(flowRevision: 10)), isTrue);
     final replacement = backend.value!;
     backend.value = stale;
     backend.replacementBeforeMutation = replacement;
 
-    await cache.write(_scope, _flow());
+    expect(await cache.write(_scope, _flow()), isFalse);
 
     expect(backend.value, replacement);
     expect(await cache.read(_scope, _authority(flowRevision: 10)), isNotNull);
