@@ -9,6 +9,7 @@ import '../../music_retained/domain/server_music_retained_models.dart';
 import '../domain/server_music_manager_models.dart';
 import 'server_music_manager_cache.dart';
 import 'server_music_manager_api.dart';
+import 'server_music_selection_cache.dart';
 
 const _managerFallbackFailures = {
   'connection_failed',
@@ -22,9 +23,11 @@ class ServerMusicManagerController extends ChangeNotifier {
     this.account, {
     String Function()? requestId,
     ServerMusicManagerCache? cache,
+    ServerMusicSelectionCache? selectionCache,
   }) : _accountEpoch = account.generation,
        _requestId = requestId ?? _randomId,
-       _cache = cache ?? ServerMusicManagerCache() {
+       _cache = cache ?? ServerMusicManagerCache(),
+       _selectionCache = selectionCache ?? ServerMusicSelectionCache() {
     account.addListener(_accountChanged);
   }
 
@@ -32,6 +35,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   final int _accountEpoch;
   final String Function() _requestId;
   final ServerMusicManagerCache _cache;
+  final ServerMusicSelectionCache _selectionCache;
   int _epoch = 0;
   bool _disposed = false;
 
@@ -263,7 +267,18 @@ class ServerMusicManagerController extends ChangeNotifier {
               installationRevision: retained.installationRevision,
               coreRevision: retained.bootstrap!.revision,
             );
-        if (valid()) _acceptManager(value, isVerified: true);
+        if (!valid() || !identical(account.session, session)) return;
+        final selection = await _selectionCache.read(
+          ServerMusicSelectionScope.fromSession(session),
+          value,
+        );
+        if (valid() && identical(account.session, session)) {
+          _acceptManager(value, isVerified: true);
+          if (selection != null) {
+            selectedProviderId = selection.providerId;
+            selectedReceiverId = selection.receiverId;
+          }
+        }
       });
     } catch (error) {
       if (valid()) {
@@ -279,7 +294,7 @@ class ServerMusicManagerController extends ChangeNotifier {
     }
   }
 
-  void selectProvider(String id) {
+  Future<void> selectProvider(String id) async {
     if (busy ||
         !verified ||
         manager?.providers.any((item) => item.setupId == id) != true) {
@@ -289,9 +304,10 @@ class ServerMusicManagerController extends ChangeNotifier {
     catalog = null;
     selectedMediaUri = null;
     _emit();
+    await _writeSelection();
   }
 
-  void selectReceiver(String id) {
+  Future<void> selectReceiver(String id) async {
     if (busy ||
         !verified ||
         manager?.receivers.any(
@@ -302,6 +318,45 @@ class ServerMusicManagerController extends ChangeNotifier {
     }
     selectedReceiverId = id;
     _emit();
+    await _writeSelection();
+  }
+
+  Future<void> _writeSelection() async {
+    final value = manager;
+    final provider = selectedProvider;
+    final receiver = selectedReceiver;
+    final session = account.session;
+    final epoch = _epoch;
+    if (_disposed ||
+        !_authorized ||
+        !verified ||
+        value == null ||
+        provider == null ||
+        receiver == null ||
+        session == null) {
+      return;
+    }
+    try {
+      final scope = ServerMusicSelectionScope.fromSession(session);
+      if (_disposed ||
+          epoch != _epoch ||
+          !_authorized ||
+          !verified ||
+          !identical(account.session, session) ||
+          !identical(manager, value) ||
+          !identical(selectedProvider, provider) ||
+          !identical(selectedReceiver, receiver)) {
+        return;
+      }
+      await _selectionCache.write(
+        scope,
+        value,
+        provider: provider,
+        receiver: receiver,
+      );
+    } catch (_) {
+      // Selection remains valid in memory; persistence is best effort.
+    }
   }
 
   void selectMedia(String uri) {
