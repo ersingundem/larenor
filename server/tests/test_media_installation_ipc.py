@@ -21,11 +21,17 @@ from larenor_server.plugins.installation_ipc import (
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
 )
+from larenor_server.plugins.jellyfin_media_rows_executor import (
+    JellyfinMediaRowsExecutionError,
+)
 from larenor_server.plugins.jellyfin_authenticated_readback import (
     JellyfinAuthenticatedReadbackResult,
 )
 from larenor_server.plugins.media_service_bootstrap_models import (
     PrivateMediaServiceBootstrap,
+)
+from larenor_server.plugins.media_rows_models import (
+    MediaRowsReadback, PrivateJellyfinMediaRowsAuthority,
 )
 from larenor_server.plugins.worker import StepReceipt
 from test_media_host_preflight import stack
@@ -64,6 +70,11 @@ class Backend:
              'remote_access_updated', 'wizard_completed'),
             verified_readback(),
         )
+
+    def read_media_rows(self, private, *, deadline, gate):
+        self.calls.append(('media_rows', private, deadline, gate))
+        assert deadline > time.monotonic() and gate() is True
+        return MediaRowsReadback(revision=7, recent=[], resume=[])
 
 
 @contextmanager
@@ -132,6 +143,170 @@ def test_bootstrap_roundtrip_transports_only_exact_private_contract():
     assert call[:3] == ('bootstrap', 'a' * 32, selected)
     assert call[3] == private and call[4] > time.monotonic() - 1
     assert private.credential not in repr(result) and API_KEY not in repr(result)
+
+
+def media_rows_authority():
+    return PrivateJellyfinMediaRowsAuthority(
+        requestId='d' * 32,
+        installationId='a' * 32,
+        installationRevision=4,
+        bootstrapRevision=3,
+        bindingRevision=2,
+        plan=stack(),
+        apiKey=API_KEY,
+        userId='1' * 32,
+    )
+
+
+def test_media_rows_roundtrip_keeps_private_authority_inside_worker_channel():
+    private = media_rows_authority()
+    with running() as (backend, client):
+        result = client.read_media_rows(
+            private,
+            deadline=time.monotonic() + .4,
+            gate=lambda: True,
+        )
+
+    assert result == MediaRowsReadback(revision=7, recent=[], resume=[])
+    assert backend.calls[0][0] == 'media_rows'
+    assert backend.calls[0][1] == private
+    assert API_KEY not in repr(result) + repr(private)
+
+
+def test_media_rows_static_worker_failure_roundtrip():
+    private = media_rows_authority()
+    with running() as (backend, client):
+        backend.read_media_rows = lambda *_args, **_kwargs: (
+            _ for _ in ()
+        ).throw(JellyfinMediaRowsExecutionError(
+            'jellyfin_media_rows_endpoint_changed'))
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_endpoint_changed$',
+        ) as raised:
+            client.read_media_rows(
+                private,
+                deadline=time.monotonic() + .4,
+                gate=lambda: True,
+            )
+
+    assert API_KEY not in repr(raised.value)
+
+
+@pytest.mark.parametrize('change', ['authority', 'deadline', 'gate'])
+def test_invalid_media_rows_ipc_input_never_reaches_worker(change):
+    values = {
+        'authority': media_rows_authority(),
+        'deadline': time.monotonic() + .4,
+        'gate': lambda: True,
+    }
+    values[change] = {
+        'authority': 'private',
+        'deadline': True,
+        'gate': 'gate',
+    }[change]
+    with running() as (backend, client):
+        with pytest.raises(InstallationIPCError, match='^invalid_request$'):
+            client.read_media_rows(**values)
+    assert backend.calls == []
+
+
+def test_media_rows_authority_loss_before_ipc_opens_no_worker_request():
+    with running() as (backend, client):
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_authority_changed$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=time.monotonic() + .4,
+                gate=lambda: False,
+            )
+    assert backend.calls == []
+
+
+def test_media_rows_authority_loss_after_ipc_discards_worker_result():
+    decisions = iter((True, False))
+    with running() as (backend, client):
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_authority_changed$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=time.monotonic() + .4,
+                gate=lambda: next(decisions),
+            )
+    assert backend.calls[0][0] == 'media_rows'
+
+
+def test_media_rows_caller_deadline_bounds_ipc_and_maps_transport_failure():
+    private = media_rows_authority()
+    with running() as (backend, client):
+        original = backend.read_media_rows
+
+        def delayed(*args, **kwargs):
+            time.sleep(.08)
+            return original(*args, **kwargs)
+
+        backend.read_media_rows = delayed
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                private,
+                deadline=time.monotonic() + .02,
+                gate=lambda: True,
+            )
+
+
+def test_media_rows_malformed_transport_failure_uses_typed_static_error(
+    monkeypatch,
+):
+    with running() as (_backend, client):
+        monkeypatch.setattr(
+            client,
+            '_exchange',
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                InstallationIPCError('invalid_worker_result')
+            ),
+        )
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=time.monotonic() + .4,
+                gate=lambda: True,
+            )
+
+
+def test_media_rows_post_exchange_deadline_is_not_authority_drift(monkeypatch):
+    with running() as (_backend, client):
+        monkeypatch.setattr(
+            client,
+            '_exchange',
+            lambda *_args, **_kwargs: {
+                'state': 'succeeded',
+                'errorCode': None,
+                'value': MediaRowsReadback(
+                    revision=7, recent=[], resume=[]
+                ).model_dump(mode='json'),
+            },
+        )
+        readings = iter((100.0, 106.0))
+        monkeypatch.setattr(client, '_monotonic', lambda: next(readings))
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=105.0,
+                gate=lambda: True,
+            )
 
 
 def test_bootstrap_failure_roundtrip_preserves_only_static_partial_outcome():

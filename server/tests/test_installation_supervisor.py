@@ -161,6 +161,12 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'observed'
 
+    def read_media_rows(self, authority, *, deadline, gate):
+        self.calls.append((
+            'read_media_rows', authority, threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'rows'
+
 
 class Security:
     def __init__(self):
@@ -274,6 +280,22 @@ def test_media_flow_read_keeps_the_retained_worker_authority(monkeypatch):
         'movie:tmdb:603', deadline) == 'observed'
     assert backend.calls == [(
         'read_media_flow', 'movie:tmdb:603', threading.get_native_id())]
+    assert lease.pair.checks == 5
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_media_rows_read_keeps_retained_daemon_and_account_authority(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    guarded.open(deadline)
+
+    assert guarded.read_media_rows_with_deadline(
+        'private-account-authority', deadline) == 'rows'
+    assert backend.calls == [(
+        'read_media_rows', 'private-account-authority',
+        threading.get_native_id())]
     assert lease.pair.checks == 5
 
     guarded.close()
