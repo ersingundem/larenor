@@ -41,7 +41,10 @@ const _fixtureScope = ServerMusicSelectionScope(
   accountId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 );
 
-Map<String, dynamic> _managerJson({int providerRevision = 5}) {
+Map<String, dynamic> _managerJson({
+  int providerRevision = 5,
+  String receiverProvider = 'chromecast--main',
+}) {
   final value = musicManagerJson();
   (value['providers'] as List).add({
     'setupId': 'e' * 32,
@@ -50,13 +53,64 @@ Map<String, dynamic> _managerJson({int providerRevision = 5}) {
     'providerInstanceId': 'apple-music--fixture',
     'catalogAvailable': true,
   });
+  final receiver = (value['receivers'] as List)
+      .cast<Map<String, dynamic>>()
+      .singleWhere((item) => item['playerId'] == 'cast-kitchen');
+  receiver['provider'] = receiverProvider;
   return value;
 }
 
-ServerMusicManager _manager({int providerRevision = 5}) =>
-    ServerMusicManager.fromJson(
-      _managerJson(providerRevision: providerRevision),
-    );
+ServerMusicManager _manager({
+  int providerRevision = 5,
+  String receiverProvider = 'chromecast--main',
+}) => ServerMusicManager.fromJson(
+  _managerJson(
+    providerRevision: providerRevision,
+    receiverProvider: receiverProvider,
+  ),
+);
+
+ServerMusicManager _oversizedManager() {
+  final value = _managerJson();
+  final members = [
+    for (var index = 0; index < 64; index++)
+      'member-${index.toString().padLeft(2, '0')}-${'x' * 110}',
+  ];
+  value['receivers'] = [
+    for (final id in members)
+      {
+        'playerId': id,
+        'name': 'Member',
+        'provider': 'airplay--main',
+        'targetKind': 'airplay',
+        'available': true,
+        'enabled': true,
+        'playbackState': 'idle',
+        'volumeLevel': 20,
+        'muted': false,
+        'groupMembers': <String>[],
+        'queueId': null,
+        'positionSeconds': 0.0,
+        'capabilities': ['play'],
+      },
+    {
+      'playerId': 'large-group',
+      'name': 'Large group',
+      'provider': 'airplay--main',
+      'targetKind': 'airplay_group',
+      'available': true,
+      'enabled': true,
+      'playbackState': 'idle',
+      'volumeLevel': 20,
+      'muted': false,
+      'groupMembers': members,
+      'queueId': null,
+      'positionSeconds': 0.0,
+      'capabilities': ['play'],
+    },
+  ];
+  return ServerMusicManager.fromJson(value);
+}
 
 ServerMusicProviderBinding _provider(ServerMusicManager manager) =>
     manager.providers.singleWhere((item) => item.setupId == 'e' * 32);
@@ -128,6 +182,20 @@ void main() {
       provider: _provider(manager),
       receiver: _receiver(manager),
     );
+    expect(
+      await cache.read(
+        _scope,
+        _manager(receiverProvider: 'chromecast--replacement'),
+      ),
+      isNull,
+    );
+
+    await cache.write(
+      _scope,
+      manager,
+      provider: _provider(manager),
+      receiver: _receiver(manager),
+    );
     now = now.add(ServerMusicSelectionCache.timeToLive);
     expect(await cache.read(_scope, manager), isNull);
 
@@ -147,6 +215,19 @@ void main() {
     backend.value = 'x' * (ServerMusicSelectionCache.maximumBytes + 1);
     expect(await cache.read(_scope, manager), isNull);
     expect(backend.value, isNull);
+
+    final oversized = _oversizedManager();
+    final writes = backend.writes;
+    await expectLater(
+      cache.write(
+        _scope,
+        oversized,
+        provider: _provider(oversized),
+        receiver: oversized.receivers.last,
+      ),
+      throwsStateError,
+    );
+    expect(backend.writes, writes);
   });
 
   test('explicit provider and receiver choices restore only after live verification', () async {
