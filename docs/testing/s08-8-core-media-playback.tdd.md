@@ -53,9 +53,15 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   could permanently exhaust normal playback. GREEN
   `b8c1d1ae016dbdb9569d615ca43869e345bf1931` added safe expiry and terminal
   receipt recycling while preserving pending effect evidence.
+- Receipt-binding RED `93c37e22007d77751d335396a56e720d15fcff0e`
+  reproduced a constraint-valid pending receipt whose stored intent differed
+  from its canonical request, yielding a false uncertain replay. GREEN
+  `40d053e040feaabf31404ba9c9c7c92961190700` now validates canonical request
+  and receipt payloads plus actor, intent, consumed-by, target and revision
+  relationships both at startup and at replay time.
 
-The current focused Server playback suite passes **9/9**; the grouped playback,
-catalog-read and flow package passes **40/40**. The current Flutter playback,
+The current focused Server playback suite passes **12/12**; the grouped playback,
+catalog-read and flow package passes **43/43**. The current Flutter playback,
 catalog tablet and real-loopback package passes **20/20**. Earlier accepted
 broader groups remain recorded by their exact commits above.
 
