@@ -68,6 +68,7 @@ class CaptureEngine:
                     descriptor,
                     (item.container_id,),
                     1,
+                    "capture-set-1",
                     f"capture-{item.volume_id}",
                 )
             )
@@ -160,6 +161,7 @@ def test_capture_failure_or_consumer_interruption_still_releases(tmp_path):
         "schema",
         "version",
         "capture_identity",
+        "mixed_generation",
         "descriptor_mode",
     ],
 )
@@ -186,6 +188,8 @@ def test_capture_rejects_drift_and_malformed_leases_without_yield(tmp_path, dama
                 snapshot_device=first.source_device,
                 snapshot_inode=first.source_inode,
             )
+        elif damage == "mixed_generation":
+            first = replace(first, capture_generation="capture-set-2")
         elif damage == "descriptor_mode":
             os.close(first.descriptor)
             invalid = engine.roots[first.volume_id] / "writable"
