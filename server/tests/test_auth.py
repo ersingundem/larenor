@@ -21,6 +21,7 @@ def test_initial_login_forces_password_change_before_other_capabilities(server):
     assert pair["user"]["mustChangePassword"] is True
     assert len(pair["accessToken"]) == 43
     assert len(pair["refreshToken"]) == 64
+    assert len(pair["sessionFamilyId"]) == 32
     assert pair["expiresIn"] == 900
     assert client.get("/api/v1/auth/me", headers=auth(pair)).json() == {"user": pair["user"]}
     for method, path, body in (("GET", "/api/v1/vault", None),
@@ -61,6 +62,7 @@ def test_refresh_rotates_and_old_token_replay_revokes_new_pair(server):
     response = client.post("/api/v1/auth/refresh", json={"refreshToken": pair["refreshToken"]})
     assert response.status_code == 200
     rotated = response.json()
+    assert rotated["sessionFamilyId"] == pair["sessionFamilyId"]
     assert rotated["accessToken"] != pair["accessToken"]
     assert rotated["refreshToken"] != pair["refreshToken"]
     assert client.get("/api/v1/auth/me", headers=auth(pair)).status_code == 401

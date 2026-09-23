@@ -12,6 +12,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 final now = DateTime.utc(2026, 9, 5);
 const access = 'synthetic_access_token_00000000001';
 const refresh = 'synthetic_refresh_token_0000000001';
+const family = 'cccccccccccccccccccccccccccccccc';
 Map<String, Object?> pair({
   String token = access,
   String refreshToken = refresh,
@@ -19,10 +20,12 @@ Map<String, Object?> pair({
   int expires = 900,
   String id = 'synthetic-user',
   String role = 'admin',
+  String sessionFamilyId = family,
 }) => {
   'accessToken': token,
   'refreshToken': refreshToken,
   'expiresIn': expires,
+  'sessionFamilyId': sessionFamilyId,
   'user': {
     'id': id,
     'username': 'admin',
@@ -99,14 +102,17 @@ void main() {
     );
     expect(session.user.canAdminister, isFalse);
     expect(session.expiresAt, now.add(const Duration(minutes: 15)));
+    expect(session.sessionFamilyId, family);
     expect(session.toString(), isNot(contains(access)));
     final restored = ServerSession.decodeStorage(session.encodeStorage());
     expect(restored.accessToken, access);
     expect(restored.endpoint.baseUrl, 'https://server.test');
+    expect(restored.sessionFamilyId, family);
     for (final invalid in [
       pair(role: 'root'),
       pair(expires: 0),
       pair(token: 'token\r\nsecret'),
+      pair(sessionFamilyId: 'not-a-family'),
     ]) {
       expect(
         () => ServerSession.fromResponse(
@@ -389,6 +395,22 @@ void main() {
       final results = await Future.wait([first, second]);
       expect(results[0], same(results[1]));
       expect(store.value!.refreshToken, 'synthetic_rotated_refresh_00000001');
+    });
+
+    test('refresh cannot replace the live session family', () async {
+      handler = (_) async => jsonResponse(pair(change: false));
+      await login();
+      clock = now.add(const Duration(minutes: 16));
+      handler = (_) async =>
+          jsonResponse(pair(change: false, sessionFamilyId: 'f' * 32));
+
+      await expectLater(
+        account.ensureSession(),
+        throwsA(code('invalid_response')),
+      );
+
+      expect(account.session, isNull);
+      expect(store.value?.authMutationPending, isTrue);
     });
 
     for (final expired in [false, true]) {

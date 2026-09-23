@@ -125,6 +125,7 @@ class AuthService:
                            (uuid.uuid4().hex, family_id, token_hash(access), token_hash(refresh),
                             now + ttl, expires_at, now))
         return {"accessToken": access, "refreshToken": refresh, "expiresIn": ttl,
+                "sessionFamilyId": family_id,
                 "user": {"id": user["id"], "username": user["username"], "role": user["role"],
                          "mustChangePassword": bool(user["must_change_password"])}}
 

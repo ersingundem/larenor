@@ -444,7 +444,7 @@ void main() {
       'Turkish audio',
     );
     choose();
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(h.player.commands, ['audio:2']);
     h.invalidate('account', tester);
     h.preferences.writeGate!.complete();

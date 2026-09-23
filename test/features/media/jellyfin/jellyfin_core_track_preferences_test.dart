@@ -29,7 +29,7 @@ Map<String, dynamic> _response(
     'homeId': 'b' * 32,
     'accountId': accountId ?? fixture.user.id,
     'accountRevision': 1,
-    'sessionFamilyId': 'c' * 32,
+    'sessionFamilyId': sessionFamilyId,
     'preferenceRevision': revision ?? 0,
   },
   'preference': revision == null

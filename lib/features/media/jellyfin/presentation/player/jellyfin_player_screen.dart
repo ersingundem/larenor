@@ -143,6 +143,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _hudTimer?.cancel();
     _hudKind = null;
     _controlsVisible = true;
+    _preferenceSaveFailed = false;
     _closePicker();
     void redraw() {
       if (mounted) setState(() {});
@@ -213,6 +214,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   int _sourceEpoch = 0;
   int _preferredAudioEpoch = -1;
   int _preferredSubtitleEpoch = -1;
+  bool _preferenceSaveFailed = false;
 
   bool _loading = true;
   String? _error;
@@ -475,30 +477,39 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     if (client == null || !_interactionCurrent(generation)) return;
     try {
       await _player.setAudioTrack(track);
-      if (!_interactionCurrent(generation) ||
-          sourceEpoch != _sourceEpoch ||
-          !_tracks.audio.any((available) => identical(available, track))) {
-        return;
-      }
-      final language = JellyfinTrackPreferences.normalize(track.language);
-      if (language == null) return;
+    } catch (_) {
+      return;
+    }
+    if (!_preferenceWriteCurrent(client, sourceEpoch, generation) ||
+        !_tracks.audio.any((available) => identical(available, track))) {
+      return;
+    }
+    final String? language;
+    try {
+      language = JellyfinTrackPreferences.normalize(track.language);
+    } on FormatException {
+      return;
+    }
+    if (language == null) return;
+    setState(() => _preferenceSaveFailed = false);
+    try {
       final saved = await ref
           .read(jellyfinTrackPreferencesStoreProvider)
           .saveAudio(
             client.config,
             language: language,
             isCurrent: () =>
-                sourceEpoch == _sourceEpoch &&
-                _interactionCurrent(generation) &&
-                identical(ref.read(jellyfinClientProvider), client),
+                _preferenceWriteCurrent(client, sourceEpoch, generation),
           );
-      if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
+      if (_preferenceWriteCurrent(client, sourceEpoch, generation)) {
+        setState(() => _preferenceSaveFailed = false);
         _preferredTracks = saved;
         _preferredAudioEpoch = sourceEpoch;
       }
     } catch (_) {
-      // The selection may have played, but an uncertain preference write is
-      // never shown as an applied cross-session preference.
+      if (_preferenceWriteCurrent(client, sourceEpoch, generation)) {
+        setState(() => _preferenceSaveFailed = true);
+      }
     }
   }
 
@@ -511,36 +522,55 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     if (client == null || !_interactionCurrent(generation)) return;
     try {
       await _player.setSubtitleTrack(track);
-      if (!_interactionCurrent(generation) ||
-          sourceEpoch != _sourceEpoch ||
-          (track.id != 'no' &&
-              !_tracks.subtitle.any(
-                (available) => identical(available, track),
-              ))) {
-        return;
-      }
-      final language = track.id == 'no'
+    } catch (_) {
+      return;
+    }
+    if (!_preferenceWriteCurrent(client, sourceEpoch, generation) ||
+        (track.id != 'no' &&
+            !_tracks.subtitle.any(
+              (available) => identical(available, track),
+            ))) {
+      return;
+    }
+    final String? language;
+    try {
+      language = track.id == 'no'
           ? 'off'
           : JellyfinTrackPreferences.normalize(track.language, allowOff: true);
-      if (language == null) return;
+    } on FormatException {
+      return;
+    }
+    if (language == null) return;
+    setState(() => _preferenceSaveFailed = false);
+    try {
       final saved = await ref
           .read(jellyfinTrackPreferencesStoreProvider)
           .saveSubtitle(
             client.config,
             language: language,
             isCurrent: () =>
-                sourceEpoch == _sourceEpoch &&
-                _interactionCurrent(generation) &&
-                identical(ref.read(jellyfinClientProvider), client),
+                _preferenceWriteCurrent(client, sourceEpoch, generation),
           );
-      if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
+      if (_preferenceWriteCurrent(client, sourceEpoch, generation)) {
+        setState(() => _preferenceSaveFailed = false);
         _preferredTracks = saved;
         _preferredSubtitleEpoch = sourceEpoch;
       }
     } catch (_) {
-      // Do not replay a lost or stale player command.
+      if (_preferenceWriteCurrent(client, sourceEpoch, generation)) {
+        setState(() => _preferenceSaveFailed = true);
+      }
     }
   }
+
+  bool _preferenceWriteCurrent(
+    JellyfinClient client,
+    int sourceEpoch,
+    int generation,
+  ) =>
+      sourceEpoch == _sourceEpoch &&
+      _interactionCurrent(generation) &&
+      identical(ref.read(jellyfinClientProvider), client);
 
   Future<void> _reportProgress() async {
     await _reporter?.progress(_position, isPaused: !_player.state.playing);
@@ -740,6 +770,11 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       ? 'Dil etiketi olan bir parça seçmek bu Larenor hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
       : 'Choosing a track with a language label saves that language for this Larenor account. If a later title lacks it, playback keeps an available track.';
 
+  String get _languagePreferenceFallback =>
+      Localizations.localeOf(context).languageCode == 'tr'
+      ? 'Parça yalnızca bu video için değişti. Core dil tercihin kaydedilemedi.'
+      : 'The track changed for this video only. Your Core language preference could not be saved.';
+
   Future<void> _showSubtitlePicker() {
     final l10n = AppLocalizations.of(context);
     return _pick<SubtitleTrack>(
@@ -909,6 +944,40 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                   ),
                 ),
                 if (_hudKind != null) Center(child: _buildHud()),
+                if (_preferenceSaveFailed)
+                  Positioned(
+                    key: const ValueKey(
+                      'jellyfin-language-preference-fallback',
+                    ),
+                    top: 72,
+                    left: 16,
+                    right: 16,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemOrange.darkColor
+                                .withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            _languagePreferenceFallback,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: CupertinoColors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_controlsVisible) _buildTopBar(l10n),
                 if (_controlsVisible) _buildBottomBar(l10n),
               ],

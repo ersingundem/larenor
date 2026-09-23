@@ -320,7 +320,7 @@ class ServerAccountController extends ChangeNotifier {
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
-      _checkIdentity(previous, next);
+      _checkIdentity(previous, next, allowNewFamily: true);
       await _accept(next, generation);
     } catch (error) {
       if (isCurrent(generation)) {
@@ -562,9 +562,16 @@ class ServerAccountController extends ChangeNotifier {
     }
   }
 
-  void _checkIdentity(ServerSession old, ServerSession next) {
+  void _checkIdentity(
+    ServerSession old,
+    ServerSession next, {
+    bool allowNewFamily = false,
+  }) {
     if (old.endpoint.baseUrl != next.endpoint.baseUrl ||
-        old.user.id != next.user.id) {
+        old.user.id != next.user.id ||
+        (!allowNewFamily &&
+            old.sessionFamilyId != null &&
+            old.sessionFamilyId != next.sessionFamilyId)) {
       throw const LarenorServerException('invalid_response');
     }
   }

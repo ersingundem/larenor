@@ -17,6 +17,8 @@ const account = '33333333333333333333333333333333';
 const family = '44444444444444444444444444444444';
 
 final class SocketHttpClient extends http.BaseClient {
+  bool failFirstLanguagePut = true;
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final body = await request.finalize().fold<List<int>>(
@@ -41,6 +43,12 @@ final class SocketHttpClient extends http.BaseClient {
       <int>[],
       (all, chunk) => all..addAll(chunk),
     );
+    if (failFirstLanguagePut &&
+        request.method == 'PUT' &&
+        request.url.path.contains('/media/language-preferences/')) {
+      failFirstLanguagePut = false;
+      throw http.ClientException('fixture lost committed response');
+    }
     var split = -1;
     for (var index = 0; index <= raw.length - 4; index++) {
       if (raw[index] == 13 &&
@@ -87,7 +95,6 @@ final class LanguagePreferenceCore {
   int revision = 0;
   String? audio;
   String? subtitle;
-  bool dropFirstPut = true;
 
   static Future<LanguagePreferenceCore> start() async {
     final value = LanguagePreferenceCore._(
@@ -139,6 +146,7 @@ final class LanguagePreferenceCore {
           'accessToken': 'a' * 43,
           'refreshToken': 'b' * 43,
           'expiresIn': 3600,
+          'sessionFamilyId': family,
           'user': {
             'id': account,
             'username': 'listener',
@@ -162,12 +170,6 @@ final class LanguagePreferenceCore {
             receipts[requestId] = snapshot;
           }
           result = receipts[requestId]!;
-          if (dropFirstPut) {
-            dropFirstPut = false;
-            final socket = await request.response.detachSocket();
-            socket.destroy();
-            continue;
-          }
         }
       } else {
         request.response.statusCode = 404;

@@ -70,6 +70,7 @@ class SessionPair(StrictModel):
     accessToken: str
     refreshToken: str
     expiresIn: Annotated[int, Field(ge=1)]
+    sessionFamilyId: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
     user: PublicUser
 
 
