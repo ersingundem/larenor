@@ -67,8 +67,12 @@ class RemotePlaybackController {
       sink.close();
       return;
     }
-    final subscription = _changes.stream.listen(sink.add, onDone: sink.close);
     _listeners++;
+    // Check authority before this listener can receive the retained snapshot.
+    // Existing listeners are retired through the same invalidation publish;
+    // this listener subscribes afterwards and receives the cleared state once.
+    if (!_authorityCurrent()) _invalidate();
+    final subscription = _changes.stream.listen(sink.add, onDone: sink.close);
     sink.add(_state);
     if (_listeners == 1 && _active) unawaited(refresh());
     sink.onCancel = () {
