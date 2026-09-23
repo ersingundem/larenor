@@ -118,6 +118,14 @@ class ServerMusicProviderBinding {
 
   final String setupId, domain, instanceId;
   final int revision;
+
+  Map<String, Object> toJson() => {
+    'setupId': setupId,
+    'revision': revision,
+    'providerDomain': domain,
+    'providerInstanceId': instanceId,
+    'catalogAvailable': true,
+  };
 }
 
 class ServerMusicReceiver {
@@ -219,6 +227,22 @@ class ServerMusicReceiver {
   final String? queueId;
   final double? positionSeconds;
 
+  Map<String, Object?> toJson() => {
+    'playerId': id,
+    'name': name,
+    'provider': provider,
+    'targetKind': kind,
+    'available': available,
+    'enabled': enabled,
+    'playbackState': playbackState,
+    'volumeLevel': volumeLevel,
+    'muted': muted,
+    'groupMembers': groupMembers,
+    'queueId': queueId,
+    'positionSeconds': positionSeconds,
+    'capabilities': capabilities,
+  };
+
   bool supports(ServerMusicOperation operation) =>
       capabilities.contains(switch (operation) {
         ServerMusicOperation.play => 'play',
@@ -274,6 +298,14 @@ class ServerMusicQueue {
   final int itemCount;
   final String? currentItemUri;
   final double positionSeconds;
+
+  Map<String, Object?> toJson() => {
+    'queueId': id,
+    'active': active,
+    'itemCount': itemCount,
+    'currentItemUri': currentItemUri,
+    'positionSeconds': positionSeconds,
+  };
 }
 
 bool _validUri(Object? value) =>
@@ -358,6 +390,18 @@ class ServerMusicManager {
   final List<ServerMusicQueue> queues;
   final List<ServerMusicReceiver> receivers;
   final DateTime updatedAt;
+
+  Map<String, Object> toJson() => {
+    'installationId': installationId,
+    'installationRevision': installationRevision,
+    'coreRevision': coreRevision,
+    'revision': revision,
+    'providers': providers.map((item) => item.toJson()).toList(),
+    'queues': queues.map((item) => item.toJson()).toList(),
+    'receivers': receivers.map((item) => item.toJson()).toList(),
+    'installAvailable': false,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   ServerMusicQueue? queueFor(ServerMusicReceiver receiver) =>
       receiver.queueId == null
