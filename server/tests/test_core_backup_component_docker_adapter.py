@@ -235,7 +235,7 @@ def effect_reply(container, receipts, state, *, delays=(), after_effect=None):
         if after_effect is not None:
             after_effect(action)
         if action in delays:
-            time.sleep(0.12)
+            time.sleep(1.0)
             return None
         return b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n"
 
@@ -264,7 +264,7 @@ def test_pause_and_unpause_use_one_effect_each_with_fresh_state_reconciliation(
                 endpoint,
                 authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=0.1,
+                effect_seconds=1.0,
             )
             adapter.sources(time.monotonic() + 5)
             assert adapter.pause(receipt.container_id, time.monotonic() + 5) is True
@@ -296,11 +296,11 @@ def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path)
                 endpoint,
                 authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=0.04,
+                effect_seconds=0.75,
             )
-            adapter.sources(time.monotonic() + 5)
-            assert adapter.pause(receipt.container_id, time.monotonic() + 5) is True
-            assert adapter.unpause(receipt.container_id, time.monotonic() + 5) is True
+            adapter.sources(time.monotonic() + 8)
+            assert adapter.pause(receipt.container_id, time.monotonic() + 8) is True
+            assert adapter.unpause(receipt.container_id, time.monotonic() + 8) is True
 
         operations = effect_operations(calls)
         assert len(operations) == 2

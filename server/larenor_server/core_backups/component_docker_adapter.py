@@ -71,8 +71,16 @@ def _state(value, paused):
 class UnixDockerComponentSnapshotAdapter:
     """Join installed journals to exact live Docker and filesystem identities."""
 
-    def __init__(self, endpoint, authority, *, peer_uid=None):
-        if type(authority) is not DurableComponentInstallationAuthority:
+    def __init__(
+        self, endpoint, authority, *, peer_uid=None, effect_seconds=2.0
+    ):
+        if (
+            type(authority) is not DurableComponentInstallationAuthority
+            or type(effect_seconds) not in (int, float)
+            or type(effect_seconds) is bool
+            or not math.isfinite(effect_seconds)
+            or not 0.01 <= effect_seconds <= 10
+        ):
             raise ComponentDockerAdapterError()
         try:
             self._http = VerifiedEngineHttp(endpoint, peer_uid=peer_uid)
@@ -81,8 +89,11 @@ class UnixDockerComponentSnapshotAdapter:
         self._endpoint = endpoint
         self._authority = authority
         self._peer_uid = peer_uid
+        self._effect_seconds = effect_seconds
         self._receipts = None
         self._sources = None
+        self._attempted = set()
+        self._paused_owned = set()
 
     def _container(self, receipt, deadline):
         remaining = _remaining(deadline)
@@ -126,6 +137,140 @@ class UnixDockerComponentSnapshotAdapter:
         )
         return reader.inspect(receipt.intent.binding)
 
+    @staticmethod
+    def _mounts(observed):
+        try:
+            result = {
+                (item["Name"], item["Destination"]): item
+                for item in observed["Mounts"]
+            }
+            if len(result) != len(observed["Mounts"]):
+                raise ValueError()
+            return result
+        except (KeyError, TypeError, ValueError):
+            raise ComponentDockerAdapterError() from None
+
+    @staticmethod
+    def _source(receipt, volume, mount):
+        try:
+            if mount is None or mount.get("RW") is not True:
+                raise ValueError()
+            path = _path(mount.get("Source"))
+            info = path.lstat()
+            if not stat.S_ISDIR(info.st_mode):
+                raise ValueError()
+            return ComponentVolumeSource(
+                receipt.service_id,
+                receipt.container_id,
+                volume.volume_id,
+                path,
+                receipt.service_version,
+                receipt.config_schema_version,
+                receipt.data_schema_version,
+                volume.intent.receipt.revision,
+                info.st_dev,
+                info.st_ino,
+            )
+        except ComponentDockerAdapterError:
+            raise
+        except Exception:
+            raise ComponentDockerAdapterError() from None
+
+    def _authority_current(self, deadline):
+        if self._sources is None:
+            return False
+        try:
+            _remaining(deadline)
+            for source in self._sources:
+                info = source.path.lstat()
+                if (
+                    not stat.S_ISDIR(info.st_mode)
+                    or (info.st_dev, info.st_ino)
+                    != (source.device, source.inode)
+                ):
+                    return False
+            return self._authority.revalidate(self._sources, deadline) is True
+        except Exception:
+            return False
+
+    def _receipt(self, container_id):
+        if type(container_id) is not str or self._receipts is None:
+            raise ComponentDockerAdapterError()
+        selected = tuple(
+            item for item in self._receipts if item.container_id == container_id
+        )
+        if len(selected) != 1:
+            raise ComponentDockerAdapterError()
+        return selected[0]
+
+    def _live_state(self, receipt, deadline):
+        observed = self._container(receipt, deadline)
+        state = observed.get("State")
+        if _state(state, False):
+            paused = False
+        elif _state(state, True):
+            paused = True
+        else:
+            raise ComponentDockerAdapterError()
+        mounts = self._mounts(observed)
+        expected = {
+            (source.service_id, source.volume_id): source
+            for source in self._sources
+        }
+        identities = set()
+        for volume in receipt.volumes:
+            _remaining(deadline)
+            self._volume(volume, deadline)
+            resource = volume.intent.binding.resource
+            current = self._source(
+                receipt,
+                volume,
+                mounts.get((resource.name, volume.target)),
+            )
+            source = expected.get((receipt.service_id, volume.volume_id))
+            if current != source or (current.device, current.inode) in identities:
+                raise ComponentDockerAdapterError()
+            identities.add((current.device, current.inode))
+        return paused
+
+    def _preflight(self, receipt, paused, deadline):
+        if not self._authority_current(deadline):
+            raise ComponentDockerAdapterError()
+        if self._live_state(receipt, deadline) is not paused:
+            raise ComponentDockerAdapterError()
+        if not self._authority_current(deadline):
+            raise ComponentDockerAdapterError()
+
+    def _dispatch(self, receipt, action, deadline):
+        dispatched = {"value": False}
+
+        def gate():
+            if not self._authority_current(deadline):
+                return False
+            self._attempted.add(receipt.container_id)
+            dispatched["value"] = True
+            return True
+
+        remaining = _remaining(deadline)
+        budget = min(float(self._effect_seconds), remaining / 2)
+        if budget < 0.01:
+            raise ComponentDockerAdapterError()
+        try:
+            self._http.exchange(
+                EngineHttpRequest(
+                    "POST",
+                    f"/v1.47/containers/{receipt.container_id}/{action}",
+                ),
+                lambda status, headers, chunks: True,
+                platform=receipt.installed.binding.platform,
+                limits=EngineHttpLimits(budget, min(budget, 1.0), 1, 1),
+                before_dispatch=gate,
+            )
+        except Exception:
+            if not dispatched["value"]:
+                raise ComponentDockerAdapterError() from None
+        return dispatched["value"]
+
     def sources(self, deadline):
         try:
             receipts = self._authority.snapshot()
@@ -137,44 +282,25 @@ class UnixDockerComponentSnapshotAdapter:
                 observed = self._container(receipt, deadline)
                 if not _state(observed.get("State"), False):
                     raise ComponentDockerAdapterError()
-                mounts = {
-                    (item["Name"], item["Destination"]): item
-                    for item in observed["Mounts"]
-                }
-                if len(mounts) != len(observed["Mounts"]):
-                    raise ComponentDockerAdapterError()
+                mounts = self._mounts(observed)
                 for volume in receipt.volumes:
                     _remaining(deadline)
                     self._volume(volume, deadline)
                     resource = volume.intent.binding.resource
-                    mount = mounts.get((resource.name, volume.target))
-                    if mount is None or mount.get("RW") is not True:
-                        raise ComponentDockerAdapterError()
-                    path = _path(mount.get("Source"))
-                    info = path.lstat()
-                    identity = (info.st_dev, info.st_ino)
+                    source = self._source(
+                        receipt,
+                        volume,
+                        mounts.get((resource.name, volume.target)),
+                    )
+                    identity = (source.device, source.inode)
                     if (
-                        not stat.S_ISDIR(info.st_mode)
-                        or path in paths
+                        source.path in paths
                         or identity in identities
                     ):
                         raise ComponentDockerAdapterError()
-                    paths.add(path)
+                    paths.add(source.path)
                     identities.add(identity)
-                    selected.append(
-                        ComponentVolumeSource(
-                            receipt.service_id,
-                            receipt.container_id,
-                            volume.volume_id,
-                            path,
-                            receipt.service_version,
-                            receipt.config_schema_version,
-                            receipt.data_schema_version,
-                            volume.intent.receipt.revision,
-                            info.st_dev,
-                            info.st_ino,
-                        )
-                    )
+                    selected.append(source)
             result = tuple(
                 sorted(selected, key=lambda item: (item.service_id, item.volume_id))
             )
@@ -185,6 +311,55 @@ class UnixDockerComponentSnapshotAdapter:
             self._receipts = receipts
             self._sources = result
             return result
+        except ComponentDockerAdapterError:
+            raise
+        except Exception:
+            raise ComponentDockerAdapterError() from None
+
+    def pause(self, container_id, deadline):
+        try:
+            receipt = self._receipt(container_id)
+            self._preflight(receipt, False, deadline)
+            if not self._dispatch(receipt, "pause", deadline):
+                raise ComponentDockerAdapterError()
+            if self._live_state(receipt, deadline) is not True:
+                raise ComponentDockerAdapterError()
+            self._paused_owned.add(container_id)
+            if not self._authority_current(deadline):
+                raise ComponentDockerAdapterError()
+            return True
+        except ComponentDockerAdapterError:
+            raise
+        except Exception:
+            raise ComponentDockerAdapterError() from None
+
+    def unpause(self, container_id, deadline):
+        try:
+            receipt = self._receipt(container_id)
+            if container_id not in self._attempted:
+                raise ComponentDockerAdapterError()
+            if not self._authority_current(deadline):
+                raise ComponentDockerAdapterError()
+            paused = self._live_state(receipt, deadline)
+            if not self._authority_current(deadline):
+                raise ComponentDockerAdapterError()
+            if paused is False:
+                self._paused_owned.discard(container_id)
+                self._attempted.discard(container_id)
+                return True
+            if container_id not in self._paused_owned:
+                # The same process dispatched pause but did not yet observe it;
+                # the fresh paused state makes that uncertain effect ours to undo.
+                self._paused_owned.add(container_id)
+            if not self._dispatch(receipt, "unpause", deadline):
+                raise ComponentDockerAdapterError()
+            if self._live_state(receipt, deadline) is not False:
+                raise ComponentDockerAdapterError()
+            if not self._authority_current(deadline):
+                raise ComponentDockerAdapterError()
+            self._paused_owned.discard(container_id)
+            self._attempted.discard(container_id)
+            return True
         except ComponentDockerAdapterError:
             raise
         except Exception:
