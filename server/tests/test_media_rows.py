@@ -21,6 +21,7 @@ from test_media_service_bootstraps import (
 
 
 BASE = '/api/v1/media/rows/read'
+TARGET = '/api/v1/media/rows/target'
 
 
 class RowsWorker:
@@ -80,6 +81,87 @@ def configured(server):
         'expectedInstallationRevision': installation['revision'],
     }
     return pair, installation, worker, body
+
+
+def target_request(body):
+    return {
+        'installationId': body['installationId'],
+        'expectedInstallationRevision': body['expectedInstallationRevision'],
+    }
+
+
+def test_ready_owner_reads_secret_free_target_without_worker(server):
+    _app, client, _, _ = server
+    pair, installation, worker, body = configured(server)
+
+    response = client.post(
+        TARGET,
+        headers=auth(pair),
+        json=target_request(body),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        'schemaVersion': 1,
+        'installationId': installation['id'],
+        'installationRevision': installation['revision'],
+        'bindingRevision': 1,
+    }
+    serialized = response.text.lower()
+    assert all(word not in serialized for word in (
+        'apikey', 'userid', 'token', 'password', 'bootstrap', 'endpoint', 'url'))
+    assert '1' * 32 not in response.text and 'c' * 32 not in response.text
+    assert worker.calls == []
+
+
+def test_target_stale_or_unbound_authority_is_static_and_skips_worker(server):
+    _app, client, _, _ = server
+    pair, _installation, worker, body = configured(server)
+
+    stale = client.post(
+        TARGET,
+        headers=auth(pair),
+        json=target_request(body) | {
+            'expectedInstallationRevision':
+            body['expectedInstallationRevision'] + 1,
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()['error']['code'] == 'media_rows_authority_changed'
+    assert body['installationId'] not in stale.text
+
+    create_user(client, pair)
+    member = activate(client, 'member')
+    unbound = client.post(
+        TARGET,
+        headers=auth(member),
+        json=target_request(body),
+    )
+    assert unbound.status_code == 409
+    assert unbound.json()['error']['code'] == 'media_rows_authority_changed'
+    assert body['installationId'] not in unbound.text
+    assert worker.calls == []
+
+
+def test_target_body_rejects_private_and_read_fields_without_worker(server):
+    _app, client, _, _ = server
+    pair, _installation, worker, body = configured(server)
+
+    for field, value in (
+        ('requestId', 'e' * 32),
+        ('bindingRevision', 1),
+        ('userId', '1' * 32),
+        ('apiKey', 'c' * 32),
+    ):
+        response = client.post(
+            TARGET,
+            headers=auth(pair),
+            json=target_request(body) | {field: value},
+        )
+        assert response.status_code == 400
+        if type(value) is str:
+            assert value not in response.text
+    assert worker.calls == []
 
 
 def test_ready_owner_reads_bounded_recent_and_resume_without_private_identity(server):

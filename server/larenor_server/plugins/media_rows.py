@@ -9,6 +9,7 @@ from .media_rows_models import (
     MediaRowsReadback,
     PrivateJellyfinMediaRowsAuthority,
     ReadAccountMediaRowsRequest,
+    ReadAccountMediaRowsTargetRequest,
 )
 
 
@@ -64,6 +65,17 @@ class MediaRowsManagement:
             )
         except Exception:  # noqa: BLE001 - authority callbacks fail closed
             return False
+
+    def target(self, actor, body):
+        if type(body) is not ReadAccountMediaRowsTargetRequest:
+            raise ApiError('invalid_request')
+        binding, _bootstrap = self._snapshot(actor, body)
+        return {
+            'schemaVersion': 1,
+            'installationId': binding.installation_id,
+            'installationRevision': binding.installation_revision,
+            'bindingRevision': binding.binding_revision,
+        }
 
     def read(self, actor, body):
         if type(body) is not ReadAccountMediaRowsRequest:
