@@ -9,6 +9,7 @@ final class _Storage extends FlutterSecureStorage {
   final Map<String, String> values;
   final void Function(int reads)? afterRead;
   int reads = 0;
+  final keys = <String>[];
 
   @override
   Future<String?> read({
@@ -20,6 +21,7 @@ final class _Storage extends FlutterSecureStorage {
     AppleOptions? mOptions,
     WindowsOptions? wOptions,
   }) async {
+    keys.add(key);
     final result = values[key];
     afterRead?.call(++reads);
     return result;
@@ -36,8 +38,9 @@ void main() {
   test(
     'previews a complete legacy provider without exposing credentials',
     () async {
+      final storage = _Storage(Map.of(_valid));
       final preview = await LegacyJellyfinProviderPreviewReader(
-        storage: _Storage(Map.of(_valid)),
+        storage: storage,
       ).read(isCurrent: () => true);
 
       expect(preview?.provider, LegacyMediaProvider.jellyfin);
@@ -46,6 +49,13 @@ void main() {
       for (final secret in _valid.values) {
         expect(preview.toString(), isNot(contains(secret)));
       }
+      expect(storage.keys, [
+        'jellyfin_connection_pending_v1',
+        'jellyfin_base_url',
+        'jellyfin_user_id',
+        'jellyfin_access_token',
+      ]);
+      expect(storage.keys, isNot(contains('jellyfin_device_id')));
     },
   );
 
@@ -54,6 +64,8 @@ void main() {
       {..._valid}..remove('jellyfin_access_token'),
       {..._valid, 'jellyfin_base_url': 'file:///private/media'},
       {..._valid, 'jellyfin_base_url': 'https://user:pass@example.invalid'},
+      {..._valid, 'jellyfin_base_url': 'https://example.invalid/?token=secret'},
+      {..._valid, 'jellyfin_base_url': 'https://example.invalid/#private'},
       {..._valid, 'jellyfin_user_id': ''},
       {..._valid, 'jellyfin_user_id': 'x' * 257},
       {..._valid, 'jellyfin_access_token': ''},
