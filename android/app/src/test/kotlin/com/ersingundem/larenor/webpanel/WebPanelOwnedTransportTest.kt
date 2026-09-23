@@ -167,11 +167,12 @@ class WebPanelOwnedTransportTest {
             installed.single().third,
         )
         val script = installed.single().second
-        assertTrue(script.contains("wss://fixture.invalid:443"))
-        assertTrue(script.contains("ws://fixture.invalid:8080"))
+        assertFalse(script.contains("wss://fixture.invalid:443"))
+        assertFalse(script.contains("ws://fixture.invalid:8080"))
         assertTrue(script.contains("WebSocket"))
         assertTrue(script.contains("Worker"))
         assertTrue(script.contains("SharedWorker"))
+        assertTrue(script.contains("blockedNetworkContext"))
         assertTrue(script.contains("configurable: false"))
         assertFalse(script.contains("private=opaque"))
         handle!!.close()
