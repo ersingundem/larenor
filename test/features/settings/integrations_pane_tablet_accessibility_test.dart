@@ -4,7 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/media/arr/providers/sonarr_providers.dart';
 import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
+import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
+import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
+import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/features/settings/presentation/panes/integrations_pane.dart';
 import 'package:larenor/features/settings/presentation/panes/settings_nav_row.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -17,12 +27,17 @@ Future<void> _mount(
   required String language,
   required double width,
   AppInteractionController? interaction,
+  HomeSessionController? home,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        if (home != null) homeSessionControllerProvider.overrideWithValue(home),
+      ],
       child: CupertinoApp(
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -41,7 +56,34 @@ Future<void> _mount(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
+}
+
+class _CoreSource implements HomeSourcePersistence {
+  @override
+  Future<HomeSource> read() async => HomeSource.verifiedCore;
+
+  @override
+  Future<void> write(HomeSource source) async {}
+}
+
+class _EmptySessionStore implements ServerSessionPersistence {
+  @override
+  Future<ServerSession?> read() async => null;
+
+  @override
+  Future<void> write(ServerSession? session) async {}
+}
+
+Future<(HomeSessionController, ServerAccountController)> _coreHome() async {
+  final account = ServerAccountController(store: _EmptySessionStore());
+  final home = HomeSessionController(store: _CoreSource(), account: account);
+  await home.initialize();
+  return (home, account);
 }
 
 void main() {
@@ -116,5 +158,35 @@ void main() {
 
     expect(find.byType(MediaHubScreen), findsNothing);
     expect(find.byType(IntegrationsPane), findsOneWidget);
+  });
+
+  testWidgets('Core integrations never construct Direct service providers', (
+    tester,
+  ) async {
+    final (home, account) = await _coreHome();
+    addTearDown(() {
+      home.dispose();
+      account.dispose();
+    });
+    await _mount(tester, language: 'en', width: 600, home: home, settle: false);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(IntegrationsPane)),
+      listen: false,
+    );
+
+    expect(home.usesLocalHome, isFalse);
+    expect(
+      find.byKey(const ValueKey('integrations-media-hub-action')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('integrations-manage-direct-action')),
+      findsNothing,
+    );
+    expect(container.exists(enabledServicesProvider), isFalse);
+    expect(container.exists(jellyfinConnectionProvider), isFalse);
+    expect(container.exists(jellyseerrConnectionProvider), isFalse);
+    expect(container.exists(sonarrConnectionProvider), isFalse);
+    expect(container.exists(qbittorrentConnectionProvider), isFalse);
   });
 }

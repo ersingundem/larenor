@@ -1,12 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/home_session_controller.dart';
 import '../../keenetic/presentation/keenetic_home_screen.dart';
 import '../../media/arr/presentation/lidarr_screen.dart';
 import '../../media/arr/presentation/radarr_screen.dart';
 import '../../media/arr/presentation/readarr_screen.dart';
 import '../../media/arr/presentation/sonarr_screen.dart';
 import '../../media/bazarr/presentation/bazarr_home_screen.dart';
+import '../../media/hub/presentation/media_hub_screen.dart';
 import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
 import '../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
@@ -58,6 +60,10 @@ class _ManageIntegrationsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final home = ref.watch(homeSessionControllerProvider);
+    if (home != null && !home.usesLocalHome) {
+      return const MediaHubScreen();
+    }
     final l10n = AppLocalizations.of(context);
     final reading = ref.watch(enabledServicesProvider);
 

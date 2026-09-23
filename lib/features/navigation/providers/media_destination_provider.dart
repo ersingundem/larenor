@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../media/data/media_api_exception.dart';
 import '../../media/hub/domain/media_identity.dart';
 import '../../media/hub/domain/media_title.dart';
@@ -50,6 +51,10 @@ final mediaDestinationProvider = FutureProvider.autoDispose
     .family<MediaTitle?, Uri>((ref, location) async {
       final identity = mediaIdentityFromLocation(location);
       if (identity == null) return null;
+      // Core routes resolve media through the central catalog. A retained or
+      // forged Direct deep link must not wake legacy account providers.
+      final direct = ref.watch(directHomeAccessProvider);
+      if (!direct.isCurrent) return null;
       final client = ref.watch(jellyfinClientProvider);
       final seerr = ref.watch(jellyseerrClientProvider);
       final itemId = location.queryParameters['jellyfin'];

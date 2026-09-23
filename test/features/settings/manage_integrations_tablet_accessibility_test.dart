@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_home_screen.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/presentation/manage_integrations_screen.dart';
@@ -16,6 +18,8 @@ import 'package:larenor/shared/widgets/app_page_scaffold.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/direct_home_routines_test.dart' show routinesHome;
 
 class _Enabled extends EnabledServices {
   _Enabled(this.load, {this.onSet});
@@ -38,6 +42,7 @@ Future<void> _mount(
   required double width,
   double textScale = 2,
   bool settle = true,
+  HomeSessionController? home,
 }) async {
   tester.view.physicalSize = Size(width, 1000);
   tester.view.devicePixelRatio = 1;
@@ -45,7 +50,10 @@ Future<void> _mount(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [enabledServicesProvider.overrideWith(createEnabled)],
+      overrides: [
+        enabledServicesProvider.overrideWith(createEnabled),
+        if (home != null) homeSessionControllerProvider.overrideWithValue(home),
+      ],
       child: CupertinoApp(
         theme: larenorTheme(brightness: Brightness.light),
         locale: locale,
@@ -71,6 +79,34 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({'enabled_services_migrated': true});
     FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets('Core route never loads the Direct integration manager', (
+    tester,
+  ) async {
+    final (_, home) = await routinesHome('core');
+    var loads = 0;
+    await _mount(
+      tester,
+      createEnabled: () => _Enabled(() async {
+        loads++;
+        return {AppService.jellyfin};
+      }),
+      locale: const Locale('en'),
+      width: 600,
+      home: home,
+    );
+
+    expect(find.byType(MediaHubScreen), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('integration-open-jellyfin')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('integration-toggle-jellyfin')),
+      findsNothing,
+    );
+    expect(loads, 0);
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
