@@ -216,6 +216,34 @@ class JellyfinTrackPreferencesStore {
     isCurrent: isCurrent,
   );
 
+  /// Applies the non-null choices from an explicitly confirmed legacy record.
+  ///
+  /// The current Core record is always read inside the live account session so
+  /// a missing legacy field preserves the latest same-account sibling choice.
+  /// An already-applied merge is returned without replaying its PUT.
+  Future<JellyfinTrackPreferenceRecord> mergeLegacy(
+    JellyfinConfig config, {
+    String? audioLanguage,
+    String? subtitleLanguage,
+    required bool Function() isCurrent,
+  }) {
+    final audio = JellyfinTrackPreferences.normalize(audioLanguage);
+    final subtitle = JellyfinTrackPreferences.normalize(
+      subtitleLanguage,
+      allowOff: true,
+    );
+    if (audio == null && subtitle == null) {
+      throw const FormatException('At least one preference is required');
+    }
+    return _merge(
+      config,
+      audioLanguage: audio,
+      subtitleLanguage: subtitle,
+      skipUnchanged: true,
+      isCurrent: isCurrent,
+    );
+  }
+
   Future<JellyfinTrackPreferenceRecord> _save(
     JellyfinConfig config, {
     String? audioLanguage,
@@ -225,6 +253,22 @@ class JellyfinTrackPreferencesStore {
     if ((audioLanguage == null) == (subtitleLanguage == null)) {
       throw const FormatException('Exactly one preference is required');
     }
+    return _merge(
+      config,
+      audioLanguage: audioLanguage,
+      subtitleLanguage: subtitleLanguage,
+      skipUnchanged: false,
+      isCurrent: isCurrent,
+    );
+  }
+
+  Future<JellyfinTrackPreferenceRecord> _merge(
+    JellyfinConfig config, {
+    String? audioLanguage,
+    String? subtitleLanguage,
+    required bool skipUnchanged,
+    required bool Function() isCurrent,
+  }) async {
     _check(isCurrent);
     final result = await _requiredAccount.withSession((api, session) async {
       final client = _JellyfinTrackPreferencesApi(api, session);
@@ -233,6 +277,12 @@ class JellyfinTrackPreferencesStore {
       _check(isCurrent);
       final audio = audioLanguage ?? old?.value.audioLanguage;
       final subtitle = subtitleLanguage ?? old?.value.subtitleLanguage;
+      if (skipUnchanged &&
+          old != null &&
+          old.value.audioLanguage == audio &&
+          old.value.subtitleLanguage == subtitle) {
+        return old.value;
+      }
       final saved = await client.write(
         expectedRevision: old?.revision ?? 0,
         audioLanguage: audio,
