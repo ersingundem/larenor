@@ -22,6 +22,17 @@ class _Repository implements AmbientContentStore {
   }
 }
 
+void _reportPdfFailure(WidgetTester tester) {
+  final viewer = tester.widget<PdfViewer>(find.byType(PdfViewer));
+  viewer.params.errorBannerBuilder!(
+    tester.element(find.byType(PdfViewer)),
+    const FormatException('broken_pdf'),
+    null,
+    viewer.documentRef,
+  );
+  tester.binding.scheduleFrame();
+}
+
 void main() {
   testWidgets('ambient web blocks same-origin secret-bearing redirects', (
     tester,
@@ -194,20 +205,87 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    final viewer = tester.widget<PdfViewer>(find.byType(PdfViewer));
-    viewer.params.errorBannerBuilder!(
-      tester.element(find.byType(PdfViewer)),
-      const FormatException('broken_pdf'),
-      null,
-      viewer.documentRef,
-    );
-    tester.binding.scheduleFrame();
+    _reportPdfFailure(tester);
     await tester.pump();
     await tester.pump();
     expect(
       find.byKey(const ValueKey('ambient-video-reduced-motion')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('single decoder-broken PDF stops after one verified read', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final brokenPdf = AmbientContent.local(
+      id: '6' * 64,
+      kind: AmbientContentKind.pdf,
+      sizeBytes: 16,
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: AmbientContentSequence(
+          repository: repository,
+          items: [brokenPdf],
+          interval: const Duration(milliseconds: 1),
+          active: true,
+          reducedMotion: true,
+          placeholder: const Text('ambient-stopped'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    _reportPdfFailure(tester);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('ambient-stopped'), findsOneWidget);
+    expect(find.byType(PdfViewer), findsNothing);
+    expect(repository.reads, [brokenPdf.id]);
+  });
+
+  testWidgets('all decoder-broken PDFs stop after one bounded pass', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final items = [
+      AmbientContent.local(
+        id: '4' * 64,
+        kind: AmbientContentKind.pdf,
+        sizeBytes: 16,
+      ),
+      AmbientContent.local(
+        id: '5' * 64,
+        kind: AmbientContentKind.pdf,
+        sizeBytes: 16,
+      ),
+    ];
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: AmbientContentSequence(
+          repository: repository,
+          items: items,
+          interval: const Duration(milliseconds: 1),
+          active: true,
+          reducedMotion: true,
+          placeholder: const Text('ambient-stopped'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    _reportPdfFailure(tester);
+    await tester.pump();
+    await tester.pump();
+    _reportPdfFailure(tester);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('ambient-stopped'), findsOneWidget);
+    expect(find.byType(PdfViewer), findsNothing);
+    expect(repository.reads, items.map((item) => item.id).toList());
   });
 
   testWidgets('late completion from previous item cannot skip current item', (

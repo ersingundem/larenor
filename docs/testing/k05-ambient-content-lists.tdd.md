@@ -1,7 +1,7 @@
 # K05.remaining ambient content lists acceptance
 
 This package extends the existing local-photo ambient display without reopening
-K00–K06 foundations. Queue progress remains 22/125 and selected-feature progress
+K00–K06 foundations. Queue progress remains 24/125 and selected-feature progress
 remains 0/63 until exact-head CI completes; no physical DPC or OEM acceptance is
 claimed.
 
@@ -48,9 +48,15 @@ cover same-origin secret-bearing redirects.
 
 Follow-up decoder regression: a digest-valid file could still fail inside the
 PDF decoder after the repository's bounded container checks. The viewer now
-turns that decoder error into one generation-bound playlist completion, shows
-no library or stack-trace detail, and advances to the next verified item. A
-retired route cannot use a late decoder error to advance a replacement item.
+turns that decoder error into one generation-bound playlist failure, shows no
+library or stack-trace detail, and advances to the next verified item only once
+per content pass. A single broken item and an all-broken list stop on the safe
+placeholder after each item has been tried once. A retired route cannot use a
+late decoder error to advance a replacement item.
 Manifest readback now also rejects a local item's claimed size when it exceeds
 that format's individual limit. Regression coverage fills the library to its
-24-item and 256 MiB offline ceilings before proving the next import fails.
+24-item and 256 MiB offline ceilings before proving the next import fails. The
+quota is reconciled against regular managed files before every local import:
+stale managed orphans are removed, while missing, wrong-sized or non-regular
+manifest backing files fail closed. This prevents interrupted imports from
+growing the physical cache beyond the declared limit.

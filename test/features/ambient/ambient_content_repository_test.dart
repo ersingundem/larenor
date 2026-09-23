@@ -198,6 +198,15 @@ void main() {
       await File(
         '${root.path}/library.json',
       ).writeAsString(jsonEncode({'version': 1, 'items': items}), flush: true);
+      for (final item in items) {
+        final extension = item['kind'] == 'pdf' ? 'pdf' : 'mp4';
+        await File('${root.path}/${item['id']}.$extension')
+            .open(mode: FileMode.write)
+            .then((file) async {
+              await file.truncate(item['sizeBytes']! as int);
+              await file.close();
+            });
+      }
 
       await expectLater(
         repository.importLocal(
@@ -216,4 +225,48 @@ void main() {
       expect(await repository.list(), hasLength(4));
     },
   );
+
+  test(
+    'removes managed orphan files before applying the physical quota',
+    () async {
+      final root = Directory('${parent.path}/content');
+      await root.create(recursive: true);
+      final orphan = File('${root.path}/${'e' * 64}.mp4');
+      final handle = await orphan.open(mode: FileMode.write);
+      await handle.truncate(AmbientContentRepository.maxVideoBytes);
+      await handle.close();
+
+      final pdf = Uint8List.fromList('%PDF-1.7\nbody\n%%EOF'.codeUnits);
+      await repository.importLocal(
+        AmbientContentKind.pdf,
+        Stream.value(pdf),
+        isCurrent: () => true,
+      );
+
+      expect(await orphan.exists(), isFalse);
+      final items = await repository.list();
+      expect(items, hasLength(1));
+      expect(await repository.readLocal(items.single), pdf);
+    },
+  );
+
+  test('fails closed when a manifest backing file is missing', () async {
+    final pdf = Uint8List.fromList('%PDF-1.7\nbody\n%%EOF'.codeUnits);
+    await repository.importLocal(
+      AmbientContentKind.pdf,
+      Stream.value(pdf),
+      isCurrent: () => true,
+    );
+    final item = (await repository.list()).single;
+    await File('${parent.path}/content/${item.id}.pdf').delete();
+
+    await expectLater(
+      repository.importLocal(
+        AmbientContentKind.pdf,
+        Stream.value('%PDF-1.7\nnext\n%%EOF'.codeUnits),
+        isCurrent: () => true,
+      ),
+      throwsA(isA<AmbientContentException>()),
+    );
+  });
 }
