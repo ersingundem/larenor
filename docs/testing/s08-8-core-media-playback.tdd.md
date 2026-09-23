@@ -27,18 +27,19 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
 
 ## TDD evidence
 
-- Server RED `f435c262fc86b4d43cd4ab2a06378b0e6e0c6faf` failed because the
+- Server RED `8a2f849ec88da3172b3d1c5d75ab3f1004f824b5` failed because the
   playback contract did not exist. GREEN
-  `cc4b9fcefb0813aaa2c383d01b17baeddb8fd8aa` added the schema, durable
+  `4c507e1b99274d5ff7a991646ecd59d54afc7ace` added the schema, durable
   intent/receipt service, member/admin API policy and authority boundaries.
-- Client RED `3e4bc3471d5489cc631402e63322746b5f47cbf1` failed because the
+- Client RED `36661ef0f7bd89a4c09412c162ffe1577a4c617f` failed because the
   strict Core adapter and controller did not exist. GREEN
-  `e1cae401bc14dda14a7662a2120e61b5885442ad` added the exact model/API and
+  `0287fff99d0bea955ba3e9ca28e5594a6aead189` added the exact model/API and
   lifecycle-bound controller with no direct provider fallback.
-- Tablet RED `0eaad8e74054e471d867ee03320d05a3cc4cdd2b` failed on the absent
-  managed-playback controls and late-result behavior. The following GREEN
-  implementation adds the confirmation journey, real loopback HTTP replay,
-  member policy, route retirement and EN/TR accessibility matrix.
+- Tablet RED `ec7e89887c84d10132e2e198377a5ebcb0c29af9` failed on the absent
+  managed-playback controls and late-result behavior. GREEN
+  `072777581eacd8d75a5a9faee04ebd0b605c7e1a` adds the confirmation journey,
+  real loopback HTTP replay, member policy, route retirement and EN/TR
+  accessibility matrix.
 
 Focused Server playback/catalog/flow tests pass **42/42** and targeted Ruff is
 clean for every new Server module and test. The grouped Flutter playback,
