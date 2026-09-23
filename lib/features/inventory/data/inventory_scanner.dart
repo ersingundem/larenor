@@ -137,9 +137,16 @@ final class InventoryScannerController extends ChangeNotifier {
     }();
     _closing = closing;
     unawaited(
-      closing.then((_) {
+      closing.then((closed) {
         if (!identical(_closing, closing)) return;
-        _closing = null;
+        if (closed) {
+          _closing = null;
+        } else if (!_disposed) {
+          // A rejected native close is not an ownership acknowledgement.
+          // Keep the completed fence installed so another camera flight can
+          // never overlap the uncertain original owner.
+          failure = InventoryCameraFailure.unavailable;
+        }
         if (!_disposed) notifyListeners();
       }),
     );
