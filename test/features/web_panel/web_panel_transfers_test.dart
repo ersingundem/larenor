@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,49 @@ const upload = FileSelectorParams(
   isCaptureEnabled: false,
   acceptTypes: ['application/pdf'],
   mode: FileSelectorMode.open,
+);
+
+final validPdf = Uint8List.fromList(
+  '%PDF-1.7\n'
+          '1 0 obj\n<< /Type /Catalog >>\nendobj\n'
+          'xref\n0 1\n0000000000 65535 f \n'
+          'trailer\n<< /Root 1 0 R >>\n'
+          'startxref\n42\n%%EOF\n'
+      .codeUnits,
+);
+
+final validJpeg = Uint8List.fromList(const [
+  0xff,
+  0xd8,
+  0xff,
+  0xc0,
+  0x00,
+  0x08,
+  0x08,
+  0x00,
+  0x01,
+  0x00,
+  0x01,
+  0x01,
+  0xff,
+  0xda,
+  0x00,
+  0x06,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0xff,
+  0xd9,
+]);
+
+final validPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+);
+
+final validWebp = base64Decode(
+  'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA',
 );
 
 final class Access implements WebPanelTransferAccess {
@@ -168,7 +212,7 @@ void main() {
             return http.Response('', 302, headers: {'location': '/file.pdf'});
           }
           return http.Response.bytes(
-            Uint8List.fromList('%PDF-1.7'.codeUnits),
+            validPdf,
             200,
             headers: {'content-type': 'application/pdf'},
           );
@@ -189,7 +233,7 @@ void main() {
         ),
         true,
       );
-      expect(saved, '%PDF-1.7'.codeUnits);
+      expect(saved, validPdf);
       expect(requests, hasLength(2));
       for (final request in requests) {
         expect(request.headers.containsKey('authorization'), false);
@@ -258,9 +302,13 @@ void main() {
     var exports = 0;
     for (final fixture in <(String, List<int>)>[
       ('application/pdf', '<html>not a pdf</html>'.codeUnits),
+      ('application/pdf', '%PDF-1.7<html>polyglot</html>'.codeUnits),
       ('image/jpeg', [0x89, 0x50, 0x4e, 0x47]),
+      ('image/jpeg', [0xff, 0xd8, 0xff, 0xe0]),
       ('image/png', [0xff, 0xd8, 0xff, 0xe0]),
+      ('image/png', [...validPng]..removeLast()),
       ('image/webp', 'RIFF0000NOPE'.codeUnits),
+      ('image/webp', 'RIFF0000WEBP'.codeUnits),
       ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
       ('text/csv', [0xc3, 0x28]),
       ('application/json', '{"unfinished":'.codeUnits),
@@ -290,5 +338,39 @@ void main() {
       );
     }
     expect(exports, 0);
+  });
+
+  test('structurally framed binary payloads reach SAF unchanged', () async {
+    for (final fixture in <(String, Uint8List)>[
+      ('application/pdf', validPdf),
+      ('image/jpeg', validJpeg),
+      ('image/png', validPng),
+      ('image/webp', validWebp),
+    ]) {
+      Uint8List? saved;
+      final access = LocalWebPanelTransferAccess(
+        client: () => MockClient(
+          (_) async => http.Response.bytes(
+            fixture.$2,
+            200,
+            headers: {'content-type': fixture.$1},
+          ),
+        ),
+        saveFile: (_, _, bytes) async {
+          saved = bytes;
+          return Uri.parse('content://fixture/saved');
+        },
+      );
+      expect(
+        await access.download(
+          Uri.parse('https://panel.invalid/file'),
+          WebPanelPolicy.fromUrl('https://panel.invalid')!,
+          () => true,
+        ),
+        true,
+        reason: fixture.$1,
+      );
+      expect(saved, fixture.$2);
+    }
   });
 }
