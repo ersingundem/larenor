@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 21 Eylül 2026, main `d0a3a43f` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.10 yazılım kapısı #301 ile birleşti; 35 açık PR ve yerel dilimler bu sayılara dahil değildir.** [Güncel teslim sırası, PR bağımlılıkları ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, main `70c667b5` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #328, bekleyen 28 PR başlığını tam zorunlu CI ile tek birleşim commitinde topladı; GitHub'da açık PR kalmadı. Birleşen kısmi özellik dilimleri kabul ölçütlerini tek başına kapatmadığı için sayaç değiştirilmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  23/125 iş (%18,4; eşit ağırlıklı sayaç)
@@ -16,6 +16,22 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### Bekleyen PR'ların birleşik kapanışı — PR #328
+
+PR #328, 28 kaynak PR'ın exact head commitlerini merge commitleriyle koruyarak
+main `70c667b5` içine aldı. Exact `e154242d` başlığında dört Flutter shardı,
+dört Server shardı ve birleşik kapıları, API 35 emülatörde gerçek uygulama
+yolculukları, debug APK, Security, SSH, iki mimarili Music Assistant ve birleşik
+medya yığını kontrolleri geçti. GitHub'da açık PR kalmadı.
+
+Bu birleşim; aile panosu, rezervasyonlar, ev belgeleri, ev işleri/masraflar,
+kamera, enerji/iklim, kat planı, oda varlığı, e-paper, atölye, kiosk ve uzak
+erişim için geniş yazılım dilimleri içeriyor. Ancak DeX ikinci ekranda gerçek
+ayrı Flutter görev yüzeyi, paketlenmiş oyun yayın motoru, üretim EV/enerji/sulama
+sağlayıcıları ve ilgili fiziksel cihaz/servis matrisleri açık. Kuyruktaki tam
+kabul ölçütleri karşılanmadan F01–F63 veya S09 düğümleri `done` yapılmadı;
+kanıtlı sayaçlar **23/125 (%18,4)** ve **0/63 (%0,0)** olarak korundu.
 
 **B5.2 kabulünün tam doğrulanmış birleşik kaynağı: main `e313328f`.** B5.2'nin kişisel
 profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve
