@@ -88,6 +88,8 @@ MAX_BUNDLE_BYTES = (
     + 8 * 1024 * 1024
 )
 _MANIFEST_NAME = "manifest.json"
+_DATABASE_VALIDATION_VM_STEP_INTERVAL = 1_000
+_DATABASE_VALIDATION_VM_STEP_BUDGET = 100_000
 
 
 def _canonical(value) -> bytes:
@@ -208,6 +210,38 @@ def _validate_payload_contract(capture: BackupCapture) -> None:
             database.deserialize(database_image)
             database.execute("PRAGMA trusted_schema=OFF")
             database.execute("PRAGMA query_only=ON")
+            executed_steps = 0
+
+            def interrupt_expensive_validation():
+                nonlocal executed_steps
+                executed_steps += _DATABASE_VALIDATION_VM_STEP_INTERVAL
+                return executed_steps > _DATABASE_VALIDATION_VM_STEP_BUDGET
+
+            database.set_progress_handler(
+                interrupt_expensive_validation,
+                _DATABASE_VALIDATION_VM_STEP_INTERVAL,
+            )
+            metadata_object = database.execute(
+                """
+                SELECT type, tbl_name
+                FROM sqlite_schema
+                WHERE name = 'metadata' COLLATE BINARY
+                """
+            ).fetchall()
+            metadata_columns = [
+                tuple(row)
+                for row in database.execute("PRAGMA table_xinfo('metadata')")
+            ]
+            if (
+                [tuple(row) for row in metadata_object]
+                != [("table", "metadata")]
+                or metadata_columns
+                != [
+                    (0, "key", "TEXT", 0, None, 1, 0),
+                    (1, "value", "TEXT", 1, None, 0, 0),
+                ]
+            ):
+                raise ValueError("invalid_metadata_table")
             schema_row = database.execute(
                 "SELECT value FROM metadata WHERE key='schema_version'"
             ).fetchone()
