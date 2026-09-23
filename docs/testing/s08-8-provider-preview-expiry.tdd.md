@@ -30,13 +30,16 @@ Run from the branch head:
 
 ```text
 flutter gen-l10n
-flutter test test/features/server/server_music_provider_command_test.dart test/features/server/server_music_provider_command_controller_test.dart test/features/server/server_music_provider_command_screen_test.dart test/features/server/server_music_manager_api_authority_test.dart test/features/server/server_music_manager_controller_test.dart test/features/server/server_music_manager_models_test.dart
+flutter test test/features/server/server_music_provider_command_test.dart test/features/server/server_music_provider_command_controller_test.dart test/features/server/server_music_provider_command_screen_test.dart test/features/server/server_music_manager_controller_test.dart test/features/server/server_music_manager_models_test.dart
 flutter analyze lib/features/server/music_provider_commands/domain/server_music_provider_command_models.dart lib/features/server/music_provider_commands/data/server_music_provider_commands_controller.dart test/features/server/server_music_provider_command_test.dart test/features/server/server_music_provider_command_controller_test.dart
 python3 tool/check_security_policy.py
 python3 tool/execution_queue.py validate
 python3 tool/execution_queue.py status --summary-only
 git diff --check
 ```
+
+The combined provider model/controller, EN/TR 600/1280 tablet screen and
+central manager regression package passed 40/40 tests.
 
 S08.8 remains pending. Wider direct Jellyfin replacement, integrated same-URL
 Core replacement/logout E2E, independent review and exact-head CI remain open.
