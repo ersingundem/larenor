@@ -43,7 +43,7 @@ and tablet Settings route. Focused verification on the final worktree passed:
 
 ```text
 server: 6 tests passed
-client: 7 tests passed
+client: 8 tests passed
 targeted flutter analyze: no issues
 ruff format/check: passed
 ```

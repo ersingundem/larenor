@@ -151,6 +151,67 @@ void main() {
     );
   });
 
+  test(
+    'Core adapter requires exact page keys and enforces 256 total records',
+    () async {
+      final context = serverContext();
+
+      LarenorServerApi transportFor(int total, {bool omitCursor = false}) {
+        return LarenorServerApi(
+          endpoint: ServerEndpoint('https://core.invalid'),
+          client: MockClient((request) async {
+            final after = request.url.queryParameters['after'];
+            final start = after == null ? 0 : int.parse(after, radix: 16) + 1;
+            final remaining = total - start;
+            final count = remaining.clamp(0, 50);
+            final records = List.generate(
+              count,
+              (offset) => recordJson(
+                'tested',
+                id: (start + offset).toRadixString(16).padLeft(32, '0'),
+              ),
+            );
+            final consumed = start + count;
+            return jsonResponse({
+              'schemaVersion': 1,
+              'scope': context.toJson(),
+              'records': records,
+              if (!omitCursor)
+                'nextAfter': consumed < total ? records.last['id'] : null,
+            });
+          }),
+        );
+      }
+
+      final accepted = transportFor(256);
+      addTearDown(accepted.close);
+      expect(
+        await CapabilityEvidenceApi(accepted, 'x' * 43, context).list(),
+        hasLength(256),
+      );
+
+      final oversized = transportFor(257);
+      addTearDown(oversized.close);
+      await expectLater(
+        CapabilityEvidenceApi(oversized, 'x' * 43, context).list(),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+
+      final missingCursor = transportFor(1, omitCursor: true);
+      addTearDown(missingCursor.close);
+      await expectLater(
+        CapabilityEvidenceApi(missingCursor, 'x' * 43, context).list(),
+        throwsA(isA<LarenorServerException>()),
+      );
+    },
+  );
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1280.0]) {
       testWidgets(

@@ -20,13 +20,10 @@ final class CapabilityEvidenceApi {
         token: token,
         queryParameters: {'limit': '50', 'after': ?after},
       );
+      const responseKeys = {'schemaVersion', 'scope', 'records', 'nextAfter'};
       if (response is! Map<String, dynamic> ||
-          response.keys.toSet().difference({
-            'schemaVersion',
-            'scope',
-            'records',
-            'nextAfter',
-          }).isNotEmpty ||
+          response.keys.toSet().difference(responseKeys).isNotEmpty ||
+          responseKeys.difference(response.keys.toSet()).isNotEmpty ||
           response['schemaVersion'] != 1 ||
           response['scope'] is! Map ||
           response['records'] is! List) {
@@ -54,6 +51,9 @@ final class CapabilityEvidenceApi {
           throw const FormatException('Invalid evidence');
         }
         records.addAll(batch);
+        if (records.length > 256) {
+          throw const FormatException('Evidence limit exceeded');
+        }
         final cursor = response['nextAfter'];
         if (cursor == null) return List.unmodifiable(records);
         if (cursor is! String ||
