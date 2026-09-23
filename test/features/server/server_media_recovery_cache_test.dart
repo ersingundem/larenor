@@ -250,6 +250,15 @@ void main() {
     expect(restarted.cached, isTrue);
     expect(restarted.failure, 'server_error');
 
+    fixture.respond = (request) async =>
+        request.url.path.endsWith('/admin/media/recovery-status')
+        ? fixture.json({'schemaVersion': 2})
+        : fixture.defaultResponse(request);
+    await restarted.load(current: () => true);
+    expect(restarted.status, isNull);
+    expect(restarted.cached, isFalse);
+    expect(restarted.failure, 'invalid_response');
+
     restarted.invalidate();
     var current = true;
     final delayed = Completer<void>();
