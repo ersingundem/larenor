@@ -29,6 +29,27 @@ final class _MemoryBackend implements ServerMusicSelectionCacheBackend {
   }
 }
 
+final class _DelayedWriteBackend implements ServerMusicSelectionCacheBackend {
+  String? value;
+  final writes = <String>[];
+  final gates = <Completer<void>>[];
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String value) async {
+    writes.add(value);
+    final gate = Completer<void>();
+    gates.add(gate);
+    await gate.future;
+    this.value = value;
+  }
+}
+
 const _scope = ServerMusicSelectionScope(
   coreId: '11111111111111111111111111111111',
   homeId: '22222222222222222222222222222222',
@@ -309,5 +330,100 @@ void main() {
     expect(controller.manager, isNull);
     expect(controller.selectedProviderId, isNull);
     expect(controller.selectedReceiverId, isNull);
+  });
+
+  test(
+    'rapid provider choices persist only the latest verified choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final controller = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      await controller.load(current: () => true);
+      await controller.verify(current: () => true);
+
+      final older = controller.selectProvider('e' * 32);
+      await Future<void>.delayed(Duration.zero);
+      final latest = controller.selectProvider('d' * 32);
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.writes, hasLength(2));
+      backend.gates[1].complete();
+      await latest;
+      backend.gates[0].complete();
+      await older;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.providerId, 'd' * 32);
+    },
+  );
+
+  test(
+    'rapid receiver choices persist only the latest verified choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final controller = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      await controller.load(current: () => true);
+      await controller.verify(current: () => true);
+
+      final older = controller.selectReceiver('cast-kitchen');
+      await Future<void>.delayed(Duration.zero);
+      final latest = controller.selectReceiver('homepod-living');
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.writes, hasLength(2));
+      backend.gates[1].complete();
+      await latest;
+      backend.gates[0].complete();
+      await older;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.receiverId, 'homepod-living');
+    },
+  );
+
+  test('logout during a delayed save leaves no restorable selection', () async {
+    final backend = _DelayedWriteBackend();
+    final fixture = _MultiProviderFixture();
+    await fixture.account.initialize();
+    final controller = ServerMusicManagerController(
+      fixture.account,
+      selectionCache: ServerMusicSelectionCache(backend: backend),
+    );
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+    await controller.load(current: () => true);
+    await controller.verify(current: () => true);
+
+    final saving = controller.selectProvider('e' * 32);
+    await Future<void>.delayed(Duration.zero);
+    await fixture.account.signOut();
+    backend.gates.single.complete();
+    await saving;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager()),
+      isNull,
+    );
   });
 }
