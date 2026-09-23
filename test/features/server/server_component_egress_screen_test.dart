@@ -181,6 +181,21 @@ void main() {
       find.text('Addresses resolved by Core for this exact service revision.'),
       findsOneWidget,
     );
+    await tester.enterText(
+      find.byKey(const ValueKey('egress-addresses')),
+      '192.168.1.150',
+    );
+    expect(
+      find.text('Addresses resolved by Core for this exact service revision.'),
+      findsNothing,
+    );
+    await tap(tester, 'egress-save');
+    expect(fixture.policyRevision, 0);
+    expect(
+      find.text('Resolve and review the current addresses before saving them.'),
+      findsOneWidget,
+    );
+    await tap(tester, 'egress-resolve');
     await tap(tester, 'egress-save');
     expect(fixture.policyRevision, 1);
     expect(fixture.grants.single, _grant());
