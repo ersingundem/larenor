@@ -16,6 +16,8 @@ import 'package:larenor/features/media/jellyseerr/data/jellyseerr_config.dart';
 import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
 import 'package:larenor/features/navigation/providers/media_destination_provider.dart';
 
+import '../../core/direct_home_routines_test.dart' show routinesHome;
+
 final _currentClient = NotifierProvider<_CurrentClient, JellyseerrClient?>(
   _CurrentClient.new,
 );
@@ -69,6 +71,21 @@ ProviderContainer _container({
 }
 
 void main() {
+  test('Core deep link never constructs Direct media providers', () async {
+    final (container, _) = await routinesHome('core');
+    final destination = await container.read(
+      mediaDestinationProvider(
+        Uri.parse('/media/title?kind=movie&jellyfin=private-item'),
+      ).future,
+    );
+
+    expect(destination, isNull);
+    expect(container.exists(jellyfinClientProvider), isFalse);
+    expect(container.exists(jellyseerrClientProvider), isFalse);
+    expect(container.exists(mediaLibraryIndexProvider), isFalse);
+    expect(container.exists(mediaHubRowsProvider), isFalse);
+  });
+
   test('lookup-only movie resolves with one fresh read and never negotiates playback', () async {
     final requests = <http.Request>[];
     final client = JellyfinClient(
