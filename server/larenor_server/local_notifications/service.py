@@ -112,7 +112,7 @@ class LocalNotificationService:
         return row
 
     def _subscription(self, connection, actor, subscription_id, expected_revision=None,
-                      *, require_active=False):
+                      *, require_active=False, now=None):
         row = connection.execute(
             "SELECT * FROM local_notification_subscriptions WHERE id=?", (subscription_id,)
         ).fetchone()
@@ -121,7 +121,7 @@ class LocalNotificationService:
         self._validate_subscription(row)
         if expected_revision is not None and row["revision"] != expected_revision:
             raise ApiError("notification_subscription_changed", 409)
-        expired = self.settings.clock() >= row["expires_at"]
+        expired = (self.settings.clock() if now is None else now) >= row["expires_at"]
         if require_active and (row["state"] != "active" or expired or row["permission"] != "granted"):
             raise ApiError("notification_subscription_inactive", 409)
         return row
@@ -271,8 +271,22 @@ class LocalNotificationService:
         try:
             with self._transaction(actor, core_id, home_id) as connection:
                 self._current_actor(connection, actor)
+                now = float(self.settings.clock())
                 subscription = self._subscription(connection, actor, subscription_id,
-                                                  expected_revision, require_active=True)
+                                                  expected_revision, require_active=True,
+                                                  now=now)
+                referenced_subscriptions = connection.execute(
+                    "SELECT DISTINCT retired_subscription.* "
+                    "FROM local_notification_subscriptions retired_subscription "
+                    "JOIN local_notification_acks retired_delivery "
+                    "ON retired_delivery.subscription_id=retired_subscription.id "
+                    "JOIN local_notification_events retired_event "
+                    "ON retired_event.sequence=retired_delivery.sequence "
+                    "WHERE retired_event.recipient_id=? AND retired_event.sequence>?",
+                    (actor.id, after),
+                ).fetchall()
+                for referenced in referenced_subscriptions:
+                    self._validate_subscription(referenced)
                 rows = connection.execute(
                     "SELECT e.*,CASE WHEN a.acknowledged_at IS NULL THEN 0 ELSE 1 END AS acknowledged "
                     "FROM local_notification_events e LEFT JOIN local_notification_acks a "
@@ -286,7 +300,7 @@ class LocalNotificationService:
                     "AND (retired_subscription.state='revoked' "
                     "OR retired_subscription.expires_at<=?)) "
                     "ORDER BY e.sequence LIMIT ?",
-                    (subscription_id, actor.id, after, float(self.settings.clock()), limit + 1),
+                    (subscription_id, actor.id, after, now, limit + 1),
                 ).fetchall()
                 selected = rows[:limit]
                 existing_rows = connection.execute(
@@ -298,7 +312,6 @@ class LocalNotificationService:
                 total = connection.execute("SELECT COUNT(*) FROM local_notification_acks").fetchone()[0]
                 if total + len(selected) - len(existing) > schema.MAX_DELIVERIES:
                     raise ApiError("notification_limit_reached", 409)
-                now = float(self.settings.clock())
                 pending = [row for row in selected if row["sequence"] not in existing]
                 connection.executemany(
                     "INSERT INTO local_notification_acks(subscription_id,sequence,delivered_at,acknowledged_at) "
