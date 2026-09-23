@@ -30,7 +30,7 @@ class _WebPanelSettingsState
   final _origin = TextEditingController();
   late List<String> _origins;
   late bool _zoom;
-  late bool _uploads, _downloads;
+  late bool _uploads, _downloads, _externalActions;
   late int _textZoom;
   bool _expired = false, _returned = false;
   String? _error;
@@ -62,6 +62,7 @@ class _WebPanelSettingsState
     _textZoom = tile.webPanel?.textZoom ?? 100;
     _uploads = tile.webPanel?.allowUploads ?? false;
     _downloads = tile.webPanel?.allowDownloads ?? false;
+    _externalActions = tile.webPanel?.allowExternalActions ?? false;
   }
 
   @override
@@ -166,6 +167,7 @@ class _WebPanelSettingsState
       textZoom: _textZoom,
       allowUploads: _uploads,
       allowDownloads: _downloads,
+      allowExternalActions: _externalActions,
     );
     _returned = true;
     Navigator.pop(
@@ -496,6 +498,14 @@ class _WebPanelSettingsState
                         value: _downloads,
                         generation: generation,
                         changed: (value) => setState(() => _downloads = value),
+                      ),
+                      _toggle(
+                        key: const ValueKey('web-settings-external-actions'),
+                        label: l10n.webPanelExternalActions,
+                        value: _externalActions,
+                        generation: generation,
+                        changed: (value) =>
+                            setState(() => _externalActions = value),
                       ),
                     ],
                   ),

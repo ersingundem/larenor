@@ -65,6 +65,7 @@ dependencies:
   qr: ^4.0.0
   pdfrx: ^2.6.5
   mqtt_client: 10.11.11
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   shared_preferences_platform_interface: 2.4.2

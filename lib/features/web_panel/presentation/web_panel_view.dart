@@ -9,6 +9,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_platform.dart';
 import '../data/web_panel_data.dart';
+import '../data/web_panel_external_actions.dart';
 import '../data/web_panel_renderer_monitor.dart';
 import '../data/web_panel_transfers.dart';
 import '../domain/web_panel_options.dart';
@@ -28,6 +29,7 @@ class WebPanelView extends StatefulWidget {
     this.dataCoordinator,
     this.requireActiveInteraction = true,
     this.transferAccess,
+    this.externalActionPort,
     this.rendererMonitor,
     this.recoveryGate,
   });
@@ -38,6 +40,7 @@ class WebPanelView extends StatefulWidget {
   final WebPanelDataCoordinator? dataCoordinator;
   final bool requireActiveInteraction;
   final WebPanelTransferAccess? transferAccess;
+  final WebPanelExternalActionPort? externalActionPort;
   final WebPanelRendererMonitor? rendererMonitor;
   final KioskRecoveryGate? recoveryGate;
   @override
@@ -58,6 +61,7 @@ class WebPanelViewState extends State<WebPanelView> {
   bool _backBusy = false;
   late WebPanelDataCoordinator _data;
   WebPanelTransferController? _transfer;
+  WebPanelExternalActionController? _external;
   WebPanelRendererHandle? _rendererHandle;
 
   @override
@@ -118,6 +122,7 @@ class WebPanelViewState extends State<WebPanelView> {
         oldWidget.options != widget.options ||
         oldWidget.requireActiveInteraction != widget.requireActiveInteraction ||
         oldWidget.transferAccess != widget.transferAccess ||
+        oldWidget.externalActionPort != widget.externalActionPort ||
         !identical(oldWidget.rendererMonitor, widget.rendererMonitor)) {
       _retire();
       _failure = null;
@@ -140,6 +145,10 @@ class WebPanelViewState extends State<WebPanelView> {
   }
 
   void _transferChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _externalChanged() {
     if (mounted) setState(() {});
   }
 
@@ -219,6 +228,15 @@ class WebPanelViewState extends State<WebPanelView> {
         downloadsEnabled: widget.options?.allowDownloads ?? false,
         isCurrent: () => _current(generation),
       )..addListener(_transferChanged);
+      if (widget.options?.allowExternalActions ?? false) {
+        _external = WebPanelExternalActionController(
+          enabled: true,
+          port:
+              widget.externalActionPort ??
+              const LocalWebPanelExternalActionPort(),
+          isCurrent: () => _current(generation),
+        )..addListener(_externalChanged);
+      }
       _ready = false;
       _watchdog?.cancel();
       _watchdog = Timer(
@@ -250,6 +268,13 @@ class WebPanelViewState extends State<WebPanelView> {
             onNavigationRequest: (request) {
               if (!_current(generation)) return NavigationDecision.prevent;
               if (!policy.allows(request.url)) {
+                if (_external?.capture(
+                      request.url,
+                      mainFrame: request.isMainFrame,
+                    ) ==
+                    true) {
+                  return NavigationDecision.prevent;
+                }
                 _fail(_Failure.blocked, generation);
                 return NavigationDecision.prevent;
               }
@@ -383,6 +408,10 @@ class WebPanelViewState extends State<WebPanelView> {
     _transfer = null;
     transfer?.removeListener(_transferChanged);
     transfer?.dispose();
+    final external = _external;
+    _external = null;
+    external?.removeListener(_externalChanged);
+    external?.dispose();
     final rendererHandle = _rendererHandle;
     _rendererHandle = null;
     if (rendererHandle != null) unawaited(rendererHandle.dispose());
@@ -456,7 +485,8 @@ class WebPanelViewState extends State<WebPanelView> {
           ),
         if (_ready &&
             ((widget.options?.allowUploads ?? false) ||
-                (widget.options?.allowDownloads ?? false)))
+                (widget.options?.allowDownloads ?? false) ||
+                (widget.options?.allowExternalActions ?? false)))
           PositionedDirectional(
             start: 12,
             end: 12,
@@ -469,8 +499,10 @@ class WebPanelViewState extends State<WebPanelView> {
 
   Widget _transferBar(AppLocalizations l10n) {
     final transfer = _transfer;
-    if (transfer == null) return const SizedBox.shrink();
-    final status = switch (transfer.status) {
+    final external = _external;
+    if (transfer == null && external == null) return const SizedBox.shrink();
+    final transferStatus = switch (transfer?.status) {
+      null => null,
       WebPanelTransferStatus.idle => null,
       WebPanelTransferStatus.uploadArmed => l10n.webPanelUploadArmed,
       WebPanelTransferStatus.downloadArmed => l10n.webPanelDownloadArmed,
@@ -478,6 +510,18 @@ class WebPanelViewState extends State<WebPanelView> {
       WebPanelTransferStatus.completed => l10n.webPanelTransferDone,
       WebPanelTransferStatus.denied => l10n.webPanelTransferDenied,
       WebPanelTransferStatus.failed => l10n.webPanelTransferFailed,
+    };
+    final externalStatus = switch (external?.status) {
+      null || WebPanelExternalActionStatus.idle => null,
+      WebPanelExternalActionStatus.armed => l10n.webPanelExternalActionArmed,
+      WebPanelExternalActionStatus.awaitingConfirmation =>
+        l10n.webPanelExternalActionReview,
+      WebPanelExternalActionStatus.working =>
+        l10n.webPanelExternalActionWorking,
+      WebPanelExternalActionStatus.unconfirmed =>
+        l10n.webPanelExternalActionUnconfirmed,
+      WebPanelExternalActionStatus.denied => l10n.webPanelExternalActionDenied,
+      WebPanelExternalActionStatus.failed => l10n.webPanelExternalActionFailed,
     };
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -499,26 +543,73 @@ class WebPanelViewState extends State<WebPanelView> {
               CupertinoButton(
                 key: const ValueKey('web-panel-arm-upload'),
                 minimumSize: const Size(48, 48),
-                onPressed: transfer.status == WebPanelTransferStatus.working
+                onPressed: transfer?.status == WebPanelTransferStatus.working
                     ? null
-                    : transfer.armUpload,
+                    : transfer?.armUpload,
                 child: Text(l10n.webPanelArmUpload),
               ),
             if (widget.options?.allowDownloads ?? false)
               CupertinoButton(
                 key: const ValueKey('web-panel-arm-download'),
                 minimumSize: const Size(48, 48),
-                onPressed: transfer.status == WebPanelTransferStatus.working
+                onPressed: transfer?.status == WebPanelTransferStatus.working
                     ? null
-                    : transfer.armDownload,
+                    : transfer?.armDownload,
                 child: Text(l10n.webPanelArmDownload),
               ),
-            if (status != null)
+            if (widget.options?.allowExternalActions ?? false)
+              CupertinoButton(
+                key: const ValueKey('web-panel-arm-external-action'),
+                minimumSize: const Size(48, 48),
+                onPressed:
+                    external == null ||
+                        external.status ==
+                            WebPanelExternalActionStatus.working ||
+                        external.status ==
+                            WebPanelExternalActionStatus.awaitingConfirmation
+                    ? null
+                    : external.arm,
+                child: Text(l10n.webPanelArmExternalAction),
+              ),
+            if (external?.status ==
+                WebPanelExternalActionStatus.awaitingConfirmation) ...[
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  external?.pending?.display ?? '',
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              CupertinoButton(
+                key: const ValueKey('web-panel-cancel-external-action'),
+                minimumSize: const Size(48, 48),
+                onPressed: external?.cancel,
+                child: Text(l10n.commonCancel),
+              ),
+              CupertinoButton.filled(
+                key: const ValueKey('web-panel-confirm-external-action'),
+                minimumSize: const Size(48, 48),
+                onPressed: external == null
+                    ? null
+                    : () => unawaited(external.confirm()),
+                child: Text(l10n.commonOk),
+              ),
+            ],
+            if (transferStatus != null)
               Semantics(
                 liveRegion: true,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
-                  child: Text(status, textAlign: TextAlign.center),
+                  child: Text(transferStatus, textAlign: TextAlign.center),
+                ),
+              ),
+            if (externalStatus != null)
+              Semantics(
+                liveRegion: true,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Text(externalStatus, textAlign: TextAlign.center),
                 ),
               ),
           ],

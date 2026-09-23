@@ -4,9 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/web_panel/data/web_panel_external_actions.dart';
 
 final class _Port implements WebPanelExternalActionPort {
-  _Port({this.result = true, this.gate});
+  _Port({this.gate});
 
-  final bool result;
   final Completer<void>? gate;
   int launches = 0;
   WebPanelExternalAction? last;
@@ -16,7 +15,7 @@ final class _Port implements WebPanelExternalActionPort {
     launches++;
     last = action;
     await gate?.future;
-    return result;
+    return true;
   }
 }
 
@@ -90,31 +89,34 @@ void main() {
     controller.dispose();
   });
 
-  test('lifecycle retirement drops a late launch result without replay', () async {
-    var current = true;
-    final gate = Completer<void>();
-    final port = _Port(gate: gate);
-    final controller = WebPanelExternalActionController(
-      enabled: true,
-      port: port,
-      isCurrent: () => current,
-    );
-    controller.arm();
-    expect(
-      controller.capture('geo:41.0082,28.9784', mainFrame: true),
-      isTrue,
-    );
-    final pending = controller.confirm();
-    expect(port.launches, 1);
-    current = false;
-    controller.retire();
-    gate.complete();
-    await pending;
+  test(
+    'lifecycle retirement drops a late launch result without replay',
+    () async {
+      var current = true;
+      final gate = Completer<void>();
+      final port = _Port(gate: gate);
+      final controller = WebPanelExternalActionController(
+        enabled: true,
+        port: port,
+        isCurrent: () => current,
+      );
+      controller.arm();
+      expect(
+        controller.capture('geo:41.0082,28.9784', mainFrame: true),
+        isTrue,
+      );
+      final pending = controller.confirm();
+      expect(port.launches, 1);
+      current = false;
+      controller.retire();
+      gate.complete();
+      await pending;
 
-    expect(controller.status, WebPanelExternalActionStatus.idle);
-    expect(port.launches, 1);
-    await controller.confirm();
-    expect(port.launches, 1);
-    controller.dispose();
-  });
+      expect(controller.status, WebPanelExternalActionStatus.idle);
+      expect(port.launches, 1);
+      await controller.confirm();
+      expect(port.launches, 1);
+      controller.dispose();
+    },
+  );
 }
