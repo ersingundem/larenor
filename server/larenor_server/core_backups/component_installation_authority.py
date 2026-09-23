@@ -9,8 +9,13 @@ import time
 
 from ..plugins.catalog import load_catalog
 from ..plugins.managed_container import (
+    JellyfinBindingBuilder,
+    ManagedImageProof,
     ManagedInstalledContainer,
+    ManagedNetworkProof,
+    ManagedVolumeProof,
     ManagedWorkerJournal,
+    VerifiedJellyfinResources,
 )
 from ..plugins.volume_create_journal import (
     VolumeCreateIntent,
@@ -128,6 +133,90 @@ class DurableComponentInstallationAuthority:
         }
 
     @staticmethod
+    def _current_binding(installed, intents, stack, catalog, policy, service_id):
+        """Re-derive the stored effect from current durable resource receipts."""
+        binding = installed.binding
+        by_resource = {
+            intent.binding.resource.resourceId: intent for intent in intents
+        }
+        if len(by_resource) != len(intents):
+            raise ComponentInstallationAuthorityError()
+
+        def proof(resource_plan, volume_plan, component):
+            image = next(
+                item
+                for item in resource_plan.resources
+                if item.kind == "ensure_image" and item.serviceId == service_id
+            )
+            network = resource_plan.resources[-1]
+            mounted = {item.name for item in binding.mounts}
+            expected_volumes = tuple(
+                item for item in volume_plan.resources if item.name in mounted
+            )
+            if len(expected_volumes) != len(mounted):
+                raise ComponentInstallationAuthorityError()
+            volumes = []
+            for expected in expected_volumes:
+                intent = by_resource.get(expected.resourceId)
+                if (
+                    intent is None
+                    or intent.binding.resource != expected
+                    or intent.binding.source
+                    != (volume_plan, stack, catalog, policy)
+                    or intent.receipt.state != "observed_requires_bootstrap"
+                    or type(intent.receipt.revision) is not int
+                    or intent.receipt.revision < 3
+                ):
+                    raise ComponentInstallationAuthorityError()
+                volumes.append(
+                    ManagedVolumeProof(
+                        expected.resourceId,
+                        expected.operationId,
+                        intent.receipt.revision,
+                        intent.binding.journal_id,
+                        intent.binding.ownership_nonce,
+                        expected.name,
+                        expected.target,
+                        True,
+                    )
+                )
+            return VerifiedJellyfinResources(
+                stack_plan_hash=resource_plan.stackPlanHash,
+                resource_plan_hash=resource_plan.planHash,
+                volume_plan_hash=volume_plan.planHash,
+                worker_policy_digest=resource_plan.workerPolicyDigest,
+                image=ManagedImageProof(
+                    image.resourceId,
+                    3,
+                    binding.image_id,
+                    binding.image_configuration,
+                ),
+                volumes=tuple(volumes),
+                # These two identities are proof-local inputs to the pure
+                # builder. The derived binding retains only the current
+                # resource name and the journaled container's exact network ID.
+                network=ManagedNetworkProof(
+                    network.resourceId,
+                    network.operationId,
+                    3,
+                    "0" * 32,
+                    "1" * 32,
+                    network.name,
+                    binding.network_id,
+                ),
+            )
+
+        expected = JellyfinBindingBuilder(
+            catalog,
+            policy,
+            installed.journal_id,
+            proof,
+            service_id=service_id,
+        )(stack)
+        if expected != binding:
+            raise ComponentInstallationAuthorityError()
+
+    @staticmethod
     def _component(installed, intents, catalog, entries):
         candidates = tuple(
             intent
@@ -153,6 +242,7 @@ class DurableComponentInstallationAuthority:
         mounted = {item.name: item for item in installed.binding.mounts}
         receipts = []
         observed = set()
+        current_source = None
         for intent in candidates:
             resource = intent.binding.resource
             source = intent.binding.source
@@ -161,9 +251,11 @@ class DurableComponentInstallationAuthority:
                 or len(source) != 4
                 or source[2] != catalog
                 or source[0].catalogDigest != catalog.digest
+                or current_source is not None and source != current_source
                 or intent.receipt.state != "observed_requires_bootstrap"
             ):
                 raise ComponentInstallationAuthorityError()
+            current_source = source
             component = next(
                 (
                     item
@@ -193,6 +285,16 @@ class DurableComponentInstallationAuthority:
             )
         if observed != expected:
             raise ComponentInstallationAuthorityError()
+        if current_source is None:
+            raise ComponentInstallationAuthorityError()
+        DurableComponentInstallationAuthority._current_binding(
+            installed,
+            intents,
+            current_source[1],
+            catalog,
+            current_source[3],
+            service_id,
+        )
         return InstalledComponentReceipt(
             service_id,
             installed.installation_id,
