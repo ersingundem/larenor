@@ -7,15 +7,16 @@ import secrets
 from dataclasses import replace
 
 import pytest
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from conftest import auth, document, login, ready
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi.testclient import TestClient
 from larenor_server import cli
 from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.core_backups import restore as restore_module
+from larenor_server.core_backups.models import BackupManifest
 from larenor_server.core_backups.restore import restore_empty
-from larenor_server.core_backups.service import BackupCapture, CoreBackupContract, MAGIC
+from larenor_server.core_backups.service import MAGIC, BackupCapture, CoreBackupContract
 from larenor_server.errors import ApiError, StartupError
 from larenor_server.files import private_create
 
@@ -88,29 +89,43 @@ def test_empty_restore_reopens_key_context_connection_and_vault_after_restart(
 
 
 def test_legacy_four_resource_bundle_still_restores(server, tmp_path):
-    app, _client, settings, clock = server
+    app, _client, _settings, clock = server
     bundle, key, context = _bundle(server)
     opened = app.state.core.core_backups.open_bundle(bundle, PASSPHRASE)
-    legacy = BackupCapture(
-        manifest=opened.manifest.model_copy(
-            update={
-                "contractVersion": 1,
-                "resources": [
-                    item for item in opened.manifest.resources
-                    if item.id != "family-board"
-                ],
-            }
-        ),
-        payloads={
-            name: value for name, value in opened.payloads.items()
-            if name != "family-board"
+    payloads = {
+        name: value for name, value in opened.payloads.items()
+        if name != "family-board"
+    }
+    payloads["component-index"] = json.dumps(
+        {
+            "contractVersion": 1,
+            "schemas": opened.manifest.componentSchemaVersions,
         },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    raw_manifest = opened.manifest.model_dump(mode="json", by_alias=True)
+    raw_manifest["contractVersion"] = 1
+    raw_manifest.pop("components")
+    raw_manifest.pop("consistencyBoundary")
+    raw_manifest["resources"] = [
+        item for item in raw_manifest["resources"]
+        if item["id"] != "family-board"
+    ]
+    index = next(
+        item for item in raw_manifest["resources"]
+        if item["id"] == "component-index"
     )
-    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
-    aad = MAGIC + salt + nonce
-    legacy_bundle = aad + AESGCM(
-        CoreBackupContract._derive_key(PASSPHRASE, salt)
-    ).encrypt(nonce, CoreBackupContract._archive(legacy), aad)
+    index.update(
+        version="1",
+        byteLength=len(payloads["component-index"]),
+        sha256=hashlib.sha256(payloads["component-index"]).hexdigest(),
+    )
+    legacy = BackupCapture(
+        manifest=BackupManifest.model_validate(raw_manifest),
+        payloads=payloads,
+    )
+    legacy_bundle = _encrypted_bundle(legacy)
 
     target = _target(tmp_path, clock)
     restore_empty(target, legacy_bundle, PASSPHRASE)

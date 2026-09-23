@@ -103,6 +103,22 @@ class BackupManifest(StrictModel):
     consistencyBoundary: BackupConsistencyBoundary | None = None
     resources: list[BackupResource] = Field(min_length=4, max_length=133)
 
+    @model_validator(mode="before")
+    @classmethod
+    def exact_contract_shape(cls, value):
+        if not isinstance(value, dict):
+            return value
+        version = value.get("contractVersion")
+        component_fields = {"components", "consistencyBoundary"}
+        present = component_fields.intersection(value)
+        if version == 1 and present:
+            raise ValueError("legacy_contract_has_component_fields")
+        if version == 2 and (
+            present != component_fields or value.get("consistencyBoundary") is None
+        ):
+            raise ValueError("component_contract_fields_required")
+        return value
+
     @field_validator("componentSchemaVersions", mode="before")
     @classmethod
     def component_versions(cls, value):
