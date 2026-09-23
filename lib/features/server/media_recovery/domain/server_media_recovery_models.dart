@@ -25,6 +25,7 @@ class ServerMediaRecoveryService {
     required this.reachableState,
     required this.verifiedState,
     required this.recoveryAction,
+    required this.errorCode,
     required this.updatedAt,
   });
 
@@ -161,6 +162,7 @@ class ServerMediaRecoveryService {
       reachableState: reachable,
       verifiedState: verified,
       recoveryAction: action,
+      errorCode: error as String?,
       updatedAt: parsedUpdatedAt,
     );
   }
@@ -170,8 +172,26 @@ class ServerMediaRecoveryService {
   final String sourceKind, resultState, containerState, serviceState;
   final String storedState, reachableState;
   final String verifiedState, recoveryAction;
+  final String? errorCode;
   final int? revision;
   final DateTime? updatedAt;
+
+  Map<String, Object?> toJson() => {
+    'serviceId': serviceId,
+    'sourceId': sourceId,
+    'sourceKind': sourceKind,
+    'revision': revision,
+    'resultState': resultState,
+    'containerState': containerState,
+    'serviceState': serviceState,
+    'storedState': storedState,
+    'reachableState': reachableState,
+    'verifiedState': verifiedState,
+    'recoveryAction': recoveryAction,
+    'automaticRetry': false,
+    'errorCode': errorCode,
+    'updatedAt': updatedAt?.toIso8601String(),
+  };
 }
 
 class ServerMediaRecoveryStatus {
@@ -184,7 +204,9 @@ class ServerMediaRecoveryStatus {
       'installAvailable',
       'services',
     });
-    if (map['schemaVersion'] != 2 || map['installAvailable'] != false) {
+    if (map['schemaVersion'] is! int ||
+        map['schemaVersion'] != 2 ||
+        map['installAvailable'] != false) {
       _invalid();
     }
     final state = map['state'];
@@ -214,4 +236,11 @@ class ServerMediaRecoveryStatus {
 
   final String state;
   final List<ServerMediaRecoveryService> services;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 2,
+    'state': state,
+    'installAvailable': false,
+    'services': [for (final service in services) service.toJson()],
+  };
 }

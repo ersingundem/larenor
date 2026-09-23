@@ -14,6 +14,7 @@ import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -73,6 +74,8 @@ class RecoveryFixture extends AdminFixture {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('contract rejects hidden connection fields and service reordering', () {
     expect(
       ServerMediaRecoveryStatus.fromJson(recoveryJson()).services,
@@ -91,6 +94,12 @@ void main() {
     expect(
       () => ServerMediaRecoveryStatus.fromJson(reordered),
       throwsA(anyOf(isA<LarenorServerException>(), isA<FormatException>())),
+    );
+    final floatingSchema = recoveryJson()..['schemaVersion'] = 2.0;
+    expect(
+      () => ServerMediaRecoveryStatus.fromJson(floatingSchema),
+      throwsA(isA<FormatException>()),
+      reason: 'the recovery contract requires exact integer schema 2',
     );
     final missingCore = recoveryJson();
     final core = (missingCore['services'] as List).first;
