@@ -333,3 +333,51 @@ def test_startup_validation_rejects_more_than_256_receipts(server):
 
     with pytest.raises(StartupError, match='invalid_media_playback_storage'):
         app.state.core.media_playback.validate_storage()
+
+
+def _insert_cross_bound_pending_receipt(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    app.state.core.media_playback.backend = PlaybackWorker()
+    first = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current, request_id='a' * 32),
+    ).json()['intent']
+    second = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current, request_id='b' * 32),
+    ).json()['intent']
+    command = {
+        'requestId': 'c' * 32,
+        'intentId': second['requestId'],
+        'expectedPlaybackRevision': second['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+    encoded = json.dumps(command, separators=(',', ':'), sort_keys=True)
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            'UPDATE media_playback_intents SET consumed_by=? WHERE id=?',
+            (command['requestId'], first['requestId']))
+        connection.execute(
+            'INSERT INTO media_playback_receipts VALUES(?,?,?,?,?,?,?)',
+            (command['requestId'], first['requestId'], pair['user']['id'],
+             encoded, 'pending', None, 1788609600))
+    return app, client, pair, command
+
+
+def test_startup_rejects_cross_bound_pending_receipt(server):
+    app, _client, _pair, _command = _insert_cross_bound_pending_receipt(server)
+
+    with pytest.raises(StartupError, match='invalid_media_playback_storage'):
+        app.state.core.media_playback.validate_storage()
+
+
+def test_runtime_replay_rejects_cross_bound_pending_receipt(server):
+    _app, client, pair, command = _insert_cross_bound_pending_receipt(server)
+
+    response = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_playback_storage_unavailable'
