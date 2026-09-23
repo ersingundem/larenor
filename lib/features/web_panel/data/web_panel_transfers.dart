@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -168,9 +169,71 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       'text/plain' => ('text/plain', 'txt'),
       'text/csv' => ('text/csv', 'csv'),
       'application/json' => ('application/json', 'json'),
-      'application/octet-stream' => ('application/octet-stream', 'bin'),
       _ => null,
     };
+  }
+
+  static bool _startsWith(Uint8List bytes, List<int> signature) {
+    if (bytes.length < signature.length) return false;
+    for (var index = 0; index < signature.length; index++) {
+      if (bytes[index] != signature[index]) return false;
+    }
+    return true;
+  }
+
+  static String? _safeText(Uint8List bytes) {
+    try {
+      final value = utf8.decode(bytes, allowMalformed: false);
+      if (value.runes.any(
+        (rune) => rune < 0x20 && !const {0x09, 0x0a, 0x0d}.contains(rune),
+      )) {
+        return null;
+      }
+      return value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static bool _payloadMatches(String mimeType, Uint8List bytes) {
+    switch (mimeType) {
+      case 'application/pdf':
+        return _startsWith(bytes, const [0x25, 0x50, 0x44, 0x46, 0x2d]);
+      case 'image/jpeg':
+        return _startsWith(bytes, const [0xff, 0xd8, 0xff]);
+      case 'image/png':
+        return _startsWith(bytes, const [
+          0x89,
+          0x50,
+          0x4e,
+          0x47,
+          0x0d,
+          0x0a,
+          0x1a,
+          0x0a,
+        ]);
+      case 'image/webp':
+        return bytes.length >= 12 &&
+            _startsWith(bytes, const [0x52, 0x49, 0x46, 0x46]) &&
+            bytes[8] == 0x57 &&
+            bytes[9] == 0x45 &&
+            bytes[10] == 0x42 &&
+            bytes[11] == 0x50;
+      case 'text/plain':
+      case 'text/csv':
+        return _safeText(bytes) != null;
+      case 'application/json':
+        final text = _safeText(bytes);
+        if (text == null) return false;
+        try {
+          jsonDecode(text);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      default:
+        return false;
+    }
   }
 
   @override
@@ -188,7 +251,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
           ..followRedirects = false
           ..maxRedirects = 0
           ..headers['Accept'] =
-              'application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,application/json,application/octet-stream';
+              'application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,application/json';
         final response = await client
             .send(request)
             .timeout(const Duration(seconds: 30));
@@ -219,6 +282,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
         }
         if (!isCurrent() || bytes.length == 0) return false;
         final frozen = Uint8List.fromList(bytes.takeBytes());
+        if (!_payloadMatches(type.$1, frozen)) return false;
         return await _saveFile(
               'web-panel-download.${type.$2}',
               type.$1,

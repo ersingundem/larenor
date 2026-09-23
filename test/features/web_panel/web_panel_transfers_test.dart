@@ -168,7 +168,7 @@ void main() {
             return http.Response('', 302, headers: {'location': '/file.pdf'});
           }
           return http.Response.bytes(
-            Uint8List.fromList([37, 80, 68, 70]),
+            Uint8List.fromList('%PDF-1.7'.codeUnits),
             200,
             headers: {'content-type': 'application/pdf'},
           );
@@ -189,7 +189,7 @@ void main() {
         ),
         true,
       );
-      expect(saved, [37, 80, 68, 70]);
+      expect(saved, '%PDF-1.7'.codeUnits);
       expect(requests, hasLength(2));
       for (final request in requests) {
         expect(request.headers.containsKey('authorization'), false);
@@ -253,4 +253,42 @@ void main() {
       expect(exports, 0);
     },
   );
+
+  test('declared safe mime must match bounded payload before SAF', () async {
+    var exports = 0;
+    for (final fixture in <(String, List<int>)>[
+      ('application/pdf', '<html>not a pdf</html>'.codeUnits),
+      ('image/jpeg', [0x89, 0x50, 0x4e, 0x47]),
+      ('image/png', [0xff, 0xd8, 0xff, 0xe0]),
+      ('image/webp', 'RIFF0000NOPE'.codeUnits),
+      ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
+      ('text/csv', [0xc3, 0x28]),
+      ('application/json', '{"unfinished":'.codeUnits),
+      ('application/octet-stream', [1, 2, 3]),
+    ]) {
+      final access = LocalWebPanelTransferAccess(
+        client: () => MockClient(
+          (_) async => http.Response.bytes(
+            fixture.$2,
+            200,
+            headers: {'content-type': fixture.$1},
+          ),
+        ),
+        saveFile: (_, _, _) async {
+          exports++;
+          return Uri.parse('content://fixture/unexpected');
+        },
+      );
+      expect(
+        await access.download(
+          Uri.parse('https://panel.invalid/file'),
+          WebPanelPolicy.fromUrl('https://panel.invalid')!,
+          () => true,
+        ),
+        false,
+        reason: fixture.$1,
+      );
+    }
+    expect(exports, 0);
+  });
 }

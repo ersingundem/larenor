@@ -35,6 +35,11 @@ Status: **software slice ready; K03.remaining stays open**
   recover or revive a newer controller. The wrapper forwards the existing
   plugin WebViewClient callbacks and never sends URLs, headers or diagnostics
   over the channel.
+- Download publication no longer trusts the response `Content-Type` alone.
+  PDF, JPEG, PNG and WebP signatures, strict UTF-8 text/CSV, and parseable JSON
+  are verified after the bounded anonymous download and before Android SAF is
+  opened. Generic octet-stream and declared-type mismatches fail closed, so a
+  mislabeled HTML or executable payload cannot be exported as an approved type.
 - A rejecting picker or transport port ends the one-shot operation as failed;
   it cannot strand the controller in `working` or replay a download.
 - Focused Flutter analysis, formatting, diff, security, queue, progress and
