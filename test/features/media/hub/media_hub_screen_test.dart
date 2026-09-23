@@ -141,6 +141,96 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'unresolved home authority fails closed to the Core media entry',
+    (tester) async {
+      final harness = ScopeHarness(HomeSource.verifiedCore);
+      final home = HomeSessionController(
+        store: harness.source,
+        account: harness.account,
+      );
+      addTearDown(() {
+        home.dispose();
+        harness.account.dispose();
+      });
+      var directCatalogReads = 0;
+      var directJellyfinReads = 0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            homeSessionControllerProvider.overrideWithValue(home),
+            serverAccountControllerProvider.overrideWithValue(harness.account),
+            mediaHubRowsProvider.overrideWith((ref) async {
+              directCatalogReads++;
+              return const [];
+            }),
+            jellyfinClientProvider.overrideWith((ref) {
+              directJellyfinReads++;
+              return null;
+            }),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const MediaHubScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(home.source, isNull);
+      expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
+      expect(directCatalogReads, 0);
+      expect(directJellyfinReads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('explicit direct-local authority keeps the local media hub', (
+    tester,
+  ) async {
+    final harness = ScopeHarness(HomeSource.directLocal);
+    final home = HomeSessionController(
+      store: harness.source,
+      account: harness.account,
+    );
+    await home.initialize();
+    home.runtimeMounted(home.runtimeIdentity);
+    addTearDown(() {
+      home.dispose();
+      harness.account.dispose();
+    });
+    var directCatalogReads = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeSessionControllerProvider.overrideWithValue(home),
+          serverAccountControllerProvider.overrideWithValue(harness.account),
+          mediaHubRowsProvider.overrideWith((ref) async {
+            directCatalogReads++;
+            return const [
+              MediaRowData(id: MediaRowId.recentlyAdded, titles: [film]),
+            ];
+          }),
+          jellyfinClientProvider.overrideWith((ref) => null),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const MediaHubScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServerMediaCatalogScreen), findsNothing);
+    expect(find.text(film.title), findsWidgets);
+    expect(directCatalogReads, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
