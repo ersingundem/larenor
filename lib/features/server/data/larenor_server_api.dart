@@ -89,6 +89,10 @@ class LarenorServerApi {
        _clock = clock ?? DateTime.now;
 
   static const maxJsonBytes = 2 * 1024 * 1024;
+  // Mirrors the Server contract: 128 MiB Core DB + 32 MiB family board +
+  // 256 MiB component data + 8 MiB encrypted archive overhead.
+  static const maxCoreBackupBytes = 424 * 1024 * 1024;
+  static const coreBackupOverallTimeout = Duration(minutes: 15);
   final ServerEndpoint endpoint;
   final ServerBoundClient _client;
   final Duration timeout;
@@ -205,7 +209,7 @@ class LarenorServerApi {
     required LarenorBinaryDestination destination,
     required LarenorTransferCancellation cancellation,
   }) async {
-    const maxBytes = 168 * 1024 * 1024;
+    const maxBytes = maxCoreBackupBytes;
     const mediaType = 'application/vnd.larenor.core-backup';
     const disposition =
         'attachment; filename="larenor-core-backup.larenor-core"';
@@ -260,7 +264,7 @@ class LarenorServerApi {
         ]).timeout(timeout);
     unawaited(cancellation.future.then((_) => abortRequest()));
     _pending.add(abort);
-    final timer = Timer(const Duration(minutes: 5), () {
+    final timer = Timer(coreBackupOverallTimeout, () {
       overallTimedOut = true;
       abortRequest();
     });
