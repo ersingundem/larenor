@@ -254,7 +254,14 @@ class KioskRemoteService:
             with self.db.transaction() as connection:
                 current = connection.execute("SELECT * FROM kiosk_remote_pairings WHERE id=?", (pairing_id,)).fetchone()
                 self._validate_pairing(current)
-                if current["revision"] != row["revision"] or not current["active"]:
+                if (
+                    current["revision"] != row["revision"]
+                    or not current["active"]
+                    or not hmac.compare_digest(
+                        current["record_tag"], row["record_tag"]
+                    )
+                    or self.settings.clock() >= current["expires_at"]
+                ):
                     raise ApiError("pairing_changed", 409)
                 old = connection.execute("SELECT * FROM kiosk_remote_commands WHERE pairing_id=? AND request_id=?", (pairing_id, body.requestId)).fetchone()
                 if old is not None:
