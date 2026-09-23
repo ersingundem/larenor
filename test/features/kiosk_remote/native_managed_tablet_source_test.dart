@@ -5,6 +5,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_mqtt_runtime.dart';
 import 'package:larenor/features/kiosk_remote/runtime/native_managed_tablet_source.dart';
 
+final class _Actions implements ManagedTabletLocalActions {
+  _Actions({this.gate, this.fail = false});
+
+  final Completer<void>? gate;
+  final bool fail;
+  int refreshes = 0;
+
+  @override
+  Future<void> refreshDashboard({required bool Function() isCurrent}) async {
+    refreshes++;
+    await gate?.future;
+    if (fail) throw StateError('fixture_failure');
+    if (!isCurrent()) throw StateError('fixture_retired');
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel(NativeManagedTabletSource.channelName);
@@ -217,4 +233,81 @@ void main() {
       expect(calls, 0);
     },
   );
+
+  test('current lease executes only the bounded dashboard refresh', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      return null;
+    });
+    final actions = _Actions();
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      actions: actions,
+      isAndroid: true,
+      sessionId: () => 'd' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    expect(
+      await lease!.commandExecutor.execute('refreshDashboard'),
+      ManagedTabletCommandResult.succeeded,
+    );
+    expect(actions.refreshes, 1);
+    for (final unsupported in ['syncProfile', 'lockKiosk', 'unknown']) {
+      expect(
+        await lease.commandExecutor.execute(unsupported),
+        ManagedTabletCommandResult.unsupported,
+      );
+    }
+    expect(actions.refreshes, 1);
+  });
+
+  test('retirement wins over a delayed dashboard refresh', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      return null;
+    });
+    final gate = Completer<void>();
+    final actions = _Actions(gate: gate);
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      actions: actions,
+      isAndroid: true,
+      sessionId: () => 'e' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    final result = lease!.commandExecutor.execute('refreshDashboard');
+    await Future<void>.delayed(Duration.zero);
+    await source.setForeground(false);
+    gate.complete();
+
+    expect(await result, ManagedTabletCommandResult.denied);
+    expect(actions.refreshes, 1);
+    expect(
+      await lease.commandExecutor.execute('refreshDashboard'),
+      ManagedTabletCommandResult.denied,
+    );
+  });
+
+  test('dashboard refresh failures are bounded and reported', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      return null;
+    });
+    final actions = _Actions(fail: true);
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      actions: actions,
+      isAndroid: true,
+      sessionId: () => 'f' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    expect(
+      await lease!.commandExecutor.execute('refreshDashboard'),
+      ManagedTabletCommandResult.failed,
+    );
+    expect(actions.refreshes, 1);
+  });
 }
