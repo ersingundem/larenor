@@ -110,6 +110,44 @@ def test_replacement_subscription_does_not_replay_retired_delivery(server, retir
     assert count == 0
 
 
+def test_replacement_pull_fails_closed_for_corrupted_retired_owner(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    path = _root(app)
+    old = _register(client, admin, path, clock)
+    created = client.post(
+        path + "/events",
+        headers=auth(admin),
+        json=_event(admin["user"]["id"], "f54-corrupt-retired-owner"),
+    )
+    assert created.status_code == 201, created.text
+    delivered = client.get(
+        _events(path, old), headers=auth(admin), params={"expectedRevision": 1}
+    )
+    assert delivered.status_code == 200
+    revoked = client.delete(
+        path + f"/subscriptions/{old['ref']['id']}",
+        headers=auth(admin),
+        params={"expectedRevision": 1},
+    )
+    assert revoked.status_code == 204
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE local_notification_subscriptions SET envelope_tag=? WHERE id=?",
+            ("0" * 64, old["ref"]["id"]),
+        )
+    replacement = _register(client, admin, path, clock)
+
+    response = client.get(
+        _events(path, replacement),
+        headers=auth(admin),
+        params={"expectedRevision": 1},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "notification_storage_unavailable"
+
+
 def test_repeated_pull_reuses_receipt_identity_without_second_delivery_effect(server):
     app, client, _settings, clock = server
     admin = ready(server)
