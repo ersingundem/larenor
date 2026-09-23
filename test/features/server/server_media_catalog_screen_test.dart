@@ -265,6 +265,12 @@ void main() {
     await search;
     expect(retired.page, isNull);
     expect(retired.failure, isNull);
+    expect(
+      delayed.calls.where(
+        (call) => call.url.path.endsWith('/catalog/search'),
+      ),
+      isEmpty,
+    );
   });
 
   test('next page rejects a replacement installation before search', () async {
@@ -296,6 +302,34 @@ void main() {
           .where((call) => call.url.path.endsWith('/catalog/search'))
           .length,
       searchesBefore,
+    );
+  });
+
+  test('route retirement after target starts no catalog search', () async {
+    final fixture = _CatalogFixture()..targetGate = Completer<void>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+    var current = true;
+
+    final pending = controller.searchCurrent(
+      query: 'matrix',
+      current: () => current,
+    );
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    fixture.targetGate!.complete();
+    await pending;
+
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/catalog/search'),
+      ),
+      isEmpty,
     );
   });
 

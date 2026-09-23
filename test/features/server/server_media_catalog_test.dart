@@ -219,6 +219,55 @@ void main() {
     );
   });
 
+  test('target schema version is an exact integer', () async {
+    var calls = 0;
+    final api = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.test'),
+      client: MockClient(
+        (request) async {
+          calls++;
+          return request.method == 'GET'
+              ? http.Response(
+                  jsonEncode({
+                    'schemaVersion': 1.0,
+                    'installationId': _installationId,
+                    'installationRevision': 7,
+                    'snapshotRevision': 9,
+                    'jellyfinServiceRevision': 11,
+                  }),
+                  200,
+                  headers: {'content-type': 'application/json'},
+                )
+              : http.Response(
+                  jsonEncode({
+                    'requestId': _requestId,
+                    'catalog': _catalog(),
+                  }),
+                  200,
+                  headers: {'content-type': 'application/json'},
+                );
+        },
+      ),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      ServerMediaCatalogApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).searchCurrent(query: 'matrix'),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+    expect(calls, 1);
+  });
+
   test('account loss retires a delayed catalog result', () async {
     final fixture = _CatalogFixture()..pending = Completer<http.Response>();
     await fixture.account.initialize();

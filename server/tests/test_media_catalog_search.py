@@ -8,6 +8,7 @@ from larenor_server.plugins.media_archive_health_models import (
 )
 from test_admin import activate, create as create_user
 from test_media_archive_core_read import configured
+from larenor_server.plugins.media_installations import BINDING
 
 
 BASE = '/api/v1/admin/media/archive-health/catalog/search'
@@ -226,3 +227,49 @@ def test_member_search_rechecks_session_after_private_worker(server):
     })
     assert response.status_code == 401
     assert len(worker.calls) == 1
+
+
+def test_member_search_rejects_a_non_unique_ready_target(server):
+    app, client, _settings, _clock = server
+    pair, installation, _current, _reader, worker, body = configured(server)
+    create_user(client, pair)
+    member = activate(client, 'member')
+    manager = app.state.core.media_installations
+    with app.state.core.db.transaction() as connection:
+        source = dict(connection.execute(
+            'SELECT * FROM media_installations WHERE id=?',
+            (installation['id'],),
+        ).fetchone())
+        payload = manager._decode(source)
+        clone = source | {
+            'id': 'f' * 32,
+            'sequence': source['sequence'] + 1,
+            'request_id': 'f' * 32,
+        }
+        cloned_payload = payload.model_copy(update={
+            'request': payload.request.model_copy(update={
+                'requestId': clone['request_id'],
+            }),
+        })
+        connection.execute(
+            'INSERT INTO media_installations('
+            + ','.join(BINDING)
+            + ',nonce,ciphertext) VALUES('
+            + ','.join('?' for _ in range(len(BINDING) + 2))
+            + ')',
+            (*[clone[key] for key in BINDING], source['nonce'],
+             source['ciphertext']),
+        )
+        manager._save(connection, clone, cloned_payload)
+
+    assert client.get(MEMBER_TARGET, headers=auth(member)).status_code == 409
+    response = client.post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_catalog_target_unavailable'
+    assert worker.calls == []
