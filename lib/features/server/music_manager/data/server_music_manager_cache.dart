@@ -56,6 +56,14 @@ final class SharedPreferencesServerMusicManagerCacheBackend
     if (!await preferences.setString(key, value)) {
       throw StateError('music_cache_write_failed');
     }
+    if (!current()) {
+      await preferences.reload();
+      if (preferences.getString(key) == value &&
+          !await preferences.remove(key)) {
+        throw StateError('music_cache_clear_failed');
+      }
+      return false;
+    }
     return true;
   });
 

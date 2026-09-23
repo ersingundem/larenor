@@ -17,8 +17,9 @@ counters.
 3. **Lifecycle authority.** The controller passes its exact account/operation
    guard into cache writes. The cache checks it before and after every awaited
    acquisition, and the SharedPreferences executor checks it after reload and
-   immediately before mutation. An invalidated controller cannot complete a
-   delayed cache write.
+   immediately before mutation. It also rechecks authority after `setString`;
+   if authority retired during that await, it reloads storage and removes only
+   its exact stale value. A concurrent replacement remains untouched.
 
 ## RED
 
@@ -27,7 +28,10 @@ replacement cleanup, stale-writer, numeric schema and delayed lifecycle
 regressions. All four failed against unconditional write/clear and loose
 numeric equality. Commit `2b1cba81824e23236af813fc8c045e71bfa36d9e`
 expanded the numeric matrix to the resource installation, Core and manager
-revisions; floating-point values were accepted before the parser fix.
+revisions; floating-point values were accepted before the parser fix. Commit
+`6d59715340d4b2129724c261bde48d50fb6fb2c5` added the post-`setString`
+retirement and replacement-owner regressions; both returned success before the
+post-write authority check.
 
 ## GREEN
 
@@ -38,7 +42,7 @@ python3 tool/execution_queue.py validate
 git diff --check
 ```
 
-The single focused package passes 9 tests. S08.8 remains pending: central
+The single focused package passes 11 tests. S08.8 remains pending: central
 catalog detail/playback and queue dispatch, remaining Direct Jellyfin surfaces,
 explicit legacy player mapping, integrated logout/Core-switch E2E,
 independent review and exact-head CI remain open. Progress stays 26/125 and
