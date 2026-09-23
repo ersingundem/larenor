@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/music/domain/music_models.dart';
@@ -13,6 +14,7 @@ final class _MemoryBackend implements ServerMusicSelectionCacheBackend {
   int writes = 0, clears = 0;
   Completer<void>? gate;
   Completer<void>? started;
+  String? replacementBeforeClear;
 
   @override
   Future<void> clear() async {
@@ -22,6 +24,9 @@ final class _MemoryBackend implements ServerMusicSelectionCacheBackend {
 
   @override
   Future<bool> compareAndClear(String expected) async {
+    final replacement = replacementBeforeClear;
+    replacementBeforeClear = null;
+    if (replacement != null) value = replacement;
     if (value != expected) return false;
     clears++;
     value = null;
@@ -203,10 +208,18 @@ void main() {
     expect(backend.value, isNot(contains('media_player.living_room')));
     expect(backend.value, isNot(contains('legacy-ma-entry')));
     expect(backend.value, isNot(contains('Living room speaker')));
-    expect(
-      fixture.calls.where((call) => call.url.path.endsWith('/manager/refresh')),
-      hasLength(1),
+    final refresh = fixture.calls.singleWhere(
+      (call) => call.url.path.endsWith('/manager/refresh'),
     );
+    expect(jsonDecode(refresh.body), {
+      'requestId': 'f' * 32,
+      'installationId': manager.installationId,
+      'expectedInstallationRevision': manager.installationRevision,
+      'expectedCoreRevision': manager.coreRevision,
+    });
+    expect(refresh.body, isNot(contains('media_player.living_room')));
+    expect(refresh.body, isNot(contains('legacy-ma-entry')));
+    expect(refresh.body, isNot(contains('Living room speaker')));
 
     await expectLater(
       migration.confirm(
@@ -328,7 +341,8 @@ void main() {
     addTearDown(fixture.account.dispose);
     final backend = _MemoryBackend()
       ..gate = Completer<void>()
-      ..started = Completer<void>();
+      ..started = Completer<void>()
+      ..replacementBeforeClear = 'replacement-owner-snapshot';
     final migration = LegacyMusicPlayerMapping(
       account: fixture.account,
       loadLegacyDiscovery: () async => _discovery(),
@@ -354,8 +368,8 @@ void main() {
     backend.gate!.complete();
 
     await expectLater(confirming, throwsStateError);
-    expect(backend.value, isNull);
+    expect(backend.value, 'replacement-owner-snapshot');
     expect(backend.writes, 1);
-    expect(backend.clears, 1);
+    expect(backend.clears, 0);
   });
 }
