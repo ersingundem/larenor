@@ -116,6 +116,9 @@ class PrivateMediaPlaybackAction(StrictModel):
     requestId: ObjectId
     intentId: ObjectId
     installationId: ObjectId
+    installationRevision: Revision
+    snapshotRevision: Revision
+    jellyfinServiceRevision: Revision
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)
     expectedPlaybackRevision: Revision
