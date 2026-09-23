@@ -222,4 +222,50 @@ void main() {
       expect(restarted.failure, 'server_error');
     },
   );
+
+  test(
+    'manager authorization loss never publishes the retained cached snapshot',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      );
+      final fixture = MusicManagerFixture();
+      await fixture.account.initialize();
+      final first = ServerMusicManagerController(fixture.account, cache: cache);
+      await first.load(current: () => true);
+      expect(backend.writes, 1);
+      first.dispose();
+
+      final original = fixture.respond!;
+      fixture.respond = (request) async {
+        if (request.method == 'GET' && request.url.path.contains('/manager/')) {
+          return fixture.json({
+            'error': {'code': 'forbidden'},
+          }, 403);
+        }
+        return original(request);
+      };
+      final restarted = ServerMusicManagerController(
+        fixture.account,
+        cache: ServerMusicManagerCache(
+          backend: backend,
+          now: () => DateTime.utc(2026, 9, 23, 8, 1),
+        ),
+      );
+      addTearDown(() {
+        restarted.dispose();
+        fixture.account.dispose();
+      });
+
+      await restarted.load(current: () => true);
+
+      expect(restarted.stored, true);
+      expect(restarted.manager, isNull);
+      expect(restarted.reachable, false);
+      expect(restarted.verified, false);
+      expect(restarted.failure, 'forbidden');
+    },
+  );
 }
