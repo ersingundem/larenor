@@ -51,3 +51,6 @@ PDF decoder after the repository's bounded container checks. The viewer now
 turns that decoder error into one generation-bound playlist completion, shows
 no library or stack-trace detail, and advances to the next verified item. A
 retired route cannot use a late decoder error to advance a replacement item.
+Manifest readback now also rejects a local item's claimed size when it exceeds
+that format's individual limit. Regression coverage fills the library to its
+24-item and 256 MiB offline ceilings before proving the next import fails.

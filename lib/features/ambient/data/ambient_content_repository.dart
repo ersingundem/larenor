@@ -81,6 +81,7 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
           .toList(growable: false);
       if (values.length > maxItems ||
           values.map((value) => value.id).toSet().length != values.length ||
+          values.any((value) => !_withinItemLimit(value)) ||
           values.fold<int>(0, (sum, value) => sum + value.sizeBytes) >
               maxLibraryBytes) {
         throw const AmbientContentException();
@@ -232,6 +233,12 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
       throw const AmbientContentException();
     }
   }
+
+  static bool _withinItemLimit(AmbientContent item) => switch (item.kind) {
+    AmbientContentKind.pdf => item.sizeBytes <= maxPdfBytes,
+    AmbientContentKind.video => item.sizeBytes <= maxVideoBytes,
+    AmbientContentKind.web => item.sizeBytes == 0,
+  };
 
   Future<bool> _save(
     Directory root,
