@@ -13,6 +13,7 @@ from test_media_archive_core_read import configured
 BASE = '/api/v1/admin/media/archive-health/catalog/search'
 MEMBER_TARGET = '/api/v1/media/catalog/target'
 MEMBER_SEARCH = '/api/v1/media/catalog/search'
+MEMBER_BROWSE = '/api/v1/media/catalog/browse'
 
 
 def _items(worker):
@@ -273,3 +274,101 @@ def test_member_search_rejects_a_non_unique_ready_target(server):
     assert response.status_code == 409
     assert response.json()['error']['code'] == target.json()['error']['code']
     assert worker.calls == []
+
+
+def test_member_browse_is_bounded_sorted_and_revision_bound(server):
+    pair, installation, _current, reader, worker, body = configured(server)
+    _items(worker)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    first = server[1].post(MEMBER_BROWSE, headers=auth(member), json={
+        **body,
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 2,
+    })
+    assert first.status_code == 200, first.text
+    assert first.json() == {
+        'requestId': 'e' * 32,
+        'catalog': {
+            'schemaVersion': 1,
+            'installationId': installation['id'],
+            'installationRevision': installation['revision'],
+            'snapshotRevision': 4,
+            'jellyfinServiceRevision': 8,
+            'offset': 0,
+            'nextOffset': 2,
+            'total': 3,
+            'items': [
+                {
+                    'itemId': 'd' * 32,
+                    'mediaKey': 'episode:tvdb:101:1:3',
+                    'title': 'Matrix episode',
+                    'mediaKind': 'episode',
+                    'runtimeSeconds': None,
+                },
+                {
+                    'itemId': 'c' * 32,
+                    'mediaKey': 'movie:tmdb:604',
+                    'title': 'Matrix Reloaded',
+                    'mediaKind': 'movie',
+                    'runtimeSeconds': 8_280,
+                },
+            ],
+        },
+    }
+    second = server[1].post(MEMBER_BROWSE, headers=auth(member), json={
+        **body,
+        'mediaKind': None,
+        'offset': 2,
+        'limit': 2,
+    })
+    assert second.status_code == 200, second.text
+    assert second.json()['catalog']['nextOffset'] is None
+    assert [item['title'] for item in second.json()['catalog']['items']] == [
+        'The Matrix',
+    ]
+    assert reader.calls == 4 and len(worker.calls) == 2
+
+
+@pytest.mark.parametrize('change', [
+    {'query': 'matrix'},
+    {'sort': 'added'},
+    {'offset': True},
+    {'offset': 4097},
+    {'limit': 0},
+    {'limit': 51},
+    {'accessToken': 'must-not-cross-boundary'},
+])
+def test_invalid_member_browse_never_reaches_private_worker(server, change):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+    response = server[1].post(MEMBER_BROWSE, headers=auth(member), json={
+        **body,
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+        **change,
+    })
+    assert response.status_code == 400
+    assert worker.calls == []
+    assert 'must-not-cross-boundary' not in response.text
+
+
+def test_member_browse_rechecks_session_after_private_worker(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+    worker.change = lambda: server[1].post(
+        '/api/v1/auth/logout', headers=auth(member))
+
+    response = server[1].post(MEMBER_BROWSE, headers=auth(member), json={
+        **body,
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
+    assert response.status_code == 401
+    assert len(worker.calls) == 1

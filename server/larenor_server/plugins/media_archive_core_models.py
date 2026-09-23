@@ -80,6 +80,12 @@ class MediaCatalogSearchRequest(MediaArchiveReadRequest):
         return value
 
 
+class MediaCatalogBrowseRequest(MediaArchiveReadRequest):
+    mediaKind: Literal['movie', 'episode'] | None
+    offset: int = Field(ge=0, le=4096)
+    limit: int = Field(ge=1, le=50)
+
+
 class MediaCatalogItem(StrictModel):
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)

@@ -77,6 +77,7 @@ final class _ServerMediaCatalogScreenState
       requestId: widget.requestId,
     );
     _account.addListener(_accountChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _browse());
   }
 
   @override
@@ -138,6 +139,18 @@ final class _ServerMediaCatalogScreenState
     );
   }
 
+  void _browse({int offset = 0}) {
+    final current = _capture();
+    if (!current() || _controller.busy) return;
+    unawaited(
+      _controller.browseCurrent(
+        mediaKind: _mediaKind,
+        offset: offset,
+        current: current,
+      ),
+    );
+  }
+
   void _selectFilter(int? value) {
     final next = switch (value) {
       1 => ServerMediaCatalogKind.movie,
@@ -148,7 +161,11 @@ final class _ServerMediaCatalogScreenState
     final query = _submitted;
     _controller.retire();
     setState(() => _mediaKind = next);
-    if (query != null) _search(query);
+    if (query != null) {
+      _search(query);
+    } else {
+      _browse();
+    }
   }
 
   int get _filterValue => switch (_mediaKind) {
@@ -308,9 +325,9 @@ final class _ServerMediaCatalogScreenState
             child: ExcludeSemantics(
               child: CupertinoButton.filled(
                 minimumSize: const Size(48, 48),
-                onPressed: _submitted == null
-                    ? null
-                    : () => _search(_submitted!, offset: offset),
+                onPressed: () => _submitted == null
+                    ? _browse(offset: offset)
+                    : _search(_submitted!, offset: offset),
                 child: Text(l.commonNext),
               ),
             ),

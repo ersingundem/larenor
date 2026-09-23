@@ -10,6 +10,7 @@ from .media_archive_core_models import (
     MediaArchiveAuthorityResponse,
     MediaArchiveReadRequest,
     MediaArchiveReadResponse,
+    MediaCatalogBrowseRequest,
     MediaCatalogSearchRequest,
     MediaCatalogSearchResponse,
     MediaCatalogTargetResponse,
@@ -56,3 +57,8 @@ def catalog_target(core: Core, actor: Ready):
 @catalog_router.post('/search', response_model=MediaCatalogSearchResponse)
 def catalog_search(body: MediaCatalogSearchRequest, core: Core, actor: Ready):
     return core.media_archive_health.member_search(actor, body)
+
+
+@catalog_router.post('/browse', response_model=MediaCatalogSearchResponse)
+def catalog_browse(body: MediaCatalogBrowseRequest, core: Core, actor: Ready):
+    return core.media_archive_health.member_browse(actor, body)
