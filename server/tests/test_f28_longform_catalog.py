@@ -106,6 +106,23 @@ def test_runtime_rejects_detail_that_does_not_match_in_progress_identity():
         raise AssertionError('mismatched detail was accepted')
 
 
+def test_runtime_rejects_http_longform_identity_before_publication():
+    calls = []
+    private_uri = 'https://private.example/token=secret'
+    summary = raw_item(uri=private_uri)
+    summary.pop('metadata')
+    responses = [[summary], raw_item(uri=private_uri)]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+
+    try:
+        runtime.longform(private_action(), deadline=time.monotonic() + 2)
+    except Exception as error:
+        assert str(error) == 'music_longform_readback_changed'
+        assert private_uri not in str(error)
+    else:
+        raise AssertionError('HTTP media identity was accepted')
+
+
 def test_runtime_rejects_detail_from_an_unbound_provider_instance():
     calls = []
     summary = raw_item()
