@@ -259,6 +259,49 @@ void main() {
     },
   );
 
+  test(
+    'route retirement during secure write clears the record before connect',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(null)
+        ..writeStarted = Completer<void>()
+        ..writeGate = Completer<void>();
+      final broker = _Broker();
+      final owner = _owner(
+        store: store,
+        authority: _Authority(),
+        source: _Source(),
+        broker: broker,
+      );
+      addTearDown(owner.dispose);
+      await owner.updateBinding(enrollment.binding);
+      var routeCurrent = true;
+
+      final pending = owner.enroll(
+        enrollment.binding,
+        enrollment,
+        isCurrent: () => routeCurrent,
+      );
+      await store.writeStarted!.future;
+      routeCurrent = false;
+      store.writeGate!.complete();
+
+      await expectLater(
+        pending,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'managed_tablet_enrollment_retired',
+          ),
+        ),
+      );
+      expect(store.value, isNull);
+      expect(store.clears, 1);
+      expect(broker.connects, 0);
+    },
+  );
+
   test('current Core and egress are rechecked before broker connect', () async {
     final enrollment = _enrollment();
     final store = _Store(enrollment);
