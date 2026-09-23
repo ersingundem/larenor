@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/webview_tile.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 // Exercise the public WebViewController wrapper and platform contracts. This
@@ -281,6 +282,8 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('valid card loads once without native credentials or headers', (
     tester,
   ) async {
@@ -480,7 +483,7 @@ void main() {
     expect(find.text(h.l10n.webPanelLoadFailed), findsOneWidget);
     expect(find.textContaining('private.invalid'), findsNothing);
     await tester.tap(find.text(h.l10n.commonRetry));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(h.platform.controllers, hasLength(2));
     expect(h.platform.controllers.last.requests, hasLength(1));
     await h.close(tester);
