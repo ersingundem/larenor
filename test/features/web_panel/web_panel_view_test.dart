@@ -590,10 +590,7 @@ void main() {
     await h.mount(tester);
     await tester.pump(const Duration(seconds: 31));
     expect(find.text(h.l10n.webPanelTimedOut), findsOneWidget);
-    expect(
-      (await h.usage.read()).count(KioskUsageEvent.timeout),
-      1,
-    );
+    expect((await h.usage.read()).count(KioskUsageEvent.timeout), 1);
     await tester.pump(const Duration(minutes: 1));
     expect(h.platform.controllers, hasLength(1));
     expect(h.platform.controllers.single.html, ['<html></html>']);
