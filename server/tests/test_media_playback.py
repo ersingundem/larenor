@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from conftest import auth
 from larenor_server.errors import StartupError
 from larenor_server.plugins.media_playback_models import (
@@ -381,3 +380,36 @@ def test_runtime_replay_rejects_cross_bound_pending_receipt(server):
 
     assert response.status_code == 503
     assert response.json()['error']['code'] == 'media_playback_storage_unavailable'
+
+
+def test_succeeded_receipt_payload_must_match_bound_intent(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    app.state.core.media_playback.backend = PlaybackWorker()
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    command = {
+        'requestId': 'c' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+    first = client.post(BASE + '/commands', headers=auth(pair), json=command)
+    assert first.status_code == 201, first.text
+    corrupt = {**first.json()['receipt'], 'itemId': 'd' * 32}
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            'UPDATE media_playback_receipts SET receipt_json=? '
+            'WHERE request_id=?',
+            (json.dumps(corrupt, separators=(',', ':'), sort_keys=True),
+             command['requestId']))
+
+    with pytest.raises(StartupError, match='invalid_media_playback_storage'):
+        app.state.core.media_playback.validate_storage()
+    replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
+    assert replay.status_code == 503
+    assert replay.json()['error']['code'] == 'media_playback_storage_unavailable'

@@ -18,6 +18,22 @@ from .media_playback_models import (
 )
 
 _MAX_RECORDS = 256
+_RECEIPT_QUERY = '''SELECT
+    r.request_id AS receipt_request_id,
+    r.intent_id AS receipt_intent_id,
+    r.actor_id AS receipt_actor_id,
+    r.request_json AS receipt_request_json,
+    r.state AS receipt_state,
+    r.receipt_json AS stored_receipt_json,
+    i.id AS stored_intent_id,
+    i.actor_id AS intent_actor_id,
+    i.installation_id AS installation_id,
+    i.item_id AS item_id,
+    i.playback_revision AS intent_playback_revision,
+    i.targets_json AS intent_targets_json,
+    i.consumed_by AS intent_consumed_by
+FROM media_playback_receipts r
+LEFT JOIN media_playback_intents i ON i.id=r.intent_id'''
 
 
 class MediaPlaybackManagement:
@@ -33,7 +49,7 @@ class MediaPlaybackManagement:
                     (_MAX_RECORDS + 1,),
                 ).fetchall()
                 receipt_rows = connection.execute(
-                    'SELECT request_id FROM media_playback_receipts LIMIT ?',
+                    _RECEIPT_QUERY + ' LIMIT ?',
                     (_MAX_RECORDS + 1,),
                 ).fetchall()
                 if len(rows) > _MAX_RECORDS or len(receipt_rows) > _MAX_RECORDS:
@@ -42,6 +58,8 @@ class MediaPlaybackManagement:
                     targets = json.loads(row['targets_json'])
                     MediaPlaybackReadback(
                         playbackRevision=1, targets=targets)
+                for row in receipt_rows:
+                    self._validated_receipt_row(row)
         except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
             raise StartupError('invalid_media_playback_storage') from None
 
@@ -180,6 +198,54 @@ class MediaPlaybackManagement:
                           sort_keys=True)
 
     @staticmethod
+    def _receipt_json(receipt):
+        return json.dumps(receipt.model_dump(mode='json'), separators=(',', ':'),
+                          sort_keys=True)
+
+    @classmethod
+    def _validated_receipt_row(cls, row):
+        if row is None or row['stored_intent_id'] is None:
+            raise ValueError()
+        request = MediaPlaybackCommandRequest.model_validate_json(
+            row['receipt_request_json'])
+        if (cls._request_json(request) != row['receipt_request_json']
+                or request.requestId != row['receipt_request_id']
+                or request.intentId != row['receipt_intent_id']
+                or row['receipt_intent_id'] != row['stored_intent_id']
+                or row['receipt_actor_id'] != row['intent_actor_id']
+                or row['intent_consumed_by'] != row['receipt_request_id']
+                or request.expectedPlaybackRevision
+                != row['intent_playback_revision']):
+            raise ValueError()
+        targets = MediaPlaybackReadback(
+            playbackRevision=row['intent_playback_revision'],
+            targets=json.loads(row['intent_targets_json'])).targets
+        if not any(
+                item.targetId == request.targetId
+                and item.targetRevision == request.expectedTargetRevision
+                and item.available for item in targets):
+            raise ValueError()
+        if row['receipt_state'] == 'pending':
+            if row['stored_receipt_json'] is not None:
+                raise ValueError()
+            return request, None
+        if row['receipt_state'] != 'succeeded' or row['stored_receipt_json'] is None:
+            raise ValueError()
+        receipt = MediaPlaybackReceipt.model_validate_json(
+            row['stored_receipt_json'])
+        if (cls._receipt_json(receipt) != row['stored_receipt_json']
+                or receipt.requestId != request.requestId
+                or receipt.intentId != request.intentId
+                or receipt.installationId != row['installation_id']
+                or receipt.itemId != row['item_id']
+                or receipt.targetId != request.targetId
+                or receipt.playbackRevision <= request.expectedPlaybackRevision
+                or receipt.state != 'succeeded'
+                or receipt.code != 'authenticated_readback'):
+            raise ValueError()
+        return request, receipt
+
+    @staticmethod
     def _receipt(row, body, *, uncertain=False):
         return MediaPlaybackReceipt(
             requestId=body.requestId, intentId=body.intentId,
@@ -198,19 +264,24 @@ class MediaPlaybackManagement:
         with self.db.connection() as connection:
             self.auth.assert_current(connection, actor)
             receipt_row = connection.execute(
-                'SELECT * FROM media_playback_receipts WHERE request_id=?',
+                _RECEIPT_QUERY + ' WHERE r.request_id=?',
                 (body.requestId,)).fetchone()
             if receipt_row is not None:
-                if (receipt_row['actor_id'] != actor.id
-                        or receipt_row['request_json'] != encoded):
+                try:
+                    stored_request, stored_receipt = (
+                        self._validated_receipt_row(receipt_row))
+                except (ValidationError, ValueError, TypeError,
+                        json.JSONDecodeError):
+                    raise ApiError(
+                        'media_playback_storage_unavailable', 503) from None
+                if (receipt_row['receipt_actor_id'] != actor.id
+                        or stored_request != body
+                        or receipt_row['receipt_request_json'] != encoded):
                     raise ApiError('media_playback_command_conflict', 409)
-                if receipt_row['state'] == 'succeeded':
-                    return {'receipt': json.loads(receipt_row['receipt_json'])}
-                intent_row = connection.execute(
-                    'SELECT * FROM media_playback_intents WHERE id=?',
-                    (body.intentId,)).fetchone()
+                if stored_receipt is not None:
+                    return {'receipt': stored_receipt.model_dump()}
                 return {'receipt': self._receipt(
-                    intent_row, body, uncertain=True).model_dump()}
+                    receipt_row, stored_request, uncertain=True).model_dump()}
             row = connection.execute(
                 'SELECT * FROM media_playback_intents WHERE id=?',
                 (body.intentId,)).fetchone()
@@ -296,6 +367,5 @@ class MediaPlaybackManagement:
             connection.execute(
                 "UPDATE media_playback_receipts SET state='succeeded',"
                 'receipt_json=? WHERE request_id=? AND state=\'pending\'',
-                (json.dumps(receipt.model_dump(mode='json'), separators=(',', ':'),
-                            sort_keys=True), body.requestId))
+                (self._receipt_json(receipt), body.requestId))
         return {'receipt': receipt.model_dump()}
