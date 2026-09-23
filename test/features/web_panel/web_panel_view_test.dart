@@ -171,15 +171,18 @@ class Harness {
 
 final class RendererMonitor implements WebPanelRendererMonitor {
   void Function()? gone;
+  Set<WebOrigin>? allowedOrigins;
   int attachments = 0;
   int disposals = 0;
 
   @override
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
+    Set<WebOrigin> origins,
     void Function() onRendererGone,
   ) async {
     attachments++;
+    allowedOrigins = origins;
     gone = onRendererGone;
     return _RendererHandle(() {
       disposals++;
@@ -727,6 +730,10 @@ void main() {
     final h = Harness();
     await h.mount(tester, rendererMonitor: monitor);
     expect(monitor.attachments, 1);
+    expect(
+      monitor.allowedOrigins,
+      {WebOrigin.parse('https://fixture.invalid')},
+    );
     final stale = monitor.gone!;
 
     stale();
