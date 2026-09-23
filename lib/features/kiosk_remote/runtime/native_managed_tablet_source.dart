@@ -177,6 +177,47 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     return _parseSnapshot(raw);
   }
 
+  Future<ManagedTabletCommandResult> _executeNativeCommand(
+    String sessionId,
+    int generation,
+    String kind,
+  ) async {
+    _assertCurrent(sessionId, generation);
+    Object? raw;
+    try {
+      raw = await _channel.invokeMethod<Object?>('command', {
+        'sessionId': sessionId,
+        'kind': kind,
+      });
+    } on MissingPluginException {
+      return _isCurrent(sessionId, generation)
+          ? ManagedTabletCommandResult.unsupported
+          : ManagedTabletCommandResult.denied;
+    } on PlatformException catch (error) {
+      if (!_isCurrent(sessionId, generation)) {
+        return ManagedTabletCommandResult.denied;
+      }
+      return error.code == 'denied'
+          ? ManagedTabletCommandResult.denied
+          : ManagedTabletCommandResult.failed;
+    }
+    if (!_isCurrent(sessionId, generation)) {
+      return ManagedTabletCommandResult.denied;
+    }
+    if (raw is! Map ||
+        raw.length != 1 ||
+        raw.keys.single != 'result' ||
+        raw['result'] is! String) {
+      return ManagedTabletCommandResult.failed;
+    }
+    return switch (raw['result']) {
+      'succeeded' => ManagedTabletCommandResult.succeeded,
+      'denied' => ManagedTabletCommandResult.denied,
+      'failed' => ManagedTabletCommandResult.failed,
+      _ => ManagedTabletCommandResult.failed,
+    };
+  }
+
   void _assertCurrent(String sessionId, int generation) {
     final current = _current;
     if (current == null ||
@@ -311,23 +352,24 @@ final class _NativeManagedTabletCommandExecutor
   Future<ManagedTabletCommandResult> execute(String kind) async {
     bool current() => _owner._isCurrent(_sessionId, _generation);
     if (!current()) return ManagedTabletCommandResult.denied;
-    if (kind != 'refreshDashboard') {
+    if (kind != 'refreshDashboard' && kind != 'lockKiosk') {
       return ManagedTabletCommandResult.unsupported;
     }
     if (_working) return ManagedTabletCommandResult.denied;
     _working = true;
-    final operation = Future<void>.sync(
-      () => _actions.refreshDashboard(isCurrent: current),
-    );
+    final operation = kind == 'refreshDashboard'
+        ? Future<ManagedTabletCommandResult>.sync(() async {
+            await _actions.refreshDashboard(isCurrent: current);
+            return ManagedTabletCommandResult.succeeded;
+          })
+        : _owner._executeNativeCommand(_sessionId, _generation, kind);
     operation.then<void>(
       (_) => _working = false,
       onError: (_, _) => _working = false,
     );
     try {
-      await operation.timeout(const Duration(seconds: 10));
-      return current()
-          ? ManagedTabletCommandResult.succeeded
-          : ManagedTabletCommandResult.denied;
+      final result = await operation.timeout(const Duration(seconds: 10));
+      return current() ? result : ManagedTabletCommandResult.denied;
     } on UnsupportedError {
       return current()
           ? ManagedTabletCommandResult.unsupported

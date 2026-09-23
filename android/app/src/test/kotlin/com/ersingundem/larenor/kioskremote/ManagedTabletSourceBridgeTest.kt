@@ -41,9 +41,57 @@ class ManagedTabletSourceBridgeTest {
 
     private class Host : ManagedTabletSnapshotHost {
         var reads = 0
+        var locks = 0
+        var lockResult = ManagedTabletNativeCommandResult.succeeded
         override fun read(appForeground: Boolean): ManagedTabletNativeSnapshot {
             reads += 1
             return ManagedTabletNativeSnapshot(73, "wifi", "1.2.3+45", appForeground, "locked")
+        }
+        override fun lockKiosk(): ManagedTabletNativeCommandResult {
+            locks += 1
+            return lockResult
+        }
+    }
+
+    @Test fun lockCommandIsExactSessionBoundAndLifecycleBound() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup()
+        val host = Host()
+        val bridge = ManagedTabletSourceBridge(activity.get(), Messenger(), host)
+        val id = "a".repeat(32)
+        try {
+            bridge.setResumed(true)
+            val inactive = Result()
+            bridge.onMethodCall(MethodCall("command", mapOf("sessionId" to id, "kind" to "lockKiosk")), inactive)
+            assertEquals("denied", inactive.code)
+            assertEquals(0, host.locks)
+
+            val active = Result()
+            bridge.onMethodCall(MethodCall("start", mapOf(
+                "schemaVersion" to 1, "enabled" to true, "sessionId" to id, "scope" to "admin",
+            )), active)
+            val locked = Result()
+            bridge.onMethodCall(MethodCall("command", mapOf("sessionId" to id, "kind" to "lockKiosk")), locked)
+            assertEquals(mapOf("result" to "succeeded"), locked.value)
+            assertEquals(1, host.locks)
+
+            for (arguments in listOf(
+                mapOf("sessionId" to id, "kind" to "restartClient"),
+                mapOf("sessionId" to id, "kind" to "lockKiosk", "token" to "secret"),
+            )) {
+                val invalid = Result()
+                bridge.onMethodCall(MethodCall("command", arguments), invalid)
+                assertEquals("invalid", invalid.code)
+            }
+            assertEquals(1, host.locks)
+
+            bridge.setResumed(false)
+            val retired = Result()
+            bridge.onMethodCall(MethodCall("command", mapOf("sessionId" to id, "kind" to "lockKiosk")), retired)
+            assertEquals("denied", retired.code)
+            assertEquals(1, host.locks)
+        } finally {
+            bridge.dispose()
+            activity.pause().stop().destroy()
         }
     }
 
@@ -159,6 +207,10 @@ class ManagedTabletSourceBridgeTest {
             assertEquals(
                 setOf("schemaVersion", "batteryPercent", "network", "appVersion", "appForeground", "kioskState"),
                 snapshot.toWire().keys,
+            )
+            assertEquals(
+                ManagedTabletNativeCommandResult.denied,
+                AndroidManagedTabletSnapshotHost(activity.get()).lockKiosk(),
             )
         } finally {
             activity.pause().stop().destroy()
