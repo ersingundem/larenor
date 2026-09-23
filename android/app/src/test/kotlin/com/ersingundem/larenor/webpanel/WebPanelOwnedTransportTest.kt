@@ -120,6 +120,7 @@ class WebPanelOwnedTransportTest {
                     setOf(WebRequestOrigin("http", server.hostName, server.port)),
                 ),
                 maxResponseBytes = 8,
+                maxConcurrentRequests = 1,
             )
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
             val executor = Executors.newSingleThreadExecutor()
@@ -128,6 +129,14 @@ class WebPanelOwnedTransportTest {
                     transport.fetch(Uri.parse(server.url("/pending").toString()), "GET")
                 }
                 assertNotNull(server.takeRequest(1, TimeUnit.SECONDS))
+                assertEquals(
+                    429,
+                    transport.fetch(
+                        Uri.parse(server.url("/over-capacity").toString()),
+                        "GET",
+                    ).statusCode,
+                )
+                assertEquals(1, server.requestCount)
 
                 transport.close()
 
