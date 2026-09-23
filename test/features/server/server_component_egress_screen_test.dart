@@ -145,9 +145,11 @@ void main() {
         160,
         scrollable: scrollable.first,
       );
-      for (var attempt = 0;
-          attempt < 4 && finder.hitTestable().evaluate().isEmpty;
-          attempt++) {
+      for (
+        var attempt = 0;
+        attempt < 4 && finder.hitTestable().evaluate().isEmpty;
+        attempt++
+      ) {
         await tester.drag(scrollable.first, const Offset(0, -160));
         await tester.pumpAndSettle();
       }
