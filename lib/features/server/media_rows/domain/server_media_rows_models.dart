@@ -211,7 +211,23 @@ final class ServerAccountMediaRows {
     );
   }
 
-  final String requestId, installationId;
+  factory ServerAccountMediaRows.cached({
+    required String installationId,
+    required int installationRevision,
+    required int bindingRevision,
+    required ServerMediaRows rows,
+  }) {
+    return ServerAccountMediaRows._(
+      requestId: null,
+      installationId: _identity(installationId),
+      installationRevision: _revision(installationRevision),
+      bindingRevision: _revision(bindingRevision),
+      rows: rows,
+    );
+  }
+
+  final String? requestId;
+  final String installationId;
   final int installationRevision, bindingRevision;
   final ServerMediaRows rows;
 }

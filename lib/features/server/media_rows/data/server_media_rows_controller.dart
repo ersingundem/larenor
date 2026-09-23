@@ -7,16 +7,22 @@ import '../../domain/server_models.dart';
 import '../../media_result_origin.dart';
 import '../domain/server_media_rows_models.dart';
 import 'server_media_rows_api.dart';
+import 'server_media_rows_cache.dart';
 
 final class ServerMediaRowsController extends ChangeNotifier {
-  ServerMediaRowsController(this.account, {String Function()? requestId})
-    : _accountGeneration = account.generation,
-      _requestId = requestId {
+  ServerMediaRowsController(
+    this.account, {
+    ServerMediaRowsCache? cache,
+    String Function()? requestId,
+  }) : _accountGeneration = account.generation,
+       _cache = cache ?? ServerMediaRowsCache(),
+       _requestId = requestId {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final int _accountGeneration;
+  final ServerMediaRowsCache _cache;
   final String Function()? _requestId;
   int _epoch = 0;
   bool _disposed = false;
@@ -81,10 +87,28 @@ final class ServerMediaRowsController extends ChangeNotifier {
         );
         final target = await client.discoverTarget(current: requestCurrent);
         if (!requestCurrent()) return;
+        final scope = ServerMediaRowsCacheScope.fromSession(session);
+        final cached = await _cache.read(
+          scope,
+          target,
+          current: requestCurrent,
+        );
+        if (!requestCurrent()) return;
+        if (cached != null) {
+          value = cached;
+          origin = ServerMediaResultOrigin.verifiedCache;
+          notifyListeners();
+        }
         final fresh = await client.readVerifiedTarget(
           target: target,
           current: requestCurrent,
         );
+        if (!requestCurrent()) return;
+        try {
+          await _cache.write(scope, target, fresh, current: requestCurrent);
+        } catch (_) {
+          // Persistence failure cannot invalidate a fresh authority-bound read.
+        }
         if (!requestCurrent()) return;
         value = fresh;
         origin = ServerMediaResultOrigin.live;

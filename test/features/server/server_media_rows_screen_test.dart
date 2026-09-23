@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -125,6 +126,8 @@ Widget _app(_Fixture fixture, {String locale = 'en', double scale = 1}) =>
     );
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets(
     'Core media hub renders account recent and resume rows read-only',
     (tester) async {
