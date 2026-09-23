@@ -106,7 +106,7 @@ def test_ready_owner_reads_bounded_recent_and_resume_without_private_identity(se
 
 
 def test_stale_installation_or_unbound_account_never_reaches_worker(server):
-    _app, client, _, _ = server
+    app, client, _, _ = server
     pair, _installation, worker, body = configured(server)
 
     stale = client.post(
@@ -191,4 +191,20 @@ def test_malformed_worker_result_is_unavailable_not_authority_drift(server):
     assert response.status_code == 503
     assert response.json()['error']['code'] == 'media_rows_worker_unavailable'
     assert 'malformed-worker-detail' not in response.text
+    assert len(worker.calls) == 1
+
+
+def test_deadline_expiry_after_valid_result_is_worker_unavailable(
+    server, monkeypatch
+):
+    app, client, _, _ = server
+    pair, _installation, worker, body = configured(server)
+    readings = iter((100.0, 106.0))
+    monkeypatch.setattr(
+        app.state.core.media_rows, '_monotonic', lambda: next(readings))
+
+    response = client.post(BASE, headers=auth(pair), json=body)
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_rows_worker_unavailable'
     assert len(worker.calls) == 1

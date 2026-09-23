@@ -283,6 +283,32 @@ def test_media_rows_malformed_transport_failure_uses_typed_static_error(
             )
 
 
+def test_media_rows_post_exchange_deadline_is_not_authority_drift(monkeypatch):
+    with running() as (_backend, client):
+        monkeypatch.setattr(
+            client,
+            '_exchange',
+            lambda *_args, **_kwargs: {
+                'state': 'succeeded',
+                'errorCode': None,
+                'value': MediaRowsReadback(
+                    revision=7, recent=[], resume=[]
+                ).model_dump(mode='json'),
+            },
+        )
+        readings = iter((100.0, 106.0))
+        monkeypatch.setattr(client, '_monotonic', lambda: next(readings))
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=105.0,
+                gate=lambda: True,
+            )
+
+
 def test_bootstrap_failure_roundtrip_preserves_only_static_partial_outcome():
     class FailedBackend(Backend):
         def bootstrap(self, job, component, private, *, deadline):

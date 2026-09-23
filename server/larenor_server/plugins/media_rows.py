@@ -19,6 +19,7 @@ class MediaRowsManagement:
         self.bindings = bindings
         self.bootstraps = bootstraps
         self.backend = backend
+        self._monotonic = time.monotonic
 
     def _snapshot(self, actor, body):
         try:
@@ -72,11 +73,8 @@ class MediaRowsManagement:
         ):
             raise ApiError('media_rows_worker_unavailable', 503)
         binding, bootstrap = self._snapshot(actor, body)
-        deadline = time.monotonic() + 5
-        gate = lambda: (
-            time.monotonic() < deadline
-            and self._retained(actor, body, binding, bootstrap)
-        )
+        deadline = self._monotonic() + 5
+        gate = lambda: self._retained(actor, body, binding, bootstrap)
         if gate() is not True:
             raise ApiError('media_rows_authority_changed', 409)
         private = PrivateJellyfinMediaRowsAuthority(
@@ -95,6 +93,8 @@ class MediaRowsManagement:
             )
             if type(result) is not MediaRowsReadback:
                 raise ValueError()
+            if self._monotonic() >= deadline:
+                raise ApiError('media_rows_worker_unavailable', 503)
             if gate() is not True:
                 raise JellyfinMediaRowsExecutionError(
                     'jellyfin_media_rows_authority_changed'

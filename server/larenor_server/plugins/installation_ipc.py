@@ -804,6 +804,7 @@ class InstallationWorkerClient:
             raise InstallationIPCError()
         self.path = Path(path).absolute()
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
+        self._monotonic = time.monotonic
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
@@ -993,7 +994,7 @@ class InstallationWorkerClient:
             deadline, gate)
 
     def read_media_rows(self, authority, *, deadline, gate):
-        now = time.monotonic()
+        now = self._monotonic()
         if (type(authority) is not PrivateJellyfinMediaRowsAuthority
                 or type(deadline) not in (int, float)
                 or type(deadline) is bool or not math.isfinite(deadline)
@@ -1016,8 +1017,11 @@ class InstallationWorkerClient:
         except InstallationIPCError:
             raise JellyfinMediaRowsExecutionError(
                 'jellyfin_media_rows_resources_unavailable') from None
+        if self._monotonic() >= deadline:
+            raise JellyfinMediaRowsExecutionError(
+                'jellyfin_media_rows_resources_unavailable')
         try:
-            if time.monotonic() >= deadline or gate() is not True:
+            if gate() is not True:
                 raise ValueError()
         except Exception:
             raise JellyfinMediaRowsExecutionError(
