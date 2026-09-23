@@ -63,23 +63,26 @@ class MediaPlaybackManagement:
         except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
             raise StartupError('invalid_media_playback_storage') from None
 
-    @staticmethod
-    def _prune_succeeded(connection, count):
+    @classmethod
+    def _prune_succeeded(cls, connection, count):
         rows = connection.execute(
-            "SELECT request_id,intent_id FROM media_playback_receipts "
-            "WHERE state='succeeded' ORDER BY created_at,request_id LIMIT ?",
+            _RECEIPT_QUERY
+            + " WHERE r.state='succeeded' ORDER BY r.created_at,r.request_id "
+            'LIMIT ?',
             (count,),
         ).fetchall()
+        for row in rows:
+            cls._validated_receipt_row(row)
         for row in rows:
             deleted_receipt = connection.execute(
                 "DELETE FROM media_playback_receipts "
                 "WHERE request_id=? AND intent_id=? AND state='succeeded'",
-                (row['request_id'], row['intent_id']),
+                (row['receipt_request_id'], row['receipt_intent_id']),
             ).rowcount
             deleted_intent = connection.execute(
                 'DELETE FROM media_playback_intents '
                 'WHERE id=? AND consumed_by=?',
-                (row['intent_id'], row['request_id']),
+                (row['receipt_intent_id'], row['receipt_request_id']),
             ).rowcount
             if deleted_receipt != 1 or deleted_intent != 1:
                 raise ApiError('media_playback_storage_unavailable', 503)
@@ -320,9 +323,14 @@ class MediaPlaybackManagement:
                 'SELECT COUNT(*) AS count FROM media_playback_receipts'
             ).fetchone()['count']
             required = max(0, receipt_count - _MAX_RECORDS + 1)
-            if (required
-                    and self._prune_succeeded(connection, required) != required):
-                raise ApiError('media_playback_storage_unavailable', 503)
+            try:
+                if (required and self._prune_succeeded(
+                        connection, required) != required):
+                    raise ValueError()
+            except (ValidationError, ValueError, TypeError,
+                    json.JSONDecodeError):
+                raise ApiError(
+                    'media_playback_storage_unavailable', 503) from None
             changed = connection.execute(
                 'UPDATE media_playback_intents SET consumed_by=? '
                 'WHERE id=? AND consumed_by IS NULL',
@@ -364,8 +372,28 @@ class MediaPlaybackManagement:
             state='succeeded', code='authenticated_readback')
         with self.db.transaction() as connection:
             self.auth.assert_current(connection, actor)
-            connection.execute(
+            try:
+                stored_row = connection.execute(
+                    _RECEIPT_QUERY + ' WHERE r.request_id=?',
+                    (body.requestId,),
+                ).fetchone()
+                stored_request, stored_receipt = (
+                    self._validated_receipt_row(stored_row))
+                if (stored_receipt is not None
+                        or stored_request != body
+                        or stored_row['receipt_actor_id'] != actor.id):
+                    raise ValueError()
+            except (ValidationError, ValueError, TypeError,
+                    json.JSONDecodeError):
+                raise ApiError(
+                    'media_playback_worker_unavailable', 503) from None
+            changed = connection.execute(
                 "UPDATE media_playback_receipts SET state='succeeded',"
-                'receipt_json=? WHERE request_id=? AND state=\'pending\'',
-                (self._receipt_json(receipt), body.requestId))
+                'receipt_json=? WHERE request_id=? AND intent_id=? '
+                'AND actor_id=? AND request_json=? AND state=\'pending\' '
+                'AND receipt_json IS NULL',
+                (self._receipt_json(receipt), body.requestId, body.intentId,
+                 actor.id, encoded)).rowcount
+            if changed != 1:
+                raise ApiError('media_playback_worker_unavailable', 503)
         return {'receipt': receipt.model_dump()}
