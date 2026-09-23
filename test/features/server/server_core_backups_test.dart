@@ -148,7 +148,7 @@ void main() {
     expect(plan.manifest!.totalBytes, 5952);
     expect(plan.manifest!.components.single.serviceVersion, '10.11.11');
     expect(plan.manifest!.components.single.volumeResourceIds.length, 2);
-    expect(plan.manifest!.consistencyBoundary.maxDurationSeconds, 5);
+    expect(plan.manifest!.consistencyBoundary!.maxDurationSeconds, 5);
     expect(plan.manifest!.resources.map((item) => item.kind), {
       CoreBackupResourceKind.componentData,
       CoreBackupResourceKind.configuration,
@@ -206,8 +206,9 @@ void main() {
           entry.key: entry.value,
       'contractVersion': 1,
       'resources': [
-        for (final raw in current['resources']! as List)
-          if ((raw as Map)['id'] != 'family-board' &&
+        for (final raw
+            in (current['resources']! as List).cast<Map<String, dynamic>>())
+          if (raw['id'] != 'family-board' &&
               !(raw['id'] as String).startsWith('component-jellyfin-'))
             if (raw['id'] == 'component-index')
               {...raw, 'version': '1'}

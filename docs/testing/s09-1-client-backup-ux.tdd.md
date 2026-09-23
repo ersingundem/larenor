@@ -1,7 +1,7 @@
 # S09.1 Client encrypted export and restore preflight
 
 23 September 2026. This narrow Client slice starts from `origin/main`
-`54abbf347d70234f1012f767cb39fadd5e3a09f1`. It exposes the existing Core
+`be825d4373de7936596659979d2d6ff0aac4775c`. It exposes the existing Core
 backup contract to an authenticated tablet administrator without adding a live
 restore or any host-volume write.
 
@@ -16,9 +16,11 @@ restore or any host-volume write.
 2. **Fail-closed manifest preflight.** The tablet sends only the already
    bounded plan manifest to `/admin/backups/restore/validate`. Unknown,
    duplicate, malformed, or incoherent reasons are rejected. Contract, Core
-   version, database schema, and component schema mismatches have separate
-   English and Turkish labels. This action does not upload a bundle, call a
-   restore endpoint, or write a device/host volume.
+   version, database schema, component schema, pinned component version, and
+   managed-volume coverage mismatches have separate English and Turkish
+   labels. Component metadata and the five-second consistency boundary are
+   parsed and shown without exposing payloads or host paths. This action does
+   not upload a bundle, call a restore endpoint, or write a device/host volume.
 3. **Current authority and accessible layout.** Account, PIN, foreground,
    visible-route, and controller generations guard both actions. Retired export
    and preflight results cannot update the screen or start a file save. Secret
@@ -28,10 +30,12 @@ restore or any host-volume write.
 
 ## TDD evidence
 
-The RED checkpoint is `1c0354e1`. After generated-code setup, the focused run
-failed only because the binary export, compatibility reasons, stale-result
-suppression, and OS destination surface did not exist. The GREEN focused run
-passes **17 tests** in `server_core_backups_test.dart` and
+The first rebased RED checkpoint is `68ef4f8c`. After generated-code setup, the
+focused run failed only because the binary export, compatibility reasons,
+stale-result suppression, and OS destination surface did not exist. After the
+component-volume contract landed on `main`, `ae88a3ef` added a second RED
+checkpoint for its component metadata and two new mismatch reasons. GREEN
+focused runs pass **17 tests** in `server_core_backups_test.dart` and
 `server_core_backups_screen_test.dart`; the changed Client files are
 analyzer-clean. Focused coverage records **40/49 lines (81.6%)** for the new
 bounded transport method; the Core backup controller, model, API, and screen
@@ -40,8 +44,8 @@ tasks and **0/63** selected features.
 
 ## Remaining S09.1 gates
 
-S09.1 remains pending. Managed component-volume payloads and their lifecycle,
-an imported old-bundle manifest flow, empty-Core restore apply/rollback,
-interruption recovery, Android emulator/SAF acceptance, independent review,
-and exact-head CI remain separate gates. This slice does not change
+S09.1 remains pending. A privileged component snapshot adapter and its native
+lifecycle acceptance, an imported old-bundle manifest flow, empty-Core restore
+apply/rollback, interruption recovery, Android emulator/SAF acceptance,
+independent review, and exact-head CI remain separate gates. This slice does not change
 `docs/PROGRESS.md`, task status, or evidence-backed counters.

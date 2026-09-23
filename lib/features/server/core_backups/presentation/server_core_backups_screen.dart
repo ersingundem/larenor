@@ -444,6 +444,10 @@ class _ServerCoreBackupsScreenState
     CoreBackupCompatibilityReason.coreVersion => l10n.serverBackupsMismatchCore,
     CoreBackupCompatibilityReason.componentSchema =>
       l10n.serverBackupsMismatchComponent,
+    CoreBackupCompatibilityReason.componentVersion =>
+      l10n.serverBackupsMismatchComponentVersion,
+    CoreBackupCompatibilityReason.componentVolume =>
+      l10n.serverBackupsMismatchComponentVolume,
   };
 
   Widget _plan(AppLocalizations l10n, CoreBackupPlan plan) {
@@ -476,11 +480,22 @@ class _ServerCoreBackupsScreenState
             '${manifest.databaseSchemaVersion}',
           ),
           _row(l10n.serverBackupsIncluded, _size(manifest.totalBytes)),
-          for (final resource in manifest.resources)
+          if (manifest.consistencyBoundary case final boundary?) ...[
             _row(
-              _resourceLabel(l10n, resource.kind),
-              _size(resource.byteLength),
+              l10n.serverBackupsManagedComponents,
+              '${manifest.components.length}',
             ),
+            _row(
+              l10n.serverBackupsManagedVolumes,
+              '${manifest.components.fold<int>(0, (total, item) => total + item.volumeResourceIds.length)}',
+            ),
+            _row(
+              l10n.serverBackupsConsistencyBoundary,
+              l10n.serverBackupsConsistencyValue(boundary.maxDurationSeconds),
+            ),
+          ],
+          for (final resource in manifest.resources)
+            _row(_resourceLabel(l10n, resource), _size(resource.byteLength)),
         ],
       ],
     );
@@ -497,14 +512,18 @@ class _ServerCoreBackupsScreenState
     ),
   );
 
-  String _resourceLabel(AppLocalizations l10n, CoreBackupResourceKind kind) =>
-      switch (kind) {
-        CoreBackupResourceKind.database => l10n.serverBackupsDatabase,
-        CoreBackupResourceKind.vaultKey => l10n.serverBackupsVaultKey,
-        CoreBackupResourceKind.configuration => l10n.serverBackupsConfiguration,
-        CoreBackupResourceKind.componentData => l10n.serverBackupsComponents,
-        CoreBackupResourceKind.familyBoard => l10n.serverBackupsFamilyBoard,
-      };
+  String _resourceLabel(AppLocalizations l10n, CoreBackupResource resource) =>
+      resource.id != 'component-index' &&
+          resource.kind == CoreBackupResourceKind.componentData
+      ? l10n.serverBackupsManagedVolumes
+      : switch (resource.kind) {
+          CoreBackupResourceKind.database => l10n.serverBackupsDatabase,
+          CoreBackupResourceKind.vaultKey => l10n.serverBackupsVaultKey,
+          CoreBackupResourceKind.configuration =>
+            l10n.serverBackupsConfiguration,
+          CoreBackupResourceKind.componentData => l10n.serverBackupsComponents,
+          CoreBackupResourceKind.familyBoard => l10n.serverBackupsFamilyBoard,
+        };
 
   String _size(int bytes) => bytes < 1024 * 1024
       ? '${(bytes / 1024).toStringAsFixed(1)} KiB'
