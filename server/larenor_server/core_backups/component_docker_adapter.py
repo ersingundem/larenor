@@ -92,7 +92,8 @@ class UnixDockerComponentSnapshotAdapter:
         self._effect_seconds = effect_seconds
         self._receipts = None
         self._sources = None
-        self._attempted = set()
+        self._pause_attempted = set()
+        self._unpause_attempted = set()
         self._paused_owned = set()
 
     def _container(self, receipt, deadline):
@@ -243,11 +244,16 @@ class UnixDockerComponentSnapshotAdapter:
 
     def _dispatch(self, receipt, action, deadline):
         dispatched = {"value": False}
+        attempted = (
+            self._pause_attempted
+            if action == "pause"
+            else self._unpause_attempted
+        )
 
         def gate():
             if not self._authority_current(deadline):
                 return False
-            self._attempted.add(receipt.container_id)
+            attempted.add(receipt.container_id)
             dispatched["value"] = True
             return True
 
@@ -319,6 +325,16 @@ class UnixDockerComponentSnapshotAdapter:
     def pause(self, container_id, deadline):
         try:
             receipt = self._receipt(container_id)
+            if container_id in self._unpause_attempted:
+                raise ComponentDockerAdapterError()
+            if container_id in self._pause_attempted:
+                if not self._authority_current(deadline):
+                    raise ComponentDockerAdapterError()
+                paused = self._live_state(receipt, deadline)
+                if not self._authority_current(deadline) or paused is not True:
+                    raise ComponentDockerAdapterError()
+                self._paused_owned.add(container_id)
+                return True
             self._preflight(receipt, False, deadline)
             if not self._dispatch(receipt, "pause", deadline):
                 raise ComponentDockerAdapterError()
@@ -336,16 +352,28 @@ class UnixDockerComponentSnapshotAdapter:
     def unpause(self, container_id, deadline):
         try:
             receipt = self._receipt(container_id)
-            if container_id not in self._attempted:
+            if container_id not in self._pause_attempted:
                 raise ComponentDockerAdapterError()
             if not self._authority_current(deadline):
                 raise ComponentDockerAdapterError()
             paused = self._live_state(receipt, deadline)
             if not self._authority_current(deadline):
                 raise ComponentDockerAdapterError()
-            if paused is False:
+            if container_id in self._unpause_attempted:
+                if paused is not False:
+                    raise ComponentDockerAdapterError()
                 self._paused_owned.discard(container_id)
-                self._attempted.discard(container_id)
+                self._pause_attempted.discard(container_id)
+                self._unpause_attempted.discard(container_id)
+                return True
+            if paused is False:
+                if container_id not in self._paused_owned:
+                    # A dispatched pause that was never observed may still land;
+                    # do not clear its uncertain ownership while the daemon is
+                    # merely reporting the original running state.
+                    raise ComponentDockerAdapterError()
+                self._paused_owned.discard(container_id)
+                self._pause_attempted.discard(container_id)
                 return True
             if container_id not in self._paused_owned:
                 # The same process dispatched pause but did not yet observe it;
@@ -358,7 +386,8 @@ class UnixDockerComponentSnapshotAdapter:
             if not self._authority_current(deadline):
                 raise ComponentDockerAdapterError()
             self._paused_owned.discard(container_id)
-            self._attempted.discard(container_id)
+            self._pause_attempted.discard(container_id)
+            self._unpause_attempted.discard(container_id)
             return True
         except ComponentDockerAdapterError:
             raise
