@@ -46,8 +46,8 @@ S09.1.
   recursive fingerprint rescan, closing mutation of a completed nested subtree
   while later siblings are archived.
   Independent exact-head review then found that `listdir` materialized an
-  unbounded directory before the entry cap. RED `12a1ec7a` proves enumeration
-  consumed past the 10,000-entry boundary; GREEN `7de039f3` uses deadline-aware
+  unbounded directory before the entry cap. RED `3f5fba8e` proves enumeration
+  consumed past the 10,000-entry boundary; GREEN `28ac68d4` uses deadline-aware
   descriptor-relative `scandir` and rejects the first excess entry before any
   deterministic sort in both capture and recursive revalidation.
   The stacked worker server delays its `released` frame until provider exit and
