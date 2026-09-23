@@ -82,10 +82,12 @@ final class ManagedTabletTelemetry {
     required this.batteryPercent,
     required this.network,
     required this.appVersion,
+    required this.appForeground,
     required this.kioskState,
   });
 
   final int batteryPercent;
+  final bool appForeground;
   final String network, appVersion, kioskState;
 
   Map<String, Object> values() {
@@ -108,6 +110,7 @@ final class ManagedTabletTelemetry {
       'battery': batteryPercent,
       'network': network,
       'app_version': appVersion,
+      'app_foreground': appForeground,
       'kiosk_state': kioskState,
     };
   }
@@ -250,6 +253,10 @@ typedef MqttEgressAuthorizer = Future<void> Function(
   LocalMqttBrokerSettings settings,
 );
 
+final class _RetiredMqttGeneration implements Exception {
+  const _RetiredMqttGeneration();
+}
+
 final class ManagedTabletMqttRuntime {
   ManagedTabletMqttRuntime({
     required this.broker,
@@ -282,20 +289,36 @@ final class ManagedTabletMqttRuntime {
   ManagedTabletMqttStatus status = ManagedTabletMqttStatus.idle;
   ManagedTabletPairingCredential? _pairing;
   Future<void> _messages = Future.value();
+  Future<void> _connections = Future.value();
+  int _generation = 0;
 
   Future<void> start() async {
     if (!settings.enabled) {
+      _generation += 1;
       status = ManagedTabletMqttStatus.disabled;
       _log('mqtt_runtime_disabled');
       return;
     }
-    await _connect();
+    final generation = ++_generation;
+    await _scheduleConnect(generation);
   }
 
-  Future<void> _connect() async {
+  Future<void> _scheduleConnect(int generation) {
+    final next = _connections.then((_) => _connect(generation));
+    _connections = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
+  Future<void> _connect(int generation) async {
+    if (!_isGeneration(generation)) return;
     status = ManagedTabletMqttStatus.connecting;
+    var connectStarted = false;
     try {
       final current = await authority();
+      _assertGeneration(generation);
       _assertUsable(current, 'read');
       final bound = _pairing;
       if (bound != null &&
@@ -307,24 +330,33 @@ final class ManagedTabletMqttRuntime {
       }
       _pairing = current;
       await authorizeEgress(settings);
+      _assertGeneration(generation);
+      connectStarted = true;
       await current._useToken(
         (token) => broker.connect(
           settings: settings,
           clientId: current.clientId,
           username: current.pairingId,
           password: token,
-          onMessage: _enqueue,
-          onDisconnected: _disconnected,
+          onMessage: (message) => _enqueue(message, generation),
+          onDisconnected: () => _disconnected(generation),
         ),
       );
+      _assertGeneration(generation);
       if (current.allows('control')) {
         await broker.subscribe('${current.topicPrefix}/command');
+        _assertGeneration(generation);
       }
-      await _publishAvailability(current, 'online');
-      await _publishTelemetry(current);
+      await _publishAvailability(current, 'online', generation);
+      await _publishTelemetry(current, generation);
+      _assertGeneration(generation);
       status = ManagedTabletMqttStatus.connected;
       _log('mqtt_runtime_connected');
+    } on _RetiredMqttGeneration {
+      if (connectStarted) await _disconnectQuietly();
     } on StateError catch (error) {
+      if (connectStarted) await _disconnectQuietly();
+      if (!_isGeneration(generation)) return;
       if (error.message == 'pairing_revoked') {
         await _revoke();
         return;
@@ -333,6 +365,8 @@ final class ManagedTabletMqttRuntime {
       _log('mqtt_runtime_connect_failed');
       rethrow;
     } catch (_) {
+      if (connectStarted) await _disconnectQuietly();
+      if (!_isGeneration(generation)) return;
       if (status != ManagedTabletMqttStatus.revoked) {
         status = ManagedTabletMqttStatus.failed;
         _log('mqtt_runtime_connect_failed');
@@ -347,23 +381,31 @@ final class ManagedTabletMqttRuntime {
         status == ManagedTabletMqttStatus.retired) {
       return;
     }
-    await _connect();
+    final generation = ++_generation;
+    await _scheduleConnect(generation);
   }
 
   Future<void> refreshTelemetry() async {
-    final current = await _current('read');
+    final generation = _generation;
+    final current = await _current('read', generation);
     if (current == null) return;
-    await _publishTelemetry(current);
+    try {
+      await _publishTelemetry(current, generation);
+    } on _RetiredMqttGeneration {
+      return;
+    }
   }
 
   Future<void> retire() async {
+    _generation += 1;
     status = ManagedTabletMqttStatus.retired;
     _pairing = null;
     await broker.disconnect();
     _log('mqtt_runtime_retired');
   }
 
-  void _disconnected() {
+  void _disconnected(int generation) {
+    if (!_isGeneration(generation)) return;
     if (status == ManagedTabletMqttStatus.connected ||
         status == ManagedTabletMqttStatus.connecting) {
       status = ManagedTabletMqttStatus.disconnected;
@@ -371,16 +413,16 @@ final class ManagedTabletMqttRuntime {
     }
   }
 
-  Future<void> _enqueue(BrokerMessage message) {
-    final next = _messages.then((_) => _handle(message));
+  Future<void> _enqueue(BrokerMessage message, int generation) {
+    final next = _messages.then((_) => _handle(message, generation));
     _messages = next.catchError((_) {
       _log('mqtt_command_failed_closed');
     });
     return next;
   }
 
-  Future<void> _handle(BrokerMessage message) async {
-    final current = await _current('control');
+  Future<void> _handle(BrokerMessage message, int generation) async {
+    final current = await _current('control', generation);
     if (current == null) return;
     if (message.topic != '${current.topicPrefix}/command' ||
         message.retained ||
@@ -474,7 +516,7 @@ final class ManagedTabletMqttRuntime {
       result = ManagedTabletCommandResult.failed;
       error = 'execution_failed';
     }
-    final after = await _current('control');
+    final after = await _current('control', generation);
     if (after == null) return;
     state = ManagedMqttCommandState(
       sequence: sequence,
@@ -527,11 +569,16 @@ final class ManagedTabletMqttRuntime {
     );
   }
 
-  Future<ManagedTabletPairingCredential?> _current(String scope) async {
+  Future<ManagedTabletPairingCredential?> _current(
+    String scope,
+    int generation,
+  ) async {
+    if (!_isGeneration(generation)) return null;
     final bound = _pairing;
     if (bound == null) return null;
     try {
       final current = await authority();
+      if (!_isGeneration(generation) || _pairing != bound) return null;
       if (current.pairingId != bound.pairingId ||
           current.deviceId != bound.deviceId ||
           current.revision != bound.revision) {
@@ -541,6 +588,7 @@ final class ManagedTabletMqttRuntime {
       _assertUsable(current, scope);
       return current;
     } catch (_) {
+      if (!_isGeneration(generation)) return null;
       await _revoke();
       return null;
     }
@@ -554,6 +602,7 @@ final class ManagedTabletMqttRuntime {
   }
 
   Future<void> _revoke() async {
+    _generation += 1;
     status = ManagedTabletMqttStatus.revoked;
     _pairing = null;
     await broker.disconnect();
@@ -563,15 +612,25 @@ final class ManagedTabletMqttRuntime {
   Future<void> _publishAvailability(
     ManagedTabletPairingCredential current,
     String value,
-  ) => broker.publish(
-    '${current.topicPrefix}/availability',
-    utf8.encode(value),
-    retained: true,
-  );
+    int generation,
+  ) async {
+    _assertGeneration(generation);
+    await broker.publish(
+      '${current.topicPrefix}/availability',
+      utf8.encode(value),
+      retained: true,
+    );
+    _assertGeneration(generation);
+  }
 
-  Future<void> _publishTelemetry(ManagedTabletPairingCredential current) async {
+  Future<void> _publishTelemetry(
+    ManagedTabletPairingCredential current,
+    int generation,
+  ) async {
     final values = (await telemetry()).values();
+    _assertGeneration(generation);
     for (final entry in values.entries) {
+      _assertGeneration(generation);
       await broker.publish(
         '${current.topicPrefix}/sensor/${entry.key}/state',
         utf8.encode(
@@ -583,6 +642,21 @@ final class ManagedTabletMqttRuntime {
         ),
         retained: true,
       );
+      _assertGeneration(generation);
+    }
+  }
+
+  bool _isGeneration(int generation) => generation == _generation;
+
+  void _assertGeneration(int generation) {
+    if (!_isGeneration(generation)) throw const _RetiredMqttGeneration();
+  }
+
+  Future<void> _disconnectQuietly() async {
+    try {
+      await broker.disconnect();
+    } catch (_) {
+      // Cleanup is best effort; the original failure remains authoritative.
     }
   }
 

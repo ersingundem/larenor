@@ -1,11 +1,11 @@
 # K07 paired remote API and MQTT acceptance
 
-Status: **software pairing, protocol, tablet management and managed MQTT runtime slices complete; app lifecycle, live broker and physical-device acceptance pending**. K07 stays `pending` until the secure app wiring and manual gates pass. The runtime evidence is recorded in [`k07-mqtt-runtime.tdd.md`](k07-mqtt-runtime.tdd.md).
+Status: **software pairing, protocol, tablet management, managed MQTT runtime and bounded Android telemetry-source slices complete; secure authority wiring, native commands, live broker and physical-device acceptance pending**. K07 stays `pending` until those gates pass. Runtime evidence is recorded in [`k07-mqtt-runtime.tdd.md`](k07-mqtt-runtime.tdd.md) and [`k07-native-tablet-source.tdd.md`](k07-native-tablet-source.tdd.md).
 
 ## Three accepted criteria
 
 1. **Paired identity and authority.** A current admin can pair only an active managed tablet at its exact revision. The one-time 43-character secret is encrypted at rest, HMAC-identified, returned only for the exact idempotent create request, and omitted from inventory, discovery, URLs, logs and exports. Pairings have closed read/control/admin scopes, bounded expiry and request rates, exact-revision revoke, and fail closed after expiry or revocation. No separate remote or MQTT network listener starts by default.
-2. **Replay-safe MQTT contract.** Discovery exposes a bounded four-sensor topic contract and explicitly permits retained sensor state while denying retained commands. Commands require increasing sequences, 5-minute maximum expiry and the needed scope. Byte-identical lost-ACK retries return the recorded acknowledgement without inserting or executing another command; changed requests, old sequences and conflicting completion acknowledgements fail closed. Command acceptance and ACK completion both recheck the exact pairing record, revision, active state and expiry inside their write transaction, so a changed pairing cannot win either authentication race or leave a queued command behind.
+2. **Replay-safe MQTT contract.** Discovery exposes a bounded five-sensor topic contract and explicitly permits retained sensor state while denying retained commands. Commands require increasing sequences, 5-minute maximum expiry and the needed scope. Byte-identical lost-ACK retries return the recorded acknowledgement without inserting or executing another command; changed requests, old sequences and conflicting completion acknowledgements fail closed. Command acceptance and ACK completion both recheck the exact pairing record, revision, active state and expiry inside their write transaction, so a changed pairing cannot win either authentication race or leave a queued command behind.
 3. **Tablet management and lifecycle safety.** Display settings exposes an EN/TR pairing manager for registered tablets. Read is always selected; control/admin scopes require explicit switches. The surface lists public MQTT identity and state, creates a 30-day pairing, shows its secret once with an explicit copy action, and revokes at the exact revision. Tests cover 600/1280 logical pixels at 2x text, 48 dp actions, TalkBack live status, keyboard-compatible controls and late-result retirement when account/Core/home/session/route/lifecycle authority changes.
 
 ## Automated evidence
@@ -17,5 +17,8 @@ Status: **software pairing, protocol, tablet management and managed MQTT runtime
 ## Remaining gates
 
 - Wire the concrete TLS MQTT adapter into the app/session lifecycle with secure pairing-token retrieval and a current component-egress grant, then prove it against a live local Mosquitto ACL/TLS fixture. The runtime rechecks egress and pairing authority before explicit reconnects, but does not claim a live broker acceptance run.
-- Bind the tested telemetry and command-ACK runtime ports to real Android battery/network/app/kiosk readings and native kiosk command effects.
+- Bind secure pairing-token/Core authority to the runtime and implement native
+  kiosk command effects. Android battery/network/app foreground/kiosk readings
+  are now available through an opt-in, session-bound production port; this
+  slice intentionally grants no native command authority.
 - Verify broker loss, Huawei background behavior, Samsung DeX resize and physical keyboard/TalkBack on hardware.

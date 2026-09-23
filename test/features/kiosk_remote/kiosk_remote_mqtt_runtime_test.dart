@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -30,6 +31,7 @@ const telemetry = ManagedTabletTelemetry(
   batteryPercent: 73,
   network: 'wifi',
   appVersion: '1.0.0+1',
+  appForeground: true,
   kioskState: 'foreground',
 );
 
@@ -42,6 +44,9 @@ final class _Broker implements LocalMqttBroker {
   BrokerDisconnectHandler? disconnected;
   String? username;
   String? password;
+  Completer<void>? connectGate;
+  final connectGates = <Completer<void>>[];
+  Object? subscribeFailure;
 
   @override
   Future<void> connect({
@@ -52,11 +57,16 @@ final class _Broker implements LocalMqttBroker {
     required BrokerMessageHandler onMessage,
     required BrokerDisconnectHandler onDisconnected,
   }) async {
-    connectCalls++;
+    final attempt = connectCalls++;
     this.username = username;
     this.password = password;
     messages = onMessage;
     disconnected = onDisconnected;
+    if (attempt < connectGates.length) {
+      await connectGates[attempt].future;
+    } else {
+      await connectGate?.future;
+    }
   }
 
   @override
@@ -74,7 +84,10 @@ final class _Broker implements LocalMqttBroker {
   ));
 
   @override
-  Future<void> subscribe(String topic) async => subscriptions.add(topic);
+  Future<void> subscribe(String topic) async {
+    if (subscribeFailure case final failure?) throw failure;
+    subscriptions.add(topic);
+  }
 
   Future<void> deliver(Map<String, Object?> body, {bool retained = false}) =>
       messages!(
@@ -128,6 +141,7 @@ ManagedTabletMqttRuntime _runtime({
   List<String>? logs,
   int maxCommandsPerMinute = 30,
   Future<void> Function(LocalMqttBrokerSettings)? onEgress,
+  Future<ManagedTabletTelemetry> Function()? telemetryReader,
 }) => ManagedTabletMqttRuntime(
   broker: broker,
   settings: LocalMqttBrokerSettings(
@@ -137,7 +151,7 @@ ManagedTabletMqttRuntime _runtime({
     tls: true,
   ),
   authority: authority,
-  telemetry: () async => telemetry,
+  telemetry: telemetryReader ?? () async => telemetry,
   executor: executor,
   stateStore: store,
   authorizeEgress: onEgress ?? (_) async {},
@@ -192,7 +206,7 @@ void main() {
       expect(broker.subscriptions, isEmpty);
       final before = broker.publications.length;
       await subject.refreshTelemetry();
-      expect(broker.publications.length, before + 4);
+      expect(broker.publications.length, before + 5);
       await subject.retire();
       expect(subject.status, ManagedTabletMqttStatus.retired);
       expect(broker.disconnectCalls, 1);
@@ -330,6 +344,7 @@ void main() {
           '$_prefix/sensor/battery/state',
           '$_prefix/sensor/network/state',
           '$_prefix/sensor/app_version/state',
+          '$_prefix/sensor/app_foreground/state',
           '$_prefix/sensor/kiosk_state/state',
         },
       );
@@ -426,6 +441,163 @@ void main() {
       expect(executor.calls, isEmpty);
     },
   );
+
+  test(
+    'retire wins over delayed authority and cannot reopen the broker',
+    () async {
+      final authority = Completer<ManagedTabletPairingCredential>();
+      final broker = _Broker();
+      final subject = _runtime(
+        broker: broker,
+        store: MemoryManagedMqttStateStore(),
+        executor: _Executor(),
+        authority: () => authority.future,
+      );
+
+      final start = subject.start();
+      await Future<void>.delayed(Duration.zero);
+      await subject.retire();
+      authority.complete(pairing());
+      await start;
+
+      expect(subject.status, ManagedTabletMqttStatus.retired);
+      expect(broker.connectCalls, 0);
+      expect(broker.publications, isEmpty);
+    },
+  );
+
+  test(
+    'retire during connect disconnects late success without publishing',
+    () async {
+      final broker = _Broker()..connectGate = Completer<void>();
+      final subject = _runtime(
+        broker: broker,
+        store: MemoryManagedMqttStateStore(),
+        executor: _Executor(),
+        authority: () async => pairing(),
+      );
+
+      final start = subject.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(broker.connectCalls, 1);
+      await subject.retire();
+      broker.connectGate!.complete();
+      await start;
+
+      expect(subject.status, ManagedTabletMqttStatus.retired);
+      expect(broker.disconnectCalls, 2);
+      expect(broker.subscriptions, isEmpty);
+      expect(broker.publications, isEmpty);
+    },
+  );
+
+  test(
+    'overlapping reconnect waits for stale connect cleanup before broker reuse',
+    () async {
+      final firstGate = Completer<void>();
+      final secondGate = Completer<void>();
+      final broker = _Broker()..connectGates.addAll([firstGate, secondGate]);
+      final subject = _runtime(
+        broker: broker,
+        store: MemoryManagedMqttStateStore(),
+        executor: _Executor(),
+        authority: () async => pairing(),
+      );
+
+      final first = subject.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(broker.connectCalls, 1);
+
+      final second = subject.reconnect();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        broker.connectCalls,
+        1,
+        reason: 'the replacement must wait for stale cleanup',
+      );
+
+      firstGate.complete();
+      await first;
+      await Future<void>.delayed(Duration.zero);
+      expect(broker.disconnectCalls, 1);
+      expect(broker.connectCalls, 2);
+      expect(broker.publications, isEmpty);
+
+      secondGate.complete();
+      await second;
+      expect(subject.status, ManagedTabletMqttStatus.connected);
+      expect(broker.disconnectCalls, 1);
+      expect(broker.subscriptions, ['$_prefix/command']);
+      expect(broker.publications, hasLength(6));
+    },
+  );
+
+  test('partial connect failure disconnects and fails closed', () async {
+    final broker = _Broker()..subscribeFailure = StateError('subscribe_failed');
+    final subject = _runtime(
+      broker: broker,
+      store: MemoryManagedMqttStateStore(),
+      executor: _Executor(),
+      authority: () async => pairing(),
+    );
+
+    await expectLater(subject.start(), throwsStateError);
+
+    expect(subject.status, ManagedTabletMqttStatus.failed);
+    expect(broker.connectCalls, 1);
+    expect(broker.disconnectCalls, 1);
+    expect(broker.publications, isEmpty);
+  });
+
+  test(
+    'telemetry failure after connect disconnects and fails closed',
+    () async {
+      final broker = _Broker();
+      final subject = _runtime(
+        broker: broker,
+        store: MemoryManagedMqttStateStore(),
+        executor: _Executor(),
+        authority: () async => pairing(scopes: const {'read'}),
+        telemetryReader: () async => throw StateError('telemetry_failed'),
+      );
+
+      await expectLater(subject.start(), throwsStateError);
+
+      expect(subject.status, ManagedTabletMqttStatus.failed);
+      expect(broker.connectCalls, 1);
+      expect(broker.disconnectCalls, 1);
+      expect(broker.publications.map((entry) => entry.topic), [
+        '$_prefix/availability',
+      ]);
+    },
+  );
+
+  test('retire during telemetry refresh discards the late snapshot', () async {
+    final delayed = Completer<ManagedTabletTelemetry>();
+    var reads = 0;
+    final broker = _Broker();
+    final subject = _runtime(
+      broker: broker,
+      store: MemoryManagedMqttStateStore(),
+      executor: _Executor(),
+      authority: () async => pairing(scopes: const {'read'}),
+      telemetryReader: () {
+        reads += 1;
+        return reads == 1 ? Future.value(telemetry) : delayed.future;
+      },
+    );
+    await subject.start();
+    final before = broker.publications.length;
+
+    final refresh = subject.refreshTelemetry();
+    await Future<void>.delayed(Duration.zero);
+    await subject.retire();
+    delayed.complete(telemetry);
+    await refresh;
+
+    expect(subject.status, ManagedTabletMqttStatus.retired);
+    expect(broker.publications.length, before);
+  });
 
   test(
     'broker settings reject credential-bearing URLs and redact the adapter',
