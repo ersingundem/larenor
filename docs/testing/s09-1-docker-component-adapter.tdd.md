@@ -38,6 +38,13 @@ remains **0/63**.
    uncertain effect without replay, while a new process rejects an initially
    paused container and never adopts or unpauses it. RED `8dcba3bb`; GREEN
    `6d0bdd11`.
+4. **One-shot ambiguous effects.** RED
+   `9365f45863930d7e4b1d78fa3a2e49338d8fcb88` reproduced repeated pause and
+   unpause POSTs after a dispatched action timed out before a state change was
+   observable. GREEN `e3d5c59b02fed46dd6a354536d4223b54e4cc40e`
+   records pause and unpause attempts independently, forbids same-action
+   replay, and retains uncertain pause ownership until a late paused state can
+   be reconciled with one complementary unpause.
 
 ## Focused evidence
 
@@ -52,7 +59,7 @@ PYTHONPATH=server /Users/ersingundem/oikos/server/.venv/bin/python -m pytest -q 
   server/tests/test_core_backup_component_docker_adapter.py
 ```
 
-Result: **413 passed, 2 existing platform skips** from **415 collected**. The
+Result: **415 passed, 2 existing platform skips** from **417 collected**. The
 new adapter file contributes 12 synthetic Unix Engine tests, including normal
 effects, timeout-after-effect reconciliation, no POST replay, pre/post authority
 drift, exact label/mount/path identity and restart-paused rejection.
