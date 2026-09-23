@@ -258,26 +258,28 @@ class ComponentSnapshotWorkerClient:
                 deadline,
             )
             descriptors = self._descriptors(_read_frame(connection, deadline), request_id)
-            snapshots = []
-            for descriptor in descriptors:
-                payload = _receive(connection, descriptor["byteLength"], deadline)
-                if hashlib.sha256(payload).hexdigest() != descriptor["sha256"]:
-                    raise ComponentSnapshotWorkerError("invalid_worker_result")
-                snapshots.append(
-                    ComponentVolumeSnapshot(
-                        serviceId=descriptor["serviceId"],
-                        serviceVersion=descriptor["serviceVersion"],
-                        configSchemaVersion=descriptor["configSchemaVersion"],
-                        dataSchemaVersion=descriptor["dataSchemaVersion"],
-                        volumeId=descriptor["volumeId"],
-                        payload=payload,
-                    )
-                )
-            body_failed = False
+            operation_failed = False
             try:
+                snapshots = []
+                for descriptor in descriptors:
+                    payload = _receive(
+                        connection, descriptor["byteLength"], deadline
+                    )
+                    if hashlib.sha256(payload).hexdigest() != descriptor["sha256"]:
+                        raise ComponentSnapshotWorkerError("invalid_worker_result")
+                    snapshots.append(
+                        ComponentVolumeSnapshot(
+                            serviceId=descriptor["serviceId"],
+                            serviceVersion=descriptor["serviceVersion"],
+                            configSchemaVersion=descriptor["configSchemaVersion"],
+                            dataSchemaVersion=descriptor["dataSchemaVersion"],
+                            volumeId=descriptor["volumeId"],
+                            payload=payload,
+                        )
+                    )
                 yield tuple(snapshots)
             except BaseException:
-                body_failed = True
+                operation_failed = True
                 raise
             finally:
                 try:
@@ -298,7 +300,7 @@ class ComponentSnapshotWorkerClient:
                     }:
                         raise ComponentSnapshotWorkerError("invalid_worker_result")
                 except ComponentSnapshotWorkerError:
-                    if not body_failed:
+                    if not operation_failed:
                         raise
         except ComponentSnapshotWorkerError:
             raise
