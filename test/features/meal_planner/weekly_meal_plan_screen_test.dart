@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/meal_planner/data/recipe_shopping_handoff.dart';
 import 'package:larenor/features/meal_planner/data/weekly_meal_plan_api.dart';
 import 'package:larenor/features/meal_planner/domain/weekly_meal_plan.dart';
 import 'package:larenor/features/meal_planner/presentation/weekly_meal_plan_screen.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:larenor/features/today/data/today_actions.dart';
+import 'package:larenor/features/today/domain/today_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 const core = '1a111111111111111111111111111111';
@@ -16,60 +19,120 @@ const person = '5e555555555555555555555555555555';
 const recipe = '6f666666666666666666666666666666';
 const entry = '7a777777777777777777777777777777';
 
-WeeklyMealPlanSnapshot snapshot({int revision = 2, int servings = 4}) =>
-    WeeklyMealPlanSnapshot.fromJson(
-      {
-        'authority': {
+class ShoppingSource implements RecipeShoppingAuthoritySource {
+  RecipeShoppingAuthorityFacts? facts = RecipeShoppingAuthorityFacts.core(
+    coreId: core,
+    homeId: home,
+    accountId: account,
+    sessionFamily: 1,
+    endpointBaseUrl: 'https://core.invalid',
+    runtimeIdentity: Object(),
+    interactionEpoch: 1,
+  );
+
+  @override
+  RecipeShoppingAuthorityFacts? read() => facts;
+}
+
+class ShoppingActions implements TodayActions {
+  final calls = <({String list, String summary})>[];
+  Completer<void>? first;
+
+  @override
+  Future<void> addTodoBound(
+    TodayTodoList list,
+    String summary, {
+    required bool Function() current,
+    String? idempotencyKey,
+    String? dueDate,
+    DateTime? dueAt,
+    String? description,
+  }) async {
+    if (!current()) throw StateError('stale');
+    calls.add((list: list.entityId, summary: summary));
+    if (calls.length == 1) await first?.future;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+const shopping = TodayTodoList(
+  entityId: 'todo.shopping',
+  title: 'Shopping',
+  supportedFeatures: 65,
+  available: true,
+  items: TodayRead(value: []),
+);
+
+const familyShopping = TodayTodoList(
+  entityId: 'todo.family_shopping',
+  title: 'Family shopping',
+  supportedFeatures: 65,
+  available: true,
+  items: TodayRead(value: []),
+);
+
+WeeklyMealPlanSnapshot snapshot({
+  int revision = 2,
+  int servings = 4,
+  bool extraIngredient = false,
+}) => WeeklyMealPlanSnapshot.fromJson(
+  {
+    'authority': {
+      'schemaVersion': 1,
+      'coreId': core,
+      'homeId': home,
+      'accountId': account,
+      'sessionFamilyId': family,
+      'accountRevision': 3,
+      'planRevision': revision,
+    },
+    'plan': {
+      'schemaVersion': 1,
+      'revision': revision,
+      'weekStart': '2026-09-21',
+      'recipes': [
+        {
           'schemaVersion': 1,
-          'coreId': core,
-          'homeId': home,
-          'accountId': account,
-          'sessionFamilyId': family,
-          'accountRevision': 3,
-          'planRevision': revision,
-        },
-        'plan': {
-          'schemaVersion': 1,
-          'revision': revision,
-          'weekStart': '2026-09-21',
-          'recipes': [
+          'id': recipe,
+          'locale': 'tr',
+          'title': 'Mercimek çorbası',
+          'baseServings': 2,
+          'ingredients': [
             {
               'schemaVersion': 1,
-              'id': recipe,
-              'locale': 'tr',
-              'title': 'Mercimek çorbası',
-              'baseServings': 2,
-              'ingredients': [
-                {
-                  'schemaVersion': 1,
-                  'quantityMillis': 100000,
-                  'unit': 'g',
-                  'name': 'Mercimek',
-                },
-              ],
+              'quantityMillis': 100000,
+              'unit': 'g',
+              'name': 'Mercimek',
             },
-          ],
-          'entries': [
-            {
-              'schemaVersion': 1,
-              'id': entry,
-              'date': '2026-09-21',
-              'slot': 'dinner',
-              'recipeId': recipe,
-              'servings': servings,
-              'personId': person,
-              'expectedPersonRevision': 7,
-              'expectedPersonAclRevision': 9,
-            },
+            if (extraIngredient)
+              {
+                'schemaVersion': 1,
+                'quantityMillis': 1000,
+                'unit': 'piece',
+                'name': 'Limon',
+              },
           ],
         },
-      },
-      ServerContext.fromJson({
-        'schemaVersion': 1,
-        'coreId': core,
-        'homeId': home,
-      }),
-    );
+      ],
+      'entries': [
+        {
+          'schemaVersion': 1,
+          'id': entry,
+          'date': '2026-09-21',
+          'slot': 'dinner',
+          'recipeId': recipe,
+          'servings': servings,
+          'personId': person,
+          'expectedPersonRevision': 7,
+          'expectedPersonAclRevision': 9,
+        },
+      ],
+    },
+  },
+  ServerContext.fromJson({'schemaVersion': 1, 'coreId': core, 'homeId': home}),
+);
 
 final class SavingGateway implements WeeklyMealPlanGateway {
   SavingGateway({this.saveResult});
@@ -138,27 +201,52 @@ final class RefreshGateway implements WeeklyMealPlanGateway {
   }) => throw UnimplementedError();
 }
 
+Widget mealApp({
+  required Locale locale,
+  required WeeklyMealPlanGateway gateway,
+  required bool Function() current,
+  List<TodayTodoList> shoppingLists = const [],
+  TodayActions? shoppingActions,
+  RecipeShoppingAuthoritySource? shoppingAuthoritySource,
+}) => CupertinoApp(
+  locale: locale,
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context)
+        .copyWith(textScaler: const TextScaler.linear(2)),
+    child: child!,
+  ),
+  home: WeeklyMealPlanScreen(
+    gateway: gateway,
+    isCurrent: current,
+    shoppingLists: shoppingLists,
+    shoppingActions: shoppingActions,
+    shoppingAuthoritySource: shoppingAuthoritySource,
+  ),
+);
+
 Future<void> mount(
   WidgetTester tester, {
   required Locale locale,
   required double width,
   required WeeklyMealPlanGateway gateway,
   required bool Function() current,
+  List<TodayTodoList> shoppingLists = const [],
+  TodayActions? shoppingActions,
+  RecipeShoppingAuthoritySource? shoppingAuthoritySource,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    CupertinoApp(
+    mealApp(
       locale: locale,
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(2)),
-        child: child!,
-      ),
-      home: WeeklyMealPlanScreen(gateway: gateway, isCurrent: current),
+      gateway: gateway,
+      current: current,
+      shoppingLists: shoppingLists,
+      shoppingActions: shoppingActions,
+      shoppingAuthoritySource: shoppingAuthoritySource,
     ),
   );
   await tester.pumpAndSettle();
@@ -188,52 +276,216 @@ void main() {
           await tester.tap(preview);
           await tester.pumpAndSettle();
           expect(find.textContaining('200 g Mercimek'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('meal-shopping-unavailable')),
+            findsOneWidget,
+          );
         },
       );
     }
   }
 
-  testWidgets('edits servings through an exact optimistic revision save', (
+  testWidgets(
+    'edits slot and servings through exact optimistic revision save',
+    (tester) async {
+      final gateway = SavingGateway();
+      await mount(
+        tester,
+        locale: const Locale('en'),
+        width: 600,
+        gateway: gateway,
+        current: () => true,
+      );
+      final edit = find.byKey(const ValueKey('meal-edit-$entry'));
+      await tester.ensureVisible(edit);
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('meal-edit-servings')),
+        '6',
+      );
+      await tester.tap(find.byKey(const ValueKey('meal-edit-slot-lunch')));
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('meal-edit-save')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const ValueKey('meal-edit-save')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mercimek çorbası'), findsOneWidget);
+      expect(gateway.base!.authority.planRevision, 2);
+      expect(gateway.requestId, matches(RegExp(r'^[0-9a-f]{32}$')));
+      expect(gateway.recipes!.single.title, 'Mercimek çorbası');
+      expect(gateway.entries!.single.servings, 6);
+      expect(gateway.entries!.single.slot, MealSlot.lunch);
+      expect(find.textContaining('6 servings'), findsOneWidget);
+    },
+  );
+
+  testWidgets('selected writable HA list requires explicit confirmation', (
     tester,
   ) async {
-    final gateway = SavingGateway();
+    final source = ShoppingSource(), actions = ShoppingActions();
+    await mount(
+      tester,
+      locale: const Locale('en'),
+      width: 600,
+      gateway: FakeGateway(Future.value(snapshot())),
+      current: () => true,
+      shoppingLists: const [shopping, familyShopping],
+      shoppingActions: actions,
+      shoppingAuthoritySource: source,
+    );
+    final preview = find.byKey(const ValueKey('meal-shopping-$entry'));
+    await tester.ensureVisible(preview);
+    await tester.tap(preview);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -240));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('meal-shopping-list-todo.family_shopping')),
+    );
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-review')));
+    await tester.pumpAndSettle();
+    expect(actions.calls, isEmpty);
+
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(actions.calls, [
+      (list: 'todo.family_shopping', summary: '200 g Mercimek'),
+    ]);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 1000));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('meal-shopping-success')), findsOneWidget);
+  });
+
+  testWidgets('backgrounded late HA readback cannot publish or continue', (
+    tester,
+  ) async {
+    final source = ShoppingSource();
+    final actions = ShoppingActions()..first = Completer<void>();
+    await mount(
+      tester,
+      locale: const Locale('tr'),
+      width: 600,
+      gateway: FakeGateway(Future.value(snapshot(extraIngredient: true))),
+      current: () => true,
+      shoppingLists: const [shopping],
+      shoppingActions: actions,
+      shoppingAuthoritySource: source,
+    );
+    final preview = find.byKey(const ValueKey('meal-shopping-$entry'));
+    await tester.ensureVisible(preview);
+    await tester.tap(preview);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -320));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-review')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-confirm')));
+    for (var frame = 0; frame < 10 && actions.calls.isEmpty; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(actions.calls, hasLength(1));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    actions.first!.complete();
+    await tester.pump();
+
+    expect(actions.calls, hasLength(1));
+    expect(find.byKey(const ValueKey('meal-shopping-success')), findsNothing);
+  });
+
+  testWidgets('replaced HA action owner stops remaining shopping writes', (
+    tester,
+  ) async {
+    final source = ShoppingSource();
+    final actions = ShoppingActions()..first = Completer<void>();
+    final replacement = ShoppingActions();
+    final gateway = FakeGateway(Future.value(snapshot(extraIngredient: true)));
     await mount(
       tester,
       locale: const Locale('en'),
       width: 600,
       gateway: gateway,
       current: () => true,
+      shoppingLists: const [shopping],
+      shoppingActions: actions,
+      shoppingAuthoritySource: source,
     );
-    final edit = find.byKey(const ValueKey('meal-edit-$entry'));
-    await tester.ensureVisible(edit);
-    await tester.tap(edit);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('meal-shopping-$entry')),
+    );
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-$entry')));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const ValueKey('meal-edit-servings')),
-      '6',
+    await tester.drag(find.byType(ListView).last, const Offset(0, -320));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-review')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-confirm')));
+    for (var frame = 0; frame < 10 && actions.calls.isEmpty; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(actions.calls, hasLength(1));
+
+    await tester.pumpWidget(
+      mealApp(
+        locale: const Locale('en'),
+        gateway: gateway,
+        current: () => true,
+        shoppingLists: const [shopping],
+        shoppingActions: replacement,
+        shoppingAuthoritySource: source,
+      ),
     );
-    expect(
-      tester
-          .widget<CupertinoDialogAction>(
-            find.byKey(const ValueKey('meal-edit-save')),
-          )
-          .onPressed,
-      isNotNull,
-    );
-    tester
-        .widget<CupertinoDialogAction>(
-          find.byKey(const ValueKey('meal-edit-save')),
-        )
-        .onPressed!();
+    await tester.pump();
+    actions.first!.complete();
     await tester.pumpAndSettle();
 
-    expect(find.text('Mercimek çorbası'), findsOneWidget);
-    expect(gateway.base!.authority.planRevision, 2);
-    expect(gateway.requestId, matches(RegExp(r'^[0-9a-f]{32}$')));
-    expect(gateway.recipes!.single.title, 'Mercimek çorbası');
-    expect(gateway.entries!.single.servings, 6);
-    expect(find.textContaining('6 servings'), findsOneWidget);
+    expect(actions.calls, hasLength(1));
+    expect(replacement.calls, isEmpty);
+    expect(find.byKey(const ValueKey('meal-shopping-success')), findsNothing);
   });
+
+  testWidgets(
+    'confirmation opened before retirement cannot start after resume',
+    (tester) async {
+      final source = ShoppingSource(), actions = ShoppingActions();
+      await mount(
+        tester,
+        locale: const Locale('en'),
+        width: 600,
+        gateway: FakeGateway(Future.value(snapshot())),
+        current: () => true,
+        shoppingLists: const [shopping],
+        shoppingActions: actions,
+        shoppingAuthoritySource: source,
+      );
+      final preview = find.byKey(const ValueKey('meal-shopping-$entry'));
+      await tester.ensureVisible(preview);
+      await tester.tap(preview);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -240));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('meal-shopping-review')));
+      await tester.pumpAndSettle();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('meal-shopping-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(actions.calls, isEmpty);
+      expect(find.byKey(const ValueKey('meal-shopping-success')), findsNothing);
+    },
+  );
 
   testWidgets('throwing authority after save await publishes no old result', (
     tester,
@@ -260,11 +512,12 @@ void main() {
       '6',
     );
     tester
-        .widget<CupertinoDialogAction>(
-          find.byKey(const ValueKey('meal-edit-save')),
-        )
+        .widget<CupertinoButton>(find.byKey(const ValueKey('meal-edit-save')))
         .onPressed!();
-    await tester.pump();
+    for (var frame = 0; frame < 10 && gateway.base == null; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(gateway.base, isNotNull);
     authorityThrows = true;
     delayed.complete(snapshot(revision: 3, servings: 6));
     await tester.pumpAndSettle();

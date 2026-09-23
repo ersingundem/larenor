@@ -6,6 +6,10 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../server/data/server_account_controller.dart';
+import '../../today/domain/today_models.dart';
+import '../../today/presentation/today_support.dart';
+import '../../today/providers/today_providers.dart';
+import '../data/recipe_shopping_handoff.dart';
 import '../data/weekly_meal_plan_api.dart';
 import 'weekly_meal_plan_screen.dart';
 
@@ -35,7 +39,7 @@ class _WeeklyMealPlanRouteState extends ConsumerState<WeeklyMealPlanRoute> {
         home.interaction.epoch == _interactionEpoch;
   }
 
-  bool _current() {
+  bool _authorityCurrent() {
     if (!_bindingCurrent()) return false;
     final home = _home!;
     final session = home.account.session;
@@ -45,8 +49,12 @@ class _WeeklyMealPlanRouteState extends ConsumerState<WeeklyMealPlanRoute> {
         home.failure == null &&
         home.interaction.active &&
         session?.context != null &&
-        session!.user.mustChangePassword == false &&
-        TickerMode.valuesOf(context).enabled &&
+        session!.user.mustChangePassword == false;
+  }
+
+  bool _current() {
+    if (!_authorityCurrent()) return false;
+    return TickerMode.valuesOf(context).enabled &&
         (ModalRoute.of(context)?.isCurrent ?? true);
   }
 
@@ -104,7 +112,25 @@ class _WeeklyMealPlanRouteState extends ConsumerState<WeeklyMealPlanRoute> {
     ref.watch(homeSessionControllerProvider);
     final gateway = _gateway;
     if (gateway != null && _current()) {
-      return WeeklyMealPlanScreen(gateway: gateway, isCurrent: _current);
+      final today = ref.watch(todayProvider).value;
+      final actions = ref.watch(todayActionsProvider);
+      final lists = today == null
+          ? const <TodayTodoList>[]
+          : today.todoLists
+                .where(
+                  (list) =>
+                      todayListWritable(today, list) &&
+                      list.canAdd &&
+                      list.canSetDescription,
+                )
+                .toList(growable: false);
+      return WeeklyMealPlanScreen(
+        gateway: gateway,
+        isCurrent: _authorityCurrent,
+        shoppingLists: lists,
+        shoppingActions: actions,
+        shoppingAuthoritySource: HomeRecipeShoppingAuthoritySource(_home!),
+      );
     }
     final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(

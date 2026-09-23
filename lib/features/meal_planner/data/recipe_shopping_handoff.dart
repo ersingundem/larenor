@@ -292,7 +292,13 @@ final class RecipeShoppingHandoff {
     bool Function() visible,
     int completed,
   ) {
-    if (!visible() || !authority.isCurrent(source)) {
+    var current = false;
+    try {
+      current = visible() && authority.isCurrent(source);
+    } catch (_) {
+      current = false;
+    }
+    if (!current) {
       throw RecipeShoppingException(
         'stale_authority',
         completedCount: completed,

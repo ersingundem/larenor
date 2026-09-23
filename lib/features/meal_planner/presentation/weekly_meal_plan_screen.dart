@@ -4,6 +4,9 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../today/data/today_actions.dart';
+import '../../today/domain/today_models.dart';
+import '../data/recipe_shopping_handoff.dart';
 import '../data/weekly_meal_plan_api.dart';
 import '../domain/weekly_meal_plan.dart';
 
@@ -13,11 +16,17 @@ class WeeklyMealPlanScreen extends StatefulWidget {
     required this.gateway,
     required this.isCurrent,
     this.onRetire,
+    this.shoppingLists = const [],
+    this.shoppingActions,
+    this.shoppingAuthoritySource,
   });
 
   final WeeklyMealPlanGateway gateway;
   final bool Function() isCurrent;
   final VoidCallback? onRetire;
+  final List<TodayTodoList> shoppingLists;
+  final TodayActions? shoppingActions;
+  final RecipeShoppingAuthoritySource? shoppingAuthoritySource;
 
   @override
   State<WeeklyMealPlanScreen> createState() => _WeeklyMealPlanScreenState();
@@ -30,8 +39,14 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   bool _saving = false;
   bool _failed = false;
   bool _saveFailed = false;
+  bool _handoffBusy = false;
+  bool _handoffFailed = false;
   bool _foreground = true;
   int _operation = 0;
+  int _handoffOperation = 0;
+  int _ownedOverlayDepth = 0;
+  RecipeShoppingReceipt? _handoffReceipt;
+  String? _handoffListTitle;
 
   bool get _authorityCurrent {
     if (!mounted || !_foreground) return false;
@@ -45,8 +60,9 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   bool get _current {
     if (!_authorityCurrent) return false;
     try {
-      return TickerMode.valuesOf(context).enabled &&
-          (ModalRoute.of(context)?.isCurrent ?? true);
+      return _ownedOverlayDepth > 0 ||
+          (TickerMode.valuesOf(context).enabled &&
+              (ModalRoute.of(context)?.isCurrent ?? true));
     } catch (_) {
       return false;
     }
@@ -84,6 +100,13 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   @override
   void didUpdateWidget(covariant WeeklyMealPlanScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.shoppingActions, widget.shoppingActions)) {
+      _handoffOperation++;
+      _handoffBusy = false;
+      _handoffFailed = false;
+      _handoffReceipt = null;
+      _handoffListTitle = null;
+    }
     if (!identical(oldWidget.gateway, widget.gateway) || !_current) {
       _clear();
       if (_current) {
@@ -99,6 +122,11 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     _saving = false;
     _failed = false;
     _saveFailed = false;
+    _handoffOperation++;
+    _handoffBusy = false;
+    _handoffFailed = false;
+    _handoffReceipt = null;
+    _handoffListTitle = null;
     try {
       widget.onRetire?.call();
     } catch (_) {
@@ -136,67 +164,41 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     }
   }
 
-  Future<void> _editServings(MealPlanEntry entry) async {
+  Future<void> _editEntry(MealPlanEntry entry) async {
     if (_saving || !_current) return;
+    final operation = _operation;
     final base = _snapshot;
     if (base?.plan == null ||
         !base!.plan!.entries.any((value) => value.id == entry.id)) {
       return;
     }
-    final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController(text: '${entry.servings}');
-    var valid = true;
-    final value = await showCupertinoDialog<int>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => CupertinoAlertDialog(
-          title: Text(l10n.weeklyMealPlanEditServingsTitle),
-          content: Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Semantics(
-              textField: true,
-              label: l10n.weeklyMealPlanServingsLabel,
-              child: CupertinoTextField(
-                key: const ValueKey('meal-edit-servings'),
-                controller: controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                onChanged: (text) {
-                  final servings = int.tryParse(text);
-                  update(
-                    () => valid =
-                        servings != null && servings <= 24 && servings > 0,
-                  );
-                },
-              ),
-            ),
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(l10n.weeklyMealPlanCancel),
-            ),
-            CupertinoDialogAction(
-              key: const ValueKey('meal-edit-save'),
-              onPressed: valid
-                  ? () =>
-                        Navigator.of(dialogContext)
-                            .pop<int>(int.parse(controller.text))
-                  : null,
-              child: Text(l10n.weeklyMealPlanSave),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    if (value != null) await _saveServings(base, entry.id, value);
+    _ownedOverlayDepth++;
+    _MealEntryEdit? value;
+    ModalRoute<dynamic>? overlayRoute;
+    try {
+      value = await showCupertinoModalPopup<_MealEntryEdit>(
+        context: context,
+        builder: (sheetContext) {
+          overlayRoute = ModalRoute.of(sheetContext);
+          return _MealEntryEditor(
+            initialServings: entry.servings,
+            initialSlot: entry.slot,
+          );
+        },
+      );
+      await overlayRoute?.completed;
+    } finally {
+      _ownedOverlayDepth--;
+    }
+    if (value != null && operation == _operation && _current) {
+      await _saveEntry(base, entry.id, value);
+    }
   }
 
-  Future<void> _saveServings(
+  Future<void> _saveEntry(
     WeeklyMealPlanSnapshot base,
     String entryId,
-    int servings,
+    _MealEntryEdit edit,
   ) async {
     final plan = base.plan;
     if (_saving || !_authorityCurrent || plan == null) return;
@@ -206,9 +208,9 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
               ? MealPlanEntry(
                   id: entry.id,
                   date: entry.date,
-                  slot: entry.slot,
+                  slot: edit.slot,
                   recipeId: entry.recipeId,
-                  servings: servings,
+                  servings: edit.servings,
                   personId: entry.personId,
                   personRevision: entry.personRevision,
                   personAclRevision: entry.personAclRevision,
@@ -254,6 +256,7 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _operation++;
+    _handoffOperation++;
     super.dispose();
   }
 
@@ -289,6 +292,35 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
                             child: Padding(
                               padding: const EdgeInsets.all(12),
                               child: Text(l10n.weeklyMealPlanSaveFailed),
+                            ),
+                          ),
+                        if (_handoffBusy)
+                          const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Center(child: CupertinoActivityIndicator()),
+                          ),
+                        if (_handoffFailed)
+                          Semantics(
+                            key: const ValueKey('meal-shopping-failure'),
+                            liveRegion: true,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(l10n.weeklyMealPlanShoppingFailed),
+                            ),
+                          ),
+                        if (_handoffReceipt != null &&
+                            _handoffListTitle != null)
+                          Semantics(
+                            key: const ValueKey('meal-shopping-success'),
+                            liveRegion: true,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                l10n.weeklyMealPlanShoppingSuccess(
+                                  _handoffReceipt!.verifiedCount,
+                                  _handoffListTitle!,
+                                ),
+                              ),
                             ),
                           ),
                         ..._days(context, plan),
@@ -355,11 +387,11 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              onPressed: !_current || _saving
+                              onPressed: !_current || _saving || _handoffBusy
                                   ? null
-                                  : () => _editServings(entry),
+                                  : () => _editEntry(entry),
                               child: Text(
-                                l10n.weeklyMealPlanEditServings,
+                                l10n.weeklyMealPlanEditEntry,
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -372,9 +404,9 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              onPressed: !_current || _saving
+                              onPressed: !_current || _saving || _handoffBusy
                                   ? null
-                                  : () => _showShopping(context, recipe, entry),
+                                  : () => _showShopping(recipe, entry),
                               child: Text(
                                 l10n.weeklyMealPlanShoppingPreview,
                                 textAlign: TextAlign.center,
@@ -390,22 +422,276 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     });
   }
 
-  Future<void> _showShopping(
-    BuildContext context,
-    MealRecipe recipe,
-    MealPlanEntry entry,
-  ) async {
+  Future<void> _showShopping(MealRecipe recipe, MealPlanEntry entry) async {
     if (!_current) return;
+    final operation = _handoffOperation;
+    final base = _snapshot;
+    final plan = base?.plan;
+    if (plan == null || !plan.entries.any((value) => value.id == entry.id)) {
+      return;
+    }
     final locale = Localizations.localeOf(context).languageCode;
     final summaries = recipe
         .shoppingDraft(entry.servings)
         .shoppingSummaries(locale);
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (sheetContext) => _ShoppingPreview(
-        recipe: recipe,
-        servings: entry.servings,
-        summaries: summaries,
+    final lists = _writableLists;
+    _ownedOverlayDepth++;
+    String? selectedId;
+    ModalRoute<dynamic>? previewRoute;
+    try {
+      selectedId = await showCupertinoModalPopup<String>(
+        context: context,
+        builder: (sheetContext) {
+          previewRoute = ModalRoute.of(sheetContext);
+          return _ShoppingPreview(
+            recipe: recipe,
+            servings: entry.servings,
+            summaries: summaries,
+            lists: lists,
+          );
+        },
+      );
+      await previewRoute?.completed;
+    } finally {
+      _ownedOverlayDepth--;
+    }
+    bool flowCurrent() =>
+        operation == _handoffOperation &&
+        identical(_snapshot, base) &&
+        _current;
+    if (!mounted || selectedId == null || !flowCurrent()) return;
+    final list = _writableLists
+        .where((value) => value.entityId == selectedId)
+        .firstOrNull;
+    if (list == null) return;
+    final l10n = AppLocalizations.of(context);
+    _ownedOverlayDepth++;
+    ModalRoute<dynamic>? confirmationRoute;
+    bool? confirmed;
+    try {
+      confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          confirmationRoute = ModalRoute.of(dialogContext);
+          return CupertinoAlertDialog(
+            title: Text(l10n.weeklyMealPlanShoppingConfirmTitle),
+            content: Text(
+              l10n.weeklyMealPlanShoppingConfirmBody(
+                summaries.length,
+                list.title,
+              ),
+            ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(l10n.weeklyMealPlanCancel),
+              ),
+              CupertinoDialogAction(
+                key: const ValueKey('meal-shopping-confirm'),
+                isDefaultAction: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(l10n.weeklyMealPlanShoppingConfirm),
+              ),
+            ],
+          );
+        },
+      );
+      await confirmationRoute?.completed;
+    } finally {
+      _ownedOverlayDepth--;
+    }
+    if (confirmed == true && flowCurrent()) {
+      await _handoff(plan, entry, list, locale);
+    }
+  }
+
+  List<TodayTodoList> get _writableLists => widget.shoppingLists
+      .where(
+        (list) =>
+            list.available &&
+            list.canAdd &&
+            list.canSetDescription &&
+            list.items.value != null &&
+            list.items.issue == null,
+      )
+      .toList(growable: false);
+
+  bool _listCurrent(TodayTodoList expected) => _writableLists.any(
+    (value) =>
+        value.entityId == expected.entityId &&
+        value.supportedFeatures == expected.supportedFeatures,
+  );
+
+  Future<void> _handoff(
+    WeeklyMealPlan plan,
+    MealPlanEntry entry,
+    TodayTodoList list,
+    String locale,
+  ) async {
+    final actions = widget.shoppingActions;
+    final source = widget.shoppingAuthoritySource;
+    if (_handoffBusy ||
+        !_current ||
+        actions == null ||
+        source == null ||
+        !_listCurrent(list)) {
+      return;
+    }
+    RecipeShoppingAuthorityLease? lease;
+    try {
+      lease = RecipeShoppingAuthorityLease.capture(source);
+    } catch (_) {
+      lease = null;
+    }
+    if (lease == null) return;
+    final operation = ++_handoffOperation;
+    bool valid() =>
+        operation == _handoffOperation &&
+        identical(widget.shoppingActions, actions) &&
+        _current &&
+        _listCurrent(list);
+    setState(() {
+      _handoffBusy = true;
+      _handoffFailed = false;
+      _handoffReceipt = null;
+      _handoffListTitle = null;
+    });
+    try {
+      final receipt = await RecipeShoppingHandoff().addPlanEntry(
+        plan: plan,
+        entryId: entry.id,
+        locale: locale,
+        list: list,
+        actions: actions,
+        authority: lease,
+        authoritySource: source,
+        visible: valid,
+      );
+      if (valid()) {
+        setState(() {
+          _handoffReceipt = receipt;
+          _handoffListTitle = list.title;
+        });
+      }
+    } catch (_) {
+      if (valid()) setState(() => _handoffFailed = true);
+    } finally {
+      if (operation == _handoffOperation && mounted) {
+        setState(() => _handoffBusy = false);
+      }
+    }
+  }
+}
+
+final class _MealEntryEdit {
+  const _MealEntryEdit({required this.servings, required this.slot});
+  final int servings;
+  final MealSlot slot;
+}
+
+class _MealEntryEditor extends StatefulWidget {
+  const _MealEntryEditor({
+    required this.initialServings,
+    required this.initialSlot,
+  });
+  final int initialServings;
+  final MealSlot initialSlot;
+
+  @override
+  State<_MealEntryEditor> createState() => _MealEntryEditorState();
+}
+
+class _MealEntryEditorState extends State<_MealEntryEditor> {
+  late final TextEditingController _servings;
+  late MealSlot _slot;
+  bool _valid = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _servings = TextEditingController(text: '${widget.initialServings}');
+    _slot = widget.initialSlot;
+  }
+
+  @override
+  void dispose() {
+    _servings.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return CupertinoPopupSurface(
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 680),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            children: [
+              Text(
+                l10n.weeklyMealPlanEditEntryTitle,
+                style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
+              ),
+              const SizedBox(height: 16),
+              Semantics(
+                textField: true,
+                label: l10n.weeklyMealPlanServingsLabel,
+                child: CupertinoTextField(
+                  key: const ValueKey('meal-edit-servings'),
+                  controller: _servings,
+                  keyboardType: TextInputType.number,
+                  onChanged: (text) {
+                    final value = int.tryParse(text);
+                    setState(
+                      () => _valid = value != null && value > 0 && value <= 24,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(l10n.weeklyMealPlanSlotLabel),
+              const SizedBox(height: 8),
+              for (final slot in MealSlot.values)
+                SizedBox(
+                  height: 48,
+                  child: CupertinoButton(
+                    key: ValueKey('meal-edit-slot-${slot.name}'),
+                    onPressed: () => setState(() => _slot = slot),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _slot == slot
+                              ? CupertinoIcons.check_mark_circled_solid
+                              : CupertinoIcons.circle,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(_slotLabel(l10n, slot))),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 48,
+                child: CupertinoButton.filled(
+                  key: const ValueKey('meal-edit-save'),
+                  onPressed: !_valid
+                      ? null
+                      : () => Navigator.of(context).pop(
+                          _MealEntryEdit(
+                            servings: int.parse(_servings.text),
+                            slot: _slot,
+                          ),
+                        ),
+                  child: Text(l10n.weeklyMealPlanSave),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -461,16 +747,31 @@ class _Status extends StatelessWidget {
   }
 }
 
-class _ShoppingPreview extends StatelessWidget {
+class _ShoppingPreview extends StatefulWidget {
   const _ShoppingPreview({
     required this.recipe,
     required this.servings,
     required this.summaries,
+    required this.lists,
   });
 
   final MealRecipe recipe;
   final int servings;
   final List<String> summaries;
+  final List<TodayTodoList> lists;
+
+  @override
+  State<_ShoppingPreview> createState() => _ShoppingPreviewState();
+}
+
+class _ShoppingPreviewState extends State<_ShoppingPreview> {
+  String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.lists.firstOrNull?.entityId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -484,13 +785,13 @@ class _ShoppingPreview extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             children: [
               Text(
-                recipe.title,
+                widget.recipe.title,
                 style: CupertinoTheme.of(context)
                     .textTheme
                     .navLargeTitleTextStyle,
               ),
               const SizedBox(height: 6),
-              Text(l10n.weeklyMealPlanServings(servings)),
+              Text(l10n.weeklyMealPlanServings(widget.servings)),
               const SizedBox(height: 12),
               Text(l10n.weeklyMealPlanShoppingHint),
               const SizedBox(height: 16),
@@ -499,7 +800,7 @@ class _ShoppingPreview extends StatelessWidget {
                 label: l10n.weeklyMealPlanIngredients,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: summaries
+                  children: widget.summaries
                       .map(
                         (item) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -510,6 +811,54 @@ class _ShoppingPreview extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              if (widget.lists.isEmpty)
+                Semantics(
+                  key: const ValueKey('meal-shopping-unavailable'),
+                  liveRegion: true,
+                  child: Text(l10n.weeklyMealPlanShoppingNoWritableList),
+                )
+              else ...[
+                Text(l10n.weeklyMealPlanShoppingChooseList),
+                const SizedBox(height: 8),
+                for (final list in widget.lists)
+                  SizedBox(
+                    height: 48,
+                    child: CupertinoButton(
+                      key: ValueKey('meal-shopping-list-${list.entityId}'),
+                      onPressed: () =>
+                          setState(() => _selected = list.entityId),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _selected == list.entityId
+                                ? CupertinoIcons.check_mark_circled_solid
+                                : CupertinoIcons.circle,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              list.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: CupertinoButton.filled(
+                    key: const ValueKey('meal-shopping-review'),
+                    onPressed: _selected == null
+                        ? null
+                        : () => Navigator.of(context).pop(_selected),
+                    child: Text(l10n.weeklyMealPlanShoppingReview),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               SizedBox(
                 height: 48,
                 child: CupertinoButton.filled(
@@ -531,6 +880,8 @@ String _slot(AppLocalizations l10n, MealSlot slot) => switch (slot) {
   MealSlot.dinner => l10n.weeklyMealPlanDinner,
   MealSlot.snack => l10n.weeklyMealPlanSnack,
 };
+
+String _slotLabel(AppLocalizations l10n, MealSlot slot) => _slot(l10n, slot);
 
 String _isoDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'

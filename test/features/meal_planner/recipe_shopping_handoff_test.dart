@@ -4,8 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/meal_planner/data/recipe_shopping_handoff.dart';
 import 'package:larenor/features/meal_planner/domain/recipe_shopping_draft.dart';
 import 'package:larenor/features/meal_planner/domain/weekly_meal_plan.dart';
+import 'package:larenor/features/health/data/action_controller.dart';
+import 'package:larenor/features/health/data/action_receipt.dart';
 import 'package:larenor/features/today/data/today_actions.dart';
+import 'package:larenor/features/today/data/today_repository.dart';
 import 'package:larenor/features/today/domain/today_models.dart';
+
+import '../today/fake_today_api.dart';
 
 class _Source implements RecipeShoppingAuthoritySource {
   RecipeShoppingAuthorityFacts? facts;
@@ -165,6 +170,57 @@ void main() {
       expect(actions.calls, ['2 adet Mercimek', '2 pcs Mercimek']);
       expect(actions.keys[0], actions.keys[1]);
       expect(actions.keys.every((value) => value?.length == 64), isTrue);
+    },
+  );
+
+  test(
+    'real Today action confirms the exact HA item by stable marker readback',
+    () async {
+      final api = FakeTodayApi();
+      api.items['todo.shopping'] = {'items': <Object>[]};
+      final repository = TodayRepository(api: api);
+      final receipts = ActionController();
+      addTearDown(repository.dispose);
+      addTearDown(receipts.dispose);
+      final list = (await repository.load()).todoLists.single;
+      api.onService = (_, _, data, entityId) async {
+        expect(entityId, list.entityId);
+        final summary = data['item']! as String;
+        final marker = data['description']! as String;
+        api.items[list.entityId] = {
+          'items': [
+            {
+              'uid': 'ha-item-1',
+              'summary': summary,
+              'status': 'needs_action',
+              'description': marker,
+            },
+          ],
+        };
+      };
+      final source = _Source()..facts = _facts();
+      final receipt = await RecipeShoppingHandoff().addPlanEntry(
+        plan: _plan(),
+        entryId: '2' * 32,
+        locale: 'tr',
+        list: list,
+        actions: TodayActions(
+          repository: repository,
+          controller: receipts,
+          readbackDelay: Duration.zero,
+        ),
+        authority: RecipeShoppingAuthorityLease.capture(source)!,
+        authoritySource: source,
+        visible: () => true,
+      );
+
+      expect(api.serviceCalls, hasLength(1));
+      expect(receipt.verifiedCount, 1);
+      expect(receipts.receipts.single.status, ActionStatus.confirmed);
+      expect(
+        (api.items[list.entityId]! as Map<String, Object?>)['items'],
+        hasLength(1),
+      );
     },
   );
 
