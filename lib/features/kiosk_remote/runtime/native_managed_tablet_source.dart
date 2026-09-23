@@ -133,6 +133,8 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
           response is! Map ||
           response.length != 1 ||
           response['status'] != 'active') {
+        if (!retirement.isCompleted) retirement.complete();
+        await _stopSession(id);
         throw StateError('native_tablet_source_not_started');
       }
       _pendingSessionId = null;
