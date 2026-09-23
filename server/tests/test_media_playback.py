@@ -413,3 +413,41 @@ def test_succeeded_receipt_payload_must_match_bound_intent(server):
     replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
     assert replay.status_code == 503
     assert replay.json()['error']['code'] == 'media_playback_storage_unavailable'
+
+
+def test_receipt_binding_drift_after_effect_never_publishes_success(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    first = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current, request_id='a' * 32),
+    ).json()['intent']
+    second = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current, request_id='b' * 32),
+    ).json()['intent']
+    command = {
+        'requestId': 'c' * 32,
+        'intentId': first['requestId'],
+        'expectedPlaybackRevision': first['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+
+    def drift_receipt():
+        with app.state.core.db.transaction() as connection:
+            connection.execute(
+                'UPDATE media_playback_receipts SET intent_id=? '
+                'WHERE request_id=?',
+                (second['requestId'], command['requestId']))
+
+    worker.change = drift_receipt
+    response = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_playback_worker_unavailable'
+    assert len(worker.calls) == 1
+    assert 'authenticated_readback' not in response.text
