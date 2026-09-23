@@ -394,8 +394,13 @@ void main() {
     expect(exported.toString(), isNot(contains(passphrase)));
   });
 
-  test('export accepts the 168 MiB cap as bounded reused chunks', () async {
-    const maxBytes = 168 * 1024 * 1024;
+  test('export accepts 424 MiB cap as bounded reused chunks', () async {
+    const maxBytes = 424 * 1024 * 1024;
+    expect(LarenorServerApi.maxCoreBackupBytes, maxBytes);
+    expect(
+      LarenorServerApi.coreBackupOverallTimeout,
+      const Duration(minutes: 15),
+    );
     const chunkBytes = 64 * 1024;
     final zero = Uint8List(chunkBytes);
     final first = Uint8List(chunkBytes);
@@ -435,7 +440,7 @@ void main() {
   test(
     'declared overflow and exact-length mismatch delete partial output',
     () async {
-      const maxBytes = 168 * 1024 * 1024;
+      const maxBytes = 424 * 1024 * 1024;
       final overflowDestination = CountingDestination();
       final overflowApi = directApi(
         StreamingClient(
