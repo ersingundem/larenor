@@ -29,12 +29,17 @@ from .jellyfin_bootstrap_executor import (
 from .jellyfin_playback_executor import (
     JellyfinPlaybackExecutionError,
 )
+from .jellyfin_media_rows_executor import JellyfinMediaRowsExecutionError
 from .media_flow_models import MediaFlowObservation, validate_media_key
 from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackWorkerResult,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
+)
+from .media_rows_models import (
+    MediaRowsReadback,
+    PrivateJellyfinMediaRowsAuthority,
 )
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .music_assistant_bootstrap_models import PrivateMusicAssistantBootstrap
@@ -138,6 +143,40 @@ def _jellyfin_playback_result(value, model):
             raise ValueError()
         return model.model_validate(value['value'])
     except JellyfinPlaybackExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
+def _wire_jellyfin_media_rows(value=None, error=None):
+    if error is not None:
+        if type(error) is not JellyfinMediaRowsExecutionError:
+            raise InstallationIPCError('invalid_worker_result')
+        return {'state': 'failed', 'errorCode': error.code, 'value': None}
+    if type(value) is not MediaRowsReadback:
+        raise InstallationIPCError('invalid_worker_result')
+    return {
+        'state': 'succeeded',
+        'errorCode': None,
+        'value': value.model_dump(mode='json', warnings=False),
+    }
+
+
+def _jellyfin_media_rows_result(value):
+    try:
+        if type(value) is not dict or set(value) != {
+                'state', 'errorCode', 'value'}:
+            raise ValueError()
+        if value['state'] == 'failed':
+            if (value['value'] is not None
+                    or value['errorCode'] not in
+                    JellyfinMediaRowsExecutionError._CODES):
+                raise ValueError()
+            raise JellyfinMediaRowsExecutionError(value['errorCode'])
+        if value['state'] != 'succeeded' or value['errorCode'] is not None:
+            raise ValueError()
+        return MediaRowsReadback.model_validate(value['value'])
+    except JellyfinMediaRowsExecutionError:
         raise
     except (ValueError, TypeError, AttributeError):
         raise InstallationIPCError('invalid_worker_result') from None
@@ -769,7 +808,7 @@ class InstallationWorkerClient:
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
                   music_playback=None, music_bootstrap=None, media_flow=None,
-                  jellyfin_playback=None):
+                  jellyfin_playback=None, jellyfin_media_rows=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -816,6 +855,9 @@ class InstallationWorkerClient:
                 request['mediaKey'] = media_flow
             elif jellyfin_playback is not None:
                 request['private'] = jellyfin_playback.model_dump(
+                    mode='json', warnings=False)
+            elif jellyfin_media_rows is not None:
+                request['private'] = jellyfin_media_rows.model_dump(
                     mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
@@ -940,6 +982,29 @@ class InstallationWorkerClient:
         return self._jellyfin_playback_exchange(
             'jellyfin_playback_execute', action, MediaPlaybackWorkerResult,
             deadline, gate)
+
+    def read_media_rows(self, authority, *, deadline, gate):
+        now = time.monotonic()
+        if (type(authority) is not PrivateJellyfinMediaRowsAuthority
+                or type(deadline) not in (int, float)
+                or type(deadline) is bool or not math.isfinite(deadline)
+                or not now < deadline <= now + 5 or not callable(gate)):
+            raise InstallationIPCError('invalid_request')
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise JellyfinMediaRowsExecutionError(
+                'jellyfin_media_rows_authority_changed') from None
+        result = _jellyfin_media_rows_result(self._exchange(
+            'jellyfin_media_rows_read', jellyfin_media_rows=authority))
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise JellyfinMediaRowsExecutionError(
+                'jellyfin_media_rows_authority_changed') from None
+        return result
 
     def _jellyfin_playback_exchange(self, operation, private, model, deadline,
                                      gate):
@@ -1429,6 +1494,32 @@ class InstallationWorkerServer(PreflightWorkerServer):
                         or type(result) is not MediaFlowObservation):
                     raise ValueError()
                 return result.model_dump(mode='json', warnings=False)
+            except Exception:
+                raise PreflightIPCError('invalid_request') from None
+        if operation == 'jellyfin_media_rows_read':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'private'}
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw = json.dumps(
+                    request['private'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                private = PrivateJellyfinMediaRowsAuthority.model_validate_json(
+                    raw)
+                timed = getattr(
+                    self.backend, 'read_media_rows_with_deadline', None)
+                try:
+                    result = (timed(private, deadline) if callable(timed)
+                              else self.backend.read_media_rows(
+                                  private, deadline=deadline,
+                                  gate=lambda: time.monotonic() < deadline))
+                except JellyfinMediaRowsExecutionError as error:
+                    return _wire_jellyfin_media_rows(error=error)
+                if (time.monotonic() >= deadline
+                        or type(result) is not MediaRowsReadback):
+                    raise ValueError()
+                return _wire_jellyfin_media_rows(value=result)
             except Exception:
                 raise PreflightIPCError('invalid_request') from None
         if operation in {'jellyfin_playback_read',
