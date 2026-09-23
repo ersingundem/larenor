@@ -219,6 +219,23 @@ void main() {
     expect(controller.snapshot?.approachDistanceCm, isNull);
   });
 
+  test('observation time cannot advance without a newer sequence', () async {
+    final api = _Api()
+      ..startValue = _sample(sequence: 0, lux: null, motionDelta: null)
+      ..readValue = {
+        ..._sample(sequence: 0, lux: null, motionDelta: null),
+        'observedAtElapsedMillis': 2000,
+      };
+    final controller = KioskSensorController(api);
+    await controller.start();
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(isA<KioskSensorException>()),
+    );
+    expect(controller.snapshot?.observedAtElapsedMillis, 1000);
+  });
+
   test(
     'Android channel uses exact bounded requests and redacts failures',
     () async {

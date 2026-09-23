@@ -51,7 +51,8 @@ final class KioskSensorController {
       throw const KioskSensorException(KioskSensorFailure.expired);
     }
     if (value.sequence == current.sequence &&
-        (value.lux != current.lux ||
+        (value.observedAtElapsedMillis != current.observedAtElapsedMillis ||
+            value.lux != current.lux ||
             value.motionDelta != current.motionDelta ||
             value.approachDistanceCm != current.approachDistanceCm ||
             value.lightAvailable != current.lightAvailable ||
