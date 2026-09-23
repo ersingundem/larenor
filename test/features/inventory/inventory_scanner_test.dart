@@ -9,6 +9,7 @@ final class FakeScannerSession implements InventoryScannerSession {
   final failures = StreamController<InventoryCameraFailure>.broadcast();
   int closes = 0;
   Completer<void>? closeGate;
+  Object? closeError;
   @override
   Stream<String> get values => codes.stream;
   @override
@@ -19,6 +20,8 @@ final class FakeScannerSession implements InventoryScannerSession {
   Future<void> close() async {
     closes++;
     await closeGate?.future;
+    final error = closeError;
+    if (error != null) throw error;
   }
 }
 
@@ -38,6 +41,31 @@ final class ThrowingScannerPlatform implements InventoryScannerPlatform {
 }
 
 void main() {
+  test(
+    'failed camera close keeps reopen fenced and drops the old scan',
+    () async {
+      final platform = FakeScannerPlatform();
+      final values = <String>[];
+      final controller = InventoryScannerController(
+        platform: platform,
+        isCurrent: () => true,
+        onValue: values.add,
+      );
+      await controller.open();
+      platform.sessions.single
+        ..closeError = StateError('native close rejected')
+        ..codes.add('old');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(values, isEmpty);
+      expect(controller.failure, InventoryCameraFailure.unavailable);
+      expect(controller.canOpen, isFalse);
+      await controller.open();
+      expect(platform.sessions, hasLength(1));
+    },
+  );
+
   test(
     'unacknowledged camera close blocks reopen and never publishes old scan',
     () async {
