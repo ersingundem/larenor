@@ -4,8 +4,8 @@ Date: 23 September 2026
 
 This slice turns the existing retained Jellyfin language preference reader and
 confirmed Core merge into an accessible, user-controlled player journey. It is
-stacked on the exact bounded playback head
-`e94a4144bdb99b3cda8c0dbd19dccc45d6c2e88e`. S08.8 remains pending, so queue
+stacked on the exact receipt-finalizing playback head
+`f064699d777722ab73cd677f6e78a2ae3e6bd1c7`. S08.8 remains pending, so queue
 progress stays **26/125** and selected-feature progress stays **0/63**.
 
 ## Three delivered jobs
@@ -32,10 +32,10 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
 
 ## RED/GREEN and verification
 
-- RED `54f3c2258ff0bd90904a1252d42de0160bdc76dd` added the controller,
+- RED `6b1d6fffffb19691a02d71712072f548f68d9be5` added the controller,
   EN/TR 600/1200 at 2x, real-loopback and logout/replacement tests before the
   controller and card existed.
-- GREEN `50c882caaf7e2816d659bd19c11edc42c9a003b0` implements the lifecycle
+- GREEN `a160329ad1c1c9dd55e3f34f6a1b1ab53faf9364` implements the lifecycle
   controller, player card, localization and exact confirmation retirement.
 
 ```text
