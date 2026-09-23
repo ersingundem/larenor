@@ -233,6 +233,58 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     assert app.state.core.media_service_bootstraps.tick() is None
 
 
+def test_verified_bootstrap_creates_private_owner_binding_only(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    client.post(BASE, headers=auth(pair), json=request(installation))
+    app.state.core.media_service_bootstraps.backend = BootstrapBackend()
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+
+    binding = app.state.core.media_account_bindings.resolve(
+        actor, installation['id'], installation['revision'])
+
+    assert binding.account_id == actor.id
+    assert binding.installation_id == installation['id']
+    assert binding.binding_revision == 1
+    assert binding.bootstrap_revision == terminal['revision']
+    assert binding.jellyfin_user_id == '1' * 32
+    assert '1' * 32 not in repr(binding)
+    with app.state.core.db.connection() as connection:
+        row = connection.execute(
+            'SELECT nonce,ciphertext FROM media_account_bindings'
+        ).fetchone()
+        assert len(row['nonce']) == 12
+        assert ('1' * 32).encode() not in row['ciphertext']
+
+    create_user(client, pair)
+    member_pair = activate(client, 'member')
+    member = app.state.core.auth.authenticate(member_pair['accessToken'])
+    with pytest.raises(Exception, match='media_account_binding_changed'):
+        app.state.core.media_account_bindings.resolve(
+            member, installation['id'], installation['revision'])
+
+    with TestClient(create_app(settings)) as reopened:
+        recovered = reopened.app.state.core.media_account_bindings.resolve(
+            actor, installation['id'], installation['revision'])
+        assert recovered.binding_revision == 1
+        assert recovered.jellyfin_user_id == '1' * 32
+
+
+def test_media_account_binding_damage_fails_closed_on_restart(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    client.post(BASE, headers=auth(pair), json=request(installation))
+    app.state.core.media_service_bootstraps.backend = BootstrapBackend()
+    app.state.core.media_service_bootstraps.tick()
+    with app.state.core.db.connection() as connection:
+        connection.execute(
+            "UPDATE media_account_bindings SET ciphertext=x'00'"
+        )
+    with pytest.raises(Exception, match='media_account_binding_storage_invalid'):
+        create_app(settings)
+
+
 def test_playback_private_requires_exact_verified_installation_revision(server):
     app, client, _, _ = server
     pair, installation = installed(server)

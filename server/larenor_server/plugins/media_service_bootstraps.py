@@ -84,6 +84,7 @@ class MediaServiceBootstrapManagement:
         self.db, self.auth, self.settings = db, auth, settings
         self.installations = installations
         self.backend = backend
+        self.account_bindings = None
         self._cipher = AESGCM(key)
 
     @staticmethod
@@ -500,6 +501,11 @@ class MediaServiceBootstrapManagement:
                     return self._transition(
                         connection, row, self._decode(row), state='failed',
                         error='invalid_bootstrap_result')
-                return self._transition(
+                result = self._transition(
                     connection, row, private,
                     state='wiring_partial')
+                stored_row = self._find(connection, identifier)
+                if self.account_bindings is not None:
+                    self.account_bindings.bind_verified_bootstrap(
+                        connection, stored_row, private)
+                return result
