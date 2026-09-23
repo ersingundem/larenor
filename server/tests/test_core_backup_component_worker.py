@@ -187,6 +187,11 @@ def test_component_worker_rejects_untrusted_peer_and_invalid_digest(tmp_path):
             client.quiesce(time.monotonic() + 2),
         ):
             raise AssertionError("must_not_yield")
+    assert observed[1] == {
+        "protocol": 1,
+        "requestId": observed[0]["requestId"],
+        "operation": "release",
+    }
 
 
 def test_configured_app_owns_opted_in_component_worker(tmp_path):
