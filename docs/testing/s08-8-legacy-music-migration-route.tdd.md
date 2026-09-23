@@ -29,11 +29,18 @@ provided a migration entry point.
 Commit `7fe1d8b196f9726d0341706aff3e476a1970e27d` added the guarded migration
 route, localized copy and lifecycle/current-result checks.
 
+Independent review found that the multi-target chooser rendered discovery
+labels before the mapping's bounded, bidi-safe preview validation and accepted
+an unbounded candidate list. RED commit `2c4d0943` proves the unsafe label was
+visible. GREEN commit `854cf427` shares the exact preview-shape validator with
+the mapping and fails closed above 256 safe candidates before building a
+chooser.
+
 ```text
 flutter gen-l10n
-flutter test test/features/server/server_music_manager_screen_test.dart
-# 8 passed
-flutter analyze lib/features/server/music_manager/presentation/server_music_manager_screen.dart test/features/server/server_music_manager_screen_test.dart
+flutter test test/features/server/server_music_manager_screen_test.dart test/features/server/legacy_music_player_mapping_test.dart
+# 15 passed
+flutter analyze lib/features/server/music_manager/data/legacy_music_player_mapping.dart lib/features/server/music_manager/presentation/server_music_manager_screen.dart test/features/server/server_music_manager_screen_test.dart test/features/server/legacy_music_player_mapping_test.dart
 # No issues found
 ```
 
