@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/media_catalog/data/server_media_catalog_controller.dart';
+import 'package:larenor/features/server/media_catalog/domain/server_media_catalog_models.dart';
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -46,6 +48,7 @@ Map<String, Object?> _catalog(
   int offset, {
   int installationRevision = 7,
   int snapshotRevision = 9,
+  ServerMediaCatalogKind? mediaKind,
 }) => {
   'schemaVersion': 1,
   'installationId': _installationId,
@@ -60,10 +63,24 @@ Map<String, Object?> _catalog(
       'itemId': offset == 0
           ? '99999999999999999999999999999999'
           : 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      'mediaKey': offset == 0 ? 'movie:tmdb:603' : 'movie:tmdb:604',
-      'title': offset == 0 ? 'The Matrix' : 'The Matrix Reloaded',
-      'mediaKind': 'movie',
-      'runtimeSeconds': 8160,
+      'mediaKey': mediaKind == ServerMediaCatalogKind.episode
+          ? 'episode:tvdb:121361:1:${offset + 1}'
+          : offset == 0
+          ? 'movie:tmdb:603'
+          : 'movie:tmdb:604',
+      'title': mediaKind == ServerMediaCatalogKind.episode
+          ? offset == 0
+                ? 'Pilot'
+                : 'Second Episode'
+          : offset == 0
+          ? 'The Matrix'
+          : 'The Matrix Reloaded',
+      'mediaKind': mediaKind == ServerMediaCatalogKind.episode
+          ? 'episode'
+          : 'movie',
+      'runtimeSeconds': mediaKind == ServerMediaCatalogKind.episode
+          ? 2700
+          : 8160,
     },
   ],
 };
@@ -89,14 +106,28 @@ final class _CatalogFixture extends AdminFixture {
       }
       if (request.url.path.endsWith('/catalog/search')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        return this.json({
+        final response = this.json({
           'requestId': _requestId,
           'catalog': _catalog(
             body['offset'] as int,
             installationRevision: targetRevision,
             snapshotRevision: snapshotRevision,
+            mediaKind: switch (body['mediaKind']) {
+              'movie' => ServerMediaCatalogKind.movie,
+              'episode' => ServerMediaCatalogKind.episode,
+              _ => null,
+            },
           ),
         });
+        final call = catalogCalls++;
+        if (call == 0) {
+          final gate = firstCatalogGate;
+          if (gate != null) {
+            firstCatalogResponse = response;
+            return gate.future;
+          }
+        }
+        return response;
       }
       return defaultResponse(request);
     };
@@ -106,6 +137,9 @@ final class _CatalogFixture extends AdminFixture {
   List<Object?>? targetResponse;
   int targetRevision = 7;
   int snapshotRevision = 9;
+  int catalogCalls = 0;
+  Completer<http.Response>? firstCatalogGate;
+  http.Response? firstCatalogResponse;
 }
 
 void main() {
@@ -308,6 +342,55 @@ void main() {
     expect(fixture.adminCalls, isEmpty);
   });
 
+  testWidgets('filter change retires a delayed previous catalog result', (
+    tester,
+  ) async {
+    final fixture = _CatalogFixture()
+      ..firstCatalogGate = Completer<http.Response>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'matrix',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+    await tester.pump();
+    expect(fixture.catalogCalls, 1);
+
+    await tester.tap(
+      find.byKey(const ValueKey('server-media-catalog-filter-tv')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pilot'), findsOneWidget);
+    expect(find.text('The Matrix'), findsNothing);
+    final searchBodies = fixture.calls
+        .where((call) => call.url.path.endsWith('/catalog/search'))
+        .map((call) => jsonDecode(call.body) as Map<String, dynamic>)
+        .toList();
+    expect(searchBodies, hasLength(2));
+    expect(searchBodies.last['mediaKind'], 'episode');
+    expect(searchBodies.last['offset'], 0);
+
+    fixture.firstCatalogGate!.complete(fixture.firstCatalogResponse!);
+    await tester.pumpAndSettle();
+    expect(find.text('Pilot'), findsOneWidget);
+    expect(find.text('The Matrix'), findsNothing);
+  });
+
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$locale Core catalog fits $width tablet/DeX at 2x', (
@@ -345,6 +428,23 @@ void main() {
         await tester.pumpAndSettle();
         expect(fixture.calls, hasLength(2), reason: 'only account bootstrap');
 
+        final filters = find.byKey(
+          const ValueKey('server-media-catalog-filters'),
+        );
+        expect(tester.getRect(filters).height, greaterThanOrEqualTo(48));
+        expect(
+          find.byKey(const ValueKey('server-media-catalog-filter-all')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('server-media-catalog-filter-movies')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('server-media-catalog-filter-tv')),
+          findsOneWidget,
+        );
+
         final field = find.byKey(
           const ValueKey('server-media-catalog-search-field'),
         );
@@ -353,6 +453,17 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('The Matrix'), findsOneWidget);
         expect(fixture.mutations, hasLength(2));
+        await tester.tap(
+          find.byKey(const ValueKey('server-media-catalog-filter-tv')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Pilot'), findsOneWidget);
+        final filteredBodies = fixture.calls
+            .where((call) => call.url.path.endsWith('/catalog/search'))
+            .map((call) => jsonDecode(call.body) as Map<String, dynamic>)
+            .toList();
+        expect(filteredBodies.last['mediaKind'], 'episode');
+        expect(filteredBodies.last['offset'], 0);
         final next = find.byKey(const ValueKey('server-media-catalog-next'));
         await tester.scrollUntilVisible(
           next,
@@ -364,7 +475,14 @@ void main() {
         semantics.dispose();
         await tester.tap(next);
         await tester.pumpAndSettle();
-        expect(find.text('The Matrix Reloaded'), findsOneWidget);
+        expect(find.text('Second Episode'), findsOneWidget);
+        final pagedBody = jsonDecode(
+          fixture.calls
+              .lastWhere((call) => call.url.path.endsWith('/catalog/search'))
+              .body,
+        ) as Map<String, dynamic>;
+        expect(pagedBody['mediaKind'], 'episode');
+        expect(pagedBody['offset'], 1);
         expect(tester.takeException(), isNull);
       });
     }

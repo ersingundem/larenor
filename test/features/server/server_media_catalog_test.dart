@@ -22,8 +22,8 @@ Map<String, Object?> _catalog() => {
   'snapshotRevision': 9,
   'jellyfinServiceRevision': 11,
   'offset': 0,
-  'nextOffset': null,
-  'total': 1,
+  'nextOffset': 1,
+  'total': 2,
   'items': const [
     {
       'itemId': '33333333333333333333333333333333',
@@ -116,10 +116,34 @@ void main() {
 
     expect(page.items.single.title, 'The Matrix');
     expect(page.snapshotRevision, 9);
+    expect(page.query, 'matrix');
+    expect(page.mediaKind, ServerMediaCatalogKind.movie);
     expect(calls.map((call) => call.url.path), [
       '/api/v1/admin/media/archive-health/authority',
       '/api/v1/admin/media/archive-health/catalog/search',
     ]);
+
+    final callsBeforeMismatch = calls.length;
+    await expectLater(
+      ServerMediaCatalogApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).searchCurrent(
+        query: 'matrix',
+        mediaKind: ServerMediaCatalogKind.episode,
+        offset: 1,
+        previousPage: page,
+      ),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_request',
+        ),
+      ),
+    );
+    expect(calls, hasLength(callsBeforeMismatch));
   });
 
   test('invalid query and secret-bearing response fail closed', () async {
