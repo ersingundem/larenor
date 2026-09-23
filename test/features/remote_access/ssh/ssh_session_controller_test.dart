@@ -285,7 +285,7 @@ void main() {
       expect(c.transcript, contains('error'));
       engine.channel.out.add(utf8.encode('x' * 70000));
       await tick();
-      expect(c.transcript.length, lessThanOrEqualTo(65536));
+      expect(utf8.encode(c.transcript).length, lessThanOrEqualTo(65536));
       await c.sendLine('echo İstanbul, çığ öşü');
       expect(
         utf8.decode(engine.channel.writes.single),
@@ -293,6 +293,40 @@ void main() {
       );
     },
   );
+  test('malformed UTF8 closes the terminal without replacement text', () async {
+    store.pin = hostPin;
+    await c.connect();
+
+    engine.channel.out.add([0xc3, 0x28]);
+    await tick();
+
+    expect(c.phase, SshSessionPhase.failed);
+    expect(c.error, 'connection_lost');
+    expect(c.transcript, isEmpty);
+    expect(engine.closed, isTrue);
+  });
+  test('directional controls are visible and cannot reorder terminal text', () async {
+    store.pin = hostPin;
+    await c.connect();
+
+    engine.channel.out.add(
+      utf8.encode('safe\u202etxt\u2066end\u001b[31m'),
+    );
+    await tick();
+
+    expect(c.transcript, 'safe⟦bidi⟧txt⟦bidi⟧end␛[31m');
+    expect(c.phase, SshSessionPhase.connected);
+  });
+  test('multibyte terminal history is capped by UTF8 bytes', () async {
+    store.pin = hostPin;
+    await c.connect();
+
+    engine.channel.out.add(utf8.encode('😀' * 70000));
+    await tick();
+
+    expect(utf8.encode(c.transcript).length, lessThanOrEqualTo(65536));
+    expect(c.transcript.runes.every((rune) => rune == 0x1f600), isTrue);
+  });
   test(
     'PTY size is bounded, deduplicated and sent only while connected',
     () async {
