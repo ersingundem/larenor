@@ -1,8 +1,8 @@
-from dataclasses import dataclass, field
 import os
-from pathlib import Path
 import time
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from .errors import StartupError
 
@@ -29,6 +29,8 @@ class Settings:
     keenetic_worker_health: Path | None = None
     keenetic_worker_key_file: Path | None = None
     keenetic_worker_uid: int = 0
+    component_backup_worker_socket: Path | None = None
+    component_backup_worker_uid: int = 0
 
     def __post_init__(self):
         worker_uids = (
@@ -36,6 +38,7 @@ class Settings:
             self.installation_worker_uid,
             self.proxmox_power_worker_uid,
             self.keenetic_worker_uid,
+            self.component_backup_worker_uid,
         )
         if any(
             type(value) is not int or not 0 <= value < 2**31
@@ -64,6 +67,7 @@ class Settings:
             self.installation_worker_socket,
             *proxmox_paths,
             *keenetic_paths,
+            self.component_backup_worker_socket,
         )
         for path in paths:
             if path is not None and (
@@ -79,6 +83,11 @@ class Settings:
         if any(path == self.key_file for path in configured):
             raise ValueError("invalid_worker_configuration")
         if any(path.is_relative_to(self.data_dir) for path in keenetic_paths if path):
+            raise ValueError("invalid_worker_configuration")
+        if (
+            self.component_backup_worker_socket is None
+            and self.component_backup_worker_uid != 0
+        ):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -119,6 +128,14 @@ class Settings:
                 ),
                 keenetic_worker_uid=int(
                     os.environ.get("LARENOR_KEENETIC_WORKER_UID", "0")
+                ),
+                component_backup_worker_socket=(
+                    Path(os.environ["LARENOR_COMPONENT_BACKUP_WORKER_SOCKET"])
+                    if os.environ.get("LARENOR_COMPONENT_BACKUP_WORKER_SOCKET")
+                    else None
+                ),
+                component_backup_worker_uid=int(
+                    os.environ.get("LARENOR_COMPONENT_BACKUP_WORKER_UID", "0")
                 ),
             )
         except ValueError:
