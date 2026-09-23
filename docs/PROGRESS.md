@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 23 Eylül 2026, main `70c667b5` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #328, bekleyen 28 PR başlığını tam zorunlu CI ile tek birleşim commitinde topladı; GitHub'da açık PR kalmadı. Birleşen kısmi özellik dilimleri kabul ölçütlerini tek başına kapatmadığı için sayaç değiştirilmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, main `54abbf34` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #328, bekleyen 28 PR başlığını tam zorunlu CI ile tek birleşim commitinde topladı; #329 güncel teslim planını ana dala aldı. S07.4 exact-tree incelemesi bir Client kanıt açığını kapattı ve güncel commit CI'ını bekliyor. Birleşen kısmi özellik dilimleri kabul ölçütlerini tek başına kapatmadığı için sayaç değiştirilmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  23/125 iş (%18,4; eşit ağırlıklı sayaç)
@@ -32,6 +32,25 @@ ayrı Flutter görev yüzeyi, paketlenmiş oyun yayın motoru, üretim EV/enerji
 sağlayıcıları ve ilgili fiziksel cihaz/servis matrisleri açık. Kuyruktaki tam
 kabul ölçütleri karşılanmadan F01–F63 veya S09 düğümleri `done` yapılmadı;
 kanıtlı sayaçlar **23/125 (%18,4)** ve **0/63 (%0,0)** olarak korundu.
+
+### S07.4 tek kurulum durumu — exact CI bekliyor
+
+PR #328'in birleşik ağacındaki bağımsız kabul incelemesi, Server'ın ayrı
+ürettiği süreç ve entegrasyon durumlarının Client tarafından doğrulanıp sonra
+atıldığını buldu. RED tablet testi, `started` süreç ile `unverified`
+entegrasyonun aynı satırda açıkça ayrılmadığını gösterdi. `1fcea99a` Client
+modelini ve EN/TR kanıt satırını düzeltti; 13 Flutter, 8 Server ve 20 paket/
+iki mimarili restart sözleşmesi testi ile kuyruk doğrulaması yerelde geçti.
+
+Client yalnız dört operatör kimliği ve sağlayıcı hesabı yüzeylerine yöneliyor;
+dahili servis adresi, token, kurulum, rollback veya komut eylemi açmıyor.
+Eksik servisler yedi satırlı kapalı sözleşmede `missing/unknown/unverified`
+olarak kalıyor. Çapraz servis Core API testi altı medya servisini birlikte
+okuyor; PR #328'in birleşik yığın işi amd64/arm64 restart kapısını geçti.
+[Exact-tree inceleme ve TDD kanıtı](testing/s07-4-exact-tree-closure-2026-09-23.md).
+Client üretim kodu PR #328 sonrasında değiştiği için aynı `1fcea99a` commitinde
+zorunlu GitHub CI henüz yoktur. S07.4 `awaiting_ci`, sayaç **23/125** ve B2
+**3/4** kalır; exact CI geçip aynı commit kanıtı kaydedilmeden `done` olmaz.
 
 **B5.2 kabulünün tam doğrulanmış birleşik kaynağı: main `e313328f`.** B5.2'nin kişisel
 profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve
