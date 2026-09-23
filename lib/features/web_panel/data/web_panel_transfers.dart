@@ -47,6 +47,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     WebPanelPickFiles? pickFiles,
     WebPanelSaveFile? saveFile,
     http.Client Function()? client,
+    this.transferTimeout = const Duration(seconds: 30),
   }) : _pickFiles =
            pickFiles ??
            (({required allowMultiple, required allowedExtensions}) async {
@@ -74,6 +75,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
   final WebPanelPickFiles _pickFiles;
   final WebPanelSaveFile _saveFile;
   final http.Client Function() _client;
+  final Duration transferTimeout;
 
   static const _extensions = <String>{
     'jpg',
@@ -122,6 +124,17 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     return result.isEmpty ? null : result;
   }
 
+  static bool _isBoundedContentGrant(Uri uri) =>
+      uri.scheme == 'content' &&
+      uri.hasAuthority &&
+      uri.host.isNotEmpty &&
+      uri.userInfo.isEmpty &&
+      !uri.hasPort &&
+      uri.pathSegments.isNotEmpty &&
+      !uri.hasQuery &&
+      !uri.hasFragment &&
+      uri.toString().length <= 2048;
+
   @override
   Future<List<String>> pickUpload(FileSelectorParams request) async {
     if (request.mode == FileSelectorMode.save || request.isCaptureEnabled) {
@@ -137,21 +150,27 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       final files = selected;
       if (files.isEmpty || files.length > 4) return const [];
       final result = <String>[];
+      final grants = <String>{};
+      var totalLength = 0;
       for (final item in files) {
         final uri = item.uri;
         final path = item.path;
         final length = await item.length();
-        if (!const {'file', 'content'}.contains(uri.scheme) ||
+        final grant = uri.toString();
+        if (!_isBoundedContentGrant(uri) ||
             length == null ||
             length < 1 ||
             length > webPanelMaxTransferBytes ||
+            !grants.add(grant) ||
+            totalLength + length > webPanelMaxTransferBytes ||
             (path != null &&
                 (FileSystemEntity.isLinkSync(path) ||
                     FileSystemEntity.typeSync(path) !=
                         FileSystemEntityType.file))) {
           return const [];
         }
-        result.add(uri.toString());
+        totalLength += length;
+        result.add(grant);
       }
       return List.unmodifiable(result);
     } catch (_) {
@@ -540,59 +559,82 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     bool Function() isCurrent,
   ) async {
     final client = _client();
-    try {
-      var uri = initial;
-      for (var redirect = 0; redirect <= 3; redirect++) {
-        if (!isCurrent() || !policy.allows(uri.toString())) return false;
-        final request = http.Request('GET', uri)
-          ..followRedirects = false
-          ..maxRedirects = 0
-          ..headers['Accept'] =
-              'application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,application/json';
-        final response = await client
-            .send(request)
-            .timeout(const Duration(seconds: 30));
-        if (!isCurrent()) return false;
-        if (const {301, 302, 303, 307, 308}.contains(response.statusCode)) {
-          final location = response.headers['location'];
-          if (location == null || redirect == 3) return false;
-          uri = uri.resolve(location);
-          continue;
-        }
-        final type = _downloadType(response.headers['content-type']);
-        final length = response.contentLength;
-        if (response.statusCode != 200 ||
-            type == null ||
-            (length != null &&
-                (length < 1 || length > webPanelMaxTransferBytes))) {
-          return false;
-        }
-        final bytes = BytesBuilder(copy: false);
-        await for (final chunk in response.stream.timeout(
-          const Duration(seconds: 30),
-        )) {
-          if (!isCurrent() ||
-              bytes.length + chunk.length > webPanelMaxTransferBytes) {
-            return false;
-          }
-          bytes.add(chunk);
-        }
-        if (!isCurrent() || bytes.length == 0) return false;
-        final frozen = Uint8List.fromList(bytes.takeBytes());
-        if (!_payloadMatches(type.$1, frozen)) return false;
-        return await _saveFile(
-              'web-panel-download.${type.$2}',
-              type.$1,
-              frozen,
-            ) !=
-            null;
+    var active = true;
+    bool current() {
+      if (!active) return false;
+      try {
+        return isCurrent();
+      } catch (_) {
+        return false;
       }
-      return false;
+    }
+
+    try {
+      return await _download(initial, policy, current, client).timeout(
+        transferTimeout,
+        onTimeout: () {
+          active = false;
+          client.close();
+          return false;
+        },
+      );
     } catch (_) {
       return false;
     } finally {
+      active = false;
       client.close();
     }
+  }
+
+  Future<bool> _download(
+    Uri initial,
+    WebPanelPolicy policy,
+    bool Function() isCurrent,
+    http.Client client,
+  ) async {
+    var uri = initial;
+    for (var redirect = 0; redirect <= 3; redirect++) {
+      if (!isCurrent() || !policy.allows(uri.toString())) return false;
+      final request = http.Request('GET', uri)
+        ..followRedirects = false
+        ..maxRedirects = 0
+        ..headers['Accept'] =
+            'application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,application/json';
+      final response = await client.send(request);
+      if (!isCurrent()) return false;
+      if (const {301, 302, 303, 307, 308}.contains(response.statusCode)) {
+        final location = response.headers['location'];
+        if (location == null || redirect == 3) return false;
+        uri = uri.resolve(location);
+        continue;
+      }
+      final type = _downloadType(response.headers['content-type']);
+      final length = response.contentLength;
+      if (response.statusCode != 200 ||
+          type == null ||
+          (length != null &&
+              (length < 1 || length > webPanelMaxTransferBytes))) {
+        return false;
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.stream) {
+        if (!isCurrent() ||
+            bytes.length + chunk.length > webPanelMaxTransferBytes) {
+          return false;
+        }
+        bytes.add(chunk);
+      }
+      if (!isCurrent() || bytes.length == 0) return false;
+      final frozen = Uint8List.fromList(bytes.takeBytes());
+      if (!_payloadMatches(type.$1, frozen)) return false;
+      final saved = await _saveFile(
+        'web-panel-download.${type.$2}',
+        type.$1,
+        frozen,
+      );
+      return isCurrent() && saved != null;
+    }
+    return false;
   }
 }
 

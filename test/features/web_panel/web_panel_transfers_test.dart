@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -237,7 +238,139 @@ final class ThrowingAccess implements WebPanelTransferAccess {
   ) async => throw StateError('transport unavailable');
 }
 
+base class FixturePlatformFile extends PlatformFile {
+  FixturePlatformFile(this.uri, this.size);
+
+  @override
+  final Uri uri;
+  final int? size;
+
+  @override
+  String get name => 'fixture.pdf';
+
+  @override
+  Never get xFile => throw UnsupportedError('fixture has no platform file');
+
+  @override
+  int? lengthSync() => size;
+
+  @override
+  Future<int?> length() async => size;
+
+  @override
+  Future<Uint8List> readAsBytes() async => Uint8List(0);
+
+  @override
+  Stream<Uint8List> readAsByteStream() => const Stream.empty();
+}
+
 void main() {
+  test(
+    'upload exposes only unique bounded content grants with one aggregate cap',
+    () async {
+      Future<List<String>> pick(List<PlatformFile> files) =>
+          LocalWebPanelTransferAccess(
+            pickFiles: ({required allowMultiple, required allowedExtensions}) {
+              return Future.value(files);
+            },
+          ).pickUpload(
+            const FileSelectorParams(
+              isCaptureEnabled: false,
+              acceptTypes: ['application/pdf'],
+              mode: FileSelectorMode.openMultiple,
+            ),
+          );
+
+      expect(
+        await pick([
+          FixturePlatformFile(Uri.parse('file:///private/secret.pdf'), 1),
+        ]),
+        isEmpty,
+      );
+      expect(
+        await pick([
+          FixturePlatformFile(Uri.parse('content://fixture/document/1'), 1),
+          FixturePlatformFile(Uri.parse('content://fixture/document/1'), 1),
+        ]),
+        isEmpty,
+      );
+      expect(
+        await pick([
+          FixturePlatformFile(
+            Uri.parse('content://fixture/document/1'),
+            webPanelMaxTransferBytes,
+          ),
+          FixturePlatformFile(Uri.parse('content://fixture/document/2'), 1),
+        ]),
+        isEmpty,
+      );
+      expect(
+        await pick([
+          FixturePlatformFile(Uri.parse('content://fixture/document/1'), 3),
+          FixturePlatformFile(Uri.parse('content://fixture/document/2'), 4),
+        ]),
+        const ['content://fixture/document/1', 'content://fixture/document/2'],
+      );
+    },
+  );
+
+  test('download total deadline suppresses a late streamed payload', () async {
+    final stream = StreamController<List<int>>();
+    var exports = 0;
+    final access = LocalWebPanelTransferAccess(
+      transferTimeout: const Duration(milliseconds: 10),
+      client: () => MockClient.streaming(
+        (_, _) async => http.StreamedResponse(
+          stream.stream,
+          200,
+          headers: {'content-type': 'application/pdf'},
+        ),
+      ),
+      saveFile: (_, _, _) async {
+        exports++;
+        return Uri.parse('content://fixture/unexpected');
+      },
+    );
+
+    expect(
+      await access.download(
+        Uri.parse('https://panel.invalid/file'),
+        WebPanelPolicy.fromUrl('https://panel.invalid')!,
+        () => true,
+      ),
+      false,
+    );
+    stream.add(validPdf);
+    await stream.close();
+    await pumpEventQueue();
+    expect(exports, 0);
+  });
+
+  test('download rechecks authority after the platform save returns', () async {
+    final saveGate = Completer<Uri?>();
+    var current = true;
+    final access = LocalWebPanelTransferAccess(
+      client: () => MockClient(
+        (_) async => http.Response.bytes(
+          validPdf,
+          200,
+          headers: {'content-type': 'application/pdf'},
+        ),
+      ),
+      saveFile: (_, _, _) => saveGate.future,
+    );
+
+    final pending = access.download(
+      Uri.parse('https://panel.invalid/file'),
+      WebPanelPolicy.fromUrl('https://panel.invalid')!,
+      () => current,
+    );
+    await pumpEventQueue();
+    current = false;
+    saveGate.complete(Uri.parse('content://fixture/saved'));
+    expect(await pending, false);
+  });
+
   test(
     'picker failure retires working state and allows explicit retry',
     () async {
