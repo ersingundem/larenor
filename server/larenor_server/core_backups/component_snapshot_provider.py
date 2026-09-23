@@ -140,6 +140,7 @@ def archive_component_directory(
     output = io.BytesIO()
     count = 0
     total = 0
+    inventory = {}
 
     def check_output():
         if output.tell() > max_bytes:
@@ -184,6 +185,7 @@ def archive_component_directory(
                     ):
                         raise ComponentSnapshotProviderError()
                     observed[name] = _fingerprint(after)
+                    inventory[relative] = observed[name]
                 finally:
                     os.close(child)
             elif stat.S_ISREG(before.st_mode) and before.st_nlink == 1:
@@ -218,6 +220,7 @@ def archive_component_directory(
                     ):
                         raise ComponentSnapshotProviderError()
                     observed[name] = _fingerprint(after)
+                    inventory[relative] = observed[name]
                     try:
                         archive.writestr(
                             _zip_info(
@@ -242,6 +245,35 @@ def archive_component_directory(
             if _fingerprint(current) != observed[name]:
                 raise ComponentSnapshotProviderError()
 
+    def revalidate_tree(parent, prefix, depth, seen):
+        if depth > _MAX_DEPTH:
+            raise ComponentSnapshotProviderError()
+        _remaining(deadline)
+        for name in sorted(os.listdir(parent)):
+            if not _safe_name(name):
+                raise ComponentSnapshotProviderError()
+            relative = f"{prefix}/{name}" if prefix else name
+            current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            if relative in seen or _fingerprint(current) != inventory.get(relative):
+                raise ComponentSnapshotProviderError()
+            seen.add(relative)
+            if stat.S_ISDIR(current.st_mode):
+                child = os.open(name, _OPEN_DIRECTORY, dir_fd=parent)
+                try:
+                    if _fingerprint(os.fstat(child)) != inventory[relative]:
+                        raise ComponentSnapshotProviderError()
+                    revalidate_tree(child, relative, depth + 1, seen)
+                    after = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                    if (
+                        _fingerprint(after) != inventory[relative]
+                        or _fingerprint(os.fstat(child)) != inventory[relative]
+                    ):
+                        raise ComponentSnapshotProviderError()
+                finally:
+                    os.close(child)
+            elif not stat.S_ISREG(current.st_mode):
+                raise ComponentSnapshotProviderError()
+
     try:
         with zipfile.ZipFile(
             output,
@@ -251,6 +283,10 @@ def archive_component_directory(
             allowZip64=False,
         ) as archive:
             visit(root, "", 0, archive)
+            seen = set()
+            revalidate_tree(root, "", 0, seen)
+            if seen != set(inventory):
+                raise ComponentSnapshotProviderError()
         value = output.getvalue()
         _remaining(deadline)
         if not value or len(value) > max_bytes:
