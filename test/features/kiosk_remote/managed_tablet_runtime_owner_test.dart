@@ -29,16 +29,33 @@ final class _Store implements ManagedTabletCredentialStore {
   _Store(this.value);
   ManagedTabletEnrollment? value;
   int clears = 0;
+  Completer<void>? writeStarted, writeGate;
   @override
   Future<ManagedTabletEnrollment?> read() async => value;
   @override
-  Future<void> write(ManagedTabletEnrollment value) async => this.value = value;
+  Future<void> write(ManagedTabletEnrollment value) async {
+    final started = writeStarted;
+    if (started != null && !started.isCompleted) started.complete();
+    await writeGate?.future;
+    this.value = value;
+  }
+
   @override
   Future<void> clearIfCurrent(
     ManagedTabletBinding binding,
     String pairingId,
   ) async {
     if (value?.binding == binding && value?.pairingId == pairingId) {
+      value = null;
+      clears++;
+    }
+  }
+
+  @override
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment) async {
+    if (value?.binding == enrollment.binding &&
+        value?.pairingId == enrollment.pairingId &&
+        value?.revision == enrollment.revision) {
       value = null;
       clears++;
     }
@@ -149,6 +166,152 @@ ManagedTabletRuntimeOwner _owner({
 );
 
 void main() {
+  test(
+    'explicit enrollment starts only for the exact current binding',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(null);
+      final authority = _Authority();
+      final source = _Source();
+      final broker = _Broker();
+      final owner = _owner(
+        store: store,
+        authority: authority,
+        source: source,
+        broker: broker,
+      );
+      addTearDown(owner.dispose);
+      await owner.updateBinding(enrollment.binding);
+      expect(broker.connects, 0);
+
+      await owner.enroll(enrollment.binding, enrollment);
+
+      expect(store.value?.pairingId, enrollment.pairingId);
+      expect(authority.calls, 2);
+      expect(source.binds, 1);
+      expect(broker.connects, 1);
+    },
+  );
+
+  test('explicit enrollment rejects a non-current account binding', () async {
+    final enrollment = _enrollment();
+    final store = _Store(null);
+    final owner = _owner(
+      store: store,
+      authority: _Authority(),
+      source: _Source(),
+      broker: _Broker(),
+    );
+    addTearDown(owner.dispose);
+    await owner.updateBinding(
+      ManagedTabletBinding(
+        serverBaseUrl: enrollment.serverBaseUrl,
+        coreId: enrollment.coreId,
+        homeId: enrollment.homeId,
+        accountId: '9' * 32,
+      ),
+    );
+
+    await expectLater(
+      owner.enroll(enrollment.binding, enrollment),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'managed_tablet_enrollment_denied',
+        ),
+      ),
+    );
+
+    expect(store.value, isNull);
+  });
+
+  test(
+    'account change during secure write removes the retired record',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(null)
+        ..writeStarted = Completer<void>()
+        ..writeGate = Completer<void>();
+      final owner = _owner(
+        store: store,
+        authority: _Authority(),
+        source: _Source(),
+        broker: _Broker(),
+      );
+      addTearDown(owner.dispose);
+      await owner.updateBinding(enrollment.binding);
+
+      final pending = owner.enroll(enrollment.binding, enrollment);
+      await store.writeStarted!.future;
+      await owner.updateBinding(
+        ManagedTabletBinding(
+          serverBaseUrl: enrollment.serverBaseUrl,
+          coreId: enrollment.coreId,
+          homeId: enrollment.homeId,
+          accountId: '9' * 32,
+        ),
+      );
+      store.writeGate!.complete();
+
+      await expectLater(
+        pending,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'managed_tablet_enrollment_retired',
+          ),
+        ),
+      );
+      expect(store.value, isNull);
+      expect(store.clears, 1);
+    },
+  );
+
+  test(
+    'route retirement during secure write clears the record before connect',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(null)
+        ..writeStarted = Completer<void>()
+        ..writeGate = Completer<void>();
+      final broker = _Broker();
+      final owner = _owner(
+        store: store,
+        authority: _Authority(),
+        source: _Source(),
+        broker: broker,
+      );
+      addTearDown(owner.dispose);
+      await owner.updateBinding(enrollment.binding);
+      var routeCurrent = true;
+
+      final pending = owner.enroll(
+        enrollment.binding,
+        enrollment,
+        isCurrent: () => routeCurrent,
+      );
+      await store.writeStarted!.future;
+      routeCurrent = false;
+      store.writeGate!.complete();
+
+      await expectLater(
+        pending,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'managed_tablet_enrollment_retired',
+          ),
+        ),
+      );
+      expect(store.value, isNull);
+      expect(store.clears, 1);
+      expect(broker.connects, 0);
+    },
+  );
+
   test('current Core and egress are rechecked before broker connect', () async {
     final enrollment = _enrollment();
     final store = _Store(enrollment);

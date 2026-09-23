@@ -119,6 +119,33 @@ void main() {
   });
 
   test(
+    'exact cleanup preserves a newer revision of the same pairing',
+    () async {
+      final store = SecureManagedTabletCredentialStore();
+      final first = enrollment();
+      final replacement = ManagedTabletEnrollment(
+        serverBaseUrl: first.serverBaseUrl,
+        coreId: first.coreId,
+        homeId: first.homeId,
+        accountId: first.accountId,
+        pairingId: first.pairingId,
+        deviceId: first.deviceId,
+        revision: 2,
+        scopes: const {'read'},
+        expiresAt: first.expiresAt,
+        token: 'replacement-token-replacement-token-replace',
+        clientId: first.clientId,
+        topicPrefix: first.topicPrefix,
+      );
+      await store.write(replacement);
+
+      await store.clearIfExact(first);
+
+      expect((await store.read())?.revision, 2);
+    },
+  );
+
+  test(
     'Core authority sends token only as header and validates exact scope',
     () async {
       final value = enrollment();

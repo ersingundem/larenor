@@ -367,6 +367,7 @@ abstract interface class ManagedTabletCredentialStore {
   Future<ManagedTabletEnrollment?> read();
   Future<void> write(ManagedTabletEnrollment value);
   Future<void> clearIfCurrent(ManagedTabletBinding binding, String pairingId);
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment);
 }
 
 final class SecureManagedTabletCredentialStore
@@ -422,6 +423,38 @@ final class SecureManagedTabletCredentialStore
           throw StateError('managed_tablet_credential_clear_unconfirmed');
         }
       });
+
+  @override
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment) =>
+      _run(() async {
+        try {
+          final raw = await _storage.read(key: key);
+          if (raw == null) return;
+          final current = ManagedTabletEnrollment._fromStorage(jsonDecode(raw));
+          if (_sameEnrollment(current, enrollment)) {
+            await _storage.delete(key: key);
+          }
+        } on FormatException {
+          rethrow;
+        } catch (_) {
+          throw StateError('managed_tablet_credential_clear_unconfirmed');
+        }
+      });
+
+  static bool _sameEnrollment(
+    ManagedTabletEnrollment current,
+    ManagedTabletEnrollment expected,
+  ) =>
+      current.binding == expected.binding &&
+      current.pairingId == expected.pairingId &&
+      current.deviceId == expected.deviceId &&
+      current.revision == expected.revision &&
+      current.scopes.length == expected.scopes.length &&
+      current.scopes.containsAll(expected.scopes) &&
+      current.expiresAt == expected.expiresAt &&
+      current._token == expected._token &&
+      current.clientId == expected.clientId &&
+      current.topicPrefix == expected.topicPrefix;
 
   @override
   String toString() => 'SecureManagedTabletCredentialStore(redacted)';

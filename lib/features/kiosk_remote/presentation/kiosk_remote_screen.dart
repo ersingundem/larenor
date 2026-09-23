@@ -82,7 +82,31 @@ class _KioskRemoteScreenState extends State<KioskRemoteScreen> {
                   title: Text(l10n.kioskRemoteCopySecret),
                   onTap: () => Clipboard.setData(ClipboardData(text: token)),
                 ),
+                if (controller.canEnrollCreatedPairing)
+                  SettingsActionTile(
+                    buttonKey: const ValueKey('kiosk-remote-enroll'),
+                    leading: const Icon(CupertinoIcons.lock_shield),
+                    title: Text(l10n.kioskRemoteUseOnTablet),
+                    additionalInfo: Text(l10n.kioskRemoteUseOnTabletHint),
+                    onTap: controller.busy
+                        ? null
+                        : controller.enrollCreatedPairing,
+                  ),
               ],
+            ),
+          ),
+        if (controller.enrolledPairingId != null)
+          SliverToBoxAdapter(
+            child: Semantics(
+              liveRegion: true,
+              label: l10n.kioskRemoteEnrollmentSaved,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Text(l10n.kioskRemoteEnrollmentSaved),
+              ),
             ),
           ),
         if (snapshot != null) ...[

@@ -50,6 +50,58 @@ final class ManagedTabletRuntimeOwner {
     return _schedule(generation);
   }
 
+  Future<void> enroll(
+    ManagedTabletBinding binding,
+    ManagedTabletEnrollment enrollment, {
+    bool Function()? isCurrent,
+  }) async {
+    final routeCurrent = isCurrent ?? _alwaysCurrent;
+    if (_disposed ||
+        !_foreground ||
+        _binding != binding ||
+        enrollment.binding != binding ||
+        !_guardCurrent(routeCurrent)) {
+      throw StateError('managed_tablet_enrollment_denied');
+    }
+    final generation = ++_generation;
+    await _schedule(generation, start: false);
+    if (!_enrollmentCurrent(generation, binding, routeCurrent)) {
+      throw StateError('managed_tablet_enrollment_denied');
+    }
+    await store.write(enrollment);
+    if (!_enrollmentCurrent(generation, binding, routeCurrent)) {
+      await store.clearIfExact(enrollment);
+      throw StateError('managed_tablet_enrollment_retired');
+    }
+    final startGeneration = ++_generation;
+    await _schedule(startGeneration, enrollmentGuard: routeCurrent);
+    if (!_enrollmentCurrent(startGeneration, binding, routeCurrent)) {
+      await _schedule(++_generation, start: false);
+      await store.clearIfExact(enrollment);
+      throw StateError('managed_tablet_enrollment_retired');
+    }
+  }
+
+  static bool _alwaysCurrent() => true;
+
+  bool _guardCurrent(bool Function() guard) {
+    try {
+      return guard();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _enrollmentCurrent(
+    int generation,
+    ManagedTabletBinding binding,
+    bool Function() guard,
+  ) =>
+      _current(generation) &&
+      _foreground &&
+      _binding == binding &&
+      _guardCurrent(guard);
+
   Future<void> revoke(String pairingId) async {
     final binding = _binding;
     if (_disposed || binding == null) return;
@@ -65,21 +117,32 @@ final class ManagedTabletRuntimeOwner {
     await store.clearIfCurrent(binding, pairingId);
   }
 
-  Future<void> _schedule(int generation, {bool start = true}) {
+  Future<void> _schedule(
+    int generation, {
+    bool start = true,
+    bool Function()? enrollmentGuard,
+  }) {
     // Detach and retire immediately. A previous start may be waiting on Core,
     // the broker, or telemetry; its callbacks already see the new generation.
     final retirement = _retireCurrent();
     final next = _operations.then((_) async {
       await retirement;
-      if (start && _current(generation) && _foreground && settings.enabled) {
-        await _start(generation);
+      if (start &&
+          _current(generation) &&
+          _foreground &&
+          settings.enabled &&
+          (enrollmentGuard == null || _guardCurrent(enrollmentGuard))) {
+        await _start(generation, enrollmentGuard);
       }
     });
     _operations = next.then<void>((_) {}, onError: (_, _) {});
     return next;
   }
 
-  Future<void> _start(int generation) async {
+  Future<void> _start(
+    int generation, [
+    bool Function()? enrollmentGuard,
+  ]) async {
     final binding = _binding;
     if (binding == null || !_current(generation)) return;
     ManagedTabletEnrollment? enrollment;
@@ -87,25 +150,32 @@ final class ManagedTabletRuntimeOwner {
       enrollment = await store.read();
       if (!_current(generation) || enrollment?.binding != binding) return;
       final lease = await source.bind(enrollment!.pairingId);
-      if (!_current(generation) || lease == null) {
+      if (!_runtimeCurrent(generation, enrollmentGuard) || lease == null) {
         await source.retire();
         return;
       }
       final runtime = ManagedTabletMqttRuntime(
         broker: broker,
         settings: settings,
-        authority: () => _credential(generation, binding, enrollment!),
+        authority: () =>
+            _credential(generation, binding, enrollment!, enrollmentGuard),
         telemetry: lease.readTelemetry,
         executor: lease.commandExecutor,
         stateStore: stateStore,
-        authorizeEgress: (candidate) =>
-            _authorizeEgress(generation, binding, enrollment!, candidate),
+        authorizeEgress: (candidate) => _authorizeEgress(
+          generation,
+          binding,
+          enrollment!,
+          candidate,
+          enrollmentGuard,
+        ),
         now: now,
         logger: logger,
       );
       _runtime = runtime;
       await runtime.start();
-      if (!_current(generation) || !identical(_runtime, runtime)) {
+      if (!_runtimeCurrent(generation, enrollmentGuard) ||
+          !identical(_runtime, runtime)) {
         await runtime.retire();
       }
     } on ManagedTabletRevoked {
@@ -122,10 +192,11 @@ final class ManagedTabletRuntimeOwner {
     int generation,
     ManagedTabletBinding binding,
     ManagedTabletEnrollment enrollment,
+    bool Function()? enrollmentGuard,
   ) async {
-    _assertCurrent(generation, binding);
+    _assertCurrent(generation, binding, enrollmentGuard);
     await authority.verify(binding, enrollment);
-    _assertCurrent(generation, binding);
+    _assertCurrent(generation, binding, enrollmentGuard);
     final credential = enrollment.credential;
     if (!credential.expiresAt.isAfter(now().toUtc())) {
       throw const ManagedTabletRevoked();
@@ -138,8 +209,9 @@ final class ManagedTabletRuntimeOwner {
     ManagedTabletBinding binding,
     ManagedTabletEnrollment enrollment,
     LocalMqttBrokerSettings candidate,
+    bool Function()? enrollmentGuard,
   ) async {
-    _assertCurrent(generation, binding);
+    _assertCurrent(generation, binding, enrollmentGuard);
     if (!identical(candidate, settings) ||
         !candidate.enabled ||
         !candidate.tls) {
@@ -148,14 +220,23 @@ final class ManagedTabletRuntimeOwner {
     // Do not rely on the authority result read before this callback. Recheck
     // Core after the runtime has selected the exact broker and before connect.
     await authority.verify(binding, enrollment);
-    _assertCurrent(generation, binding);
+    _assertCurrent(generation, binding, enrollmentGuard);
   }
 
-  void _assertCurrent(int generation, ManagedTabletBinding binding) {
-    if (!_current(generation) || _binding != binding || !_foreground) {
+  void _assertCurrent(
+    int generation,
+    ManagedTabletBinding binding,
+    bool Function()? enrollmentGuard,
+  ) {
+    if (!_runtimeCurrent(generation, enrollmentGuard) || _binding != binding) {
       throw StateError('managed_tablet_runtime_retired');
     }
   }
+
+  bool _runtimeCurrent(int generation, bool Function()? enrollmentGuard) =>
+      _current(generation) &&
+      _foreground &&
+      (enrollmentGuard == null || _guardCurrent(enrollmentGuard));
 
   bool _current(int generation) => !_disposed && generation == _generation;
 

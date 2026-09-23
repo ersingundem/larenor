@@ -10,16 +10,23 @@ final class KioskRemoteController extends ChangeNotifier {
     required this.api,
     required this.isCurrent,
     this.onPairingRevoked,
+    this.onPairingEnrolled,
   });
   final KioskRemoteApi api;
   final bool Function() isCurrent;
   final Future<void> Function(String pairingId)? onPairingRevoked;
+  final Future<void> Function(KioskRemoteCreated created)? onPairingEnrolled;
   KioskRemoteViewState state = KioskRemoteViewState.idle;
   KioskRemoteSnapshot? snapshot;
   String? oneTimeToken;
+  String? enrolledPairingId;
+  KioskRemoteCreated? _pendingEnrollment;
   bool busy = false;
   bool _interactive = true, _disposed = false;
   int _epoch = 0;
+
+  bool get canEnrollCreatedPairing =>
+      _pendingEnrollment != null && onPairingEnrolled != null;
 
   bool _current(int epoch) {
     try {
@@ -32,6 +39,8 @@ final class KioskRemoteController extends ChangeNotifier {
   void _stale() {
     snapshot = null;
     oneTimeToken = null;
+    enrolledPairingId = null;
+    _pendingEnrollment = null;
     busy = false;
     state = KioskRemoteViewState.stale;
     if (!_disposed) notifyListeners();
@@ -50,6 +59,8 @@ final class KioskRemoteController extends ChangeNotifier {
   Future<void> load() => _run(() async {
     snapshot = await api.load();
     oneTimeToken = null;
+    enrolledPairingId = null;
+    _pendingEnrollment = null;
   });
 
   Future<void> create(KioskRemoteDevice device, Set<String> scopes) =>
@@ -61,12 +72,30 @@ final class KioskRemoteController extends ChangeNotifier {
           devices: current.devices,
           pairings: [...current.pairings, created.pairing],
         );
+        _pendingEnrollment = created;
+        enrolledPairingId = null;
         oneTimeToken = created.token;
       });
+
+  Future<void> enrollCreatedPairing() async {
+    final created = _pendingEnrollment;
+    final enroll = onPairingEnrolled;
+    if (created == null || enroll == null) return;
+    await _run(() async {
+      await enroll(created);
+      enrolledPairingId = created.pairing.id;
+      _pendingEnrollment = null;
+      oneTimeToken = null;
+    }, clearSecret: false);
+  }
 
   Future<void> revoke(KioskRemotePairing pairing) => _run(() async {
     await api.revoke(pairing);
     await onPairingRevoked?.call(pairing.id);
+    if (_pendingEnrollment?.pairing.id == pairing.id) {
+      _pendingEnrollment = null;
+    }
+    if (enrolledPairingId == pairing.id) enrolledPairingId = null;
     final current = snapshot;
     if (current != null) {
       snapshot = KioskRemoteSnapshot(
@@ -79,12 +108,19 @@ final class KioskRemoteController extends ChangeNotifier {
     oneTimeToken = null;
   });
 
-  Future<void> _run(Future<void> Function() operation) async {
+  Future<void> _run(
+    Future<void> Function() operation, {
+    bool clearSecret = true,
+  }) async {
     if (busy) return;
     final epoch = ++_epoch;
     if (!_current(epoch)) return _stale();
     busy = true;
-    oneTimeToken = null;
+    if (clearSecret) {
+      oneTimeToken = null;
+      _pendingEnrollment = null;
+      enrolledPairingId = null;
+    }
     state = snapshot == null
         ? KioskRemoteViewState.loading
         : KioskRemoteViewState.ready;
