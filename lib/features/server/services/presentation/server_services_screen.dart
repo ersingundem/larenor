@@ -16,6 +16,7 @@ import '../../../media/hub/presentation/media_session_state.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
+import '../../component_egress/presentation/server_component_egress_dialog.dart';
 import '../data/server_services_controller.dart';
 import '../domain/server_service_models.dart';
 
@@ -230,6 +231,16 @@ class _ServerServicesScreenState
     await _services.forget(service, current: current);
   }
 
+  Future<void> _manageEgress(ServerService service) async {
+    await _show<void>(
+      (context, valid) => ServerComponentEgressDialog(
+        account: _account,
+        service: service,
+        current: valid,
+      ),
+    );
+  }
+
   String _failure(AppLocalizations l10n) => switch (_services.failure) {
     'service_limit_reached' => l10n.serverServicesLimit,
     'service_credentials_required' ||
@@ -403,6 +414,24 @@ class _ServerServicesScreenState
             ),
             Wrap(
               children: [
+                if ({
+                  ServerServiceKind.homeAssistant,
+                  ServerServiceKind.proxmox,
+                  ServerServiceKind.keenetic,
+                }.contains(service.kind))
+                  _serviceButton(
+                    context,
+                    current: _capture(),
+                    key: ValueKey('service-egress-${service.id}'),
+                    onPressed: _enabled
+                        ? _callback(() => _manageEgress(service))
+                        : null,
+                    child: Text(
+                      l10n.serverEgressManage,
+                      semanticsLabel:
+                          '${service.name}, ${l10n.serverEgressManage}',
+                    ),
+                  ),
                 _serviceButton(
                   context,
                   current: _capture(),
