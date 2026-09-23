@@ -6,9 +6,9 @@ This slice completes the server half of the private component-snapshot IPC contr
 
 ## Three delivered jobs
 
-1. **Private listener ownership.** The host worker binds only an absolute, bounded Unix path inside an existing owner-matched directory that is not group/world writable. The socket is mode `0600`; its host owner UID and the allowed Core client UID are independent, and cleanup unlinks only the exact inode it created.
+1. **Private listener ownership.** The host worker binds only an absolute, bounded Unix path inside an existing owner-matched directory that is not group/world writable. Same-UID operation uses mode `0600`. A distinct Core client requires an exact integer socket GID, an owner/GID-matched group-traversable parent, and mode `0660`; peer UID authentication remains independent. Cleanup unlinks only the exact inode it created.
 2. **Exact quiescence lifecycle.** A strict protocol/version/request/timeout frame opens one provider-owned quiescence context. Bounded, catalog-compatible snapshots are sorted and streamed with exact SHA-256 descriptors. The context stays held until the same request sends the exact release frame; foreign releases and disconnects release the provider without completing the operation.
-3. **Recoverable single-flight service.** The listener handles clients sequentially, supports a valid empty installed-component set, and remains available after a foreign peer, malformed typed identity/protocol field, or private provider exception. No exception text, path, payload, or host detail crosses the socket.
+3. **Recoverable single-flight service.** The listener handles clients sequentially, supports a valid empty installed-component set, and remains available after a foreign peer, malformed typed identity/protocol field, or arbitrary private provider exception. No exception text, path, payload, or host detail crosses the socket.
 
 ## RED and GREEN evidence
 
@@ -24,7 +24,14 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **24 passed**. The package covers client/server framing, digest and size bounds, separate socket-owner/client identity, exact typed UID/protocol policy, an empty component catalog, normal and foreign release, provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
+Result: **30 passed**. The package covers client/server framing, digest and size bounds, separate socket-owner/client identity with exact group access, exact typed UID/GID/protocol policy, an empty component catalog, normal and foreign release, arbitrary provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
+
+Independent review RED commits `89c98d58` and `7efb4912` proved that an
+unlisted provider exception terminated `serve_forever` and that the claimed
+distinct client UID could not connect through a mode `0600` socket. GREEN
+commit `a1607d77` contains all private provider exceptions at the connection
+boundary and adds the exact optional GID/mode/parent traversal contract while
+preserving the same-UID `0600` default.
 
 ## Remaining S09.1 gates
 
