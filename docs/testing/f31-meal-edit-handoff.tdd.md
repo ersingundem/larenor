@@ -1,9 +1,10 @@
 # F31 meal editing and shopping handoff boundary
 
 The original foundation and this follow-up close the remaining tablet product
-flow in three concrete jobs. `F31` remains pending until this exact head has
-independent review and full CI evidence, so queue progress remains **26/125**
-and selected-feature progress remains **0/63**.
+flow in three concrete jobs. Independent review and all required exact-head
+checks passed on `4f9e0351`, which merged as `9fedf43b`. `F31` remains pending
+because its `B3` dependency is not complete, so queue progress remains
+**26/125** and selected-feature progress remains **0/63**.
 
 ## Accepted behavior
 
@@ -52,8 +53,7 @@ observes revision 2 before proving the old revision conflicts. The focused
 tablet suite covers English/Turkish layouts at 600/1280 logical pixels with 2x
 text, 48dp actions, scrolling, selection, explicit confirmation and late
 lifecycle retirement. The grouped meal-planner tests and targeted Flutter
-analysis are the local gate; exact-head CI and independent review remain the
-formal completion gate.
+analysis passed locally; exact-head CI and independent review also completed.
 
 Independent review RED commit `fcb3cda5` replaced `todayActionsProvider`
 while the first ingredient readback was delayed and proved the old Home
@@ -74,7 +74,8 @@ clean.
 
 ## Remaining F31 blocker
 
-- Exact-head independent review and full CI are still pending. Those required
-  evidence gates prevent `F31` completion and keep both progress counters
-  unchanged. Physical Home Assistant/tablet validation remains separately
-  tracked and is not claimed by this software acceptance.
+- F31 depends on the complete `B3` group. S08.8 and S08.11 are still `pending`,
+  so the execution-queue validator rejects F31 completion with
+  `dependencies_unfinished`. Both progress counters therefore remain unchanged.
+  Physical Home Assistant/tablet validation remains separately tracked and is
+  not claimed by this software acceptance.

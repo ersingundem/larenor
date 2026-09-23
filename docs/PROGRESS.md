@@ -17,6 +17,40 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 23 Eylül birleşik teslim kanıtı — PR #439, #443–#447
+
+Stable main `36e05f9a`, altı bağımsız dilimin exact kaynaklarını ve birleşme
+sonuçlarını içeriyor. Bütün zorunlu statik analiz, dört Flutter shardı, dört
+Server shardı, API 35 emülatör yolculukları, debug APK, Security ve yönetilen
+medya native kabul işleri ilgili exact headlerde geçti.
+
+| PR / kuyruk alanı | Exact head → merge | Odaklı test ve inceleme | Exact CI |
+| --- | --- | --- | --- |
+| #439 / F28 | `92253ca1` → `38cefa3a` | 29/29; provider, URI ve worker-scope bağımsız RED/GREEN denetimi | Android `35878111557`, Security `35878111086` |
+| #443 / S08.8 | `a150291f` → `9212c3f7` | 25 Server + 18 Flutter; tek hedef, schema ve geç authority RED/GREEN denetimi | Android `35878923924`, Security `35878923225` |
+| #444 / F24 | `900c0b74` → `193a6c77` | 71 Flutter + 15 Server; session-family rotation ve legacy sözleşme denetimi | Android `35882571258`, Security `35882570560` |
+| #445 / F31 | `4f9e0351` → `9fedf43b` | 46 odaklı; Home Assistant action-owner değişimi RED/GREEN denetimi | Android `35879827342`, Security `35879826820` |
+| #446 / S09.1 | `12c6ddf0` → `c9e7cc08` | 31/31; cross-UID socket, provider hatası ve release-ACK denetimi | Android `35884049752`, Security `35884049756` |
+| #447 / S09.1 | `11139268` → `36e05f9a` | 49/49; bounded enumeration P2 RED/GREEN ve exact-head yeniden inceleme | Android `35887465363`, Security `35887464912` |
+
+Bu birleşmeler sayaç artırmaz. S08.8 eski ayar geçişi ve typed cache/provider/
+player/queue kapsamını; F28 chapter eylemleri, bookmark, sleep timer,
+MediaSession ve gerçek Music Assistant fixture'ını; F24 altyazı sağlayıcısı
+consent/kota ile gerçek renderer/subtitle-engine kanıtını bekliyor. F31'in kendi
+ürün, test, inceleme ve CI kanıtı tamamlandı; ancak `B3` bağımlılığı içindeki
+S08.8 ve S08.11 `pending` olduğundan validator F31 kapanışını reddediyor. S09.1
+ise ayrıcalıklı gerçek provider, journal-bound capture, restore/rollback,
+kesinti ve büyük hacim iki mimari kabulünü bekliyor.
+
+[PR #447](https://github.com/ersingundem/larenor/pull/447) exact
+`11139268` ile bounded managed-volume provider dilimini tamamlayıp `36e05f9a`
+olarak birleşti. Bağımsız P2
+incelemesindeki RED `3f5fba8e`, dizin girdilerinin sınır uygulanmadan önce
+toplanıp sıralandığını gösterdi; GREEN `28ac68d4` enumeration'ı sıralama öncesi
+sınırladı ve odaklı paket **49/49** geçti. Bu dilim S09.1'in Engine/journal,
+restore ve native kabul kapılarını tek başına kapatmadığından kuyruk
+**26/125 (%20,8)**, seçili özellik kabulü **0/63** kalır.
+
 ### K07 açık tablet eşleştirmesi — inceleme dilimi
 
 Yönetici artık Core'un ürettiği tek kullanımlık eşleştirme sırrını yalnız ayrı

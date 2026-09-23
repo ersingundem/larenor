@@ -42,4 +42,11 @@ the completed-operation count.
 
 ## Remaining S09.1 gates
 
-The packaged privileged provider still needs to pause the exact installed component set and create bounded read-only snapshots from the journal-bound managed volumes. Component restore/rollback, interruption recovery, large-volume amd64/arm64 acceptance, independent review and exact-head CI remain open. Queue progress stays **26/125** and selected-feature progress stays **0/63**.
+Independent review and all required exact-head checks passed on `12c6ddf0`,
+which merged as `c9e7cc08`. The bounded managed-volume provider exact
+`11139268` then passed independent review and all required checks and merged as
+`36e05f9a` in PR #447. Production Engine and durable installation-journal
+adapters, hostile/shared-writer
+read-only snapshot safety, component restore/rollback, interruption recovery
+and large-volume amd64/arm64 acceptance remain open. Queue progress stays
+**26/125** and selected-feature progress stays **0/63**.
