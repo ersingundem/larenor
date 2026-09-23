@@ -17,6 +17,8 @@ from .media_playback_models import (
     PrivateMediaPlaybackAuthority,
 )
 
+_MAX_RECORDS = 256
+
 
 class MediaPlaybackManagement:
     def __init__(self, db, auth, settings, archive, backend=None):
@@ -27,9 +29,14 @@ class MediaPlaybackManagement:
         try:
             with self.db.connection() as connection:
                 rows = connection.execute(
-                    'SELECT targets_json FROM media_playback_intents LIMIT 257'
+                    'SELECT targets_json FROM media_playback_intents LIMIT ?',
+                    (_MAX_RECORDS + 1,),
                 ).fetchall()
-                if len(rows) > 256:
+                receipt_rows = connection.execute(
+                    'SELECT request_id FROM media_playback_receipts LIMIT ?',
+                    (_MAX_RECORDS + 1,),
+                ).fetchall()
+                if len(rows) > _MAX_RECORDS or len(receipt_rows) > _MAX_RECORDS:
                     raise ValueError()
                 for row in rows:
                     targets = json.loads(row['targets_json'])
@@ -116,6 +123,11 @@ class MediaPlaybackManagement:
                     (body.requestId,)).fetchone()
                 if existing is not None:
                     raise ApiError('media_playback_intent_conflict', 409)
+                count = connection.execute(
+                    'SELECT COUNT(*) AS count FROM media_playback_intents'
+                ).fetchone()['count']
+                if count >= _MAX_RECORDS:
+                    raise ApiError('media_playback_storage_unavailable', 503)
                 connection.execute(
                     'INSERT INTO media_playback_intents VALUES('
                     '?,?,?,?,?,?,?,?,?,?,?,NULL)',
@@ -202,6 +214,11 @@ class MediaPlaybackManagement:
             raise ApiError('media_playback_authority_changed', 409)
         with self.db.transaction() as connection:
             self.auth.assert_current(connection, actor)
+            receipt_count = connection.execute(
+                'SELECT COUNT(*) AS count FROM media_playback_receipts'
+            ).fetchone()['count']
+            if receipt_count >= _MAX_RECORDS:
+                raise ApiError('media_playback_storage_unavailable', 503)
             changed = connection.execute(
                 'UPDATE media_playback_intents SET consumed_by=? '
                 'WHERE id=? AND consumed_by IS NULL',

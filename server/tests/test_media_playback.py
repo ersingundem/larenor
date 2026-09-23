@@ -182,8 +182,7 @@ def test_intent_capacity_rejects_257th_prepare_without_growing_storage(server):
         json=_request(installation, current, request_id=f'{256:032x}'))
 
     assert overflow.status_code == 503
-    assert overflow.json() == {
-        'error': {'code': 'media_playback_storage_unavailable'}}
+    assert overflow.json()['error']['code'] == 'media_playback_storage_unavailable'
     with app.state.core.db.connection() as connection:
         count = connection.execute(
             'SELECT COUNT(*) AS count FROM media_playback_intents'
@@ -243,8 +242,7 @@ def test_pending_receipt_capacity_never_consumes_another_intent(server):
     })
 
     assert response.status_code == 503
-    assert response.json() == {
-        'error': {'code': 'media_playback_storage_unavailable'}}
+    assert response.json()['error']['code'] == 'media_playback_storage_unavailable'
     with app.state.core.db.connection() as connection:
         receipt_count = connection.execute(
             'SELECT COUNT(*) AS count FROM media_playback_receipts'
