@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/web_panel/data/web_panel_renderer_monitor.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,12 +29,24 @@ void main() {
         channel: channel,
         attachmentIds: () => '0123456789abcdef0123456789abcdef',
       );
+      final policy = WebPanelPolicy.fromUrl(
+        'https://fixture.invalid/start',
+        additionalOrigins: {WebOrigin.parse('http://login.invalid:8080')!},
+      )!;
 
-      final handle = await monitor.attachIdentifier(41, () => events++);
+      final handle = await monitor.attachIdentifier(
+        41,
+        policy.allowedOrigins,
+        () => events++,
+      );
       expect(calls.single.method, 'attach');
       expect(calls.single.arguments, {
         'webViewIdentifier': 41,
         'attachmentId': '0123456789abcdef0123456789abcdef',
+        'allowedOrigins': [
+          {'scheme': 'http', 'host': 'login.invalid', 'port': 8080},
+          {'scheme': 'https', 'host': 'fixture.invalid', 'port': 443},
+        ],
       });
 
       await messenger.handlePlatformMessage(
@@ -80,7 +93,11 @@ void main() {
         channel: channel,
         attachmentIds: () => 'abcdef0123456789abcdef0123456789',
       );
-      final handle = await monitor.attachIdentifier(72, () => events++);
+      final handle = await monitor.attachIdentifier(
+        72,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () => events++,
+      );
       final pending = handle.dispose();
 
       await messenger.handlePlatformMessage(
@@ -106,7 +123,11 @@ void main() {
       attachmentIds: () => 'bad',
     );
     await expectLater(
-      malformed.attachIdentifier(1, () {}),
+      malformed.attachIdentifier(
+        1,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () {},
+      ),
       throwsA(isA<StateError>()),
     );
 
@@ -115,7 +136,15 @@ void main() {
       attachmentIds: () => '0123456789abcdef0123456789abcdef',
     );
     await expectLater(
-      rejected.attachIdentifier(1, () {}),
+      rejected.attachIdentifier(
+        1,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () {},
+      ),
+      throwsA(isA<StateError>()),
+    );
+    await expectLater(
+      rejected.attachIdentifier(1, const {}, () {}),
       throwsA(isA<StateError>()),
     );
   });
