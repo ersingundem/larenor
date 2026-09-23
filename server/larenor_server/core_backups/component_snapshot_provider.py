@@ -150,6 +150,7 @@ def archive_component_directory(
             raise ComponentSnapshotProviderError("snapshot_unavailable")
         _remaining(deadline)
         before_names = sorted(os.listdir(parent))
+        observed = {}
         for name in before_names:
             _remaining(deadline)
             if not _safe_name(name):
@@ -181,6 +182,7 @@ def archive_component_directory(
                         or _fingerprint(os.fstat(child)) != _fingerprint(opened)
                     ):
                         raise ComponentSnapshotProviderError()
+                    observed[name] = _fingerprint(after)
                 finally:
                     os.close(child)
             elif stat.S_ISREG(before.st_mode) and before.st_nlink == 1:
@@ -214,6 +216,7 @@ def archive_component_directory(
                         or _fingerprint(os.fstat(child)) != _fingerprint(opened)
                     ):
                         raise ComponentSnapshotProviderError()
+                    observed[name] = _fingerprint(after)
                     try:
                         archive.writestr(
                             _zip_info(
@@ -233,6 +236,10 @@ def archive_component_directory(
         _remaining(deadline)
         if sorted(os.listdir(parent)) != before_names:
             raise ComponentSnapshotProviderError()
+        for name in before_names:
+            current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            if _fingerprint(current) != observed[name]:
+                raise ComponentSnapshotProviderError()
 
     try:
         with zipfile.ZipFile(
