@@ -4,9 +4,14 @@ from pathlib import Path
 import tempfile
 import time
 
+import pytest
+
 from larenor_server.plugins.installation_ipc import (
     InstallationWorkerClient,
     InstallationWorkerServer,
+)
+from larenor_server.plugins.jellyfin_playback_executor import (
+    JellyfinPlaybackExecutionError,
 )
 from larenor_server.plugins.media_playback_models import (
     MediaPlaybackReadback,
@@ -49,6 +54,7 @@ def private_action():
 class Backend:
     def __init__(self):
         self.calls = []
+        self.execute_error = None
 
     def read_media_playback(self, authority, *, deadline, gate):
         assert deadline > time.monotonic() and gate() is True
@@ -63,6 +69,8 @@ class Backend:
     def execute_media_playback(self, action, *, deadline, gate):
         assert deadline > time.monotonic() and gate() is True
         self.calls.append(('execute', action))
+        if self.execute_error is not None:
+            raise self.execute_error
         return MediaPlaybackWorkerResult(
             state='succeeded', playbackRevision=8,
             target=MediaPlaybackTarget(
@@ -102,3 +110,19 @@ def test_private_playback_authority_and_effect_roundtrip_without_secret_repr():
     assert result.playbackRevision == 8
     assert [call[0] for call in backend.calls] == ['read', 'execute']
     assert TOKEN not in repr(authority) + repr(action) + repr(backend.calls)
+
+
+def test_pre_effect_failure_keeps_typed_no_effect_classification_over_ipc():
+    with running() as (backend, client):
+        backend.execute_error = JellyfinPlaybackExecutionError(
+            'jellyfin_playback_authority_changed', uncertain_effect=False)
+
+        with pytest.raises(
+                JellyfinPlaybackExecutionError,
+                match='^jellyfin_playback_authority_changed$') as raised:
+            client.execute_media_playback(
+                private_action(), deadline=time.monotonic() + .4,
+                gate=lambda: True)
+
+    assert raised.value.uncertain_effect is False
+    assert [call[0] for call in backend.calls] == ['execute']

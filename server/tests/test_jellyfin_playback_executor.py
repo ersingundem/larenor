@@ -1,3 +1,4 @@
+from dataclasses import replace
 import time
 
 import pytest
@@ -113,6 +114,25 @@ def test_execute_opens_three_fresh_proved_streams_and_verifies_final_endpoint(
     assert len(calls) == 3
     assert all(connection.closed for connection in connections)
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 4
+
+
+def test_opened_connection_closes_when_returned_proof_mismatches_fresh_proof(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    connection = Connection(response('200 OK', sessions()))
+    proof = prove_jellyfin_endpoint(
+        engine.container, binding, stack, engine.container['Id'])
+    monkeypatch.setattr(
+        'larenor_server.plugins.jellyfin_playback_executor.open_jellyfin_endpoint',
+        lambda *_args, **_kwargs: OpenJellyfinEndpoint(
+            connection, replace(proof, address='172.28.0.99')))
+
+    with pytest.raises(JellyfinPlaybackExecutionError):
+        executor(binding, operations).read(
+            authority(stack), deadline=time.monotonic() + 1,
+            gate=lambda: True)
+
+    assert connection.closed
 
 
 def test_execute_revalidates_retained_authority_immediately_before_post(
