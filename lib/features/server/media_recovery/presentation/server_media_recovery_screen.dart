@@ -160,21 +160,26 @@ class _ServerMediaRecoveryScreenState
 
   String _stored(AppLocalizations l, String value) =>
       value == 'stored' ? l.serverRecoveryStored : l.serverRecoveryNotStored;
+  String _process(AppLocalizations l, String value) => switch (value) {
+    'started' => l.serverRecoveryProcessStarted,
+    'pending' => l.serverRecoveryProcessPending,
+    _ => l.serverRecoveryProcessUnknown,
+  };
+  String _integration(AppLocalizations l, String value) => value == 'verified'
+      ? l.serverRecoveryIntegrationVerified
+      : l.serverRecoveryIntegrationUnverified;
   String _reachable(AppLocalizations l, String value) => switch (value) {
     'reachable' => l.serverRecoveryReachable,
     'unreachable' => l.serverRecoveryUnreachable,
     _ => l.serverRecoveryReachabilityUnknown,
   };
-  String _verified(AppLocalizations l, String value) => value == 'verified'
-      ? l.serverRecoveryVerified
-      : l.serverRecoveryUnverified;
-
   Widget _component(AppLocalizations l, ServerMediaRecoveryService item) {
     final name = _service(l, item.serviceId);
     final state =
         '${_stored(l, item.storedState)}. '
+        '${_process(l, item.containerState)}. '
         '${_reachable(l, item.reachableState)}. '
-        '${_verified(l, item.verifiedState)}.';
+        '${_integration(l, item.serviceState)}.';
     final observed = item.updatedAt == null
         ? null
         : '${l.serverRecoveryObservedAt}: '

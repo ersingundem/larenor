@@ -19,6 +19,8 @@ class ServerMediaRecoveryService {
     required this.sourceKind,
     required this.revision,
     required this.resultState,
+    required this.containerState,
+    required this.serviceState,
     required this.storedState,
     required this.reachableState,
     required this.verifiedState,
@@ -153,6 +155,8 @@ class ServerMediaRecoveryService {
       sourceKind: sourceKind,
       revision: revision as int?,
       resultState: result,
+      containerState: container,
+      serviceState: service,
       storedState: stored,
       reachableState: reachable,
       verifiedState: verified,
@@ -163,7 +167,8 @@ class ServerMediaRecoveryService {
 
   final String serviceId;
   final String? sourceId;
-  final String sourceKind, resultState, storedState, reachableState;
+  final String sourceKind, resultState, containerState, serviceState;
+  final String storedState, reachableState;
   final String verifiedState, recoveryAction;
   final int? revision;
   final DateTime? updatedAt;
