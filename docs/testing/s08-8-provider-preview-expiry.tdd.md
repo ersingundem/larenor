@@ -24,6 +24,11 @@ expired/future response and expiry-during-confirm coverage. The model accepted
 off-by-one lifetimes and the controller lacked both a clock seam and expiry
 checks.
 
+Independent review found the future-response case had drifted to the machine
+clock and therefore duplicated the expired case. Commit `ed50e226` binds both
+boundary cases to the same exact UTC instant, so the future-authority rejection
+is exercised rather than inferred.
+
 ## GREEN
 
 Run from the branch head:
