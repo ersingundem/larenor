@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/media/jellyfin/data/legacy_jellyfin_provider_preview.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/services/presentation/server_services_screen.dart';
@@ -33,9 +34,14 @@ void main() {
     String language = 'en',
     String storedKind = 'jellyfin',
     List<String> storedCredentialKeys = const ['token'],
+    LegacyJellyfinProviderMigrationGateway? legacyMigration,
+    Map<String, String> secureValues = const {},
   }) async {
     SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
+    FlutterSecureStorage.setMockInitialValues({
+      'settings_pin': '1234',
+      ...secureValues,
+    });
     fixture = ServicesFixture(role: role);
     if (existing) {
       fixture.records.add({
@@ -72,12 +78,20 @@ void main() {
           home: gate
               ? const SettingsGateScreen()
               : visible == null
-              ? const ServerServicesScreen()
+              ? ServerServicesScreen(
+                  legacyMigrationFactory: legacyMigration == null
+                      ? null
+                      : (_) => legacyMigration,
+                )
               : ValueListenableBuilder(
                   valueListenable: visible,
                   builder: (_, enabled, _) => TickerMode(
                     enabled: enabled,
-                    child: const ServerServicesScreen(),
+                    child: ServerServicesScreen(
+                      legacyMigrationFactory: legacyMigration == null
+                          ? null
+                          : (_) => legacyMigration,
+                    ),
                   ),
                 ),
         ),
@@ -113,6 +127,106 @@ void main() {
       isNot(contains('synthetic-service-secret')),
     );
   }
+
+  testWidgets(
+    'legacy Jellyfin retirement is explicit and requires a refreshed authenticated Core target',
+    (tester) async {
+      const legacy = {
+        'jellyfin_base_url': 'https://legacy.private.invalid',
+        'jellyfin_user_id': 'private-user',
+        'jellyfin_access_token': 'private-token',
+      };
+      await mount(tester, secureValues: legacy);
+
+      expect(
+        find.byKey(const ValueKey('services-legacy-jellyfin-review')),
+        findsOneWidget,
+      );
+      expect(
+        await const FlutterSecureStorage().read(key: 'jellyfin_access_token'),
+        legacy['jellyfin_access_token'],
+      );
+
+      await tap(tester, 'services-legacy-jellyfin-review');
+      expect(
+        find.byKey(ValueKey('services-legacy-jellyfin-confirm-$serviceId')),
+        findsNothing,
+      );
+
+      fixture.records.single
+        ..['revision'] = 2
+        ..['verification'] = {
+          'state': 'authenticated',
+          'checkedAt': '2026-09-23T10:00:00.000Z',
+          'version': '10.11',
+        };
+      await tap(tester, 'services-refresh');
+      await tap(tester, 'services-legacy-jellyfin-confirm-$serviceId');
+      expect(
+        await const FlutterSecureStorage().read(key: 'jellyfin_access_token'),
+        legacy['jellyfin_access_token'],
+      );
+      await tap(tester, 'services-legacy-jellyfin-confirm-dialog');
+
+      expect(
+        find.byKey(const ValueKey('services-legacy-jellyfin-success')),
+        findsOneWidget,
+      );
+      for (final key in legacy.keys) {
+        expect(await const FlutterSecureStorage().read(key: key), isNull);
+      }
+      final visible = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((widget) => widget.data ?? '')
+          .join(' ');
+      for (final secret in legacy.values) {
+        expect(visible, isNot(contains(secret)));
+      }
+    },
+  );
+
+  testWidgets(
+    'authority loss retires a held legacy Jellyfin confirmation without deleting credentials',
+    (tester) async {
+      const legacy = {
+        'jellyfin_base_url': 'https://legacy.private.invalid',
+        'jellyfin_user_id': 'private-user',
+        'jellyfin_access_token': 'private-token',
+      };
+      await mount(tester, secureValues: legacy);
+      await tap(tester, 'services-legacy-jellyfin-review');
+      fixture.records.single
+        ..['revision'] = 2
+        ..['verification'] = {
+          'state': 'authenticated',
+          'checkedAt': '2026-09-23T10:00:00.000Z',
+          'version': '10.11',
+        };
+      await tap(tester, 'services-refresh');
+      final held = tester
+          .widget<CupertinoButton>(
+            find.byKey(ValueKey('services-legacy-jellyfin-confirm-$serviceId')),
+          )
+          .onPressed!;
+
+      await fixture.account.signOut();
+      await tester.pumpAndSettle();
+      held();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('services-legacy-jellyfin-confirm-dialog')),
+        findsNothing,
+      );
+      for (final entry in legacy.entries) {
+        expect(
+          await const FlutterSecureStorage().read(key: entry.key),
+          entry.value,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'create, explicit check, edit-preserve, edit-clear and forget use real contract',

@@ -141,7 +141,22 @@ final class _LegacyJellyfinProviderMigrationState {
 
 /// Moves authority to a newly entered and freshly authenticated Core service,
 /// then retires the old device-local credential tuple without copying it.
-final class LegacyJellyfinProviderMigration {
+abstract interface class LegacyJellyfinProviderMigrationGateway {
+  Future<LegacyJellyfinProviderMigrationReceipt?> prepare({
+    required bool Function() isCurrent,
+  });
+
+  Future<void> confirm(
+    LegacyJellyfinProviderMigrationReceipt receipt,
+    ServerService target, {
+    required bool Function() isCurrent,
+  });
+
+  void dispose();
+}
+
+final class LegacyJellyfinProviderMigration
+    implements LegacyJellyfinProviderMigrationGateway {
   LegacyJellyfinProviderMigration({
     required ServerAccountController account,
     FlutterSecureStorage? storage,
@@ -178,6 +193,7 @@ final class LegacyJellyfinProviderMigration {
     _account.removeListener(_accountChanged);
   }
 
+  @override
   void dispose() => _retire();
 
   void _check(bool Function() isCurrent) {
@@ -228,6 +244,7 @@ final class LegacyJellyfinProviderMigration {
     return result;
   }
 
+  @override
   Future<LegacyJellyfinProviderMigrationReceipt?> prepare({
     required bool Function() isCurrent,
   }) async {
@@ -251,6 +268,7 @@ final class LegacyJellyfinProviderMigration {
     return receipt;
   }
 
+  @override
   Future<void> confirm(
     LegacyJellyfinProviderMigrationReceipt receipt,
     ServerService target, {
