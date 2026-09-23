@@ -8,6 +8,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 final class _MemoryBackend implements ServerMediaFlowCacheBackend {
   String? value;
   int writes = 0, clears = 0;
+  String? replacementBeforeMutation;
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) value = replacement;
+    if (value != expected) return false;
+    clears++;
+    value = null;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndWrite(String? expected, String value) async {
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) this.value = replacement;
+    if (this.value != expected) return false;
+    writes++;
+    this.value = value;
+    return true;
+  }
 
   @override
   Future<void> clear() async {
@@ -238,6 +261,69 @@ void main() {
     backend.value = jsonEncode(resourceRaw);
 
     expect(await cache.read(_scope, authority), isNull);
+    expect(backend.value, isNull);
+  });
+
+  test(
+    'malformed expired and oversized cleanup preserves a replacement owner',
+    () async {
+      for (final invalid in ['malformed', 'expired', 'oversized']) {
+        final backend = _MemoryBackend();
+        var now = DateTime.utc(2026, 9, 23, 8);
+        final cache = ServerMediaFlowCache(backend: backend, now: () => now);
+        await cache.write(_scope, _flow());
+        final valid = backend.value!;
+
+        switch (invalid) {
+          case 'malformed':
+            final record = jsonDecode(valid) as Map<String, dynamic>;
+            record['unexpected'] = true;
+            backend.value = jsonEncode(record);
+          case 'expired':
+            backend.value = valid;
+            now = now.add(ServerMediaFlowCache.timeToLive);
+          case 'oversized':
+            backend.value = 'x' * (ServerMediaFlowCache.maximumBytes + 1);
+        }
+        backend.replacementBeforeMutation = valid;
+
+        expect(await cache.read(_scope, _authority()), isNull, reason: invalid);
+        expect(backend.value, valid, reason: invalid);
+      }
+    },
+  );
+
+  test('a stale writer cannot replace a newer exact flow record', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMediaFlowCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    await cache.write(_scope, _flow());
+    final stale = backend.value!;
+    await cache.write(_scope, _flow(flowRevision: 10));
+    final replacement = backend.value!;
+    backend.value = stale;
+    backend.replacementBeforeMutation = replacement;
+
+    await cache.write(_scope, _flow());
+
+    expect(backend.value, replacement);
+    expect(await cache.read(_scope, _authority(flowRevision: 10)), isNotNull);
+  });
+
+  test('schema version requires exact integer one', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMediaFlowCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    await cache.write(_scope, _flow());
+    final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+    record['schemaVersion'] = 1.0;
+    backend.value = jsonEncode(record);
+
+    expect(await cache.read(_scope, _authority()), isNull);
     expect(backend.value, isNull);
   });
 }
