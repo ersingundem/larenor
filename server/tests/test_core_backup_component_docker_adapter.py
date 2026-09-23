@@ -1,13 +1,12 @@
 """Synthetic Unix Engine coverage for the component backup Docker adapter."""
 
-from contextlib import contextmanager
 import copy
 import importlib
 import importlib.util
 import time
+from contextlib import contextmanager
 
 import pytest
-
 from larenor_server.core_backups.component_installation_authority import (
     DurableComponentInstallationAuthority,
 )
@@ -264,12 +263,12 @@ def test_pause_and_unpause_use_one_effect_each_with_fresh_state_reconciliation(
                 endpoint,
                 authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=1.0,
+                effect_seconds=4.0,
             )
             adapter.sources(time.monotonic() + 5)
-            assert adapter.pause(receipt.container_id, time.monotonic() + 5) is True
+            assert adapter.pause(receipt.container_id, time.monotonic() + 12) is True
             assert state["paused"] is True
-            assert adapter.unpause(receipt.container_id, time.monotonic() + 5) is True
+            assert adapter.unpause(receipt.container_id, time.monotonic() + 12) is True
             assert state["paused"] is False
 
         assert effect_operations(calls) == [
@@ -321,7 +320,7 @@ def test_ambiguous_pause_never_replays_and_cleanup_waits_for_late_effect(
 
         def reply(request, calls):
             if request[0].startswith("POST ") and "/pause " in request[0]:
-                time.sleep(0.4)
+                time.sleep(5.0)
                 return None
             return ordinary(request, calls)
 
@@ -329,18 +328,18 @@ def test_ambiguous_pause_never_replays_and_cleanup_waits_for_late_effect(
             adapter = api().UnixDockerComponentSnapshotAdapter(
                 endpoint, authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=0.2,
+                effect_seconds=4.0,
             )
             adapter.sources(time.monotonic() + 5)
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.pause(receipt.container_id, time.monotonic() + 5)
+                adapter.pause(receipt.container_id, time.monotonic() + 12)
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.pause(receipt.container_id, time.monotonic() + 5)
+                adapter.pause(receipt.container_id, time.monotonic() + 12)
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+                adapter.unpause(receipt.container_id, time.monotonic() + 12)
             state["paused"] = True
             assert adapter.unpause(
-                receipt.container_id, time.monotonic() + 5) is True
+                receipt.container_id, time.monotonic() + 12) is True
 
         operations = effect_operations(calls)
         assert sum("/pause " in item for item in operations) == 1
@@ -358,7 +357,7 @@ def test_ambiguous_unpause_never_replays_post(tmp_path):
 
         def reply(request, calls):
             if request[0].startswith("POST ") and "/unpause " in request[0]:
-                time.sleep(0.4)
+                time.sleep(5.0)
                 return None
             return ordinary(request, calls)
 
@@ -366,15 +365,15 @@ def test_ambiguous_unpause_never_replays_post(tmp_path):
             adapter = api().UnixDockerComponentSnapshotAdapter(
                 endpoint, authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=0.2,
+                effect_seconds=4.0,
             )
             adapter.sources(time.monotonic() + 5)
             assert adapter.pause(
-                receipt.container_id, time.monotonic() + 5) is True
+                receipt.container_id, time.monotonic() + 12) is True
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+                adapter.unpause(receipt.container_id, time.monotonic() + 12)
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+                adapter.unpause(receipt.container_id, time.monotonic() + 12)
 
         operations = effect_operations(calls)
         assert sum("/pause " in item for item in operations) == 1
