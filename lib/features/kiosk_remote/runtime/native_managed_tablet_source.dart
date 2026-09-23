@@ -22,6 +22,30 @@ final class NativeManagedTabletSourceConfig {
   final bool enabled;
 }
 
+abstract interface class ManagedTabletLocalActions {
+  Future<void> refreshDashboard({required bool Function() isCurrent});
+}
+
+final class CallbackManagedTabletLocalActions
+    implements ManagedTabletLocalActions {
+  const CallbackManagedTabletLocalActions({required this.onRefreshDashboard});
+
+  final Future<void> Function(bool Function() isCurrent) onRefreshDashboard;
+
+  @override
+  Future<void> refreshDashboard({required bool Function() isCurrent}) =>
+      onRefreshDashboard(isCurrent);
+}
+
+final class DisabledManagedTabletLocalActions
+    implements ManagedTabletLocalActions {
+  const DisabledManagedTabletLocalActions();
+
+  @override
+  Future<void> refreshDashboard({required bool Function() isCurrent}) =>
+      Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
+}
+
 /// Session-bound Android telemetry for the K07 MQTT runtime.
 ///
 /// The wire contract has no arbitrary metadata field, so native code cannot
@@ -39,11 +63,13 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     MethodChannel? channel,
     bool? isAndroid,
     String Function()? sessionId,
+    ManagedTabletLocalActions? actions,
   }) : _channel = channel ?? const MethodChannel(channelName),
        _isAndroid =
            isAndroid ??
            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
-       _sessionId = sessionId ?? _secureSessionId;
+       _sessionId = sessionId ?? _secureSessionId,
+       _actions = actions ?? const DisabledManagedTabletLocalActions();
 
   static const channelName =
       'com.ersingundem.larenor/kiosk_remote_tablet_source';
@@ -52,6 +78,7 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
   final MethodChannel _channel;
   final bool _isAndroid;
   final String Function() _sessionId;
+  final ManagedTabletLocalActions _actions;
 
   NativeManagedTabletSourceStatus status = NativeManagedTabletSourceStatus.idle;
   int _generation = 0;
@@ -243,10 +270,11 @@ final class _NativeManagedTabletSourceLease
   }) : _owner = owner,
        _sessionId = sessionId,
        _generation = generation,
-       commandExecutor = _NativeDisabledCommandExecutor(
+       commandExecutor = _NativeManagedTabletCommandExecutor(
          owner,
          sessionId,
          generation,
+         owner._actions,
        );
 
   final NativeManagedTabletSource _owner;
@@ -264,22 +292,50 @@ final class _NativeManagedTabletSourceLease
   void _retire() => _retired = true;
 }
 
-/// This slice deliberately grants no native command capability.
-final class _NativeDisabledCommandExecutor
+final class _NativeManagedTabletCommandExecutor
     implements ManagedTabletCommandExecutor {
-  const _NativeDisabledCommandExecutor(
+  _NativeManagedTabletCommandExecutor(
     this._owner,
     this._sessionId,
     this._generation,
+    this._actions,
   );
 
   final NativeManagedTabletSource _owner;
   final String _sessionId;
   final int _generation;
+  final ManagedTabletLocalActions _actions;
+  bool _working = false;
 
   @override
-  Future<ManagedTabletCommandResult> execute(String kind) async =>
-      _owner._isCurrent(_sessionId, _generation)
-      ? ManagedTabletCommandResult.unsupported
-      : ManagedTabletCommandResult.denied;
+  Future<ManagedTabletCommandResult> execute(String kind) async {
+    bool current() => _owner._isCurrent(_sessionId, _generation);
+    if (!current()) return ManagedTabletCommandResult.denied;
+    if (kind != 'refreshDashboard') {
+      return ManagedTabletCommandResult.unsupported;
+    }
+    if (_working) return ManagedTabletCommandResult.denied;
+    _working = true;
+    final operation = Future<void>.sync(
+      () => _actions.refreshDashboard(isCurrent: current),
+    );
+    operation.then<void>(
+      (_) => _working = false,
+      onError: (_, _) => _working = false,
+    );
+    try {
+      await operation.timeout(const Duration(seconds: 10));
+      return current()
+          ? ManagedTabletCommandResult.succeeded
+          : ManagedTabletCommandResult.denied;
+    } on UnsupportedError {
+      return current()
+          ? ManagedTabletCommandResult.unsupported
+          : ManagedTabletCommandResult.denied;
+    } catch (_) {
+      return current()
+          ? ManagedTabletCommandResult.failed
+          : ManagedTabletCommandResult.denied;
+    }
+  }
 }
