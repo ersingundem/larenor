@@ -183,12 +183,14 @@ void main() {
     expect(api.stops, 1);
     expect(find.textContaining('8.0 lx'), findsNothing);
     expect(
-      tester.widget<CupertinoButton>(
-        find.descendant(
-          of: find.byKey(const ValueKey('kiosk-sensor-start')),
-          matching: find.byType(CupertinoButton),
-        ),
-      ).onPressed,
+      tester
+          .widget<CupertinoButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('kiosk-sensor-start')),
+              matching: find.byType(CupertinoButton),
+            ),
+          )
+          .onPressed,
       isNull,
     );
     api.pendingStop!.complete(
