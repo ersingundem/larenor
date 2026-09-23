@@ -461,6 +461,46 @@ final class ServerComponentEgressResponse {
   String toString() => 'ServerComponentEgressResponse';
 }
 
+final class ServerComponentEgressResolution {
+  const ServerComponentEgressResolution._({
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.component,
+    required this.grant,
+  });
+
+  factory ServerComponentEgressResolution.fromJson(Map<String, dynamic> json) {
+    if (!_exactKeys(json, {
+          'schemaVersion',
+          'serviceId',
+          'serviceRevision',
+          'component',
+          'grant',
+        }) ||
+        json['schemaVersion'] != 1) {
+      _invalid();
+    }
+    return ServerComponentEgressResolution._(
+      serviceId: _objectId(json['serviceId']),
+      serviceRevision: _integer(json['serviceRevision'], min: 1),
+      component:
+          ServerComponentEgressComponent.values
+              .where((value) => value.wireName == json['component'])
+              .firstOrNull ??
+          _invalid(),
+      grant: ServerComponentEgressGrant.fromJson(serverObject(json['grant'])),
+    );
+  }
+
+  final String serviceId;
+  final int serviceRevision;
+  final ServerComponentEgressComponent component;
+  final ServerComponentEgressGrant grant;
+
+  @override
+  String toString() => 'ServerComponentEgressResolution';
+}
+
 bool _listEquals<T>(List<T> left, List<T> right) {
   if (left.length != right.length) return false;
   for (var index = 0; index < left.length; index++) {

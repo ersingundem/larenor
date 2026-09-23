@@ -65,8 +65,26 @@ class _ServerComponentEgressDialogState
       setState(() => _draftFailure = 'invalid_request');
       return;
     }
+    final reviewed = _controller.resolution;
+    if (reviewed == null || reviewed.grant != grant) {
+      setState(() => _draftFailure = 'review_required');
+      return;
+    }
     setState(() => _draftFailure = null);
     await _controller.replace(grant: grant, current: () => _current);
+  }
+
+  Future<void> _resolve() async {
+    if (!_current || _controller.busy || _controller.value == null) return;
+    setState(() => _draftFailure = null);
+    await _controller.resolve(current: () => _current);
+    if (!_current) return;
+    final reviewed = _controller.resolution;
+    if (reviewed != null) {
+      _addresses.text = reviewed.grant.addresses
+          .map((value) => value.address)
+          .join('\n');
+    }
   }
 
   Future<void> _disable() async {
@@ -79,6 +97,7 @@ class _ServerComponentEgressDialogState
   String _failure(AppLocalizations l10n) => switch (_draftFailure ??
       _controller.failure) {
     'invalid_request' => l10n.serverEgressInvalid,
+    'review_required' => l10n.serverEgressReviewRequired,
     'revision_conflict' || 'conflict' => l10n.serverEgressConflict,
     'unauthorized' => l10n.serverFailureAuthentication,
     'forbidden' || 'password_change_required' => l10n.serverFailurePermission,
@@ -148,6 +167,14 @@ class _ServerComponentEgressDialogState
                             _controller.value!.audit.length,
                           ),
                         ),
+                        if (_controller.resolution != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(l10n.serverEgressReviewed),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         Text(
                           l10n.serverEgressAddresses,
@@ -165,6 +192,7 @@ class _ServerComponentEgressDialogState
                           textInputAction: TextInputAction.newline,
                           placeholder: l10n.serverEgressAddressesHint,
                           onChanged: (_) {
+                            _controller.retireResolution();
                             if (_draftFailure != null) {
                               setState(() => _draftFailure = null);
                             }
@@ -189,6 +217,13 @@ class _ServerComponentEgressDialogState
                             key: const ValueKey('egress-refresh'),
                             label: l10n.commonRefresh,
                             onPressed: _controller.busy ? null : _load,
+                          ),
+                          _action(
+                            key: const ValueKey('egress-resolve'),
+                            label: l10n.serverEgressResolve,
+                            onPressed: policy == null || _controller.busy
+                                ? null
+                                : _resolve,
                           ),
                           if (grant != null)
                             _action(

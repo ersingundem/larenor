@@ -62,6 +62,14 @@ Map<String, dynamic> _responseJson({
       : [_eventJson(policyRevision: policyRevision)],
 };
 
+Map<String, dynamic> _resolutionJson() => {
+  'schemaVersion': 1,
+  'serviceId': _serviceId,
+  'serviceRevision': 4,
+  'component': 'home_assistant_probe',
+  'grant': _grantJson(),
+};
+
 class _EgressFixture extends AdminFixture {
   _EgressFixture() {
     respond = (request) async => policyResponse(request);
@@ -69,9 +77,19 @@ class _EgressFixture extends AdminFixture {
 
   var revision = 0;
   List<Map<String, dynamic>> grants = [];
+  Map<String, dynamic> resolution = _resolutionJson();
 
   http.Response policyResponse(http.Request request) {
     if (request.url.path.endsWith('/context')) return defaultResponse(request);
+    if (request.url.path.endsWith('/outbound-policy/resolve')) {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      if (body.length != 1 || body['expectedServiceRevision'] != 4) {
+        return this.json({
+          'error': {'code': 'revision_conflict'},
+        }, 409);
+      }
+      return this.json(resolution);
+    }
     if (request.method == 'GET') {
       return this.json(_responseJson(policyRevision: revision, grants: grants));
     }
@@ -195,6 +213,50 @@ void main() {
     }
   });
 
+  test('resolution receipt is strict, service-bound and redacted', () async {
+    final value = ServerComponentEgressResolution.fromJson(_resolutionJson());
+    expect(value.grant.addresses.single.address, '192.168.1.150');
+    expect(value.toString(), isNot(contains('192.168')));
+    for (final changed in [
+      {..._resolutionJson(), 'token': 'synthetic-secret'},
+      {..._resolutionJson(), 'schemaVersion': 2},
+      {..._resolutionJson(), 'serviceId': '../other'},
+      {..._resolutionJson(), 'serviceRevision': 0},
+      {..._resolutionJson(), 'component': 'arbitrary_worker'},
+    ]) {
+      expect(
+        () => ServerComponentEgressResolution.fromJson(changed),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
+
+    final fixture = _EgressFixture();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final service = ServerService.fromJson(_serviceJson());
+    await fixture.account.withSession((raw, session) async {
+      final api = ServerComponentEgressApi(raw, session.accessToken);
+      final receipt = await api.resolve(service);
+      expect(receipt.serviceId, service.id);
+      final request = fixture.mutations.single;
+      expect(request.url.path, endsWith('/outbound-policy/resolve'));
+      expect(jsonDecode(request.body), {'expectedServiceRevision': 4});
+      fixture.resolution = {..._resolutionJson(), 'serviceId': 'f' * 32};
+      await expectLater(
+        api.resolve(service),
+        throwsA(isA<LarenorServerException>()),
+      );
+      fixture.resolution = {
+        ..._resolutionJson(),
+        'grant': {..._grantJson(), 'host': 'other.example.test'},
+      };
+      await expectLater(
+        api.resolve(service),
+        throwsA(isA<LarenorServerException>()),
+      );
+    });
+  });
+
   test(
     'API binds exact service revisions and verifies mutation readback',
     () async {
@@ -265,6 +327,42 @@ void main() {
     await controller.load(current: () => true);
     expect(controller.needsRefresh, isFalse);
   });
+
+  test(
+    'controller retires late resolution and clears receipt after write',
+    () async {
+      final fixture = _EgressFixture();
+      await fixture.account.initialize();
+      final controller = ServerComponentEgressController(
+        fixture.account,
+        ServerService.fromJson(_serviceJson()),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      await controller.load(current: () => true);
+      final pending = Completer<http.Response>();
+      fixture.respond = (_) => pending.future;
+      var current = true;
+      final resolving = controller.resolve(current: () => current);
+      await Future<void>.delayed(Duration.zero);
+      current = false;
+      controller.invalidate();
+      pending.complete(fixture.json(_resolutionJson()));
+      await resolving;
+      expect(controller.resolution, isNull);
+
+      current = true;
+      fixture.respond = (request) async => fixture.policyResponse(request);
+      await controller.load(current: () => current);
+      await controller.resolve(current: () => current);
+      expect(controller.resolution, isNotNull);
+      await controller.replace(
+        grant: controller.resolution!.grant,
+        current: () => current,
+      );
+      expect(controller.resolution, isNull);
+    },
+  );
 
   test('route loss and logout discard late policy results', () async {
     for (final logout in [false, true]) {

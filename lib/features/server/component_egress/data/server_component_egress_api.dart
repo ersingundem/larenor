@@ -21,6 +21,27 @@ final class ServerComponentEgressApi {
     );
   }
 
+  Future<ServerComponentEgressResolution> resolve(ServerService service) async {
+    final expected = _expectedComponent(service);
+    final value = ServerComponentEgressResolution.fromJson(
+      serverObject(
+        await api.request(
+          'POST',
+          '/admin/services/${service.id}/outbound-policy/resolve',
+          token: token,
+          body: {'expectedServiceRevision': service.revision},
+        ),
+      ),
+    );
+    if (value.serviceId != service.id ||
+        value.serviceRevision != service.revision ||
+        value.component != expected ||
+        !_matchesEndpoint(service, value.grant)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return value;
+  }
+
   Future<ServerComponentEgressResponse> replace(
     ServerService service,
     ServerComponentEgressResponse current, {
@@ -63,7 +84,8 @@ final class ServerComponentEgressApi {
     final expected = _expectedComponent(service);
     if (value.policy.serviceId != service.id ||
         value.policy.serviceRevision != service.revision ||
-        value.policy.component != expected) {
+        value.policy.component != expected ||
+        value.policy.grants.any((grant) => !_matchesEndpoint(service, grant))) {
       throw const LarenorServerException('invalid_response');
     }
   }
@@ -78,6 +100,19 @@ final class ServerComponentEgressApi {
           ServerComponentEgressComponent.keeneticCommandWorker,
         _ => throw const LarenorServerException('invalid_request'),
       };
+
+  bool _matchesEndpoint(
+    ServerService service,
+    ServerComponentEgressGrant grant,
+  ) {
+    final endpoint = Uri.parse(service.baseUrl);
+    final port = endpoint.hasPort
+        ? endpoint.port
+        : (endpoint.scheme == 'https' ? 443 : 80);
+    return grant.scheme.name == endpoint.scheme &&
+        grant.host == endpoint.host &&
+        grant.port == port;
+  }
 
   @override
   String toString() => 'ServerComponentEgressApi';

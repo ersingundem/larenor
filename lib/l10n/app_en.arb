@@ -2265,6 +2265,9 @@
     }
   },
   "serverEgressDisable": "Block access",
+  "serverEgressResolve": "Resolve and review",
+  "serverEgressReviewed": "Addresses resolved by Core for this exact service revision.",
+  "serverEgressReviewRequired": "Resolve and review the current addresses before saving them.",
   "serverEgressInvalid": "Enter 1–8 unique public or LAN IP addresses accepted by Core.",
   "serverEgressConflict": "The service or policy changed. Refresh before saving.",
   "serverEgressUncertain": "The result could not be confirmed. Refresh before another change.",
