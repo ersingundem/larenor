@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,42 @@ import 'server_music_manager_test_support.dart';
 final class _MemoryBackend implements ServerMusicManagerCacheBackend {
   String? value;
   int writes = 0, clears = 0;
+  String? replacementBeforeMutation;
+  Completer<void>? mutationGate;
+  Completer<void>? mutationStarted;
+
+  Future<void> _gate() async {
+    mutationStarted?.complete();
+    await mutationGate?.future;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) value = replacement;
+    if (value != expected) return false;
+    clears++;
+    value = null;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) async {
+    await _gate();
+    if (!current()) return false;
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) this.value = replacement;
+    if (this.value != expected || !current()) return false;
+    writes++;
+    this.value = value;
+    return true;
+  }
 
   @override
   Future<void> clear() async {
@@ -23,6 +60,7 @@ final class _MemoryBackend implements ServerMusicManagerCacheBackend {
 
   @override
   Future<void> write(String value) async {
+    await _gate();
     writes++;
     this.value = value;
   }
@@ -314,4 +352,99 @@ void main() {
       expect(fixture.account.failure, 'unauthorized');
     },
   );
+
+  test(
+    'malformed expired and oversized cleanup preserves a replacement owner',
+    () async {
+      for (final invalid in ['malformed', 'expired', 'oversized']) {
+        final backend = _MemoryBackend();
+        var now = DateTime.utc(2026, 9, 23, 8);
+        final cache = ServerMusicManagerCache(backend: backend, now: () => now);
+        final manager = _manager();
+        await cache.write(_scope, manager);
+        final valid = backend.value!;
+        final replacement = '$valid ';
+
+        switch (invalid) {
+          case 'malformed':
+            final record = jsonDecode(valid) as Map<String, dynamic>;
+            record['unexpected'] = true;
+            backend.value = jsonEncode(record);
+          case 'expired':
+            backend.value = valid;
+            now = now.add(ServerMusicManagerCache.timeToLive);
+          case 'oversized':
+            backend.value = 'x' * (ServerMusicManagerCache.maximumBytes + 1);
+        }
+        backend.replacementBeforeMutation = replacement;
+
+        expect(await _read(cache, manager), isNull, reason: invalid);
+        expect(backend.value, replacement, reason: invalid);
+      }
+    },
+  );
+
+  test('a stale writer cannot replace a newer manager snapshot', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMusicManagerCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    await cache.write(_scope, _manager());
+    final stale = backend.value!;
+    final newer = ServerMusicManager.fromJson(musicManagerJson(revision: 7));
+    await cache.write(_scope, newer);
+    final replacement = backend.value!;
+    backend.value = stale;
+    backend.replacementBeforeMutation = replacement;
+
+    await cache.write(_scope, _manager());
+
+    expect(backend.value, replacement);
+    expect(await _read(cache, newer), isNotNull);
+  });
+
+  test('schema version requires exact integer one', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMusicManagerCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    final manager = _manager();
+    await cache.write(_scope, manager);
+    final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+    record['schemaVersion'] = 1.0;
+    backend.value = jsonEncode(record);
+
+    expect(await _read(cache, manager), isNull);
+    expect(backend.value, isNull);
+  });
+
+  test('retired controller cannot complete a delayed cache mutation', () async {
+    final backend = _MemoryBackend()
+      ..mutationGate = Completer<void>()
+      ..mutationStarted = Completer<void>();
+    final fixture = MusicManagerFixture();
+    await fixture.account.initialize();
+    final controller = ServerMusicManagerController(
+      fixture.account,
+      cache: ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      ),
+    );
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    final loading = controller.load(current: () => true);
+    await backend.mutationStarted!.future;
+    controller.invalidate();
+    backend.mutationGate!.complete();
+    await loading;
+
+    expect(backend.writes, 0);
+    expect(backend.value, isNull);
+  });
 }
