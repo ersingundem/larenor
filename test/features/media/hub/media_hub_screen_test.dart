@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
@@ -22,7 +24,11 @@ import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_series_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/features/media/music/presentation/music_center_screen.dart';
+import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+
+import '../../../core/home_scope_fixture.dart';
 
 const film = MediaTitle(
   identity: MediaIdentity(kind: MediaKind.movie, tmdbId: 1),
@@ -88,6 +94,54 @@ Future<void> tabToMediaSearch(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'verified Core media entry never mounts direct media providers',
+    (tester) async {
+      final harness = ScopeHarness(HomeSource.verifiedCore);
+      await harness.signIn();
+      final home = HomeSessionController(
+        store: harness.source,
+        account: harness.account,
+      );
+      await home.initialize();
+      home.runtimeMounted(home.runtimeIdentity);
+      addTearDown(() {
+        home.dispose();
+        harness.account.dispose();
+      });
+      var directCatalogReads = 0;
+      var directJellyfinReads = 0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            homeSessionControllerProvider.overrideWithValue(home),
+            serverAccountControllerProvider.overrideWithValue(harness.account),
+            mediaHubRowsProvider.overrideWith((ref) async {
+              directCatalogReads++;
+              return const [];
+            }),
+            jellyfinClientProvider.overrideWith((ref) {
+              directJellyfinReads++;
+              return null;
+            }),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const MediaHubScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
+      expect(directCatalogReads, 0);
+      expect(directJellyfinReads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
