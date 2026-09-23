@@ -284,11 +284,13 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
           (marker >= 0xcd && marker <= 0xcf)) {
         if (length < 8) return false;
         final components = bytes[offset + 7];
+        final height = (bytes[offset + 3] << 8) | bytes[offset + 4];
         final width = (bytes[offset + 5] << 8) | bytes[offset + 6];
         if (components < 1 ||
             components > 4 ||
             length != 8 + (3 * components) ||
-            width == 0) {
+            width == 0 ||
+            height == 0) {
           return false;
         }
         sawFrame = true;
@@ -366,7 +368,11 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       return false;
     }
     var offset = 12;
-    var imageChunks = 0;
+    var staticImages = 0;
+    var animationFrames = 0;
+    var hasExtendedHeader = false;
+    var animationEnabled = false;
+    var hasAnimationHeader = false;
     while (offset + 8 <= bytes.length) {
       final type = ascii.decode(bytes.sublist(offset, offset + 4));
       final length = _uint32LittleEndian(bytes, offset + 4);
@@ -374,23 +380,39 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       final dataEnd = dataStart + length;
       final paddedEnd = dataEnd + (length.isOdd ? 1 : 0);
       if (length < 0 || paddedEnd > bytes.length) return false;
-      if (type == 'VP8 ') {
+      if (type == 'VP8X') {
+        if (hasExtendedHeader || length != 10) return false;
+        hasExtendedHeader = true;
+        animationEnabled = bytes[dataStart] & 0x02 != 0;
+      } else if (type == 'ANIM') {
+        if (!hasExtendedHeader || !animationEnabled || length != 6) {
+          return false;
+        }
+        hasAnimationHeader = true;
+      } else if (type == 'VP8 ') {
         if (!_validVp8(bytes, dataStart, length)) {
           return false;
         }
-        imageChunks++;
+        staticImages++;
       } else if (type == 'VP8L') {
         if (!_validVp8l(bytes, dataStart, length)) return false;
-        imageChunks++;
+        staticImages++;
       } else if (type == 'ANMF') {
-        if (length < 24 || !_validWebpFrame(bytes, dataStart + 16, dataEnd)) {
+        if (!hasExtendedHeader ||
+            !animationEnabled ||
+            !hasAnimationHeader ||
+            length < 24 ||
+            !_validWebpFrame(bytes, dataStart + 16, dataEnd)) {
           return false;
         }
-        imageChunks++;
+        animationFrames++;
       }
       offset = paddedEnd;
     }
-    return offset == bytes.length && imageChunks > 0;
+    if (offset != bytes.length) return false;
+    return animationEnabled
+        ? staticImages == 0 && animationFrames > 0 && hasAnimationHeader
+        : staticImages == 1 && animationFrames == 0 && !hasAnimationHeader;
   }
 
   static bool _validVp8(Uint8List bytes, int start, int length) {

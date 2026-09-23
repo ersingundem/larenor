@@ -81,6 +81,13 @@ final malformedJpeg = Uint8List.fromList(const [
   0xd9,
 ]);
 
+Uint8List zeroHeightJpeg() {
+  final bytes = Uint8List.fromList(validJpeg);
+  bytes[7] = 0;
+  bytes[8] = 0;
+  return bytes;
+}
+
 final validPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 );
@@ -96,6 +103,20 @@ final invalidPngColorDepth = base64Decode(
 final validWebp = base64Decode(
   'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA',
 );
+
+Uint8List duplicateWebpImageChunk() {
+  final chunks = validWebp.sublist(12);
+  final bytes = Uint8List.fromList([
+    ...validWebp.sublist(0, 12),
+    ...chunks,
+    ...chunks,
+  ]);
+  final riffLength = bytes.length - 8;
+  for (var offset = 0; offset < 4; offset++) {
+    bytes[4 + offset] = (riffLength >> (offset * 8)) & 0xff;
+  }
+  return bytes;
+}
 
 final animationHeaderOnlyWebp = Uint8List.fromList(const [
   0x52,
@@ -384,6 +405,7 @@ void main() {
       ('image/jpeg', [0x89, 0x50, 0x4e, 0x47]),
       ('image/jpeg', [0xff, 0xd8, 0xff, 0xe0]),
       ('image/jpeg', malformedJpeg),
+      ('image/jpeg', zeroHeightJpeg()),
       ('image/png', [0xff, 0xd8, 0xff, 0xe0]),
       ('image/png', [...validPng]..removeLast()),
       ('image/png', oversizedPngHeader),
@@ -391,6 +413,7 @@ void main() {
       ('image/webp', 'RIFF0000NOPE'.codeUnits),
       ('image/webp', 'RIFF0000WEBP'.codeUnits),
       ('image/webp', animationHeaderOnlyWebp),
+      ('image/webp', duplicateWebpImageChunk()),
       ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
       ('text/csv', [0xc3, 0x28]),
       ('application/json', '{"unfinished":'.codeUnits),
