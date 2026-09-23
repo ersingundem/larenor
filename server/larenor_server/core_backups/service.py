@@ -80,6 +80,7 @@ MAX_COMPONENT_VOLUME_BYTES = 64 * 1024 * 1024
 MAX_COMPONENT_BYTES = 256 * 1024 * 1024
 COMPONENT_QUIESCENCE_SECONDS = 5
 MAGIC = b"LARENOR-CORE-BACKUP\x00\x01"
+BUNDLE_ENVELOPE_BYTES = len(MAGIC) + 16 + 12 + 16
 MAX_BUNDLE_BYTES = (
     MAX_DATABASE_BYTES
     + MAX_FAMILY_BOARD_BYTES
@@ -111,7 +112,7 @@ def _open_authenticated_bundle(bundle: bytes, passphrase: str) -> "BackupCapture
         header = len(MAGIC) + 16 + 12
         if (
             type(bundle) is not bytes
-            or not header + 16 <= len(bundle) <= MAX_BUNDLE_BYTES
+            or not BUNDLE_ENVELOPE_BYTES <= len(bundle) <= MAX_BUNDLE_BYTES
             or bundle[: len(MAGIC)] != MAGIC
         ):
             raise ValueError("invalid_bundle")
@@ -597,7 +598,7 @@ class CoreBackupContract:
                     f"resources/{identifier}", capture.payloads[identifier]
                 )
         value = output.getvalue()
-        if len(value) > MAX_BUNDLE_BYTES:
+        if len(value) > MAX_BUNDLE_BYTES - BUNDLE_ENVELOPE_BYTES:
             raise ApiError("backup_too_large", 413)
         return value
 
