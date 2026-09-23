@@ -129,7 +129,7 @@ def test_play_now_is_one_post_between_matching_before_and_authenticated_after_re
 
     result = runtime.execute(
         (before, effect, after), action(), api_key=TOKEN,
-        deadline=time.monotonic() + 1,
+        deadline=time.monotonic() + 1, gate=lambda: True,
     )
 
     assert result.state == 'succeeded'
@@ -217,7 +217,7 @@ def test_changed_or_ambiguous_effect_never_returns_success(damage):
     with pytest.raises(JellyfinPlaybackRuntimeError):
         runtime.execute(
             connections, selected_action, api_key=TOKEN,
-            deadline=time.monotonic() + 1,
+            deadline=time.monotonic() + 1, gate=lambda: True,
         )
 
 

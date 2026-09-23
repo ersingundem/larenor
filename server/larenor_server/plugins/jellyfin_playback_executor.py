@@ -165,7 +165,7 @@ class JellyfinPlaybackExecutor:
                 opened.append((connection, proof))
             result = self.protocol.execute(
                 tuple(item[0] for item in opened), private.action,
-                api_key=private.apiKey, deadline=deadline)
+                api_key=private.apiKey, deadline=deadline, gate=gate)
         except JellyfinPlaybackExecutionError:
             for connection, _proof in opened:
                 try:
@@ -173,7 +173,15 @@ class JellyfinPlaybackExecutor:
                 except Exception:
                     pass
             raise
-        except JellyfinPlaybackRuntimeError:
+        except JellyfinPlaybackRuntimeError as error:
+            for connection, _proof in opened:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+            if error.code == 'jellyfin_playback_authority_changed':
+                raise JellyfinPlaybackExecutionError(
+                    'jellyfin_playback_authority_changed') from None
             raise JellyfinPlaybackExecutionError(
                 'jellyfin_playback_effect_unknown',
                 uncertain_effect=True) from None

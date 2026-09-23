@@ -66,7 +66,10 @@ class JellyfinPlaybackProtocol:
     def _request(connection, method, path, authorization, deadline, *, status):
         reader = _StartupReader(connection, deadline)
         try:
-            connection.settimeout(max(.001, deadline - time.monotonic()))
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError()
+            connection.settimeout(remaining)
             connection.sendall(_request_bytes(
                 method, path, 'jellyfin', {
                     'Accept': 'application/json',
@@ -89,6 +92,26 @@ class JellyfinPlaybackProtocol:
                 connection.close()
             except Exception:
                 pass
+
+    @staticmethod
+    def _close(connections):
+        for connection in connections:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    @classmethod
+    def _pre_effect(cls, connections, deadline, gate):
+        try:
+            if not callable(gate) or gate() is not True:
+                raise ValueError()
+            if time.monotonic() >= deadline:
+                raise ValueError()
+        except Exception:
+            cls._close(connections)
+            raise JellyfinPlaybackRuntimeError(
+                'jellyfin_playback_authority_changed') from None
 
     @staticmethod
     def _target(raw):
@@ -196,7 +219,7 @@ class JellyfinPlaybackProtocol:
             raise JellyfinPlaybackRuntimeError(
                 'jellyfin_playback_readback_changed') from None
 
-    def execute(self, connections, action, *, api_key, deadline):
+    def execute(self, connections, action, *, api_key, deadline, gate):
         if (type(action) is not PrivateMediaPlaybackAction
                 or type(connections) not in (tuple, list)
                 or len(connections) != 3):
@@ -210,13 +233,10 @@ class JellyfinPlaybackProtocol:
         if (before.playbackRevision != action.expectedPlaybackRevision
                 or target is None or target.available is not True
                 or target.targetRevision != action.expectedTargetRevision):
-            for connection in connections[1:]:
-                try:
-                    connection.close()
-                except Exception:
-                    pass
+            self._close(connections[1:])
             raise JellyfinPlaybackRuntimeError(
                 'jellyfin_playback_authority_changed')
+        self._pre_effect(connections[1:], deadline, gate)
         authorization = _BASE_AUTH.format(
             device=action.installationId, token=api_key)
         query = urlencode(sorted({
