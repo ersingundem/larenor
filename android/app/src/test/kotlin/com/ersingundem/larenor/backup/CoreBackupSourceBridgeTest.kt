@@ -93,9 +93,13 @@ class CoreBackupSourceBridgeTest {
         return result
     }
 
-    private fun deliver(bridge: CoreBackupSourceBridge, uri: Uri = Uri.parse("content://documents/backup")) {
+    private fun deliver(
+        bridge: CoreBackupSourceBridge,
+        uri: Uri = Uri.parse("content://documents/backup"),
+        requestCode: Int = bridge.requestCode,
+    ) {
         assertTrue(bridge.onActivityResult(
-            bridge.requestCode,
+            requestCode,
             Activity.RESULT_OK,
             Intent().setData(uri),
         ))
@@ -189,10 +193,11 @@ class CoreBackupSourceBridgeTest {
         val bridge = CoreBackupSourceBridge(activity, Messenger(), host)
         try {
             val open = inspect(bridge)
+            val requestCode = host.requestCode
             val cancel = Result()
             bridge.onMethodCall(MethodCall("cancel", mapOf("sessionId" to "a".repeat(32))), cancel)
             assertEquals("expired", open.code)
-            deliver(bridge)
+            deliver(bridge, requestCode = requestCode)
             shadowOf(Looper.getMainLooper()).idle()
 
             assertEquals(0, host.opens)
@@ -201,26 +206,60 @@ class CoreBackupSourceBridgeTest {
         } finally { bridge.dispose() }
     }
 
-    @Test fun stalePickerMustBeConsumedBeforeANewSessionCanOpen() {
+    @Test fun cancelledPickerImmediatelyReleasesANewSessionWithANewRequestCode() {
         val input = Input(bundle())
         val host = Host(input)
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val bridge = CoreBackupSourceBridge(activity, Messenger(), host)
         try {
             val old = inspect(bridge, "a".repeat(32))
+            val oldRequestCode = host.requestCode
             bridge.onMethodCall(
                 MethodCall("cancel", mapOf("sessionId" to "a".repeat(32))),
                 Result(),
             )
-            val overlapping = inspect(bridge, "b".repeat(32))
-            assertEquals("busy", overlapping.code)
+            val current = inspect(bridge, "b".repeat(32))
 
-            deliver(bridge)
+            assertEquals("expired", old.code)
+            assertEquals(2, host.launches)
+            assertNotEquals(oldRequestCode, host.requestCode)
+            assertFalse(current.done)
+        } finally { bridge.dispose() }
+    }
+
+    @Test fun staleCancelledPickerResultCannotOpenOrCompleteTheCurrentSession() {
+        val input = Input(bundle())
+        val host = Host(input)
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val bridge = CoreBackupSourceBridge(activity, Messenger(), host)
+        try {
+            val old = inspect(bridge, "a".repeat(32))
+            val oldRequestCode = host.requestCode
+            bridge.onMethodCall(
+                MethodCall("cancel", mapOf("sessionId" to "a".repeat(32))),
+                Result(),
+            )
+            val current = inspect(bridge, "b".repeat(32))
+            val currentRequestCode = host.requestCode
+
+            deliver(
+                bridge,
+                uri = Uri.parse("content://documents/stale-old-picker"),
+                requestCode = oldRequestCode,
+            )
+            shadowOf(Looper.getMainLooper()).idle()
             assertEquals("expired", old.code)
             assertEquals(0, host.opens)
-            val current = inspect(bridge, "c".repeat(32))
-            assertEquals(2, host.launches)
             assertFalse(current.done)
+
+            deliver(
+                bridge,
+                uri = Uri.parse("content://documents/current-picker"),
+                requestCode = currentRequestCode,
+            )
+            await(current)
+            assertNotNull(current.value)
+            assertEquals(1, host.opens)
         } finally { bridge.dispose() }
     }
 
@@ -239,7 +278,7 @@ class CoreBackupSourceBridgeTest {
         try {
             val current = inspect(currentBridge, "e".repeat(32))
             assertNotEquals(oldRequestCode, currentHost.requestCode)
-            assertFalse(currentBridge.onActivityResult(
+            assertTrue(currentBridge.onActivityResult(
                 oldRequestCode,
                 Activity.RESULT_OK,
                 Intent().setData(Uri.parse("content://documents/stale-old-picker")),
