@@ -650,12 +650,18 @@ class CoreBackupContract:
     @staticmethod
     def _archive(capture: BackupCapture) -> bytes:
         output = io.BytesIO()
+        manifest = capture.manifest.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        if capture.manifest.contractVersion == 1:
+            manifest.pop("components", None)
+            manifest.pop("consistencyBoundary", None)
         with zipfile.ZipFile(
             output, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
         ) as archive:
             archive.writestr(
                 _MANIFEST_NAME,
-                capture.manifest.model_dump_json(by_alias=True, exclude_none=True),
+                _canonical(manifest),
             )
             for identifier in sorted(capture.payloads):
                 archive.writestr(

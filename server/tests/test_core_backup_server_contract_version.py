@@ -1,13 +1,14 @@
 """S09.1 exact Server manifest shape across backup contract versions."""
 
 import hashlib
+import io
 import json
 import secrets
+import zipfile
 
 import pytest
 from conftest import auth, ready
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
 from larenor_server.core_backups.models import BackupManifest
 from larenor_server.core_backups.service import (
     MAGIC,
@@ -27,12 +28,31 @@ def _manifest(server):
     return pair, response.json()["manifest"]
 
 
-def _bundle(contract, capture):
+def _bundle(contract, capture, *, raw_manifest=None):
     salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
     aad = MAGIC + salt + nonce
+    if raw_manifest is None:
+        archive = CoreBackupContract._archive(capture)
+    else:
+        output = io.BytesIO()
+        with zipfile.ZipFile(
+            output,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=6,
+        ) as bundle:
+            bundle.writestr(
+                "manifest.json",
+                json.dumps(raw_manifest, sort_keys=True, separators=(",", ":")),
+            )
+            for identifier in sorted(capture.payloads):
+                bundle.writestr(
+                    f"resources/{identifier}", capture.payloads[identifier]
+                )
+        archive = output.getvalue()
     return aad + AESGCM(
         CoreBackupContract._derive_key(PASSPHRASE, salt)
-    ).encrypt(nonce, CoreBackupContract._archive(capture), aad)
+    ).encrypt(nonce, archive, aad)
 
 
 def _true_legacy_capture(capture):
@@ -141,7 +161,16 @@ def test_bundle_open_rejects_mixed_v1_shape_and_keeps_true_legacy_readable(serve
     )
 
     with pytest.raises(ApiError) as raised:
-        contract.open_bundle(_bundle(contract, mixed), PASSPHRASE)
+        contract.open_bundle(
+            _bundle(
+                contract,
+                mixed,
+                raw_manifest=mixed.manifest.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
+            ),
+            PASSPHRASE,
+        )
     assert raised.value.code == "backup_decryption_failed"
 
     legacy = _true_legacy_capture(capture)
