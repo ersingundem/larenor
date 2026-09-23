@@ -29,6 +29,12 @@ Status: **software slice ready; K03.remaining stays open**
   download, redirect/MIME/size bounds, stale completion, iframe non-capture,
   settings persistence, EN/TR tablet layout, renderer recovery and existing
   origin/auth/TLS/data-retirement protections.
+- The Android bridge now binds the plugin-owned native WebView identifier to an
+  opaque one-shot attachment. `onRenderProcessGone` retires that exact Dart
+  controller generation; duplicate, malformed and post-disposal events cannot
+  recover or revive a newer controller. The wrapper forwards the existing
+  plugin WebViewClient callbacks and never sends URLs, headers or diagnostics
+  over the channel.
 - A rejecting picker or transport port ends the one-shot operation as failed;
   it cannot strand the controller in `working` or replay a download.
 - Focused Flutter analysis, formatting, diff, security, queue, progress and
@@ -36,11 +42,13 @@ Status: **software slice ready; K03.remaining stays open**
 
 ## Remaining manual and platform boundary
 
-Android WebView file chooser URI handling, SAF save behavior, OEM renderer
-termination delivery, Huawei WebView, DeX mouse/keyboard and actual website
-forms remain MANUAL. The pinned `webview_flutter_android` API still does not
-provide a complete pre-request firewall for every iframe/fetch/WebSocket or an
-Android renderer-gone callback, so cross-origin subresource enforcement and
-native renderer-death acceptance are not claimed. Pop-ups remain disabled and
-external intents remain blocked. K03.remaining and progress stay at **22/125**
-and **0/63** until those remaining gates are implemented and accepted.
+Android WebView file chooser URI handling, SAF save behavior, physical OEM
+renderer termination delivery, Huawei WebView, DeX mouse/keyboard and actual
+website forms remain MANUAL. The app-level Android adapter now covers the
+renderer-gone callback missing from the pinned plugin, but that plugin still
+does not provide a complete pre-request firewall for every
+iframe/fetch/WebSocket. Cross-origin subresource enforcement and physical
+renderer-death acceptance are therefore not claimed. Pop-ups remain disabled
+and external intents remain blocked. K03.remaining and progress stay at
+**23/125** and **0/63** until those remaining gates are implemented and
+accepted.

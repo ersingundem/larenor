@@ -18,6 +18,7 @@ import com.ersingundem.larenor.inventory.InventoryShareBridge
 import com.ersingundem.larenor.notifications.LocalNotificationBridge
 import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
+import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -34,6 +35,7 @@ class MainActivity : FlutterActivity() {
     private var localNotifications: LocalNotificationBridge? = null
     private var dualDisplay: DualDisplayBridge? = null
     private var gameStreamNative: GameStreamNativeBridge? = null
+    private var webPanelRenderer: WebPanelRendererBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -49,6 +51,10 @@ class MainActivity : FlutterActivity() {
         localNotifications = LocalNotificationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         dualDisplay = DualDisplayBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         gameStreamNative = GameStreamNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
+        webPanelRenderer = WebPanelRendererBridge(
+            flutterEngine.dartExecutor.binaryMessenger,
+            flutterEngine,
+        )
     }
     override fun onResume() {
         super.onResume()
@@ -116,6 +122,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        webPanelRenderer?.dispose()
+        webPanelRenderer = null
         dualDisplay?.dispose()
         dualDisplay = null
         inventoryShare?.dispose()

@@ -8,6 +8,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_platform.dart';
 import '../data/web_panel_data.dart';
+import '../data/web_panel_renderer_monitor.dart';
 import '../data/web_panel_transfers.dart';
 import '../domain/web_panel_options.dart';
 import '../domain/web_panel_policy.dart';
@@ -26,6 +27,7 @@ class WebPanelView extends StatefulWidget {
     this.dataCoordinator,
     this.requireActiveInteraction = true,
     this.transferAccess,
+    this.rendererMonitor,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
@@ -34,6 +36,7 @@ class WebPanelView extends StatefulWidget {
   final WebPanelDataCoordinator? dataCoordinator;
   final bool requireActiveInteraction;
   final WebPanelTransferAccess? transferAccess;
+  final WebPanelRendererMonitor? rendererMonitor;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -51,6 +54,7 @@ class WebPanelViewState extends State<WebPanelView> {
   bool _backBusy = false;
   late WebPanelDataCoordinator _data;
   WebPanelTransferController? _transfer;
+  WebPanelRendererHandle? _rendererHandle;
 
   @override
   void initState() {
@@ -105,7 +109,8 @@ class WebPanelViewState extends State<WebPanelView> {
         oldWidget.sourceIdentity != widget.sourceIdentity ||
         oldWidget.options != widget.options ||
         oldWidget.requireActiveInteraction != widget.requireActiveInteraction ||
-        oldWidget.transferAccess != widget.transferAccess) {
+        oldWidget.transferAccess != widget.transferAccess ||
+        !identical(oldWidget.rendererMonitor, widget.rendererMonitor)) {
       _retire();
       _failure = null;
     }
@@ -294,6 +299,16 @@ class WebPanelViewState extends State<WebPanelView> {
           ),
         ),
       );
+      await step(() async {
+        final handle =
+            await (widget.rendererMonitor ?? WebPanelRendererChannel.shared)
+                .attach(controller, () => _recoverRenderer(generation));
+        if (!_current(generation)) {
+          await handle?.dispose();
+          throw const _Cancelled();
+        }
+        _rendererHandle = handle;
+      });
       await restrictWebPanelPlatform(
         controller,
         step,
@@ -344,6 +359,9 @@ class WebPanelViewState extends State<WebPanelView> {
     _transfer = null;
     transfer?.removeListener(_transferChanged);
     transfer?.dispose();
+    final rendererHandle = _rendererHandle;
+    _rendererHandle = null;
+    if (rendererHandle != null) unawaited(rendererHandle.dispose());
     _ready = false;
     if (controller != null) _data.retire(() => _blankForClear(controller));
   }
