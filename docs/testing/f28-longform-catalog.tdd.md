@@ -32,6 +32,14 @@ and its documented audiobook chapter metadata and resume behavior.
   exist.
 - GREEN `55c52383`: 24 focused manager, runtime, authority and IPC tests pass.
 
+The independent exact-head audit added RED `c0613881`: an item from an
+unbound provider instance, falsey malformed metadata containers and
+overlapping chapter boundaries were accepted. GREEN `1a10a2c4` carries the
+exact ready provider-instance set through private IPC, validates every detail
+against it, preserves strict container types and rejects overlapping chapter
+ranges. The expanded manager/runtime/authority batch passes **27/27**; Ruff F,
+security policy, execution-queue validation and diff checks are clean.
+
 F28 remains pending at **26/125 (20.8%)** and selected-feature progress remains
 **0/63 (0.0%)**. Client rendering, chapter selection, bookmarks, sleep timer,
 MediaSession/background behavior, provider capability disclosure, a real
