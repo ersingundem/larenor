@@ -10,7 +10,13 @@ class KioskSensorPolicyTest {
         var stopped = 0
         var now = 1000L
         var camera = "available"
-        override fun availability() = KioskSensorAvailability(light = true, motion = true, camera = camera)
+        override fun availability() = KioskSensorAvailability(
+            light = true,
+            motion = true,
+            approach = true,
+            approachMaxRangeCm = 5.0,
+            camera = camera,
+        )
         override fun start(listener: (KioskSensorSample) -> Unit) { started++; this.listener = listener }
         override fun stop() { stopped++; listener = null }
         override fun nowMillis() = now
@@ -46,7 +52,14 @@ class KioskSensorPolicyTest {
         host.emit(KioskSensorSample.Motion(Double.NaN, 3000))
         val read = policy.read(mapOf("sessionId" to id))
         assertEquals(10.0, read["lux"]); assertEquals(0.8, read["motionDelta"])
-        assertEquals(2L, read["sequence"]); assertEquals(10, read.size)
+        assertEquals(2L, read["sequence"])
+        host.emit(KioskSensorSample.Approach(2.0, 1000))
+        host.emit(KioskSensorSample.Approach(4.0, 1500))
+        val approached = policy.read(mapOf("sessionId" to id))
+        assertEquals(3L, approached["sequence"]); assertEquals(13, approached.size)
+        assertEquals(2.0, approached["approachDistanceCm"])
+        assertEquals(5.0, approached["approachMaxRangeCm"])
+        assertFalse(approached.containsKey("faceId"))
         host.emit(KioskSensorSample.Light(300000.0, 3000))
         assertEquals(200000.0, policy.read(mapOf("sessionId" to id))["lux"])
     }

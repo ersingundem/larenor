@@ -20,9 +20,12 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
   sampling: true,
   lightAvailable: true,
   motionAvailable: false,
+  approachAvailable: true,
   observedAtElapsedMillis: 1000 + sequence,
   lux: sequence == 0 ? null : 8,
   motionDelta: null,
+  approachDistanceCm: sequence == 0 ? null : 2,
+  approachMaxRangeCm: 5,
   cameraStatus: KioskSensorCameraStatus.busy,
 );
 
@@ -119,6 +122,10 @@ void main() {
         );
         expect(
           find.textContaining(locale.languageCode == 'tr' ? 'meşgul' : 'busy'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(locale.languageCode == 'tr' ? 'yakın' : 'nearby'),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
