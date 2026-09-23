@@ -270,6 +270,44 @@ void main() {
   });
 
   test(
+    'selection cache requires exact bounded integer envelope revisions',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicSelectionCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 9),
+      );
+      final manager = _manager();
+
+      Future<void> rejects(
+        void Function(Map<String, dynamic>, Map<String, dynamic>) mutate,
+      ) async {
+        await cache.write(
+          _scope,
+          manager,
+          provider: _provider(manager),
+          receiver: _receiver(manager),
+        );
+        final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+        final resource = record['resource'] as Map<String, dynamic>;
+        mutate(record, resource);
+        backend.value = jsonEncode(record);
+
+        expect(await cache.read(_scope, manager), isNull);
+        expect(backend.value, isNull);
+      }
+
+      await rejects((record, _) => record['schemaVersion'] = 1.0);
+      await rejects((_, resource) => resource['installationRevision'] = 4.0);
+      await rejects((_, resource) => resource['coreRevision'] = 7.0);
+      await rejects((_, resource) => resource['installationRevision'] = 0);
+      await rejects(
+        (_, resource) => resource['coreRevision'] = 0x8000000000000000,
+      );
+    },
+  );
+
+  test(
     'delayed invalid read cannot clear a replacement owner record',
     () async {
       final backend = _MemoryBackend();

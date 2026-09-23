@@ -39,6 +39,15 @@ void main() {
       }
     },
   );
+
+  test('retained overview schema version is an exact integer', () {
+    final value = retainedJson()..['schemaVersion'] = 1.0;
+
+    expect(
+      () => ServerMusicRetainedOverview.fromJson(value),
+      throwsA(isA<Exception>()),
+    );
+  });
 }
 
 Map<String, dynamic> retainedJson() => {

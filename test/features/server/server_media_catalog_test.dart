@@ -266,6 +266,25 @@ void main() {
     expect(calls, 1);
   });
 
+  test('catalog page schema version is an exact integer', () {
+    final page = _catalog()..['schemaVersion'] = 1.0;
+
+    expect(
+      () => ServerMediaCatalogPage.fromJson(
+        page,
+        query: 'matrix',
+        mediaKind: ServerMediaCatalogKind.movie,
+      ),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+  });
+
   test('account loss retires a delayed catalog result', () async {
     final fixture = _CatalogFixture()..pending = Completer<http.Response>();
     await fixture.account.initialize();
