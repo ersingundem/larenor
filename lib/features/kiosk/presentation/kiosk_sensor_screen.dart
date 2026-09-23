@@ -278,6 +278,16 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
                       _status(l.kioskSensorsMotion, _motion(l, snapshot)),
                       _status(l.kioskSensorsApproach, _approach(l, snapshot)),
                       _status(l.kioskSensorsCamera, _camera(l, snapshot)),
+                      _status(
+                        l.kioskSensorsBattery,
+                        _battery(l, snapshot),
+                        key: const ValueKey('kiosk-sensor-battery'),
+                      ),
+                      _status(
+                        l.kioskSensorsThermal,
+                        _thermal(l, snapshot),
+                        key: const ValueKey('kiosk-sensor-thermal'),
+                      ),
                     ],
                   ),
                   if (!_foreground || !_nativeFocused)
@@ -388,12 +398,35 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
     };
   }
 
+  String _battery(AppLocalizations l, KioskSensorSnapshot? value) {
+    if (value == null) return l.kioskSensorsInactive;
+    final percent = value.batteryPercent;
+    return percent == null
+        ? l.kioskSensorsNotAvailable
+        : l.kioskSensorsBatteryPercent(percent.toString());
+  }
+
+  String _thermal(AppLocalizations l, KioskSensorSnapshot? value) {
+    if (value == null) return l.kioskSensorsInactive;
+    return switch (value.thermalStatus) {
+      KioskSensorThermalStatus.none => l.kioskSensorsThermalNone,
+      KioskSensorThermalStatus.light => l.kioskSensorsThermalLight,
+      KioskSensorThermalStatus.moderate => l.kioskSensorsThermalModerate,
+      KioskSensorThermalStatus.severe => l.kioskSensorsThermalSevere,
+      KioskSensorThermalStatus.critical => l.kioskSensorsThermalCritical,
+      KioskSensorThermalStatus.emergency => l.kioskSensorsThermalEmergency,
+      KioskSensorThermalStatus.shutdown => l.kioskSensorsThermalShutdown,
+      KioskSensorThermalStatus.unknown => l.kioskSensorsThermalUnknown,
+    };
+  }
+
   Widget _segment(String label) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
     child: Text(label),
   );
 
-  Widget _status(String title, String value) => Padding(
+  Widget _status(String title, String value, {Key? key}) => Padding(
+    key: key,
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

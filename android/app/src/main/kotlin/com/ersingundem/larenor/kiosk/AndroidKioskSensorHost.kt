@@ -9,7 +9,10 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.hardware.camera2.CameraManager
 import android.os.Handler
+import android.os.BatteryManager
+import android.os.Build
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import java.util.UUID
 import kotlin.math.sqrt
@@ -19,6 +22,8 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
     private val context = context.applicationContext
     private val manager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val cameras = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    private val battery = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+    private val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     private val light = manager.getDefaultSensor(Sensor.TYPE_LIGHT)
     private val motion = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val approach = manager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
@@ -65,7 +70,34 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
                 approachStarted && it.isFinite() && it in 0.1..100.0
             },
             camera = camera,
+            batteryPercent = batteryPercent(),
+            thermalStatus = thermalStatus(),
         )
+    }
+
+    private fun batteryPercent(): Int? = try {
+        battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            .takeIf { it in 0..100 }
+    } catch (_: RuntimeException) {
+        null
+    }
+
+    private fun thermalStatus(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "unknown"
+        return try {
+            when (power.currentThermalStatus) {
+                PowerManager.THERMAL_STATUS_NONE -> "none"
+                PowerManager.THERMAL_STATUS_LIGHT -> "light"
+                PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+                PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+                PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+                PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+                PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+                else -> "unknown"
+            }
+        } catch (_: RuntimeException) {
+            "unknown"
+        }
     }
 
     override fun start(listener: (KioskSensorSample) -> Unit) {

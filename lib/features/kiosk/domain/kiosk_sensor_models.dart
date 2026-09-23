@@ -2,6 +2,17 @@ enum KioskSensorSensitivity { low, medium, high }
 
 enum KioskSensorCameraStatus { available, busy, permissionDenied, unavailable }
 
+enum KioskSensorThermalStatus {
+  none,
+  light,
+  moderate,
+  severe,
+  critical,
+  emergency,
+  shutdown,
+  unknown,
+}
+
 enum KioskSensorFailure { unsupported, unavailable, denied, expired, busy }
 
 const _snapshotKeys = <String>{
@@ -18,6 +29,8 @@ const _snapshotKeys = <String>{
   'approachDistanceCm',
   'approachMaxRangeCm',
   'cameraStatus',
+  'batteryPercent',
+  'thermalStatus',
 };
 
 final class KioskSensorException implements Exception {
@@ -41,6 +54,8 @@ final class KioskSensorSnapshot {
     required this.approachDistanceCm,
     required this.approachMaxRangeCm,
     required this.cameraStatus,
+    required this.batteryPercent,
+    required this.thermalStatus,
   });
 
   final String sessionId;
@@ -48,6 +63,8 @@ final class KioskSensorSnapshot {
   final bool sampling, lightAvailable, motionAvailable, approachAvailable;
   final double? lux, motionDelta, approachDistanceCm, approachMaxRangeCm;
   final KioskSensorCameraStatus cameraStatus;
+  final int? batteryPercent;
+  final KioskSensorThermalStatus thermalStatus;
 
   bool? get isDark => !lightAvailable || lux == null ? null : lux! < 20;
   bool? isMoving(KioskSensorSensitivity sensitivity) {
@@ -76,7 +93,8 @@ final class KioskSensorSnapshot {
     if (raw is! Map ||
         raw.length != _snapshotKeys.length ||
         !_snapshotKeys.every(raw.containsKey) ||
-        raw['version'] != 2 ||
+        raw['version'] is! int ||
+        raw['version'] != 3 ||
         raw['sessionId'] is! String ||
         raw['sequence'] is! int ||
         raw['sampling'] is! bool ||
@@ -90,7 +108,9 @@ final class KioskSensorSnapshot {
             raw['approachDistanceCm'] is num) ||
         !(raw['approachMaxRangeCm'] == null ||
             raw['approachMaxRangeCm'] is num) ||
-        raw['cameraStatus'] is! String) {
+        raw['cameraStatus'] is! String ||
+        !(raw['batteryPercent'] == null || raw['batteryPercent'] is int) ||
+        raw['thermalStatus'] is! String) {
       invalid();
     }
     final sessionId = raw['sessionId'] as String;
@@ -103,11 +123,18 @@ final class KioskSensorSnapshot {
     final camera = KioskSensorCameraStatus.values
         .where((value) => value.name == raw['cameraStatus'])
         .firstOrNull;
+    final batteryPercent = raw['batteryPercent'] as int?;
+    final thermal = KioskSensorThermalStatus.values
+        .where((value) => value.name == raw['thermalStatus'])
+        .firstOrNull;
     if (!RegExp(r'^[a-f0-9-]{36}$').hasMatch(sessionId) ||
         (expectedSessionId != null && sessionId != expectedSessionId) ||
         sequence < 0 ||
         observed < 0 ||
         camera == null ||
+        thermal == null ||
+        (batteryPercent != null &&
+            (batteryPercent < 0 || batteryPercent > 100)) ||
         (lux != null && (!lux.isFinite || lux < 0 || lux > 200000)) ||
         (motion != null && (!motion.isFinite || motion < 0 || motion > 100)) ||
         (approachMaxRange != null &&
@@ -139,6 +166,8 @@ final class KioskSensorSnapshot {
       approachDistanceCm: approachDistance,
       approachMaxRangeCm: approachMaxRange,
       cameraStatus: camera,
+      batteryPercent: batteryPercent,
+      thermalStatus: thermal,
     );
   }
 }

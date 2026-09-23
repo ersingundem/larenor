@@ -107,6 +107,7 @@ void main() {
         'approachMaxRangeCm': null,
       },
       {..._sample(), 'sequence': -1},
+      {..._sample(), 'version': 3.0},
       {..._sample(), 'cameraStatus': 'recording'},
       {..._sample(), 'batteryPercent': -1},
       {..._sample(), 'batteryPercent': 101},

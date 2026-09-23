@@ -142,10 +142,16 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.textContaining('73%'), findsOneWidget);
         expect(
-          find.textContaining(
-            locale.languageCode == 'tr' ? 'Orta' : 'Moderate',
+          find.textContaining(locale.languageCode == 'tr' ? '%73' : '73%'),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('kiosk-sensor-thermal')),
+            matching: find.text(
+              locale.languageCode == 'tr' ? 'Orta' : 'Moderate',
+            ),
           ),
           findsOneWidget,
         );
