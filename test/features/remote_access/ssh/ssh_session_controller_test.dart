@@ -305,18 +305,19 @@ void main() {
     expect(c.transcript, isEmpty);
     expect(engine.closed, isTrue);
   });
-  test('directional controls are visible and cannot reorder terminal text', () async {
-    store.pin = hostPin;
-    await c.connect();
+  test(
+    'directional controls are visible and cannot reorder terminal text',
+    () async {
+      store.pin = hostPin;
+      await c.connect();
 
-    engine.channel.out.add(
-      utf8.encode('safe\u202etxt\u2066end\u001b[31m'),
-    );
-    await tick();
+      engine.channel.out.add(utf8.encode('safe\u202etxt\u2066end\u001b[31m'));
+      await tick();
 
-    expect(c.transcript, 'safe⟦bidi⟧txt⟦bidi⟧end␛[31m');
-    expect(c.phase, SshSessionPhase.connected);
-  });
+      expect(c.transcript, 'safe⟦bidi⟧txt⟦bidi⟧end␛[31m');
+      expect(c.phase, SshSessionPhase.connected);
+    },
+  );
   test('multibyte terminal history is capped by UTF8 bytes', () async {
     store.pin = hostPin;
     await c.connect();
