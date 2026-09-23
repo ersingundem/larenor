@@ -61,7 +61,10 @@ def config(tmp_path, runtime):
 
 @pytest.fixture
 def selected_config(tmp_path):
-    runtime = Path("/private/tmp") / f"larenor-worker-{os.getpid()}-{tmp_path.name}"
+    temporary_root = Path("/private/tmp")
+    if not temporary_root.is_dir():
+        temporary_root = Path("/tmp")
+    runtime = temporary_root / f"larenor-worker-{os.getpid()}-{tmp_path.name}"
     selected = config(tmp_path, runtime)
     yield selected
     runtime.rmdir()
