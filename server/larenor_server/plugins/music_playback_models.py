@@ -310,6 +310,7 @@ class MusicLongformItem(StrictModel):
                 or uri.group(1) in {
                     'content', 'data', 'file', 'ftp', 'http', 'https',
                     'javascript'}
+                or any(value in self.uri for value in ('?', '#', '@'))
                 or any(ord(char) < 33 or ord(char) == 127
                        for char in self.uri)
                 or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
