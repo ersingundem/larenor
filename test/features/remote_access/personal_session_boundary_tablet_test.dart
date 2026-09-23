@@ -5,9 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 
 import 'remote_profiles_ui_fixture.dart';
+
+final class _EmptyServerSessions implements ServerSessionPersistence {
+  @override
+  Future<ServerSession?> read() async => null;
+
+  @override
+  Future<void> write(ServerSession? session) async {}
+}
 
 List<SemanticsNode> effectiveNodes(WidgetTester tester) {
   final nodes = <SemanticsNode>[];
@@ -145,6 +156,26 @@ void main() {
     await container.read(pinLockProvider.notifier).setPin('5678');
     await tester.pumpAndSettle();
     old();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SshTerminalPanel), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Core account authority change retires a Core-less session', (
+    tester,
+  ) async {
+    final account = ServerAccountController(store: _EmptyServerSessions());
+    addTearDown(account.dispose);
+    final ui = RemoteUi();
+    await ui.mount(tester, serverAccount: account);
+    await ui.edit(tester);
+    await ui.save(tester);
+    await ui.openFirst(tester);
+    await press(tester, 'remote-ssh-open');
+    expect(find.byType(SshTerminalPanel), findsOneWidget);
+
+    await account.signOut();
     await tester.pumpAndSettle();
 
     expect(find.byType(SshTerminalPanel), findsNothing);
