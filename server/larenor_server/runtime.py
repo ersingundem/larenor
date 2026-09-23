@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .app import create_app
 from .config import Settings
+from .core_backups.component_worker import ComponentSnapshotWorkerClient
 from .core_backups.service import CoreBackupContract
 from .errors import ApiError, StartupError
 from .files import checked_path, private_create, private_directory, private_read
@@ -68,6 +69,11 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
     try:
         # Check source/core before creating the additional publishing credential.
         app = create_app(settings)
+        if component_backup_boundary is None and settings.component_backup_worker_socket:
+            component_backup_boundary = ComponentSnapshotWorkerClient(
+                settings.component_backup_worker_socket,
+                owner_uid=settings.component_backup_worker_uid,
+            )
         if component_backup_boundary is not None:
             app.state.core.core_backups = CoreBackupContract(
                 app.state.core.db,

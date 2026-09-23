@@ -258,6 +258,34 @@ default `0`). Invalid values fail startup with the static code
 `invalid_worker_configuration`, without echoing environment values. The API
 container's default entry point starts only the API, not this worker.
 
+## Optional component-backup snapshot worker
+
+Core backups keep component capture disabled unless
+`LARENOR_COMPONENT_BACKUP_WORKER_SOCKET` names an absolute private Unix socket.
+`LARENOR_COMPONENT_BACKUP_WORKER_UID` selects the exact socket owner and Linux
+peer UID (default `0`); setting a nonzero UID without a socket, reusing another
+worker path, or supplying an unsafe path fails startup with the static
+`invalid_worker_configuration` code. The API never receives a Docker socket,
+host volume path, component credential or write authority through this port.
+
+The host-owned worker protocol is single-flight and deadline-bound. One
+length-prefixed canonical JSON `quiesce` request receives a header of at most
+64 KiB followed by at most 128 declared payloads. Each payload is individually
+limited to 64 MiB, the set is limited to 256 MiB, and every exact byte length
+and SHA-256 digest is verified before the backup contract can use it. The API
+then sends `release` with the same random request ID on the same authenticated
+connection and requires the exact acknowledgement. EOF, timeout, peer or
+socket-inode change, malformed metadata, duplicate volume, digest mismatch, or
+release failure blocks the backup with no manifest. The socket must be owned by
+the configured UID with mode `0600` or group-readable `0660`; production peer
+verification requires Linux `SO_PEERCRED`, independent of filesystem group
+access.
+
+This package supplies the fail-closed API-side client and runtime composition
+port. The privileged worker process and component-specific stop/snapshot/resume
+policy remain operator-owned and are not started by the API container. Omitting
+the socket retains the no-component default.
+
 ## Bounded media installation execution
 
 `/api/v1/admin/media/installations` is the first durable S06.4 execution
