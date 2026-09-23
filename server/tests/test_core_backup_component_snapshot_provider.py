@@ -126,7 +126,7 @@ def test_provider_pauses_once_and_returns_deterministic_catalog_snapshots(tmp_pa
 
     with snapshot_provider.quiesce(time.monotonic() + 3) as second:
         assert [item.payload for item in second] == [item.payload for item in first]
-    assert len(authority.calls) == 4
+    assert len(authority.calls) == 6
 
 
 def test_provider_rolls_back_partial_pause_without_reading_volumes(tmp_path):
@@ -302,6 +302,31 @@ def test_installed_authority_loss_blocks_before_pause(tmp_path):
         with snapshot_provider.quiesce(time.monotonic() + 3):
             raise AssertionError("must_not_yield")
     assert controller.calls == []
+
+
+def test_installed_authority_drift_before_release_fails_snapshot(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    authority = InstalledAuthority()
+    controller = PauseController()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+        authority,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            authority.available = False
+
+    assert len(authority.calls) == 3
+    assert controller.paused == set()
+    assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
 
 
 def test_provider_rejects_shared_container_across_services(tmp_path):
