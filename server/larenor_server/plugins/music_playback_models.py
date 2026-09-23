@@ -305,7 +305,13 @@ class MusicLongformItem(StrictModel):
 
     @model_validator(mode='after')
     def coherent(self):
-        if (re.fullmatch(r'[a-z][a-z0-9_]{0,63}://[^\s]+', self.uri) is None
+        uri = re.fullmatch(r'([a-z][a-z0-9_]{0,63})://[^\s]+', self.uri)
+        if (uri is None
+                or uri.group(1) in {
+                    'content', 'data', 'file', 'ftp', 'http', 'https',
+                    'javascript'}
+                or any(ord(char) < 33 or ord(char) == 127
+                       for char in self.uri)
                 or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
                                 self.providerInstanceId) is None
                 or self.name != self.name.strip()
