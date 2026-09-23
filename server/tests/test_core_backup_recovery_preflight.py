@@ -1,9 +1,10 @@
 """Fail-closed publication preflight for interrupted Core restores."""
 
 import pytest
+from test_core_backup_empty_restore import PASSPHRASE, _bundle, _target
+
 from larenor_server.core_backups import restore as restore_module
 from larenor_server.errors import StartupError
-from test_core_backup_empty_restore import PASSPHRASE, _bundle, _target
 
 
 def test_corrupt_late_stage_file_publishes_no_earlier_restore_artifact(
