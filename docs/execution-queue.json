@@ -1198,7 +1198,7 @@
       "kind": "task",
       "parent": "S07",
       "title": "Tek kurulum durumu ve ayarlar kabulü",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S07.2",
         "S07.3"
@@ -1222,7 +1222,7 @@
         {
           "kind": "test",
           "ref": "docs/testing/s07-4-exact-tree-closure-2026-09-23.md",
-          "commit": "1fcea99abdf9e8776896e8ea64fab6ca53262d26",
+          "commit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
           "state": "completed",
           "result": "passed",
           "label": "Client durum ayrımı, yedi bileşenli Core API, paket önizleme ve iki mimarili restart sözleşmesi odaklı testlerde geçti."
@@ -1230,14 +1230,38 @@
         {
           "kind": "review",
           "ref": "docs/testing/s07-4-exact-tree-closure-2026-09-23.md",
-          "commit": "1fcea99abdf9e8776896e8ea64fab6ca53262d26",
+          "commit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
           "state": "completed",
           "result": "passed",
-          "label": "Exact-tree saldırgan incelemede süreç ve entegrasyon ayrımı açığı TDD ile kapatıldı; kalan tek yazılım kapısı güncel commit CI'ıdır."
+          "label": "Exact-tree saldırgan incelemede süreç ve entegrasyon ayrımı açığı TDD ile kapatıldı; Client yetkisi ve manuel sınırlar yeniden doğrulandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35812635044",
+          "commit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #330 exact head: static analiz, dört Flutter shardı, dört Server shardı, API 35 uygulama yolculukları ve debug APK başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35812634919",
+          "commit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #330 exact head Security: secret, platform-policy ve dependency kapıları başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35812634855",
+          "commit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR #330 exact head birleşik medya yığını native kabulü: linux/amd64 ve linux/arm64 restart zinciri başarılı."
         }
       ],
-      "completionCommit": null,
-      "reason": "1fcea99a üzerinde test ve bağımsız inceleme tamamlandı; Client düzeltmesini içeren exact commit için zorunlu GitHub CI bekleniyor."
+      "completionCommit": "223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f",
+      "reason": "PR #330 exact head 223ff08f tüm zorunlu CI kapılarını geçti ve main 814eaeac içine birleşti; gerçek sağlayıcı, alıcı ve fiziksel ev kabulü ayrı manuel sınırda."
     },
     {
       "id": "B3",
