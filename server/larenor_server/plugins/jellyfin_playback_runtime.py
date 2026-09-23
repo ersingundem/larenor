@@ -34,8 +34,10 @@ _BASE_AUTH = ('MediaBrowser Client="Larenor%20Core", Device="Larenor%20Core", '
 class JellyfinPlaybackRuntimeError(Exception):
     """One static error without upstream payloads or credentials."""
 
-    def __init__(self, code='jellyfin_playback_unavailable'):
+    def __init__(self, code='jellyfin_playback_unavailable', *,
+                 uncertain_effect=False):
         self.code = code
+        self.uncertain_effect = uncertain_effect is True
         super().__init__(code)
 
 
@@ -63,19 +65,23 @@ class JellyfinPlaybackProtocol:
             raise JellyfinPlaybackRuntimeError('invalid_jellyfin_playback_request')
 
     @staticmethod
-    def _request(connection, method, path, authorization, deadline, *, status):
+    def _request(connection, method, path, authorization, deadline, *, status,
+                 effect=False):
         reader = _StartupReader(connection, deadline)
+        attempted = False
         try:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ValueError()
             connection.settimeout(remaining)
-            connection.sendall(_request_bytes(
+            request = _request_bytes(
                 method, path, 'jellyfin', {
                     'Accept': 'application/json',
                     'Authorization': authorization,
                 }, None,
-            ))
+            )
+            attempted = True
+            connection.sendall(request)
             observed_status, body, closed = _response(reader, 262144)
             if observed_status != status or closed is not True:
                 raise ValueError()
@@ -86,7 +92,8 @@ class JellyfinPlaybackProtocol:
             raise
         except (OSError, ValueError, TypeError, ProbeTransportError,
                 socket.timeout):
-            raise JellyfinPlaybackRuntimeError() from None
+            raise JellyfinPlaybackRuntimeError(
+                uncertain_effect=effect and attempted) from None
         finally:
             try:
                 connection.close()
@@ -247,10 +254,15 @@ class JellyfinPlaybackProtocol:
         self._request(
             connections[1], 'POST',
             f'/Sessions/{action.targetId}/Playing?{query}',
-            authorization, deadline, status=204)
-        after = self.read(
-            connections[2], api_key=api_key,
-            installation_id=action.installationId, deadline=deadline)
+            authorization, deadline, status=204, effect=True)
+        try:
+            after = self.read(
+                connections[2], api_key=api_key,
+                installation_id=action.installationId, deadline=deadline)
+        except JellyfinPlaybackRuntimeError:
+            raise JellyfinPlaybackRuntimeError(
+                'jellyfin_playback_effect_unknown',
+                uncertain_effect=True) from None
         selected = next((item for item in after.targets
                          if item.targetId == action.targetId), None)
         if (after.playbackRevision <= before.playbackRevision

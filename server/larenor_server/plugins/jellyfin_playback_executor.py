@@ -188,6 +188,8 @@ class JellyfinPlaybackExecutor:
             if error.code == 'jellyfin_playback_authority_changed':
                 raise JellyfinPlaybackExecutionError(
                     'jellyfin_playback_authority_changed') from None
+            if not error.uncertain_effect:
+                raise JellyfinPlaybackExecutionError() from None
             raise JellyfinPlaybackExecutionError(
                 'jellyfin_playback_effect_unknown',
                 uncertain_effect=True) from None
