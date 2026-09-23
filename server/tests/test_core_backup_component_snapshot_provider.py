@@ -209,6 +209,33 @@ def test_archive_is_bounded_and_rejects_expired_deadline(tmp_path):
         os.close(descriptor)
 
 
+def test_archive_rejects_same_name_replacement_before_final_directory_check(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "state.db"
+    target.write_bytes(b"old-snapshot")
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    original_listdir = os.listdir
+    calls = 0
+
+    def mutate_before_final_check(value):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            target.write_bytes(b"new-live-stat")
+        return original_listdir(value)
+
+    monkeypatch.setattr(os, "listdir", mutate_before_final_check)
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+
 @pytest.mark.parametrize(
     "change",
     [
