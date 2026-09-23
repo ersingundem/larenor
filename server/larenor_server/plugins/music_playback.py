@@ -437,7 +437,10 @@ class MusicPlaybackManagement:
         try:
             result = callback(
                 PrivateMusicLongformAction(
-                    request=body, token=authority.token),
+                    request=body,
+                    allowedProviderInstanceIds=[
+                        item.providerInstanceId for item in bindings],
+                    token=authority.token),
                 deadline=deadline, gate=gate)
             if type(result) is not MusicLongformWorkerResult or gate() is not True:
                 raise ValueError()

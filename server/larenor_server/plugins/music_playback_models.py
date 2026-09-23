@@ -314,15 +314,19 @@ class MusicLongformItem(StrictModel):
             raise ValueError('invalid_music_longform_readback')
         previous_position = -1
         previous_start = -1.0
+        previous_end = None
         for chapter in self.chapters:
             if (chapter.position <= previous_position
                     or chapter.startSeconds <= previous_start
+                    or previous_end is not None
+                    and chapter.startSeconds < previous_end
                     or chapter.startSeconds >= self.durationSeconds
                     or chapter.endSeconds is not None
                     and chapter.endSeconds > self.durationSeconds):
                 raise ValueError('invalid_music_longform_readback')
             previous_position = chapter.position
             previous_start = chapter.startSeconds
+            previous_end = chapter.endSeconds
         return self
 
 
@@ -367,7 +371,19 @@ class PrivateMusicCatalogAction(StrictModel):
 
 class PrivateMusicLongformAction(StrictModel):
     request: ReadMusicLongformRequest = Field(repr=False)
+    allowedProviderInstanceIds: list[str] = Field(min_length=1, max_length=256,
+                                                   repr=False)
     token: str = Field(min_length=1, max_length=2048, repr=False)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (len(set(self.allowedProviderInstanceIds))
+                != len(self.allowedProviderInstanceIds)
+                or any(re.fullmatch(
+                    r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None
+                    for value in self.allowedProviderInstanceIds)):
+            raise ValueError('invalid_music_longform_authority')
+        return self
 
 
 class MusicCatalogWorkerResult(StrictModel):

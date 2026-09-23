@@ -236,7 +236,7 @@ class MusicPlaybackRuntime:
                 'music_catalog_readback_changed') from None
 
     @staticmethod
-    def _longform_item(raw, expected):
+    def _longform_item(raw, expected, allowed_providers):
         try:
             if type(raw) is not dict or type(expected) is not dict:
                 raise ValueError()
@@ -246,9 +246,11 @@ class MusicPlaybackRuntime:
                     or media_type != expected.get('media_type')
                     or media_type not in {'audiobook', 'podcast_episode'}):
                 raise ValueError()
-            metadata = raw.get('metadata') or {}
-            chapters = metadata.get('chapters') or []
-            if type(metadata) is not dict or type(chapters) is not list:
+            metadata = raw.get('metadata', {})
+            if type(metadata) is not dict:
+                raise ValueError()
+            chapters = metadata.get('chapters', [])
+            if type(chapters) is not list:
                 raise ValueError()
             if len(chapters) > 512:
                 raise ValueError()
@@ -266,9 +268,12 @@ class MusicPlaybackRuntime:
                     or type(resume) not in (int, float) or type(resume) is bool
                     or not math.isfinite(resume)):
                 raise ValueError()
+            provider = raw['provider']
+            if provider not in allowed_providers:
+                raise ValueError()
             return MusicLongformItem(
                 uri=uri, name=raw['name'], mediaType=media_type,
-                providerInstanceId=raw['provider'],
+                providerInstanceId=provider,
                 durationSeconds=float(duration),
                 resumePositionSeconds=float(resume) / 1000,
                 fullyPlayed=raw.get('fully_played'), chapters=parsed_chapters)
@@ -301,7 +306,8 @@ class MusicPlaybackRuntime:
             detail = self._command(
                 request.requestId, action.token, 'music/item_by_uri',
                 {'uri': uri}, deadline, cancelled)
-            items.append(self._longform_item(detail, summary))
+            items.append(self._longform_item(
+                detail, summary, set(action.allowedProviderInstanceIds)))
         return MusicLongformWorkerResult(items=items)
 
     def execute(self, action, *, deadline, cancelled=None):
