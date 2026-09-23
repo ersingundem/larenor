@@ -104,17 +104,17 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     required this.enabled,
     required this.port,
     required this.isCurrent,
-    DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    Duration Function()? elapsed,
+  }) : _elapsed = elapsed ?? _newMonotonicClock();
 
   final bool enabled;
   final WebPanelExternalActionPort port;
   final bool Function() isCurrent;
-  final DateTime Function() _now;
+  final Duration Function() _elapsed;
 
   WebPanelExternalActionStatus status = WebPanelExternalActionStatus.idle;
   WebPanelExternalAction? pending;
-  DateTime? _deadline;
+  Duration? _deadline;
   int _epoch = 0;
   bool _disposed = false;
 
@@ -122,7 +122,7 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     if (_disposed || !enabled || !isCurrent()) return;
     _epoch++;
     pending = null;
-    _deadline = _now().add(const Duration(seconds: 30));
+    _deadline = _elapsed() + const Duration(seconds: 30);
     status = WebPanelExternalActionStatus.armed;
     notifyListeners();
   }
@@ -137,7 +137,7 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     if (!isCurrent() ||
         status != WebPanelExternalActionStatus.armed ||
         deadline == null ||
-        _now().isAfter(deadline)) {
+        _elapsed() >= deadline) {
       _epoch++;
       pending = null;
       _deadline = null;
@@ -163,7 +163,7 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     final epoch = ++_epoch;
     pending = null;
     _deadline = null;
-    if (!isCurrent() || _now().isAfter(deadline)) {
+    if (!isCurrent() || _elapsed() >= deadline) {
       status = WebPanelExternalActionStatus.denied;
       notifyListeners();
       return;
@@ -184,6 +184,11 @@ final class WebPanelExternalActionController extends ChangeNotifier {
       status = WebPanelExternalActionStatus.failed;
       notifyListeners();
     }
+  }
+
+  static Duration Function() _newMonotonicClock() {
+    final stopwatch = Stopwatch()..start();
+    return () => stopwatch.elapsed;
   }
 
   void cancel() => retire();

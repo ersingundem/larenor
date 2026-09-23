@@ -49,14 +49,14 @@ void main() {
   });
 
   test('fresh one-shot grant previews then launches exactly once', () async {
-    var now = DateTime.utc(2026, 9, 23);
+    var elapsed = Duration.zero;
     var current = true;
     final port = _Port();
     final controller = WebPanelExternalActionController(
       enabled: true,
       port: port,
       isCurrent: () => current,
-      now: () => now,
+      elapsed: () => elapsed,
     );
 
     expect(controller.capture('tel:+902121234567', mainFrame: true), isTrue);
@@ -77,15 +77,44 @@ void main() {
     await controller.confirm();
     expect(port.launches, 1);
 
-    now = now.add(const Duration(seconds: 31));
+    elapsed += const Duration(seconds: 31);
     controller.arm();
-    now = now.add(const Duration(seconds: 31));
+    elapsed += const Duration(seconds: 31);
     expect(
       controller.capture('mailto:person@example.com', mainFrame: true),
       isTrue,
     );
     expect(controller.status, WebPanelExternalActionStatus.denied);
     current = false;
+    controller.dispose();
+  });
+
+  test('the exact deadline is expired for capture and confirmation', () async {
+    var elapsed = Duration.zero;
+    final port = _Port();
+    final controller = WebPanelExternalActionController(
+      enabled: true,
+      port: port,
+      isCurrent: () => true,
+      elapsed: () => elapsed,
+    );
+
+    controller.arm();
+    elapsed = const Duration(seconds: 30);
+    expect(controller.capture('tel:+902121234567', mainFrame: true), isTrue);
+    expect(controller.status, WebPanelExternalActionStatus.denied);
+
+    elapsed = const Duration(minutes: 1);
+    controller.arm();
+    elapsed += const Duration(seconds: 29);
+    expect(
+      controller.capture('mailto:person@example.com', mainFrame: true),
+      isTrue,
+    );
+    elapsed += const Duration(seconds: 1);
+    await controller.confirm();
+    expect(controller.status, WebPanelExternalActionStatus.denied);
+    expect(port.launches, 0);
     controller.dispose();
   });
 
