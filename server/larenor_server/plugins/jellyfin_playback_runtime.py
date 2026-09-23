@@ -112,8 +112,8 @@ class JellyfinPlaybackProtocol:
                 or type(state) is not dict):
             raise ValueError()
         ticks = state.get('PositionTicks')
-        if (type(ticks) is not int or not 0 <= ticks <= 86_400_000_000_000
-                or ticks % 10_000_000 != 0):
+        if (type(ticks) is not int
+                or not 0 <= ticks <= 86_400_000_000_000):
             raise ValueError()
         current = None
         if now is not None:

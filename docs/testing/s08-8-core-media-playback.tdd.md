@@ -77,8 +77,8 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   discovery compatibility was retained by `d2d2ad24`; a worker implementation
   that does not advertise both playback methods remains unavailable.
 
-The production-worker package adds **19/19** protocol/container tests and the
-private IPC/credential groups bring the focused Server batch to **54/54**.
+The production-worker package adds **20/20** protocol/container tests and the
+private IPC/credential groups bring the focused Server batch to **55/55**.
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.

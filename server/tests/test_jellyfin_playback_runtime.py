@@ -104,6 +104,19 @@ def test_reads_only_controllable_sessions_over_exact_authenticated_route():
     assert TOKEN not in repr(result) + repr(runtime)
 
 
+def test_readback_floors_valid_subsecond_jellyfin_ticks():
+    body = json.loads(sessions())
+    body[0]['PlayState']['PositionTicks'] = 125_000_000
+    runtime = JellyfinPlaybackProtocol(revision_seed=100)
+
+    result = runtime.read(
+        Connection(response('200 OK', json.dumps(body).encode())),
+        api_key=TOKEN, installation_id=INSTALLATION,
+        deadline=time.monotonic() + 1)
+
+    assert result.targets[0].positionSeconds == 12
+
+
 def test_play_now_is_one_post_between_matching_before_and_authenticated_after_readback():
     runtime = JellyfinPlaybackProtocol(revision_seed=100)
     runtime.read(
