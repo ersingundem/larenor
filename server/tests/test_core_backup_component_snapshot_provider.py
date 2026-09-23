@@ -238,6 +238,35 @@ def test_archive_rejects_same_name_replacement_before_final_directory_check(
         os.close(descriptor)
 
 
+def test_archive_rejects_nested_mutation_while_later_sibling_is_read(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "root"
+    nested = root / "a-nested"
+    nested.mkdir(parents=True)
+    target = nested / "state.db"
+    target.write_bytes(b"old-state")
+    (root / "z-trigger").write_bytes(b"trigger")
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    original_stat = os.stat
+    mutated = False
+
+    def mutate_after_nested_visit(path, *args, **kwargs):
+        nonlocal mutated
+        if path == "z-trigger" and not mutated:
+            mutated = True
+            target.write_bytes(b"new-state")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", mutate_after_nested_visit)
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+
 @pytest.mark.parametrize(
     "change",
     [
