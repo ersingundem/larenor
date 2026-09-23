@@ -23,6 +23,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 import java.io.ByteArrayInputStream
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class RendererRequestFailure : IllegalArgumentException()
@@ -45,13 +47,28 @@ internal data class WebRequestOrigin(
     }
 
     companion object {
+        private val dnsLabel = Regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+        private val ipv6Characters = Regex("^[0-9a-f:.]+$")
+
+        private fun canonicalHost(raw: String): Boolean {
+            if (raw.isEmpty() || raw.length > 253 || raw != raw.lowercase() ||
+                raw.any { it.isWhitespace() || it.isISOControl() || it in "/?#@%\\[]" }
+            ) {
+                return false
+            }
+            if (':' in raw) {
+                return ipv6Characters.matches(raw) &&
+                    runCatching { InetAddress.getByName(raw) is Inet6Address }.getOrDefault(false)
+            }
+            if (raw.endsWith('.')) return false
+            return raw.split('.').all(dnsLabel::matches)
+        }
+
         fun parse(value: Any?): WebRequestOrigin {
             val values = value as? Map<*, *> ?: throw RendererRequestFailure()
             if (values.keys != setOf("scheme", "host", "port")) throw RendererRequestFailure()
-            val scheme = (values["scheme"] as? String)?.lowercase()
-                ?: throw RendererRequestFailure()
+            val scheme = values["scheme"] as? String ?: throw RendererRequestFailure()
             val rawHost = values["host"] as? String ?: throw RendererRequestFailure()
-            val host = rawHost.removeSurrounding("[", "]").lowercase()
             val port = when (val rawPort = values["port"]) {
                 is Int -> rawPort
                 is Long -> rawPort.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }?.toInt()
@@ -59,14 +76,12 @@ internal data class WebRequestOrigin(
             } ?: throw RendererRequestFailure()
             if (scheme !in setOf("http", "https") ||
                 rawHost != rawHost.trim() ||
-                host.isEmpty() ||
-                host.length > 253 ||
-                host.any { it.isWhitespace() || it.isISOControl() || it in "/?#@" } ||
+                !canonicalHost(rawHost) ||
                 port !in 1..65535
             ) {
                 throw RendererRequestFailure()
             }
-            return WebRequestOrigin(scheme, host, port)
+            return WebRequestOrigin(scheme, rawHost, port)
         }
     }
 }
@@ -81,7 +96,12 @@ internal class WebRequestFirewall(private val allowedOrigins: Set<WebRequestOrig
         "UTF-8",
         403,
         "Forbidden",
-        mapOf("Cache-Control" to "no-store"),
+        mapOf(
+            "Cache-Control" to "no-store",
+            "Content-Security-Policy" to "default-src 'none'; sandbox",
+            "Referrer-Policy" to "no-referrer",
+            "X-Content-Type-Options" to "nosniff",
+        ),
         ByteArrayInputStream(ByteArray(0)),
     )
 }
@@ -284,7 +304,7 @@ internal class RendererAwareWebViewClient(
     private val consumed = AtomicBoolean(false)
 
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-        if (consumed.compareAndSet(false, true)) rendererGone()
+        if (consumed.compareAndSet(false, true)) runCatching(rendererGone)
         return true
     }
 
