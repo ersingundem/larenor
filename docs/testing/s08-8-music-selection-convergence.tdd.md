@@ -25,6 +25,10 @@ Commit `af87bee0366fb6144504511631487d840a079f44` added delayed out-of-order
 provider/receiver saves and logout-during-save coverage. The older provider
 write won and restored the wrong provider.
 
+Follow-up RED commit `2adad63b28bbfe6c9c12b32c1f42ad5906107dbd`
+paused an invalid read, installed a newer valid owner record, then resumed the
+read. Unconditional invalid-record cleanup deleted the replacement record.
+
 ## GREEN
 
 ```text

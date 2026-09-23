@@ -140,7 +140,7 @@ final class ServerMusicSelectionCache {
     }
     if (raw == null) return null;
     if (utf8.encode(raw).length > maximumBytes) {
-      await _clearQuietly();
+      await clearIfCurrent(raw);
       return null;
     }
     try {
@@ -239,7 +239,7 @@ final class ServerMusicSelectionCache {
         receiverId: currentReceiver.id,
       );
     } catch (_) {
-      await _clearQuietly();
+      await clearIfCurrent(raw);
       return null;
     }
   }
