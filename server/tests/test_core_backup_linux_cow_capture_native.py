@@ -1,0 +1,105 @@
+"""Root-only acceptance for the packaged Linux btrfs capture primitive."""
+
+import os
+from pathlib import Path
+import subprocess
+import time
+
+import pytest
+
+from larenor_server.core_backups.component_isolated_capture import (
+    BtrfsReadOnlySnapshotBackend,
+    LinuxCowCaptureEngine,
+)
+from larenor_server.core_backups.component_snapshot_provider import (
+    ComponentVolumeSource,
+)
+
+pytestmark = pytest.mark.skipif(
+    "LARENOR_NATIVE_CAPTURE_ROOT" not in os.environ,
+    reason="requires the owned native btrfs workflow fixture",
+)
+
+
+def _run(*arguments):
+    subprocess.run(arguments, check=True, stdin=subprocess.DEVNULL)
+
+
+class _InterruptAfterSnapshot:
+    def __init__(self, backend):
+        self.backend = backend
+
+    def create_read_only(self, source, destination, deadline):
+        self.backend.create_read_only(source, destination, deadline)
+        raise KeyboardInterrupt()
+
+    def is_read_only(self, destination, deadline):
+        return self.backend.is_read_only(destination, deadline)
+
+    def delete(self, destination, deadline):
+        return self.backend.delete(destination, deadline)
+
+
+def _source(root):
+    source = root / "live"
+    _run("/usr/bin/btrfs", "subvolume", "create", str(source))
+    (source / "state.txt").write_text("durable component state\n")
+    info = source.stat()
+    return ComponentVolumeSource(
+        "jellyfin",
+        "a" * 64,
+        "jellyfin-config",
+        source,
+        "10.11.11",
+        1,
+        "upstream_managed_unverified",
+        7,
+        info.st_dev,
+        info.st_ino,
+    )
+
+
+def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
+    root = Path(os.environ["LARENOR_NATIVE_CAPTURE_ROOT"])
+    assert os.geteuid() == 0
+    source = _source(root)
+    captures = root / "captures"
+    captures.mkdir(mode=0o700)
+    journal = root / "capture-journal.json"
+    backend = BtrfsReadOnlySnapshotBackend()
+    identifiers = iter(("1" * 32, "2" * 32)).__next__
+    engine = LinuxCowCaptureEngine(
+        captures,
+        journal,
+        backend=backend,
+        id_factory=identifiers,
+    )
+
+    leases = engine.capture((source,), time.monotonic() + 10)
+    assert backend.is_read_only(
+        captures / ("1" * 32) / ("2" * 32), time.monotonic() + 10
+    )
+    descriptor = os.open("state.txt", os.O_RDONLY, dir_fd=leases[0].descriptor)
+    try:
+        assert os.read(descriptor, 128) == b"durable component state\n"
+    finally:
+        os.close(descriptor)
+    assert engine.release(leases, time.monotonic() + 10)
+
+    interrupted = LinuxCowCaptureEngine(
+        captures,
+        journal,
+        backend=_InterruptAfterSnapshot(backend),
+        id_factory=iter(("3" * 32, "4" * 32)).__next__,
+    )
+    try:
+        interrupted.capture((source,), time.monotonic() + 10)
+    except KeyboardInterrupt:
+        pass
+    else:
+        raise AssertionError("native capture interruption was not exercised")
+    assert journal.is_file()
+    assert LinuxCowCaptureEngine(captures, journal, backend=backend).recover(
+        time.monotonic() + 10
+    )
+    assert list(captures.iterdir()) == []

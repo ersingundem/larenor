@@ -1,0 +1,99 @@
+name: S09.1 component capture native acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/component-capture-native.yml"
+      - "server/larenor_server/core_backups/component_isolated_capture.py"
+      - "server/larenor_server/core_backups/component_worker_runtime.py"
+      - "server/tests/test_core_backup_linux_cow_capture.py"
+      - "server/tests/test_core_backup_linux_cow_capture_native.py"
+      - "server/tests/test_core_backup_component_worker_runtime.py"
+      - "tool/tests/component_capture_native_workflow_test.py"
+      - "server/pyproject.toml"
+      - "server/uv.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: component-capture-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-cow:
+    name: Native COW (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      LARENOR_NATIVE_CAPTURE_ROOT: /var/lib/larenor-component-capture-${{ github.run_id }}-${{ github.run_attempt }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Prepare pinned Python and btrfs tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/capture-ci-tools"
+          "$RUNNER_TEMP/capture-ci-tools/bin/python" -m pip install \
+            --disable-pip-version-check --only-binary=:all: uv==0.12.10
+          echo "$RUNNER_TEMP/capture-ci-tools/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends \
+            "btrfs-progs=6.6.3-1.1build2"
+      - name: Install exact server lock
+        working-directory: server
+        run: |
+          uv sync --locked --python 3.12.14
+          uv pip check
+      - name: Create private ephemeral btrfs fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          truncate --size=512M "$RUNNER_TEMP/component-capture.img"
+          sudo /usr/sbin/mkfs.btrfs --force "$RUNNER_TEMP/component-capture.img"
+          sudo install -d -m 0700 -o root -g root "$LARENOR_NATIVE_CAPTURE_ROOT"
+          sudo mount --options loop,noatime \
+            "$RUNNER_TEMP/component-capture.img" "$LARENOR_NATIVE_CAPTURE_ROOT"
+          sudo chown root:root "$LARENOR_NATIVE_CAPTURE_ROOT"
+          sudo chmod 0700 "$LARENOR_NATIVE_CAPTURE_ROOT"
+      - name: Verify packaged entrypoint and real restart cleanup
+        shell: bash
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          actual="$(uname -m)"
+          case "$EXPECTED_PLATFORM:$actual" in
+            linux/amd64:x86_64|linux/arm64:aarch64) ;;
+            *) exit 1 ;;
+          esac
+          sudo --non-interactive env -i \
+            PATH=/usr/bin:/bin \
+            PYTHONPATH="$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE/server/tests" \
+            LARENOR_NATIVE_CAPTURE_ROOT="$LARENOR_NATIVE_CAPTURE_ROOT" \
+            "$GITHUB_WORKSPACE/server/.venv/bin/python" -B -m pytest -q \
+            server/tests/test_core_backup_linux_cow_capture_native.py
+          "$GITHUB_WORKSPACE/server/.venv/bin/larenor-component-backup-worker" \
+            --check-platform
+      - name: Unmount ephemeral fixture
+        if: always()
+        shell: bash
+        run: |
+          if mountpoint --quiet "$LARENOR_NATIVE_CAPTURE_ROOT"; then
+            sudo umount "$LARENOR_NATIVE_CAPTURE_ROOT"
+          fi
+          if test -d "$LARENOR_NATIVE_CAPTURE_ROOT"; then
+            sudo rmdir "$LARENOR_NATIVE_CAPTURE_ROOT"
+          fi

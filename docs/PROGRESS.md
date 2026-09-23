@@ -17,6 +17,23 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 24 Eylül S09.1 packaged capture worker adayı
+
+`a083bca6`, mevcut authority-bound isolated capture lease'ini gerçek ayrıcalıklı
+Server entrypoint'ine ve Linux btrfs read-only/COW engine'ine bağladı. Exact
+generation intent'i ilk filesystem etkisinden önce 0600 journal'a yazılıyor;
+kesinti veya başarısız release journal'ı restart cleanup için koruyor. Source
+path/inode değişimi, yazılabilir snapshot, malformed journal ve journal dışı
+capture-root içeriği fail-closed. Odaklı paket **15/15**, gruplanmış component
+backup paketi **103 geçti / 1 açıkça native-fixture skip**, workflow sözleşmesi
+**2/2** geçti. Dar native workflow gerçek btrfs snapshot/release/restart
+zincirini GitHub-hosted `linux/amd64` ve `linux/arm64` üzerinde çalıştırıyor.
+
+Bu dilim restore veya clean-install recovery sağlamaz ve database, vault key,
+yapılandırma ile component payloadlarının tek exact generation kanıtını tek
+başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **26/125 (%20,8)** ve seçili
+özellik kabulü **0/63** kalır.
+
 ### 24 Eylül birleşik teslim kanıtı — PR #456–#462
 
 Açık PR kuyruğu boşaltıldı. PR #457–#462'nin exact kaynakları zorunlu
