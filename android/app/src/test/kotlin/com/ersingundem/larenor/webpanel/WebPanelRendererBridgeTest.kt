@@ -135,6 +135,7 @@ class WebPanelRendererBridgeTest {
             "http://fixture.invalid/asset.js",
             "https://fixture.invalid:444/asset.js",
             "https://sub.fixture.invalid/asset.js",
+            "https://private@fixture.invalid/asset.js",
             "file:///private/data",
             "data:text/plain,private",
         )) {
@@ -157,7 +158,7 @@ class WebPanelRendererBridgeTest {
         assertEquals(1, delegate.navigations)
         assertEquals(
             listOf(
-                "GET https://fixture.invalid/asset.js",
+                "GET https://FIXTURE.invalid/asset.js",
                 "POST http://fixture.invalid:8080/api",
             ),
             transport.requests,

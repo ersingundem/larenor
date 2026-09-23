@@ -4,14 +4,17 @@ import android.net.Uri
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.webkit.WebViewFeature
+import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -90,13 +93,49 @@ class WebPanelOwnedTransportTest {
             )
             assertEquals(1, server.requestCount)
 
+            server.enqueue(MockResponse().setChunkedBody("123456789", 2))
+            val streamingOverflow = transport.fetch(
+                Uri.parse(server.url("/chunked-large").toString()),
+                "GET",
+            )
+            assertEquals(200, streamingOverflow.statusCode)
+            assertThrows(IOException::class.java) { streamingOverflow.data.readBytes() }
+            assertEquals(2, server.requestCount)
+
             transport.close()
             transport.close()
             assertEquals(
                 410,
                 transport.fetch(Uri.parse(server.url("/retired").toString()), "GET").statusCode,
             )
-            assertEquals(1, server.requestCount)
+            assertEquals(2, server.requestCount)
+        }
+    }
+
+    @Test
+    fun retirementCancelsAnInFlightOwnedRequest() {
+        MockWebServer().use { server ->
+            val transport = WebPanelOwnedHttpTransport(
+                firewall = WebRequestFirewall(
+                    setOf(WebRequestOrigin("http", server.hostName, server.port)),
+                ),
+                maxResponseBytes = 8,
+            )
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val pending = executor.submit<WebResourceResponse> {
+                    transport.fetch(Uri.parse(server.url("/pending").toString()), "GET")
+                }
+                assertNotNull(server.takeRequest(1, TimeUnit.SECONDS))
+
+                transport.close()
+
+                assertEquals(410, pending.get(1, TimeUnit.SECONDS).statusCode)
+            } finally {
+                transport.close()
+                executor.shutdownNow()
+            }
         }
     }
 
