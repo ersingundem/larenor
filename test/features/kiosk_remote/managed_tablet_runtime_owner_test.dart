@@ -149,6 +149,30 @@ ManagedTabletRuntimeOwner _owner({
 );
 
 void main() {
+  test('explicit enrollment starts only for the exact current binding', () async {
+    final enrollment = _enrollment();
+    final store = _Store(null);
+    final authority = _Authority();
+    final source = _Source();
+    final broker = _Broker();
+    final owner = _owner(
+      store: store,
+      authority: authority,
+      source: source,
+      broker: broker,
+    );
+    addTearDown(owner.dispose);
+    await owner.updateBinding(enrollment.binding);
+    expect(broker.connects, 0);
+
+    await owner.enroll(enrollment.binding, enrollment);
+
+    expect(store.value?.pairingId, enrollment.pairingId);
+    expect(authority.calls, 2);
+    expect(source.binds, 1);
+    expect(broker.connects, 1);
+  });
+
   test('current Core and egress are rechecked before broker connect', () async {
     final enrollment = _enrollment();
     final store = _Store(enrollment);

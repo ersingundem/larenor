@@ -69,6 +69,27 @@ void main() {
     },
   );
 
+  test('one-time pairing needs an explicit secure enrollment action', () async {
+    final api = _Api();
+    KioskRemoteCreated? enrolled;
+    final controller = KioskRemoteController(
+      api: api,
+      isCurrent: () => true,
+      onPairingEnrolled: (value) async => enrolled = value,
+    )..snapshot = const KioskRemoteSnapshot(devices: [device], pairings: []);
+    addTearDown(controller.dispose);
+
+    await controller.create(device, const {'read'});
+    expect(controller.oneTimeToken, 'synthetic-one-time-token');
+    expect(enrolled, isNull);
+
+    await controller.enrollCreatedPairing();
+
+    expect(enrolled?.pairing.id, pairing.id);
+    expect(controller.oneTimeToken, isNull);
+    expect(controller.enrolledPairingId, pairing.id);
+  });
+
   test('late pairing inventory is cleared after route retirement', () async {
     var current = true;
     final api = _Api();
