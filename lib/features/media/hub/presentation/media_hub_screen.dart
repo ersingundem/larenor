@@ -50,10 +50,11 @@ class _MediaHubScreenState extends MediaSessionState<MediaHubScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Core is the sole media authority once the home source selects it. Do not
-    // construct a device-local Jellyfin/*arr client as a silent fallback.
-    if (ref.watch(homeSessionControllerProvider)?.source ==
-        HomeSource.verifiedCore) {
+    // A scoped home must prove direct-local authority before device-local
+    // credentials can be resolved. Recovery, failed storage reads and Core all
+    // remain on the fail-closed Core surface.
+    final home = ref.watch(homeSessionControllerProvider);
+    if (home != null && home.source != HomeSource.directLocal) {
       return const ServerMediaCatalogScreen();
     }
     watchMediaAccounts();
