@@ -257,9 +257,10 @@ class ComponentSnapshotWorkerClient:
                 },
                 deadline,
             )
-            descriptors = self._descriptors(_read_frame(connection, deadline), request_id)
+            response = _read_frame(connection, deadline)
             operation_failed = False
             try:
+                descriptors = self._descriptors(response, request_id)
                 snapshots = []
                 for descriptor in descriptors:
                     payload = _receive(
