@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert' show jsonDecode, utf8;
+import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +8,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:larenor/features/server/core_backups/data/server_core_backups_controller.dart';
 import 'package:larenor/features/server/core_backups/domain/server_core_backup_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'server_admin_test_support.dart';
@@ -227,6 +229,116 @@ class StreamingClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
       handler(request);
+}
+
+final class _PendingJsonRequest {
+  _PendingJsonRequest(this.request, {required this.holdAbort});
+
+  final http.BaseRequest request;
+  final bool holdAbort;
+  final response = Completer<http.StreamedResponse>();
+  final abortSeen = Completer<void>();
+  final abortRelease = Completer<void>();
+
+  Future<http.StreamedResponse> run() {
+    final abortTrigger = (request as http.AbortableRequest).abortTrigger!;
+    final aborted = abortTrigger.then<http.StreamedResponse>((_) async {
+      if (!abortSeen.isCompleted) abortSeen.complete();
+      if (holdAbort) await abortRelease.future;
+      throw http.RequestAbortedException(request.url);
+    });
+    return Future.any([response.future, aborted]);
+  }
+
+  void completeJson(Object value) {
+    final body = utf8.encode(jsonEncode(value));
+    response.complete(
+      http.StreamedResponse(
+        Stream.value(body),
+        200,
+        contentLength: body.length,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+  }
+}
+
+final class _AbortAwareBackupClient extends http.BaseClient {
+  final requests = <_PendingJsonRequest>[];
+  final _nextRequest = StreamController<_PendingJsonRequest>.broadcast();
+  bool holdNextAbort = false;
+
+  Future<_PendingJsonRequest> nextRequest() => _nextRequest.stream.first;
+
+  http.StreamedResponse _json(Object value) {
+    final body = utf8.encode(jsonEncode(value));
+    return http.StreamedResponse(
+      Stream.value(body),
+      200,
+      contentLength: body.length,
+      headers: {'content-type': 'application/json'},
+    );
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.url.path.endsWith('/auth/me')) {
+      return _json({
+        'user': {
+          'id': adminId,
+          'username': 'admin',
+          'role': 'admin',
+          'mustChangePassword': false,
+        },
+      });
+    }
+    if (request.url.path.endsWith('/context')) {
+      return _json({
+        'schemaVersion': 1,
+        'coreId': 'a' * 32,
+        'homeId': 'b' * 32,
+      });
+    }
+    final pending = _PendingJsonRequest(request, holdAbort: holdNextAbort);
+    holdNextAbort = false;
+    requests.add(pending);
+    _nextRequest.add(pending);
+    return pending.run();
+  }
+
+  @override
+  void close() {
+    _nextRequest.close();
+  }
+}
+
+Future<ServerAccountController> _abortAwareAccount(
+  _AbortAwareBackupClient client,
+) async {
+  final now = DateTime.utc(2026, 9, 5, 9);
+  final user = ServerUser(
+    id: adminId,
+    username: 'admin',
+    role: ServerRole.admin,
+    mustChangePassword: false,
+  );
+  final store = AdminStore(
+    ServerSession(
+      endpoint: ServerEndpoint('https://fixture.invalid/prefix'),
+      accessToken: 'synthetic_admin_access_12345',
+      refreshToken: 'synthetic_admin_refresh_12345',
+      expiresAt: now.add(const Duration(hours: 1)),
+      user: user,
+    ),
+  );
+  final account = ServerAccountController(
+    store: store,
+    clock: () => now,
+    apiFactory: (endpoint) =>
+        LarenorServerApi(endpoint: endpoint, client: client, clock: () => now),
+  );
+  await account.initialize();
+  return account;
 }
 
 class CountingDestination implements LarenorBinaryDestination {
@@ -508,6 +620,75 @@ void main() {
       expect(controller.failure, isNull);
     },
   );
+
+  test('invalidate aborts the in-flight backup plan transport', () async {
+    final client = _AbortAwareBackupClient();
+    final account = await _abortAwareAccount(client);
+    final controller = ServerCoreBackupsController(account);
+    addTearDown(() {
+      controller.dispose();
+      account.dispose();
+    });
+
+    final requestStarted = client.nextRequest();
+    final loading = controller.load(current: () => true);
+    final request = await requestStarted;
+
+    controller.invalidate();
+
+    await request.abortSeen.future.timeout(const Duration(seconds: 1));
+    await loading.timeout(const Duration(seconds: 1));
+    expect(controller.busy, isFalse);
+    expect(controller.plan, isNull);
+    expect(controller.failure, isNull);
+  });
+
+  test('dispose aborts the in-flight restore preflight transport', () async {
+    final client = _AbortAwareBackupClient();
+    final account = await _abortAwareAccount(client);
+    final controller = ServerCoreBackupsController(account);
+    addTearDown(account.dispose);
+
+    final requestStarted = client.nextRequest();
+    final preflight = controller.preflight(
+      CoreBackupManifest.fromJson(backupManifest()),
+      current: () => true,
+    );
+    final request = await requestStarted;
+
+    controller.dispose();
+
+    await request.abortSeen.future.timeout(const Duration(seconds: 1));
+    await preflight.timeout(const Duration(seconds: 1));
+  });
+
+  test('retired request cleanup cannot abort a newer plan request', () async {
+    final client = _AbortAwareBackupClient()..holdNextAbort = true;
+    final account = await _abortAwareAccount(client);
+    final controller = ServerCoreBackupsController(account);
+    addTearDown(() {
+      controller.dispose();
+      account.dispose();
+    });
+
+    var requestStarted = client.nextRequest();
+    final firstLoad = controller.load(current: () => true);
+    final firstRequest = await requestStarted;
+    controller.invalidate();
+    await firstRequest.abortSeen.future.timeout(const Duration(seconds: 1));
+
+    requestStarted = client.nextRequest();
+    final secondLoad = controller.load(current: () => true);
+    final secondRequest = await requestStarted;
+    firstRequest.abortRelease.complete();
+    await firstLoad.timeout(const Duration(seconds: 1));
+    expect(secondRequest.abortSeen.isCompleted, isFalse);
+
+    secondRequest.completeJson(readyPlan());
+    await secondLoad.timeout(const Duration(seconds: 1));
+    expect(controller.plan?.ready, isTrue);
+    expect(secondRequest.abortSeen.isCompleted, isTrue);
+  });
 
   test('member account cannot dispatch backup readiness reads', () async {
     final fixture = BackupFixture();
