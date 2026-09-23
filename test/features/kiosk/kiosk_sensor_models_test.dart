@@ -18,8 +18,10 @@ Map<String, Object?> _sample({
   double? approachDistanceCm = 2,
   double? approachMaxRangeCm = 5,
   String cameraStatus = 'available',
+  int? batteryPercent = 73,
+  String thermalStatus = 'moderate',
 }) => {
-  'version': 2,
+  'version': 3,
   'sessionId': sessionId,
   'sequence': sequence,
   'sampling': sampling,
@@ -32,6 +34,8 @@ Map<String, Object?> _sample({
   'approachDistanceCm': approachDistanceCm,
   'approachMaxRangeCm': approachMaxRangeCm,
   'cameraStatus': cameraStatus,
+  'batteryPercent': batteryPercent,
+  'thermalStatus': thermalStatus,
 };
 
 final class _Api implements KioskSensorApi {
@@ -84,6 +88,8 @@ void main() {
     expect(value.isMoving(KioskSensorSensitivity.medium), isNull);
     expect(value.isApproached, isNull);
     expect(value.cameraStatus, KioskSensorCameraStatus.available);
+    expect(value.batteryPercent, 73);
+    expect(value.thermalStatus, KioskSensorThermalStatus.moderate);
 
     for (final invalid in [
       {..._sample(), 'secret': 'must-not-be-accepted'},
@@ -101,13 +107,49 @@ void main() {
         'approachMaxRangeCm': null,
       },
       {..._sample(), 'sequence': -1},
+      {..._sample(), 'version': 3.0},
       {..._sample(), 'cameraStatus': 'recording'},
+      {..._sample(), 'batteryPercent': -1},
+      {..._sample(), 'batteryPercent': 101},
+      {..._sample(), 'batteryPercent': 73.0},
+      {..._sample(), 'thermalStatus': 'hot-secret'},
     ]) {
       expect(
         () => KioskSensorSnapshot.fromChannel(invalid),
         throwsA(isA<KioskSensorException>()),
       );
     }
+  });
+
+  test('power and thermal drift needs a newer native sequence', () async {
+    final api = _Api()
+      ..startValue = _sample(sequence: 0)
+      ..readValue = _sample(
+        sequence: 0,
+        batteryPercent: 72,
+        thermalStatus: 'severe',
+      );
+    final controller = KioskSensorController(api);
+    await controller.start();
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(isA<KioskSensorException>()),
+    );
+    expect(controller.snapshot?.batteryPercent, 73);
+    expect(
+      controller.snapshot?.thermalStatus,
+      KioskSensorThermalStatus.moderate,
+    );
+
+    api.readValue = _sample(
+      sequence: 1,
+      batteryPercent: 72,
+      thermalStatus: 'severe',
+    );
+    final changed = await controller.refresh();
+    expect(changed.batteryPercent, 72);
+    expect(changed.thermalStatus, KioskSensorThermalStatus.severe);
   });
 
   test('anonymous approach uses only the latest bounded proximity value', () {

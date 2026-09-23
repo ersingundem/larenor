@@ -9,6 +9,8 @@ data class KioskSensorAvailability(
     val approach: Boolean = false,
     val approachMaxRangeCm: Double? = null,
     val camera: String = "unavailable",
+    val batteryPercent: Int? = null,
+    val thermalStatus: String = "unknown",
 ) {
     init {
         require(camera in setOf("available", "busy", "permissionDenied", "unavailable"))
@@ -16,6 +18,15 @@ data class KioskSensorAvailability(
             if (approach) approachMaxRangeCm != null && approachMaxRangeCm.isFinite() &&
                 approachMaxRangeCm in 0.1..100.0
             else approachMaxRangeCm == null,
+        )
+        require(batteryPercent == null || batteryPercent in 0..100)
+        require(thermalStatus in THERMAL_STATES)
+    }
+
+    companion object {
+        val THERMAL_STATES = setOf(
+            "none", "light", "moderate", "severe", "critical",
+            "emergency", "shutdown", "unknown",
         )
     }
 }
@@ -49,6 +60,7 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
         var lastLightAt: Long?,
         var lastMotionAt: Long?,
         var lastApproachAt: Long?,
+        var availability: KioskSensorAvailability?,
     )
 
     private var interactive = false
@@ -91,6 +103,7 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
             lastLightAt = null,
             lastMotionAt = null,
             lastApproachAt = null,
+            availability = null,
         )
         return snapshot(session!!)
     }
@@ -153,8 +166,14 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
         val availability = try { host.availability() } catch (_: RuntimeException) {
             throw KioskFailure("unavailable")
         }
+        val previousAvailability = active.availability
+        if (previousAvailability != null && previousAvailability != availability) {
+            active.sequence++
+            active.observedAt = max(active.observedAt, max(0, host.nowMillis()))
+        }
+        active.availability = availability
         return mapOf(
-            "version" to 2,
+            "version" to 3,
             "sessionId" to active.id,
             "sequence" to active.sequence,
             "sampling" to true,
@@ -171,6 +190,8 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
             } else null,
             "approachMaxRangeCm" to availability.approachMaxRangeCm,
             "cameraStatus" to availability.camera,
+            "batteryPercent" to availability.batteryPercent,
+            "thermalStatus" to availability.thermalStatus,
         )
     }
 

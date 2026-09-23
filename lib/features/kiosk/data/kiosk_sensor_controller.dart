@@ -59,7 +59,9 @@ final class KioskSensorController {
             value.motionAvailable != current.motionAvailable ||
             value.approachAvailable != current.approachAvailable ||
             value.approachMaxRangeCm != current.approachMaxRangeCm ||
-            value.cameraStatus != current.cameraStatus)) {
+            value.cameraStatus != current.cameraStatus ||
+            value.batteryPercent != current.batteryPercent ||
+            value.thermalStatus != current.thermalStatus)) {
       throw const KioskSensorException(KioskSensorFailure.unavailable);
     }
     _snapshot = value;
