@@ -165,10 +165,10 @@ class JellyfinPlaybackExecutor:
             for _ in range(3):
                 connection, proof = self._open(
                     plan, binding, container_id, deadline)
-                if opened and proof != opened[0][1]:
+                opened.append((connection, proof))
+                if len(opened) > 1 and proof != opened[0][1]:
                     raise JellyfinPlaybackExecutionError(
                         'jellyfin_playback_endpoint_changed')
-                opened.append((connection, proof))
             result = self.protocol.execute(
                 tuple(item[0] for item in opened), private.action,
                 api_key=private.apiKey, deadline=deadline, gate=gate)
