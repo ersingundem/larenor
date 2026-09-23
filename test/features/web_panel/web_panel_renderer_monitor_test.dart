@@ -192,6 +192,22 @@ void main() {
       );
       expect(events, 0);
 
+      await expectLater(
+        monitor.attachIdentifier(
+          8,
+          WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+          () {},
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'renderer_monitor_duplicate',
+          ),
+        ),
+      );
+      expect(calls.map((call) => call.method), ['attach']);
+
       attach.complete(true);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
