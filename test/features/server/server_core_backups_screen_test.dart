@@ -200,6 +200,8 @@ void main() {
           'core_version_mismatch',
           'database_schema_mismatch',
           'component_schema_mismatch',
+          'component_version_mismatch',
+          'component_volume_mismatch',
         ],
       };
       await reveal(
@@ -217,6 +219,8 @@ void main() {
       expect(find.text('Core sürümü uyumsuz'), findsOneWidget);
       expect(find.text('Veritabanı şeması uyumsuz'), findsOneWidget);
       expect(find.text('Bileşen şeması uyumsuz'), findsOneWidget);
+      expect(find.text('Bileşen sürümü uyumsuz'), findsOneWidget);
+      expect(find.text('Bileşen volume kapsamı uyumsuz'), findsOneWidget);
       expect(find.textContaining('geri yüklenmedi'), findsOneWidget);
       expect(
         fixture.adminCalls.where(

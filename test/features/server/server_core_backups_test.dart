@@ -16,14 +16,44 @@ Map<String, dynamic> backupManifest() => {
   'createdAt': 1789952400,
   'coreVersion': '0.5.0',
   'databaseSchemaVersion': 61,
-  'componentSchemaVersions': {'auth': 1, 'vault': 1},
+  'componentSchemaVersions': {'auth': 1, 'vault': 1, 'jellyfin': 1},
+  'components': [
+    {
+      'serviceId': 'jellyfin',
+      'serviceVersion': '10.11.11',
+      'configSchemaVersion': 1,
+      'dataSchemaVersion': 'upstream_managed_unverified',
+      'volumeResourceIds': [
+        'component-jellyfin-cache',
+        'component-jellyfin-config',
+      ],
+    },
+  ],
+  'consistencyBoundary': {
+    'mode': 'core_write_lock_and_component_quiescence',
+    'maxDurationSeconds': 5,
+  },
   'resources': [
     {
       'id': 'component-index',
       'kind': 'componentData',
-      'version': '1',
+      'version': '2',
       'byteLength': 80,
       'sha256': '1' * 64,
+    },
+    {
+      'id': 'component-jellyfin-cache',
+      'kind': 'componentData',
+      'version': 'component-v1',
+      'byteLength': 250,
+      'sha256': '6' * 64,
+    },
+    {
+      'id': 'component-jellyfin-config',
+      'kind': 'componentData',
+      'version': 'component-v1',
+      'byteLength': 350,
+      'sha256': '7' * 64,
     },
     {
       'id': 'core-configuration',
@@ -115,7 +145,10 @@ void main() {
   test('plan parser accepts only exact bounded backup metadata', () {
     final plan = CoreBackupPlan.fromJson(readyPlan());
     expect(plan.ready, isTrue);
-    expect(plan.manifest!.totalBytes, 5352);
+    expect(plan.manifest!.totalBytes, 5952);
+    expect(plan.manifest!.components.single.serviceVersion, '10.11.11');
+    expect(plan.manifest!.components.single.volumeResourceIds.length, 2);
+    expect(plan.manifest!.consistencyBoundary.maxDurationSeconds, 5);
     expect(plan.manifest!.resources.map((item) => item.kind), {
       CoreBackupResourceKind.componentData,
       CoreBackupResourceKind.configuration,
@@ -166,12 +199,20 @@ void main() {
   });
 
   test('legacy four-resource Core backup remains readable', () {
-    final legacy = {
-      ...backupManifest(),
+    final current = backupManifest();
+    final legacy = <String, dynamic>{
+      for (final entry in current.entries)
+        if (entry.key != 'components' && entry.key != 'consistencyBoundary')
+          entry.key: entry.value,
       'contractVersion': 1,
       'resources': [
-        for (final item in backupManifest()['resources']! as List)
-          if ((item as Map)['id'] != 'family-board') item,
+        for (final raw in current['resources']! as List)
+          if ((raw as Map)['id'] != 'family-board' &&
+              !(raw['id'] as String).startsWith('component-jellyfin-'))
+            if (raw['id'] == 'component-index')
+              {...raw, 'version': '1'}
+            else
+              raw,
       ],
     };
     final plan = CoreBackupManifest.fromJson(legacy);
@@ -274,6 +315,8 @@ void main() {
             'core_version_mismatch',
             'database_schema_mismatch',
             'component_schema_mismatch',
+            'component_version_mismatch',
+            'component_volume_mismatch',
           ],
         };
       await fixture.account.initialize();
@@ -292,6 +335,8 @@ void main() {
         CoreBackupCompatibilityReason.coreVersion,
         CoreBackupCompatibilityReason.databaseSchema,
         CoreBackupCompatibilityReason.componentSchema,
+        CoreBackupCompatibilityReason.componentVersion,
+        CoreBackupCompatibilityReason.componentVolume,
       });
       final request = fixture.adminCalls.single;
       expect(request.url.path, endsWith('/admin/backups/restore/validate'));
