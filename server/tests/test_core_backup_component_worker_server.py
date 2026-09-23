@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+import stat
 import struct
 import threading
 import time
@@ -72,6 +73,7 @@ def worker(
     *,
     allowed_client_uid=None,
     observed_peer_uid=None,
+    socket_gid=None,
 ):
     del tmp_path
     path = (
@@ -80,6 +82,8 @@ def worker(
         / "component.sock"
     )
     path.parent.mkdir(mode=0o700)
+    if socket_gid is not None:
+        os.chmod(path.parent, 0o710)
     server = ComponentSnapshotWorkerServer(
         path,
         boundary,
@@ -87,6 +91,7 @@ def worker(
         client_uid=(
             os.getuid() if allowed_client_uid is None else allowed_client_uid
         ),
+        socket_gid=socket_gid,
         peer_uid=(lambda _connection: os.getuid())
         if observed_peer_uid is None
         else observed_peer_uid
@@ -174,11 +179,30 @@ def test_server_allows_client_uid_to_differ_from_socket_owner(tmp_path):
         boundary,
         allowed_client_uid=allowed_uid,
         observed_peer_uid=allowed_uid,
+        socket_gid=os.getgid(),
     ) as (path, server):
         assert path.lstat().st_uid == os.getuid()
+        assert path.lstat().st_gid == os.getgid()
+        assert stat.S_IMODE(path.lstat().st_mode) == 0o660
         with client(path).quiesce(time.monotonic() + 2) as captured:
             assert captured == snapshots()
         assert server.completed == 1
+
+
+def test_server_rejects_distinct_client_without_socket_group(tmp_path):
+    parent = Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}"
+    parent.mkdir(mode=0o700)
+    try:
+        with pytest.raises(ValueError, match="invalid_worker_configuration"):
+            ComponentSnapshotWorkerServer(
+                parent / "component.sock",
+                Boundary(snapshots()),
+                owner_uid=os.getuid(),
+                client_uid=os.getuid() + 7,
+                peer_uid=lambda _connection: os.getuid() + 7,
+            )
+    finally:
+        parent.rmdir()
 
 
 def test_server_allows_empty_catalog_snapshot(tmp_path):
@@ -218,6 +242,24 @@ def test_server_rejects_invalid_client_uid(tmp_path, client_uid):
                 owner_uid=os.getuid(),
                 client_uid=client_uid,
                 peer_uid=lambda _connection: os.getuid(),
+            )
+    finally:
+        parent.rmdir()
+
+
+@pytest.mark.parametrize("socket_gid", [-1, 2**31, True, "10001"])
+def test_server_rejects_invalid_socket_gid(tmp_path, socket_gid):
+    parent = Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}"
+    parent.mkdir(mode=0o710)
+    try:
+        with pytest.raises(ValueError, match="invalid_worker_configuration"):
+            ComponentSnapshotWorkerServer(
+                parent / "component.sock",
+                Boundary(snapshots()),
+                owner_uid=os.getuid(),
+                client_uid=os.getuid() + 7,
+                socket_gid=socket_gid,
+                peer_uid=lambda _connection: os.getuid() + 7,
             )
     finally:
         parent.rmdir()
