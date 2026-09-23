@@ -343,6 +343,9 @@ class MediaPlaybackManagement:
                  'pending', None, int(self.settings.clock())))
         action = PrivateMediaPlaybackAction(
             **body.model_dump(), installationId=row['installation_id'],
+            installationRevision=row['installation_revision'],
+            snapshotRevision=row['snapshot_revision'],
+            jellyfinServiceRevision=row['jellyfin_service_revision'],
             itemId=row['item_id'], mediaKey=row['media_key'])
         deadline = time.monotonic() + 5
         gate = lambda: time.monotonic() < deadline and self._gate(actor, authority)
