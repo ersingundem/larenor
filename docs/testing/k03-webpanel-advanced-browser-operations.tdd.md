@@ -42,10 +42,12 @@ Status: **software slice ready; K03.remaining stays open**
   a dedicated anonymous OkHttp client instead of WebView networking. It accepts
   no WebView headers, cookies, credentials or request body, follows at most
   three redirects and rechecks every target before opening the next socket.
-  Each attachment accepts at most eight concurrent requests. Non-GET requests,
-  user-info URLs, cross-origin redirects, responses over 16 MB, over-capacity
-  work and calls beyond the 15-second deadline fail closed. Detach, replacement,
-  disposal and renderer death cancel the exact attachment's in-flight calls.
+  The process accepts at most eight concurrent WebPanel requests across all
+  attachments. Non-GET requests, user-info URLs, cross-origin redirects,
+  responses over 16 MB, over-capacity work and calls beyond the 15-second
+  deadline fail closed. The transport bypasses the system proxy, and releases
+  its shared permit on EOF, read/skip failure, overflow or exact attachment
+  retirement. Detach does not cancel a different attachment's calls.
 - Service Worker network, content and file access is disabled process-wide
   before a panel loads. Attachment fails closed when any required AndroidX
   WebKit feature is unavailable or a setting cannot be applied. This global
@@ -62,6 +64,11 @@ Status: **software slice ready; K03.remaining stays open**
   supported redirect-aware request callback; this evidence does not claim a
   native WebSocket interceptor. Service Worker networking remains closed by the
   separate process-wide policy above.
+- The document-start rule is `*`, not the HTTP(S) allowlist, because sandboxed
+  `srcdoc` frames have an opaque origin. A dedicated API 35 integration test
+  creates that realm and requires both WebSocket and Worker constructors to
+  throw `SecurityError`; it carries no JavaScript message interface into native
+  code.
 - TLS errors, client-certificate requests and HTTP-authentication challenges
   are cancelled by the native wrapper and are never delegated to the plugin.
   Host, realm and certificate details are not sent to Dart or logged.
@@ -102,8 +109,10 @@ redirect-aware WebSocket enforcement is unsupported, so allowing it was not an
 honest boundary. GREEN `dcc6ecd8` and `bfb2e7d1` supply the owned transport and
 fail-closed dynamic-context policy. Concurrency RED `0e010a8c` failed to compile
 because the transport had no concurrent-request bound; GREEN `9f89bf16` adds
-the fail-fast permit cap. The grouped milestone passes **17/17**
-Android WebPanel Robolectric tests and **113/113** Flutter WebPanel tests;
-focused Flutter analysis reports no issues. K03.remaining and progress stay at
+the fail-fast permit cap. Adversarial RED `ff3f3d46` then exposes cross-attachment
+capacity, opaque-frame injection, system-proxy and failed-stream cleanup gaps;
+GREEN `5fdab42f` closes them. The grouped milestone passes **20/20** Android
+WebPanel Robolectric tests and **113/113** Flutter WebPanel tests; focused
+Flutter analysis reports no issues. K03.remaining and progress stay at
 **26/125** and **0/63** until review and exact-head CI are recorded. Physical
 tablet/DeX/OEM evidence stays in the separate manual gate described above.
