@@ -11,7 +11,7 @@ from test_admin import create as create_user, activate
 from test_services import BASE, SECRET, create
 from test_component_egress import policy_url, check_url, grant_body
 from larenor_server.app import create_app
-from larenor_server.errors import StartupError
+from larenor_server.errors import ApiError, StartupError
 from larenor_server.services.transport import ServiceTransport
 
 
@@ -59,6 +59,20 @@ def network(monkeypatch, *, ips=('10.20.30.40',), peer=None, on_dns=lambda: None
     return calls, wires
 
 
+def capture_leases(app, monkeypatch):
+    captured = []
+    owner = app.state.core.component_egress
+    original = owner.begin
+
+    def begin(*args, **kwargs):
+        lease = original(*args, **kwargs)
+        captured.append(lease)
+        return lease
+
+    monkeypatch.setattr(owner, 'begin', begin)
+    return captured
+
+
 def test_actual_packaged_probe_emits_only_pinned_request_and_attributed_audit(server, monkeypatch):
     app, client, pair, record, _ = setup(server)
     def sent():
@@ -79,6 +93,105 @@ def test_actual_packaged_probe_emits_only_pinned_request_and_attributed_audit(se
     with app.state.core.db.connection() as c:
         dump = '\n'.join(c.iterdump())
     assert '10.20.30.40' not in dump and SECRET not in dump
+
+
+def test_completed_lease_cannot_dispatch_or_emit_failure_again(server, monkeypatch):
+    app, client, pair, record, _ = setup(server)
+    leases = capture_leases(app, monkeypatch)
+    network(monkeypatch)
+    response = client.post(check_url(record), headers=auth(pair), json={'expectedRevision': 1})
+    assert response.status_code == 200, response.text
+    lease = leases.pop()
+    before = client.get(policy_url(record), headers=auth(pair)).json()['audit']
+
+    with pytest.raises(ApiError, match='outbound_denied') as dispatch:
+        lease.before_send()
+    assert dispatch.value.status == 403
+    with pytest.raises(ApiError, match='outbound_denied') as failed:
+        lease.failed()
+    assert failed.value.status == 403
+    assert client.get(policy_url(record), headers=auth(pair)).json()['audit'] == before
+
+
+def test_completed_lease_cannot_append_a_second_completion(server, monkeypatch):
+    app, client, pair, record, _ = setup(server)
+    leases = capture_leases(app, monkeypatch)
+    network(monkeypatch)
+    response = client.post(check_url(record), headers=auth(pair), json={'expectedRevision': 1})
+    assert response.status_code == 200, response.text
+    lease = leases.pop()
+    before = client.get(policy_url(record), headers=auth(pair)).json()['audit']
+
+    with (
+        app.state.core.db.transaction() as connection,
+        pytest.raises(ApiError, match='outbound_denied') as repeated,
+    ):
+        lease.complete(connection)
+    assert repeated.value.status == 403
+    assert client.get(policy_url(record), headers=auth(pair)).json()['audit'] == before
+
+
+def test_completion_remains_retryable_when_outer_service_write_rolls_back(
+        server, monkeypatch):
+    app, client, pair, record, _ = setup(server)
+    leases = capture_leases(app, monkeypatch)
+    network(monkeypatch)
+    services = app.state.core.services
+    original_save = services._save
+    failed = False
+
+    def fail_once(*args, **kwargs):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise ApiError('server_unavailable', 503)
+        return original_save(*args, **kwargs)
+
+    monkeypatch.setattr(services, '_save', fail_once)
+    response = client.post(
+        check_url(record), headers=auth(pair), json={'expectedRevision': 1})
+    assert response.status_code == 503, response.text
+    lease = leases.pop()
+    monkeypatch.setattr(services, '_save', original_save)
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+
+    result = services.record_verification(
+        actor,
+        record['id'],
+        record['revision'],
+        state='authenticated',
+        version='2026.9.0',
+        before_save=lease.complete,
+    )
+
+    assert result['service']['verification']['state'] == 'authenticated'
+    audit = client.get(policy_url(record), headers=auth(pair)).json()['audit']
+    assert [event['reason'] for event in audit] == [
+        'policy_replaced', 'dispatch_authorized', 'probe_completed']
+
+
+def test_failed_lease_is_terminal_and_cannot_duplicate_outcome(server, monkeypatch):
+    app, client, pair, record, body = setup(server)
+    leases = capture_leases(app, monkeypatch)
+
+    def revoke():
+        response = client.put(
+            policy_url(record),
+            headers=auth(pair),
+            json={**body, 'expectedRevision': 1, 'grants': []},
+        )
+        assert response.status_code == 200
+
+    network(monkeypatch, on_connect=revoke)
+    response = client.post(check_url(record), headers=auth(pair), json={'expectedRevision': 1})
+    assert response.status_code == 403, response.text
+    lease = leases.pop()
+    before = client.get(policy_url(record), headers=auth(pair)).json()['audit']
+
+    with pytest.raises(ApiError, match='outbound_denied') as repeated:
+        lease.failed()
+    assert repeated.value.status == 403
+    assert client.get(policy_url(record), headers=auth(pair)).json()['audit'] == before
 
 
 @pytest.mark.parametrize('ips', [('10.20.30.41',), ('8.8.8.8',), ('10.20.30.40','10.20.30.41'),
