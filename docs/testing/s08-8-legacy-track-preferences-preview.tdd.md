@@ -35,8 +35,9 @@ flutter analyze lib/features/media/jellyfin/data/legacy_jellyfin_track_preferenc
 python3 tool/execution_queue.py validate
 ```
 
-S08.8 remains pending. A user-facing confirmation flow must bind this preview
-to the exact current Core authority, re-read the unchanged source, write the
-central preference revision, and retire the legacy record without uncertain
-replay. Wider catalog/search/provider/player/queue adoption and remaining
-typed-cache/E2E evidence also remain open. Progress stays 26/125 and 0/63.
+S08.8 remains pending. The confirmation coordinator, exact source re-read,
+fresh Core merge, and replay-safe retirement are covered by
+`s08-8-legacy-track-preferences-migration.tdd.md`; the tablet still needs to
+wire that contract to an accessible confirmation surface. Wider
+catalog/search/provider/player/queue adoption and remaining typed-cache/E2E
+evidence also remain open. Progress stays 26/125 and 0/63.

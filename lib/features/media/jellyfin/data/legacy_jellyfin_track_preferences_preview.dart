@@ -9,6 +9,7 @@ import '../../../../core/configuration_writes.dart';
 import '../../../../core/direct_home_access.dart';
 import '../domain/jellyfin_track_preferences.dart';
 import 'jellyfin_config.dart';
+import 'jellyfin_track_preferences_store.dart';
 
 /// Sanitized choices from the former device-local Jellyfin preference record.
 ///
@@ -26,6 +27,35 @@ final class LegacyJellyfinTrackPreferencesPreview {
 
   @override
   String toString() => 'Legacy Jellyfin track preference preview';
+}
+
+/// One in-memory user confirmation opportunity for an exact legacy record.
+///
+/// Only sanitized choices are public. Source scope and record bytes stay in
+/// the migration coordinator and never appear in diagnostics.
+final class LegacyJellyfinTrackPreferencesMigrationReceipt {
+  const LegacyJellyfinTrackPreferencesMigrationReceipt._({
+    required this.audioLanguage,
+    required this.subtitleLanguage,
+  });
+
+  final String? audioLanguage;
+  final String? subtitleLanguage;
+
+  @override
+  String toString() => 'Legacy Jellyfin track preference migration';
+}
+
+final class _LegacyJellyfinTrackPreferencesSnapshot {
+  const _LegacyJellyfinTrackPreferencesSnapshot({
+    required this.key,
+    required this.raw,
+    required this.preview,
+  });
+
+  final String key;
+  final String raw;
+  final LegacyJellyfinTrackPreferencesPreview preview;
 }
 
 /// Read-only bridge for records written before track preferences moved to Core.
@@ -47,8 +77,12 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
     throw StateError('Jellyfin preference scope changed');
   }
 
-  Future<T> _storage<T>(Future<T> Function() operation) =>
-      _access == null ? operation() : _access.storage(operation);
+  Future<T> _storage<T>(
+    Future<T> Function() operation, {
+    bool mutation = false,
+  }) => _access == null
+      ? operation()
+      : _access.storage(operation, mutation: mutation);
 
   String? _storageKey(JellyfinConfig config) {
     if (config.baseUrl.isEmpty ||
@@ -64,6 +98,11 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
   }
 
   Future<LegacyJellyfinTrackPreferencesPreview?> read(
+    JellyfinConfig config, {
+    required bool Function() isCurrent,
+  }) async => (await _readSnapshot(config, isCurrent: isCurrent))?.preview;
+
+  Future<_LegacyJellyfinTrackPreferencesSnapshot?> _readSnapshot(
     JellyfinConfig config, {
     required bool Function() isCurrent,
   }) => ConfigurationWrites.run(() async {
@@ -102,12 +141,94 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
       );
       if (audio == null && subtitle == null) return null;
       _check(isCurrent);
-      return LegacyJellyfinTrackPreferencesPreview(
-        audioLanguage: audio,
-        subtitleLanguage: subtitle,
+      return _LegacyJellyfinTrackPreferencesSnapshot(
+        key: key,
+        raw: raw,
+        preview: LegacyJellyfinTrackPreferencesPreview(
+          audioLanguage: audio,
+          subtitleLanguage: subtitle,
+        ),
       );
     } on FormatException {
       return null;
     }
   });
+
+  Future<void> _retire(
+    _LegacyJellyfinTrackPreferencesSnapshot expected, {
+    required bool Function() isCurrent,
+  }) => ConfigurationWrites.run(() async {
+    _check(isCurrent);
+    final preferences = await _storage(SharedPreferences.getInstance);
+    _check(isCurrent);
+    await _storage(preferences.reload);
+    _check(isCurrent);
+    if (preferences.get(expected.key) != expected.raw) {
+      throw StateError('Legacy Jellyfin preference changed');
+    }
+    final removed = await _storage(
+      () => preferences.remove(expected.key),
+      mutation: true,
+    );
+    _check(isCurrent);
+    await _storage(preferences.reload);
+    _check(isCurrent);
+    if (!removed || preferences.containsKey(expected.key)) {
+      throw StateError('Legacy Jellyfin preference retirement uncertain');
+    }
+  });
+}
+
+/// Coordinates explicit migration without exposing or silently adopting the
+/// former direct-Jellyfin identity.
+final class LegacyJellyfinTrackPreferencesMigration {
+  LegacyJellyfinTrackPreferencesMigration({
+    required JellyfinTrackPreferencesStore core,
+    LegacyJellyfinTrackPreferencesPreviewReader? reader,
+  }) : _core = core,
+       _reader = reader ?? LegacyJellyfinTrackPreferencesPreviewReader();
+
+  final JellyfinTrackPreferencesStore _core;
+  final LegacyJellyfinTrackPreferencesPreviewReader _reader;
+  final Expando<_LegacyJellyfinTrackPreferencesSnapshot> _sources = Expando();
+
+  Future<LegacyJellyfinTrackPreferencesMigrationReceipt?> prepare(
+    JellyfinConfig config, {
+    required bool Function() isCurrent,
+  }) async {
+    final source = await _reader._readSnapshot(config, isCurrent: isCurrent);
+    if (source == null) return null;
+    final receipt = LegacyJellyfinTrackPreferencesMigrationReceipt._(
+      audioLanguage: source.preview.audioLanguage,
+      subtitleLanguage: source.preview.subtitleLanguage,
+    );
+    _sources[receipt] = source;
+    return receipt;
+  }
+
+  Future<JellyfinTrackPreferenceRecord> confirm(
+    JellyfinConfig config,
+    LegacyJellyfinTrackPreferencesMigrationReceipt receipt, {
+    required bool Function() isCurrent,
+  }) async {
+    final expected = _sources[receipt];
+    if (expected == null) {
+      throw StateError('Legacy Jellyfin preference confirmation expired');
+    }
+    final current = await _reader._readSnapshot(config, isCurrent: isCurrent);
+    if (current == null ||
+        current.key != expected.key ||
+        current.raw != expected.raw) {
+      throw StateError('Legacy Jellyfin preference changed');
+    }
+    final saved = await _core.mergeLegacy(
+      config,
+      audioLanguage: receipt.audioLanguage,
+      subtitleLanguage: receipt.subtitleLanguage,
+      isCurrent: isCurrent,
+    );
+    await _reader._retire(expected, isCurrent: isCurrent);
+    _sources[receipt] = null;
+    return saved;
+  }
 }
