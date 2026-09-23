@@ -310,10 +310,7 @@ void main() {
           FixturePlatformFile(Uri.parse('content://fixture/document/1'), 3),
           FixturePlatformFile(Uri.parse('content://fixture/document/2'), 4),
         ]),
-        const [
-          'content://fixture/document/1',
-          'content://fixture/document/2',
-        ],
+        const ['content://fixture/document/1', 'content://fixture/document/2'],
       );
     },
   );
