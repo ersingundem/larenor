@@ -37,7 +37,10 @@ unbound provider instance, falsey malformed metadata containers and
 overlapping chapter boundaries were accepted. GREEN `1a10a2c4` carries the
 exact ready provider-instance set through private IPC, validates every detail
 against it, preserves strict container types and rejects overlapping chapter
-ranges. The expanded manager/runtime/authority batch passes **27/27**; Ruff F,
+ranges. RED `017471e1` then exercised matching summary/detail HTTP identities,
+which the general URI regex had allowed; GREEN `7152b874` rejects external,
+local and executable URI schemes plus control characters before publication.
+The expanded manager/runtime/authority batch passes **28/28**; Ruff F,
 security policy, execution-queue validation and diff checks are clean.
 
 F28 remains pending at **26/125 (20.8%)** and selected-feature progress remains
