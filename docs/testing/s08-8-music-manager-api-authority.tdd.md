@@ -36,12 +36,16 @@ the receiver comparison covered the complete manager-owned value.
 Run from the branch head:
 
 ```text
-flutter test test/features/server/server_music_manager_api_authority_test.dart test/features/server/server_music_manager_controller_test.dart test/features/server/server_music_manager_models_test.dart
+flutter gen-l10n
+flutter test test/features/server/server_music_manager_api_authority_test.dart test/features/server/server_music_manager_controller_test.dart test/features/server/server_music_manager_cache_test.dart test/features/server/server_music_selection_cache_test.dart test/features/server/server_music_manager_models_test.dart test/features/server/server_music_manager_screen_test.dart test/features/server/server_music_provider_command_test.dart test/features/server/server_music_provider_command_controller_test.dart test/features/server/server_music_provider_command_screen_test.dart
 flutter analyze lib/features/server/music_manager/data/server_music_manager_api.dart test/features/server/server_music_manager_api_authority_test.dart
 python3 tool/execution_queue.py validate
 python3 tool/execution_queue.py status --summary-only
 git diff --check
 ```
+
+The combined manager, cache, selection, provider-command and EN/TR 600/1200
+tablet/DeX package passed 65/65 tests.
 
 S08.8 remains pending. Wider direct Jellyfin replacement, integrated same-URL
 Core replacement/logout E2E, independent review and exact-head CI remain open.
