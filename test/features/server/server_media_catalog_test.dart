@@ -223,31 +223,26 @@ void main() {
     var calls = 0;
     final api = LarenorServerApi(
       endpoint: ServerEndpoint('https://core.test'),
-      client: MockClient(
-        (request) async {
-          calls++;
-          return request.method == 'GET'
-              ? http.Response(
-                  jsonEncode({
-                    'schemaVersion': 1.0,
-                    'installationId': _installationId,
-                    'installationRevision': 7,
-                    'snapshotRevision': 9,
-                    'jellyfinServiceRevision': 11,
-                  }),
-                  200,
-                  headers: {'content-type': 'application/json'},
-                )
-              : http.Response(
-                  jsonEncode({
-                    'requestId': _requestId,
-                    'catalog': _catalog(),
-                  }),
-                  200,
-                  headers: {'content-type': 'application/json'},
-                );
-        },
-      ),
+      client: MockClient((request) async {
+        calls++;
+        return request.method == 'GET'
+            ? http.Response(
+                jsonEncode({
+                  'schemaVersion': 1.0,
+                  'installationId': _installationId,
+                  'installationRevision': 7,
+                  'snapshotRevision': 9,
+                  'jellyfinServiceRevision': 11,
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              )
+            : http.Response(
+                jsonEncode({'requestId': _requestId, 'catalog': _catalog()}),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+      }),
     );
     addTearDown(api.close);
 

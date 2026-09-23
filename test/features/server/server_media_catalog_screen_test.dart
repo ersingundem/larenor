@@ -266,9 +266,7 @@ void main() {
     expect(retired.page, isNull);
     expect(retired.failure, isNull);
     expect(
-      delayed.calls.where(
-        (call) => call.url.path.endsWith('/catalog/search'),
-      ),
+      delayed.calls.where((call) => call.url.path.endsWith('/catalog/search')),
       isEmpty,
     );
   });
@@ -326,9 +324,7 @@ void main() {
     await pending;
 
     expect(
-      fixture.calls.where(
-        (call) => call.url.path.endsWith('/catalog/search'),
-      ),
+      fixture.calls.where((call) => call.url.path.endsWith('/catalog/search')),
       isEmpty,
     );
   });

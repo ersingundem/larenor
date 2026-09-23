@@ -56,13 +56,14 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     int limit = 24,
     required bool Function() current,
   }) => _search(
-    (api) => api.search(
+    (api, requestCurrent) => api.search(
       installationId: installationId,
       expectedInstallationRevision: expectedInstallationRevision,
       query: query,
       mediaKind: mediaKind,
       offset: offset,
       limit: limit,
+      current: requestCurrent,
     ),
     current: current,
   );
@@ -76,19 +77,24 @@ final class ServerMediaCatalogController extends ChangeNotifier {
   }) {
     final previousPage = offset == 0 ? null : page;
     return _search(
-      (api) => api.searchCurrent(
+      (api, requestCurrent) => api.searchCurrent(
         query: query,
         mediaKind: mediaKind,
         offset: offset,
         limit: limit,
         previousPage: previousPage,
+        current: requestCurrent,
       ),
       current: current,
     );
   }
 
   Future<void> _search(
-    Future<ServerMediaCatalogPage> Function(ServerMediaCatalogApi api) read, {
+    Future<ServerMediaCatalogPage> Function(
+      ServerMediaCatalogApi api,
+      bool Function() current,
+    )
+    read, {
     required bool Function() current,
   }) async {
     bool routeCurrent() {
@@ -109,14 +115,16 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     notifyListeners();
     try {
       await account.withSession((api, session) async {
+        bool requestCurrent() => valid() && identical(account.session, session);
         final value = await read(
           ServerMediaCatalogApi(
             api,
             session.accessToken,
             requestId: _requestId,
           ),
+          requestCurrent,
         );
-        if (valid() && identical(account.session, session)) page = value;
+        if (requestCurrent()) page = value;
       });
     } on LarenorServerException catch (error) {
       if (valid()) failure = error.code;

@@ -1,15 +1,14 @@
 import json
 
 import pytest
-
 from conftest import auth
 from larenor_server.plugins.media_archive_health_models import (
     JellyfinArchiveItem,
 )
-from test_admin import activate, create as create_user
-from test_media_archive_core_read import configured
 from larenor_server.plugins.media_installations import BINDING
-
+from test_admin import activate
+from test_admin import create as create_user
+from test_media_archive_core_read import configured
 
 BASE = '/api/v1/admin/media/archive-health/catalog/search'
 MEMBER_TARGET = '/api/v1/media/catalog/target'
@@ -262,7 +261,8 @@ def test_member_search_rejects_a_non_unique_ready_target(server):
         )
         manager._save(connection, clone, cloned_payload)
 
-    assert client.get(MEMBER_TARGET, headers=auth(member)).status_code == 409
+    target = client.get(MEMBER_TARGET, headers=auth(member))
+    assert target.status_code == 409
     response = client.post(MEMBER_SEARCH, headers=auth(member), json={
         **body,
         'query': 'matrix',
@@ -271,5 +271,5 @@ def test_member_search_rejects_a_non_unique_ready_target(server):
         'limit': 24,
     })
     assert response.status_code == 409
-    assert response.json()['error']['code'] == 'media_catalog_target_unavailable'
+    assert response.json()['error']['code'] == target.json()['error']['code']
     assert worker.calls == []

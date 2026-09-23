@@ -40,7 +40,7 @@ final class ServerMediaCatalogApi {
           'jellyfinServiceRevision',
         },
       );
-      if (response['schemaVersion'] != 1) {
+      if (response['schemaVersion'] is! int || response['schemaVersion'] != 1) {
         throw const FormatException();
       }
       return (
@@ -60,6 +60,7 @@ final class ServerMediaCatalogApi {
     int offset = 0,
     int limit = 24,
     ServerMediaCatalogPage? previousPage,
+    bool Function()? current,
   }) async {
     _validateSearch(query: query, offset: offset, limit: limit);
     if ((offset == 0) != (previousPage == null) ||
@@ -69,7 +70,9 @@ final class ServerMediaCatalogApi {
                 previousPage.mediaKind != mediaKind)) {
       throw const LarenorServerException('invalid_request');
     }
+    _requireCurrent(current);
     final target = await _discoverTarget();
+    _requireCurrent(current);
     if (previousPage != null &&
         (target.installationId != previousPage.installationId ||
             target.installationRevision != previousPage.installationRevision)) {
@@ -85,6 +88,7 @@ final class ServerMediaCatalogApi {
       offset: offset,
       limit: limit,
     );
+    _requireCurrent(current);
     if (previousPage != null &&
         (page.snapshotRevision != previousPage.snapshotRevision ||
             page.jellyfinServiceRevision !=
@@ -101,6 +105,7 @@ final class ServerMediaCatalogApi {
     ServerMediaCatalogKind? mediaKind,
     int offset = 0,
     int limit = 24,
+    bool Function()? current,
   }) async {
     _validateSearch(query: query, offset: offset, limit: limit);
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(installationId) ||
@@ -108,12 +113,14 @@ final class ServerMediaCatalogApi {
         expectedInstallationRevision > 0x7ffffffffffffffe) {
       throw const LarenorServerException('invalid_request');
     }
+    _requireCurrent(current);
     final target = await _discoverTarget();
+    _requireCurrent(current);
     if (target.installationId != installationId ||
         target.installationRevision != expectedInstallationRevision) {
       throw const LarenorServerException('invalid_response');
     }
-    return _search(
+    final page = await _search(
       installationId: installationId,
       expectedInstallationRevision: expectedInstallationRevision,
       expectedSnapshotRevision: target.snapshotRevision,
@@ -123,6 +130,18 @@ final class ServerMediaCatalogApi {
       offset: offset,
       limit: limit,
     );
+    _requireCurrent(current);
+    return page;
+  }
+
+  static void _requireCurrent(bool Function()? current) {
+    if (current == null) return;
+    try {
+      if (current()) return;
+    } catch (_) {
+      // A retired owner is indistinguishable from a false owner callback.
+    }
+    throw const LarenorServerException('retired');
   }
 
   static void _validateSearch({

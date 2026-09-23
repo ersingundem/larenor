@@ -12,7 +12,6 @@ from .media_archive_core_models import (
     MediaCatalogSearchRequest,
     PrivateMediaArchiveCollection,
 )
-from .media_installations import MAX_INSTALLATIONS
 from .media_archive_health import build_media_archive_health
 from .media_archive_health_models import (
     ArchiveSourceBinding,
@@ -22,7 +21,7 @@ from .media_archive_weekly_trend import (
     MediaArchiveTrendError,
     MediaArchiveWeeklyTrendStore,
 )
-
+from .media_installations import MAX_INSTALLATIONS
 
 _MAX_AGE_SECONDS = 300
 _BINDING_FIELDS = {
@@ -58,17 +57,32 @@ class MediaArchiveHealthManagement:
             raise ApiError('media_installation_changed', 409)
 
     def _member_installation(self, connection, actor, body):
-        self.auth.assert_current(connection, actor)
-        row = self.installations._find(connection, body.installationId)
-        payload = self.installations._decode(row)
-        public = self.installations._public(row, payload)
-        if (row['revision'] != body.expectedInstallationRevision
-                or row['state'] != 'container_started'
-                or row['phase'] != 'complete'
-                or row['cancel_requested']
-                or row['error_code'] is not None
-                or public['serviceId'] != 'jellyfin'):
+        row = self._member_target_row(connection, actor)
+        if (row['id'] != body.installationId
+                or row['revision'] != body.expectedInstallationRevision):
             raise ApiError('media_installation_changed', 409)
+
+    def _member_target_row(self, connection, actor):
+        self.auth.assert_current(connection, actor)
+        rows = connection.execute(
+            'SELECT * FROM media_installations ORDER BY sequence DESC LIMIT ?',
+            (MAX_INSTALLATIONS + 1,),
+        ).fetchall()
+        if len(rows) > MAX_INSTALLATIONS:
+            raise ApiError('media_installation_storage_unavailable', 503)
+        candidates = []
+        for row in rows:
+            payload = self.installations._decode(row)
+            public = self.installations._public(row, payload)
+            if (public['serviceId'] == 'jellyfin'
+                    and row['state'] == 'container_started'
+                    and row['phase'] == 'complete'
+                    and not row['cancel_requested']
+                    and row['error_code'] is None):
+                candidates.append(row)
+        if len(candidates) != 1:
+            raise ApiError('media_catalog_target_unavailable', 409)
+        return candidates[0]
 
     def _session_gate(self, actor, body, *, member=False):
         with self.db.connection() as connection:
@@ -236,26 +250,7 @@ class MediaArchiveHealthManagement:
     def member_target(self, actor):
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self.auth.assert_current(connection, actor)
-            rows = connection.execute(
-                'SELECT * FROM media_installations ORDER BY sequence DESC LIMIT ?',
-                (MAX_INSTALLATIONS + 1,),
-            ).fetchall()
-            if len(rows) > MAX_INSTALLATIONS:
-                raise ApiError('media_installation_storage_unavailable', 503)
-            candidates = []
-            for row in rows:
-                payload = self.installations._decode(row)
-                public = self.installations._public(row, payload)
-                if (public['serviceId'] == 'jellyfin'
-                        and row['state'] == 'container_started'
-                        and row['phase'] == 'complete'
-                        and not row['cancel_requested']
-                        and row['error_code'] is None):
-                    candidates.append(row)
-            if len(candidates) != 1:
-                raise ApiError('media_catalog_target_unavailable', 409)
-            row = candidates[0]
+            row = self._member_target_row(connection, actor)
         body = MediaArchiveAuthorityRequest(
             requestId='0' * 32,
             installationId=row['id'],
