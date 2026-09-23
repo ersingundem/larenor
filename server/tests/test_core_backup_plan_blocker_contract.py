@@ -1,11 +1,10 @@
 import pytest
-from pydantic import ValidationError
-
 from larenor_server.core_backups.models import (
     BACKUP_ACTIVE_BLOCKER_ORDER,
     BackupPlanResponse,
 )
 from larenor_server.core_backups.service import _ACTIVE
+from pydantic import ValidationError
 
 
 def test_backup_plan_order_is_bound_to_the_capture_service():
