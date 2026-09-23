@@ -276,6 +276,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
                     children: [
                       _status(l.kioskSensorsLight, _light(l, snapshot)),
                       _status(l.kioskSensorsMotion, _motion(l, snapshot)),
+                      _status(l.kioskSensorsApproach, _approach(l, snapshot)),
                       _status(l.kioskSensorsCamera, _camera(l, snapshot)),
                     ],
                   ),
@@ -374,6 +375,16 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
       KioskSensorCameraStatus.permissionDenied =>
         l.kioskSensorsCameraPermissionDenied,
       KioskSensorCameraStatus.unavailable => l.kioskSensorsNotAvailable,
+    };
+  }
+
+  String _approach(AppLocalizations l, KioskSensorSnapshot? value) {
+    if (value == null) return l.kioskSensorsInactive;
+    if (!value.approachAvailable) return l.kioskSensorsNotAvailable;
+    return switch (value.isApproached) {
+      true => l.kioskSensorsApproachNearby,
+      false => l.kioskSensorsApproachClear,
+      null => l.kioskSensorsWaiting,
     };
   }
 

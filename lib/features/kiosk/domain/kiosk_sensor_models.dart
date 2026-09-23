@@ -4,6 +4,22 @@ enum KioskSensorCameraStatus { available, busy, permissionDenied, unavailable }
 
 enum KioskSensorFailure { unsupported, unavailable, denied, expired, busy }
 
+const _snapshotKeys = <String>{
+  'version',
+  'sessionId',
+  'sequence',
+  'sampling',
+  'lightAvailable',
+  'motionAvailable',
+  'approachAvailable',
+  'observedAtElapsedMillis',
+  'lux',
+  'motionDelta',
+  'approachDistanceCm',
+  'approachMaxRangeCm',
+  'cameraStatus',
+};
+
 final class KioskSensorException implements Exception {
   const KioskSensorException(this.failure);
   final KioskSensorFailure failure;
@@ -18,16 +34,19 @@ final class KioskSensorSnapshot {
     required this.sampling,
     required this.lightAvailable,
     required this.motionAvailable,
+    required this.approachAvailable,
     required this.observedAtElapsedMillis,
     required this.lux,
     required this.motionDelta,
+    required this.approachDistanceCm,
+    required this.approachMaxRangeCm,
     required this.cameraStatus,
   });
 
   final String sessionId;
   final int sequence, observedAtElapsedMillis;
-  final bool sampling, lightAvailable, motionAvailable;
-  final double? lux, motionDelta;
+  final bool sampling, lightAvailable, motionAvailable, approachAvailable;
+  final double? lux, motionDelta, approachDistanceCm, approachMaxRangeCm;
   final KioskSensorCameraStatus cameraStatus;
 
   bool? get isDark => !lightAvailable || lux == null ? null : lux! < 20;
@@ -41,6 +60,13 @@ final class KioskSensorSnapshot {
     return motionDelta! >= threshold;
   }
 
+  bool? get isApproached =>
+      !approachAvailable ||
+          approachDistanceCm == null ||
+          approachMaxRangeCm == null
+      ? null
+      : approachDistanceCm! < approachMaxRangeCm!;
+
   factory KioskSensorSnapshot.fromChannel(
     Object? raw, {
     String? expectedSessionId,
@@ -48,16 +74,22 @@ final class KioskSensorSnapshot {
     Never invalid() =>
         throw const KioskSensorException(KioskSensorFailure.unavailable);
     if (raw is! Map ||
-        raw.length != 10 ||
-        raw['version'] != 1 ||
+        raw.length != _snapshotKeys.length ||
+        !_snapshotKeys.every(raw.containsKey) ||
+        raw['version'] != 2 ||
         raw['sessionId'] is! String ||
         raw['sequence'] is! int ||
         raw['sampling'] is! bool ||
         raw['lightAvailable'] is! bool ||
         raw['motionAvailable'] is! bool ||
+        raw['approachAvailable'] is! bool ||
         raw['observedAtElapsedMillis'] is! int ||
         !(raw['lux'] == null || raw['lux'] is num) ||
         !(raw['motionDelta'] == null || raw['motionDelta'] is num) ||
+        !(raw['approachDistanceCm'] == null ||
+            raw['approachDistanceCm'] is num) ||
+        !(raw['approachMaxRangeCm'] == null ||
+            raw['approachMaxRangeCm'] is num) ||
         raw['cameraStatus'] is! String) {
       invalid();
     }
@@ -66,6 +98,8 @@ final class KioskSensorSnapshot {
     final observed = raw['observedAtElapsedMillis'] as int;
     final lux = (raw['lux'] as num?)?.toDouble();
     final motion = (raw['motionDelta'] as num?)?.toDouble();
+    final approachDistance = (raw['approachDistanceCm'] as num?)?.toDouble();
+    final approachMaxRange = (raw['approachMaxRangeCm'] as num?)?.toDouble();
     final camera = KioskSensorCameraStatus.values
         .where((value) => value.name == raw['cameraStatus'])
         .firstOrNull;
@@ -76,8 +110,20 @@ final class KioskSensorSnapshot {
         camera == null ||
         (lux != null && (!lux.isFinite || lux < 0 || lux > 200000)) ||
         (motion != null && (!motion.isFinite || motion < 0 || motion > 100)) ||
+        (approachMaxRange != null &&
+            (!approachMaxRange.isFinite ||
+                approachMaxRange < .1 ||
+                approachMaxRange > 100)) ||
+        (approachDistance != null &&
+            (!approachDistance.isFinite ||
+                approachDistance < 0 ||
+                approachMaxRange == null ||
+                approachDistance > approachMaxRange)) ||
         (raw['lightAvailable'] == false && lux != null) ||
-        (raw['motionAvailable'] == false && motion != null)) {
+        (raw['motionAvailable'] == false && motion != null) ||
+        (raw['approachAvailable'] == false &&
+            (approachDistance != null || approachMaxRange != null)) ||
+        (raw['approachAvailable'] == true && approachMaxRange == null)) {
       invalid();
     }
     return KioskSensorSnapshot(
@@ -86,9 +132,12 @@ final class KioskSensorSnapshot {
       sampling: raw['sampling'] as bool,
       lightAvailable: raw['lightAvailable'] as bool,
       motionAvailable: raw['motionAvailable'] as bool,
+      approachAvailable: raw['approachAvailable'] as bool,
       observedAtElapsedMillis: observed,
       lux: lux,
       motionDelta: motion,
+      approachDistanceCm: approachDistance,
+      approachMaxRangeCm: approachMaxRange,
       cameraStatus: camera,
     );
   }

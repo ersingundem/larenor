@@ -14,17 +14,23 @@ Map<String, Object?> _sample({
   bool sampling = true,
   double? lux = 12,
   double? motionDelta = 0.8,
+  bool approachAvailable = true,
+  double? approachDistanceCm = 2,
+  double? approachMaxRangeCm = 5,
   String cameraStatus = 'available',
 }) => {
-  'version': 1,
+  'version': 2,
   'sessionId': sessionId,
   'sequence': sequence,
   'sampling': sampling,
   'lightAvailable': true,
   'motionAvailable': true,
+  'approachAvailable': approachAvailable,
   'observedAtElapsedMillis': 1000,
   'lux': lux,
   'motionDelta': motionDelta,
+  'approachDistanceCm': approachDistanceCm,
+  'approachMaxRangeCm': approachMaxRangeCm,
   'cameraStatus': cameraStatus,
 };
 
@@ -62,21 +68,38 @@ final class _Api implements KioskSensorApi {
 
 void main() {
   test('snapshot is strict, bounded and keeps sensor absence distinct', () {
+    final identitySubstitution = _sample()
+      ..remove('lux')
+      ..['faceId'] = 'unexpected';
     final unavailable = _sample(lux: null, motionDelta: null)
       ..['lightAvailable'] = false
-      ..['motionAvailable'] = false;
+      ..['motionAvailable'] = false
+      ..['approachAvailable'] = false
+      ..['approachDistanceCm'] = null
+      ..['approachMaxRangeCm'] = null;
     final value = KioskSensorSnapshot.fromChannel(unavailable);
     expect(value.lightAvailable, isFalse);
     expect(value.motionAvailable, isFalse);
     expect(value.isDark, isNull);
     expect(value.isMoving(KioskSensorSensitivity.medium), isNull);
+    expect(value.isApproached, isNull);
     expect(value.cameraStatus, KioskSensorCameraStatus.available);
 
     for (final invalid in [
       {..._sample(), 'secret': 'must-not-be-accepted'},
+      identitySubstitution,
       {..._sample(), 'sessionId': 'foreign'},
       {..._sample(), 'lux': -1.0},
       {..._sample(), 'motionDelta': double.infinity},
+      {..._sample(), 'approachDistanceCm': -1.0},
+      {..._sample(), 'approachDistanceCm': 6.0},
+      {..._sample(), 'approachMaxRangeCm': 0.0},
+      {
+        ..._sample(),
+        'approachAvailable': false,
+        'approachDistanceCm': 1.0,
+        'approachMaxRangeCm': null,
+      },
       {..._sample(), 'sequence': -1},
       {..._sample(), 'cameraStatus': 'recording'},
     ]) {
@@ -85,6 +108,15 @@ void main() {
         throwsA(isA<KioskSensorException>()),
       );
     }
+  });
+
+  test('anonymous approach uses only the latest bounded proximity value', () {
+    final near = KioskSensorSnapshot.fromChannel(_sample());
+    final far = KioskSensorSnapshot.fromChannel(_sample(approachDistanceCm: 5));
+
+    expect(near.isApproached, isTrue);
+    expect(far.isApproached, isFalse);
+    expect(near.toString(), isNot(contains('face')));
   });
 
   test(
@@ -161,6 +193,47 @@ void main() {
     );
     await expectLater(first, throwsA(isA<KioskSensorException>()));
     expect(controller.snapshot?.sequence, 2);
+  });
+
+  test('approach reading cannot drift without a newer sequence', () async {
+    final api = _Api()
+      ..startValue = _sample(
+        sequence: 0,
+        lux: null,
+        motionDelta: null,
+        approachDistanceCm: null,
+      )
+      ..readValue = _sample(
+        sequence: 0,
+        lux: null,
+        motionDelta: null,
+        approachDistanceCm: 2,
+      );
+    final controller = KioskSensorController(api);
+    await controller.start();
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(isA<KioskSensorException>()),
+    );
+    expect(controller.snapshot?.approachDistanceCm, isNull);
+  });
+
+  test('observation time cannot advance without a newer sequence', () async {
+    final api = _Api()
+      ..startValue = _sample(sequence: 0, lux: null, motionDelta: null)
+      ..readValue = {
+        ..._sample(sequence: 0, lux: null, motionDelta: null),
+        'observedAtElapsedMillis': 2000,
+      };
+    final controller = KioskSensorController(api);
+    await controller.start();
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(isA<KioskSensorException>()),
+    );
+    expect(controller.snapshot?.observedAtElapsedMillis, 1000);
   });
 
   test(
