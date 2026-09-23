@@ -21,7 +21,7 @@ choices; direct Jellyfin identity and credentials remain device-local.
 
 ## RED
 
-Commit `8afc1881` added the three focused migration regressions before the
+Commit `af18d8e5` added the three focused migration regressions before the
 coordinator existed. After normal generated-source setup, the test failed to
 compile at each missing `LegacyJellyfinTrackPreferencesMigration` reference.
 
