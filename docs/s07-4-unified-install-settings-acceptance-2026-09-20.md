@@ -6,8 +6,9 @@ PR-ready yazılım kabulüdür. S07.1 `4e6236e8`, S07.2 ve S07.3 ise
 `bf470d95` ile main üzerinde tamamlanmıştır; bu dal güncel main tabanında
 yalnız S07.4 farkını taşır. PR #328 bu farkı main'e taşıdı; sonraki exact-tree
 incelemesinde bulunan Client kanıt ayrımı `1fcea99a` üzerinde düzeltildi.
-S07.4 bu exact commitin tam CI kanıtı birleşene kadar kuyrukta kapanmış
-sayılmaz; kuyruk **23/125 (%18,4)** ve seçili özellik sayacı **0/63** kalır.
+PR #330 exact head `223ff08f` zorunlu CI'ı geçti ve main `814eaeac` içine
+birleşti. S07.4 yazılım kabulü tamamlandı; kuyruk **24/125 (%19,2)** ve seçili
+özellik sayacı **0/63** oldu.
 
 Tam üç kabul ölçütü vardır:
 
@@ -69,12 +70,14 @@ değerlerinin Client parser'ında doğrulanıp modelden atıldığını buldu. B
 başlamış süreç ile doğrulanmamış entegrasyon tablet satırında açıkça ayrı
 görünmüyordu. RED/GREEN kanıtı ve tam yerel matris
 [exact-tree kapanış incelemesinde](testing/s07-4-exact-tree-closure-2026-09-23.md)
-kayıtlıdır. S07.4 bu nedenle `awaiting_ci` durumundadır.
+kayıtlıdır. Exact head CI ve birleşim kanıtı da aynı belgede tamamlanmıştır;
+S07.4 `done` durumundadır.
 
 ## Açık kapılar
 
-- **Exact head kapanışı:** `1fcea99a` test ve inceleme kanıtını taşır. Aynı
-  commitin zorunlu GitHub CI'ı geçmeden S07.4 sayaç değiştirmez.
+- **Exact head kapanışı:** PR #330 head `223ff08f`, Android Build
+  `35812635044`, Security `35812634919` ve iki mimarili Unified Media Stack
+  `35812634855` koşularını geçti; main `814eaeac` içine birleşti.
 - Gerçek apply/rollback yürütmesi S09'un kurulum/güncelleme/yedek kabulüdür.
   S07.4 yalnız desteklenen upgrade preview'ı sunar; yürütücü olmayan rollback
   veya cancel eylemini başarı saymaz.

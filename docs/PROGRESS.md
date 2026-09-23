@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 23 Eylül 2026, main `54abbf34` — 23/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #328, bekleyen 28 PR başlığını tam zorunlu CI ile tek birleşim commitinde topladı; #329 güncel teslim planını ana dala aldı. S07.4 exact-tree incelemesi bir Client kanıt açığını kapattı ve güncel commit CI'ını bekliyor. Birleşen kısmi özellik dilimleri kabul ölçütlerini tek başına kapatmadığı için sayaç değiştirilmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, main `be825d43` — 24/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #330 exact head `223ff08f` üzerinde zorunlu CI, API 35 uygulama yolculukları ve iki mimarili restart kapılarını geçti; S07.4 main'e birleşerek yazılım kabulünü tamamladı. PR #331'in yedekleme ve PR #332'nin WebPanel renderer dilimleri birleşti; kendi tam kuyruk kabullerini tek başına kapatmadıkları için başka sayaç değişmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  23/125 iş (%18,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  24/125 iş (%19,2; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -31,9 +31,9 @@ erişim için geniş yazılım dilimleri içeriyor. Ancak DeX ikinci ekranda ger
 ayrı Flutter görev yüzeyi, paketlenmiş oyun yayın motoru, üretim EV/enerji/sulama
 sağlayıcıları ve ilgili fiziksel cihaz/servis matrisleri açık. Kuyruktaki tam
 kabul ölçütleri karşılanmadan F01–F63 veya S09 düğümleri `done` yapılmadı;
-kanıtlı sayaçlar **23/125 (%18,4)** ve **0/63 (%0,0)** olarak korundu.
+kanıtlı sayaçlar **24/125 (%19,2)** ve **0/63 (%0,0)** olarak güncellendi.
 
-### S07.4 tek kurulum durumu — exact CI bekliyor
+### S07.4 tek kurulum durumu — yazılım kabul edildi
 
 PR #328'in birleşik ağacındaki bağımsız kabul incelemesi, Server'ın ayrı
 ürettiği süreç ve entegrasyon durumlarının Client tarafından doğrulanıp sonra
@@ -48,9 +48,14 @@ Eksik servisler yedi satırlı kapalı sözleşmede `missing/unknown/unverified`
 olarak kalıyor. Çapraz servis Core API testi altı medya servisini birlikte
 okuyor; PR #328'in birleşik yığın işi amd64/arm64 restart kapısını geçti.
 [Exact-tree inceleme ve TDD kanıtı](testing/s07-4-exact-tree-closure-2026-09-23.md).
-Client üretim kodu PR #328 sonrasında değiştiği için aynı `1fcea99a` commitinde
-zorunlu GitHub CI henüz yoktur. S07.4 `awaiting_ci`, sayaç **23/125** ve B2
-**3/4** kalır; exact CI geçip aynı commit kanıtı kaydedilmeden `done` olmaz.
+PR #330 exact head `223ff08f` üzerinde Android Build run `35812635044`
+statik analiz, dört Flutter shardı, dört Server shardı, API 35 gerçek uygulama
+yolculukları ve debug APK'yı tamamladı. Security run `35812634919` ile secret,
+platform-policy ve bağımlılık kapıları; Unified Media Stack run `35812634855`
+ile `linux/amd64` ve `linux/arm64` restart zincirleri geçti. PR #330 main
+`814eaeac` içine birleşti. S07.4 `done`, sayaç **24/125 (%19,2)** ve B2
+**4/4** oldu; gerçek sağlayıcı, alıcı ve fiziksel ev kabulü manuel sınırda
+kalır.
 
 **B5.2 kabulünün tam doğrulanmış birleşik kaynağı: main `e313328f`.** B5.2'nin kişisel
 profil Client/Core senkronu birleşik dalda 44/44 odaklı Flutter testini ve

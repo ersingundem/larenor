@@ -60,10 +60,21 @@ The repaired working tree passed:
   `python3 -m unittest tool.tests.execution_queue_test -v` — queue valid and
   24 tests.
 
-## Remaining gate
+## Exact-head CI and merge closure
 
-The repair changes Client production code after PR #328. Its local test and
-independent review evidence are complete, but it does not yet have GitHub CI on
-the exact repaired commit. S07.4 must remain `awaiting_ci`; it can become
-`done` only when the required CI run for that exact commit passes and the CI
-evidence is recorded with the same completion commit.
+PR #330 head `223ff08f49e36fc15c41f38c6af9e5a93e6f5e1f` completed the
+required GitHub evidence on that exact commit:
+
+- Android Build run `35812635044` passed static analysis, all four Flutter
+  shards, all four Server shards and their aggregate gates, the API 35 app
+  journeys, and the debug APK build.
+- Security run `35812634919` passed secret scanning, platform policy, and
+  dependency scanning.
+- Unified Media Stack Native Acceptance run `35812634855` passed the managed
+  stack lifecycle and restart chain on both `linux/amd64` and `linux/arm64`.
+
+GitHub merged PR #330 as main `814eaeaca25634e9e7f2eb51f85a7cefd65c5591`
+on 2026-09-23. The required test, review, and CI evidence therefore share the
+exact completion commit `223ff08f`; S07.4 can move from `awaiting_ci` to
+`done`. Live provider, receiver, and physical-home checks remain outside this
+software acceptance.
