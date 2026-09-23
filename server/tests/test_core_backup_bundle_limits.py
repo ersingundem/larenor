@@ -4,6 +4,7 @@ import hashlib
 
 import pytest
 from conftest import ready
+
 from larenor_server.core_backups import service as backup_service
 from larenor_server.core_backups.service import BackupCapture
 from larenor_server.errors import ApiError
@@ -22,7 +23,6 @@ def test_final_bundle_ceiling_includes_header_nonce_and_authentication_tag(
     capture = contract.capture(actor)
     payloads = {
         **capture.payloads,
-        "core-database": b"synthetic sqlite fixture",
         "family-board": b"synthetic family board fixture",
         "vault-key": b"k" * 32,
     }

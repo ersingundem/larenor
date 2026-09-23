@@ -88,6 +88,8 @@ MAX_BUNDLE_BYTES = (
     + 8 * 1024 * 1024
 )
 _MANIFEST_NAME = "manifest.json"
+_DATABASE_VALIDATION_VM_STEP_INTERVAL = 1_000
+_DATABASE_VALIDATION_VM_STEP_BUDGET = 100_000
 
 
 def _canonical(value) -> bytes:
@@ -190,8 +192,61 @@ def _validate_payload_contract(capture: BackupCapture) -> None:
     try:
         configuration_bytes = capture.payloads["core-configuration"]
         component_index_bytes = capture.payloads["component-index"]
+        database_bytes = capture.payloads["core-database"]
         configuration = json.loads(configuration_bytes)
         component_index = json.loads(component_index_bytes)
+        if (
+            type(database_bytes) is not bytes
+            or not 20 <= len(database_bytes) <= MAX_DATABASE_BYTES
+            or database_bytes[:16] != b"SQLite format 3\x00"
+        ):
+            raise ValueError("invalid_database")
+        database_image = bytearray(database_bytes)
+        # Serialized WAL databases need a rollback-journal header before an
+        # isolated in-memory reader can inspect them without a sidecar file.
+        database_image[18:20] = b"\x01\x01"
+        with closing(sqlite3.connect(":memory:")) as database:
+            database.row_factory = sqlite3.Row
+            database.deserialize(database_image)
+            database.execute("PRAGMA trusted_schema=OFF")
+            database.execute("PRAGMA query_only=ON")
+            executed_steps = 0
+
+            def interrupt_expensive_validation():
+                nonlocal executed_steps
+                executed_steps += _DATABASE_VALIDATION_VM_STEP_INTERVAL
+                return executed_steps > _DATABASE_VALIDATION_VM_STEP_BUDGET
+
+            database.set_progress_handler(
+                interrupt_expensive_validation,
+                _DATABASE_VALIDATION_VM_STEP_INTERVAL,
+            )
+            metadata_object = database.execute(
+                """
+                SELECT type, tbl_name
+                FROM sqlite_schema
+                WHERE name = 'metadata' COLLATE BINARY
+                """
+            ).fetchall()
+            metadata_columns = [
+                tuple(row)
+                for row in database.execute("PRAGMA table_xinfo('metadata')")
+            ]
+            if (
+                [tuple(row) for row in metadata_object]
+                != [("table", "metadata")]
+                or metadata_columns
+                != [
+                    (0, "key", "TEXT", 0, None, 1, 0),
+                    (1, "value", "TEXT", 1, None, 0, 0),
+                ]
+            ):
+                raise ValueError("invalid_metadata_table")
+            schema_row = database.execute(
+                "SELECT value FROM metadata WHERE key='schema_version'"
+            ).fetchone()
+            database_schema = int(schema_row["value"])
+            component_schemas = CoreBackupContract._schema_versions(database)
         expected_components = [
             component.model_dump(mode="json")
             for component in capture.manifest.components
@@ -216,11 +271,20 @@ def _validate_payload_contract(capture: BackupCapture) -> None:
                 for value in configuration["workers"].values()
             )
             or configuration_bytes != _canonical(configuration)
+            or database_schema != capture.manifest.databaseSchemaVersion
+            or component_schemas != capture.manifest.componentSchemaVersions
             or component_index != expected_index
             or component_index_bytes != _canonical(component_index)
         ):
             raise ValueError("invalid_backup_payload_contract")
-    except (KeyError, TypeError, UnicodeError, ValueError):
+    except (
+        KeyError,
+        OverflowError,
+        sqlite3.Error,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ):
         raise ValueError("invalid_backup_payload_contract") from None
 
 
