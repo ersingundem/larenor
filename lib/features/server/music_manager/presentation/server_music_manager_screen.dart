@@ -9,16 +9,26 @@ import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../media/music/domain/music_models.dart';
+import '../../../media/music/providers/music_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
+import '../data/legacy_music_player_mapping.dart';
 import '../data/server_music_manager_controller.dart';
 import '../domain/server_music_manager_models.dart';
 
 class ServerMusicManagerScreen extends ConsumerStatefulWidget {
-  const ServerMusicManagerScreen({super.key, this.controller});
+  const ServerMusicManagerScreen({
+    super.key,
+    this.controller,
+    this.legacyDiscovery,
+  });
 
   @visibleForTesting
   final ServerMusicManagerController? controller;
+
+  @visibleForTesting
+  final Future<MusicDiscovery> Function()? legacyDiscovery;
 
   @override
   ConsumerState<ServerMusicManagerScreen> createState() =>
@@ -30,12 +40,16 @@ class _ServerMusicManagerScreenState
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
   late final ServerMusicManagerController _controller;
+  late final Future<MusicDiscovery> Function() _loadLegacyDiscovery;
+  late final LegacyMusicPlayerMapping _legacyMapping;
   late final bool _ownsController;
   late final int _accountEpoch;
   final _search = TextEditingController();
   ValueListenable<TickerModeData>? _ticker;
   int _lifecycle = 0;
   bool _visible = true, _loaded = false, _expired = false;
+  bool _migrationBusy = false, _migrationSucceeded = false;
+  String? _migrationFailure;
 
   bool get _active =>
       mounted &&
@@ -54,6 +68,12 @@ class _ServerMusicManagerScreenState
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
     _controller = widget.controller ?? ServerMusicManagerController(_account);
+    _loadLegacyDiscovery =
+        widget.legacyDiscovery ?? () => ref.read(musicDiscoveryProvider.future);
+    _legacyMapping = LegacyMusicPlayerMapping(
+      account: _account,
+      loadLegacyDiscovery: _loadLegacyDiscovery,
+    );
     _ownsController = widget.controller == null;
     _account.addListener(_accountChanged);
   }
@@ -92,6 +112,7 @@ class _ServerMusicManagerScreenState
     _expired = true;
     _lifecycle++;
     _controller.invalidate();
+    _legacyMapping.dispose();
     _search.clear();
   }
 
@@ -128,12 +149,114 @@ class _ServerMusicManagerScreenState
     }
   }
 
+  Future<MusicQueueTarget?> _chooseLegacyTarget(
+    AppLocalizations l,
+    List<MusicQueueTarget> targets,
+  ) async {
+    if (targets.length == 1) return targets.single;
+    return showCupertinoModalPopup<MusicQueueTarget>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(l.serverMusicMigrationChooseLegacy),
+        actions: [
+          for (final target in targets)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, target),
+              child: Text(target.name),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l.commonCancel),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _migrateLegacy(AppLocalizations l) async {
+    final current = _capture();
+    final manager = _controller.manager;
+    final provider = _controller.selectedProvider;
+    final receiver = _controller.selectedReceiver;
+    if (!current() ||
+        _migrationBusy ||
+        !_controller.verified ||
+        manager == null ||
+        provider == null ||
+        receiver == null) {
+      return;
+    }
+    setState(() {
+      _migrationBusy = true;
+      _migrationSucceeded = false;
+      _migrationFailure = null;
+    });
+    try {
+      final discovery = await _loadLegacyDiscovery();
+      if (!current()) return;
+      final targets = discovery.queueTargets
+          .where(LegacyMusicPlayerMapping.canPreview)
+          .take(LegacyMusicPlayerMapping.maximumPreviewTargets + 1)
+          .toList(growable: false);
+      if (targets.isEmpty ||
+          targets.length > LegacyMusicPlayerMapping.maximumPreviewTargets) {
+        throw StateError('legacy_music_player_unavailable');
+      }
+      final target = await _chooseLegacyTarget(l, targets);
+      if (!current() || target == null) return;
+      final receipt = await _legacyMapping.prepare(target, current: current);
+      if (!mounted || !current() || receipt == null) {
+        throw StateError('legacy_music_player_changed');
+      }
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(l.serverMusicMigrationTitle),
+          content: Text(
+            '${receipt.preview.name}\n'
+            '${_providerName(provider.domain)} · ${receiver.name}\n\n'
+            '${l.serverMusicMigrationHint}',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l.commonCancel),
+            ),
+            CupertinoDialogAction(
+              key: const ValueKey('music-manager-migrate-confirm'),
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l.serverMusicMigrationConfirm),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !current()) return;
+      await _legacyMapping.confirm(
+        receipt,
+        manager: manager,
+        provider: provider,
+        receiver: receiver,
+        current: current,
+      );
+      if (current()) _migrationSucceeded = true;
+    } catch (_) {
+      if (current()) _migrationFailure = 'migration_failed';
+    } finally {
+      if (mounted && current()) {
+        setState(() => _migrationBusy = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.removeListener(_visibilityChanged);
     _account.removeListener(_accountChanged);
     if (_ownsController) _controller.dispose();
+    _legacyMapping.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -310,6 +433,50 @@ class _ServerMusicManagerScreenState
                         receiver.enabled
                     ? () => _controller.selectReceiver(receiver.id)
                     : null,
+              ),
+          ],
+        ),
+      ),
+    ),
+  ];
+
+  List<Widget> _legacyMigration(AppLocalizations l) => [
+    SliverToBoxAdapter(
+      child: _bounded(
+        SettingsSection(
+          header: Text(l.serverMusicMigrationTitle),
+          footer: Text(l.serverMusicMigrationHint),
+          children: [
+            SettingsActionTile(
+              buttonKey: const ValueKey('music-manager-migrate-legacy'),
+              leading: const Icon(CupertinoIcons.arrow_right_arrow_left),
+              title: Text(l.serverMusicMigrationAction),
+              onTap:
+                  _active &&
+                      _controller.verified &&
+                      !_controller.busy &&
+                      !_migrationBusy &&
+                      _controller.selectedProvider != null &&
+                      _controller.selectedReceiver != null
+                  ? () => _migrateLegacy(l)
+                  : null,
+            ),
+            if (_migrationBusy)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: CupertinoActivityIndicator(),
+              ),
+            if (_migrationSucceeded)
+              Padding(
+                key: const ValueKey('music-manager-migrate-success'),
+                padding: const EdgeInsets.all(16),
+                child: Text(l.serverMusicMigrationSuccess),
+              ),
+            if (_migrationFailure != null)
+              Padding(
+                key: const ValueKey('music-manager-migrate-failure'),
+                padding: const EdgeInsets.all(16),
+                child: Text(l.serverMusicMigrationFailure),
               ),
           ],
         ),
@@ -556,6 +723,7 @@ class _ServerMusicManagerScreenState
               if (manager != null) ...[
                 ..._providers(l, manager),
                 ..._receivers(l, manager),
+                ..._legacyMigration(l),
                 ..._catalog(l),
                 ..._controls(l),
               ],
