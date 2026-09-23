@@ -40,6 +40,12 @@ suites together: **46/46 passed**. Focused `flutter analyze` reported no issues;
 the security policy, execution-queue validation and `git diff --check` gates
 also passed.
 
+The independent ownership audit then recorded failing commit `84f52a95`: a
+retirement stop could run before a pending native start returned `active`, and
+the late acknowledgement no longer triggered a second exact cleanup. Commit
+`a7415639` restores that bounded post-ack stop without adding another stop to
+current-generation malformed or timeout paths.
+
 ## Remaining acceptance
 
 K07 stays pending. Live local Mosquitto TLS/ACL acceptance, trusted enrollment
