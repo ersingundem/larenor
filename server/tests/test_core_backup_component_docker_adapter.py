@@ -305,6 +305,79 @@ def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path)
         operations = effect_operations(calls)
         assert len(operations) == 2
         assert sum("/pause " in item for item in operations) == 1
+    assert sum("/unpause " in item for item in operations) == 1
+
+
+def test_ambiguous_pause_never_replays_and_cleanup_waits_for_late_effect(
+    tmp_path,
+):
+    with installed_authority(tmp_path) as (
+        authority, receipt, binding, _volumes,
+    ):
+        roots = make_roots(tmp_path / "payloads", binding)
+        container = running_inspect(binding, roots)
+        state = {"paused": False}
+        ordinary = effect_reply(container, receipt.volumes, state)
+
+        def reply(request, calls):
+            if request[0].startswith("POST ") and "/pause " in request[0]:
+                time.sleep(0.4)
+                return None
+            return ordinary(request, calls)
+
+        with engine_server(reply, request_timeout=1) as (endpoint, calls):
+            adapter = api().UnixDockerComponentSnapshotAdapter(
+                endpoint, authority,
+                peer_uid=lambda _: endpoint.owner_uid,
+                effect_seconds=0.2,
+            )
+            adapter.sources(time.monotonic() + 5)
+            with pytest.raises(Exception, match="^component_engine_unavailable$"):
+                adapter.pause(receipt.container_id, time.monotonic() + 5)
+            with pytest.raises(Exception, match="^component_engine_unavailable$"):
+                adapter.pause(receipt.container_id, time.monotonic() + 5)
+            with pytest.raises(Exception, match="^component_engine_unavailable$"):
+                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+            state["paused"] = True
+            assert adapter.unpause(
+                receipt.container_id, time.monotonic() + 5) is True
+
+        operations = effect_operations(calls)
+        assert sum("/pause " in item for item in operations) == 1
+        assert sum("/unpause " in item for item in operations) == 1
+
+
+def test_ambiguous_unpause_never_replays_post(tmp_path):
+    with installed_authority(tmp_path) as (
+        authority, receipt, binding, _volumes,
+    ):
+        roots = make_roots(tmp_path / "payloads", binding)
+        container = running_inspect(binding, roots)
+        state = {"paused": False}
+        ordinary = effect_reply(container, receipt.volumes, state)
+
+        def reply(request, calls):
+            if request[0].startswith("POST ") and "/unpause " in request[0]:
+                time.sleep(0.4)
+                return None
+            return ordinary(request, calls)
+
+        with engine_server(reply, request_timeout=1) as (endpoint, calls):
+            adapter = api().UnixDockerComponentSnapshotAdapter(
+                endpoint, authority,
+                peer_uid=lambda _: endpoint.owner_uid,
+                effect_seconds=0.2,
+            )
+            adapter.sources(time.monotonic() + 5)
+            assert adapter.pause(
+                receipt.container_id, time.monotonic() + 5) is True
+            with pytest.raises(Exception, match="^component_engine_unavailable$"):
+                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+            with pytest.raises(Exception, match="^component_engine_unavailable$"):
+                adapter.unpause(receipt.container_id, time.monotonic() + 5)
+
+        operations = effect_operations(calls)
+        assert sum("/pause " in item for item in operations) == 1
         assert sum("/unpause " in item for item in operations) == 1
 
 
