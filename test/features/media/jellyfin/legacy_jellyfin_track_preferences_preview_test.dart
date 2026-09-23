@@ -130,6 +130,35 @@ void main() {
     }
   });
 
+  test('fails closed before hashing unbounded source identities', () async {
+    final reader = LegacyJellyfinTrackPreferencesPreviewReader();
+
+    expect(
+      await reader.read(
+        JellyfinConfig(
+          baseUrl: 'x' * 2049,
+          userId: _config.userId,
+          accessToken: _config.accessToken,
+          deviceId: _config.deviceId,
+        ),
+        isCurrent: () => true,
+      ),
+      isNull,
+    );
+    expect(
+      await reader.read(
+        JellyfinConfig(
+          baseUrl: _config.baseUrl,
+          userId: 'x' * 257,
+          accessToken: _config.accessToken,
+          deviceId: _config.deviceId,
+        ),
+        isCurrent: () => true,
+      ),
+      isNull,
+    );
+  });
+
   test(
     'retires a preview when authority changes during storage read',
     () async {
