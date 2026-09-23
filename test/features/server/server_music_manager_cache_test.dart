@@ -268,4 +268,50 @@ void main() {
       expect(restarted.failure, 'forbidden');
     },
   );
+
+  test(
+    'manager unauthorized retires both cached manager and account session',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      );
+      final fixture = MusicManagerFixture();
+      await fixture.account.initialize();
+      final first = ServerMusicManagerController(fixture.account, cache: cache);
+      await first.load(current: () => true);
+      expect(backend.writes, 1);
+      first.dispose();
+
+      final original = fixture.respond!;
+      fixture.respond = (request) async {
+        if (request.method == 'GET' && request.url.path.contains('/manager/')) {
+          return fixture.json({
+            'error': {'code': 'unauthorized'},
+          }, 401);
+        }
+        return original(request);
+      };
+      final restarted = ServerMusicManagerController(
+        fixture.account,
+        cache: ServerMusicManagerCache(
+          backend: backend,
+          now: () => DateTime.utc(2026, 9, 23, 8, 1),
+        ),
+      );
+      addTearDown(() {
+        restarted.dispose();
+        fixture.account.dispose();
+      });
+
+      await restarted.load(current: () => true);
+
+      expect(restarted.manager, isNull);
+      expect(restarted.reachable, false);
+      expect(restarted.verified, false);
+      expect(fixture.account.session, isNull);
+      expect(fixture.account.failure, 'unauthorized');
+    },
+  );
 }
