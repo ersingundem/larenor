@@ -53,6 +53,7 @@ final class KioskSensorController {
     if (value.sequence == current.sequence &&
         (value.lux != current.lux ||
             value.motionDelta != current.motionDelta ||
+            value.approachDistanceCm != current.approachDistanceCm ||
             value.lightAvailable != current.lightAvailable ||
             value.motionAvailable != current.motionAvailable ||
             value.approachAvailable != current.approachAvailable ||
