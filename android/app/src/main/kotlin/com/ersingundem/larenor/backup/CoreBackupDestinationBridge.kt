@@ -15,6 +15,7 @@ import java.util.UUID
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 internal interface CoreBackupOutput {
     fun write(bytes: ByteArray)
@@ -66,9 +67,11 @@ class CoreBackupDestinationBridge internal constructor(
 ) : MethodChannel.MethodCallHandler {
     private data class Pending(
         val sessionId: String,
+        val requestCode: Int,
         val result: MethodChannel.Result,
         @Volatile var cancelled: Boolean = false,
         @Volatile var replied: Boolean = false,
+        @Volatile var pickerOutstanding: Boolean = true,
     )
 
     private data class Active(
@@ -126,20 +129,25 @@ class CoreBackupDestinationBridge internal constructor(
             map["mimeType"] != MIME
         ) throw IllegalArgumentException()
         if (pending != null || active != null) return fail(result, "busy")
-        pending = Pending(session, result)
+        val operation = Pending(session, allocateRequestCode(), result)
+        pending = operation
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(MIME)
             .putExtra(Intent.EXTRA_TITLE, "larenor-core-backup.larenor-core")
-        try { host.launch(intent, REQUEST_CODE) } catch (error: Exception) {
+        try { host.launch(intent, operation.requestCode) } catch (error: Exception) {
             pending = null
             throw error
         }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode != REQUEST_CODE) return false
-        val operation = pending ?: return true
+        if (consumeRetiredRequestCode(requestCode)) {
+            data?.data?.let { uri -> io.execute { host.delete(uri) } }
+            return true
+        }
+        val operation = pending?.takeIf { it.requestCode == requestCode } ?: return false
+        operation.pickerOutstanding = false
         val uri = data?.data
         if (operation.cancelled || resultCode != Activity.RESULT_OK || uri == null) {
             if (uri != null) io.execute { host.delete(uri) }
@@ -269,16 +277,24 @@ class CoreBackupDestinationBridge internal constructor(
         }
         val session = id(map["sessionId"])
         pending?.takeIf { it.sessionId == session }?.let {
-            it.cancelled = true
-            if (!it.replied) {
-                it.replied = true
-                fail(it.result, "expired")
-            }
+            retirePending(it)
         }
         active?.takeIf {
             it.sessionId == session && (map["handle"] == null || map["handle"] == it.handle)
         }?.let { retireActive(delete = true) }
         result.success(null)
+    }
+
+    private fun retirePending(operation: Pending) {
+        operation.cancelled = true
+        if (operation.pickerOutstanding) {
+            retireRequestCode(operation.requestCode)
+        }
+        if (pending === operation) pending = null
+        if (!operation.replied) {
+            operation.replied = true
+            fail(operation.result, "expired")
+        }
     }
 
     private fun requireActive(map: Map<*, *>): Active {
@@ -322,10 +338,7 @@ class CoreBackupDestinationBridge internal constructor(
     fun dispose() {
         if (disposed) return
         disposed = true
-        pending?.let {
-            it.cancelled = true
-            if (!it.replied) fail(it.result, "expired")
-        }
+        pending?.let(::retirePending)
         retireActive(delete = true)
         io.execute {
             takeOpening()?.let { (uri, output) ->
@@ -341,11 +354,30 @@ class CoreBackupDestinationBridge internal constructor(
 
     companion object {
         const val CHANNEL = "com.ersingundem.larenor/core_backup_destination"
-        const val REQUEST_CODE = 0x4C42
+        private const val FIRST_REQUEST_CODE = 0x4C42
+        private const val LAST_REQUEST_CODE = 1
         const val MAX_CHUNK = 64 * 1024
         const val MAX_BYTES = 424L * 1024 * 1024
         const val MIME = "application/vnd.larenor.core-backup"
         private val ID = Regex("^[0-9a-f]{32}$")
         private val DIGEST = Regex("^[0-9a-f]{64}$")
+        private val requestCodes = AtomicInteger(FIRST_REQUEST_CODE)
+        private val retiredRequestCodes = mutableSetOf<Int>()
+
+        private fun allocateRequestCode(): Int {
+            val value = requestCodes.getAndDecrement()
+            check(value >= LAST_REQUEST_CODE) { "backup_destination_request_codes_exhausted" }
+            return value
+        }
+
+        private fun retireRequestCode(requestCode: Int) =
+            synchronized(retiredRequestCodes) {
+                retiredRequestCodes.add(requestCode)
+            }
+
+        private fun consumeRetiredRequestCode(requestCode: Int): Boolean =
+            synchronized(retiredRequestCodes) {
+                retiredRequestCodes.remove(requestCode)
+            }
     }
 }
