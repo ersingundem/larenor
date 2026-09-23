@@ -64,6 +64,7 @@ from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .local_notifications.api import router as local_notification_router
 from .media_preferences.api import router as media_preferences_router
+from .media_language_preferences.api import router as media_language_preferences_router
 from .room_comfort.api import router as room_comfort_router
 from .tablet_fleet.api import router as tablet_fleet_router
 from .capability_evidence.api import router as capability_evidence_router
@@ -331,6 +332,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(media_preferences_router, prefix="/api/v1")
+    app.include_router(media_language_preferences_router, prefix="/api/v1")
     app.include_router(room_comfort_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
     app.include_router(capability_evidence_router, prefix="/api/v1")

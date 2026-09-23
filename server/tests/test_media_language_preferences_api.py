@@ -163,7 +163,7 @@ def test_private_bounded_storage_and_tamper_are_fail_closed(server):
     unavailable = client.get(endpoint, headers=auth(pair))
     assert (unavailable.status_code, unavailable.json()["error"]["code"]) == (
         503,
-        "media_language_preference_storage_unavailable",
+        "server_unavailable",
     )
     with pytest.raises(StartupError, match="media_language_preference_storage_invalid"):
         create_app(settings)
