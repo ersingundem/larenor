@@ -4,6 +4,22 @@ enum KioskSensorCameraStatus { available, busy, permissionDenied, unavailable }
 
 enum KioskSensorFailure { unsupported, unavailable, denied, expired, busy }
 
+const _snapshotKeys = <String>{
+  'version',
+  'sessionId',
+  'sequence',
+  'sampling',
+  'lightAvailable',
+  'motionAvailable',
+  'approachAvailable',
+  'observedAtElapsedMillis',
+  'lux',
+  'motionDelta',
+  'approachDistanceCm',
+  'approachMaxRangeCm',
+  'cameraStatus',
+};
+
 final class KioskSensorException implements Exception {
   const KioskSensorException(this.failure);
   final KioskSensorFailure failure;
@@ -58,7 +74,8 @@ final class KioskSensorSnapshot {
     Never invalid() =>
         throw const KioskSensorException(KioskSensorFailure.unavailable);
     if (raw is! Map ||
-        raw.length != 13 ||
+        raw.length != _snapshotKeys.length ||
+        !_snapshotKeys.every(raw.containsKey) ||
         raw['version'] != 2 ||
         raw['sessionId'] is! String ||
         raw['sequence'] is! int ||

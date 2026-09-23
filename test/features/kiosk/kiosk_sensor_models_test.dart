@@ -68,6 +68,9 @@ final class _Api implements KioskSensorApi {
 
 void main() {
   test('snapshot is strict, bounded and keeps sensor absence distinct', () {
+    final identitySubstitution = _sample()
+      ..remove('lux')
+      ..['faceId'] = 'unexpected';
     final unavailable = _sample(lux: null, motionDelta: null)
       ..['lightAvailable'] = false
       ..['motionAvailable'] = false
@@ -84,6 +87,7 @@ void main() {
 
     for (final invalid in [
       {..._sample(), 'secret': 'must-not-be-accepted'},
+      identitySubstitution,
       {..._sample(), 'sessionId': 'foreign'},
       {..._sample(), 'lux': -1.0},
       {..._sample(), 'motionDelta': double.infinity},
