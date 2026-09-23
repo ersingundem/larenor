@@ -69,6 +69,20 @@ _ACTIVE = (
         "active_music_assistant_bootstrap",
     ),
     (
+        "music_assistant_key_rotations",
+        "state IN ('preparing','activated')",
+        "active_music_key_rotation",
+    ),
+    (
+        "proxmox_power_journal",
+        (
+            "state IN ('accepted','executing') AND sequence=("
+            "SELECT MAX(latest.sequence) FROM proxmox_power_journal AS latest "
+            "WHERE latest.request_id=proxmox_power_journal.request_id)"
+        ),
+        "active_proxmox_command",
+    ),
+    (
         "keenetic_command_records",
         "status IN ('accepted','executing')",
         "active_keenetic_command",
@@ -77,6 +91,11 @@ _ACTIVE = (
         "managed_tablet_commands",
         "state IN ('pending','delivered')",
         "active_tablet_command",
+    ),
+    (
+        "kiosk_remote_commands",
+        "state='accepted'",
+        "active_kiosk_command",
     ),
 )
 COMPONENT_QUIESCENCE_SECONDS = 5

@@ -36,8 +36,11 @@ Blocker = Literal[
     "active_arr_configuration",
     "active_seerr_bootstrap",
     "active_music_assistant_bootstrap",
+    "active_music_key_rotation",
+    "active_proxmox_command",
     "active_keenetic_command",
     "active_tablet_command",
+    "active_kiosk_command",
     "component_quiescence_timeout",
     "component_quiescence_unavailable",
 ]
@@ -51,8 +54,11 @@ BACKUP_ACTIVE_BLOCKER_ORDER = (
     "active_arr_configuration",
     "active_seerr_bootstrap",
     "active_music_assistant_bootstrap",
+    "active_music_key_rotation",
+    "active_proxmox_command",
     "active_keenetic_command",
     "active_tablet_command",
+    "active_kiosk_command",
 )
 BACKUP_QUIESCENCE_BLOCKERS = frozenset(
     {"component_quiescence_timeout", "component_quiescence_unavailable"}
@@ -214,7 +220,7 @@ class BackupManifest(StrictModel):
 
 class BackupPlanResponse(StrictModel):
     status: Literal["ready", "blocked"]
-    blockers: list[Blocker] = Field(max_length=11)
+    blockers: list[Blocker] = Field(max_length=14)
     manifest: BackupManifest | None
 
     @model_validator(mode="after")
