@@ -428,8 +428,11 @@ class LarenorServerApi {
     Map<String, dynamic>? body,
     Map<String, String>? queryParameters,
     bool allowEmpty = false,
+    LarenorTransferCancellation? cancellation,
   }) async {
-    if (_closed) throw const LarenorServerException('cancelled');
+    if (_closed || (cancellation?.isCancelled ?? false)) {
+      throw const LarenorServerException('cancelled');
+    }
     final homeResourceDeletion =
         method == 'DELETE' &&
         (path.startsWith('/admin/home-resources') ||
@@ -707,8 +710,19 @@ class LarenorServerApi {
     }
     final abort = Completer<void>();
     _pending.add(abort);
+    var timedOut = false;
+    if (cancellation != null) {
+      unawaited(
+        cancellation.future.then((_) {
+          if (!abort.isCompleted) abort.complete();
+        }),
+      );
+    }
     final timer = Timer(timeout, () {
-      if (!abort.isCompleted) abort.complete();
+      if (!abort.isCompleted) {
+        timedOut = true;
+        abort.complete();
+      }
     });
     try {
       final request = http.AbortableRequest(
@@ -726,21 +740,30 @@ class LarenorServerApi {
         request.bodyBytes = bytes;
       }
       final result = await _read(request, allowEmpty).timeout(timeout);
-      if (_closed || abort.isCompleted) {
+      if (_closed || (cancellation?.isCancelled ?? false)) {
         throw const LarenorServerException('cancelled');
       }
+      if (timedOut) throw const LarenorServerException('timeout');
       return result;
     } on LarenorServerException {
       rethrow;
     } on TimeoutException {
-      throw const LarenorServerException('timeout');
+      throw LarenorServerException(
+        _closed || (cancellation?.isCancelled ?? false)
+            ? 'cancelled'
+            : 'timeout',
+      );
     } on http.RequestAbortedException {
-      throw LarenorServerException(_closed ? 'cancelled' : 'timeout');
+      throw LarenorServerException(
+        _closed || (cancellation?.isCancelled ?? false)
+            ? 'cancelled'
+            : 'timeout',
+      );
     } catch (_) {
       throw LarenorServerException(
-        _closed
+        _closed || (cancellation?.isCancelled ?? false)
             ? 'cancelled'
-            : abort.isCompleted
+            : timedOut
             ? 'timeout'
             : 'connection_failed',
       );
