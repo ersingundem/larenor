@@ -160,7 +160,7 @@ void main() {
         isTrue,
       );
       final record = jsonDecode(backend.value!) as Map<String, dynamic>;
-      expect(record['schemaVersion'], 1);
+      expect(record['schemaVersion'], 2);
       expect(backend.value, isNot(contains('accessToken')));
       expect(backend.value, isNot(contains('https://')));
       expect(

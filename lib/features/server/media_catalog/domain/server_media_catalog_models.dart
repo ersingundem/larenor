@@ -8,6 +8,8 @@ enum ServerMediaCatalogKind {
   final String wire;
 }
 
+enum ServerMediaCatalogOperation { browse, search }
+
 final _mediaKey = RegExp(
   r'^(?:movie:tmdb:[1-9][0-9]{0,11}|episode:tvdb:[1-9][0-9]{0,11}:[0-9]{1,4}:[0-9]{1,5})$',
 );
@@ -101,6 +103,7 @@ final class ServerMediaCatalogItem {
 
 final class ServerMediaCatalogPage {
   const ServerMediaCatalogPage._({
+    required this.operation,
     required this.query,
     required this.mediaKind,
     required this.installationId,
@@ -115,9 +118,13 @@ final class ServerMediaCatalogPage {
 
   factory ServerMediaCatalogPage.fromJson(
     Object? value, {
-    required String query,
+    ServerMediaCatalogOperation operation = ServerMediaCatalogOperation.search,
+    String? query,
     required ServerMediaCatalogKind? mediaKind,
   }) {
+    if ((operation == ServerMediaCatalogOperation.search) != (query != null)) {
+      _invalid();
+    }
     final map = _object(value, {
       'schemaVersion',
       'installationId',
@@ -157,6 +164,7 @@ final class ServerMediaCatalogPage {
       _invalid();
     }
     return ServerMediaCatalogPage._(
+      operation: operation,
       query: query,
       mediaKind: mediaKind,
       installationId: _identity(map['installationId']),
@@ -171,7 +179,8 @@ final class ServerMediaCatalogPage {
   }
 
   final String installationId;
-  final String query;
+  final ServerMediaCatalogOperation operation;
+  final String? query;
   final ServerMediaCatalogKind? mediaKind;
   final int installationRevision, snapshotRevision, jellyfinServiceRevision;
   final int offset, total;

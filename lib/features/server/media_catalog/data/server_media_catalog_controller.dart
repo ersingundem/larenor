@@ -85,7 +85,8 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     required bool Function() current,
   }) {
     final previousPage = offset == 0 ? null : page;
-    return _searchCurrent(
+    return _catalogCurrent(
+      operation: ServerMediaCatalogOperation.search,
       query: query,
       mediaKind: mediaKind,
       offset: offset,
@@ -95,8 +96,27 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     );
   }
 
-  Future<void> _searchCurrent({
-    required String query,
+  Future<void> browseCurrent({
+    ServerMediaCatalogKind? mediaKind,
+    int offset = 0,
+    int limit = 24,
+    required bool Function() current,
+  }) {
+    final previousPage = offset == 0 ? null : page;
+    return _catalogCurrent(
+      operation: ServerMediaCatalogOperation.browse,
+      query: null,
+      mediaKind: mediaKind,
+      offset: offset,
+      limit: limit,
+      previousPage: previousPage,
+      current: current,
+    );
+  }
+
+  Future<void> _catalogCurrent({
+    required ServerMediaCatalogOperation operation,
+    required String? query,
     required ServerMediaCatalogKind? mediaKind,
     required int offset,
     required int limit,
@@ -131,19 +151,29 @@ final class ServerMediaCatalogController extends ChangeNotifier {
         final target = await client.discoverTarget(current: requestCurrent);
         if (!requestCurrent()) return;
         if (offset == 0) {
-          final cached = await _cache.read(
-            ServerMediaCatalogCacheScope.fromSession(session),
-            ServerMediaCatalogCacheResource(
-              installationId: target.installationId,
-              installationRevision: target.installationRevision,
-              snapshotRevision: target.snapshotRevision,
-              jellyfinServiceRevision: target.jellyfinServiceRevision,
-            ),
-            query: query,
-            mediaKind: mediaKind,
-            limit: limit,
-            current: requestCurrent,
+          final scope = ServerMediaCatalogCacheScope.fromSession(session);
+          final resource = ServerMediaCatalogCacheResource(
+            installationId: target.installationId,
+            installationRevision: target.installationRevision,
+            snapshotRevision: target.snapshotRevision,
+            jellyfinServiceRevision: target.jellyfinServiceRevision,
           );
+          final cached = operation == ServerMediaCatalogOperation.search
+              ? await _cache.read(
+                  scope,
+                  resource,
+                  query: query!,
+                  mediaKind: mediaKind,
+                  limit: limit,
+                  current: requestCurrent,
+                )
+              : await _cache.readBrowse(
+                  scope,
+                  resource,
+                  mediaKind: mediaKind,
+                  limit: limit,
+                  current: requestCurrent,
+                );
           if (!requestCurrent()) return;
           if (cached != null) {
             page = cached;
@@ -151,15 +181,24 @@ final class ServerMediaCatalogController extends ChangeNotifier {
             return;
           }
         }
-        final value = await client.searchVerifiedTarget(
-          target: target,
-          query: query,
-          mediaKind: mediaKind,
-          offset: offset,
-          limit: limit,
-          previousPage: previousPage,
-          current: requestCurrent,
-        );
+        final value = operation == ServerMediaCatalogOperation.search
+            ? await client.searchVerifiedTarget(
+                target: target,
+                query: query!,
+                mediaKind: mediaKind,
+                offset: offset,
+                limit: limit,
+                previousPage: previousPage,
+                current: requestCurrent,
+              )
+            : await client.browseVerifiedTarget(
+                target: target,
+                mediaKind: mediaKind,
+                offset: offset,
+                limit: limit,
+                previousPage: previousPage,
+                current: requestCurrent,
+              );
         if (offset == 0) {
           try {
             await _cache.write(
