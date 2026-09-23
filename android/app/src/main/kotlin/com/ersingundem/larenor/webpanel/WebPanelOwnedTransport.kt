@@ -18,6 +18,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -35,66 +36,100 @@ internal class WebPanelOwnedHttpTransport(
     private val firewall: WebRequestFirewall,
     private val maxRedirects: Int = 3,
     private val maxResponseBytes: Long = 16L * 1024 * 1024,
+    maxConcurrentRequests: Int = 8,
     private val client: OkHttpClient = client(),
 ) : WebPanelRequestTransport {
     private val retired = AtomicBoolean(false)
     private val calls = ConcurrentHashMap.newKeySet<Call>()
+    private val permits = Semaphore(maxConcurrentRequests, true)
 
     init {
         require(maxRedirects in 0..3)
         require(maxResponseBytes in 1..(25L * 1024 * 1024))
+        require(maxConcurrentRequests in 1..16)
     }
 
     override fun fetch(uri: Uri, method: String): WebResourceResponse {
         if (retired.get()) return terminalResponse(410, "Gone")
         if (method != "GET" || !firewall.allows(uri)) return firewall.blockedResponse()
-        var target = uri.toString().toHttpUrlOrNull() ?: return firewall.blockedResponse()
+        if (!permits.tryAcquire()) return terminalResponse(429, "Too Many Requests")
+        val permitReleased = AtomicBoolean(false)
+        fun releasePermit() {
+            if (permitReleased.compareAndSet(false, true)) permits.release()
+        }
+        return try {
+            fetchWithPermit(uri, ::releasePermit)
+        } catch (_: RuntimeException) {
+            releasePermit()
+            terminalResponse(502, "Bad Gateway")
+        }
+    }
+
+    private fun fetchWithPermit(uri: Uri, releasePermit: () -> Unit): WebResourceResponse {
+        fun completed(response: WebResourceResponse): WebResourceResponse {
+            releasePermit()
+            return response
+        }
+        if (retired.get()) return completed(terminalResponse(410, "Gone"))
+        var target = uri.toString().toHttpUrlOrNull()
+            ?: return completed(firewall.blockedResponse())
         repeat(maxRedirects + 1) { redirectCount ->
-            if (retired.get()) return terminalResponse(410, "Gone")
+            if (retired.get()) return completed(terminalResponse(410, "Gone"))
             val call = client.newCall(Request.Builder().url(target).get().build())
             calls += call
             if (retired.get()) {
                 calls -= call
                 call.cancel()
-                return terminalResponse(410, "Gone")
+                return completed(terminalResponse(410, "Gone"))
             }
             val response = try {
                 call.execute()
             } catch (_: IOException) {
                 calls -= call
                 return if (retired.get()) {
-                    terminalResponse(410, "Gone")
+                    completed(terminalResponse(410, "Gone"))
                 } else {
-                    terminalResponse(502, "Bad Gateway")
+                    completed(terminalResponse(502, "Bad Gateway"))
                 }
+            } catch (_: RuntimeException) {
+                calls -= call
+                call.cancel()
+                return completed(terminalResponse(502, "Bad Gateway"))
             }
             if (retired.get()) {
                 response.close()
                 calls -= call
-                return terminalResponse(410, "Gone")
+                return completed(terminalResponse(410, "Gone"))
             }
             if (response.code in 300..399) {
                 val location = response.header("Location")
                 response.close()
                 calls -= call
                 if (redirectCount == maxRedirects || location == null) {
-                    return terminalResponse(508, "Loop Detected")
+                    return completed(terminalResponse(508, "Loop Detected"))
                 }
-                val next = target.resolve(location) ?: return firewall.blockedResponse()
-                if (!firewall.allows(Uri.parse(next.toString()))) return firewall.blockedResponse()
+                val next = target.resolve(location)
+                    ?: return completed(firewall.blockedResponse())
+                if (!firewall.allows(Uri.parse(next.toString()))) {
+                    return completed(firewall.blockedResponse())
+                }
                 target = next
             } else {
-                return response.toWebResourceResponse(call)
+                return response.toWebResourceResponse(call, releasePermit)
             }
         }
-        return terminalResponse(508, "Loop Detected")
+        return completed(terminalResponse(508, "Loop Detected"))
     }
 
-    private fun Response.toWebResourceResponse(call: Call): WebResourceResponse {
+    private fun Response.toWebResourceResponse(
+        call: Call,
+        releasePermit: () -> Unit,
+    ): WebResourceResponse {
         val body = body
         if (body.contentLength() > maxResponseBytes) {
             close()
             calls -= call
+            releasePermit()
             return terminalResponse(413, "Content Too Large")
         }
         val contentType = body.contentType()
@@ -106,6 +141,7 @@ internal class WebPanelOwnedHttpTransport(
             finished = {
                 close()
                 calls -= call
+                releasePermit()
             },
         )
         return WebResourceResponse(
