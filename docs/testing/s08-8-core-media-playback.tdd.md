@@ -96,6 +96,11 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   proof differed from the first could escape cleanup because comparison ran
   before ownership was recorded. GREEN `15523599` tracks each opened stream
   before comparing proofs, so the mismatch closes every connection.
+- Pre-dispatch RED `8933ed65` reproduced malformed and HTTP 500 before-reads
+  that wrote no POST but were classified as uncertain. GREEN `ca608a99`
+  records whether the effect request was attempted: before-read failures are
+  typed static no-effect failures that retire the exact pending attempt, while
+  POST response and later readback failures remain uncertain.
 
 The production-worker package adds **20/20** protocol/container tests and the
 private IPC/credential/provider groups bring the focused Server batch to
@@ -103,10 +108,10 @@ private IPC/credential/provider groups bring the focused Server batch to
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
-The final runtime/executor/IPC/provider regression batch passes **29/29**,
+The final runtime/executor/IPC/provider regression batch passes **32/32**,
 including both pre-effect authority/deadline boundaries.
 The grouped runtime, executor, Core playback, IPC, provider and encrypted
-bootstrap batch passes **64/64** after the connection cleanup fix.
+bootstrap batch passes **68/68** after the phase-aware certainty fix.
 
 ## Remaining S08.8 acceptance
 
