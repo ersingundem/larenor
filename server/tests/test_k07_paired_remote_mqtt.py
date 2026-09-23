@@ -203,3 +203,47 @@ def test_ack_rechecks_pairing_after_authentication_race(server, monkeypatch):
             "SELECT state FROM kiosk_remote_commands WHERE id=?", (command_id,)
         ).fetchone()["state"]
     assert state == "accepted"
+
+
+def test_command_rechecks_pairing_after_authentication_race(server, monkeypatch):
+    _pair, remote, created, _tablet, _body = create_pairing(server)
+    pairing, token = created["pairing"], created["token"]
+    service = server[0].state.core.kiosk_remote
+    authenticate = service._authenticate
+
+    def expire_after_auth(pairing_id, presented_token, scope):
+        result = authenticate(pairing_id, presented_token, scope)
+        with service.db.transaction() as connection:
+            current = connection.execute(
+                "SELECT * FROM kiosk_remote_pairings WHERE id=?", (pairing_id,)
+            ).fetchone()
+            updated = dict(current)
+            updated.update(
+                expires_at=server[3].now - 1.0,
+                updated_at=server[3].now,
+            )
+            updated["record_tag"] = service._pairing_tag(updated)
+            connection.execute(
+                "UPDATE kiosk_remote_pairings "
+                "SET expires_at=?,updated_at=?,record_tag=? WHERE id=?",
+                (
+                    updated["expires_at"],
+                    updated["updated_at"],
+                    updated["record_tag"],
+                    pairing_id,
+                ),
+            )
+        return result
+
+    monkeypatch.setattr(service, "_authenticate", expire_after_auth)
+    accepted = server[1].post(
+        remote + f"/pairings/{pairing['id']}/mqtt/commands",
+        headers=paired_headers(token),
+        json=command(sequence=1),
+    )
+    assert accepted.status_code == 409
+    assert accepted.json()["error"]["code"] == "pairing_changed"
+    with service.db.connection() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM kiosk_remote_commands"
+        ).fetchone()[0] == 0
