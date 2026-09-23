@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,6 +9,15 @@ import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_credential_
 import 'package:shared_preferences/shared_preferences.dart';
 
 const token = 'fixture-token-fixture-token-fixture-token-1';
+
+final class _StreamingClient extends http.BaseClient {
+  _StreamingClient(this.sender);
+  final Future<http.StreamedResponse> Function(http.BaseRequest request) sender;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      sender(request);
+}
 
 ManagedTabletEnrollment enrollment() => ManagedTabletEnrollment(
   serverBaseUrl: 'https://core.invalid',
@@ -59,6 +69,28 @@ void main() {
 
     await expectLater(store.read(), throwsA(isA<FormatException>()));
     expect(store.toString(), isNot(contains(token)));
+  });
+
+  test('binding accepts the bounded ServerUser account id contract', () {
+    final value = enrollment();
+
+    final binding = ManagedTabletBinding(
+      serverBaseUrl: value.serverBaseUrl,
+      coreId: value.coreId,
+      homeId: value.homeId,
+      accountId: 'operator@example.test',
+    );
+
+    expect(binding.accountId, 'operator@example.test');
+    expect(
+      () => ManagedTabletBinding(
+        serverBaseUrl: value.serverBaseUrl,
+        coreId: value.coreId,
+        homeId: value.homeId,
+        accountId: 'bad\naccount',
+      ),
+      throwsArgumentError,
+    );
   });
 
   test('clearIfCurrent never deletes a replacement enrollment', () async {
@@ -146,4 +178,42 @@ void main() {
       throwsA(isA<ManagedTabletRevoked>()),
     );
   });
+
+  test(
+    'Core response body uses one total deadline across drip chunks',
+    () async {
+      final value = enrollment();
+      final body = StreamController<List<int>>();
+      final drip = Timer.periodic(
+        const Duration(milliseconds: 10),
+        (_) => body.add(const [0x20]),
+      );
+      final authority = CoreManagedTabletAuthority(
+        timeout: const Duration(milliseconds: 50),
+        client: () => _StreamingClient(
+          (_) async => http.StreamedResponse(
+            body.stream,
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
+      );
+      final verification = authority.verify(value.binding, value);
+
+      Object? outcome;
+      try {
+        await verification.timeout(const Duration(milliseconds: 250));
+      } catch (error) {
+        outcome = error;
+      } finally {
+        drip.cancel();
+        await body.close();
+        try {
+          await verification;
+        } catch (_) {}
+      }
+
+      expect(outcome, isA<StateError>());
+    },
+  );
 }

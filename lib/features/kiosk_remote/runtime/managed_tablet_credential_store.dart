@@ -8,6 +8,7 @@ import '../../../shared/network/server_bound_client.dart';
 import 'managed_tablet_mqtt_runtime.dart';
 
 final _id = RegExp(r'^[0-9a-f]{32}$');
+final _controlCharacter = RegExp(r'[\x00-\x1f\x7f]');
 
 final class ManagedTabletBinding {
   ManagedTabletBinding({
@@ -19,7 +20,9 @@ final class ManagedTabletBinding {
     parseServerUrl(serverBaseUrl);
     if (!_id.hasMatch(coreId) ||
         !_id.hasMatch(homeId) ||
-        !_id.hasMatch(accountId)) {
+        accountId.isEmpty ||
+        accountId.length > 128 ||
+        accountId.contains(_controlCharacter)) {
       throw ArgumentError('invalid_managed_tablet_binding');
     }
   }
@@ -232,6 +235,7 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
       baseUrl: binding.serverBaseUrl,
       inner: inner,
     );
+    final elapsed = Stopwatch()..start();
     try {
       final base = parseServerUrl(binding.serverBaseUrl);
       final uri = base.replace(
@@ -244,7 +248,7 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
       enrollment._useToken(
         (token) => request.headers['X-Larenor-Pairing-Token'] = token,
       );
-      final response = await client.send(request).timeout(timeout);
+      final response = await client.send(request).timeout(_remaining(elapsed));
       if ({401, 403, 404, 409}.contains(response.statusCode)) {
         await response.stream.listen((_) {}).cancel();
         throw const ManagedTabletRevoked();
@@ -256,13 +260,7 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
         await response.stream.listen((_) {}).cancel();
         throw StateError('managed_tablet_authority_unavailable');
       }
-      final bytes = <int>[];
-      await for (final chunk in response.stream.timeout(timeout)) {
-        if (bytes.length + chunk.length > maxResponseBytes) {
-          throw StateError('managed_tablet_authority_unavailable');
-        }
-        bytes.addAll(chunk);
-      }
+      final bytes = await _readBounded(response.stream, elapsed);
       final raw = jsonDecode(utf8.decode(bytes, allowMalformed: false));
       _validateDiscovery(raw, enrollment);
     } on ManagedTabletRevoked {
@@ -275,6 +273,32 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
       throw StateError('managed_tablet_authority_unavailable');
     } finally {
       client.close();
+    }
+  }
+
+  Duration _remaining(Stopwatch elapsed) {
+    final remaining = timeout - elapsed.elapsed;
+    if (remaining <= Duration.zero) throw TimeoutException('authority');
+    return remaining;
+  }
+
+  Future<List<int>> _readBounded(
+    Stream<List<int>> stream,
+    Stopwatch elapsed,
+  ) async {
+    final bytes = <int>[];
+    final iterator = StreamIterator(stream);
+    try {
+      while (await iterator.moveNext().timeout(_remaining(elapsed))) {
+        final chunk = iterator.current;
+        if (bytes.length + chunk.length > maxResponseBytes) {
+          throw StateError('managed_tablet_authority_unavailable');
+        }
+        bytes.addAll(chunk);
+      }
+      return bytes;
+    } finally {
+      await iterator.cancel();
     }
   }
 

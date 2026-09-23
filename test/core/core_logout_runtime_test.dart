@@ -56,6 +56,20 @@ Future<void> _revealManageAccount(WidgetTester tester, Finder action) async {
 
 void main() {
   testWidgets(
+    'non-hex ServerUser id binds managed-tablet scope without throwing',
+    (tester) async {
+      final h = _Harness();
+      expect(h.api.userId, 'one');
+
+      await h.mount(tester, pin: '1234');
+      await h.signIn();
+      await flush(tester);
+
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Core late logout failure remains visible after protected account route retires',
     (tester) async {
       final h = _Harness();

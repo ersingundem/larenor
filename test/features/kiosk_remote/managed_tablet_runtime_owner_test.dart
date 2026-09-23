@@ -259,6 +259,31 @@ void main() {
   );
 
   test(
+    'unrelated pairing revoke leaves the active runtime connected',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(enrollment);
+      final authority = _Authority();
+      final source = _Source();
+      final broker = _Broker();
+      final owner = _owner(
+        store: store,
+        authority: authority,
+        source: source,
+        broker: broker,
+      );
+      addTearDown(owner.dispose);
+      await owner.updateBinding(enrollment.binding);
+
+      await owner.revoke('9' * 32);
+
+      expect(store.value?.pairingId, enrollment.pairingId);
+      expect(broker.disconnects, 0);
+      expect(broker.connects, 1);
+    },
+  );
+
+  test(
     'logout disconnects a pending broker connect before it returns',
     () async {
       final enrollment = _enrollment();

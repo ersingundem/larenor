@@ -53,6 +53,13 @@ final class ManagedTabletRuntimeOwner {
   Future<void> revoke(String pairingId) async {
     final binding = _binding;
     if (_disposed || binding == null) return;
+    final enrollment = await store.read();
+    if (_disposed ||
+        _binding != binding ||
+        enrollment?.binding != binding ||
+        enrollment?.pairingId != pairingId) {
+      return;
+    }
     final generation = ++_generation;
     await _schedule(generation, start: false);
     await store.clearIfCurrent(binding, pairingId);
