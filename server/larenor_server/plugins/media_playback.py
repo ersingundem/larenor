@@ -1,5 +1,6 @@
 """Revision-bound managed Jellyfin playback with one-use command ownership."""
 
+import hmac
 import json
 import time
 
@@ -52,23 +53,53 @@ class MediaPlaybackWorkerProvider:
     def __repr__(self):
         return 'MediaPlaybackWorkerProvider(<private>)'
 
+    def _retained(self, installation_id, installation_revision, selected,
+                  gate):
+        try:
+            if gate() is not True:
+                return False
+            current = self.bootstraps.playback_private(
+                installation_id, installation_revision)
+            return (current.bootstrap_revision == selected.bootstrap_revision
+                    and current.plan == selected.plan
+                    and hmac.compare_digest(
+                        current.api_key, selected.api_key))
+        except Exception:
+            return False
+
     def read_media_playback(self, authority, *, deadline, gate):
         private = self.bootstraps.playback_private(
             authority.installationId, authority.installationRevision)
-        return self.backend.read_media_playback(
+        retained = lambda: self._retained(
+            authority.installationId, authority.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = self.backend.read_media_playback(
             PrivateJellyfinPlaybackAuthority(
                 authority=authority, plan=private.plan,
                 apiKey=private.api_key),
-            deadline=deadline, gate=gate)
+            deadline=deadline, gate=retained)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
 
     def execute_media_playback(self, action, *, deadline, gate):
         private = self.bootstraps.playback_private(
             action.installationId, action.installationRevision)
-        return self.backend.execute_media_playback(
+        retained = lambda: self._retained(
+            action.installationId, action.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = self.backend.execute_media_playback(
             PrivateJellyfinPlaybackAction(
                 action=action, plan=private.plan,
                 apiKey=private.api_key),
-            deadline=deadline, gate=gate)
+            deadline=deadline, gate=retained)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
 
 
 class MediaPlaybackManagement:
