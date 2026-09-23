@@ -61,6 +61,9 @@ class VolumeCreateIntent:
     receipt: VolumeCreateReceipt
     specification_digest: str
 
+    def __repr__(self):
+        return 'VolumeCreateIntent(<private>)'
+
 
 def _exact(value, cls):
     return type(value) is cls and set(vars(value)) == {f.name for f in fields(cls)}
@@ -89,6 +92,12 @@ class VolumeCreateJournal(ResourceJournal):
         rows = super()._summaries()
         _require(len(rows) <= MAX_VOLUME_CREATES)
         return rows
+
+    @_static
+    def intents(self):
+        """Return strict typed rows while the caller retains the journal lock."""
+        self._locked()
+        return tuple(self._decode(row) for row in self._rows())
 
     def _snapshot(self, plan, stack, catalog, policy, resource_id):
         try:

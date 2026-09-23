@@ -20,6 +20,7 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedContainerError,
     ManagedImageProof,
+    ManagedInstalledContainer,
     ManagedWorkerJournal,
     ManagedNetworkProof,
     ManagedVolumeProof,
@@ -437,6 +438,32 @@ def test_separate_managed_journal_executes_exact_binding_and_recovers_lost_reply
         engine.lose_create = False
         started = worker.apply(command(binding, 'start_container', '8' * 32), binding)
         assert started.code == 'container_started'
+
+
+def test_installed_view_is_typed_read_only_and_requires_the_journal_lock(tmp_path):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        worker = JournaledManagedContainerOperations(journal, Engine(binding))
+        worker.apply(command(binding), binding)
+        worker.apply(command(binding, 'start_container', '8' * 32), binding)
+
+        with pytest.raises(DockerWorkerError, match='^lock_required$'):
+            journal.installed()
+        with journal.locked():
+            installed = journal.installed()
+
+        assert installed == (
+            ManagedInstalledContainer(
+                journal_id=journal.identity,
+                job_id='7' * 32,
+                installation_id=binding.name.removeprefix('larenor-'),
+                container_id='5' * 64,
+                create_dispatch_id='6' * 32,
+                start_dispatch_id='8' * 32,
+                binding=binding,
+            ),
+        )
+        assert repr(installed[0]) == 'ManagedInstalledContainer(<private>)'
 
 
 def test_managed_journal_executes_qbittorrent_two_mount_binding(tmp_path):
