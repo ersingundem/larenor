@@ -127,6 +127,7 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
           !decoded.keys.every(
             const {'version', 'audio', 'subtitle'}.contains,
           ) ||
+          decoded['version'] is! int ||
           decoded['version'] != 1 ||
           decoded['audio'] != null && decoded['audio'] is! String ||
           decoded['subtitle'] != null && decoded['subtitle'] is! String) {

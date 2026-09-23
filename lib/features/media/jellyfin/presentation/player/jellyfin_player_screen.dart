@@ -139,6 +139,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   void _expireInteraction() {
     _interactionGeneration++;
+    _legacyMigration?.retire();
     _dragInteraction = null;
     _seekInteraction = null;
     _seekDraft = null;
@@ -335,6 +336,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     final account = ref.read(serverAccountControllerProvider);
     final session = account.session;
     if (session == null) return;
+    final interaction = _interactionGeneration;
     final controller = LegacyJellyfinTrackPreferencesMigrationController(
       migration: LegacyJellyfinTrackPreferencesMigration(
         core: ref.read(jellyfinTrackPreferencesStoreProvider),
@@ -344,6 +346,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       isCurrent: () =>
           mounted &&
           generation == _generation &&
+          _interactionCurrent(interaction) &&
           identical(_client, client) &&
           identical(ref.read(jellyfinClientProvider), client) &&
           identical(account.session, session),
