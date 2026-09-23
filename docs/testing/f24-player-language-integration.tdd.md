@@ -38,9 +38,9 @@ progress remains **0/63**.
   exact-request retry, missing fallback disclosure and stale-result boundary.
 - GREEN `02cb0dbd93f9f6af7e23332987ce1a9c2daab969` migrates the store/controller path and player UI while
   preserving the existing native track single-flight behavior.
-- The grouped Flutter batch for server account/session plus the three F24
-  Jellyfin suites passed **70/70**. This includes the **44/44** focused player,
-  Core-store and real-loopback cases.
+- The grouped Flutter batch for server account/session plus the four F24
+  Jellyfin suites passed **71/71**. This includes the legacy migration's strict
+  provider-neutral authority, request-ID and account-revision regression.
 - `uv run --frozen pytest -q tests/test_auth.py
   tests/test_media_language_preferences_api.py`: **15/15 passed**.
 - Focused `flutter analyze` over the ten changed production/support/test files:
