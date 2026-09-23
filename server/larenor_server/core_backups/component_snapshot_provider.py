@@ -49,6 +49,12 @@ class ComponentVolumeSource:
     container_id: str
     volume_id: str
     path: Path
+    service_version: str
+    config_schema_version: int
+    data_schema_version: str
+    installation_revision: int
+    device: int
+    inode: int
 
 
 def _exact(value, cls):
@@ -279,7 +285,14 @@ def _open_absolute_directory(path):
 class ManagedComponentSnapshotProvider:
     """Pause exact managed containers and snapshot their complete appdata set."""
 
-    def __init__(self, sources, controller, *, monotonic=time.monotonic):
+    def __init__(
+        self,
+        sources,
+        controller,
+        installed_authority,
+        *,
+        monotonic=time.monotonic,
+    ):
         try:
             if (
                 type(sources) not in (tuple, list)
@@ -288,6 +301,8 @@ class ManagedComponentSnapshotProvider:
                 or not callable(controller.pause)
                 or not hasattr(controller, "unpause")
                 or not callable(controller.unpause)
+                or not hasattr(installed_authority, "revalidate")
+                or not callable(installed_authority.revalidate)
                 or not callable(monotonic)
             ):
                 raise ValueError()
@@ -303,7 +318,12 @@ class ManagedComponentSnapshotProvider:
                     },
                 )
             selected = []
-            seen, paths, grouped, containers = set(), set(), {}, {}
+            seen = set()
+            paths = set()
+            identities = set()
+            grouped = {}
+            containers = {}
+            container_services = {}
             for value in sources:
                 if not _exact(value, ComponentVolumeSource):
                     raise ValueError()
@@ -311,15 +331,33 @@ class ManagedComponentSnapshotProvider:
                 checked_path(path)
                 info = path.lstat()
                 identity = (value.service_id, value.volume_id)
+                path_identity = (info.st_dev, info.st_ino)
+                expected_manifest = catalog.get(value.service_id, (None, set()))[0]
                 if (
-                    value.service_id not in catalog
+                    expected_manifest is None
                     or type(value.container_id) is not str
                     or _CONTAINER_ID.fullmatch(value.container_id) is None
                     or type(value.volume_id) is not str
                     or _VOLUME_ID.fullmatch(value.volume_id) is None
                     or value.volume_id not in catalog[value.service_id][1]
+                    or type(value.service_version) is not str
+                    or value.service_version != expected_manifest.version
+                    or type(value.config_schema_version) is not int
+                    or value.config_schema_version
+                    != expected_manifest.configSchemaVersion
+                    or type(value.data_schema_version) is not str
+                    or value.data_schema_version
+                    != expected_manifest.dataSchemaVersion
+                    or type(value.installation_revision) is not int
+                    or not 1 <= value.installation_revision <= 2**63 - 1
+                    or type(value.device) is not int
+                    or value.device < 0
+                    or type(value.inode) is not int
+                    or value.inode <= 0
+                    or path_identity != (value.device, value.inode)
                     or identity in seen
                     or path in paths
+                    or path_identity in identities
                     or not stat.S_ISDIR(info.st_mode)
                     or any(
                         ord(char) < 32 or ord(char) == 127 for char in str(path)
@@ -331,8 +369,14 @@ class ManagedComponentSnapshotProvider:
                 )
                 if previous != value.container_id:
                     raise ValueError()
+                previous_service = container_services.setdefault(
+                    value.container_id, value.service_id
+                )
+                if previous_service != value.service_id:
+                    raise ValueError()
                 seen.add(identity)
                 paths.add(path)
+                identities.add(path_identity)
                 grouped.setdefault(value.service_id, set()).add(value.volume_id)
                 selected.append(
                     ComponentVolumeSource(
@@ -340,16 +384,29 @@ class ManagedComponentSnapshotProvider:
                         value.container_id,
                         value.volume_id,
                         path,
+                        value.service_version,
+                        value.config_schema_version,
+                        value.data_schema_version,
+                        value.installation_revision,
+                        value.device,
+                        value.inode,
                     )
                 )
+            ordered_paths = sorted(paths, key=str)
+            if any(
+                left in right.parents or right in left.parents
+                for index, left in enumerate(ordered_paths)
+                for right in ordered_paths[index + 1 :]
+            ):
+                raise ValueError()
             if any(grouped[service] != catalog[service][1] for service in grouped):
                 raise ValueError()
             self.sources = tuple(
                 sorted(selected, key=lambda item: (item.service_id, item.volume_id))
             )
             self.controller = controller
+            self.installed_authority = installed_authority
             self.monotonic = monotonic
-            self._catalog = catalog
         except (
             OSError,
             ValueError,
@@ -366,25 +423,53 @@ class ManagedComponentSnapshotProvider:
         descriptor = _open_absolute_directory(source.path)
         try:
             before = os.fstat(descriptor)
+            if (before.st_dev, before.st_ino) != (source.device, source.inode):
+                raise ComponentSnapshotProviderError()
             payload = archive_component_directory(descriptor, deadline)
             replacement = _open_absolute_directory(source.path)
             try:
                 after = os.fstat(replacement)
-                if (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino):
+                if (
+                    (after.st_dev, after.st_ino)
+                    != (source.device, source.inode)
+                    or (after.st_dev, after.st_ino)
+                    != (before.st_dev, before.st_ino)
+                ):
                     raise ComponentSnapshotProviderError()
             finally:
                 os.close(replacement)
         finally:
             os.close(descriptor)
-        manifest = self._catalog[source.service_id][0]
         return ComponentVolumeSnapshot(
             serviceId=source.service_id,
-            serviceVersion=manifest.version,
-            configSchemaVersion=manifest.configSchemaVersion,
-            dataSchemaVersion=manifest.dataSchemaVersion,
+            serviceVersion=source.service_version,
+            configSchemaVersion=source.config_schema_version,
+            dataSchemaVersion=source.data_schema_version,
             volumeId=source.volume_id,
             payload=payload,
         )
+
+    def _revalidate(self, deadline):
+        try:
+            _remaining(deadline)
+            for source in self.sources:
+                descriptor = _open_absolute_directory(source.path)
+                try:
+                    current = os.fstat(descriptor)
+                    if (current.st_dev, current.st_ino) != (
+                        source.device,
+                        source.inode,
+                    ):
+                        raise ComponentSnapshotProviderError()
+                finally:
+                    os.close(descriptor)
+            if self.installed_authority.revalidate(self.sources, deadline) is not True:
+                raise ComponentSnapshotProviderError()
+            _remaining(deadline)
+        except ComponentSnapshotProviderError:
+            raise
+        except Exception:
+            raise ComponentSnapshotProviderError() from None
 
     @contextmanager
     def quiesce(self, deadline):
@@ -393,12 +478,13 @@ class ManagedComponentSnapshotProvider:
         active_error = False
         try:
             try:
+                self._revalidate(deadline)
                 containers = sorted({item.container_id for item in self.sources})
                 for container_id in containers:
                     _remaining(deadline)
+                    paused.append(container_id)
                     if self.controller.pause(container_id, deadline) is not True:
                         raise ComponentSnapshotProviderError()
-                    paused.append(container_id)
                 captured = []
                 total = 0
                 for source in self.sources:
@@ -408,6 +494,7 @@ class ManagedComponentSnapshotProvider:
                         raise ComponentSnapshotProviderError("snapshot_too_large")
                     captured.append(snapshot)
                 snapshots = tuple(captured)
+                self._revalidate(deadline)
             except ComponentSnapshotProviderError:
                 raise
             except Exception:

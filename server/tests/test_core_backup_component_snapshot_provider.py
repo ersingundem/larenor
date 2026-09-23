@@ -153,6 +153,7 @@ def test_provider_rolls_back_partial_pause_without_reading_volumes(tmp_path):
     assert controller.calls == [
         ("pause", "larenor-jellyfin"),
         ("pause", "larenor-seerr"),
+        ("unpause", "larenor-seerr"),
         ("unpause", "larenor-jellyfin"),
     ]
 
