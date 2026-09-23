@@ -258,7 +258,7 @@ def test_archive_rejects_same_name_replacement_before_final_directory_check(
     target = root / "state.db"
     target.write_bytes(b"old-snapshot")
     descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    original_listdir = os.listdir
+    original_scandir = os.scandir
     calls = 0
 
     def mutate_before_final_check(value):
@@ -266,9 +266,9 @@ def test_archive_rejects_same_name_replacement_before_final_directory_check(
         calls += 1
         if calls == 2:
             target.write_bytes(b"new-live-stat")
-        return original_listdir(value)
+        return original_scandir(value)
 
-    monkeypatch.setattr(os, "listdir", mutate_before_final_check)
+    monkeypatch.setattr(os, "scandir", mutate_before_final_check)
     try:
         with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
             archive_component_directory(descriptor, time.monotonic() + 1)

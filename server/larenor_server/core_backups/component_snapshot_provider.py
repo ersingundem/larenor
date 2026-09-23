@@ -111,6 +111,25 @@ def _fingerprint(info):
     )
 
 
+def _bounded_directory_names(parent, deadline, limit, *, overflow_code):
+    names = []
+    try:
+        with os.scandir(parent) as entries:
+            for entry in entries:
+                _remaining(deadline)
+                name = entry.name
+                if not _safe_name(name):
+                    raise ComponentSnapshotProviderError()
+                names.append(name)
+                if len(names) > limit:
+                    raise ComponentSnapshotProviderError(overflow_code)
+    except ComponentSnapshotProviderError:
+        raise
+    except (OSError, TypeError, UnicodeError, ValueError):
+        raise ComponentSnapshotProviderError() from None
+    return sorted(names)
+
+
 def _zip_info(name, mode, *, directory):
     info = zipfile.ZipInfo(name + ("/" if directory else ""))
     info.date_time = (1980, 1, 1, 0, 0, 0)
@@ -157,15 +176,16 @@ def archive_component_directory(
         if depth > _MAX_DEPTH:
             raise ComponentSnapshotProviderError("snapshot_unavailable")
         _remaining(deadline)
-        before_names = sorted(os.listdir(parent))
+        before_names = _bounded_directory_names(
+            parent,
+            deadline,
+            _MAX_ENTRIES - count,
+            overflow_code="snapshot_too_large",
+        )
         observed = {}
         for name in before_names:
             _remaining(deadline)
-            if not _safe_name(name):
-                raise ComponentSnapshotProviderError()
             count += 1
-            if count > _MAX_ENTRIES:
-                raise ComponentSnapshotProviderError("snapshot_too_large")
             relative = f"{prefix}/{name}" if prefix else name
             before = os.stat(name, dir_fd=parent, follow_symlinks=False)
             if stat.S_ISDIR(before.st_mode):
@@ -244,7 +264,15 @@ def archive_component_directory(
             else:
                 raise ComponentSnapshotProviderError()
         _remaining(deadline)
-        if sorted(os.listdir(parent)) != before_names:
+        if (
+            _bounded_directory_names(
+                parent,
+                deadline,
+                len(before_names),
+                overflow_code="snapshot_unavailable",
+            )
+            != before_names
+        ):
             raise ComponentSnapshotProviderError()
         for name in before_names:
             current = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -255,9 +283,13 @@ def archive_component_directory(
         if depth > _MAX_DEPTH:
             raise ComponentSnapshotProviderError()
         _remaining(deadline)
-        for name in sorted(os.listdir(parent)):
-            if not _safe_name(name):
-                raise ComponentSnapshotProviderError()
+        names = _bounded_directory_names(
+            parent,
+            deadline,
+            len(inventory) - len(seen),
+            overflow_code="snapshot_unavailable",
+        )
+        for name in names:
             relative = f"{prefix}/{name}" if prefix else name
             current = os.stat(name, dir_fd=parent, follow_symlinks=False)
             if relative in seen or _fingerprint(current) != inventory.get(relative):
