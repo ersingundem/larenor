@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -250,7 +249,7 @@ base class FixturePlatformFile extends PlatformFile {
   String get name => 'fixture.pdf';
 
   @override
-  XFile get xFile => XFile.fromData(Uint8List(0), name: name);
+  Never get xFile => throw UnsupportedError('fixture has no platform file');
 
   @override
   int? lengthSync() => size;

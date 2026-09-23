@@ -47,7 +47,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     WebPanelPickFiles? pickFiles,
     WebPanelSaveFile? saveFile,
     http.Client Function()? client,
-    Duration transferTimeout = const Duration(seconds: 30),
+    this.transferTimeout = const Duration(seconds: 30),
   }) : _pickFiles =
            pickFiles ??
            (({required allowMultiple, required allowedExtensions}) async {
@@ -70,13 +70,12 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
              mimeType: mimeType,
              bytes: bytes,
            )),
-       _client = client ?? http.Client.new,
-       _transferTimeout = transferTimeout;
+       _client = client ?? http.Client.new;
 
   final WebPanelPickFiles _pickFiles;
   final WebPanelSaveFile _saveFile;
   final http.Client Function() _client;
-  final Duration _transferTimeout;
+  final Duration transferTimeout;
 
   static const _extensions = <String>{
     'jpg',
@@ -572,7 +571,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
 
     try {
       return await _download(initial, policy, current, client).timeout(
-        _transferTimeout,
+        transferTimeout,
         onTimeout: () {
           active = false;
           client.close();
