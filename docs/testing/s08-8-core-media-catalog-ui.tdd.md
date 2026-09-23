@@ -10,6 +10,9 @@ verified Core home. It does not add playback dispatch or close S08.8.
    installation. Unknown fields, duplicate ids, pagination, malformed steps,
    ambiguous targets, or stale/non-ready state fail closed before catalog
    authority/search. The query remains in bounded request bodies, never URLs.
+   A next-page offset remains bound to the first page's installation,
+   installation revision, snapshot revision and Jellyfin service revision; a
+   replacement source fails before another authority request.
 2. **Central tablet search.** The Core home exposes an administrator-only
    catalog route. Search and bounded next-page actions use
    `ServerMediaCatalogController.searchCurrent`; the route never reads direct
@@ -39,7 +42,7 @@ flutter analyze lib/core/router.dart lib/features/home_scope/presentation/core_h
 python3 tool/execution_queue.py validate
 ```
 
-The focused batch passes 15 tests. Scoped analysis and queue validation are
+The focused batch passes 16 tests. Scoped analysis and queue validation are
 clean.
 
 S08.8 remains pending. Catalog detail/playback dispatch, non-admin product

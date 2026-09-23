@@ -60,9 +60,19 @@ final class ServerMediaCatalogApi {
     ServerMediaCatalogKind? mediaKind,
     int offset = 0,
     int limit = 24,
+    ServerMediaCatalogPage? previousPage,
   }) async {
+    if ((offset == 0) != (previousPage == null) ||
+        previousPage != null && previousPage.nextOffset != offset) {
+      throw const LarenorServerException('invalid_request');
+    }
     final target = await _discoverTarget();
-    return search(
+    if (previousPage != null &&
+        (target.installationId != previousPage.installationId ||
+            target.installationRevision != previousPage.installationRevision)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final page = await search(
       installationId: target.installationId,
       expectedInstallationRevision: target.installationRevision,
       query: query,
@@ -70,6 +80,13 @@ final class ServerMediaCatalogApi {
       offset: offset,
       limit: limit,
     );
+    if (previousPage != null &&
+        (page.snapshotRevision != previousPage.snapshotRevision ||
+            page.jellyfinServiceRevision !=
+                previousPage.jellyfinServiceRevision)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return page;
   }
 
   Future<ServerMediaCatalogPage> search({

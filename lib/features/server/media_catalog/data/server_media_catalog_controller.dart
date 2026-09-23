@@ -73,15 +73,19 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     int offset = 0,
     int limit = 24,
     required bool Function() current,
-  }) => _search(
-    (api) => api.searchCurrent(
-      query: query,
-      mediaKind: mediaKind,
-      offset: offset,
-      limit: limit,
-    ),
-    current: current,
-  );
+  }) {
+    final previousPage = offset == 0 ? null : page;
+    return _search(
+      (api) => api.searchCurrent(
+        query: query,
+        mediaKind: mediaKind,
+        offset: offset,
+        limit: limit,
+        previousPage: previousPage,
+      ),
+      current: current,
+    );
+  }
 
   Future<void> _search(
     Future<ServerMediaCatalogPage> Function(ServerMediaCatalogApi api) read, {

@@ -15,14 +15,14 @@ import 'server_admin_test_support.dart';
 const _requestId = '11111111111111111111111111111111';
 const _installationId = '22222222222222222222222222222222';
 
-Map<String, Object?> _installation() => {
+Map<String, Object?> _installation({int revision = 7}) => {
   'id': _installationId,
   'requestId': '33333333333333333333333333333333',
   'preparationId': '44444444444444444444444444444444',
   'inspectionId': '55555555555555555555555555555555',
   'serviceId': 'jellyfin',
   'operationId': '66666666666666666666666666666666',
-  'revision': 7,
+  'revision': revision,
   'state': 'container_started',
   'phase': 'complete',
   'cancelRequested': false,
@@ -36,11 +36,15 @@ Map<String, Object?> _installation() => {
   'updatedAt': '2026-09-23T09:01:00.000Z',
 };
 
-Map<String, Object?> _catalog(int offset) => {
+Map<String, Object?> _catalog(
+  int offset, {
+  int installationRevision = 7,
+  int snapshotRevision = 9,
+}) => {
   'schemaVersion': 1,
   'installationId': _installationId,
-  'installationRevision': 7,
-  'snapshotRevision': 9,
+  'installationRevision': installationRevision,
+  'snapshotRevision': snapshotRevision,
   'jellyfinServiceRevision': 11,
   'offset': offset,
   'nextOffset': offset == 0 ? 1 : null,
@@ -64,7 +68,8 @@ final class _CatalogFixture extends AdminFixture {
       if (request.url.path.endsWith('/admin/media/installations')) {
         if (targetGate case final gate?) await gate.future;
         return this.json({
-          'installations': targetResponse ?? [_installation()],
+          'installations':
+              targetResponse ?? [_installation(revision: targetRevision)],
           'nextBefore': null,
         });
       }
@@ -72,15 +77,19 @@ final class _CatalogFixture extends AdminFixture {
         return this.json({
           'requestId': _requestId,
           'installationId': _installationId,
-          'installationRevision': 7,
-          'snapshotRevision': 9,
+          'installationRevision': targetRevision,
+          'snapshotRevision': snapshotRevision,
         });
       }
       if (request.url.path.endsWith('/catalog/search')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         return this.json({
           'requestId': _requestId,
-          'catalog': _catalog(body['offset'] as int),
+          'catalog': _catalog(
+            body['offset'] as int,
+            installationRevision: targetRevision,
+            snapshotRevision: snapshotRevision,
+          ),
         });
       }
       return defaultResponse(request);
@@ -89,6 +98,8 @@ final class _CatalogFixture extends AdminFixture {
 
   Completer<void>? targetGate;
   List<Object?>? targetResponse;
+  int targetRevision = 7;
+  int snapshotRevision = 9;
 }
 
 void main() {
@@ -165,6 +176,41 @@ void main() {
     expect(retired.page, isNull);
     expect(retired.failure, isNull);
   });
+
+  test(
+    'next page rejects a replacement installation before authority',
+    () async {
+      final fixture = _CatalogFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final controller = ServerMediaCatalogController(
+        fixture.account,
+        requestId: () => _requestId,
+      );
+      addTearDown(controller.dispose);
+      await controller.searchCurrent(query: 'matrix', current: () => true);
+      final next = controller.page!.nextOffset!;
+      fixture.targetRevision = 8;
+      final authorityBefore = fixture.calls
+          .where((call) => call.url.path.endsWith('/authority'))
+          .length;
+
+      await controller.searchCurrent(
+        query: 'matrix',
+        offset: next,
+        current: () => true,
+      );
+
+      expect(controller.page, isNull);
+      expect(controller.failure, 'invalid_response');
+      expect(
+        fixture.calls
+            .where((call) => call.url.path.endsWith('/authority'))
+            .length,
+        authorityBefore,
+      );
+    },
+  );
 
   test('member policy issues no installation or catalog request', () async {
     final fixture = _CatalogFixture(role: ServerRole.member);
