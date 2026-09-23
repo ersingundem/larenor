@@ -114,6 +114,8 @@ from .services.service import ServiceManagement
 from .sound_events.repository import SoundEventRepository
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
+from .capability_evidence.service import CapabilityEvidenceService
+from .capability_evidence.service import migrate as migrate_capability_evidence
 from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
 from .workshop.schema import migrate_workshop
@@ -339,6 +341,7 @@ class CoreServices:
                 migrate_local_notifications(connection)
                 migrate_jellyfin_track_preferences(connection)
                 migrate_tablet_fleet(connection)
+                migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
                 migrate_epaper_snapshots(connection)
@@ -462,6 +465,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.tablet_fleet.validate_storage()
+            self.capability_evidence = CapabilityEvidenceService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.capability_evidence.validate_storage()
             self.ev_charging = EvChargeRuntime(
                 self.db, self.auth, settings, key, self.context,
                 self._ev_charge_provider, self._ev_charge_charger)

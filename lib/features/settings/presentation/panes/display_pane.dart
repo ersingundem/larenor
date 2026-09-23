@@ -10,6 +10,7 @@ import 'settings_nav_row.dart';
 import '../settings_file_dialog.dart';
 import '../../../ambient/presentation/ambient_settings_screen.dart';
 import '../../../kiosk/presentation/kiosk_screen.dart';
+import '../../../kiosk/capability_evidence/presentation/capability_evidence_screen.dart';
 import '../../../kiosk/presentation/kiosk_peripheral_screen.dart';
 import '../../../kiosk_remote/presentation/kiosk_remote_route.dart';
 import '../../../kiosk/presentation/kiosk_maintenance_screen.dart';
@@ -84,6 +85,17 @@ class DisplayPane extends ConsumerWidget {
               color: CupertinoColors.systemIndigo,
               title: l10n.kioskTitle,
               builder: (_) => const KioskScreen(),
+            ),
+            SettingsNavRow(
+              icon: CupertinoIcons.checkmark_shield,
+              color: CupertinoColors.systemTeal,
+              title: l10n.kioskEvidenceTitle,
+              builder: (_) => CapabilityEvidenceRoute(
+                gateCurrent: () =>
+                    context.mounted &&
+                    interaction?.active != false &&
+                    interaction?.epoch == interactionEpoch,
+              ),
             ),
             SettingsNavRow(
               icon: CupertinoIcons.qrcode_viewfinder,

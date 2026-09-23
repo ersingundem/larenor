@@ -3567,5 +3567,44 @@
   "cameraSearchSemantic": "Anlamsal destekli sonuçlar",
   "cameraSearchCapturedAt": "Kayıt zamanı",
   "cameraSearchCamera": "Kamera",
-  "cameraSearchRequired": "Kamera kayıtlarında arama yapmak için bu evin doğrulanmış Larenor Core bağlantısını kullanın."
+  "cameraSearchRequired": "Kamera kayıtlarında arama yapmak için bu evin doğrulanmış Larenor Core bağlantısını kullanın.",
+  "kioskEvidenceTitle": "Kiosk yetenek kanıtları",
+  "kioskEvidenceIntro": "Model, Android API, WebView, DeX ve izin birleşimi yalnızca bağlı artefakt/commit/test sonucu için geçerlidir. Cihazda sınanmayanlar doğrulandı sayılmaz.",
+  "kioskEvidenceUnavailable": "Core kanıt kaydı doğrulanamadı. Eski sonuçlar gizlendi.",
+  "kioskEvidenceEmpty": "Henüz kanıt kaydı yok. Huawei ve DeX fiziksel kabulü gereklidir.",
+  "kioskEvidenceTested": "Test edildi (bağlı kanıt)",
+  "kioskEvidenceFailed": "Başarısız (bağlı kanıt)",
+  "kioskEvidenceUntested": "Test edilmedi",
+  "kioskEvidenceManual": "Fiziksel doğrulama gerekli",
+  "kioskEvidenceEnvironment": "Android API {api}; WebView {package} {version}; DeX {profile}",
+  "@kioskEvidenceEnvironment": {
+    "placeholders": {
+      "api": {
+        "type": "int"
+      },
+      "package": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "kioskEvidenceTrace": "Commit {commit}; test {test}; revizyon {revision}",
+  "@kioskEvidenceTrace": {
+    "placeholders": {
+      "commit": {
+        "type": "String"
+      },
+      "test": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  }
 }

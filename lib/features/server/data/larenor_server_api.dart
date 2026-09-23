@@ -481,6 +481,7 @@ class LarenorServerApi {
               !path.startsWith('/home-assistant') &&
               !path.startsWith('/admin/home-assistant') &&
               !path.startsWith('/admin/home-people') &&
+              !path.startsWith('/capability-evidence') &&
               queryParameters.length <= keys.length &&
               !queryParameters.entries.any(
                 (entry) =>
@@ -556,6 +557,21 @@ class LarenorServerApi {
               _ => false,
             };
           });
+      final capabilityEvidenceQuery =
+          method == 'GET' &&
+          RegExp(r'^/capability-evidence/[0-9a-f]{32}/[0-9a-f]{32}/records$')
+              .hasMatch(path) &&
+          queryParameters.length <= 2 &&
+          queryParameters.containsKey('limit') &&
+          queryParameters.entries.every(
+            (entry) => switch (entry.key) {
+              'limit' =>
+                RegExp(r'^[1-9][0-9]?$').hasMatch(entry.value) &&
+                    (int.tryParse(entry.value) ?? 0) <= 50,
+              'after' => RegExp(r'^[0-9a-f]{32}$').hasMatch(entry.value),
+              _ => false,
+            },
+          );
       final homeAssistantVerification =
           method == 'GET' &&
           RegExp(
@@ -682,6 +698,7 @@ class LarenorServerApi {
           !homeAssistantHistory &&
           !homeAssistantEvents &&
           !homeAssistantVerification &&
+          !capabilityEvidenceQuery &&
           !localNotificationsQuery &&
           !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');
