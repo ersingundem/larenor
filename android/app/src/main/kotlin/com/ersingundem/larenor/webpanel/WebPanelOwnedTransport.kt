@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.net.Proxy
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
@@ -27,6 +28,31 @@ internal interface WebPanelRequestTransport {
     fun close()
 }
 
+internal class WebPanelRequestLimiter(maxConcurrentRequests: Int) {
+    private val permits = Semaphore(maxConcurrentRequests, true)
+
+    init {
+        require(maxConcurrentRequests in 1..16)
+    }
+
+    fun tryAcquire(): Lease? {
+        if (!permits.tryAcquire()) return null
+        return Lease(permits)
+    }
+
+    internal class Lease(private val permits: Semaphore) : AutoCloseable {
+        private val closed = AtomicBoolean(false)
+
+        override fun close() {
+            if (closed.compareAndSet(false, true)) permits.release()
+        }
+    }
+
+    companion object {
+        val process = WebPanelRequestLimiter(8)
+    }
+}
+
 /**
  * Owns anonymous WebPanel subresource GETs. WebView request headers, cookies,
  * credentials and bodies never enter this transport. Redirects are resolved
@@ -36,38 +62,36 @@ internal class WebPanelOwnedHttpTransport(
     private val firewall: WebRequestFirewall,
     private val maxRedirects: Int = 3,
     private val maxResponseBytes: Long = 16L * 1024 * 1024,
-    maxConcurrentRequests: Int = 8,
+    private val requestLimiter: WebPanelRequestLimiter = WebPanelRequestLimiter.process,
     private val client: OkHttpClient = client(),
 ) : WebPanelRequestTransport {
     private val retired = AtomicBoolean(false)
-    private val calls = ConcurrentHashMap.newKeySet<Call>()
-    private val permits = Semaphore(maxConcurrentRequests, true)
+    private val calls = ConcurrentHashMap<Call, WebPanelRequestLimiter.Lease>()
 
     init {
         require(maxRedirects in 0..3)
         require(maxResponseBytes in 1..(25L * 1024 * 1024))
-        require(maxConcurrentRequests in 1..16)
     }
 
     override fun fetch(uri: Uri, method: String): WebResourceResponse {
         if (retired.get()) return terminalResponse(410, "Gone")
         if (method != "GET" || !firewall.allows(uri)) return firewall.blockedResponse()
-        if (!permits.tryAcquire()) return terminalResponse(429, "Too Many Requests")
-        val permitReleased = AtomicBoolean(false)
-        fun releasePermit() {
-            if (permitReleased.compareAndSet(false, true)) permits.release()
-        }
+        val lease = requestLimiter.tryAcquire()
+            ?: return terminalResponse(429, "Too Many Requests")
         return try {
-            fetchWithPermit(uri, ::releasePermit)
+            fetchWithPermit(uri, lease)
         } catch (_: RuntimeException) {
-            releasePermit()
+            lease.close()
             terminalResponse(502, "Bad Gateway")
         }
     }
 
-    private fun fetchWithPermit(uri: Uri, releasePermit: () -> Unit): WebResourceResponse {
+    private fun fetchWithPermit(
+        uri: Uri,
+        lease: WebPanelRequestLimiter.Lease,
+    ): WebResourceResponse {
         fun completed(response: WebResourceResponse): WebResourceResponse {
-            releasePermit()
+            lease.close()
             return response
         }
         if (retired.get()) return completed(terminalResponse(410, "Gone"))
@@ -76,35 +100,35 @@ internal class WebPanelOwnedHttpTransport(
         repeat(maxRedirects + 1) { redirectCount ->
             if (retired.get()) return completed(terminalResponse(410, "Gone"))
             val call = client.newCall(Request.Builder().url(target).get().build())
-            calls += call
+            calls[call] = lease
             if (retired.get()) {
-                calls -= call
+                calls.remove(call)
                 call.cancel()
                 return completed(terminalResponse(410, "Gone"))
             }
             val response = try {
                 call.execute()
             } catch (_: IOException) {
-                calls -= call
+                calls.remove(call)
                 return if (retired.get()) {
                     completed(terminalResponse(410, "Gone"))
                 } else {
                     completed(terminalResponse(502, "Bad Gateway"))
                 }
             } catch (_: RuntimeException) {
-                calls -= call
+                calls.remove(call)
                 call.cancel()
                 return completed(terminalResponse(502, "Bad Gateway"))
             }
             if (retired.get()) {
                 response.close()
-                calls -= call
+                calls.remove(call)
                 return completed(terminalResponse(410, "Gone"))
             }
             if (response.code in 300..399) {
                 val location = response.header("Location")
                 response.close()
-                calls -= call
+                calls.remove(call)
                 if (redirectCount == maxRedirects || location == null) {
                     return completed(terminalResponse(508, "Loop Detected"))
                 }
@@ -115,7 +139,7 @@ internal class WebPanelOwnedHttpTransport(
                 }
                 target = next
             } else {
-                return response.toWebResourceResponse(call, releasePermit)
+                return response.toWebResourceResponse(call, lease)
             }
         }
         return completed(terminalResponse(508, "Loop Detected"))
@@ -123,13 +147,13 @@ internal class WebPanelOwnedHttpTransport(
 
     private fun Response.toWebResourceResponse(
         call: Call,
-        releasePermit: () -> Unit,
+        lease: WebPanelRequestLimiter.Lease,
     ): WebResourceResponse {
         val body = body
         if (body.contentLength() > maxResponseBytes) {
             close()
-            calls -= call
-            releasePermit()
+            calls.remove(call)
+            lease.close()
             return terminalResponse(413, "Content Too Large")
         }
         val contentType = body.contentType()
@@ -140,18 +164,23 @@ internal class WebPanelOwnedHttpTransport(
             maxResponseBytes,
             finished = {
                 close()
-                calls -= call
-                releasePermit()
+                calls.remove(call)
+                lease.close()
             },
         )
-        return WebResourceResponse(
-            mimeType,
-            encoding,
-            code,
-            message.ifBlank { "HTTP $code" },
-            responseHeaders(),
-            data,
-        )
+        return try {
+            WebResourceResponse(
+                mimeType,
+                encoding,
+                code,
+                message.ifBlank { "HTTP $code" },
+                responseHeaders(),
+                data,
+            )
+        } catch (_: RuntimeException) {
+            data.close()
+            terminalResponse(502, "Bad Gateway")
+        }
     }
 
     private fun Response.responseHeaders(): Map<String, String> {
@@ -166,7 +195,10 @@ internal class WebPanelOwnedHttpTransport(
 
     override fun close() {
         if (!retired.compareAndSet(false, true)) return
-        calls.toList().forEach(Call::cancel)
+        calls.entries.toList().forEach { (call, lease) ->
+            call.cancel()
+            lease.close()
+        }
         calls.clear()
         client.dispatcher.cancelAll()
         client.connectionPool.evictAll()
@@ -177,6 +209,7 @@ internal class WebPanelOwnedHttpTransport(
             .cookieJar(CookieJar.NO_COOKIES)
             .authenticator(Authenticator.NONE)
             .proxyAuthenticator(Authenticator.NONE)
+            .proxy(Proxy.NO_PROXY)
             .followRedirects(false)
             .followSslRedirects(false)
             .retryOnConnectionFailure(false)
@@ -211,15 +244,36 @@ private class BoundedResponseInputStream(
     private var consumed = 0L
 
     override fun read(): Int {
-        val value = super.read()
+        val value = try {
+            super.read()
+        } catch (error: IOException) {
+            finish()
+            throw error
+        }
         if (value < 0) finish() else count(1)
         return value
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        val read = super.read(buffer, offset, length)
+        val read = try {
+            super.read(buffer, offset, length)
+        } catch (error: IOException) {
+            finish()
+            throw error
+        }
         if (read < 0) finish() else count(read.toLong())
         return read
+    }
+
+    override fun skip(byteCount: Long): Long {
+        val skipped = try {
+            super.skip(byteCount)
+        } catch (error: IOException) {
+            finish()
+            throw error
+        }
+        count(skipped)
+        return skipped
     }
 
     private fun count(amount: Long) {
@@ -253,8 +307,8 @@ internal class WebPanelDynamicEgressPolicy(
     },
 ) {
     fun install(webView: WebView, origins: Set<WebRequestOrigin>): AutoCloseable? {
-        if (!isSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return null
-        val originRules = origins.mapTo(linkedSetOf()) { it.documentOrigin() }
+        if (origins.isEmpty() || !isSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return null
+        val originRules = setOf("*")
         val script = """
             (() => {
               'use strict';
@@ -269,12 +323,6 @@ internal class WebPanelDynamicEgressPolicy(
         return runCatching {
             OnceCloseable(installScript(webView, script, originRules))
         }.getOrNull()
-    }
-
-    private fun WebRequestOrigin.documentOrigin(): String {
-        val hostValue = if (':' in host) "[$host]" else host
-        val defaultPort = (scheme == "https" && port == 443) || (scheme == "http" && port == 80)
-        return "$scheme://$hostValue${if (defaultPort) "" else ":$port"}"
     }
 }
 

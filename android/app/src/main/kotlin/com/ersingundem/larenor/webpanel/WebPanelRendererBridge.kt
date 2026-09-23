@@ -193,6 +193,7 @@ class WebPanelRendererBridge(
     private val serviceWorkerFirewall = ServiceWorkerRequestFirewall()
     private val windowPolicy = WebPanelWindowPolicy()
     private val dynamicEgressPolicy = WebPanelDynamicEgressPolicy()
+    private val requestLimiter = WebPanelRequestLimiter.process
     private val attachments = mutableMapOf<String, Attachment>()
     private val viewOwners = mutableMapOf<Long, String>()
     private var disposed = false
@@ -233,7 +234,9 @@ class WebPanelRendererBridge(
         val firewall = WebRequestFirewall(request.allowedOrigins)
         val dynamicEgress = dynamicEgressPolicy.install(webView, request.allowedOrigins)
             ?: return false
-        val ownedTransport = runCatching { WebPanelOwnedHttpTransport(firewall) }.getOrElse {
+        val ownedTransport = runCatching {
+            WebPanelOwnedHttpTransport(firewall, requestLimiter = requestLimiter)
+        }.getOrElse {
             dynamicEgress.close()
             return false
         }

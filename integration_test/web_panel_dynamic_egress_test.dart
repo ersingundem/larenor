@@ -34,7 +34,7 @@ parent.postMessage([
   attempt('WebSocket', () => new WebSocket('ws://127.0.0.1:${server.port}/escape')),
   attempt('Worker', () => new Worker('data:text/javascript,postMessage(1)'))
 ].join(','), '*');
-<\/script>`;
+<\\/script>`;
 document.body.append(frame);
 </script></body>
 ''');
