@@ -1,6 +1,8 @@
 import json
 
-from conftest import auth, ready
+from conftest import auth, login, ready
+from fastapi.testclient import TestClient
+from larenor_server.app import create_app
 from test_admin import activate, create
 
 
@@ -25,8 +27,8 @@ def _put(client, pair, root, *, expected=0, audio="tr-tr", subtitle="off"):
     )
 
 
-def test_preferences_are_exact_core_account_scoped_and_revisioned(server):
-    app, client, _settings, _clock = server
+def test_preferences_are_exact_core_account_scoped_revisioned_and_persistent(server):
+    app, client, settings, _clock = server
     pair = ready(server)
     root = _root(app)
 
@@ -70,6 +72,12 @@ def test_preferences_are_exact_core_account_scoped_and_revisioned(server):
     assert client.get(wrong_core, headers=auth(pair)).status_code == 404
     assert "token" not in json.dumps(created.json()).lower()
     assert "url" not in json.dumps(created.json()).lower()
+
+    with TestClient(create_app(settings)) as restarted:
+        fresh = login(restarted, "admin", "Synthetic new password 2026").json()
+        restored = restarted.get(root, headers=auth(fresh))
+        assert restored.status_code == 200
+        assert restored.json()["preference"] == created.json()["preference"]
 
 
 def test_preferences_are_private_to_each_current_account(server):

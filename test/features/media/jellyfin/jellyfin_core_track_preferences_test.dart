@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_track_preferences_store.dart';
 
@@ -156,4 +158,46 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'retiring while Core read is pending prevents the preference write',
+    () async {
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final read = Completer<http.Response>();
+      var current = true;
+      fixture.respond = (request) {
+        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+          expect(request.method, 'GET');
+          return read.future;
+        }
+        return Future.value(fixture.defaultResponse(request));
+      };
+      final store = JellyfinTrackPreferencesStore(account: fixture.account);
+
+      final saving = store.save(
+        _direct,
+        audioLanguage: 'en',
+        subtitleLanguage: null,
+        isCurrent: () => current,
+      );
+      while (!fixture.calls.any(
+        (request) => request.url.path.contains('/media/jellyfin/preferences/'),
+      )) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      current = false;
+      read.complete(fixture.json(_response(fixture)));
+
+      await expectLater(saving, throwsStateError);
+      expect(
+        fixture.calls.where(
+          (request) =>
+              request.url.path.contains('/media/jellyfin/preferences/'),
+        ),
+        hasLength(1),
+      );
+    },
+  );
 }

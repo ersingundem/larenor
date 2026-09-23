@@ -162,10 +162,9 @@ final class _JellyfinTrackPreferencesApi {
 /// Core-owned playback languages. The direct Jellyfin identity is accepted by
 /// the legacy caller shape but is never used as storage scope or sent on wire.
 class JellyfinTrackPreferencesStore {
-  JellyfinTrackPreferencesStore({ServerAccountController? account})
-    : _account = account;
+  JellyfinTrackPreferencesStore({this.account});
 
-  final ServerAccountController? _account;
+  final ServerAccountController? account;
 
   void _check(bool Function() isCurrent) {
     try {
@@ -177,10 +176,10 @@ class JellyfinTrackPreferencesStore {
   }
 
   ServerAccountController get _requiredAccount =>
-      _account ?? (throw StateError('Core account unavailable'));
+      account ?? (throw StateError('Core account unavailable'));
 
   Future<JellyfinTrackPreferenceRecord?> read(
-    JellyfinConfig _config, {
+    JellyfinConfig config, {
     required bool Function() isCurrent,
   }) async {
     _check(isCurrent);
@@ -195,7 +194,7 @@ class JellyfinTrackPreferencesStore {
   }
 
   Future<void> save(
-    JellyfinConfig _config, {
+    JellyfinConfig config, {
     required String? audioLanguage,
     required String? subtitleLanguage,
     required bool Function() isCurrent,

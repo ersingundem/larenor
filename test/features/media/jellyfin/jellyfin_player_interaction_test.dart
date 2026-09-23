@@ -275,8 +275,8 @@ void main() {
           expect(
             find.textContaining(
               language == 'tr'
-                  ? 'bu Jellyfin hesabı için dilini kaydeder'
-                  : 'saves that language for this Jellyfin account',
+                  ? 'bu Larenor hesabı için dilini kaydeder'
+                  : 'saves that language for this Larenor account',
             ),
             findsOneWidget,
           );

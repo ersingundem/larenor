@@ -745,8 +745,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   String get _languagePreferenceHint =>
       Localizations.localeOf(context).languageCode == 'tr'
-      ? 'Dil etiketi olan bir parça seçmek bu Jellyfin hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
-      : 'Choosing a track with a language label saves that language for this Jellyfin account. If a later title lacks it, playback keeps an available track.';
+      ? 'Dil etiketi olan bir parça seçmek bu Larenor hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
+      : 'Choosing a track with a language label saves that language for this Larenor account. If a later title lacks it, playback keeps an available track.';
 
   Future<void> _showSubtitlePicker() {
     final l10n = AppLocalizations.of(context);
