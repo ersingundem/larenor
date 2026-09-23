@@ -50,6 +50,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   final _gatewayHost = TextEditingController();
   final _gatewayPort = TextEditingController(text: '443');
   final _gatewayUser = TextEditingController();
+  final _remoteText = TextEditingController();
   ProviderContainer? _container;
   AppInteractionController? _interaction;
   RdpSessionController? _controller;
@@ -226,7 +227,20 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       _gatewayPassword.clear();
       _rememberCredential = false;
     }
+    if (_controller?.phase != RdpSessionPhase.connected) {
+      _remoteText.clear();
+    }
     setState(() {});
+  }
+
+  void _sendText() {
+    final value = _remoteText.text;
+    if (!_current() || _controller?.phase != RdpSessionPhase.connected) {
+      _remoteText.clear();
+      return;
+    }
+    _controller!.text(value);
+    _remoteText.clear();
   }
 
   void _ownerChanged() {
@@ -238,6 +252,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _retired = true;
     _password.clear();
     _gatewayPassword.clear();
+    _remoteText.clear();
     for (final field in [_domain, _gatewayHost, _gatewayPort, _gatewayUser]) {
       field.clear();
     }
@@ -270,6 +285,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _gatewayHost.dispose();
     _gatewayPort.dispose();
     _gatewayUser.dispose();
+    _remoteText.dispose();
     super.dispose();
   }
 
@@ -565,6 +581,23 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                             controller: c,
                             label: l.rdpInputReady,
                           ),
+                          if (c.capabilities?.supportsIme == true) ...[
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                              child: CupertinoTextField(
+                                key: const ValueKey('rdp-text-input'),
+                                controller: _remoteText,
+                                maxLength: 1024,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textInputAction: TextInputAction.send,
+                                placeholder: l.rdpTextInput,
+                                padding: const EdgeInsets.all(14),
+                                onSubmitted: (_) => _sendText(),
+                              ),
+                            ),
+                            action('rdp-text-send', l.rdpTextSend, _sendText),
+                          ],
                           Padding(
                             padding: const EdgeInsets.all(20),
                             child: Semantics(

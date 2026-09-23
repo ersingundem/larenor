@@ -102,6 +102,30 @@ void main() {
       expect(arguments.values, isNot(contains('temporary')));
 
       final channel = opened as RdpFrameChannel;
+      channel.text('İstanbul');
+      await Future<void>.delayed(Duration.zero);
+      final ime = calls.singleWhere(
+        (call) =>
+            call.method == 'input' && (call.arguments as Map)['kind'] == 'ime',
+      );
+      expect(ime.arguments, {
+        'requestId': arguments['requestId'],
+        'sequence': 1,
+        'kind': 'ime',
+        'text': 'İstanbul',
+      });
+      channel.text('');
+      channel.text('x' * 4097);
+      channel.text('\ud800');
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        calls.where(
+          (call) =>
+              call.method == 'input' &&
+              (call.arguments as Map)['kind'] == 'ime',
+        ),
+        hasLength(1),
+      );
       final frameFuture = channel.frames.first;
       final requestId = arguments['requestId'] as String;
       final pixels = Uint8List(640 * 480 * 4);

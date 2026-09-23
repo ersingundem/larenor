@@ -374,6 +374,16 @@ class RdpSessionController extends ChangeNotifier {
     _channel?.key(event);
   }
 
+  void text(String value) {
+    if (phase != RdpSessionPhase.connected ||
+        capabilities?.supportsIme != true ||
+        !validRdpImeText(value) ||
+        !_current(_generation)) {
+      return;
+    }
+    _channel?.text(value);
+  }
+
   void synchronize() {
     if (!_current(_generation)) retire();
   }

@@ -1,5 +1,9 @@
 package com.ersingundem.larenor.rdp
 
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
+
 enum class RdpNativeAvailability { UNAVAILABLE, AVAILABLE }
 enum class RdpClipboardMode { DISABLED, CLIENT_TO_REMOTE, BIDIRECTIONAL }
 enum class RdpKeyboardLayout { AUTOMATIC, TURKISH_Q, US }
@@ -48,6 +52,27 @@ private fun enumName(value: Any?, values: Set<String>, code: String): String {
     val result = text(value, 1, 32, code)
     if (result !in values) fail(code)
     return result
+}
+
+class RdpNativeImeText private constructor(val value: String) {
+    override fun toString() = "RdpNativeImeText(<redacted>)"
+
+    companion object {
+        fun parse(raw: Any?): RdpNativeImeText {
+            val value = raw as? String ?: fail("invalidRequest")
+            if (value.isEmpty() || value.indexOf('\u0000') >= 0) fail("invalidRequest")
+            val encoded = try {
+                StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value))
+            } catch (_: Exception) {
+                fail("invalidRequest")
+            }
+            if (encoded.remaining() !in 1..4096) fail("invalidRequest")
+            return RdpNativeImeText(value)
+        }
+    }
 }
 
 class RdpNativeCapabilities private constructor(

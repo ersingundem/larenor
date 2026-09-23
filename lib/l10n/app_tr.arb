@@ -2766,6 +2766,8 @@
   },
   "rdpExternalDisplay": "DeX / harici ekran profili",
   "rdpInputReady": "Touchpad ve fiziksel klavye girdisi bu ön plan oturumuyla sınırlıdır.",
+  "rdpTextInput": "Uzak masaüstüne gönderilecek metin",
+  "rdpTextSend": "Metni gönder",
   "rdpBack": "Uzak erişim profillerine dön",
   "rdpDomain": "Windows etki alanı (isteğe bağlı)",
   "rdpGatewayHost": "RD Gateway adresi (isteğe bağlı)",

@@ -12,6 +12,7 @@ abstract interface class RdpChannel {
   Future<void> get done;
   void pointer(RdpPointerEvent event);
   void key(RdpKeyEvent event);
+  void text(String value);
   void resize(RdpDisplaySpec display);
   void close();
 }
@@ -68,7 +69,7 @@ class UnsupportedRdpEngine implements RdpEngine {
         'maxHeight': 0,
         'maxDpi': 0,
       },
-      'input': {'touchpad': false, 'keyboard': false},
+      'input': {'touchpad': false, 'keyboard': false, 'ime': false},
       'channels': {'clipboard': false, 'audio': false, 'files': false},
     });
   }
@@ -415,6 +416,12 @@ class _RdpMethodChannel implements RdpFrameChannel {
       'down': event.down,
     }),
   );
+  @override
+  void text(String value) {
+    if (!validRdpImeText(value)) return;
+    unawaited(_invoke('input', {'kind': 'ime', 'text': value}));
+  }
+
   @override
   void resize(RdpDisplaySpec display) => unawaited(
     _invoke('resize', {

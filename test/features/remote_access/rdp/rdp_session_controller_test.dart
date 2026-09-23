@@ -46,6 +46,7 @@ class Channel implements RdpChannel {
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
+  final texts = <String>[];
   final doneValue = Completer<void>();
   @override
   Future<void> get done => doneValue.future;
@@ -59,6 +60,8 @@ class Channel implements RdpChannel {
   void pointer(RdpPointerEvent event) => pointers.add(event);
   @override
   void key(RdpKeyEvent event) => keys.add(event);
+  @override
+  void text(String value) => texts.add(value);
   @override
   void resize(RdpDisplaySpec display) => displays.add(display);
 }
@@ -317,39 +320,44 @@ void main() {
     },
   );
 
-  test(
-    'resize and clipboard policy reject stale or over-bounded input',
-    () async {
-      final trust = Trust()
-        ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
-      final engine = Engine(requiresNla: false);
-      final c = RdpSessionController(
-        profile: profile,
-        trust: trust,
-        engineFactory: () => engine,
-        isCurrent: () => true,
-        display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
-        settings: const RdpProfileSettings(
-          clipboardMode: RdpClipboardMode.disabled,
-        ),
-      );
-      await c.connect();
-      c.resize(
-        const RdpDisplaySpec(
-          width: 2560,
-          height: 1440,
-          dpi: 220,
-          externalDisplay: true,
-        ),
-      );
-      c.resize(const RdpDisplaySpec(width: 9000, height: 1440, dpi: 220));
-      expect(engine.channel.displays, hasLength(1));
-      c.retire();
-      c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));
-      expect(engine.channel.displays, hasLength(1));
-      c.dispose();
-    },
-  );
+  test('resize and text input reject stale or over-bounded input', () async {
+    final trust = Trust()
+      ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+    final engine = Engine(requiresNla: false);
+    final c = RdpSessionController(
+      profile: profile,
+      trust: trust,
+      engineFactory: () => engine,
+      isCurrent: () => true,
+      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+      settings: const RdpProfileSettings(
+        clipboardMode: RdpClipboardMode.disabled,
+      ),
+    );
+    await c.connect();
+    c.resize(
+      const RdpDisplaySpec(
+        width: 2560,
+        height: 1440,
+        dpi: 220,
+        externalDisplay: true,
+      ),
+    );
+    c.resize(const RdpDisplaySpec(width: 9000, height: 1440, dpi: 220));
+    expect(engine.channel.displays, hasLength(1));
+    c.text('İstanbul');
+    c.text('');
+    c.text('bad\u0000text');
+    c.text('😀' * 1025);
+    c.text('\ud800');
+    expect(engine.channel.texts, ['İstanbul']);
+    c.retire();
+    c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));
+    c.text('late');
+    expect(engine.channel.displays, hasLength(1));
+    expect(engine.channel.texts, ['İstanbul']);
+    c.dispose();
+  });
 
   test(
     'remembering NLA and gateway secrets is explicit and lifecycle-bound',

@@ -3119,6 +3119,8 @@
   },
   "rdpExternalDisplay": "DeX / external display profile",
   "rdpInputReady": "Touchpad and physical keyboard input are scoped to this foreground session.",
+  "rdpTextInput": "Type text for the remote desktop",
+  "rdpTextSend": "Send text",
   "rdpBack": "Back to remote profiles",
   "rdpDomain": "Windows domain (optional)",
   "rdpGatewayHost": "RD Gateway host (optional)",

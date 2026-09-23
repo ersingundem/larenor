@@ -36,6 +36,7 @@ class UiChannel implements RdpChannel {
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
+  final texts = <String>[];
   @override
   Future<void> get done => doneCompleter.future;
   @override
@@ -49,6 +50,8 @@ class UiChannel implements RdpChannel {
   void pointer(RdpPointerEvent event) => pointers.add(event);
   @override
   void resize(RdpDisplaySpec display) => displays.add(display);
+  @override
+  void text(String value) => texts.add(value);
 }
 
 class UiEngine implements RdpEngine {
@@ -169,6 +172,43 @@ void main() {
     },
   );
 
+  for (final locale in ['en', 'tr']) {
+    final width = locale == 'en' ? 1280.0 : 600.0;
+    testWidgets('$locale composed text is accessible at 2x', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: width,
+        scale: 2,
+        locale: locale,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      await press(tester, 'rdp-check');
+      await tester.ensureVisible(key('rdp-text-input'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          locale == 'tr'
+              ? 'Uzak masaüstüne gönderilecek metin'
+              : 'Type text for the remote desktop',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(key('rdp-text-send')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.enterText(key('rdp-text-input'), 'İstanbul');
+      await press(tester, 'rdp-text-send');
+      expect(engine.channel.texts, ['İstanbul']);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    });
+  }
+
   testWidgets('connected DeX surface forwards pointer keyboard and resize', (
     tester,
   ) async {
@@ -191,6 +231,13 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
     expect(engine.channel.pointers, isNotEmpty);
     expect(engine.channel.keys, hasLength(2));
+    await tester.enterText(key('rdp-text-input'), 'İstanbul');
+    await press(tester, 'rdp-text-send');
+    expect(engine.channel.texts, ['İstanbul']);
+    expect(
+      tester.widget<CupertinoTextField>(key('rdp-text-input')).controller!.text,
+      isEmpty,
+    );
     tester.view.physicalSize = const Size(1000, 900);
     await tester.pumpAndSettle();
     expect(engine.channel.displays, isNotEmpty);
