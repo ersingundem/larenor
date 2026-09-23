@@ -36,6 +36,12 @@ Map<String, Object?> _installation({int revision = 7}) => {
   'updatedAt': '2026-09-23T09:01:00.000Z',
 };
 
+Map<String, Object?> _installationWith(Map<String, Object?> changes) => {
+  ..._installation(),
+  ...changes,
+  'id': changes['id'] ?? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+};
+
 Map<String, Object?> _catalog(
   int offset, {
   int installationRevision = 7,
@@ -176,6 +182,51 @@ void main() {
     expect(retired.page, isNull);
     expect(retired.failure, isNull);
   });
+
+  test(
+    'one ready target plus any incoherent sibling fails before authority',
+    () async {
+      final malformed = <Map<String, Object?>>[
+        _installationWith({'state': 'queued', 'phase': 'executing', 'revision': 1}),
+        _installationWith({'state': 'queued', 'phase': 'queued', 'revision': 2}),
+        _installationWith({'state': 'queued', 'phase': 'queued', 'revision': 1, 'cancelRequested': true}),
+        _installationWith({'state': 'running', 'phase': 'queued', 'revision': 2}),
+        _installationWith({'state': 'running', 'phase': 'executing', 'revision': 1}),
+        _installationWith({'state': 'container_started', 'phase': 'executing'}),
+        _installationWith({'state': 'container_started', 'phase': 'complete', 'revision': 1}),
+        _installationWith({'state': 'container_started', 'errorCode': 'worker_unavailable'}),
+        _installationWith({'state': 'cancelled', 'cancelRequested': false}),
+        _installationWith({'state': 'needs_attention', 'errorCode': null}),
+        _installationWith({'state': 'failed', 'errorCode': null}),
+      ];
+
+      for (final sibling in malformed) {
+        final fixture = _CatalogFixture()
+          ..targetResponse = [_installation(), sibling];
+        await fixture.account.initialize();
+        final controller = ServerMediaCatalogController(
+          fixture.account,
+          requestId: () => _requestId,
+        );
+
+        await controller.searchCurrent(query: 'matrix', current: () => true);
+
+        expect(controller.page, isNull, reason: '$sibling');
+        expect(controller.failure, 'invalid_response', reason: '$sibling');
+        expect(
+          fixture.calls.where(
+            (call) =>
+                call.url.path.endsWith('/authority') ||
+                call.url.path.endsWith('/catalog/search'),
+          ),
+          isEmpty,
+          reason: '$sibling',
+        );
+        controller.dispose();
+        fixture.account.dispose();
+      }
+    },
+  );
 
   test(
     'next page rejects a replacement installation before authority',
