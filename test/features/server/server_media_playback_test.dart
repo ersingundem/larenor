@@ -46,7 +46,7 @@ Map<String, Object?> _intentJson() => {
   'itemId': '33333333333333333333333333333333',
   'mediaKey': 'movie:tmdb:603',
   'playbackRevision': 13,
-  'expiresAt': 1790132430,
+  'expiresAt': 2000000000,
   'targets': const [
     {
       'targetId': 'living-room',
