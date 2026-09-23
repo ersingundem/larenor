@@ -145,6 +145,9 @@ def _validate_capture(capture) -> None:
         components = json.loads(capture.payloads["component-index"])
     except (KeyError, UnicodeError, ValueError):
         raise ApiError("backup_incompatible", 409) from None
+    expected_components = [
+        component.model_dump(mode="json") for component in manifest.components
+    ]
     if (
         type(configuration) is not dict
         or configuration.get("contractVersion") != 1
@@ -154,7 +157,17 @@ def _validate_capture(capture) -> None:
         != {"installation", "keenetic", "plugin", "proxmox"}
         or any(type(value) is not bool for value in configuration["workers"].values())
         or components
-        != {"contractVersion": 1, "schemas": manifest.componentSchemaVersions}
+        not in (
+            {"contractVersion": 1, "schemas": manifest.componentSchemaVersions},
+            {
+                "contractVersion": 2,
+                "schemas": manifest.componentSchemaVersions,
+                "components": expected_components,
+            },
+        )
+        # Component payloads can be authenticated and compatibility-checked,
+        # but this slice deliberately has no host-volume publication authority.
+        or bool(manifest.components)
     ):
         raise ApiError("backup_incompatible", 409)
 

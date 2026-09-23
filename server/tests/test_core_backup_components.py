@@ -3,12 +3,14 @@
 import copy
 from contextlib import contextmanager
 
+import pytest
 from conftest import auth, ready
+from larenor_server.core_backups.restore import _validate_capture
 from larenor_server.core_backups.service import (
     ComponentVolumeSnapshot,
     CoreBackupContract,
 )
-
+from larenor_server.errors import ApiError
 
 PASSPHRASE = "Correct horse battery staple 2026"
 
@@ -120,7 +122,7 @@ def test_component_volumes_share_the_bounded_cut_and_stay_encrypted(
 def test_component_version_schema_and_volume_compatibility_fail_closed(
     server, monkeypatch
 ):
-    app, client, _settings, _clock = server
+    _app, client, _settings, _clock = server
     pair = ready(server)
     _install_boundary(server, monkeypatch)
     manifest = client.get(
@@ -149,6 +151,7 @@ def test_component_version_schema_and_volume_compatibility_fail_closed(
         if item["id"] == "component-jellyfin-cache"
     )
     resource["id"] = "component-jellyfin-state"
+    changed["components"][0]["volumeResourceIds"].sort()
     cases.append((changed, "component_volume_mismatch"))
 
     for changed, reason in cases:
@@ -178,3 +181,34 @@ def test_component_quiescence_deadline_releases_and_returns_no_manifest(
         "manifest": None,
     }
     assert boundary.released and not boundary.active
+
+
+def test_partial_component_volume_set_fails_closed(server):
+    app, client, settings, _clock = server
+    pair = ready(server)
+    boundary = ComponentBoundary(_snapshots()[:1])
+    app.state.core.core_backups = CoreBackupContract(
+        app.state.core.db,
+        app.state.core.auth,
+        settings,
+        component_boundary=boundary,
+    )
+
+    response = client.get("/api/v1/admin/backups/plan", headers=auth(pair))
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "server_unavailable"
+    assert boundary.released
+
+
+def test_component_payload_restore_is_rejected_before_publication(
+    server, monkeypatch
+):
+    app, _client, _settings, _clock = server
+    pair = ready(server)
+    _install_boundary(server, monkeypatch)
+    actor = app.state.core.auth.authenticate(pair["accessToken"])
+    capture = app.state.core.core_backups.capture(actor)
+
+    with pytest.raises(ApiError, match="backup_incompatible"):
+        _validate_capture(capture)

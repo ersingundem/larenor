@@ -10,11 +10,16 @@ SafeVersion = Annotated[
     str, StringConstraints(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.+-]+$")
 ]
 ResourceId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{0,39}$")]
+ComponentId = Annotated[
+    str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,31}$")
+]
 Reason = Literal[
     "unsupported_contract_version",
     "database_schema_mismatch",
     "core_version_mismatch",
     "component_schema_mismatch",
+    "component_version_mismatch",
+    "component_volume_mismatch",
 ]
 Blocker = Literal[
     "active_bounded_transfer",
@@ -28,6 +33,8 @@ Blocker = Literal[
     "active_music_assistant_bootstrap",
     "active_keenetic_command",
     "active_tablet_command",
+    "component_quiescence_timeout",
+    "component_quiescence_unavailable",
 ]
 
 
@@ -39,6 +46,30 @@ class BackupResource(StrictModel):
     sha256: Digest
 
 
+class ComponentBackup(StrictModel):
+    serviceId: ComponentId
+    serviceVersion: SafeVersion
+    configSchemaVersion: Annotated[int, Field(ge=1, le=2**31 - 1)]
+    dataSchemaVersion: SafeVersion
+    volumeResourceIds: list[ResourceId] = Field(min_length=1, max_length=3)
+
+    @model_validator(mode="after")
+    def exact_volume_ids(self):
+        prefix = f"component-{self.serviceId.replace('_', '-')}-"
+        if (
+            self.volumeResourceIds != sorted(self.volumeResourceIds)
+            or len(set(self.volumeResourceIds)) != len(self.volumeResourceIds)
+            or any(not item.startswith(prefix) for item in self.volumeResourceIds)
+        ):
+            raise ValueError("invalid_component_volumes")
+        return self
+
+
+class BackupConsistencyBoundary(StrictModel):
+    mode: Literal["core_write_lock_and_component_quiescence"]
+    maxDurationSeconds: Literal[5]
+
+
 class BackupManifest(StrictModel):
     contractVersion: Annotated[int, Field(ge=1, le=2**31 - 1)]
     snapshotId: SnapshotId
@@ -46,7 +77,9 @@ class BackupManifest(StrictModel):
     coreVersion: SafeVersion
     databaseSchemaVersion: Annotated[int, Field(ge=1, le=2**31 - 1)]
     componentSchemaVersions: dict[str, int] = Field(max_length=128)
-    resources: list[BackupResource] = Field(min_length=4, max_length=5)
+    components: list[ComponentBackup] = Field(default_factory=list, max_length=128)
+    consistencyBoundary: BackupConsistencyBoundary | None = None
+    resources: list[BackupResource] = Field(min_length=4, max_length=133)
 
     @field_validator("componentSchemaVersions", mode="before")
     @classmethod
@@ -73,18 +106,34 @@ class BackupManifest(StrictModel):
         }
         if self.contractVersion >= 2:
             expected["family-board"] = "familyBoard"
+        component_ids = [
+            resource_id
+            for component in self.components
+            for resource_id in component.volumeResourceIds
+        ]
+        if (
+            len({component.serviceId for component in self.components})
+            != len(self.components)
+            or len(set(component_ids)) != len(component_ids)
+            or (self.components and self.consistencyBoundary is None)
+        ):
+            raise ValueError("invalid_backup_components")
+        expected.update({resource_id: "componentData" for resource_id in component_ids})
         found = {resource.id: resource.kind for resource in self.resources}
         if found != expected or len(found) != len(self.resources):
             raise ValueError("invalid_backup_resources")
         versions = {resource.id: resource.version for resource in self.resources}
         expected_versions = {
-            "component-index": "1",
+            "component-index": "2" if self.consistencyBoundary is not None else "1",
             "core-configuration": "1",
             "core-database": str(self.databaseSchemaVersion),
             "vault-key": "aes256-v1",
         }
         if self.contractVersion >= 2:
             expected_versions["family-board"] = "1"
+        expected_versions.update(
+            {resource_id: "component-v1" for resource_id in component_ids}
+        )
         if versions != expected_versions:
             raise ValueError("invalid_backup_resource_versions")
         return self
@@ -114,7 +163,7 @@ class RestoreValidationRequest(StrictModel):
 
 class RestoreValidationResponse(StrictModel):
     compatible: bool
-    reasons: list[Reason] = Field(max_length=4)
+    reasons: list[Reason] = Field(max_length=6)
 
     @model_validator(mode="after")
     def coherent_result(self):
