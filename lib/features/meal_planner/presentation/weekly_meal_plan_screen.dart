@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
 
@@ -26,16 +27,30 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     with WidgetsBindingObserver {
   WeeklyMealPlanSnapshot? _snapshot;
   bool _loading = false;
+  bool _saving = false;
   bool _failed = false;
+  bool _saveFailed = false;
   bool _foreground = true;
   int _operation = 0;
 
-  bool get _current =>
-      mounted &&
-      _foreground &&
-      widget.isCurrent() &&
-      TickerMode.valuesOf(context).enabled &&
-      (ModalRoute.of(context)?.isCurrent ?? true);
+  bool get _authorityCurrent {
+    if (!mounted || !_foreground) return false;
+    try {
+      return widget.isCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _current {
+    if (!_authorityCurrent) return false;
+    try {
+      return TickerMode.valuesOf(context).enabled &&
+          (ModalRoute.of(context)?.isCurrent ?? true);
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   void initState() {
@@ -81,8 +96,14 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     _operation++;
     _snapshot = null;
     _loading = false;
+    _saving = false;
     _failed = false;
-    widget.onRetire?.call();
+    _saveFailed = false;
+    try {
+      widget.onRetire?.call();
+    } catch (_) {
+      // Authority retirement callbacks cannot keep old plan state visible.
+    }
   }
 
   void _retire() {
@@ -91,7 +112,7 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   }
 
   Future<void> _load() async {
-    if (_loading || !_current) return;
+    if (_loading || _saving || !_current) return;
     final operation = ++_operation;
     setState(() {
       _loading = true;
@@ -111,6 +132,120 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     } finally {
       if (operation == _operation && mounted) {
         setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _editServings(MealPlanEntry entry) async {
+    if (_saving || !_current) return;
+    final base = _snapshot;
+    if (base?.plan == null ||
+        !base!.plan!.entries.any((value) => value.id == entry.id)) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final controller = TextEditingController(text: '${entry.servings}');
+    var valid = true;
+    final value = await showCupertinoDialog<int>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => CupertinoAlertDialog(
+          title: Text(l10n.weeklyMealPlanEditServingsTitle),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Semantics(
+              textField: true,
+              label: l10n.weeklyMealPlanServingsLabel,
+              child: CupertinoTextField(
+                key: const ValueKey('meal-edit-servings'),
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                onChanged: (text) {
+                  final servings = int.tryParse(text);
+                  update(
+                    () => valid =
+                        servings != null && servings <= 24 && servings > 0,
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.weeklyMealPlanCancel),
+            ),
+            CupertinoDialogAction(
+              key: const ValueKey('meal-edit-save'),
+              onPressed: valid
+                  ? () =>
+                        Navigator.of(dialogContext)
+                            .pop<int>(int.parse(controller.text))
+                  : null,
+              child: Text(l10n.weeklyMealPlanSave),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (value != null) await _saveServings(base, entry.id, value);
+  }
+
+  Future<void> _saveServings(
+    WeeklyMealPlanSnapshot base,
+    String entryId,
+    int servings,
+  ) async {
+    final plan = base.plan;
+    if (_saving || !_authorityCurrent || plan == null) return;
+    final entries = plan.entries
+        .map(
+          (entry) => entry.id == entryId
+              ? MealPlanEntry(
+                  id: entry.id,
+                  date: entry.date,
+                  slot: entry.slot,
+                  recipeId: entry.recipeId,
+                  servings: servings,
+                  personId: entry.personId,
+                  personRevision: entry.personRevision,
+                  personAclRevision: entry.personAclRevision,
+                )
+              : entry,
+        )
+        .toList(growable: false);
+    if (!entries.any((entry) => entry.id == entryId)) return;
+    final operation = ++_operation;
+    setState(() {
+      _loading = false;
+      _saving = true;
+      _saveFailed = false;
+    });
+    try {
+      final result = await widget.gateway.save(
+        base: base,
+        requestId: _requestId(),
+        weekStart: plan.weekStart,
+        recipes: plan.recipes,
+        entries: entries,
+      );
+      if (operation != _operation) return;
+      if (!_authorityCurrent) {
+        _retire();
+        return;
+      }
+      setState(() => _snapshot = result);
+    } catch (_) {
+      if (operation == _operation && !_authorityCurrent) {
+        _retire();
+      } else if (operation == _operation && _current) {
+        setState(() => _saveFailed = true);
+      }
+    } finally {
+      if (operation == _operation && mounted) {
+        setState(() => _saving = false);
       }
     }
   }
@@ -146,7 +281,19 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
                         retry: _current ? _load : null,
                       ),
                     )
-                  : SliverList.list(children: _days(context, plan)),
+                  : SliverList.list(
+                      children: [
+                        if (_saveFailed)
+                          Semantics(
+                            liveRegion: true,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(l10n.weeklyMealPlanSaveFailed),
+                            ),
+                          ),
+                        ..._days(context, plan),
+                      ],
+                    ),
             ),
           ),
         ],
@@ -202,13 +349,30 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
                           ),
                           const SizedBox(height: 10),
                           SizedBox(
+                            key: ValueKey('meal-edit-${entry.id}'),
+                            height: 48,
+                            child: CupertinoButton(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              onPressed: !_current || _saving
+                                  ? null
+                                  : () => _editServings(entry),
+                              child: Text(
+                                l10n.weeklyMealPlanEditServings,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
                             key: ValueKey('meal-shopping-${entry.id}'),
                             height: 48,
                             child: CupertinoButton(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              onPressed: !_current
+                              onPressed: !_current || _saving
                                   ? null
                                   : () => _showShopping(context, recipe, entry),
                               child: Text(
@@ -380,4 +544,12 @@ String _dateLabel(BuildContext context, DateTime value) {
   final weekday = (tr ? turkish : en)[value.weekday - 1];
   return '$weekday · ${value.day.toString().padLeft(2, '0')}.'
       '${value.month.toString().padLeft(2, '0')}.${value.year}';
+}
+
+String _requestId() {
+  final random = Random.secure();
+  return List.generate(
+    16,
+    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
 }

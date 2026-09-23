@@ -8,6 +8,31 @@ import '../domain/today_models.dart';
 import 'today_repository.dart';
 import 'today_timezone.dart';
 
+final class _IdempotentTodoAdd {
+  const _IdempotentTodoAdd({
+    required this.entityId,
+    required this.summary,
+    required this.dueDate,
+    required this.dueAt,
+    required this.result,
+  });
+
+  final String entityId, summary;
+  final String? dueDate, dueAt;
+  final Future<void> result;
+
+  bool matches(
+    TodayTodoList list,
+    String value, {
+    String? dueDate,
+    DateTime? dueAt,
+  }) =>
+      entityId == list.entityId &&
+      summary == value &&
+      this.dueDate == dueDate &&
+      this.dueAt == dueAt?.toUtc().toIso8601String();
+}
+
 class TodayActions {
   TodayActions({
     required this.repository,
@@ -19,6 +44,7 @@ class TodayActions {
   final ActionController controller;
   final void Function()? onChanged;
   final Duration readbackDelay;
+  final _idempotentTodoAdds = <String, _IdempotentTodoAdd>{};
 
   Future<void> addTodo(
     TodayTodoList list,
@@ -44,15 +70,92 @@ class TodayActions {
     String? dueDate,
     DateTime? dueAt,
     String? description,
-  }) => _addTodo(
-    list,
-    summary,
-    current: current,
-    idempotencyKey: idempotencyKey,
-    dueDate: dueDate,
-    dueAt: dueAt,
-    description: description,
-  );
+  }) {
+    if (idempotencyKey == null) {
+      return _addTodo(
+        list,
+        summary,
+        current: current,
+        dueDate: dueDate,
+        dueAt: dueAt,
+        description: description,
+      );
+    }
+    return _addTodoIdempotent(
+      list,
+      summary,
+      current: current,
+      idempotencyKey: idempotencyKey,
+      dueDate: dueDate,
+      dueAt: dueAt,
+      description: description,
+    );
+  }
+
+  Future<void> _addTodoIdempotent(
+    TodayTodoList list,
+    String summary, {
+    required bool Function() current,
+    required String idempotencyKey,
+    String? dueDate,
+    DateTime? dueAt,
+    String? description,
+  }) async {
+    final title = _summary(summary);
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(idempotencyKey) ||
+        description != null ||
+        !list.canSetDescription) {
+      throw const TodayException('unsupported_idempotency');
+    }
+    final existing = _idempotentTodoAdds[idempotencyKey];
+    if (existing != null) {
+      if (!existing.matches(list, title, dueDate: dueDate, dueAt: dueAt)) {
+        throw const TodayException('ambiguous_idempotency');
+      }
+      await existing.result;
+      if (!_safeCurrent(current)) throw const TodayException('disposed');
+      return;
+    }
+    if (_idempotentTodoAdds.length >= 256) {
+      throw const TodayException('idempotency_capacity');
+    }
+    final result = _addTodo(
+      list,
+      title,
+      current: current,
+      idempotencyKey: idempotencyKey,
+      dueDate: dueDate,
+      dueAt: dueAt,
+    );
+    final operation = _IdempotentTodoAdd(
+      entityId: list.entityId,
+      summary: title,
+      dueDate: dueDate,
+      dueAt: dueAt?.toUtc().toIso8601String(),
+      result: result,
+    );
+    _idempotentTodoAdds[idempotencyKey] = operation;
+    try {
+      await result;
+      if (identical(_idempotentTodoAdds[idempotencyKey], operation)) {
+        _idempotentTodoAdds.remove(idempotencyKey);
+      }
+    } on ActionExecutionException catch (error) {
+      if (error.receipt.status == ActionStatus.failed &&
+          identical(_idempotentTodoAdds[idempotencyKey], operation)) {
+        _idempotentTodoAdds.remove(idempotencyKey);
+      }
+      rethrow;
+    }
+  }
+
+  bool _safeCurrent(bool Function() current) {
+    try {
+      return current();
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<void> _addTodo(
     TodayTodoList list,

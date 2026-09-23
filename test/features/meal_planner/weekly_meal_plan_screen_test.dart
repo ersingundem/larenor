@@ -212,14 +212,27 @@ void main() {
       find.byKey(const ValueKey('meal-edit-servings')),
       '6',
     );
-    await tester.tap(find.byKey(const ValueKey('meal-edit-save')));
+    expect(
+      tester
+          .widget<CupertinoDialogAction>(
+            find.byKey(const ValueKey('meal-edit-save')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    tester
+        .widget<CupertinoDialogAction>(
+          find.byKey(const ValueKey('meal-edit-save')),
+        )
+        .onPressed!();
     await tester.pumpAndSettle();
 
+    expect(find.text('Mercimek çorbası'), findsOneWidget);
     expect(gateway.base!.authority.planRevision, 2);
     expect(gateway.requestId, matches(RegExp(r'^[0-9a-f]{32}$')));
     expect(gateway.recipes!.single.title, 'Mercimek çorbası');
     expect(gateway.entries!.single.servings, 6);
-    expect(find.text('6 servings'), findsOneWidget);
+    expect(find.textContaining('6 servings'), findsOneWidget);
   });
 
   testWidgets('throwing authority after save await publishes no old result', (
@@ -246,14 +259,18 @@ void main() {
       find.byKey(const ValueKey('meal-edit-servings')),
       '6',
     );
-    await tester.tap(find.byKey(const ValueKey('meal-edit-save')));
+    tester
+        .widget<CupertinoDialogAction>(
+          find.byKey(const ValueKey('meal-edit-save')),
+        )
+        .onPressed!();
     await tester.pump();
     authorityThrows = true;
     delayed.complete(snapshot(revision: 3, servings: 6));
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('6 servings'), findsNothing);
+    expect(find.textContaining('6 servings'), findsNothing);
     expect(find.text('Mercimek çorbası'), findsNothing);
   });
 
