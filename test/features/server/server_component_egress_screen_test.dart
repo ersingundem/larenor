@@ -42,7 +42,7 @@ class _Fixture extends ServicesFixture {
 
   http.Response egressResponse(http.Request request) {
     if (request.method == 'GET') {
-      return json(_policy(revision: policyRevision, grants: grants));
+      return this.json(_policy(revision: policyRevision, grants: grants));
     }
     final body = jsonDecode(request.body) as Map<String, dynamic>;
     if (body.keys.toSet().difference({
@@ -52,7 +52,7 @@ class _Fixture extends ServicesFixture {
         }).isNotEmpty ||
         body['expectedRevision'] != policyRevision ||
         body['expectedServiceRevision'] != 1) {
-      return json({
+      return this.json({
         'error': {'code': 'revision_conflict'},
       }, 409);
     }
@@ -60,7 +60,7 @@ class _Fixture extends ServicesFixture {
     grants = (body['grants'] as List)
         .map((value) => Map<String, dynamic>.from(value as Map))
         .toList();
-    return json(_policy(revision: policyRevision, grants: grants));
+    return this.json(_policy(revision: policyRevision, grants: grants));
   }
 }
 
@@ -171,22 +171,22 @@ void main() {
     );
   });
 
-  testWidgets('tablet dialog stays usable at 2x text in English and Turkish', (
-    tester,
-  ) async {
-    for (final language in ['en', 'tr']) {
+  for (final language in ['en', 'tr']) {
+    testWidgets('tablet dialog stays usable at 2x text in $language', (
+      tester,
+    ) async {
       await mount(tester, width: 600, scale: 2, language: language);
       await tap(tester, 'service-egress-$serviceId');
       final field = find.byKey(const ValueKey('egress-addresses'));
       expect(field, findsOneWidget);
       expect(tester.getSize(field).height, greaterThanOrEqualTo(96));
+      await tester.ensureVisible(find.byKey(const ValueKey('egress-save')));
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('egress-save')).hitTestable(),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      fixture.account.dispose();
-    }
-  });
+    });
+  }
 }

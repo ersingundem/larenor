@@ -210,6 +210,49 @@ final class ServerComponentEgressGrant {
     );
   }
 
+  factory ServerComponentEgressGrant.fromEndpoint(
+    String endpoint,
+    Iterable<String> addressValues,
+  ) {
+    final uri = Uri.tryParse(endpoint);
+    if (uri == null ||
+        !{'http', 'https'}.contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final addresses = <Map<String, dynamic>>[];
+    for (final raw in addressValues) {
+      final address = raw.trim();
+      if (address.isEmpty) continue;
+      ServerComponentEgressAddress? parsed;
+      for (final network in ServerEgressNetwork.values) {
+        try {
+          parsed = ServerComponentEgressAddress.fromJson({
+            'address': address,
+            'network': network.name,
+          });
+          break;
+        } on LarenorServerException {
+          // Try the other closed network class; invalid addresses fail below.
+        }
+      }
+      if (parsed == null) {
+        throw const LarenorServerException('invalid_request');
+      }
+      addresses.add(parsed.toJson());
+    }
+    if (addresses.isEmpty) {
+      throw const LarenorServerException('invalid_request');
+    }
+    return ServerComponentEgressGrant.fromJson({
+      'scheme': uri.scheme,
+      'host': uri.host,
+      'port': uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80),
+      'addresses': addresses,
+    });
+  }
+
   final ServerEgressScheme scheme;
   final String host;
   final int port;

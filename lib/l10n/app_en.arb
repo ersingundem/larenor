@@ -2240,6 +2240,35 @@
   "serverServicesUsernamePassword": "Username and password",
   "serverServicesCredentialPairRequired": "Enter both username and password, or leave both blank.",
   "serverServicesSavedCredentialsUnsupported": "The saved fields do not match a supported credential combination for this check. They stay unchanged while Keep saved credentials is selected.",
+  "serverEgressManage": "Network access",
+  "serverEgressTitle": "Component network access",
+  "serverEgressIntro": "Pin the exact addresses this Core component may contact. Core still verifies the service revision and every destination before connecting.",
+  "serverEgressAddresses": "Pinned IP addresses",
+  "serverEgressAddressesHint": "One IPv4 or IPv6 address per line",
+  "serverEgressBlocked": "Blocked",
+  "serverEgressAllowed": "Allowed for {count} pinned addresses",
+  "@serverEgressAllowed": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "serverEgressRevision": "Policy revision {revision}",
+  "@serverEgressRevision": {
+    "placeholders": {
+      "revision": {"type": "int"}
+    }
+  },
+  "serverEgressAudit": "{count} recent policy events",
+  "@serverEgressAudit": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "serverEgressDisable": "Block access",
+  "serverEgressInvalid": "Enter 1–8 unique public or LAN IP addresses accepted by Core.",
+  "serverEgressConflict": "The service or policy changed. Refresh before saving.",
+  "serverEgressUncertain": "The result could not be confirmed. Refresh before another change.",
+  "serverEgressFailed": "Core could not verify this network policy.",
   "serverPluginsTitle": "Server components",
   "serverPluginsIntro": "Review Larenor Server components and resource requirements. Unified media setup and automatic connections are in development.",
   "serverPluginsPreview": "Review installation",
