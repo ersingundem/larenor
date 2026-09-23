@@ -372,6 +372,46 @@ void main() {
   });
 
   test(
+    'download requires exact declared length and a bounded SAF content result',
+    () async {
+      final policy = WebPanelPolicy.fromUrl('https://panel.invalid')!;
+      var exports = 0;
+      for (final fixture in <({int? declared, Uri saved})>[
+        (declared: validPdf.length + 1, saved: Uri.parse('content://fixture/saved')),
+        (declared: validPdf.length, saved: Uri.parse('file:///private/saved.pdf')),
+        (
+          declared: validPdf.length,
+          saved: Uri.parse('content://fixture/saved?token=private'),
+        ),
+      ]) {
+        final access = LocalWebPanelTransferAccess(
+          client: () => MockClient.streaming(
+            (_, _) async => http.StreamedResponse(
+              Stream.value(validPdf),
+              200,
+              contentLength: fixture.declared,
+              headers: {'content-type': 'application/pdf'},
+            ),
+          ),
+          saveFile: (_, _, _) async {
+            exports++;
+            return fixture.saved;
+          },
+        );
+        expect(
+          await access.download(
+            Uri.parse('https://panel.invalid/file.pdf'),
+            policy,
+            () => true,
+          ),
+          isFalse,
+        );
+      }
+      expect(exports, 2, reason: 'length mismatch must fail before opening SAF');
+    },
+  );
+
+  test(
     'picker failure retires working state and allows explicit retry',
     () async {
       final controller = WebPanelTransferController(
