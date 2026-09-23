@@ -21,6 +21,7 @@ import com.ersingundem.larenor.game.GameStreamNativeBridge
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
 import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
+import com.ersingundem.larenor.backup.CoreBackupSourceBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -40,6 +41,7 @@ class MainActivity : FlutterActivity() {
     private var webPanelRenderer: WebPanelRendererBridge? = null
     private var managedTabletSource: ManagedTabletSourceBridge? = null
     private var coreBackupDestination: CoreBackupDestinationBridge? = null
+    private var coreBackupSource: CoreBackupSourceBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -61,6 +63,7 @@ class MainActivity : FlutterActivity() {
         )
         managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupDestination = CoreBackupDestinationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        coreBackupSource = CoreBackupSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -122,6 +125,7 @@ class MainActivity : FlutterActivity() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (coreBackupDestination?.onActivityResult(requestCode, resultCode, data) == true) return
+        if (coreBackupSource?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -135,6 +139,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        coreBackupSource?.dispose()
+        coreBackupSource = null
         coreBackupDestination?.dispose()
         coreBackupDestination = null
         webPanelRenderer?.dispose()
