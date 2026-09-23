@@ -55,3 +55,16 @@ only `Uri.path`. Requiring `content://` in Dart therefore reported every real
 Android export as failed after it had already written. A permanent native RED
 requires a boolean-only SAF bridge, off-main write, invalid-URI rejection,
 dispose cancellation and late-result cleanup before auto-merge is restored.
+
+- RED `c27077dc549538887bedc22dab120ccb1f1c99dc` specifies the Android
+  destination contract and did not compile before the bridge existed.
+- GREEN `e3020a5b3a533b9cbe77e7d904ffa0dc5ef3d083` keeps the selected URI
+  native, returns only a boolean receipt, writes on a bounded serial worker and
+  scopes cancellation to an unguessable operation id. Retired writes and late
+  successful picker results delete their partial target; canceled picker data
+  is never treated as an owned target. Request code zero remains disjoint from
+  the backup bridges' process-scope `1..0xFFFE` pools.
+- The full Flutter WebPanel batch passed **113/113**, both focused static
+  analysis targets reported no issues, and the Android WebPanel Robolectric
+  batch passed **13/13**: five destination bridge cases plus eight renderer
+  lifecycle cases.
