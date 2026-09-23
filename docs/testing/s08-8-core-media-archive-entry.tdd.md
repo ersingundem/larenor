@@ -1,8 +1,9 @@
 # S08.8 Core media archive entry
 
 This slice makes the existing central, read-only media archive evidence
-discoverable from a verified Core home. It does not close `S08.8`: queue
-progress remains **25/125** and selected-feature progress remains **0/63**.
+discoverable from a verified Core home. It does not close `S08.8`: the current
+queue baseline remains **26/125** and selected-feature progress remains
+**0/63**.
 
 ## Accepted behavior
 
