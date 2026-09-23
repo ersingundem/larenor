@@ -38,6 +38,23 @@ Blocker = Literal[
 ]
 
 
+def validate_backup_passphrase(value: str) -> str:
+    try:
+        if (
+            type(value) is not str
+            or not 16 <= len(value) <= 128
+            or len(value.encode("utf-8")) > 512
+            or any(
+                ord(character) < 32 or ord(character) == 127
+                for character in value
+            )
+        ):
+            raise ValueError("invalid_passphrase")
+        return value
+    except UnicodeError:
+        raise ValueError("invalid_passphrase") from None
+
+
 class BackupResource(StrictModel):
     id: ResourceId
     kind: Literal["database", "vaultKey", "configuration", "componentData", "familyBoard"]
@@ -182,8 +199,4 @@ class BackupExportRequest(StrictModel):
     @field_validator("passphrase")
     @classmethod
     def safe_passphrase(cls, value):
-        if len(value.encode("utf-8")) > 512 or any(
-            ord(character) < 32 or ord(character) == 127 for character in value
-        ):
-            raise ValueError("invalid_passphrase")
-        return value
+        return validate_backup_passphrase(value)

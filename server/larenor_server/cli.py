@@ -5,6 +5,7 @@ from pathlib import Path
 import uvicorn
 
 from .config import Settings
+from .core_backups.models import validate_backup_passphrase
 from .core_backups.restore import restore_empty
 from .core_backups.service import MAX_BUNDLE_BYTES
 from .errors import ApiError, StartupError
@@ -26,10 +27,12 @@ def main(argv=None) -> int:
         settings = Settings.from_environment()
         if args.restore is not None:
             bundle = private_read(args.restore, MAX_BUNDLE_BYTES)
-            encoded = private_read(args.restore_passphrase_file, 129)
+            encoded = private_read(args.restore_passphrase_file, 513)
             try:
-                passphrase = encoded.decode("utf-8").removesuffix("\n")
-            except UnicodeError:
+                passphrase = validate_backup_passphrase(
+                    encoded.decode("utf-8").removesuffix("\n")
+                )
+            except (UnicodeError, ValueError):
                 raise StartupError("restore_passphrase_invalid") from None
             restore_empty(settings, bundle, passphrase)
             create_configured_app(settings)
