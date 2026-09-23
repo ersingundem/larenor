@@ -5,6 +5,8 @@ import '../../../../shared/widgets/app_page_scaffold.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/home_session_controller.dart';
+import '../../../../core/home_source_store.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../domain/media_title.dart';
 import '../domain/media_read_result.dart';
@@ -29,6 +31,7 @@ import '../../ha_playback/presentation/ha_playback_screen.dart';
 import '../../music/presentation/music_center_screen.dart';
 import '../../archive_health/data/media_archive_health_providers.dart';
 import '../../archive_health/presentation/media_archive_health_card.dart';
+import '../../../server/media_catalog/presentation/server_media_catalog_screen.dart';
 
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
@@ -47,6 +50,12 @@ class _MediaHubScreenState extends MediaSessionState<MediaHubScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Core is the sole media authority once the home source selects it. Do not
+    // construct a device-local Jellyfin/*arr client as a silent fallback.
+    if (ref.watch(homeSessionControllerProvider)?.source ==
+        HomeSource.verifiedCore) {
+      return const ServerMediaCatalogScreen();
+    }
     watchMediaAccounts();
     ref.listen(mediaHubRowsProvider, (previous, next) {
       if (next.isLoading || next.hasError) _catalogGeneration++;

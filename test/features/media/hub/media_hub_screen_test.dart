@@ -94,53 +94,52 @@ Future<void> tabToMediaSearch(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets(
-    'verified Core media entry never mounts direct media providers',
-    (tester) async {
-      final harness = ScopeHarness(HomeSource.verifiedCore);
-      await harness.signIn();
-      final home = HomeSessionController(
-        store: harness.source,
-        account: harness.account,
-      );
-      await home.initialize();
-      home.runtimeMounted(home.runtimeIdentity);
-      addTearDown(() {
-        home.dispose();
-        harness.account.dispose();
-      });
-      var directCatalogReads = 0;
-      var directJellyfinReads = 0;
+  testWidgets('verified Core media entry never mounts direct media providers', (
+    tester,
+  ) async {
+    final harness = ScopeHarness(HomeSource.verifiedCore);
+    await harness.signIn();
+    final home = HomeSessionController(
+      store: harness.source,
+      account: harness.account,
+    );
+    await home.initialize();
+    home.runtimeMounted(home.runtimeIdentity);
+    addTearDown(() {
+      home.dispose();
+      harness.account.dispose();
+    });
+    var directCatalogReads = 0;
+    var directJellyfinReads = 0;
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            homeSessionControllerProvider.overrideWithValue(home),
-            serverAccountControllerProvider.overrideWithValue(harness.account),
-            mediaHubRowsProvider.overrideWith((ref) async {
-              directCatalogReads++;
-              return const [];
-            }),
-            jellyfinClientProvider.overrideWith((ref) {
-              directJellyfinReads++;
-              return null;
-            }),
-          ],
-          child: CupertinoApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const MediaHubScreen(),
-          ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeSessionControllerProvider.overrideWithValue(home),
+          serverAccountControllerProvider.overrideWithValue(harness.account),
+          mediaHubRowsProvider.overrideWith((ref) async {
+            directCatalogReads++;
+            return const [];
+          }),
+          jellyfinClientProvider.overrideWith((ref) {
+            directJellyfinReads++;
+            return null;
+          }),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const MediaHubScreen(),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
-      expect(directCatalogReads, 0);
-      expect(directJellyfinReads, 0);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
+    expect(directCatalogReads, 0);
+    expect(directJellyfinReads, 0);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {

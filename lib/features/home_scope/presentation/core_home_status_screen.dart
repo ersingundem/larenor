@@ -120,7 +120,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                     onTap: !current()
                         ? null
                         : () {
-                            if (current()) context.push('/media/catalog');
+                            if (current()) context.push('/media');
                           },
                   ),
                 if (controller.account.context != null &&
