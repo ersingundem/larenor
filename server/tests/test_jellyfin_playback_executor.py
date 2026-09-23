@@ -211,6 +211,31 @@ def test_post_dispatch_protocol_failure_is_always_uncertain(
     assert TOKEN not in str(raised.value) + repr(raised.value)
 
 
+@pytest.mark.parametrize('before_raw', [
+    response('500 Internal Server Error', b'{}'),
+    b'not-http',
+])
+def test_before_read_failure_is_definite_and_never_dispatches(
+        prepared, monkeypatch, before_raw):
+    stack, binding, engine, operations = prepared
+    connections = [
+        Connection(before_raw),
+        Connection(response('204 No Content', content_type=False)),
+        Connection(response('200 OK', sessions(item=ITEM, position=12))),
+    ]
+    opened(monkeypatch, stack, binding, engine, connections)
+
+    with pytest.raises(
+            JellyfinPlaybackExecutionError,
+            match='^jellyfin_playback_resources_unavailable$') as raised:
+        executor(binding, operations).execute(
+            action(stack), deadline=time.monotonic() + 1, gate=lambda: True)
+
+    assert raised.value.uncertain_effect is False
+    assert connections[1].sent == b''
+    assert all(connection.closed for connection in connections)
+
+
 def test_post_dispatch_final_endpoint_drift_is_always_uncertain(
         prepared, monkeypatch):
     stack, binding, engine, operations = prepared

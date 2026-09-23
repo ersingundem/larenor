@@ -124,3 +124,19 @@ def test_pre_effect_failure_keeps_typed_no_effect_classification_over_ipc():
 
     assert raised.value.uncertain_effect is False
     assert [call[0] for call in backend.calls] == ['execute']
+
+
+def test_pre_effect_resource_failure_keeps_no_effect_classification_over_ipc():
+    with running() as (backend, client):
+        backend.execute_error = JellyfinPlaybackExecutionError(
+            'jellyfin_playback_resources_unavailable', uncertain_effect=False)
+
+        with pytest.raises(
+                JellyfinPlaybackExecutionError,
+                match='^jellyfin_playback_resources_unavailable$') as raised:
+            client.execute_media_playback(
+                private_action(), deadline=time.monotonic() + .4,
+                gate=lambda: True)
+
+    assert raised.value.uncertain_effect is False
+    assert [call[0] for call in backend.calls] == ['execute']
