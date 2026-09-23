@@ -76,9 +76,13 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   worker socket and connect Core to the packaged Linux runtime. Capability
   discovery compatibility was retained by `d2d2ad24`; a worker implementation
   that does not advertise both playback methods remains unavailable.
+- Authority-retention `107f3928` re-resolves the encrypted bootstrap binding
+  before and after worker dispatch. API-key, plan or bootstrap-revision drift
+  therefore suppresses success even when an external effect already occurred.
 
 The production-worker package adds **20/20** protocol/container tests and the
-private IPC/credential groups bring the focused Server batch to **55/55**.
+private IPC/credential/provider groups bring the focused Server batch to
+**57/57**.
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
