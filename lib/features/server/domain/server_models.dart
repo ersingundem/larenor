@@ -134,6 +134,7 @@ class ServerSession {
     required this.refreshToken,
     required this.expiresAt,
     required this.user,
+    this.sessionFamilyId,
     this.context,
     this.authMutationPending = false,
   });
@@ -153,6 +154,9 @@ class ServerSession {
       refreshToken: _token(json['refreshToken']),
       expiresAt: now.add(Duration(seconds: expiry)),
       user: ServerUser.fromJson(serverObject(json['user'])),
+      sessionFamilyId: json.containsKey('sessionFamilyId')
+          ? _sessionFamily(json['sessionFamilyId'])
+          : null,
     );
   }
 
@@ -161,6 +165,7 @@ class ServerSession {
   final String refreshToken;
   final DateTime expiresAt;
   final ServerUser user;
+  final String? sessionFamilyId;
 
   /// Persisted identity is a hint until this process revalidates it with Core.
   final ServerContext? context;
@@ -177,6 +182,7 @@ class ServerSession {
     refreshToken: refreshToken,
     expiresAt: expiresAt,
     user: value,
+    sessionFamilyId: sessionFamilyId,
     context: context,
     authMutationPending: authMutationPending,
   );
@@ -187,6 +193,7 @@ class ServerSession {
     refreshToken: refreshToken,
     expiresAt: expiresAt,
     user: user,
+    sessionFamilyId: sessionFamilyId,
     context: value,
   );
 
@@ -196,17 +203,19 @@ class ServerSession {
     refreshToken: refreshToken,
     expiresAt: expiresAt,
     user: user,
+    sessionFamilyId: sessionFamilyId,
     context: context,
     authMutationPending: true,
   );
 
   String encodeStorage() => jsonEncode({
-    'version': 2,
+    'version': sessionFamilyId == null ? 2 : 3,
     'baseUrl': endpoint.baseUrl,
     'accessToken': accessToken,
     'refreshToken': refreshToken,
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     'user': user.toJson(),
+    if (sessionFamilyId != null) 'sessionFamilyId': sessionFamilyId,
     'context': context?.toJson(),
     'authMutationPending': authMutationPending,
   });
@@ -218,7 +227,7 @@ class ServerSession {
       }
       final json = serverObject(jsonDecode(encoded));
       final version = json['version'];
-      if (version is! int || (version != 1 && version != 2)) {
+      if (version is! int || (version != 1 && version != 2 && version != 3)) {
         throw const LarenorServerException('invalid_session');
       }
       final expected = {
@@ -228,11 +237,12 @@ class ServerSession {
         'refreshToken',
         'expiresAt',
         'user',
-        if (version == 2) ...['context', 'authMutationPending'],
+        if (version >= 2) ...['context', 'authMutationPending'],
+        if (version == 3) 'sessionFamilyId',
       };
       if (json.length != expected.length ||
           !json.keys.every(expected.contains) ||
-          (version == 2 && json['authMutationPending'] is! bool)) {
+          (version >= 2 && json['authMutationPending'] is! bool)) {
         throw const LarenorServerException('invalid_session');
       }
       return ServerSession(
@@ -241,11 +251,14 @@ class ServerSession {
         refreshToken: _token(json['refreshToken']),
         expiresAt: DateTime.parse(serverText(json['expiresAt'], max: 40)),
         user: ServerUser.fromJson(serverObject(json['user'])),
-        context: version == 2 && json['context'] != null
+        sessionFamilyId: version == 3
+            ? _sessionFamily(json['sessionFamilyId'])
+            : null,
+        context: version >= 2 && json['context'] != null
             ? ServerContext.fromJson(json['context'])
             : null,
         authMutationPending:
-            version == 2 && json['authMutationPending'] == true,
+            version >= 2 && json['authMutationPending'] == true,
       );
     } catch (_) {
       throw const LarenorServerException('invalid_session');
@@ -255,6 +268,13 @@ class ServerSession {
   static String _token(Object? value) {
     if (value is! String ||
         !RegExp(r'^[A-Za-z0-9_-]{20,2048}$').hasMatch(value)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return value;
+  }
+
+  static String _sessionFamily(Object? value) {
+    if (value is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(value)) {
       throw const LarenorServerException('invalid_response');
     }
     return value;

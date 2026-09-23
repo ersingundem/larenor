@@ -11,6 +11,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 const adminId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const memberId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const deviceId = 'cccccccccccccccccccccccccccccccc';
+const sessionFamilyId = 'dddddddddddddddddddddddddddddddd';
 const adminPassword = 'Synthetic temporary password';
 
 Map<String, dynamic> adminUserJson({
@@ -103,6 +104,7 @@ class AdminFixture {
     refreshToken: 'synthetic_admin_refresh_12345',
     expiresAt: now.add(const Duration(hours: 1)),
     user: user,
+    sessionFamilyId: sessionFamilyId,
   );
 
   Map<String, dynamic> userJson() => {
@@ -123,6 +125,7 @@ class AdminFixture {
     'refreshToken': session().refreshToken,
     'tokenType': 'Bearer',
     'expiresIn': 3600,
+    'sessionFamilyId': sessionFamilyId,
     'user': userJson(),
   });
 

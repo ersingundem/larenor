@@ -29,7 +29,8 @@ Map<String, dynamic> _response(
     'homeId': 'b' * 32,
     'accountId': accountId ?? fixture.user.id,
     'accountRevision': 1,
-    'sessionFamilyId': 'c' * 32,
+    'sessionFamilyId': sessionFamilyId,
+    'preferenceRevision': revision ?? 0,
   },
   'preference': revision == null
       ? null
@@ -40,7 +41,7 @@ Map<String, dynamic> _response(
             'coreId': 'a' * 32,
             'homeId': 'b' * 32,
             'accountId': accountId ?? fixture.user.id,
-            'kind': 'jellyfin_track_preferences',
+            'kind': 'media_language_preferences',
           },
           'revision': revision,
           'audioLanguage': audio,
@@ -58,7 +59,7 @@ void main() {
       var revision = 0;
       String? audio, subtitle;
       fixture.respond = (request) async {
-        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+        if (request.url.path.contains('/media/language-preferences/')) {
           if (request.method == 'GET') {
             return fixture.json(
               _response(
@@ -71,6 +72,8 @@ void main() {
           }
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['expectedRevision'], revision);
+          expect(body['expectedAccountRevision'], 1);
+          expect(body['requestId'], matches(RegExp(r'^[0-9a-f]{32}$')));
           audio = body['audioLanguage'] as String?;
           subtitle = body['subtitleLanguage'] as String?;
           revision++;
@@ -97,7 +100,7 @@ void main() {
       final wire = fixture.calls
           .where(
             (request) =>
-                request.url.path.contains('/media/jellyfin/preferences/'),
+                request.url.path.contains('/media/language-preferences/'),
           )
           .map((request) => '${request.url} ${request.body}')
           .join(' ');
@@ -113,7 +116,7 @@ void main() {
     await fixture.account.initialize();
     addTearDown(fixture.account.dispose);
     fixture.respond = (request) async {
-      if (request.url.path.contains('/media/jellyfin/preferences/')) {
+      if (request.url.path.contains('/media/language-preferences/')) {
         return fixture.json(
           _response(fixture, revision: 1, audio: 'en', accountId: 'f' * 32),
         );
@@ -138,7 +141,7 @@ void main() {
       var audio = 'en';
       var subtitle = 'off';
       fixture.respond = (request) async {
-        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+        if (request.url.path.contains('/media/language-preferences/')) {
           if (request.method == 'GET') {
             return fixture.json(
               _response(
@@ -150,6 +153,8 @@ void main() {
             );
           }
           final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['expectedAccountRevision'], 1);
+          expect(body['requestId'], matches(RegExp(r'^[0-9a-f]{32}$')));
           if (revision == 2) {
             expect(body['expectedRevision'], 2);
             expect(body['audioLanguage'], 'fr');
@@ -219,7 +224,7 @@ void main() {
     );
     expect(
       fixture.calls.where(
-        (request) => request.url.path.contains('/media/jellyfin/preferences/'),
+        (request) => request.url.path.contains('/media/language-preferences/'),
       ),
       isEmpty,
     );
@@ -234,7 +239,7 @@ void main() {
       final read = Completer<http.Response>();
       var current = true;
       fixture.respond = (request) {
-        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+        if (request.url.path.contains('/media/language-preferences/')) {
           expect(request.method, 'GET');
           return read.future;
         }
@@ -248,7 +253,7 @@ void main() {
         isCurrent: () => current,
       );
       while (!fixture.calls.any(
-        (request) => request.url.path.contains('/media/jellyfin/preferences/'),
+        (request) => request.url.path.contains('/media/language-preferences/'),
       )) {
         await Future<void>.delayed(Duration.zero);
       }
@@ -259,7 +264,7 @@ void main() {
       expect(
         fixture.calls.where(
           (request) =>
-              request.url.path.contains('/media/jellyfin/preferences/'),
+              request.url.path.contains('/media/language-preferences/'),
         ),
         hasLength(1),
       );

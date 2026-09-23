@@ -36,7 +36,8 @@ Map<String, dynamic> _response(
     'homeId': 'b' * 32,
     'accountId': fixture.user.id,
     'accountRevision': 1,
-    'sessionFamilyId': 'c' * 32,
+    'sessionFamilyId': sessionFamilyId,
+    'preferenceRevision': revision,
   },
   'preference': revision == 0
       ? null
@@ -47,7 +48,7 @@ Map<String, dynamic> _response(
             'coreId': 'a' * 32,
             'homeId': 'b' * 32,
             'accountId': fixture.user.id,
-            'kind': 'jellyfin_track_preferences',
+            'kind': 'media_language_preferences',
           },
           'revision': revision,
           'audioLanguage': audio,
@@ -70,7 +71,7 @@ void main() {
     String? audio = 'en';
     String? subtitle = 'de';
     fixture.respond = (request) async {
-      if (!request.url.path.contains('/media/jellyfin/preferences/')) {
+      if (!request.url.path.contains('/media/language-preferences/')) {
         return fixture.defaultResponse(request);
       }
       if (request.method == 'GET') {
@@ -84,12 +85,12 @@ void main() {
         );
       }
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      expect(body, {
-        'schemaVersion': 1,
-        'expectedRevision': 7,
-        'audioLanguage': 'tr',
-        'subtitleLanguage': 'de',
-      });
+      expect(body['schemaVersion'], 1);
+      expect(body['requestId'], matches(RegExp(r'^[0-9a-f]{32}$')));
+      expect(body['expectedAccountRevision'], 1);
+      expect(body['expectedRevision'], 7);
+      expect(body['audioLanguage'], 'tr');
+      expect(body['subtitleLanguage'], 'de');
       revision++;
       audio = body['audioLanguage'] as String?;
       subtitle = body['subtitleLanguage'] as String?;
@@ -166,7 +167,7 @@ void main() {
       expect(
         fixture.calls.where(
           (request) =>
-              request.url.path.contains('/media/jellyfin/preferences/'),
+              request.url.path.contains('/media/language-preferences/'),
         ),
         isEmpty,
       );
@@ -191,7 +192,7 @@ void main() {
     var current = true;
     var putCount = 0;
     fixture.respond = (request) async {
-      if (!request.url.path.contains('/media/jellyfin/preferences/')) {
+      if (!request.url.path.contains('/media/language-preferences/')) {
         return fixture.defaultResponse(request);
       }
       if (request.method == 'GET') {
