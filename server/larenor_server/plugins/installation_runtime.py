@@ -38,6 +38,7 @@ from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
+from .jellyfin_playback_executor import JellyfinPlaybackExecutor
 from .seerr_bootstrap_executor import SeerrBootstrapExecutor
 from .seerr_initial_admin import SeerrInitialAdmin
 from .seerr_arr_wiring import SeerrArrWiring
@@ -288,6 +289,11 @@ class _RuntimeBackend:
         self.music_assistant_bootstrap = MusicAssistantBootstrapRuntime()
         self.music_provider_setup = MusicProviderSetupRuntime()
         self.music_playback = MusicPlaybackRuntime()
+        self.media_playback = (
+            JellyfinPlaybackExecutor(operations, binding_builder)
+            if type(operations) is JournaledManagedContainerOperations
+            else None
+        )
 
     def apply(self, step, plan):
         service = service_for_step(step, plan)
@@ -326,6 +332,18 @@ class _RuntimeBackend:
         if gate() is not True:
             raise ValueError('music_playback_authority_changed')
         return result
+
+    def read_media_playback(self, authority, *, deadline, gate):
+        if self.media_playback is None:
+            raise ValueError('jellyfin_playback_worker_unavailable')
+        return self.media_playback.read(
+            authority, deadline=deadline, gate=gate)
+
+    def execute_media_playback(self, action, *, deadline, gate):
+        if self.media_playback is None:
+            raise ValueError('jellyfin_playback_worker_unavailable')
+        return self.media_playback.execute(
+            action, deadline=deadline, gate=gate)
 
     def search_music_catalog(self, action, *, deadline, gate):
         if gate() is not True:

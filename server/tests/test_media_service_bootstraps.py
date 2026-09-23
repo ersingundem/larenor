@@ -231,6 +231,29 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     assert app.state.core.media_service_bootstraps.tick() is None
 
 
+def test_playback_private_requires_exact_verified_installation_revision(server):
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(
+        BASE, headers=auth(pair), json=request(installation),
+    ).json()['bootstrap']
+    app.state.core.media_service_bootstraps.backend = BootstrapBackend()
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    assert terminal['state'] == 'wiring_partial'
+
+    private = app.state.core.media_service_bootstraps.playback_private(
+        installation['id'], installation['revision'])
+
+    assert private.plan.templateId == 'media'
+    assert private.api_key == 'c' * 32
+    assert private.bootstrap_revision == terminal['revision']
+    assert private.api_key not in repr(private)
+    for revision in (True, installation['revision'] + 1):
+        with pytest.raises(Exception, match='media_playback_worker_unavailable'):
+            app.state.core.media_service_bootstraps.playback_private(
+                installation['id'], revision)
+
+
 def test_lifespan_waits_for_inflight_bootstrap_receipt(server):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event

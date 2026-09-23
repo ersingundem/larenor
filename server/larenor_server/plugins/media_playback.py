@@ -1,11 +1,13 @@
 """Revision-bound managed Jellyfin playback with one-use command ownership."""
 
+import hmac
 import json
 import time
 
 from pydantic import ValidationError
 
 from ..errors import ApiError, StartupError
+from .jellyfin_playback_executor import JellyfinPlaybackExecutionError
 from .media_playback_models import (
     MediaPlaybackCommandRequest,
     MediaPlaybackIntent,
@@ -13,6 +15,8 @@ from .media_playback_models import (
     MediaPlaybackReceipt,
     MediaPlaybackWorkerResult,
     PrepareMediaPlaybackIntentRequest,
+    PrivateJellyfinPlaybackAction,
+    PrivateJellyfinPlaybackAuthority,
     PrivateMediaPlaybackAction,
     PrivateMediaPlaybackAuthority,
 )
@@ -34,6 +38,69 @@ _RECEIPT_QUERY = '''SELECT
     i.consumed_by AS intent_consumed_by
 FROM media_playback_receipts r
 LEFT JOIN media_playback_intents i ON i.id=r.intent_id'''
+
+
+class MediaPlaybackWorkerProvider:
+    """Add encrypted bootstrap authority only at the private worker boundary."""
+
+    def __init__(self, backend, bootstraps):
+        if (not callable(getattr(backend, 'read_media_playback', None))
+                or not callable(getattr(backend, 'execute_media_playback', None))
+                or not callable(getattr(bootstraps, 'playback_private', None))):
+            raise ValueError('invalid_media_playback_provider')
+        self.backend = backend
+        self.bootstraps = bootstraps
+
+    def __repr__(self):
+        return 'MediaPlaybackWorkerProvider(<private>)'
+
+    def _retained(self, installation_id, installation_revision, selected,
+                  gate):
+        try:
+            if gate() is not True:
+                return False
+            current = self.bootstraps.playback_private(
+                installation_id, installation_revision)
+            return (current.bootstrap_revision == selected.bootstrap_revision
+                    and current.plan == selected.plan
+                    and hmac.compare_digest(
+                        current.api_key, selected.api_key))
+        except Exception:
+            return False
+
+    def read_media_playback(self, authority, *, deadline, gate):
+        private = self.bootstraps.playback_private(
+            authority.installationId, authority.installationRevision)
+        retained = lambda: self._retained(
+            authority.installationId, authority.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = self.backend.read_media_playback(
+            PrivateJellyfinPlaybackAuthority(
+                authority=authority, plan=private.plan,
+                apiKey=private.api_key),
+            deadline=deadline, gate=retained)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
+
+    def execute_media_playback(self, action, *, deadline, gate):
+        private = self.bootstraps.playback_private(
+            action.installationId, action.installationRevision)
+        retained = lambda: self._retained(
+            action.installationId, action.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = self.backend.execute_media_playback(
+            PrivateJellyfinPlaybackAction(
+                action=action, plan=private.plan,
+                apiKey=private.api_key),
+            deadline=deadline, gate=retained)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
 
 
 class MediaPlaybackManagement:
@@ -260,6 +327,37 @@ class MediaPlaybackManagement:
             code='effect_unknown' if uncertain else 'authenticated_readback',
         )
 
+    def _retire_no_effect(self, actor, body, encoded):
+        try:
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    _RECEIPT_QUERY + ' WHERE r.request_id=?',
+                    (body.requestId,),
+                ).fetchone()
+                stored_request, stored_receipt = self._validated_receipt_row(row)
+                if (stored_receipt is not None or stored_request != body
+                        or row['receipt_actor_id'] != actor.id
+                        or row['receipt_request_json'] != encoded):
+                    raise ValueError()
+                deleted_receipt = connection.execute(
+                    "DELETE FROM media_playback_receipts "
+                    "WHERE request_id=? AND intent_id=? AND actor_id=? "
+                    "AND request_json=? AND state='pending' "
+                    "AND receipt_json IS NULL",
+                    (body.requestId, body.intentId, actor.id, encoded),
+                ).rowcount
+                deleted_intent = connection.execute(
+                    'DELETE FROM media_playback_intents '
+                    'WHERE id=? AND actor_id=? AND consumed_by=?',
+                    (body.intentId, actor.id, body.requestId),
+                ).rowcount
+                if deleted_receipt != 1 or deleted_intent != 1:
+                    raise ValueError()
+        except ApiError:
+            raise
+        except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
+            raise ApiError('media_playback_storage_unavailable', 503) from None
+
     def command(self, actor, body):
         if type(body) is not MediaPlaybackCommandRequest:
             raise ApiError('invalid_request')
@@ -343,6 +441,9 @@ class MediaPlaybackManagement:
                  'pending', None, int(self.settings.clock())))
         action = PrivateMediaPlaybackAction(
             **body.model_dump(), installationId=row['installation_id'],
+            installationRevision=row['installation_revision'],
+            snapshotRevision=row['snapshot_revision'],
+            jellyfinServiceRevision=row['jellyfin_service_revision'],
             itemId=row['item_id'], mediaKey=row['media_key'])
         deadline = time.monotonic() + 5
         gate = lambda: time.monotonic() < deadline and self._gate(actor, authority)
@@ -360,6 +461,20 @@ class MediaPlaybackManagement:
                     or result.target.currentItemId != row['item_id']
                     or abs(result.target.positionSeconds-body.startSeconds) > 2):
                 raise ValueError()
+        except JellyfinPlaybackExecutionError as error:
+            if error.uncertain_effect:
+                if not self._gate(actor, authority):
+                    with self.db.connection() as connection:
+                        self.auth.assert_current(connection, actor)
+                raise ApiError(
+                    'media_playback_worker_unavailable', 503) from None
+            self._retire_no_effect(actor, body, encoded)
+            if error.code == 'jellyfin_playback_authority_changed':
+                if not self._gate(actor, authority):
+                    with self.db.connection() as connection:
+                        self.auth.assert_current(connection, actor)
+                raise ApiError('media_playback_authority_changed', 409) from None
+            raise ApiError('media_playback_worker_unavailable', 503) from None
         except Exception:  # noqa: BLE001 - dispatched effect is now uncertain
             if not self._gate(actor, authority):
                 with self.db.connection() as connection:

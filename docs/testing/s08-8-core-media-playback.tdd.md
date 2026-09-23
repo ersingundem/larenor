@@ -66,17 +66,62 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   `01f97601821287b9bd84260265bd75d5bf9116da` revalidates every prune
   candidate before deletion and performs exact transactional revalidation and
   compare-and-set finalization after the external effect.
+- Production-worker RED `ce613152` specified the exact authenticated Jellyfin
+  session read, one `PlayNow` POST and post-effect readback. GREEN
+  `095c5fd3` added bounded HTTP parsing, process-generation revisions and
+  ambiguous-effect rejection. Container-authority GREEN `ad45db1a` binds every
+  stream to the exact journaled container and private control-network endpoint.
+- Credential/IPC GREEN `699be352` and `2816091f` resolve the verified API key
+  only from AES-GCM bootstrap storage, transport it over the same UID-checked
+  worker socket and connect Core to the packaged Linux runtime. Capability
+  discovery compatibility was retained by `d2d2ad24`; a worker implementation
+  that does not advertise both playback methods remains unavailable.
+- Authority-retention `107f3928` re-resolves the encrypted bootstrap binding
+  before and after worker dispatch. API-key, plan or bootstrap-revision drift
+  therefore suppresses success even when an external effect already occurred.
+- Pre-effect RED `48ef1e9d` reproduced retained-authority loss and monotonic
+  deadline expiry after the authenticated before-read but before the playback
+  POST. GREEN `34a7bd5b` revalidates both at the effect boundary, writes no
+  request after either failure, closes all opened streams and reports the
+  authority change without marking an unstarted effect uncertain.
+- No-effect RED `c01dc51c` proves that a mismatched opened endpoint leaked its
+  stream, that a definitive pre-POST authority rejection lost its certainty at
+  the worker IPC boundary, and that Core retained a false `needs_attention`
+  replay. Post-effect RED `04155074` proves final endpoint drift was incorrectly
+  classified as definite after the POST. GREEN `fa2aeea3` closes a mismatched
+  stream, transports a strict typed failure envelope over the UID-authenticated
+  socket, atomically retires the exact no-effect intent/receipt, prevents worker
+  replay, and preserves uncertainty for every post-effect failure.
+- Cross-stream RED `5aba624e` proved that a second stream whose fresh endpoint
+  proof differed from the first could escape cleanup because comparison ran
+  before ownership was recorded. GREEN `15523599` tracks each opened stream
+  before comparing proofs, so the mismatch closes every connection.
+- Pre-dispatch RED `8933ed65` reproduced malformed and HTTP 500 before-reads
+  that wrote no POST but were classified as uncertain. GREEN `ca608a99`
+  records whether the effect request was attempted: before-read failures are
+  typed static no-effect failures that retire the exact pending attempt, while
+  POST response and later readback failures remain uncertain.
+- Post-effect RED `7bc33840` reproduced successful 204 effects followed by
+  unchanged, wrong-target or wrong-position authenticated readback being
+  misclassified as no-effect. GREEN `c0519a97` keeps every semantic mismatch
+  after POST uncertain, preserves the exact pending receipt and prevents replay
+  from issuing a second worker effect.
 
-The current focused Server playback suite passes **14/14**; the grouped playback,
-catalog-read and flow package passes **45/45**. The current Flutter playback,
-catalog tablet and real-loopback package passes **20/20**. Earlier accepted
-broader groups remain recorded by their exact commits above.
+The production-worker package adds **20/20** protocol/container tests and the
+private IPC/credential/provider groups bring the focused Server batch to
+**57/57**.
+The earlier Core playback suite passes **14/14**; the grouped playback,
+catalog-read and flow package passes **45/45**. The Flutter playback, catalog
+tablet and real-loopback package passes **20/20**.
+The final runtime/executor/IPC/provider regression batch passes **35/35**,
+including both pre-effect authority/deadline boundaries.
+The grouped runtime, executor, Core playback, IPC, provider and encrypted
+bootstrap batch passes **72/72** after the post-effect certainty fix.
 
 ## Remaining S08.8 acceptance
 
-The production playback backend still needs a configured provider adapter and
-real-device verification; this slice only defines and tests its fail-closed
-Core seam. Accessible migration of retained Jellyfin preferences, integration
-of the completed cache primitives into user-facing media flows, broader
-same-URL replacement/logout E2E, independent review and exact-head CI remain
-open. Neither progress counter advances.
+Physical TV/receiver verification remains separate from the now packaged
+production worker. Accessible migration of retained Jellyfin preferences,
+integration of the completed cache primitives into user-facing media flows,
+broader same-URL replacement/logout E2E, independent review and exact-head CI
+remain open. Neither progress counter advances.

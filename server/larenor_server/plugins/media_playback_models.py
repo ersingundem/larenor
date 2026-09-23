@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
+from .stack_plan import MediaStackPlan
 
 _TARGET = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}\Z')
 _MEDIA_KEY = re.compile(
@@ -116,6 +117,9 @@ class PrivateMediaPlaybackAction(StrictModel):
     requestId: ObjectId
     intentId: ObjectId
     installationId: ObjectId
+    installationRevision: Revision
+    snapshotRevision: Revision
+    jellyfinServiceRevision: Revision
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)
     expectedPlaybackRevision: Revision
@@ -128,3 +132,15 @@ class MediaPlaybackWorkerResult(StrictModel):
     state: Literal['succeeded']
     playbackRevision: Revision
     target: MediaPlaybackTarget
+
+
+class PrivateJellyfinPlaybackAuthority(StrictModel):
+    authority: PrivateMediaPlaybackAuthority
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)
+
+
+class PrivateJellyfinPlaybackAction(StrictModel):
+    action: PrivateMediaPlaybackAction
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)

@@ -53,6 +53,16 @@ class _PrivateView:
         return '_PrivateView(<private>)'
 
 
+@dataclass(frozen=True, repr=False)
+class _PlaybackPrivateView:
+    plan: object
+    api_key: str
+    bootstrap_revision: int
+
+    def __repr__(self):
+        return '_PlaybackPrivateView(<private>)'
+
+
 def _identifier(value):
     if type(value) is not str or re.fullmatch(r'[0-9a-f]{32}', value) is None:
         raise ApiError('invalid_request')
@@ -265,6 +275,42 @@ class MediaServiceBootstrapManagement:
                     (item.name, item.collectionType, item.itemId, item.locations)
                     for item in private.readback.libraries)),
             )
+
+    def playback_private(self, installation_id, installation_revision):
+        """Resolve only verified Jellyfin playback secrets for worker IPC."""
+        _identifier(installation_id)
+        if (type(installation_revision) is not int
+                or not 1 <= installation_revision <= 2**63 - 2):
+            raise ApiError('media_playback_worker_unavailable', 503)
+        try:
+            with self.db.connection() as connection:
+                connection.execute('BEGIN')
+                row = connection.execute(
+                    'SELECT * FROM media_service_bootstraps '
+                    'WHERE installation_id=?', (installation_id,),
+                ).fetchone()
+                if row is None:
+                    raise ValueError()
+                private = self._validate_row(connection, row)
+                installation = connection.execute(
+                    'SELECT * FROM media_installations WHERE id=?',
+                    (installation_id,),
+                ).fetchone()
+                if (installation is None
+                        or row['installation_revision'] != installation_revision
+                        or installation['revision'] != installation_revision
+                        or row['state'] not in {'wiring_partial', 'succeeded'}
+                        or row['credentials_configured'] != 1
+                        or private.readback is None):
+                    raise ValueError()
+                payload = self.installations._decode(installation)
+                plan = verify_media_stack_plan(payload.plan, load_catalog())
+                return _PlaybackPrivateView(
+                    plan, private.readback.apiKey, row['revision'])
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError('media_playback_worker_unavailable', 503) from None
 
     def _save(self, connection, row, private):
         nonce = secrets.token_bytes(12)

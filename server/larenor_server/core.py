@@ -73,7 +73,10 @@ from .plugins.media_archive_weekly_trend_schema import (
 )
 from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
 from .plugins.media_flow_schema import migrate_media_flow
-from .plugins.media_playback import MediaPlaybackManagement
+from .plugins.media_playback import (
+    MediaPlaybackManagement,
+    MediaPlaybackWorkerProvider,
+)
 from .plugins.media_playback_schema import migrate_media_playback
 from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
@@ -776,6 +779,13 @@ class CoreServices:
                 self.auth,
                 settings,
                 self.media_archive_health,
+                (MediaPlaybackWorkerProvider(
+                    installation_backend, self.media_service_bootstraps)
+                 if callable(getattr(
+                     installation_backend, 'read_media_playback', None))
+                 and callable(getattr(
+                     installation_backend, 'execute_media_playback', None))
+                 else None),
             )
             self.media_playback.validate_storage()
             media_flow_provider = (

@@ -3,6 +3,9 @@ import json
 import pytest
 from conftest import auth
 from larenor_server.errors import StartupError
+from larenor_server.plugins.jellyfin_playback_executor import (
+    JellyfinPlaybackExecutionError,
+)
 from larenor_server.plugins.media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackTarget,
@@ -20,6 +23,7 @@ class PlaybackWorker:
         self.calls = []
         self.reads = 0
         self.change = None
+        self.execute_error = None
 
     def read_media_playback(self, _authority, *, deadline, gate):
         assert deadline > 0 and gate() is True
@@ -36,6 +40,8 @@ class PlaybackWorker:
     def execute_media_playback(self, action, *, deadline, gate):
         assert deadline > 0 and gate() is True
         self.calls.append(action)
+        if self.execute_error is not None:
+            raise self.execute_error
         if self.change is not None:
             self.change()
         return MediaPlaybackWorkerResult(
@@ -162,6 +168,120 @@ def test_authority_loss_after_dispatch_never_publishes_success_or_replays(server
     assert first.status_code == 401
     assert 'authenticated_readback' not in first.text
     assert len(worker.calls) == 1
+
+
+def test_definite_pre_effect_denial_retires_attempt_without_uncertain_replay(
+        server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    command = {
+        'requestId': 'f' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+    worker.execute_error = JellyfinPlaybackExecutionError(
+        'jellyfin_playback_authority_changed', uncertain_effect=False)
+
+    first = client.post(BASE + '/commands', headers=auth(pair), json=command)
+    replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert first.status_code == 409
+    assert first.json()['error']['code'] == 'media_playback_authority_changed'
+    assert replay.status_code == 409
+    assert replay.json()['error']['code'] == 'media_playback_intent_unavailable'
+    assert len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_receipts WHERE request_id=?',
+            (command['requestId'],)).fetchone() is None
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_intents WHERE id=?',
+            (command['intentId'],)).fetchone() is None
+
+
+def test_definite_pre_effect_resource_failure_retires_attempt_without_replay(
+        server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    command = {
+        'requestId': 'f' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+    worker.execute_error = JellyfinPlaybackExecutionError(
+        'jellyfin_playback_resources_unavailable', uncertain_effect=False)
+
+    first = client.post(BASE + '/commands', headers=auth(pair), json=command)
+    replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert first.status_code == 503
+    assert first.json()['error']['code'] == 'media_playback_worker_unavailable'
+    assert replay.status_code == 409
+    assert replay.json()['error']['code'] == 'media_playback_intent_unavailable'
+    assert len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_receipts WHERE request_id=?',
+            (command['requestId'],)).fetchone() is None
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_intents WHERE id=?',
+            (command['intentId'],)).fetchone() is None
+
+
+def test_uncertain_post_effect_preserves_attempt_without_worker_replay(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    command = {
+        'requestId': 'f' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+    worker.execute_error = JellyfinPlaybackExecutionError(
+        'jellyfin_playback_effect_unknown', uncertain_effect=True)
+
+    first = client.post(BASE + '/commands', headers=auth(pair), json=command)
+    replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert first.status_code == 503
+    assert first.json()['error']['code'] == 'media_playback_worker_unavailable'
+    assert replay.status_code == 201
+    assert replay.json()['receipt']['state'] == 'needs_attention'
+    assert replay.json()['receipt']['code'] == 'effect_unknown'
+    assert len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_receipts WHERE request_id=?',
+            (command['requestId'],)).fetchone() is not None
+        assert connection.execute(
+            'SELECT 1 FROM media_playback_intents WHERE id=?',
+            (command['intentId'],)).fetchone() is not None
 
 
 def test_intent_capacity_rejects_257th_prepare_without_growing_storage(server):
