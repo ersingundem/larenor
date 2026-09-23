@@ -66,7 +66,13 @@ def snapshots():
 
 
 @contextmanager
-def worker(tmp_path, boundary, *, client_uid=None):
+def worker(
+    tmp_path,
+    boundary,
+    *,
+    allowed_client_uid=None,
+    observed_peer_uid=None,
+):
     del tmp_path
     path = (
         Path("/tmp").resolve()
@@ -78,11 +84,14 @@ def worker(tmp_path, boundary, *, client_uid=None):
         path,
         boundary,
         owner_uid=os.getuid(),
+        client_uid=(
+            os.getuid() if allowed_client_uid is None else allowed_client_uid
+        ),
         peer_uid=(lambda _connection: os.getuid())
-        if client_uid is None
-        else client_uid
-        if callable(client_uid)
-        else (lambda _connection: client_uid),
+        if observed_peer_uid is None
+        else observed_peer_uid
+        if callable(observed_peer_uid)
+        else (lambda _connection: observed_peer_uid),
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -139,7 +148,11 @@ def test_server_holds_exact_quiescence_until_authenticated_release(tmp_path):
 def test_server_rejects_foreign_peer_before_provider_and_recovers(tmp_path):
     boundary = Boundary(snapshots())
     peers = iter((os.getuid() + 1, os.getuid()))
-    with worker(tmp_path, boundary, client_uid=lambda _connection: next(peers)) as (
+    with worker(
+        tmp_path,
+        boundary,
+        observed_peer_uid=lambda _connection: next(peers),
+    ) as (
         path,
         _server,
     ):
@@ -151,6 +164,38 @@ def test_server_rejects_foreign_peer_before_provider_and_recovers(tmp_path):
         with client(path).quiesce(time.monotonic() + 2) as captured:
             assert captured == snapshots()
     assert boundary.entered == boundary.released == 1
+
+
+def test_server_allows_client_uid_to_differ_from_socket_owner(tmp_path):
+    boundary = Boundary(snapshots())
+    allowed_uid = os.getuid() + 7
+    with worker(
+        tmp_path,
+        boundary,
+        allowed_client_uid=allowed_uid,
+        observed_peer_uid=allowed_uid,
+    ) as (path, server):
+        assert path.lstat().st_uid == os.getuid()
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+        assert server.completed == 1
+
+
+@pytest.mark.parametrize("client_uid", [-1, 2**31, True, "10001"])
+def test_server_rejects_invalid_client_uid(tmp_path, client_uid):
+    parent = Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}"
+    parent.mkdir(mode=0o700)
+    try:
+        with pytest.raises(ValueError, match="invalid_worker_configuration"):
+            ComponentSnapshotWorkerServer(
+                parent / "component.sock",
+                Boundary(snapshots()),
+                owner_uid=os.getuid(),
+                client_uid=client_uid,
+                peer_uid=lambda _connection: os.getuid(),
+            )
+    finally:
+        parent.rmdir()
 
 
 def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):

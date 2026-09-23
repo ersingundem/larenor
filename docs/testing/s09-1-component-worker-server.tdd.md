@@ -6,7 +6,7 @@ This slice completes the server half of the private component-snapshot IPC contr
 
 ## Three delivered jobs
 
-1. **Private listener ownership.** The host worker binds only an absolute, bounded Unix path inside an existing owner-matched directory that is not group/world writable. The socket is mode `0600`, accepts only the configured peer UID, and cleanup unlinks only the exact inode it created.
+1. **Private listener ownership.** The host worker binds only an absolute, bounded Unix path inside an existing owner-matched directory that is not group/world writable. The socket is mode `0600`; its host owner UID and the allowed Core client UID are independent, and cleanup unlinks only the exact inode it created.
 2. **Exact quiescence lifecycle.** A strict protocol/version/request/timeout frame opens one provider-owned quiescence context. Bounded, catalog-compatible snapshots are sorted and streamed with exact SHA-256 descriptors. The context stays held until the same request sends the exact release frame; foreign releases and disconnects release the provider without completing the operation.
 3. **Recoverable single-flight service.** The listener handles clients sequentially and remains available after a foreign peer, malformed exchange, or private provider exception. No exception text, path, payload, or host detail crosses the socket.
 
@@ -24,7 +24,7 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **16 passed**. The package covers client/server framing, digest and size bounds, peer identity, normal and foreign release, provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
+Result: **21 passed**. The package covers client/server framing, digest and size bounds, separate socket-owner/client identity, invalid UID policy, normal and foreign release, provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
 
 ## Remaining S09.1 gates
 

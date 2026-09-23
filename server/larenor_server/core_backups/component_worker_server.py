@@ -33,9 +33,12 @@ class ComponentSnapshotWorkerServer:
         provider,
         *,
         owner_uid=0,
+        client_uid=None,
         peer_uid=None,
         monotonic=time.monotonic,
     ):
+        if client_uid is None:
+            client_uid = owner_uid
         candidate = Path(path)
         try:
             checked_path(candidate)
@@ -50,6 +53,8 @@ class ComponentSnapshotWorkerServer:
             or candidate.exists()
             or type(owner_uid) is not int
             or not 0 <= owner_uid < 2**31
+            or type(client_uid) is not int
+            or not 0 <= client_uid < 2**31
             or peer_uid is not None
             and not callable(peer_uid)
             or not hasattr(provider, "quiesce")
@@ -62,6 +67,7 @@ class ComponentSnapshotWorkerServer:
         self.path = candidate
         self.provider = provider
         self.owner_uid = owner_uid
+        self.client_uid = client_uid
         self.peer_uid = _peer_uid if peer_uid is None else peer_uid
         self.monotonic = monotonic
         self.completed = 0
@@ -121,7 +127,7 @@ class ComponentSnapshotWorkerServer:
         }
 
     def _handle(self, connection):
-        if self.peer_uid(connection) != self.owner_uid:
+        if self.peer_uid(connection) != self.client_uid:
             return
         read_deadline = self.monotonic() + 5
         request = _read_frame(connection, read_deadline)
