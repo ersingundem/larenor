@@ -6,6 +6,7 @@ import 'package:larenor/features/home_scope/presentation/core_home_status_screen
 import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
 import 'package:larenor/features/home_documents/presentation/home_documents_route.dart';
 import 'package:larenor/features/camera_search/presentation/camera_search_route.dart';
+import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
@@ -122,6 +123,19 @@ void main() {
               tester.getRect(cameraSearch).height,
               greaterThanOrEqualTo(48),
             );
+            final mediaCatalog = find.byKey(
+              const ValueKey('core-home-media-catalog-action'),
+            );
+            await reveal(mediaCatalog);
+            expect(mediaCatalog, findsOneWidget);
+            expect(
+              tester.getRect(mediaCatalog).height,
+              greaterThanOrEqualTo(48),
+            );
+            expect(
+              tester.getSemantics(mediaCatalog).label,
+              contains(l10n.mediaSearchTitle),
+            );
             final headings = find.bySemanticsLabel(l10n.homeSourceCore);
             expect(headings, findsWidgets);
             expect(
@@ -157,6 +171,7 @@ void main() {
               reservations,
               catalog,
               familyBoard,
+              mediaCatalog,
             ]) {
               await reveal(target);
               expect(target, findsOneWidget);
@@ -165,6 +180,12 @@ void main() {
             await tester.tap(cameraSearch);
             await flush(tester);
             expect(find.byType(CameraSearchRoute), findsOneWidget);
+            harness.router(tester).pop();
+            await flush(tester);
+            await reveal(mediaCatalog);
+            await tester.tap(mediaCatalog);
+            await flush(tester);
+            expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
             harness.router(tester).pop();
             await flush(tester);
             expect(tester.takeException(), isNull);

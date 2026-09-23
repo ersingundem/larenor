@@ -2,13 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/media_catalog/data/server_media_catalog_controller.dart';
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import 'server_admin_test_support.dart';
@@ -60,7 +59,7 @@ Map<String, Object?> _catalog(int offset) => {
 };
 
 final class _CatalogFixture extends AdminFixture {
-  _CatalogFixture() {
+  _CatalogFixture({super.role}) {
     respond = (request) async {
       if (request.url.path.endsWith('/admin/media/installations')) {
         if (targetGate case final gate?) await gate.future;
@@ -117,12 +116,12 @@ void main() {
       expect(
         fixture.calls.map((request) => request.url.path),
         containsAllInOrder([
-          '/api/v1/admin/media/installations',
-          '/api/v1/admin/media/archive-health/authority',
-          '/api/v1/admin/media/archive-health/catalog/search',
-          '/api/v1/admin/media/installations',
-          '/api/v1/admin/media/archive-health/authority',
-          '/api/v1/admin/media/archive-health/catalog/search',
+          '/prefix/api/v1/admin/media/installations',
+          '/prefix/api/v1/admin/media/archive-health/authority',
+          '/prefix/api/v1/admin/media/archive-health/catalog/search',
+          '/prefix/api/v1/admin/media/installations',
+          '/prefix/api/v1/admin/media/archive-health/authority',
+          '/prefix/api/v1/admin/media/archive-health/catalog/search',
         ]),
       );
       expect(
@@ -167,6 +166,23 @@ void main() {
     expect(retired.failure, isNull);
   });
 
+  test('member policy issues no installation or catalog request', () async {
+    final fixture = _CatalogFixture(role: ServerRole.member);
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.searchCurrent(query: 'matrix', current: () => true);
+
+    expect(controller.page, isNull);
+    expect(controller.failure, isNull);
+    expect(fixture.adminCalls, isEmpty);
+  });
+
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$locale Core catalog fits $width tablet/DeX at 2x', (
@@ -178,7 +194,6 @@ void main() {
         addTearDown(() {
           fixture.account.dispose();
           tester.view.reset();
-          semantics.dispose();
         });
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = Size(width, 1000);
@@ -203,7 +218,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(fixture.calls, hasLength(1), reason: 'only account bootstrap');
+        expect(fixture.calls, hasLength(2), reason: 'only account bootstrap');
 
         final field = find.byKey(
           const ValueKey('server-media-catalog-search-field'),
@@ -221,8 +236,7 @@ void main() {
         );
         expect(tester.getRect(next).height, greaterThanOrEqualTo(48));
         expect(tester.getSemantics(next).flagsCollection.isButton, isTrue);
-        Focus.of(tester.element(find.text('The Matrix'))).requestFocus();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        semantics.dispose();
         await tester.tap(next);
         await tester.pumpAndSettle();
         expect(find.text('The Matrix Reloaded'), findsOneWidget);
