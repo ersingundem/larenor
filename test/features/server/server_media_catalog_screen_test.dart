@@ -133,6 +133,51 @@ final class _CatalogFixture extends AdminFixture {
         });
         return flowGate?.future ?? response;
       }
+      if (request.url.path.endsWith('/media/playback/intents')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return this.json({
+          'intent': {
+            'requestId': body['requestId'],
+            'installationId': body['installationId'],
+            'expectedInstallationRevision':
+                body['expectedInstallationRevision'],
+            'expectedSnapshotRevision': body['expectedSnapshotRevision'],
+            'expectedJellyfinServiceRevision':
+                body['expectedJellyfinServiceRevision'],
+            'itemId': body['itemId'],
+            'mediaKey': body['mediaKey'],
+            'playbackRevision': 13,
+            'expiresAt': 2000000000,
+            'targets': const [
+              {
+                'targetId': 'living-room',
+                'targetRevision': 5,
+                'name': 'Living room',
+                'available': true,
+                'currentItemId': null,
+                'positionSeconds': 0,
+              },
+            ],
+          },
+        });
+      }
+      if (request.url.path.endsWith('/media/playback/commands')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final response = this.json({
+          'receipt': {
+            'requestId': body['requestId'],
+            'intentId': body['intentId'],
+            'installationId': _installationId,
+            'itemId': '99999999999999999999999999999999',
+            'targetId': body['targetId'],
+            'playbackRevision': 14,
+            'state': 'succeeded',
+            'code': 'authenticated_readback',
+            'installAvailable': false,
+          },
+        }, 201);
+        return playbackGate?.future ?? response;
+      }
       if (request.url.path.endsWith('/media/catalog/target')) {
         if (targetGate case final gate?) await gate.future;
         return this.json(
@@ -183,6 +228,7 @@ final class _CatalogFixture extends AdminFixture {
   Completer<http.Response>? firstCatalogGate;
   http.Response? firstCatalogResponse;
   Completer<http.Response>? flowGate;
+  Completer<http.Response>? playbackGate;
 }
 
 void main() {
@@ -521,6 +567,176 @@ void main() {
     expect(find.text('sonarr'), findsOneWidget);
   });
 
+  testWidgets(
+    'member confirms Core-managed playback without an admin or credential path',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final fixture = _CatalogFixture(role: ServerRole.member);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+          ],
+          child: const CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server-media-catalog-search-field')),
+        'matrix',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(
+          const ValueKey(
+            'server-media-catalog-item-99999999999999999999999999999999',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final prepare = find.byKey(
+        const ValueKey('server-media-playback-prepare'),
+      );
+      expect(tester.getSemantics(prepare).flagsCollection.isButton, isTrue);
+      expect(tester.getRect(prepare).height, greaterThanOrEqualTo(48));
+      await tester.tap(prepare);
+      await tester.pumpAndSettle();
+      final target = find.byKey(
+        const ValueKey('server-media-playback-target-living-room'),
+      );
+      expect(tester.getSemantics(target).flagsCollection.isButton, isTrue);
+      expect(tester.getRect(target).height, greaterThanOrEqualTo(48));
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('server-media-playback-confirm')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('server-media-playback-succeeded')),
+        findsOneWidget,
+      );
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/media/playback/commands'),
+        ),
+        hasLength(1),
+      );
+      expect(fixture.adminCalls, isEmpty);
+      expect(
+        fixture.calls.map((call) => call.body).join(),
+        isNot(anyOf(contains('accessToken'), contains('baseUrl'))),
+      );
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('route retirement drops a late playback receipt and replay', (
+    tester,
+  ) async {
+    final fixture = _CatalogFixture()
+      ..playbackGate = Completer<http.Response>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'matrix',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey(
+          'server-media-catalog-item-99999999999999999999999999999999',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final prepare = find.byKey(const ValueKey('server-media-playback-prepare'));
+    await tester.scrollUntilVisible(
+      prepare,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(prepare);
+    await tester.pumpAndSettle();
+    final target = find.byKey(
+      const ValueKey('server-media-playback-target-living-room'),
+    );
+    await tester.scrollUntilVisible(
+      target,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('server-media-playback-confirm')),
+    );
+    await tester.pump();
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/playback/commands'),
+      ),
+      hasLength(1),
+    );
+
+    Navigator.of(tester.element(find.byType(CupertinoActivityIndicator).last))
+        .pop();
+    await tester.pumpAndSettle();
+    fixture.playbackGate!.complete(
+      fixture.json({
+        'receipt': {
+          'requestId': _requestId,
+          'intentId': _requestId,
+          'installationId': _installationId,
+          'itemId': '99999999999999999999999999999999',
+          'targetId': 'living-room',
+          'playbackRevision': 14,
+          'state': 'succeeded',
+          'code': 'authenticated_readback',
+          'installAvailable': false,
+        },
+      }, 201),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('server-media-playback-succeeded')),
+      findsNothing,
+    );
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/playback/commands'),
+      ),
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('popping a delayed flow read publishes no retired route state', (
     tester,
   ) async {
@@ -697,6 +913,16 @@ void main() {
         );
         expect(tester.getRect(refresh).height, greaterThanOrEqualTo(48));
         expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
+        final prepare = find.byKey(
+          const ValueKey('server-media-playback-prepare'),
+        );
+        await tester.scrollUntilVisible(
+          prepare,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.getRect(prepare).height, greaterThanOrEqualTo(48));
+        expect(tester.getSemantics(prepare).flagsCollection.isButton, isTrue);
         semantics.dispose();
         expect(tester.takeException(), isNull);
       });

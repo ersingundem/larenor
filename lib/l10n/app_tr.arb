@@ -2081,6 +2081,18 @@
   "serverMediaRecover": "Bu hazırlığın sonucunu al",
   "serverMediaNameConflict": "Bu adı kullanan bir hazırlık zaten var. Mevcut hazırlığı açın veya farklı bir ad seçin.",
   "serverMediaCatalogChanged": "Bileşen kataloğu değişti. Güncel gereksinimleri incelemek için yeni bir hazırlık başlatın.",
+  "serverMediaPlaybackTitle": "Yönetilen oynatma",
+  "serverMediaPlaybackBody": "Kullanılabilir bir oynatıcı seçin. Core, mevcut oynatmayı değiştirmeden önce bu katalog öğesini ve seçilen oynatıcıyı yeniden denetler.",
+  "serverMediaPlaybackPrepare": "Oynatıcı seç",
+  "serverMediaPlaybackTarget": "{name} üzerinde oynat",
+  "@serverMediaPlaybackTarget": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "serverMediaPlaybackConfirmTitle": "Yönetilen oynatma başlatılsın mı?",
+  "serverMediaPlaybackConfirmBody": "Core, mevcut oynatmayı değiştirmeden önce bu öğeyi ve oynatıcıyı yeniden denetler.",
+  "serverMediaPlaybackConfirm": "Oynat",
+  "serverMediaPlaybackAccepted": "Oynatma seçilen oynatıcıda doğrulandı.",
+  "serverMediaPlaybackUnknown": "Sonuç belirsiz. Yeniden denemeden önce oynatıcıyı kontrol edin.",
   "serverMediaContextChanged": "Server ev bağlamı değişti. Yeni kayıt oluşturmadan önce medya hazırlığını yeniden açın.",
   "serverMediaCapacity": "Server hazırlık sınırına ulaşıldı. Mevcut hazırlıkları inceleyin.",
   "serverMediaStorageUnavailable": "Kayıtlı hazırlıklara Server üzerinde geçici olarak erişilemiyor.",
