@@ -10,6 +10,12 @@ import '../domain/server_music_manager_models.dart';
 import 'server_music_manager_cache.dart';
 import 'server_music_manager_api.dart';
 
+const _managerAuthorityFailures = {
+  'forbidden',
+  'invalid_session',
+  'password_change_required',
+};
+
 class ServerMusicManagerController extends ChangeNotifier {
   ServerMusicManagerController(
     this.account, {
@@ -186,10 +192,6 @@ class ServerMusicManagerController extends ChangeNotifier {
           coreRevision: retained.bootstrap!.revision,
         );
         if (!valid()) return;
-        if (cached != null) {
-          _acceptManager(cached, isVerified: false, isReachable: false);
-          _emit();
-        }
         try {
           final value = await ServerMusicManagerApi(
             api,
@@ -200,7 +202,13 @@ class ServerMusicManagerController extends ChangeNotifier {
             await _writeCache(scope, value, valid);
           }
         } on LarenorServerException catch (error) {
-          if (valid()) failure = error.code;
+          if (valid()) {
+            failure = error.code;
+            if (cached != null &&
+                !_managerAuthorityFailures.contains(error.code)) {
+              _acceptManager(cached, isVerified: false, isReachable: false);
+            }
+          }
         }
       });
     } catch (error) {
