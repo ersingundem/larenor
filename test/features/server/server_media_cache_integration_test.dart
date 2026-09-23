@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' as convert;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,7 +103,7 @@ List<Map<String, Object>> _sources() => [
     },
 ];
 
-Map<String, Object?> _pageJson() => {
+Map<String, Object?> _pageJson({int itemCount = 1}) => {
   'schemaVersion': 1,
   'installationId': _installationId,
   'installationRevision': 7,
@@ -110,15 +111,16 @@ Map<String, Object?> _pageJson() => {
   'jellyfinServiceRevision': 11,
   'offset': 0,
   'nextOffset': null,
-  'total': 1,
-  'items': const [
-    {
-      'itemId': '33333333333333333333333333333333',
-      'mediaKey': _mediaKey,
-      'title': 'The Matrix',
-      'mediaKind': 'movie',
-      'runtimeSeconds': 8160,
-    },
+  'total': itemCount,
+  'items': [
+    for (var index = 1; index <= itemCount; index++)
+      {
+        'itemId': index.toRadixString(16).padLeft(32, '0'),
+        'mediaKey': 'movie:tmdb:${602 + index}',
+        'title': index == 1 ? 'The Matrix' : 'The Matrix Reloaded',
+        'mediaKind': 'movie',
+        'runtimeSeconds': 8160,
+      },
   ],
 };
 
@@ -189,9 +191,12 @@ final class _MediaFixture extends AdminFixture {
             'error': {'code': 'server_error'},
           }, 503);
         }
+        final body = convert.jsonDecode(request.body) as Map<String, dynamic>;
         final response = json({
           'requestId': _requestId,
-          'catalog': _pageJson(),
+          'catalog': _pageJson(
+            itemCount: catalogItemsFollowLimit ? body['limit'] as int : 1,
+          ),
         });
         return catalogGate?.future ?? response;
       }
@@ -214,6 +219,7 @@ final class _MediaFixture extends AdminFixture {
 
   int targetCalls = 0, catalogCalls = 0, authorityCalls = 0, flowCalls = 0;
   bool catalogFailure = false;
+  bool catalogItemsFollowLimit = false;
   Completer<http.Response>? catalogGate;
 }
 
@@ -278,6 +284,44 @@ void main() {
       expect(fixture.flowCalls, 1);
     },
   );
+
+  test('catalog cache binds the requested result limit', () async {
+    final fixture = _MediaFixture()..catalogItemsFollowLimit = true;
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final cache = ServerMediaCatalogCache(
+      backend: _CatalogBackend(),
+      now: () => _now,
+    );
+    final wide = ServerMediaCatalogController(
+      fixture.account,
+      cache: cache,
+      requestId: () => _requestId,
+    );
+    await wide.searchCurrent(
+      query: 'matrix',
+      limit: 2,
+      current: () => true,
+    );
+    expect(wide.page?.items, hasLength(2));
+    wide.dispose();
+
+    final narrow = ServerMediaCatalogController(
+      fixture.account,
+      cache: cache,
+      requestId: () => _requestId,
+    );
+    addTearDown(narrow.dispose);
+    await narrow.searchCurrent(
+      query: 'matrix',
+      limit: 1,
+      current: () => true,
+    );
+
+    expect(narrow.page?.items, hasLength(1));
+    expect(narrow.origin, ServerMediaResultOrigin.live);
+    expect(fixture.catalogCalls, 2);
+  });
 
   test(
     'retirement during cache persistence clears only the stale write',
