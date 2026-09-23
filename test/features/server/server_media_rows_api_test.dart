@@ -130,6 +130,22 @@ void main() {
       ),
       throwsFormatException,
     );
+    for (final unsafe in ['\u00ad', '\u061c', '\u200b', '\u200d', '\u2060']) {
+      final hidden = _response();
+      final hiddenRows = hidden['rows']! as Map<String, Object?>;
+      final recent = hiddenRows['recent']! as List<Object?>;
+      (recent.single as Map<String, Object?>)['title'] = 'The${unsafe}Matrix';
+      expect(
+        () => ServerAccountMediaRows.fromJson(
+          hidden,
+          expectedRequestId: _requestId,
+          expectedInstallationId: _installationId,
+          expectedInstallationRevision: 7,
+        ),
+        throwsFormatException,
+        reason: 'Unicode category C character must fail closed',
+      );
+    }
   });
 
   test('retired caller stops before and after Core reads', () async {
