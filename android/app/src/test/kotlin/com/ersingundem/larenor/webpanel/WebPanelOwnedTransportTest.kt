@@ -5,6 +5,11 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.webkit.WebViewFeature
 import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
@@ -120,7 +125,7 @@ class WebPanelOwnedTransportTest {
                     setOf(WebRequestOrigin("http", server.hostName, server.port)),
                 ),
                 maxResponseBytes = 8,
-                maxConcurrentRequests = 1,
+                requestLimiter = WebPanelRequestLimiter(1),
             )
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
             val executor = Executors.newSingleThreadExecutor()
@@ -149,6 +154,152 @@ class WebPanelOwnedTransportTest {
     }
 
     @Test
+    fun sharedLimiterCapsTwoTransportsAndOneDetachDoesNotCancelTheOther() {
+        MockWebServer().use { server ->
+            repeat(8) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)) }
+            server.enqueue(MockResponse().setBody("replacement"))
+            val origin = WebRequestOrigin("http", server.hostName, server.port)
+            val limiter = WebPanelRequestLimiter(8)
+            val first = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                requestLimiter = limiter,
+            )
+            val second = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                requestLimiter = limiter,
+            )
+            val executor = Executors.newFixedThreadPool(8)
+            try {
+                val pending = (0 until 8).map { index ->
+                    executor.submit<WebResourceResponse> {
+                        val transport = if (index < 4) first else second
+                        transport.fetch(Uri.parse(server.url("/pending/$index").toString()), "GET")
+                    }
+                }
+                repeat(8) { assertNotNull(server.takeRequest(2, TimeUnit.SECONDS)) }
+
+                assertEquals(
+                    429,
+                    second.fetch(Uri.parse(server.url("/over-capacity").toString()), "GET")
+                        .statusCode,
+                )
+                assertEquals(8, server.requestCount)
+
+                first.close()
+                repeat(4) { assertEquals(410, pending[it].get(1, TimeUnit.SECONDS).statusCode) }
+                repeat(4) { assertFalse(pending[it + 4].isDone) }
+
+                val replacement = second.fetch(
+                    Uri.parse(server.url("/replacement").toString()),
+                    "GET",
+                )
+                assertEquals("replacement", replacement.data.bufferedReader().use { it.readText() })
+                assertEquals(9, server.requestCount)
+
+                second.close()
+                repeat(4) { assertEquals(410, pending[it + 4].get(1, TimeUnit.SECONDS).statusCode) }
+            } finally {
+                first.close()
+                second.close()
+                executor.shutdownNow()
+            }
+        }
+    }
+
+    @Test
+    fun defaultTransportBypassesTheSystemProxyAndPreservesTheExactOriginTarget() {
+        MockWebServer().use { origin ->
+            MockWebServer().use { proxy ->
+                origin.enqueue(MockResponse().setBody("origin"))
+                proxy.enqueue(MockResponse().setResponseCode(502))
+                val previous = ProxySelector.getDefault()
+                ProxySelector.setDefault(object : ProxySelector() {
+                    override fun select(uri: URI?) = listOf(
+                        Proxy(
+                            Proxy.Type.HTTP,
+                            InetSocketAddress(proxy.hostName, proxy.port),
+                        ),
+                    )
+
+                    override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) = Unit
+                })
+                try {
+                    val transport = WebPanelOwnedHttpTransport(
+                        WebRequestFirewall(
+                            setOf(WebRequestOrigin("http", origin.hostName, origin.port)),
+                        ),
+                    )
+                    val response = transport.fetch(
+                        Uri.parse(origin.url("/asset.js?opaque=value").toString()),
+                        "GET",
+                    )
+                    assertEquals("origin", response.data.bufferedReader().use { it.readText() })
+                    assertEquals("/asset.js?opaque=value", origin.takeRequest().path)
+                    assertNull(proxy.takeRequest(30, TimeUnit.MILLISECONDS))
+                    transport.close()
+                } finally {
+                    ProxySelector.setDefault(previous)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun bodyFailureSkipOverflowAndAttachmentCloseReturnSharedPermits() {
+        MockWebServer().use { server ->
+            val origin = WebRequestOrigin("http", server.hostName, server.port)
+            val limiter = WebPanelRequestLimiter(1)
+            val first = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                maxResponseBytes = 8,
+                requestLimiter = limiter,
+            )
+            val second = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                maxResponseBytes = 8,
+                requestLimiter = limiter,
+            )
+            try {
+                server.enqueue(
+                    MockResponse()
+                        .setBody("12345678")
+                        .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY),
+                )
+                val disconnected = first.fetch(
+                    Uri.parse(server.url("/disconnect").toString()),
+                    "GET",
+                )
+                assertThrows(IOException::class.java) { disconnected.data.readBytes() }
+
+                server.enqueue(MockResponse().setChunkedBody("123456789", 2))
+                val skipped = second.fetch(
+                    Uri.parse(server.url("/skip-overflow").toString()),
+                    "GET",
+                )
+                assertThrows(IOException::class.java) { skipped.data.skip(9) }
+
+                server.enqueue(MockResponse().setChunkedBody("held", 2))
+                val held = first.fetch(
+                    Uri.parse(server.url("/held").toString()),
+                    "GET",
+                )
+                assertEquals(200, held.statusCode)
+                first.close()
+
+                server.enqueue(MockResponse().setBody("reused"))
+                val reused = second.fetch(
+                    Uri.parse(server.url("/reused").toString()),
+                    "GET",
+                )
+                assertEquals("reused", reused.data.bufferedReader().use { it.readText() })
+            } finally {
+                first.close()
+                second.close()
+            }
+        }
+    }
+
+    @Test
     fun documentStartGuardRequiresOfficialFeatureAndSealsDynamicEgress() {
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
         val installed = mutableListOf<Triple<WebView, String, Set<String>>>()
@@ -172,7 +323,7 @@ class WebPanelOwnedTransportTest {
         assertEquals(1, installed.size)
         assertSame(view, installed.single().first)
         assertEquals(
-            setOf("https://fixture.invalid", "http://fixture.invalid:8080"),
+            setOf("*"),
             installed.single().third,
         )
         val script = installed.single().second
