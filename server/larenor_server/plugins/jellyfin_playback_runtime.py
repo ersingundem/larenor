@@ -271,7 +271,7 @@ class JellyfinPlaybackProtocol:
                 or selected.currentItemId != action.itemId
                 or abs(selected.positionSeconds - action.startSeconds) > 2):
             raise JellyfinPlaybackRuntimeError(
-                'jellyfin_playback_effect_unknown')
+                'jellyfin_playback_effect_unknown', uncertain_effect=True)
         return MediaPlaybackWorkerResult(
             state='succeeded', playbackRevision=after.playbackRevision,
             target=selected)
