@@ -178,6 +178,7 @@ final class ServerMediaCatalogCache {
     ServerMediaCatalogCacheResource resource, {
     required String query,
     required ServerMediaCatalogKind? mediaKind,
+    required int limit,
     required bool Function() current,
   }) async {
     bool isCurrent() {
@@ -191,7 +192,8 @@ final class ServerMediaCatalogCache {
     if (!isCurrent() ||
         !scope.valid ||
         !resource.valid ||
-        !_validQuery(query)) {
+        !_validQuery(query) ||
+        !_validLimit(limit)) {
       return null;
     }
     final String? raw;
@@ -229,8 +231,13 @@ final class ServerMediaCatalogCache {
       }
       final storedResource = _resource(record['resource']);
       if (!storedResource.matches(resource)) return null;
-      final request = _object(record['request'], {'query', 'mediaKind'});
+      final request = _object(record['request'], {
+        'query',
+        'mediaKind',
+        'limit',
+      });
       final storedQuery = request['query'];
+      final storedLimit = request['limit'];
       final storedKind = switch (request['mediaKind']) {
         null => null,
         'movie' => ServerMediaCatalogKind.movie,
@@ -240,7 +247,10 @@ final class ServerMediaCatalogCache {
       if (storedQuery is! String ||
           !_validQuery(storedQuery) ||
           storedQuery != query ||
-          storedKind != mediaKind) {
+          storedKind != mediaKind ||
+          storedLimit is! int ||
+          !_validLimit(storedLimit) ||
+          storedLimit != limit) {
         return null;
       }
       final savedAt = record['savedAt'] is String
@@ -274,6 +284,7 @@ final class ServerMediaCatalogCache {
   Future<bool> write(
     ServerMediaCatalogCacheScope scope,
     ServerMediaCatalogPage page, {
+    required int limit,
     required bool Function() current,
   }) async {
     bool isCurrent() {
@@ -289,6 +300,8 @@ final class ServerMediaCatalogCache {
     if (!scope.valid ||
         !resource.valid ||
         page.offset != 0 ||
+        !_validLimit(limit) ||
+        page.items.length > limit ||
         !_validQuery(page.query)) {
       throw StateError('media_catalog_cache_value_invalid');
     }
@@ -300,7 +313,11 @@ final class ServerMediaCatalogCache {
       'scope': scope.toJson(),
       'resource': resource.toJson(),
       'savedAt': savedAt.toIso8601String(),
-      'request': {'query': page.query, 'mediaKind': page.mediaKind?.wire},
+      'request': {
+        'query': page.query,
+        'mediaKind': page.mediaKind?.wire,
+        'limit': limit,
+      },
       'page': _pageJson(page),
     });
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
@@ -392,3 +409,5 @@ bool _validQuery(String value) =>
     !RegExp(
       r'[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]',
     ).hasMatch(value);
+
+bool _validLimit(int value) => value >= 1 && value <= 50;

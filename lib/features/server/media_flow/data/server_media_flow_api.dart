@@ -20,7 +20,10 @@ final class ServerMediaFlowApi {
     ).join();
   }
 
-  Future<ServerMediaFlowStatus> read(String mediaKey) async {
+  Future<ServerMediaFlowAuthority> readAuthority(
+    String mediaKey, {
+    bool Function()? current,
+  }) async {
     if (!validServerMediaKey(mediaKey)) {
       throw const LarenorServerException('invalid_request');
     }
@@ -28,6 +31,7 @@ final class ServerMediaFlowApi {
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
       throw const LarenorServerException('invalid_request');
     }
+    _requireCurrent(current);
     try {
       final authority = ServerMediaFlowAuthority.fromJson(
         await api.request(
@@ -37,17 +41,30 @@ final class ServerMediaFlowApi {
           body: {'requestId': requestId, 'mediaKey': mediaKey},
         ),
       );
+      _requireCurrent(current);
       if (authority.requestId != requestId || authority.mediaKey != mediaKey) {
         throw const FormatException('invalid_response');
       }
+      return authority;
+    } on FormatException {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
+  Future<ServerMediaFlowStatus> readAuthorized(
+    ServerMediaFlowAuthority authority, {
+    bool Function()? current,
+  }) async {
+    _requireCurrent(current);
+    try {
       final response = _object(
         await api.request(
           'POST',
           '/admin/media/flows/read',
           token: token,
           body: {
-            'requestId': requestId,
-            'mediaKey': mediaKey,
+            'requestId': authority.requestId,
+            'mediaKey': authority.mediaKey,
             'expectedFlowRevision': authority.flowRevision,
             'expectedSources': [
               for (final source in authority.sources) source.toJson(),
@@ -56,11 +73,12 @@ final class ServerMediaFlowApi {
         ),
         {'requestId', 'flow'},
       );
-      if (response['requestId'] != requestId) {
+      _requireCurrent(current);
+      if (response['requestId'] != authority.requestId) {
         throw const FormatException('invalid_response');
       }
       final flow = ServerMediaFlowStatus.fromJson(response['flow']);
-      if (flow.mediaKey != mediaKey ||
+      if (flow.mediaKey != authority.mediaKey ||
           flow.flowRevision != authority.flowRevision ||
           !_sameSources(flow.sources, authority.sources)) {
         throw const FormatException('invalid_response');
@@ -69,6 +87,24 @@ final class ServerMediaFlowApi {
     } on FormatException {
       throw const LarenorServerException('invalid_response');
     }
+  }
+
+  Future<ServerMediaFlowStatus> read(
+    String mediaKey, {
+    bool Function()? current,
+  }) async {
+    final authority = await readAuthority(mediaKey, current: current);
+    return readAuthorized(authority, current: current);
+  }
+
+  static void _requireCurrent(bool Function()? current) {
+    if (current == null) return;
+    try {
+      if (current()) return;
+    } catch (_) {
+      // A retired owner is indistinguishable from a false owner callback.
+    }
+    throw const LarenorServerException('retired');
   }
 
   static bool _sameSources(

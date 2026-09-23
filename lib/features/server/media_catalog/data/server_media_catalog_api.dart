@@ -4,6 +4,18 @@ import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_media_catalog_models.dart';
 
+final class ServerMediaCatalogTarget {
+  const ServerMediaCatalogTarget._({
+    required this.installationId,
+    required this.installationRevision,
+    required this.snapshotRevision,
+    required this.jellyfinServiceRevision,
+  });
+
+  final String installationId;
+  final int installationRevision, snapshotRevision, jellyfinServiceRevision;
+}
+
 final class ServerMediaCatalogApi {
   ServerMediaCatalogApi(this.api, this.token, {String Function()? requestId})
     : _requestId = requestId ?? _randomId;
@@ -20,15 +32,10 @@ final class ServerMediaCatalogApi {
     ).join();
   }
 
-  Future<
-    ({
-      String installationId,
-      int installationRevision,
-      int snapshotRevision,
-      int jellyfinServiceRevision,
-    })
-  >
-  _discoverTarget() async {
+  Future<ServerMediaCatalogTarget> discoverTarget({
+    bool Function()? current,
+  }) async {
+    _requireCurrent(current);
     try {
       final response = _object(
         await api.request('GET', '/media/catalog/target', token: token),
@@ -40,10 +47,11 @@ final class ServerMediaCatalogApi {
           'jellyfinServiceRevision',
         },
       );
+      _requireCurrent(current);
       if (response['schemaVersion'] is! int || response['schemaVersion'] != 1) {
         throw const FormatException();
       }
-      return (
+      return ServerMediaCatalogTarget._(
         installationId: _id(response['installationId']),
         installationRevision: _revision(response['installationRevision']),
         snapshotRevision: _revision(response['snapshotRevision']),
@@ -52,6 +60,46 @@ final class ServerMediaCatalogApi {
     } on FormatException {
       throw const LarenorServerException('invalid_response');
     }
+  }
+
+  Future<ServerMediaCatalogPage> searchVerifiedTarget({
+    required ServerMediaCatalogTarget target,
+    required String query,
+    ServerMediaCatalogKind? mediaKind,
+    int offset = 0,
+    int limit = 24,
+    ServerMediaCatalogPage? previousPage,
+    bool Function()? current,
+  }) async {
+    _validateSearch(query: query, offset: offset, limit: limit);
+    if ((offset == 0) != (previousPage == null) ||
+        previousPage != null &&
+            (previousPage.nextOffset != offset ||
+                previousPage.query != query ||
+                previousPage.mediaKind != mediaKind)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    if (previousPage != null &&
+        (target.installationId != previousPage.installationId ||
+            target.installationRevision != previousPage.installationRevision ||
+            target.snapshotRevision != previousPage.snapshotRevision ||
+            target.jellyfinServiceRevision !=
+                previousPage.jellyfinServiceRevision)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _requireCurrent(current);
+    final page = await _search(
+      installationId: target.installationId,
+      expectedInstallationRevision: target.installationRevision,
+      expectedSnapshotRevision: target.snapshotRevision,
+      expectedJellyfinServiceRevision: target.jellyfinServiceRevision,
+      query: query,
+      mediaKind: mediaKind,
+      offset: offset,
+      limit: limit,
+    );
+    _requireCurrent(current);
+    return page;
   }
 
   Future<ServerMediaCatalogPage> searchCurrent({
@@ -70,32 +118,16 @@ final class ServerMediaCatalogApi {
                 previousPage.mediaKind != mediaKind)) {
       throw const LarenorServerException('invalid_request');
     }
-    _requireCurrent(current);
-    final target = await _discoverTarget();
-    _requireCurrent(current);
-    if (previousPage != null &&
-        (target.installationId != previousPage.installationId ||
-            target.installationRevision != previousPage.installationRevision)) {
-      throw const LarenorServerException('invalid_response');
-    }
-    final page = await _search(
-      installationId: target.installationId,
-      expectedInstallationRevision: target.installationRevision,
-      expectedSnapshotRevision: target.snapshotRevision,
-      expectedJellyfinServiceRevision: target.jellyfinServiceRevision,
+    final target = await discoverTarget(current: current);
+    return searchVerifiedTarget(
+      target: target,
       query: query,
       mediaKind: mediaKind,
       offset: offset,
       limit: limit,
+      previousPage: previousPage,
+      current: current,
     );
-    _requireCurrent(current);
-    if (previousPage != null &&
-        (page.snapshotRevision != previousPage.snapshotRevision ||
-            page.jellyfinServiceRevision !=
-                previousPage.jellyfinServiceRevision)) {
-      throw const LarenorServerException('invalid_response');
-    }
-    return page;
   }
 
   Future<ServerMediaCatalogPage> search({
@@ -113,16 +145,14 @@ final class ServerMediaCatalogApi {
         expectedInstallationRevision > 0x7ffffffffffffffe) {
       throw const LarenorServerException('invalid_request');
     }
-    _requireCurrent(current);
-    final target = await _discoverTarget();
-    _requireCurrent(current);
+    final target = await discoverTarget(current: current);
     if (target.installationId != installationId ||
         target.installationRevision != expectedInstallationRevision) {
       throw const LarenorServerException('invalid_response');
     }
     final page = await _search(
-      installationId: installationId,
-      expectedInstallationRevision: expectedInstallationRevision,
+      installationId: target.installationId,
+      expectedInstallationRevision: target.installationRevision,
       expectedSnapshotRevision: target.snapshotRevision,
       expectedJellyfinServiceRevision: target.jellyfinServiceRevision,
       query: query,

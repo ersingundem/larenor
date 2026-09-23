@@ -9,6 +9,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/media_flow/data/server_media_flow_api.dart';
 import 'package:larenor/features/server/media_flow/data/server_media_flow_controller.dart';
 import 'package:larenor/features/server/media_flow/domain/server_media_flow_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -99,6 +100,8 @@ final class _FlowFixture extends AdminFixture {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test(
     'authority handshake precedes one strict secret-free flow read',
     () async {

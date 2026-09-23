@@ -9,6 +9,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/media_catalog/data/server_media_catalog_api.dart';
 import 'package:larenor/features/server/media_catalog/data/server_media_catalog_controller.dart';
 import 'package:larenor/features/server/media_catalog/domain/server_media_catalog_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -59,6 +60,8 @@ final class _CatalogFixture extends AdminFixture {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('uses member target handshake and bounded body-only search', () async {
     final calls = <http.Request>[];
     final api = LarenorServerApi(

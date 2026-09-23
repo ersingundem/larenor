@@ -11,7 +11,9 @@ import '../../data/server_account_controller.dart';
 import '../../media_catalog/domain/server_media_catalog_models.dart';
 import '../../media_playback/data/server_media_playback_controller.dart';
 import '../../media_playback/domain/server_media_playback_models.dart';
+import '../../media_result_origin.dart';
 import '../../providers/server_providers.dart';
+import '../data/server_media_flow_cache.dart';
 import '../data/server_media_flow_controller.dart';
 import '../domain/server_media_flow_models.dart';
 
@@ -23,6 +25,7 @@ final class ServerMediaFlowScreen extends ConsumerStatefulWidget {
     required this.title,
     this.catalogPage,
     this.catalogItem,
+    this.cache,
     this.requestId,
   }) : assert(
          (catalogPage == null) == (catalogItem == null),
@@ -32,6 +35,9 @@ final class ServerMediaFlowScreen extends ConsumerStatefulWidget {
   final String mediaKey, title;
   final ServerMediaCatalogPage? catalogPage;
   final ServerMediaCatalogItem? catalogItem;
+
+  @visibleForTesting
+  final ServerMediaFlowCache? cache;
 
   @visibleForTesting
   final String Function()? requestId;
@@ -75,6 +81,7 @@ final class _ServerMediaFlowScreenState
     _accountGeneration = _account.generation;
     _controller = ServerMediaFlowController(
       _account,
+      cache: widget.cache,
       requestId: widget.requestId,
     );
     _playback = widget.catalogPage == null
@@ -232,16 +239,34 @@ final class _ServerMediaFlowScreenState
     if (_controller.failure != null) {
       return [
         Semantics(
+          key: const ValueKey('server-media-flow-cache-fallback'),
           liveRegion: true,
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(l.commonError, style: AppText.body),
+            child: Text(
+              '${l.commonError} ${l.serverMediaCacheUnavailable}',
+              style: AppText.body,
+            ),
           ),
         ),
       ];
     }
     final status = _controller.status!;
     return [
+      if (_controller.origin case final origin)
+        Semantics(
+          key: const ValueKey('server-media-flow-cache-origin'),
+          liveRegion: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Text(
+              origin == ServerMediaResultOrigin.verifiedCache
+                  ? l.serverMediaCacheVerified
+                  : l.serverMediaCacheLive,
+              style: AppText.footnote,
+            ),
+          ),
+        ),
       Semantics(
         liveRegion: true,
         child: Padding(

@@ -4,19 +4,26 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
+import '../../media_result_origin.dart';
 import '../domain/server_media_catalog_models.dart';
 import 'server_media_catalog_api.dart';
+import 'server_media_catalog_cache.dart';
 
 /// Owns one explicit Core catalog search. No direct Jellyfin fallback exists.
 final class ServerMediaCatalogController extends ChangeNotifier {
-  ServerMediaCatalogController(this.account, {String Function()? requestId})
-    : _accountGeneration = account.generation,
-      _requestId = requestId {
+  ServerMediaCatalogController(
+    this.account, {
+    ServerMediaCatalogCache? cache,
+    String Function()? requestId,
+  }) : _accountGeneration = account.generation,
+       _cache = cache ?? ServerMediaCatalogCache(),
+       _requestId = requestId {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final int _accountGeneration;
+  final ServerMediaCatalogCache _cache;
   final String Function()? _requestId;
   int _epoch = 0;
   bool _disposed = false;
@@ -24,6 +31,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
   bool busy = false;
   String? failure;
   ServerMediaCatalogPage? page;
+  ServerMediaResultOrigin? origin;
 
   bool get _authorized =>
       account.isCurrent(_accountGeneration) &&
@@ -44,6 +52,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     busy = false;
     failure = null;
     page = null;
+    origin = null;
     notifyListeners();
   }
 
@@ -76,17 +85,109 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     required bool Function() current,
   }) {
     final previousPage = offset == 0 ? null : page;
-    return _search(
-      (api, requestCurrent) => api.searchCurrent(
-        query: query,
-        mediaKind: mediaKind,
-        offset: offset,
-        limit: limit,
-        previousPage: previousPage,
-        current: requestCurrent,
-      ),
+    return _searchCurrent(
+      query: query,
+      mediaKind: mediaKind,
+      offset: offset,
+      limit: limit,
+      previousPage: previousPage,
       current: current,
     );
+  }
+
+  Future<void> _searchCurrent({
+    required String query,
+    required ServerMediaCatalogKind? mediaKind,
+    required int offset,
+    required int limit,
+    required ServerMediaCatalogPage? previousPage,
+    required bool Function() current,
+  }) async {
+    bool routeCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (_disposed || busy || !_authorized || !routeCurrent()) return;
+    final operation = ++_epoch;
+    bool valid() =>
+        !_disposed && operation == _epoch && _authorized && routeCurrent();
+    busy = true;
+    failure = null;
+    page = null;
+    origin = null;
+    notifyListeners();
+    try {
+      await account.withSession((api, session) async {
+        bool requestCurrent() => valid() && identical(account.session, session);
+        final client = ServerMediaCatalogApi(
+          api,
+          session.accessToken,
+          requestId: _requestId,
+        );
+        final target = await client.discoverTarget(current: requestCurrent);
+        if (!requestCurrent()) return;
+        if (offset == 0) {
+          final cached = await _cache.read(
+            ServerMediaCatalogCacheScope.fromSession(session),
+            ServerMediaCatalogCacheResource(
+              installationId: target.installationId,
+              installationRevision: target.installationRevision,
+              snapshotRevision: target.snapshotRevision,
+              jellyfinServiceRevision: target.jellyfinServiceRevision,
+            ),
+            query: query,
+            mediaKind: mediaKind,
+            limit: limit,
+            current: requestCurrent,
+          );
+          if (!requestCurrent()) return;
+          if (cached != null) {
+            page = cached;
+            origin = ServerMediaResultOrigin.verifiedCache;
+            return;
+          }
+        }
+        final value = await client.searchVerifiedTarget(
+          target: target,
+          query: query,
+          mediaKind: mediaKind,
+          offset: offset,
+          limit: limit,
+          previousPage: previousPage,
+          current: requestCurrent,
+        );
+        if (offset == 0) {
+          try {
+            await _cache.write(
+              ServerMediaCatalogCacheScope.fromSession(session),
+              value,
+              limit: limit,
+              current: requestCurrent,
+            );
+          } catch (_) {
+            // Cache persistence cannot turn a verified live response into a
+            // route failure. Current authority is still checked below.
+          }
+        }
+        if (requestCurrent()) {
+          page = value;
+          origin = ServerMediaResultOrigin.live;
+        }
+      });
+    } on LarenorServerException catch (error) {
+      if (valid()) failure = error.code;
+    } catch (_) {
+      if (valid()) failure = 'connection_failed';
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        busy = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> _search(
@@ -112,6 +213,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     busy = true;
     failure = null;
     page = null;
+    origin = null;
     notifyListeners();
     try {
       await account.withSession((api, session) async {
@@ -124,7 +226,10 @@ final class ServerMediaCatalogController extends ChangeNotifier {
           ),
           requestCurrent,
         );
-        if (requestCurrent()) page = value;
+        if (requestCurrent()) {
+          page = value;
+          origin = ServerMediaResultOrigin.live;
+        }
       });
     } on LarenorServerException catch (error) {
       if (valid()) failure = error.code;
