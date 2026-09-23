@@ -29,11 +29,11 @@ Assistant connection path.
 
 ## RED and GREEN
 
-Reachable RED commit `5719ff2c2a1efa8baa80bc384c93e78166c7b236`
+Reachable RED commit `fe1040c9bdfc87d1bf20f33284b317da626dd0c4`
 introduced the strict schema, scope/resource/TTL/quota, replacement-owner and
 controller lifecycle tests before the cache implementation existed.
 
-GREEN commit `95f5995e0732a6dbad5f55e762901517f12f68f8`
+GREEN commit `e01601a370d8937d103c6cdc6268635a37456660`
 added canonical recovery serialization, the compare-and-write cache backend,
 and the transient-only controller fallback.
 
