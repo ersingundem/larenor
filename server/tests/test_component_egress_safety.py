@@ -122,9 +122,11 @@ def test_completed_lease_cannot_append_a_second_completion(server, monkeypatch):
     lease = leases.pop()
     before = client.get(policy_url(record), headers=auth(pair)).json()['audit']
 
-    with app.state.core.db.transaction() as connection:
-        with pytest.raises(ApiError, match='outbound_denied') as repeated:
-            lease.complete(connection)
+    with (
+        app.state.core.db.transaction() as connection,
+        pytest.raises(ApiError, match='outbound_denied') as repeated,
+    ):
+        lease.complete(connection)
     assert repeated.value.status == 403
     assert client.get(policy_url(record), headers=auth(pair)).json()['audit'] == before
 
