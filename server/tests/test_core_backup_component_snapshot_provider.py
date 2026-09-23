@@ -1,0 +1,478 @@
+"""S09.1 managed component volume snapshot provider."""
+
+import io
+import os
+import time
+import zipfile
+from dataclasses import replace
+from pathlib import Path
+
+import pytest
+
+import larenor_server.core_backups.component_snapshot_provider as provider_module
+from larenor_server.core_backups.component_snapshot_provider import (
+    ComponentSnapshotProviderError,
+    ComponentVolumeSource,
+    ManagedComponentSnapshotProvider,
+    archive_component_directory,
+)
+from larenor_server.plugins.catalog import load_catalog
+
+
+class InstalledAuthority:
+    def __init__(self):
+        self.available = True
+        self.calls = []
+
+    def revalidate(self, sources, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append(sources)
+        return self.available
+
+
+class PauseController:
+    def __init__(self, *, fail_on=None, uncertain_on=None, on_unpause=None):
+        self.fail_on = fail_on
+        self.uncertain_on = uncertain_on
+        self.on_unpause = on_unpause
+        self.calls = []
+        self.paused = set()
+
+    def pause(self, container_id, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append(("pause", container_id))
+        if container_id == self.fail_on:
+            raise RuntimeError("private controller detail")
+        self.paused.add(container_id)
+        if container_id == self.uncertain_on:
+            raise TimeoutError("private uncertain result")
+        return True
+
+    def unpause(self, container_id, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append(("unpause", container_id))
+        self.paused.remove(container_id)
+        if self.on_unpause is not None:
+            self.on_unpause()
+        return True
+
+
+def source(service, volume, path):
+    manifest = next(
+        entry.manifest
+        for entry in load_catalog().entries
+        if entry.manifest.serviceId == service
+    )
+    identity = path.lstat()
+    return ComponentVolumeSource(
+        service_id=service,
+        container_id=f"larenor-{service}",
+        volume_id=f"{service}-{volume}",
+        path=path,
+        service_version=manifest.version,
+        config_schema_version=manifest.configSchemaVersion,
+        data_schema_version=manifest.dataSchemaVersion,
+        installation_revision=7,
+        device=identity.st_dev,
+        inode=identity.st_ino,
+    )
+
+
+def provider(sources, controller, authority=None):
+    return ManagedComponentSnapshotProvider(
+        sources,
+        controller,
+        authority or InstalledAuthority(),
+    )
+
+
+def test_provider_pauses_once_and_returns_deterministic_catalog_snapshots(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    (config / "system.xml").write_text("<server />\n")
+    (config / "nested").mkdir()
+    (config / "nested" / "library.db").write_bytes(b"sqlite\x00payload")
+    (cache / "empty").mkdir()
+    controller = PauseController()
+    authority = InstalledAuthority()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "cache", cache),
+            source("jellyfin", "config", config),
+        ),
+        controller,
+        authority,
+    )
+
+    with snapshot_provider.quiesce(time.monotonic() + 3) as first:
+        assert controller.paused == {"larenor-jellyfin"}
+        assert [item.volumeId for item in first] == [
+            "jellyfin-cache",
+            "jellyfin-config",
+        ]
+        assert all(item.serviceVersion == "10.11.11" for item in first)
+        config_payload = next(
+            item.payload for item in first if item.volumeId == "jellyfin-config"
+        )
+        with zipfile.ZipFile(io.BytesIO(config_payload)) as archive:
+            assert archive.namelist() == [
+                "nested/",
+                "nested/library.db",
+                "system.xml",
+            ]
+            assert archive.read("nested/library.db") == b"sqlite\x00payload"
+    assert controller.calls == [
+        ("pause", "larenor-jellyfin"),
+        ("unpause", "larenor-jellyfin"),
+    ]
+
+    with snapshot_provider.quiesce(time.monotonic() + 3) as second:
+        assert [item.payload for item in second] == [item.payload for item in first]
+    assert len(authority.calls) == 8
+
+
+def test_provider_rolls_back_partial_pause_without_reading_volumes(tmp_path):
+    jellyfin_config = tmp_path / "jellyfin-config"
+    jellyfin_cache = tmp_path / "jellyfin-cache"
+    seerr_config = tmp_path / "seerr-config"
+    for path in (jellyfin_config, jellyfin_cache, seerr_config):
+        path.mkdir()
+    controller = PauseController(fail_on="larenor-seerr")
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", jellyfin_config),
+            source("jellyfin", "cache", jellyfin_cache),
+            source("seerr", "config", seerr_config),
+        ),
+        controller,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+
+    assert controller.paused == set()
+    assert controller.calls == [
+        ("pause", "larenor-jellyfin"),
+        ("pause", "larenor-seerr"),
+        ("unpause", "larenor-seerr"),
+        ("unpause", "larenor-jellyfin"),
+    ]
+
+
+def test_provider_rejects_incomplete_catalog_volume_set(tmp_path):
+    config = tmp_path / "config"
+    config.mkdir()
+    with pytest.raises(
+        ComponentSnapshotProviderError, match="invalid_snapshot_configuration"
+    ):
+        provider((source("jellyfin", "config", config),), PauseController())
+
+
+def test_archive_rejects_symlink_and_always_unpauses_provider(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    (config / "escape").symlink_to(tmp_path / "outside")
+    controller = PauseController()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+
+    assert controller.paused == set()
+    assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
+
+
+def test_archive_is_bounded_and_rejects_expired_deadline(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "large.bin").write_bytes(b"x" * 65)
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_too_large"):
+            archive_component_directory(
+                descriptor, time.monotonic() + 1, max_bytes=64
+            )
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, time.monotonic() - 1)
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, "private-deadline")
+    finally:
+        os.close(descriptor)
+
+
+def test_archive_bounds_directory_enumeration_before_sorting(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    root.mkdir()
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    consumed = 0
+
+    class Entry:
+        def __init__(self, name):
+            self.name = name
+
+    class Entries:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            nonlocal consumed
+            for index in range(provider_module._MAX_ENTRIES * 5):
+                consumed += 1
+                yield Entry(f"entry-{index:05d}")
+
+    def list_names(_descriptor):
+        return (entry.name for entry in Entries())
+
+    monkeypatch.setattr(os, "listdir", list_names)
+    monkeypatch.setattr(os, "scandir", lambda _descriptor: Entries())
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_too_large"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+    assert consumed == provider_module._MAX_ENTRIES + 1
+
+
+def test_archive_rejects_same_name_replacement_before_final_directory_check(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "root"
+    root.mkdir()
+    target = root / "state.db"
+    target.write_bytes(b"old-snapshot")
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    original_scandir = os.scandir
+    calls = 0
+
+    def mutate_before_final_check(value):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            target.write_bytes(b"new-live-stat")
+        return original_scandir(value)
+
+    monkeypatch.setattr(os, "scandir", mutate_before_final_check)
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+
+def test_archive_rejects_nested_mutation_while_later_sibling_is_read(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "root"
+    nested = root / "a-nested"
+    nested.mkdir(parents=True)
+    target = nested / "state.db"
+    target.write_bytes(b"old-state")
+    (root / "z-trigger").write_bytes(b"trigger")
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    original_stat = os.stat
+    mutated = False
+
+    def mutate_after_nested_visit(path, *args, **kwargs):
+        nonlocal mutated
+        if path == "z-trigger" and not mutated:
+            mutated = True
+            target.write_bytes(b"new-state")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", mutate_after_nested_visit)
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"service_id": "unknown"},
+        {"container_id": "UPPER CASE"},
+        {"volume_id": "jellyfin-state"},
+        {"path": Path("relative")},
+    ],
+)
+def test_provider_rejects_untrusted_source_fields(tmp_path, change):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    invalid = replace(source("jellyfin", "config", config), **change)
+    with pytest.raises(
+        ComponentSnapshotProviderError, match="invalid_snapshot_configuration"
+    ):
+        provider(
+            (invalid, source("jellyfin", "cache", cache)),
+            PauseController(),
+        )
+
+
+def test_uncertain_pause_is_reconciled_before_confirmed_containers(tmp_path):
+    paths = {
+        name: tmp_path / name
+        for name in ("jellyfin-config", "jellyfin-cache", "seerr-config")
+    }
+    for path in paths.values():
+        path.mkdir()
+    controller = PauseController(uncertain_on="larenor-seerr")
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", paths["jellyfin-config"]),
+            source("jellyfin", "cache", paths["jellyfin-cache"]),
+            source("seerr", "config", paths["seerr-config"]),
+        ),
+        controller,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+
+    assert controller.paused == set()
+    assert controller.calls[-2:] == [
+        ("unpause", "larenor-seerr"),
+        ("unpause", "larenor-jellyfin"),
+    ]
+
+
+def test_path_replacement_is_rejected_before_pause(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    controller = PauseController()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+    )
+    config.rename(tmp_path / "old-config")
+    config.mkdir()
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+
+    assert controller.calls == []
+
+
+def test_installed_authority_loss_blocks_before_pause(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    authority = InstalledAuthority()
+    authority.available = False
+    controller = PauseController()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+        authority,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+    assert controller.calls == []
+
+
+def test_installed_authority_drift_before_release_fails_snapshot(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    authority = InstalledAuthority()
+    controller = PauseController()
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+        authority,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            authority.available = False
+
+    assert len(authority.calls) == 3
+    assert controller.paused == set()
+    assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
+
+
+def test_installed_authority_drift_during_unpause_fails_snapshot(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    authority = InstalledAuthority()
+    controller = PauseController(
+        on_unpause=lambda: setattr(authority, "available", False)
+    )
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+        authority,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            pass
+
+    assert len(authority.calls) == 4
+    assert controller.paused == set()
+    assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
+
+
+def test_provider_rejects_shared_container_across_services(tmp_path):
+    jellyfin_config = tmp_path / "jellyfin-config"
+    jellyfin_cache = tmp_path / "jellyfin-cache"
+    seerr_config = tmp_path / "seerr-config"
+    for path in (jellyfin_config, jellyfin_cache, seerr_config):
+        path.mkdir()
+    seerr = replace(
+        source("seerr", "config", seerr_config),
+        container_id="larenor-jellyfin",
+    )
+    with pytest.raises(
+        ComponentSnapshotProviderError, match="invalid_snapshot_configuration"
+    ):
+        provider(
+            (
+                source("jellyfin", "config", jellyfin_config),
+                source("jellyfin", "cache", jellyfin_cache),
+                seerr,
+            ),
+            PauseController(),
+        )
