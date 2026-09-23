@@ -14,4 +14,12 @@ The lease now has a lock-protected `open -> dispatched -> completed|failed` life
 - GREEN `e72f46de`: all 3 focused lifecycle tests pass.
 - ASSERTIONS `acf1e621`: terminal rejection evidence checks the stable API error and status precisely.
 
+Independent review found that `complete` marked the lease terminal before the
+outer service transaction committed. RED commit `28694364` proves a later
+service write rollback made the unpersisted completion impossible to retry.
+GREEN commit `0395cdfc` adds a commit/rollback completion callback: concurrent
+reuse remains fenced while the transaction is open, commit makes the lease
+terminal, and rollback restores its exact retryable phase. The expanded
+component-egress batch passes **58/58** tests.
+
 F13 remains pending at **26/125 (20.8%)** and selected-feature progress remains **0/63 (0.0%)**. Additional managed component transport coverage and exact-head CI remain open.
