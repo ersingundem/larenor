@@ -59,9 +59,16 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   `40d053e040feaabf31404ba9c9c7c92961190700` now validates canonical request
   and receipt payloads plus actor, intent, consumed-by, target and revision
   relationships both at startup and at replay time.
+- Post-effect RED `38b208318c93fa7784f52be17e342d3978a847e4`
+  showed that a changed pending binding could still publish success. Pruning
+  RED `7434f62ad0b5df7242315a29da0f692658dde91d` showed that capacity recovery
+  could erase a malformed succeeded candidate. GREEN
+  `01f97601821287b9bd84260265bd75d5bf9116da` revalidates every prune
+  candidate before deletion and performs exact transactional revalidation and
+  compare-and-set finalization after the external effect.
 
-The current focused Server playback suite passes **12/12**; the grouped playback,
-catalog-read and flow package passes **43/43**. The current Flutter playback,
+The current focused Server playback suite passes **14/14**; the grouped playback,
+catalog-read and flow package passes **45/45**. The current Flutter playback,
 catalog tablet and real-loopback package passes **20/20**. Earlier accepted
 broader groups remain recorded by their exact commits above.
 
