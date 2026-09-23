@@ -3347,6 +3347,7 @@
   "kioskSensorsStopped": "Yerel algılama durduruldu.",
   "kioskSensorsExpired": "Sensör oturumu sona erdi. Devam etmek için yeni bir oturum başlatın.",
   "kioskSensorsUnavailable": "Sensör durumu doğrulanamadı. Örnekleme durduruldu.",
+  "kioskSensorsPowerLimited": "Kritik pil veya termal yük nedeniyle örnekleme durduruldu.",
   "kioskSensorsBackground": "Larenor ön planda değilken örnekleme duraklatıldı.",
   "kioskSensorsInactive": "Örnekleme kapalı",
   "kioskSensorsWaiting": "İlk sınırlı örnek bekleniyor",

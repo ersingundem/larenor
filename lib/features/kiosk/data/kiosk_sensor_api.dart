@@ -20,6 +20,9 @@ final class AndroidKioskSensorApi implements KioskSensorApi {
           (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
   final MethodChannel _channel;
   final bool _android;
+  static final _sessionId = RegExp(
+    r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',
+  );
 
   Future<Object?> _call(String method, Object args) async {
     if (!_android) {
@@ -44,22 +47,36 @@ final class AndroidKioskSensorApi implements KioskSensorApi {
   }
 
   @override
-  Future<KioskSensorSnapshot> start({required int intervalMillis}) async =>
-      KioskSensorSnapshot.fromChannel(
-        await _call('sensorStart', {'intervalMillis': intervalMillis}),
-      );
+  Future<KioskSensorSnapshot> start({required int intervalMillis}) async {
+    if (intervalMillis < 1000 || intervalMillis > 10000) {
+      throw const KioskSensorException(KioskSensorFailure.invalid);
+    }
+    return KioskSensorSnapshot.fromChannel(
+      await _call('sensorStart', {'intervalMillis': intervalMillis}),
+    );
+  }
 
   @override
-  Future<KioskSensorSnapshot> read(String sessionId) async =>
-      KioskSensorSnapshot.fromChannel(
-        await _call('sensorRead', {'sessionId': sessionId}),
-        expectedSessionId: sessionId,
-      );
+  Future<KioskSensorSnapshot> read(String sessionId) async {
+    _validateSessionId(sessionId);
+    return KioskSensorSnapshot.fromChannel(
+      await _call('sensorRead', {'sessionId': sessionId}),
+      expectedSessionId: sessionId,
+    );
+  }
 
   @override
-  Future<KioskSensorStopReceipt> stop(String sessionId) async =>
-      KioskSensorStopReceipt.fromChannel(
-        await _call('sensorStop', {'sessionId': sessionId}),
-        expectedSessionId: sessionId,
-      );
+  Future<KioskSensorStopReceipt> stop(String sessionId) async {
+    _validateSessionId(sessionId);
+    return KioskSensorStopReceipt.fromChannel(
+      await _call('sensorStop', {'sessionId': sessionId}),
+      expectedSessionId: sessionId,
+    );
+  }
+
+  static void _validateSessionId(String value) {
+    if (!_sessionId.hasMatch(value)) {
+      throw const KioskSensorException(KioskSensorFailure.invalid);
+    }
+  }
 }

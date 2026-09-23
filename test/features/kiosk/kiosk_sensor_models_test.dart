@@ -44,6 +44,7 @@ final class _Api implements KioskSensorApi {
   Object? stopValue = {'version': 1, 'sessionId': _session, 'stopped': true};
   Completer<KioskSensorStopReceipt>? pendingStop;
   final pendingReads = <Completer<KioskSensorSnapshot>>[];
+  int reads = 0;
   int stops = 0;
 
   @override
@@ -51,13 +52,15 @@ final class _Api implements KioskSensorApi {
       KioskSensorSnapshot.fromChannel(startValue);
 
   @override
-  Future<KioskSensorSnapshot> read(String sessionId) async =>
-      pendingReads.isNotEmpty
-      ? pendingReads.removeAt(0).future
-      : KioskSensorSnapshot.fromChannel(
-          readValue,
-          expectedSessionId: sessionId,
-        );
+  Future<KioskSensorSnapshot> read(String sessionId) async {
+    reads++;
+    return pendingReads.isNotEmpty
+        ? pendingReads.removeAt(0).future
+        : KioskSensorSnapshot.fromChannel(
+            readValue,
+            expectedSessionId: sessionId,
+          );
+  }
 
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
@@ -95,6 +98,7 @@ void main() {
       {..._sample(), 'secret': 'must-not-be-accepted'},
       identitySubstitution,
       {..._sample(), 'sessionId': 'foreign'},
+      {..._sample(), 'sessionId': '------------------------------------'},
       {..._sample(), 'lux': -1.0},
       {..._sample(), 'motionDelta': double.infinity},
       {..._sample(), 'approachDistanceCm': -1.0},
@@ -211,30 +215,137 @@ void main() {
     expect(api.stops, 1);
   });
 
-  test('late refresh cannot roll the sensor sequence backward', () async {
+  test(
+    'a completed refresh cannot be rolled backward by a later read',
+    () async {
+      final api = _Api();
+      final controller = KioskSensorController(api);
+      await controller.start();
+      api.readValue = {
+        ..._sample(sequence: 2),
+        'observedAtElapsedMillis': 1002,
+      };
+      expect((await controller.refresh()).sequence, 2);
+      api.readValue = {
+        ..._sample(sequence: 1),
+        'observedAtElapsedMillis': 1001,
+      };
+      await expectLater(
+        controller.refresh(),
+        throwsA(isA<KioskSensorException>()),
+      );
+      expect(controller.snapshot?.sequence, 2);
+    },
+  );
+
+  test('one sensor session permits only one native read at a time', () async {
     final api = _Api();
     final controller = KioskSensorController(api);
     await controller.start();
-    final firstGate = Completer<KioskSensorSnapshot>();
-    final secondGate = Completer<KioskSensorSnapshot>();
-    api.pendingReads.addAll([firstGate, secondGate]);
+    final gate = Completer<KioskSensorSnapshot>();
+    api.pendingReads.add(gate);
+
     final first = controller.refresh();
-    final second = controller.refresh();
-    secondGate.complete(
-      KioskSensorSnapshot.fromChannel({
-        ..._sample(sequence: 2),
-        'observedAtElapsedMillis': 1002,
-      }),
+    await expectLater(
+      controller.refresh(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.busy,
+        ),
+      ),
     );
-    expect((await second).sequence, 2);
-    firstGate.complete(
-      KioskSensorSnapshot.fromChannel({
-        ..._sample(sequence: 1),
-        'observedAtElapsedMillis': 1001,
-      }),
+    expect(api.reads, 1);
+    gate.complete(KioskSensorSnapshot.fromChannel(_sample()));
+    await first;
+  });
+
+  test('late read completion cannot release an in-flight stop', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    final readGate = Completer<KioskSensorSnapshot>();
+    api.pendingReads.add(readGate);
+    final pendingRead = controller.refresh();
+    api.pendingStop = Completer<KioskSensorStopReceipt>();
+    final pendingStop = controller.stop();
+
+    readGate.complete(KioskSensorSnapshot.fromChannel(_sample()));
+    await expectLater(
+      pendingRead,
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.expired,
+        ),
+      ),
     );
-    await expectLater(first, throwsA(isA<KioskSensorException>()));
-    expect(controller.snapshot?.sequence, 2);
+    await expectLater(
+      controller.start(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.busy,
+        ),
+      ),
+    );
+
+    api.pendingStop!.complete(
+      const KioskSensorStopReceipt(sessionId: _session, stopped: true),
+    );
+    await pendingStop;
+    expect(api.stops, 1);
+    api.pendingStop = null;
+    await controller.start();
+    expect(controller.active, isTrue);
+  });
+
+  for (final unsafe in [
+    _sample(sequence: 0, batteryPercent: 3),
+    _sample(sequence: 0, thermalStatus: 'critical'),
+  ]) {
+    test('critical power state retires a new native sensor session', () async {
+      final api = _Api()..startValue = unsafe;
+      final controller = KioskSensorController(api);
+
+      await expectLater(
+        controller.start(),
+        throwsA(
+          isA<KioskSensorException>().having(
+            (error) => error.failure,
+            'failure',
+            KioskSensorFailure.powerLimited,
+          ),
+        ),
+      );
+      expect(controller.active, isFalse);
+      expect(api.stops, 1);
+    });
+  }
+
+  test('critical power drift stops the exact active session once', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    api.readValue = _sample(sequence: 1, thermalStatus: 'emergency');
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.powerLimited,
+        ),
+      ),
+    );
+    expect(controller.active, isFalse);
+    expect(api.stops, 1);
+    await controller.retire();
+    expect(api.stops, 1);
   });
 
   test('approach reading cannot drift without a newer sequence', () async {
@@ -322,6 +433,51 @@ void main() {
       expect(calls.first.arguments, {'intervalMillis': 1000});
       expect(calls[1].arguments, {'sessionId': _session});
       expect(calls[2].arguments, {'sessionId': _session});
+    },
+  );
+
+  test(
+    'Android channel rejects unbounded arguments before native I/O',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.ersingundem.larenor/kiosk'),
+            (call) async {
+              calls.add(call);
+              return null;
+            },
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('com.ersingundem.larenor/kiosk'),
+              null,
+            ),
+      );
+      final api = AndroidKioskSensorApi(isAndroid: true);
+
+      for (final interval in [999, 10001]) {
+        await expectLater(
+          api.start(intervalMillis: interval),
+          throwsA(isA<KioskSensorException>()),
+        );
+      }
+      for (final sessionId in [
+        'foreign',
+        '------------------------------------',
+        '00000000-0000-0000-0000-00000000000g',
+      ]) {
+        await expectLater(
+          api.read(sessionId),
+          throwsA(isA<KioskSensorException>()),
+        );
+        await expectLater(
+          api.stop(sessionId),
+          throwsA(isA<KioskSensorException>()),
+        );
+      }
+      expect(calls, isEmpty);
     },
   );
 }

@@ -14,7 +14,11 @@ import 'package:larenor/l10n/generated/app_localizations.dart';
 
 const _session = '123e4567-e89b-12d3-a456-426614174000';
 
-KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
+KioskSensorSnapshot _snapshot({
+  int sequence = 0,
+  int? batteryPercent = 73,
+  KioskSensorThermalStatus thermalStatus = KioskSensorThermalStatus.moderate,
+}) => KioskSensorSnapshot(
   sessionId: _session,
   sequence: sequence,
   sampling: true,
@@ -27,12 +31,13 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
   approachDistanceCm: sequence == 0 ? null : 2,
   approachMaxRangeCm: 5,
   cameraStatus: KioskSensorCameraStatus.busy,
-  batteryPercent: 73,
-  thermalStatus: KioskSensorThermalStatus.moderate,
+  batteryPercent: batteryPercent,
+  thermalStatus: thermalStatus,
 );
 
 final class _Api implements KioskSensorApi {
   int starts = 0, stops = 0, reads = 0;
+  KioskSensorSnapshot? readValue;
   Completer<KioskSensorSnapshot>? pending;
   Completer<KioskSensorStopReceipt>? pendingStop;
   @override
@@ -44,7 +49,8 @@ final class _Api implements KioskSensorApi {
   @override
   Future<KioskSensorSnapshot> read(String sessionId) {
     reads++;
-    return pending?.future ?? Future.value(_snapshot(sequence: reads));
+    return pending?.future ??
+        Future.value(readValue ?? _snapshot(sequence: reads));
   }
 
   @override
@@ -238,4 +244,38 @@ void main() {
     );
     await tester.pump();
   });
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    testWidgets(
+      '${locale.languageCode} critical thermal load stops sampling once',
+      (tester) async {
+        final api = _Api()
+          ..readValue = _snapshot(
+            sequence: 1,
+            thermalStatus: KioskSensorThermalStatus.critical,
+          );
+        await _pump(tester, locale: locale, width: 600, api: api);
+        final start = find.byKey(const ValueKey('kiosk-sensor-start'));
+        await _reveal(tester, start);
+        await tester.tap(start);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(api.stops, 1);
+        expect(
+          find.byKey(const ValueKey('kiosk-sensor-start')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            locale.languageCode == 'tr'
+                ? 'Kritik pil veya termal yük nedeniyle örnekleme durduruldu.'
+                : 'Sampling stopped because battery or thermal load is critical.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  }
 }
