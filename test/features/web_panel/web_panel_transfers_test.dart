@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,148 @@ const upload = FileSelectorParams(
   acceptTypes: ['application/pdf'],
   mode: FileSelectorMode.open,
 );
+
+final validPdf = Uint8List.fromList(
+  '%PDF-1.7\n'
+          '1 0 obj\n<< /Type /Catalog >>\nendobj\n'
+          'xref\n0 1\n0000000000 65535 f \n'
+          'trailer\n<< /Root 1 0 R >>\n'
+          'startxref\n42\n%%EOF\n'
+      .codeUnits,
+);
+
+final validJpeg = Uint8List.fromList(const [
+  0xff,
+  0xd8,
+  0xff,
+  0xc0,
+  0x00,
+  0x0b,
+  0x08,
+  0x00,
+  0x01,
+  0x00,
+  0x01,
+  0x01,
+  0x01,
+  0x11,
+  0x00,
+  0xff,
+  0xda,
+  0x00,
+  0x08,
+  0x01,
+  0x01,
+  0x00,
+  0x00,
+  0x3f,
+  0x00,
+  0x01,
+  0xff,
+  0xd9,
+]);
+
+final malformedJpeg = Uint8List.fromList(const [
+  0xff,
+  0xd8,
+  0xff,
+  0xc0,
+  0x00,
+  0x08,
+  0x08,
+  0x00,
+  0x01,
+  0x00,
+  0x01,
+  0x01,
+  0xff,
+  0xda,
+  0x00,
+  0x06,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0xff,
+  0xd9,
+]);
+
+Uint8List zeroHeightJpeg() {
+  final bytes = Uint8List.fromList(validJpeg);
+  bytes[7] = 0;
+  bytes[8] = 0;
+  return bytes;
+}
+
+final validPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+);
+
+final oversizedPngHeader = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUv////8AAAABCAIAAACPPoGdAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC',
+);
+
+final invalidPngColorDepth = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAwQAAADCzD0TAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC',
+);
+
+final validWebp = base64Decode(
+  'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA',
+);
+
+Uint8List duplicateWebpImageChunk() {
+  final chunks = validWebp.sublist(12);
+  final bytes = Uint8List.fromList([
+    ...validWebp.sublist(0, 12),
+    ...chunks,
+    ...chunks,
+  ]);
+  final riffLength = bytes.length - 8;
+  for (var offset = 0; offset < 4; offset++) {
+    bytes[4 + offset] = (riffLength >> (offset * 8)) & 0xff;
+  }
+  return bytes;
+}
+
+final animationHeaderOnlyWebp = Uint8List.fromList(const [
+  0x52,
+  0x49,
+  0x46,
+  0x46,
+  0x1c,
+  0x00,
+  0x00,
+  0x00,
+  0x57,
+  0x45,
+  0x42,
+  0x50,
+  0x41,
+  0x4e,
+  0x4d,
+  0x46,
+  0x10,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+]);
 
 final class Access implements WebPanelTransferAccess {
   final uploadGate = Completer<List<String>>();
@@ -168,7 +311,7 @@ void main() {
             return http.Response('', 302, headers: {'location': '/file.pdf'});
           }
           return http.Response.bytes(
-            Uint8List.fromList([37, 80, 68, 70]),
+            validPdf,
             200,
             headers: {'content-type': 'application/pdf'},
           );
@@ -189,7 +332,7 @@ void main() {
         ),
         true,
       );
-      expect(saved, [37, 80, 68, 70]);
+      expect(saved, validPdf);
       expect(requests, hasLength(2));
       for (final request in requests) {
         expect(request.headers.containsKey('authorization'), false);
@@ -253,4 +396,86 @@ void main() {
       expect(exports, 0);
     },
   );
+
+  test('declared safe mime must match bounded payload before SAF', () async {
+    var exports = 0;
+    for (final fixture in <(String, List<int>)>[
+      ('application/pdf', '<html>not a pdf</html>'.codeUnits),
+      ('application/pdf', '%PDF-1.7<html>polyglot</html>'.codeUnits),
+      ('image/jpeg', [0x89, 0x50, 0x4e, 0x47]),
+      ('image/jpeg', [0xff, 0xd8, 0xff, 0xe0]),
+      ('image/jpeg', malformedJpeg),
+      ('image/jpeg', zeroHeightJpeg()),
+      ('image/png', [0xff, 0xd8, 0xff, 0xe0]),
+      ('image/png', [...validPng]..removeLast()),
+      ('image/png', oversizedPngHeader),
+      ('image/png', invalidPngColorDepth),
+      ('image/webp', 'RIFF0000NOPE'.codeUnits),
+      ('image/webp', 'RIFF0000WEBP'.codeUnits),
+      ('image/webp', animationHeaderOnlyWebp),
+      ('image/webp', duplicateWebpImageChunk()),
+      ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
+      ('text/csv', [0xc3, 0x28]),
+      ('application/json', '{"unfinished":'.codeUnits),
+      ('application/octet-stream', [1, 2, 3]),
+    ]) {
+      final access = LocalWebPanelTransferAccess(
+        client: () => MockClient(
+          (_) async => http.Response.bytes(
+            fixture.$2,
+            200,
+            headers: {'content-type': fixture.$1},
+          ),
+        ),
+        saveFile: (_, _, _) async {
+          exports++;
+          return Uri.parse('content://fixture/unexpected');
+        },
+      );
+      expect(
+        await access.download(
+          Uri.parse('https://panel.invalid/file'),
+          WebPanelPolicy.fromUrl('https://panel.invalid')!,
+          () => true,
+        ),
+        false,
+        reason: fixture.$1,
+      );
+    }
+    expect(exports, 0);
+  });
+
+  test('structurally framed binary payloads reach SAF unchanged', () async {
+    for (final fixture in <(String, Uint8List)>[
+      ('application/pdf', validPdf),
+      ('image/jpeg', validJpeg),
+      ('image/png', validPng),
+      ('image/webp', validWebp),
+    ]) {
+      Uint8List? saved;
+      final access = LocalWebPanelTransferAccess(
+        client: () => MockClient(
+          (_) async => http.Response.bytes(
+            fixture.$2,
+            200,
+            headers: {'content-type': fixture.$1},
+          ),
+        ),
+        saveFile: (_, _, bytes) async {
+          saved = bytes;
+          return Uri.parse('content://fixture/saved');
+        },
+      );
+      expect(
+        await access.download(
+          Uri.parse('https://panel.invalid/file'),
+          WebPanelPolicy.fromUrl('https://panel.invalid')!,
+          () => true,
+        ),
+        true,
+        reason: fixture.$1,
+      );
+      expect(saved, fixture.$2);
+    }
+  });
 }
