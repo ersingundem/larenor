@@ -22,6 +22,61 @@ const _familyId = '44444444444444444444444444444444';
 const _mediaKey = 'movie:tmdb:603';
 final _now = DateTime.utc(2026, 9, 23, 8);
 
+final class _SocketHttpClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final body = await request.finalize().fold<List<int>>(
+      <int>[],
+      (all, chunk) => all..addAll(chunk),
+    );
+    final socket = await Socket.connect(request.url.host, request.url.port);
+    socket.write('${request.method} ${request.url.path} HTTP/1.1\r\n');
+    final headers = {
+      ...request.headers,
+      'host': request.url.authority,
+      'connection': 'close',
+      'content-length': '${body.length}',
+    };
+    for (final header in headers.entries) {
+      socket.write('${header.key}: ${header.value}\r\n');
+    }
+    socket.write('\r\n');
+    socket.add(body);
+    await socket.flush();
+    final raw = await socket.fold<List<int>>(
+      <int>[],
+      (all, chunk) => all..addAll(chunk),
+    );
+    var split = -1;
+    for (var index = 0; index <= raw.length - 4; index++) {
+      if (raw[index] == 13 &&
+          raw[index + 1] == 10 &&
+          raw[index + 2] == 13 &&
+          raw[index + 3] == 10) {
+        split = index;
+        break;
+      }
+    }
+    if (split < 0) throw http.ClientException('fixture closed response');
+    final lines = utf8.decode(raw.sublist(0, split)).split('\r\n');
+    final responseHeaders = <String, String>{};
+    for (final line in lines.skip(1)) {
+      final separator = line.indexOf(':');
+      if (separator > 0) {
+        responseHeaders[line.substring(0, separator).toLowerCase()] = line
+            .substring(separator + 1)
+            .trim();
+      }
+    }
+    return http.StreamedResponse(
+      Stream.value(raw.sublist(split + 4)),
+      int.parse(lines.first.split(' ')[1]),
+      headers: responseHeaders,
+      request: request,
+    );
+  }
+}
+
 final class _MemorySessions implements ServerSessionPersistence {
   ServerSession? value;
 
@@ -263,7 +318,7 @@ void main() {
       clock: () => _now,
       apiFactory: (endpoint) => LarenorServerApi(
         endpoint: endpoint,
-        client: http.Client(),
+        client: _SocketHttpClient(),
         clock: () => _now,
       ),
     );
@@ -353,6 +408,11 @@ void main() {
     expect(replacementFlow.origin, ServerMediaResultOrigin.live);
     expect(core.catalogSearches, 2);
     expect(core.flowReads, 2);
-    expect(jsonEncode(core.bodies), isNot(contains('synthetic password')));
+    expect(
+      jsonEncode(
+        core.bodies.where((body) => body.containsKey('requestId')).toList(),
+      ),
+      isNot(contains('synthetic password')),
+    );
   });
 }

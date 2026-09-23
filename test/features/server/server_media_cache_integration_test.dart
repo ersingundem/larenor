@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -170,19 +169,12 @@ Map<String, Object?> _flowJson() => {
 
 ServerMediaFlowStatus _flow() => ServerMediaFlowStatus.fromJson(_flowJson());
 
-ServerMediaFlowAuthority _authority() => ServerMediaFlowAuthority.fromJson({
-  'requestId': _requestId,
-  'mediaKey': _mediaKey,
-  'flowRevision': 9,
-  'sources': _sources(),
-});
-
 final class _MediaFixture extends AdminFixture {
   _MediaFixture() {
     respond = (request) async {
       if (request.url.path.endsWith('/media/catalog/target')) {
         targetCalls++;
-        return this.json({
+        return json({
           'schemaVersion': 1,
           'installationId': _installationId,
           'installationRevision': 7,
@@ -193,11 +185,11 @@ final class _MediaFixture extends AdminFixture {
       if (request.url.path.endsWith('/media/catalog/search')) {
         catalogCalls++;
         if (catalogFailure) {
-          return this.json({
+          return json({
             'error': {'code': 'server_error'},
           }, 503);
         }
-        final response = this.json({
+        final response = json({
           'requestId': _requestId,
           'catalog': _pageJson(),
         });
@@ -205,7 +197,7 @@ final class _MediaFixture extends AdminFixture {
       }
       if (request.url.path.endsWith('/media/flows/authority')) {
         authorityCalls++;
-        return this.json({
+        return json({
           'requestId': _requestId,
           'mediaKey': _mediaKey,
           'flowRevision': 9,
@@ -214,7 +206,7 @@ final class _MediaFixture extends AdminFixture {
       }
       if (request.url.path.endsWith('/media/flows/read')) {
         flowCalls++;
-        return this.json({'requestId': _requestId, 'flow': _flowJson()});
+        return json({'requestId': _requestId, 'flow': _flowJson()});
       }
       return defaultResponse(request);
     };
@@ -322,6 +314,79 @@ void main() {
     },
   );
 
+  test(
+    'flow route retirement during persistence clears its stale write',
+    () async {
+      final fixture = _MediaFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final flowBackend = _FlowBackend()..writeGate = Completer<void>();
+      final controller = ServerMediaFlowController(
+        fixture.account,
+        cache: ServerMediaFlowCache(backend: flowBackend, now: () => _now),
+        requestId: () => _requestId,
+      );
+      addTearDown(controller.dispose);
+      var current = true;
+
+      final pending = controller.load(_mediaKey, current: () => current);
+      while (flowBackend.value == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      current = false;
+      flowBackend.writeGate!.complete();
+      await pending;
+
+      expect(controller.status, isNull);
+      expect(controller.origin, isNull);
+      expect(flowBackend.value, isNull);
+    },
+  );
+
+  testWidgets('app pause retires a catalog cache write after persistence', (
+    tester,
+  ) async {
+    final fixture = _MediaFixture();
+    await fixture.account.initialize();
+    final backend = _CatalogBackend()..writeGate = Completer<void>();
+    addTearDown(() {
+      fixture.account.dispose();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(
+            requestId: _fixedRequestId,
+            catalogCache: ServerMediaCatalogCache(
+              backend: backend,
+              now: () => _now,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'matrix',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    while (backend.value == null) {
+      await tester.pump();
+    }
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    backend.writeGate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('The Matrix'), findsNothing);
+    expect(backend.value, isNull);
+  });
+
   testWidgets('cache miss and Core failure expose an accessible fallback', (
     tester,
   ) async {
@@ -329,7 +394,6 @@ void main() {
     final fixture = _MediaFixture()..catalogFailure = true;
     await fixture.account.initialize();
     addTearDown(() {
-      semantics.dispose();
       fixture.account.dispose();
     });
     await tester.pumpWidget(
@@ -364,6 +428,7 @@ void main() {
     expect(tester.getSemantics(fallback).flagsCollection.isLiveRegion, isTrue);
     expect(find.text('The Matrix'), findsNothing);
     expect(fixture.catalogCalls, 1);
+    semantics.dispose();
   });
 
   for (final locale in ['en', 'tr']) {
@@ -394,7 +459,6 @@ void main() {
             current: () => true,
           );
           addTearDown(() {
-            semantics.dispose();
             fixture.account.dispose();
             tester.view.reset();
           });
@@ -465,6 +529,7 @@ void main() {
           );
           expect(fixture.flowCalls, 0);
           expect(tester.takeException(), isNull);
+          semantics.dispose();
         },
       );
     }

@@ -4,21 +4,28 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
+import '../../media_result_origin.dart';
 import '../domain/server_media_flow_models.dart';
 import 'server_media_flow_api.dart';
+import 'server_media_flow_cache.dart';
 
 /// Owns one explicit central media-flow read. It never polls, retries or
 /// acquires a direct media-service address or credential.
 final class ServerMediaFlowController extends ChangeNotifier {
   // Keep the public deterministic test seam while storing it privately.
-  ServerMediaFlowController(this.account, {String Function()? requestId})
-    : _accountGeneration = account.generation,
-      _requestId = requestId {
+  ServerMediaFlowController(
+    this.account, {
+    ServerMediaFlowCache? cache,
+    String Function()? requestId,
+  }) : _accountGeneration = account.generation,
+       _cache = cache ?? ServerMediaFlowCache(),
+       _requestId = requestId {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final int _accountGeneration;
+  final ServerMediaFlowCache _cache;
   final String Function()? _requestId;
   int _epoch = 0;
   bool _disposed = false;
@@ -26,6 +33,7 @@ final class ServerMediaFlowController extends ChangeNotifier {
   bool busy = false;
   String? failure;
   ServerMediaFlowStatus? status;
+  ServerMediaResultOrigin? origin;
 
   bool get _authorized =>
       account.isCurrent(_accountGeneration) &&
@@ -46,6 +54,7 @@ final class ServerMediaFlowController extends ChangeNotifier {
     busy = false;
     failure = null;
     status = null;
+    origin = null;
     notifyListeners();
   }
 
@@ -65,15 +74,49 @@ final class ServerMediaFlowController extends ChangeNotifier {
     busy = true;
     failure = null;
     status = null;
+    origin = null;
     notifyListeners();
     try {
       await account.withSession((api, session) async {
-        final value = await ServerMediaFlowApi(
+        bool requestCurrent() => valid() && identical(account.session, session);
+        final client = ServerMediaFlowApi(
           api,
           session.accessToken,
           requestId: _requestId,
-        ).read(mediaKey);
-        if (valid() && identical(account.session, session)) status = value;
+        );
+        final authority = await client.readAuthority(
+          mediaKey,
+          current: requestCurrent,
+        );
+        if (!requestCurrent()) return;
+        final cached = await _cache.read(
+          ServerMediaFlowCacheScope.fromSession(session),
+          authority,
+          current: requestCurrent,
+        );
+        if (!requestCurrent()) return;
+        if (cached != null) {
+          status = cached;
+          origin = ServerMediaResultOrigin.verifiedCache;
+          return;
+        }
+        final value = await client.readAuthorized(
+          authority,
+          current: requestCurrent,
+        );
+        try {
+          await _cache.write(
+            ServerMediaFlowCacheScope.fromSession(session),
+            value,
+            current: requestCurrent,
+          );
+        } catch (_) {
+          // Cache persistence is opportunistic; authority is checked below.
+        }
+        if (requestCurrent()) {
+          status = value;
+          origin = ServerMediaResultOrigin.live;
+        }
       });
     } on LarenorServerException catch (error) {
       if (valid()) failure = error.code;

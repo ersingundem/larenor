@@ -22,13 +22,22 @@ final class _MemoryBackend implements ServerMediaFlowCacheBackend {
   }
 
   @override
-  Future<bool> compareAndWrite(String? expected, String value) async {
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) async {
+    if (!current()) return false;
     final replacement = replacementBeforeMutation;
     replacementBeforeMutation = null;
     if (replacement != null) this.value = replacement;
     if (this.value != expected) return false;
     writes++;
     this.value = value;
+    if (!current()) {
+      await compareAndClear(value);
+      return false;
+    }
     return true;
   }
 

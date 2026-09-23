@@ -11,6 +11,7 @@ import 'package:larenor/features/server/media_catalog/presentation/server_media_
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -232,6 +233,8 @@ final class _CatalogFixture extends AdminFixture {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test(
     'discovers one exact ready Core target before every bounded page',
     () async {

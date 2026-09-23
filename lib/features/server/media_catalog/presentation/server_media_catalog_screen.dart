@@ -8,18 +8,32 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../data/server_account_controller.dart';
+import '../../media_result_origin.dart';
 import '../../providers/server_providers.dart';
+import '../data/server_media_catalog_cache.dart';
 import '../data/server_media_catalog_controller.dart';
 import '../domain/server_media_catalog_models.dart';
+import '../../media_flow/data/server_media_flow_cache.dart';
 import '../../media_flow/presentation/server_media_flow_screen.dart';
 
 /// Explicit, read-only Core catalog search. It never mounts or falls back to a
 /// device-local Jellyfin client.
 final class ServerMediaCatalogScreen extends ConsumerStatefulWidget {
-  const ServerMediaCatalogScreen({super.key, this.requestId});
+  const ServerMediaCatalogScreen({
+    super.key,
+    this.requestId,
+    this.catalogCache,
+    this.flowCache,
+  });
 
   @visibleForTesting
   final String Function()? requestId;
+
+  @visibleForTesting
+  final ServerMediaCatalogCache? catalogCache;
+
+  @visibleForTesting
+  final ServerMediaFlowCache? flowCache;
 
   @override
   ConsumerState<ServerMediaCatalogScreen> createState() =>
@@ -59,6 +73,7 @@ final class _ServerMediaCatalogScreenState
     _accountGeneration = _account.generation;
     _controller = ServerMediaCatalogController(
       _account,
+      cache: widget.catalogCache,
       requestId: widget.requestId,
     );
     _account.addListener(_accountChanged);
@@ -152,6 +167,7 @@ final class _ServerMediaCatalogScreenState
             title: item.title,
             catalogPage: _controller.page,
             catalogItem: item,
+            cache: widget.flowCache,
             requestId: widget.requestId,
           ),
         ),
@@ -198,10 +214,14 @@ final class _ServerMediaCatalogScreenState
     if (_controller.failure != null) {
       return [
         Semantics(
+          key: const ValueKey('server-media-catalog-cache-fallback'),
           liveRegion: true,
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(l.commonError, style: AppText.body),
+            child: Text(
+              '${l.commonError} ${l.serverMediaCacheUnavailable}',
+              style: AppText.body,
+            ),
           ),
         ),
       ];
@@ -226,6 +246,20 @@ final class _ServerMediaCatalogScreenState
       ];
     }
     return [
+      if (_controller.origin case final origin)
+        Semantics(
+          key: const ValueKey('server-media-catalog-cache-origin'),
+          liveRegion: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Text(
+              origin == ServerMediaResultOrigin.verifiedCache
+                  ? l.serverMediaCacheVerified
+                  : l.serverMediaCacheLive,
+              style: AppText.footnote,
+            ),
+          ),
+        ),
       for (final item in page.items)
         Semantics(
           key: ValueKey('server-media-catalog-item-${item.itemId}'),

@@ -9,7 +9,11 @@ import '../domain/server_media_flow_models.dart';
 abstract interface class ServerMediaFlowCacheBackend {
   Future<String?> read();
   Future<void> write(String value);
-  Future<bool> compareAndWrite(String? expected, String value);
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  });
   Future<bool> compareAndClear(String expected);
   Future<void> clear();
 }
@@ -39,16 +43,39 @@ final class SharedPreferencesServerMediaFlowCacheBackend
   });
 
   @override
-  Future<bool> compareAndWrite(String? expected, String value) =>
-      ConfigurationWrites.run(() async {
-        final preferences = await _loadPreferences();
-        await preferences.reload();
-        if (preferences.getString(key) != expected) return false;
-        if (!await preferences.setString(key, value)) {
-          throw StateError('media_flow_cache_write_failed');
-        }
-        return true;
-      });
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) => ConfigurationWrites.run(() async {
+    bool isCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!isCurrent()) return false;
+    final preferences = await _loadPreferences();
+    if (!isCurrent()) return false;
+    await preferences.reload();
+    if (!isCurrent() || preferences.getString(key) != expected) {
+      return false;
+    }
+    if (!await preferences.setString(key, value)) {
+      throw StateError('media_flow_cache_write_failed');
+    }
+    if (!isCurrent()) {
+      await preferences.reload();
+      if (preferences.getString(key) == value &&
+          !await preferences.remove(key)) {
+        throw StateError('media_flow_cache_clear_failed');
+      }
+      return false;
+    }
+    return true;
+  });
 
   @override
   Future<bool> compareAndClear(String expected) =>
@@ -131,18 +158,27 @@ final class ServerMediaFlowCache {
 
   Future<ServerMediaFlowStatus?> read(
     ServerMediaFlowCacheScope scope,
-    ServerMediaFlowAuthority authority,
-  ) async {
-    if (!scope.valid) return null;
+    ServerMediaFlowAuthority authority, {
+    bool Function()? current,
+  }) async {
+    bool isCurrent() {
+      try {
+        return current?.call() ?? true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!isCurrent() || !scope.valid) return null;
     final String? raw;
     try {
       raw = await _backend.read();
     } catch (_) {
       return null;
     }
-    if (raw == null) return null;
+    if (!isCurrent() || raw == null) return null;
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
-      await _clearIfCurrent(raw);
+      await _clearIfCurrent(raw, isCurrent);
       return null;
     }
     try {
@@ -211,17 +247,28 @@ final class ServerMediaFlowCache {
           )) {
         throw const FormatException();
       }
+      if (!isCurrent()) return null;
       return flow;
     } catch (_) {
-      await _clearIfCurrent(raw);
+      await _clearIfCurrent(raw, isCurrent);
       return null;
     }
   }
 
   Future<bool> write(
     ServerMediaFlowCacheScope scope,
-    ServerMediaFlowStatus flow,
-  ) async {
+    ServerMediaFlowStatus flow, {
+    bool Function()? current,
+  }) async {
+    bool isCurrent() {
+      try {
+        return current?.call() ?? true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!isCurrent()) return false;
     if (!scope.valid) throw StateError('media_flow_cache_scope_invalid');
     final savedAt = _now().toUtc();
     if (flow.sources.any(
@@ -233,6 +280,7 @@ final class ServerMediaFlowCache {
       throw StateError('media_flow_cache_time_invalid');
     }
     final expected = await _backend.read();
+    if (!isCurrent()) return false;
     final raw = jsonEncode({
       'schemaVersion': 1,
       'scope': scope.toJson(),
@@ -248,10 +296,22 @@ final class ServerMediaFlowCache {
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
       throw StateError('media_flow_cache_quota_exceeded');
     }
-    return _backend.compareAndWrite(expected, raw);
+    if (!isCurrent()) return false;
+    final written = await _backend.compareAndWrite(
+      expected,
+      raw,
+      current: isCurrent,
+    );
+    if (!written) return false;
+    if (!isCurrent()) {
+      await _clearIfCurrent(raw, () => true);
+      return false;
+    }
+    return true;
   }
 
-  Future<void> _clearIfCurrent(String raw) async {
+  Future<void> _clearIfCurrent(String raw, bool Function() current) async {
+    if (!current()) return;
     try {
       await _backend.compareAndClear(raw);
     } catch (_) {}
