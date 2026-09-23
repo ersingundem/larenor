@@ -24,12 +24,21 @@ final class _MemoryBackend implements ServerMusicCommandReceiptCacheBackend {
   }
 
   @override
-  Future<bool> compareAndWrite(String? expected, String next) async {
+  Future<bool> compareAndWrite(
+    String? expected,
+    String next, {
+    required bool Function() current,
+  }) async {
+    if (!current()) return false;
     if (value != expected) return false;
     value = next;
     writes++;
     final gate = writeGate;
     if (gate != null) await gate.future;
+    if (!current()) {
+      await compareAndClear(next);
+      return false;
+    }
     return true;
   }
 
@@ -81,7 +90,10 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       final writer = SharedPreferencesServerMusicCommandReceiptCacheBackend();
-      expect(await writer.compareAndWrite(null, 'receipt'), isTrue);
+      expect(
+        await writer.compareAndWrite(null, 'receipt', current: () => true),
+        isTrue,
+      );
 
       final reader = SharedPreferencesServerMusicCommandReceiptCacheBackend();
       expect(await reader.read(), 'receipt');
@@ -90,6 +102,22 @@ void main() {
       expect(await writer.read(), isNull);
     },
   );
+
+  test('SharedPreferences write clears a retired receipt owner', () async {
+    SharedPreferences.setMockInitialValues({});
+    final backend = SharedPreferencesServerMusicCommandReceiptCacheBackend();
+    var checks = 0;
+
+    expect(
+      await backend.compareAndWrite(
+        null,
+        'stale receipt',
+        current: () => ++checks < 4,
+      ),
+      isFalse,
+    );
+    expect(await backend.read(), isNull);
+  });
 
   test('binds exact tuple, manager, receiver, schema, TTL and quota', () async {
     final backend = _MemoryBackend();
