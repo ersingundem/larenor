@@ -23,6 +23,10 @@ from ..files import checked_path, private_read
 from ..legal import server_version
 from ..plugins.catalog import load_catalog
 from .models import (
+    MAX_COMPONENT_BYTES,
+    MAX_COMPONENT_VOLUME_BYTES,
+    MAX_DATABASE_BYTES,
+    MAX_FAMILY_BOARD_BYTES,
     BackupConsistencyBoundary,
     BackupManifest,
     BackupResource,
@@ -74,10 +78,6 @@ _ACTIVE = (
         "active_tablet_command",
     ),
 )
-MAX_DATABASE_BYTES = 128 * 1024 * 1024
-MAX_FAMILY_BOARD_BYTES = 32 * 1024 * 1024
-MAX_COMPONENT_VOLUME_BYTES = 64 * 1024 * 1024
-MAX_COMPONENT_BYTES = 256 * 1024 * 1024
 COMPONENT_QUIESCENCE_SECONDS = 5
 MAGIC = b"LARENOR-CORE-BACKUP\x00\x01"
 BUNDLE_ENVELOPE_BYTES = len(MAGIC) + 16 + 12 + 16

@@ -4,6 +4,11 @@ from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from ..models import StrictModel
 
+MAX_DATABASE_BYTES = 128 * 1024 * 1024
+MAX_FAMILY_BOARD_BYTES = 32 * 1024 * 1024
+MAX_COMPONENT_VOLUME_BYTES = 64 * 1024 * 1024
+MAX_COMPONENT_BYTES = 256 * 1024 * 1024
+
 Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 SnapshotId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
 SafeVersion = Annotated[
@@ -144,6 +149,20 @@ class BackupManifest(StrictModel):
         }
         if lengths["vault-key"] != 32:
             raise ValueError("invalid_backup_vault_key_length")
+        if (
+            lengths["core-database"] > MAX_DATABASE_BYTES
+            or (
+                "family-board" in lengths
+                and lengths["family-board"] > MAX_FAMILY_BOARD_BYTES
+            )
+            or any(
+                lengths[resource_id] > MAX_COMPONENT_VOLUME_BYTES
+                for resource_id in component_ids
+            )
+            or sum(lengths[resource_id] for resource_id in component_ids)
+            > MAX_COMPONENT_BYTES
+        ):
+            raise ValueError("invalid_backup_resource_size")
         versions = {resource.id: resource.version for resource in self.resources}
         expected_versions = {
             "component-index": "2" if self.consistencyBoundary is not None else "1",
