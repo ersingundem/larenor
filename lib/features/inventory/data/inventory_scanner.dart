@@ -23,21 +23,25 @@ final class InventoryScannerController extends ChangeNotifier {
     required this.platform,
     required this.isCurrent,
     required this.onValue,
+    this.closeTimeout = const Duration(seconds: 5),
   });
 
   final InventoryScannerPlatform platform;
   final bool Function() isCurrent;
   final void Function(String) onValue;
+  final Duration closeTimeout;
   InventoryScannerSession? _session;
   StreamSubscription<String>? _values;
   StreamSubscription<InventoryCameraFailure>? _errors;
+  Future<bool>? _closing;
   int _epoch = 0;
   bool _disposed = false, _foreground = true;
   InventoryCameraFailure? failure;
 
   bool get opened => _session != null;
   bool get manualEntryAvailable => true;
-  bool get canOpen => !_disposed && _foreground && _current() && !opened;
+  bool get canOpen =>
+      !_disposed && _foreground && _current() && !opened && _closing == null;
   Widget? get preview => _session?.preview();
 
   bool _current() {
@@ -71,7 +75,14 @@ final class InventoryScannerController extends ChangeNotifier {
   Future<void> _accept(int epoch, String value) async {
     if (epoch != _epoch || !_current() || !opened) return;
     final accepted = ++_epoch;
-    await _close(invalidate: false);
+    final closed = await _close(invalidate: false);
+    if (!closed) {
+      if (!_disposed && accepted == _epoch) {
+        failure = InventoryCameraFailure.unavailable;
+        notifyListeners();
+      }
+      return;
+    }
     if (!_disposed && accepted == _epoch && _current()) onValue(value);
   }
 
@@ -96,19 +107,50 @@ final class InventoryScannerController extends ChangeNotifier {
     if (!_current()) unawaited(_close());
   }
 
-  Future<void> close() => _close();
+  Future<void> close() async {
+    await _close();
+  }
 
-  Future<void> _close({bool invalidate = true}) async {
+  Future<bool> _close({bool invalidate = true}) async {
     final session = _session;
-    if (session == null) return;
+    if (session == null) {
+      final closing = _closing;
+      if (closing == null) return true;
+      return closing.timeout(closeTimeout, onTimeout: () => false);
+    }
     _session = null;
     if (invalidate) _epoch++;
-    await _values?.cancel();
-    await _errors?.cancel();
+    final values = _values;
+    final errors = _errors;
     _values = null;
     _errors = null;
     if (!_disposed) notifyListeners();
-    await session.close();
+    final closing = () async {
+      try {
+        await values?.cancel();
+        await errors?.cancel();
+        await session.close();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }();
+    _closing = closing;
+    unawaited(
+      closing.then((closed) {
+        if (!identical(_closing, closing)) return;
+        if (closed) {
+          _closing = null;
+        } else if (!_disposed) {
+          // A rejected native close is not an ownership acknowledgement.
+          // Keep the completed fence installed so another camera flight can
+          // never overlap the uncertain original owner.
+          failure = InventoryCameraFailure.unavailable;
+        }
+        if (!_disposed) notifyListeners();
+      }),
+    );
+    return closing.timeout(closeTimeout, onTimeout: () => false);
   }
 
   @override
