@@ -23,7 +23,7 @@ actions, close S08.8, or change progress counters.
 
 ## RED
 
-Commit `7840c805e6a7e4dcf93c7c931c5d3f4d0e374de1` added exact scope/envelope,
+Commit `5daa9d028f43707bad05ff5685241403fe4981ec` added exact scope/envelope,
 schema/TTL/quota and queued-read retirement tests. They failed because the
 store exposed only the raw v1 preset and had no clock, bounds or read guard.
 
