@@ -32,6 +32,12 @@ from .music_playback_models import (
     PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
 )
 from .media_flow_models import MediaFlowObservation, validate_media_key
+from .media_playback_models import (
+    MediaPlaybackReadback,
+    MediaPlaybackWorkerResult,
+    PrivateJellyfinPlaybackAction,
+    PrivateJellyfinPlaybackAuthority,
+)
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
@@ -688,7 +694,8 @@ class InstallationWorkerClient:
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
-                  music_playback=None, music_bootstrap=None, media_flow=None):
+                  music_playback=None, music_bootstrap=None, media_flow=None,
+                  jellyfin_playback=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -733,6 +740,9 @@ class InstallationWorkerClient:
                     mode='json', warnings=False)
             elif media_flow is not None:
                 request['mediaKey'] = media_flow
+            elif jellyfin_playback is not None:
+                request['private'] = jellyfin_playback.model_dump(
+                    mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -846,6 +856,38 @@ class InstallationWorkerClient:
         return self._music_playback_exchange(
             'music_playback_execute', action, MusicPlaybackWorkerResult,
             deadline, gate)
+
+    def read_media_playback(self, authority, *, deadline, gate):
+        return self._jellyfin_playback_exchange(
+            'jellyfin_playback_read', authority, MediaPlaybackReadback,
+            deadline, gate)
+
+    def execute_media_playback(self, action, *, deadline, gate):
+        return self._jellyfin_playback_exchange(
+            'jellyfin_playback_execute', action, MediaPlaybackWorkerResult,
+            deadline, gate)
+
+    def _jellyfin_playback_exchange(self, operation, private, model, deadline,
+                                     gate):
+        now = time.monotonic()
+        if (type(private) not in (PrivateJellyfinPlaybackAuthority,
+                                 PrivateJellyfinPlaybackAction)
+                or type(deadline) not in (int, float)
+                or type(deadline) is bool or not math.isfinite(deadline)
+                or not now < deadline <= now + 5 or not callable(gate)):
+            raise InstallationIPCError('invalid_request')
+        try:
+            if gate() is not True:
+                raise ValueError()
+            result = model.model_validate(self._exchange(
+                operation, jellyfin_playback=private))
+            if gate() is not True:
+                raise ValueError()
+            return result
+        except InstallationIPCError:
+            raise
+        except Exception:
+            raise InstallationIPCError('invalid_worker_result') from None
 
     def search_music_catalog(self, action, *, deadline, gate):
         return self._music_playback_exchange(
@@ -1309,6 +1351,34 @@ class InstallationWorkerServer(PreflightWorkerServer):
                               gate=lambda: time.monotonic() < deadline))
                 if (time.monotonic() >= deadline
                         or type(result) is not MediaFlowObservation):
+                    raise ValueError()
+                return result.model_dump(mode='json', warnings=False)
+            except Exception:
+                raise PreflightIPCError('invalid_request') from None
+        if operation in {'jellyfin_playback_read',
+                         'jellyfin_playback_execute'}:
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'private'}
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw = json.dumps(
+                    request['private'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                reading = operation == 'jellyfin_playback_read'
+                private = (PrivateJellyfinPlaybackAuthority
+                           if reading else PrivateJellyfinPlaybackAction
+                           ).model_validate_json(raw)
+                method = ('read_media_playback' if reading
+                          else 'execute_media_playback')
+                timed = getattr(self.backend, method + '_with_deadline', None)
+                result = (timed(private, deadline) if callable(timed)
+                          else getattr(self.backend, method)(
+                              private, deadline=deadline,
+                              gate=lambda: time.monotonic() < deadline))
+                expected = (MediaPlaybackReadback if reading
+                            else MediaPlaybackWorkerResult)
+                if time.monotonic() >= deadline or type(result) is not expected:
                     raise ValueError()
                 return result.model_dump(mode='json', warnings=False)
             except Exception:
