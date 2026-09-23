@@ -55,7 +55,7 @@ class _MediaHubScreenState extends MediaSessionState<MediaHubScreen> {
     // remain on the fail-closed Core surface.
     final home = ref.watch(homeSessionControllerProvider);
     if (home != null && home.source != HomeSource.directLocal) {
-      return const ServerMediaCatalogScreen();
+      return const ServerMediaCatalogScreen(showAccountRows: true);
     }
     watchMediaAccounts();
     ref.listen(mediaHubRowsProvider, (previous, next) {

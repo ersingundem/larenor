@@ -8,26 +8,19 @@ import '../../media_catalog/data/server_media_catalog_api.dart';
 import '../../media_result_origin.dart';
 import '../domain/server_media_rows_models.dart';
 import 'server_media_rows_api.dart';
-import 'server_media_rows_cache.dart';
 
 final class ServerMediaRowsController extends ChangeNotifier {
-  ServerMediaRowsController(
-    this.account, {
-    ServerMediaRowsCache? cache,
-    String Function()? requestId,
-  }) : _accountGeneration = account.generation,
-       _cache = cache ?? ServerMediaRowsCache.shared,
-       _requestId = requestId {
+  ServerMediaRowsController(this.account, {String Function()? requestId})
+    : _accountGeneration = account.generation,
+      _requestId = requestId {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final int _accountGeneration;
-  final ServerMediaRowsCache _cache;
   final String Function()? _requestId;
   int _epoch = 0;
   bool _disposed = false;
-  ServerMediaRowsCacheScope? _activeScope;
 
   bool busy = false;
   String? failure;
@@ -49,20 +42,10 @@ final class ServerMediaRowsController extends ChangeNotifier {
       retire();
       return;
     }
-    final scope = _activeScope;
-    final session = account.session;
-    if (scope != null &&
-        session != null &&
-        ServerMediaRowsCacheScope.fromSession(session) != scope) {
-      retire();
-    }
   }
 
   void retire() {
     if (_disposed) return;
-    final scope = _activeScope;
-    if (scope != null) _cache.evictScope(scope);
-    _activeScope = null;
     _epoch++;
     busy = false;
     failure = null;
@@ -86,30 +69,22 @@ final class ServerMediaRowsController extends ChangeNotifier {
         !_disposed && operation == _epoch && _authorized && routeCurrent();
     busy = true;
     failure = null;
+    value = null;
+    origin = null;
     notifyListeners();
     try {
       await account.withSession((api, session) async {
         bool requestCurrent() => valid() && identical(account.session, session);
-        final scope = ServerMediaRowsCacheScope.fromSession(session);
-        _activeScope = scope;
         final target = await ServerMediaCatalogApi(
           api,
           session.accessToken,
         ).discoverTarget(current: requestCurrent);
         if (!requestCurrent()) return;
-        final cached = _cache.read(scope, target, current: requestCurrent);
-        if (cached != null) {
-          value = cached;
-          origin = ServerMediaResultOrigin.verifiedCache;
-          notifyListeners();
-        }
         final fresh = await ServerMediaRowsApi(
           api,
           session.accessToken,
           requestId: _requestId,
         ).readVerifiedTarget(target: target, current: requestCurrent);
-        if (!requestCurrent()) return;
-        _cache.write(scope, target, fresh, current: requestCurrent);
         if (!requestCurrent()) return;
         value = fresh;
         origin = ServerMediaResultOrigin.live;
@@ -120,8 +95,6 @@ final class ServerMediaRowsController extends ChangeNotifier {
         if (error.code == 'media_rows_authority_changed' ||
             error.code == 'forbidden' ||
             error.code == 'unauthorized') {
-          final scope = _activeScope;
-          if (scope != null) _cache.evictScope(scope);
           value = null;
           origin = null;
         }
