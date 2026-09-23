@@ -144,10 +144,20 @@ final class ServerMediaFlowCache {
         'flowRevision',
         'sources',
       });
+      final mediaKey = resource['mediaKey'];
+      final flowRevision = resource['flowRevision'];
       if (resource['kind'] != 'media_flow' ||
-          resource['mediaKey'] != authority.mediaKey ||
-          resource['flowRevision'] != authority.flowRevision ||
-          !_sameSources(resource['sources'], authority.sources)) {
+          mediaKey is! String ||
+          !validServerMediaKey(mediaKey) ||
+          flowRevision is! int ||
+          flowRevision < 1 ||
+          flowRevision > 0x7fffffffffffffff) {
+        throw const FormatException();
+      }
+      final resourceSources = _storedSources(resource['sources'], flowRevision);
+      if (mediaKey != authority.mediaKey ||
+          flowRevision != authority.flowRevision ||
+          !_sourcesEqual(resourceSources, authority.sources)) {
         return null;
       }
       final savedAt = record['savedAt'] is String
@@ -220,16 +230,20 @@ final class ServerMediaFlowCache {
   }
 }
 
-bool _sameSources(Object? value, List<ServerMediaFlowSource> expected) {
-  if (value is! List || value.length != expected.length) return false;
-  try {
-    return _sourcesEqual(
-      value.map(ServerMediaFlowSource.fromJson).toList(growable: false),
-      expected,
-    );
-  } catch (_) {
-    return false;
+List<ServerMediaFlowSource> _storedSources(Object? value, int flowRevision) {
+  if (value is! List || value.length != serverMediaFlowProviderOrder.length) {
+    throw const FormatException();
   }
+  final sources = value
+      .map(ServerMediaFlowSource.fromJson)
+      .toList(growable: false);
+  for (var index = 0; index < sources.length; index++) {
+    if (sources[index].provider != serverMediaFlowProviderOrder[index] ||
+        sources[index].snapshotRevision != flowRevision) {
+      throw const FormatException();
+    }
+  }
+  return sources;
 }
 
 bool _sourcesEqual(

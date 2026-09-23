@@ -226,5 +226,18 @@ void main() {
 
     expect(await cache.read(_scope, authority), isNull);
     expect(backend.value, isNull);
+
+    await cache.write(_scope, flow);
+    final resourceRaw = jsonDecode(backend.value!) as Map<String, dynamic>;
+    final resource = resourceRaw['resource'] as Map<String, dynamic>;
+    final sources = resource['sources'] as List<dynamic>;
+    sources[0] = {
+      ...(sources[0] as Map<String, dynamic>),
+      'accessToken': 'must-not-cross-cache-boundary',
+    };
+    backend.value = jsonEncode(resourceRaw);
+
+    expect(await cache.read(_scope, authority), isNull);
+    expect(backend.value, isNull);
   });
 }
