@@ -14,23 +14,23 @@ remains **0/63**.
    succeeded create/start pair with the same installation, binding and
    container identity. `VolumeCreateJournal.intents()` publishes strict typed
    intents. Both require their existing private journal lock; neither exposes
-   raw SQLite rows or performs an effect. RED `ea5a86ea`; GREEN `9a34da7d`.
+   raw SQLite rows or performs an effect. RED `383a168a`; GREEN `55ef5b20`.
 2. **Exact appdata receipt snapshot.** The authority joins those views by the
    durable installation and generated volume identities, rebinds them to the
    packaged catalog, requires every service appdata mount exactly once, and
    excludes the shared media-library volume. Missing, prepared, stale-catalog,
    wrong-target and nonterminal receipts fail with one static error. RED
-   `708c9ad6`; GREEN `8f26a54e`.
+   `7570ee92`; GREEN `b73b207e`.
 3. **Fail-closed revalidation.** The provider source set must match the captured
    service/container/version/schema/volume/revision tuple exactly. Duplicate,
    missing or shared path identities, expired deadlines, catalog drift, journal
    corruption, duplicate service identities and shared container identities do
-   not replace the captured authority. RED `590cccba`; GREEN `e2606bc0`.
+   not replace the captured authority. RED `e97edfcc`; GREEN `adcd281b`.
 
 Independent audit then found that a structurally valid installed container from
 an older or foreign plan could be joined to current volume receipts. RED
-`cedab984` preserves five plan, catalog, manifest, image and component-config
-drifts. GREEN `8621834b` re-derives the complete stored binding from the current
+`e5ef3e21` preserves five plan, catalog, manifest, image and component-config
+drifts. GREEN `b09b57d9` re-derives the complete stored binding from the current
 stack component, packaged catalog, worker policy, container journal identity,
 pinned image and terminal volume receipts before publishing authority.
 
