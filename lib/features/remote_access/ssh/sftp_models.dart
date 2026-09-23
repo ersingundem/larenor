@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 const sftpMaxEntries = 200;
@@ -42,17 +41,43 @@ class SftpListing {
 
 class SftpUpload {
   SftpUpload(this.name, List<int> bytes) : bytes = Uint8List.fromList(bytes);
+  SftpUpload.adoptOwned(this.name, this.bytes);
   final String name;
   final Uint8List bytes;
 
   void clear() => bytes.fillRange(0, bytes.length, 0);
 }
 
+int? _strictUtf8Length(String value) {
+  var length = 0;
+  final codeUnits = value.codeUnits;
+  for (var index = 0; index < codeUnits.length; index++) {
+    final unit = codeUnits[index];
+    if (unit <= 0x7f) {
+      length += 1;
+    } else if (unit <= 0x7ff) {
+      length += 2;
+    } else if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (++index >= codeUnits.length) return null;
+      final low = codeUnits[index];
+      if (low < 0xdc00 || low > 0xdfff) return null;
+      length += 4;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return null;
+    } else {
+      length += 3;
+    }
+  }
+  return length;
+}
+
 String normalizeSftpPath(String value, {String base = '/'}) {
   void validate(String candidate) {
+    final byteLength = _strictUtf8Length(candidate);
     if (candidate.contains('\\') ||
         RegExp(r'[\x00-\x1f\x7f]').hasMatch(candidate) ||
-        utf8.encode(candidate).length > sftpMaxPathBytes) {
+        byteLength == null ||
+        byteLength > sftpMaxPathBytes) {
       throw const SftpFailure('invalid_path');
     }
   }
@@ -77,13 +102,15 @@ String normalizeSftpPath(String value, {String base = '/'}) {
 }
 
 String joinSftpPath(String directory, String name) {
+  final byteLength = _strictUtf8Length(name);
   if (name.isEmpty ||
       name == '.' ||
       name == '..' ||
       name.contains('/') ||
       name.contains('\\') ||
       RegExp(r'[\x00-\x1f\x7f]').hasMatch(name) ||
-      utf8.encode(name).length > sftpMaxNameBytes) {
+      byteLength == null ||
+      byteLength > sftpMaxNameBytes) {
     throw const SftpFailure('invalid_name');
   }
   return normalizeSftpPath(name, base: directory);

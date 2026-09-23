@@ -47,10 +47,13 @@ class SftpFileAccess {
     if (bytes.length > sftpMaxTransferBytes) {
       throw const SftpFailure('file_too_large');
     }
+    final exported = Uint8List.fromList(bytes);
     try {
-      return await _saveFile(name, Uint8List.fromList(bytes)) != null;
+      return await _saveFile(name, exported) != null;
     } catch (_) {
       throw const SftpFailure('file_access_failed');
+    } finally {
+      exported.fillRange(0, exported.length, 0);
     }
   }
 
@@ -63,17 +66,24 @@ class SftpFileAccess {
     if (declaredLength < 0 || declaredLength > sftpMaxTransferBytes) {
       throw const SftpFailure('file_too_large');
     }
-    final builder = BytesBuilder(copy: false);
-    await for (final chunk in chunks) {
-      if (builder.length + chunk.length > sftpMaxTransferBytes ||
-          builder.length + chunk.length > declaredLength) {
-        throw const SftpFailure('file_too_large');
+    final owned = Uint8List(declaredLength);
+    var offset = 0;
+    try {
+      await for (final chunk in chunks) {
+        if (chunk.length > declaredLength - offset) {
+          throw const SftpFailure('file_too_large');
+        }
+        owned.setRange(offset, offset + chunk.length, chunk);
+        offset += chunk.length;
       }
-      builder.add(chunk);
+      if (offset != declaredLength) {
+        throw const SftpFailure('file_changed');
+      }
+      return SftpUpload.adoptOwned(name, owned);
+    } catch (error) {
+      owned.fillRange(0, owned.length, 0);
+      if (error is SftpFailure) rethrow;
+      throw const SftpFailure('file_access_failed');
     }
-    if (builder.length != declaredLength) {
-      throw const SftpFailure('file_changed');
-    }
-    return SftpUpload(name, builder.takeBytes());
   }
 }

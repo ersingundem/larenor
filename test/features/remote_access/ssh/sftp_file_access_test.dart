@@ -94,11 +94,7 @@ void main() {
       declaredLength: 2,
       chunks: controller.stream,
     );
-    controller.add(Uint8List.fromList([1]));
-    controller.addError(StateError('provider detail'));
-    await controller.close();
-
-    await expectLater(
+    final expectation = expectLater(
       future,
       throwsA(
         isA<SftpFailure>().having(
@@ -108,5 +104,9 @@ void main() {
         ),
       ),
     );
+    controller.add(Uint8List.fromList([1]));
+    controller.addError(StateError('provider detail'));
+    await controller.close();
+    await expectation;
   });
 }
