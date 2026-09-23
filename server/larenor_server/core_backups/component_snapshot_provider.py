@@ -513,5 +513,10 @@ class ManagedComponentSnapshotProvider:
                         release_failed = True
                 except Exception:
                     release_failed = True
+            if not active_error and not release_failed:
+                try:
+                    self._revalidate(release_deadline)
+                except ComponentSnapshotProviderError:
+                    release_failed = True
             if release_failed and not active_error and sys.exc_info()[0] is None:
                 raise ComponentSnapshotProviderError()
