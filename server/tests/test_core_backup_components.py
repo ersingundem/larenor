@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 from conftest import auth, ready
+
 from larenor_server.core_backups.restore import _validate_capture
 from larenor_server.core_backups.service import (
     ComponentVolumeSnapshot,
@@ -201,14 +202,12 @@ def test_partial_component_volume_set_fails_closed(server):
     assert boundary.released
 
 
-def test_component_payload_restore_is_rejected_before_publication(
-    server, monkeypatch
-):
-    app, _client, _settings, _clock = server
+def test_component_payload_restore_is_rejected_before_publication(server, monkeypatch):
+    app, _client, settings, _clock = server
     pair = ready(server)
     _install_boundary(server, monkeypatch)
     actor = app.state.core.auth.authenticate(pair["accessToken"])
     capture = app.state.core.core_backups.capture(actor)
 
     with pytest.raises(ApiError, match="backup_incompatible"):
-        _validate_capture(capture)
+        _validate_capture(capture, settings)

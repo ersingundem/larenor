@@ -145,7 +145,16 @@ def recover_empty_restore(settings: Settings) -> bool:
     return True
 
 
-def _validate_capture(capture) -> None:
+def _worker_topology(settings: Settings) -> dict[str, bool]:
+    return {
+        "installation": settings.installation_worker_socket is not None,
+        "keenetic": settings.keenetic_worker_socket is not None,
+        "plugin": settings.plugin_worker_socket is not None,
+        "proxmox": settings.proxmox_power_worker_socket is not None,
+    }
+
+
+def _validate_capture(capture, settings: Settings) -> None:
     manifest = capture.manifest
     if (
         manifest.contractVersion not in (1, 2)
@@ -155,7 +164,10 @@ def _validate_capture(capture) -> None:
         raise ApiError("backup_incompatible", 409)
     try:
         _validate_payload_contract(capture)
-    except ValueError:
+        configuration = json.loads(capture.payloads["core-configuration"])
+        if configuration["workers"] != _worker_topology(settings):
+            raise ValueError("worker_topology_mismatch")
+    except (KeyError, TypeError, UnicodeError, ValueError):
         raise ApiError("backup_incompatible", 409) from None
     # Component payloads can be authenticated and compatibility-checked, but
     # this slice deliberately has no host-volume publication authority.
@@ -194,7 +206,7 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
             raise StartupError("restore_target_not_empty")
 
         capture = _open_authenticated_bundle(bundle, passphrase)
-        _validate_capture(capture)
+        _validate_capture(capture, settings)
         snapshot_id = capture.manifest.snapshotId
         stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)
         if stage_dir.exists() or stage_key.exists():
