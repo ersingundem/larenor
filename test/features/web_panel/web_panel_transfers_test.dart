@@ -206,6 +206,10 @@ final class Access implements WebPanelTransferAccess {
   final downloadGate = Completer<bool>();
   int uploads = 0, downloads = 0;
   Uri? downloaded;
+  int cancellations = 0;
+
+  @override
+  Future<void> cancel() async => cancellations++;
 
   @override
   Future<List<String>> pickUpload(FileSelectorParams request) {
@@ -226,6 +230,9 @@ final class Access implements WebPanelTransferAccess {
 }
 
 final class ThrowingAccess implements WebPanelTransferAccess {
+  @override
+  Future<void> cancel() async {}
+
   @override
   Future<List<String>> pickUpload(FileSelectorParams request) async =>
       throw StateError('picker unavailable');
@@ -328,7 +335,7 @@ void main() {
       ),
       saveFile: (_, _, _) async {
         exports++;
-        return Uri.parse('content://fixture/unexpected');
+        return true;
       },
     );
 
@@ -347,7 +354,7 @@ void main() {
   });
 
   test('download rechecks authority after the platform save returns', () async {
-    final saveGate = Completer<Uri?>();
+    final saveGate = Completer<bool>();
     var current = true;
     final access = LocalWebPanelTransferAccess(
       client: () => MockClient(
@@ -367,28 +374,18 @@ void main() {
     );
     await pumpEventQueue();
     current = false;
-    saveGate.complete(Uri.parse('content://fixture/saved'));
+    saveGate.complete(true);
     expect(await pending, false);
   });
 
   test(
-    'download requires exact declared length and a bounded SAF content result',
+    'download requires exact declared length and a successful SAF receipt',
     () async {
       final policy = WebPanelPolicy.fromUrl('https://panel.invalid')!;
       var exports = 0;
-      for (final fixture in <({int? declared, Uri saved})>[
-        (
-          declared: validPdf.length + 1,
-          saved: Uri.parse('content://fixture/saved'),
-        ),
-        (
-          declared: validPdf.length,
-          saved: Uri.parse('file:///private/saved.pdf'),
-        ),
-        (
-          declared: validPdf.length,
-          saved: Uri.parse('content://fixture/saved?token=private'),
-        ),
+      for (final fixture in <({int? declared, bool saved})>[
+        (declared: validPdf.length + 1, saved: true),
+        (declared: validPdf.length, saved: false),
       ]) {
         final access = LocalWebPanelTransferAccess(
           client: () => MockClient.streaming(
@@ -415,7 +412,7 @@ void main() {
       }
       expect(
         exports,
-        2,
+        1,
         reason: 'length mismatch must fail before opening SAF',
       );
     },
@@ -546,7 +543,7 @@ void main() {
           expect(name, 'web-panel-download.pdf');
           expect(mime, 'application/pdf');
           saved = bytes;
-          return Uri.parse('content://fixture/saved');
+          return true;
         },
       );
       final policy = WebPanelPolicy.fromUrl('https://panel.invalid')!;
@@ -574,7 +571,7 @@ void main() {
             headers: {'location': 'https://evil.invalid/file.pdf'},
           ),
         ),
-        saveFile: (_, _, _) async => Uri.parse('content://fixture/unexpected'),
+        saveFile: (_, _, _) async => true,
       );
       expect(
         await crossOrigin.download(
@@ -607,7 +604,7 @@ void main() {
           client: client,
           saveFile: (_, _, _) async {
             exports++;
-            return Uri.parse('content://fixture/unexpected');
+            return true;
           },
         );
         expect(
@@ -681,7 +678,7 @@ void main() {
         ),
         saveFile: (_, _, _) async {
           exports++;
-          return Uri.parse('content://fixture/unexpected');
+          return true;
         },
       );
       expect(
@@ -715,7 +712,7 @@ void main() {
         ),
         saveFile: (_, _, bytes) async {
           saved = bytes;
-          return Uri.parse('content://fixture/saved');
+          return true;
         },
       );
       expect(

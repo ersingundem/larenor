@@ -81,20 +81,29 @@ class WebPanelDownloadBridgeTest {
     }
 
     private fun await(result: Result) {
+        awaitCondition { result.done }
+    }
+
+    private fun awaitCondition(condition: () -> Boolean) {
         repeat(400) {
             shadowOf(Looper.getMainLooper()).idle()
-            if (result.done) return
+            if (condition()) return
             Thread.sleep(5)
         }
         fail("Timed out waiting for bridge result")
     }
 
-    private fun save(bridge: WebPanelDownloadBridge, bytes: ByteArray = byteArrayOf(1, 2, 3)): Result {
+    private fun save(
+        bridge: WebPanelDownloadBridge,
+        bytes: ByteArray = byteArrayOf(1, 2, 3),
+        operationId: String = "0123456789abcdef0123456789abcdef",
+    ): Result {
         val result = Result()
         bridge.onMethodCall(
             MethodCall(
                 "save",
                 mapOf(
+                    "operationId" to operationId,
                     "fileName" to "web-panel-download.pdf",
                     "mimeType" to "application/pdf",
                     "bytes" to bytes,
@@ -157,6 +166,7 @@ class WebPanelDownloadBridgeTest {
         host.writeGate!!.countDown()
         await(pending)
         assertEquals(false, pending.value)
+        awaitCondition { host.deleted == listOf(uri) }
         assertEquals(listOf(uri), host.deleted)
     }
 
@@ -170,6 +180,7 @@ class WebPanelDownloadBridgeTest {
             MethodCall(
                 "save",
                 mapOf(
+                    "operationId" to "0123456789abcdef0123456789abcdef",
                     "fileName" to "private.pdf",
                     "mimeType" to "application/pdf",
                     "bytes" to byteArrayOf(1),
@@ -187,6 +198,70 @@ class WebPanelDownloadBridgeTest {
         assertEquals(false, pending.value)
         val stale = Uri.parse("content://documents/export/stale")
         assertTrue(bridge.onActivityResult(code, Activity.RESULT_OK, Intent().setData(stale)))
+        awaitCondition { host.deleted == listOf(stale) }
         assertEquals(listOf(stale), host.deleted)
+    }
+
+    @Test
+    fun cancelledPickerCannotDeleteReturnedContentUri() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val bridge = WebPanelDownloadBridge(activity, Messenger(), host)
+        try {
+            val pending = save(bridge)
+            val unowned = Uri.parse("content://documents/existing/user-file")
+            assertTrue(
+                bridge.onActivityResult(
+                    host.requestCode,
+                    Activity.RESULT_CANCELED,
+                    Intent().setData(unowned),
+                ),
+            )
+            await(pending)
+            assertEquals(false, pending.value)
+            Thread.sleep(25)
+            assertTrue(host.deleted.isEmpty())
+            assertEquals(0, host.writes)
+        } finally {
+            bridge.dispose()
+        }
+    }
+
+    @Test
+    fun cancelIsScopedToExactOperationAndDeletesItsLateCreatedTarget() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val bridge = WebPanelDownloadBridge(activity, Messenger(), host)
+        val operationId = "0123456789abcdef0123456789abcdef"
+        val pending = save(bridge, operationId = operationId)
+
+        val staleCancel = Result()
+        bridge.onMethodCall(
+            MethodCall(
+                "cancel",
+                mapOf("operationId" to "abcdef0123456789abcdef0123456789"),
+            ),
+            staleCancel,
+        )
+        assertTrue(staleCancel.done)
+        assertFalse(pending.done)
+
+        val cancel = Result()
+        bridge.onMethodCall(MethodCall("cancel", mapOf("operationId" to operationId)), cancel)
+        assertTrue(cancel.done)
+        await(pending)
+        assertEquals(false, pending.value)
+
+        val partial = Uri.parse("content://documents/export/retired")
+        assertTrue(
+            bridge.onActivityResult(
+                host.requestCode,
+                Activity.RESULT_OK,
+                Intent().setData(partial),
+            ),
+        )
+        awaitCondition { host.deleted == listOf(partial) }
+        assertEquals(0, host.writes)
+        bridge.dispose()
     }
 }

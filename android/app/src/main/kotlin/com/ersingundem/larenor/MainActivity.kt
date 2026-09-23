@@ -19,6 +19,7 @@ import com.ersingundem.larenor.notifications.LocalNotificationBridge
 import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
+import com.ersingundem.larenor.webpanel.WebPanelDownloadBridge
 import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
 import com.ersingundem.larenor.backup.CoreBackupSourceBridge
@@ -39,6 +40,7 @@ class MainActivity : FlutterActivity() {
     private var dualDisplay: DualDisplayBridge? = null
     private var gameStreamNative: GameStreamNativeBridge? = null
     private var webPanelRenderer: WebPanelRendererBridge? = null
+    private var webPanelDownload: WebPanelDownloadBridge? = null
     private var managedTabletSource: ManagedTabletSourceBridge? = null
     private var coreBackupDestination: CoreBackupDestinationBridge? = null
     private var coreBackupSource: CoreBackupSourceBridge? = null
@@ -61,6 +63,7 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             flutterEngine,
         )
+        webPanelDownload = WebPanelDownloadBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupDestination = CoreBackupDestinationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupSource = CoreBackupSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -124,6 +127,7 @@ class MainActivity : FlutterActivity() {
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (webPanelDownload?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupDestination?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupSource?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
@@ -145,6 +149,8 @@ class MainActivity : FlutterActivity() {
         coreBackupDestination = null
         webPanelRenderer?.dispose()
         webPanelRenderer = null
+        webPanelDownload?.dispose()
+        webPanelDownload = null
         managedTabletSource?.dispose()
         managedTabletSource = null
         dualDisplay?.dispose()

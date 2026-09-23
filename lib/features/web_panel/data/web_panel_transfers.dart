@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -30,13 +32,15 @@ abstract interface class WebPanelTransferAccess {
     WebPanelPolicy policy,
     bool Function() isCurrent,
   );
+
+  Future<void> cancel();
 }
 
 typedef WebPanelPickFiles = Future<List<PlatformFile>> Function({
   required bool allowMultiple,
   required List<String> allowedExtensions,
 });
-typedef WebPanelSaveFile = Future<Uri?> Function(
+typedef WebPanelSaveFile = Future<bool> Function(
   String filename,
   String mimeType,
   Uint8List bytes,
@@ -63,19 +67,72 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
              );
              return value == null ? const [] : [value];
            }),
-       _saveFile =
-           saveFile ??
-           ((filename, mimeType, bytes) => FilePicker.saveFile(
-             fileName: filename,
-             mimeType: mimeType,
-             bytes: bytes,
-           )),
+       // The public test seam intentionally keeps the named argument free of
+       // the private field name.
+       // ignore: prefer_initializing_formals
+       _saveFile = saveFile,
        _client = client ?? http.Client.new;
 
   final WebPanelPickFiles _pickFiles;
-  final WebPanelSaveFile _saveFile;
+  final WebPanelSaveFile? _saveFile;
   final http.Client Function() _client;
   final Duration transferTimeout;
+
+  static const _downloadChannel = MethodChannel(
+    'com.ersingundem.larenor/web_panel_download',
+  );
+
+  String? _activeSave;
+
+  static String _operationId() {
+    final random = Random.secure();
+    return List<int>.generate(
+      16,
+      (_) => random.nextInt(256),
+    ).map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  Future<bool> _saveWithAndroidSaf(
+    String filename,
+    String mimeType,
+    Uint8List bytes,
+  ) async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    final operationId = _operationId();
+    _activeSave = operationId;
+    try {
+      return await _downloadChannel.invokeMethod<bool>('save', {
+            'operationId': operationId,
+            'fileName': filename,
+            'mimeType': mimeType,
+            'bytes': bytes,
+          }) ==
+          true;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    } finally {
+      if (_activeSave == operationId) _activeSave = null;
+    }
+  }
+
+  @override
+  Future<void> cancel() async {
+    final operationId = _activeSave;
+    _activeSave = null;
+    if (operationId == null ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+    try {
+      await _downloadChannel
+          .invokeMethod<void>('cancel', {'operationId': operationId})
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Retirement is terminal locally; native validates the exact operation.
+    }
+  }
 
   static const _extensions = <String>{
     'jpg',
@@ -583,6 +640,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     } finally {
       active = false;
       client.close();
+      await cancel();
     }
   }
 
@@ -631,12 +689,12 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       }
       final frozen = Uint8List.fromList(bytes.takeBytes());
       if (!_payloadMatches(type.$1, frozen)) return false;
-      final saved = await _saveFile(
+      final saved = await (_saveFile ?? _saveWithAndroidSaf)(
         'web-panel-download.${type.$2}',
         type.$1,
         frozen,
       );
-      return isCurrent() && saved != null && _isBoundedContentGrant(saved);
+      return isCurrent() && saved;
     }
     return false;
   }
@@ -773,6 +831,7 @@ final class WebPanelTransferController extends ChangeNotifier {
     _epoch++;
     _timer?.cancel();
     _expires = null;
+    unawaited(access.cancel());
   }
 
   @override
