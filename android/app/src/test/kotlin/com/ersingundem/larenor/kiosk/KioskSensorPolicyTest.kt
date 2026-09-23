@@ -10,12 +10,16 @@ class KioskSensorPolicyTest {
         var stopped = 0
         var now = 1000L
         var camera = "available"
+        var batteryPercent: Int? = 73
+        var thermalStatus = "moderate"
         override fun availability() = KioskSensorAvailability(
             light = true,
             motion = true,
             approach = true,
             approachMaxRangeCm = 5.0,
             camera = camera,
+            batteryPercent = batteryPercent,
+            thermalStatus = thermalStatus,
         )
         override fun start(listener: (KioskSensorSample) -> Unit) { started++; this.listener = listener }
         override fun stop() { stopped++; listener = null }
@@ -56,7 +60,7 @@ class KioskSensorPolicyTest {
         host.emit(KioskSensorSample.Approach(2.0, 1000))
         host.emit(KioskSensorSample.Approach(4.0, 1500))
         val approached = policy.read(mapOf("sessionId" to id))
-        assertEquals(3L, approached["sequence"]); assertEquals(13, approached.size)
+        assertEquals(3L, approached["sequence"]); assertEquals(15, approached.size)
         assertEquals(2.0, approached["approachDistanceCm"])
         assertEquals(5.0, approached["approachMaxRangeCm"])
         assertFalse(approached.containsKey("faceId"))
@@ -87,5 +91,39 @@ class KioskSensorPolicyTest {
         assertEquals("permissionDenied", denied["cameraStatus"])
         assertFalse(denied.containsKey("cameraFrame"))
         assertTrue(policy.hasSession())
+    }
+
+    @Test fun powerAndAvailabilityChangesAdvanceASecretFreeSnapshot() {
+        val host = Host(); val policy = KioskSensorPolicy(host); policy.setInteractive(true)
+        val started = policy.start(mapOf("intervalMillis" to 1000)); val id = started["sessionId"]
+        assertEquals(3, started["version"])
+        assertEquals(73, started["batteryPercent"])
+        assertEquals("moderate", started["thermalStatus"])
+        host.now = 2000L
+        host.batteryPercent = 72
+        host.thermalStatus = "severe"
+        host.camera = "busy"
+        val changed = policy.read(mapOf("sessionId" to id))
+        assertEquals(1L, changed["sequence"])
+        assertEquals(2000L, changed["observedAtElapsedMillis"])
+        assertEquals(72, changed["batteryPercent"])
+        assertEquals("severe", changed["thermalStatus"])
+        assertFalse(changed.containsKey("temperature"))
+        assertFalse(changed.containsKey("deviceId"))
+        host.now = 3000L
+        assertEquals(1L, policy.read(mapOf("sessionId" to id))["sequence"])
+    }
+
+    @Test fun powerAndThermalAvailabilityIsStrictlyBounded() {
+        for (battery in listOf(-1, 101)) {
+            try {
+                KioskSensorAvailability(false, false, batteryPercent = battery)
+                fail("Expected invalid battery")
+            } catch (_: IllegalArgumentException) { }
+        }
+        try {
+            KioskSensorAvailability(false, false, thermalStatus = "hot-secret")
+            fail("Expected invalid thermal state")
+        } catch (_: IllegalArgumentException) { }
     }
 }

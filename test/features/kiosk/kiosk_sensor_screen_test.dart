@@ -27,6 +27,8 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
   approachDistanceCm: sequence == 0 ? null : 2,
   approachMaxRangeCm: 5,
   cameraStatus: KioskSensorCameraStatus.busy,
+  batteryPercent: 73,
+  thermalStatus: KioskSensorThermalStatus.moderate,
 );
 
 final class _Api implements KioskSensorApi {
@@ -137,6 +139,13 @@ void main() {
             locale.languageCode == 'tr'
                 ? 'Bir kişi veya nesne yakın'
                 : 'Someone or something is nearby',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('73%'), findsOneWidget);
+        expect(
+          find.textContaining(
+            locale.languageCode == 'tr' ? 'Orta' : 'Moderate',
           ),
           findsOneWidget,
         );
