@@ -3,7 +3,6 @@
 import pytest
 from conftest import auth, ready
 
-
 PASSPHRASE = "Correct horse battery staple 2026"
 
 
