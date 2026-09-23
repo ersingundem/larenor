@@ -26,7 +26,17 @@ It closes three reviewable software boundaries without creating an iOS surface:
 
 ## GREEN
 
-Pending implementation and exact verification.
+- GREEN `de1ae3fc845ddee51e229e0951c13351da658408` requires exact
+  `Content-Length`, accepts only a bounded query-free SAF content result,
+  contains authority callback failures before external launch, and retires a
+  dead Android WebView once before the recovery callback.
+- The focused Flutter batch passed **62/62**, including EN/TR 600/1200 tablet
+  layouts at 2x text, route/account/background retirement, origin policy,
+  transfers, external actions and renderer generations.
+- `WebPanelRendererBridgeTest` passed **8/8** under Robolectric, including
+  one-shot renderer resource retirement and cleanup-failure containment.
+- Targeted analysis, repository security policy, queue validation, per-commit
+  progress, secret scanning and diff checks run on the final exact head.
 
 ## Remaining acceptance
 
