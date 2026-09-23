@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/larenor_server_api.dart';
+
+final class _DestinationOperation {
+  _DestinationOperation(this.id);
+
+  final String id;
+  final Completer<void> _cancelled = Completer<void>();
+
+  Future<void> get cancelled => _cancelled.future;
+  bool get isCancelled => _cancelled.isCompleted;
+
+  void cancel() {
+    if (!_cancelled.isCompleted) _cancelled.complete();
+  }
+}
 
 /// Opens an OS-owned Android document and exposes only bounded append calls.
 class ServerCoreBackupFileAccess {
@@ -25,12 +40,13 @@ class ServerCoreBackupFileAccess {
   final bool _isAndroid;
   final String Function() _operationIdFactory;
   final Duration platformTimeout;
-  String? _activeOperation;
+  _DestinationOperation? _activeOperation;
   bool get hasPendingOperation => _activeOperation != null;
 
   ServerCoreBackupFileAccess scoped() => ServerCoreBackupFileAccess(
     channel: _channel,
     isAndroid: _isAndroid,
+    operationIdFactory: _operationIdFactory,
     platformTimeout: platformTimeout,
   );
 
@@ -38,50 +54,58 @@ class ServerCoreBackupFileAccess {
     if (!_isAndroid || filename != 'larenor-core-backup.larenor-core') {
       return null;
     }
-    final operation = _operationIdFactory();
-    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(operation) ||
-        _activeOperation != null) {
+    if (_activeOperation != null) {
+      throw StateError('Backup destination is busy');
+    }
+    final operation = _DestinationOperation(_operationIdFactory());
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(operation.id)) {
       throw StateError('Backup destination is busy');
     }
     _activeOperation = operation;
     try {
-      final raw = await _channel
-          .invokeMapMethod<String, dynamic>('open', {
-            'sessionId': operation,
-            'fileName': filename,
-            'mimeType': 'application/vnd.larenor.core-backup',
-          })
-          .timeout(const Duration(minutes: 5));
+      final raw = await Future.any<Map<String, dynamic>?>([
+        _channel.invokeMapMethod<String, dynamic>('open', {
+          'sessionId': operation.id,
+          'fileName': filename,
+          'mimeType': 'application/vnd.larenor.core-backup',
+        }),
+        operation.cancelled.then((_) => null),
+      ]).timeout(const Duration(minutes: 5));
+      if (!identical(_activeOperation, operation) || operation.isCancelled) {
+        return null;
+      }
       final handle = raw?['handle'];
       if (handle is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(handle)) {
         if (raw == null) {
-          if (_activeOperation == operation) _activeOperation = null;
+          if (identical(_activeOperation, operation)) _activeOperation = null;
           return null;
         }
         throw const FormatException('Invalid backup destination');
       }
       final destination = _AndroidBackupDestination(
         _channel,
-        operation,
+        operation.id,
         handle,
         platformTimeout,
         () {
-          if (_activeOperation == operation) _activeOperation = null;
+          if (identical(_activeOperation, operation)) _activeOperation = null;
         },
       );
-      if (_activeOperation != operation) {
+      if (!identical(_activeOperation, operation) || operation.isCancelled) {
         await destination.cancel();
         return null;
       }
       return destination;
     } on PlatformException catch (error) {
-      if (_activeOperation == operation) _activeOperation = null;
-      await _cancelOperation(operation);
+      if (identical(_activeOperation, operation)) _activeOperation = null;
+      if (operation.isCancelled) return null;
+      await _cancelOperation(operation.id);
       if (error.code == 'cancelled' || error.code == 'expired') return null;
       rethrow;
     } catch (_) {
-      if (_activeOperation == operation) _activeOperation = null;
-      await _cancelOperation(operation);
+      if (identical(_activeOperation, operation)) _activeOperation = null;
+      if (operation.isCancelled) return null;
+      await _cancelOperation(operation.id);
       rethrow;
     }
   }
@@ -90,7 +114,8 @@ class ServerCoreBackupFileAccess {
     final operation = _activeOperation;
     if (operation == null) return;
     _activeOperation = null;
-    await _cancelOperation(operation);
+    operation.cancel();
+    await _cancelOperation(operation.id);
   }
 
   Future<void> _cancelOperation(String operation) async {

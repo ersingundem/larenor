@@ -107,7 +107,7 @@ void main() {
     );
   });
 
-  test('cancelling a pending picker retires its stale callback', () async {
+  test('cancelling a pending picker completes before stale success', () async {
     final calls = <MethodCall>[];
     final opened = Completer<Object?>();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -125,11 +125,81 @@ void main() {
     final pending = access.open('larenor-core-backup.larenor-core');
     await Future<void>.delayed(Duration.zero);
     await access.cancelPending();
-    opened.complete({'handle': 'a' * 32});
 
-    expect(await pending, isNull);
-    expect(calls.map((call) => call.method), ['open', 'cancel', 'cancel']);
+    expect(await pending.timeout(const Duration(milliseconds: 100)), isNull);
+    opened.complete({'handle': 'a' * 32});
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls.map((call) => call.method), ['open', 'cancel']);
   });
+
+  test(
+    'late picker failure cannot block or retire the replacement owner',
+    () async {
+      final calls = <MethodCall>[];
+      final staleOpen = Completer<Object?>();
+      var opens = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'open' && opens++ == 0) {
+              return staleOpen.future;
+            }
+            if (call.method == 'open') {
+              return {'handle': 'b' * 32};
+            }
+            return null;
+          });
+      var operation = 0;
+      final access = ServerCoreBackupFileAccess(
+        channel: channel,
+        isAndroid: true,
+        operationIdFactory: () => operation++ == 0 ? 'a' * 32 : 'b' * 32,
+      );
+
+      final retired = access.open('larenor-core-backup.larenor-core');
+      await Future<void>.delayed(Duration.zero);
+      await access.cancelPending();
+      expect(await retired.timeout(const Duration(milliseconds: 100)), isNull);
+
+      final current = await access.open('larenor-core-backup.larenor-core');
+      staleOpen.completeError(PlatformException(code: 'stale_failure'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(current, isNotNull);
+      expect(access.hasPendingOperation, isTrue);
+      await current!.cancel();
+      expect(
+        calls
+            .where((call) => call.method == 'cancel')
+            .map((call) => (call.arguments as Map)['sessionId']),
+        ['a' * 32, 'b' * 32],
+      );
+    },
+  );
+
+  test(
+    'scoped destination preserves its captured operation identity',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'open') return {'handle': 'c' * 32};
+            return null;
+          });
+      final access = ServerCoreBackupFileAccess(
+        channel: channel,
+        isAndroid: true,
+        operationIdFactory: () => 'c' * 32,
+      ).scoped();
+
+      final destination = await access.open('larenor-core-backup.larenor-core');
+
+      expect((calls.single.arguments as Map)['sessionId'], 'c' * 32);
+      await destination!.cancel();
+    },
+  );
 
   test('picker cancellation releases the scoped operation', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
