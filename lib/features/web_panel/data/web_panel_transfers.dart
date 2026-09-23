@@ -624,7 +624,11 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
         }
         bytes.add(chunk);
       }
-      if (!isCurrent() || bytes.length == 0) return false;
+      if (!isCurrent() ||
+          bytes.length == 0 ||
+          (length != null && bytes.length != length)) {
+        return false;
+      }
       final frozen = Uint8List.fromList(bytes.takeBytes());
       if (!_payloadMatches(type.$1, frozen)) return false;
       final saved = await _saveFile(
@@ -632,7 +636,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
         type.$1,
         frozen,
       );
-      return isCurrent() && saved != null;
+      return isCurrent() && saved != null && _isBoundedContentGrant(saved);
     }
     return false;
   }

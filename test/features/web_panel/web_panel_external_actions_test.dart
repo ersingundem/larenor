@@ -149,22 +149,25 @@ void main() {
     },
   );
 
-  test('authority callback failures deny without launching or escaping', () async {
-    final port = _Port();
-    final controller = WebPanelExternalActionController(
-      enabled: true,
-      port: port,
-      isCurrent: () => throw StateError('private authority failure'),
-    );
+  test(
+    'authority callback failures deny without launching or escaping',
+    () async {
+      final port = _Port();
+      final controller = WebPanelExternalActionController(
+        enabled: true,
+        port: port,
+        isCurrent: () => throw StateError('private authority failure'),
+      );
 
-    expect(controller.arm, returnsNormally);
-    expect(
-      () => controller.capture('tel:+902121234567', mainFrame: true),
-      returnsNormally,
-    );
-    expect(controller.status, WebPanelExternalActionStatus.denied);
-    await expectLater(controller.confirm(), completes);
-    expect(port.launches, 0);
-    controller.dispose();
-  });
+      expect(controller.arm, returnsNormally);
+      expect(
+        () => controller.capture('tel:+902121234567', mainFrame: true),
+        returnsNormally,
+      );
+      expect(controller.status, WebPanelExternalActionStatus.denied);
+      await expectLater(controller.confirm(), completes);
+      expect(port.launches, 0);
+      controller.dispose();
+    },
+  );
 }

@@ -377,8 +377,14 @@ void main() {
       final policy = WebPanelPolicy.fromUrl('https://panel.invalid')!;
       var exports = 0;
       for (final fixture in <({int? declared, Uri saved})>[
-        (declared: validPdf.length + 1, saved: Uri.parse('content://fixture/saved')),
-        (declared: validPdf.length, saved: Uri.parse('file:///private/saved.pdf')),
+        (
+          declared: validPdf.length + 1,
+          saved: Uri.parse('content://fixture/saved'),
+        ),
+        (
+          declared: validPdf.length,
+          saved: Uri.parse('file:///private/saved.pdf'),
+        ),
         (
           declared: validPdf.length,
           saved: Uri.parse('content://fixture/saved?token=private'),
@@ -407,7 +413,11 @@ void main() {
           isFalse,
         );
       }
-      expect(exports, 2, reason: 'length mismatch must fail before opening SAF');
+      expect(
+        exports,
+        2,
+        reason: 'length mismatch must fail before opening SAF',
+      );
     },
   );
 
