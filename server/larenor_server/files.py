@@ -1,8 +1,8 @@
 """Private local files. Existing permissions/keys are never silently replaced."""
 
 import os
-from pathlib import Path
 import stat
+from pathlib import Path
 
 from .errors import StartupError
 

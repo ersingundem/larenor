@@ -1,6 +1,7 @@
 """Offline restore input ordering and passphrase-buffer ownership."""
 
 import pytest
+
 from larenor_server import cli
 from larenor_server.errors import StartupError
 
