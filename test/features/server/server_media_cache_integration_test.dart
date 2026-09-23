@@ -115,7 +115,9 @@ Map<String, Object?> _pageJson({int itemCount = 1}) => {
   'items': [
     for (var index = 1; index <= itemCount; index++)
       {
-        'itemId': index.toRadixString(16).padLeft(32, '0'),
+        'itemId': index == 1
+            ? '33333333333333333333333333333333'
+            : '44444444444444444444444444444444',
         'mediaKey': 'movie:tmdb:${602 + index}',
         'title': index == 1 ? 'The Matrix' : 'The Matrix Reloaded',
         'mediaKind': 'movie',
@@ -298,11 +300,7 @@ void main() {
       cache: cache,
       requestId: () => _requestId,
     );
-    await wide.searchCurrent(
-      query: 'matrix',
-      limit: 2,
-      current: () => true,
-    );
+    await wide.searchCurrent(query: 'matrix', limit: 2, current: () => true);
     expect(wide.page?.items, hasLength(2));
     wide.dispose();
 
@@ -312,11 +310,7 @@ void main() {
       requestId: () => _requestId,
     );
     addTearDown(narrow.dispose);
-    await narrow.searchCurrent(
-      query: 'matrix',
-      limit: 1,
-      current: () => true,
-    );
+    await narrow.searchCurrent(query: 'matrix', limit: 1, current: () => true);
 
     expect(narrow.page?.items, hasLength(1));
     expect(narrow.origin, ServerMediaResultOrigin.live);
@@ -496,7 +490,12 @@ void main() {
           final scope = ServerMediaCatalogCacheScope.fromSession(
             fixture.account.session!,
           );
-          await catalogCache.write(scope, _page(), current: () => true);
+          await catalogCache.write(
+            scope,
+            _page(),
+            limit: 24,
+            current: () => true,
+          );
           await flowCache.write(
             ServerMediaFlowCacheScope.fromSession(fixture.account.session!),
             _flow(),

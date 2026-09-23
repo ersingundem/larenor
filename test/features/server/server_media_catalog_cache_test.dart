@@ -155,7 +155,10 @@ void main() {
       final cache = ServerMediaCatalogCache(backend: backend, now: () => now);
       final page = _page();
 
-      expect(await cache.write(_scope, page, current: () => true), isTrue);
+      expect(
+        await cache.write(_scope, page, limit: 24, current: () => true),
+        isTrue,
+      );
       final record = jsonDecode(backend.value!) as Map<String, dynamic>;
       expect(record['schemaVersion'], 1);
       expect(backend.value, isNot(contains('accessToken')));
@@ -166,6 +169,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          limit: 24,
           current: () => true,
         ),
         isNotNull,
@@ -194,6 +198,24 @@ void main() {
             _resource(),
             query: 'matrix',
             mediaKind: ServerMediaCatalogKind.movie,
+            limit: 24,
+            current: () => true,
+          ),
+          isNull,
+        );
+      }
+      for (final otherResource in [
+        _resource(installationRevision: 8),
+        _resource(snapshotRevision: 10),
+        _resource(serviceRevision: 12),
+      ]) {
+        expect(
+          await cache.read(
+            _scope,
+            otherResource,
+            query: 'matrix',
+            mediaKind: ServerMediaCatalogKind.movie,
+            limit: 24,
             current: () => true,
           ),
           isNull,
@@ -202,9 +224,10 @@ void main() {
       expect(
         await cache.read(
           _scope,
-          _resource(snapshotRevision: 10),
-          query: 'matrix',
+          _resource(),
+          query: 'alien',
           mediaKind: ServerMediaCatalogKind.movie,
+          limit: 24,
           current: () => true,
         ),
         isNull,
@@ -213,8 +236,20 @@ void main() {
         await cache.read(
           _scope,
           _resource(),
-          query: 'alien',
+          query: 'matrix',
+          mediaKind: null,
+          limit: 24,
+          current: () => true,
+        ),
+        isNull,
+      );
+      expect(
+        await cache.read(
+          _scope,
+          _resource(),
+          query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          limit: 1,
           current: () => true,
         ),
         isNull,
@@ -227,6 +262,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          limit: 24,
           current: () => true,
         ),
         isNull,
@@ -238,6 +274,7 @@ void main() {
         cache.write(
           _scope,
           _page(itemCount: 50, largeTitles: true),
+          limit: 50,
           current: () => true,
         ),
         throwsStateError,
@@ -251,7 +288,7 @@ void main() {
       backend: backend,
       now: () => DateTime.utc(2026, 9, 23, 12),
     );
-    await cache.write(_scope, _page(), current: () => true);
+    await cache.write(_scope, _page(), limit: 24, current: () => true);
     final valid = backend.value!;
 
     for (final mutate in <void Function(Map<String, dynamic>)>[
@@ -275,6 +312,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          limit: 24,
           current: () => true,
         ),
         isNull,
@@ -289,7 +327,7 @@ void main() {
       backend: backend,
       now: () => DateTime.utc(2026, 9, 23, 12),
     );
-    await cache.write(_scope, _page(), current: () => true);
+    await cache.write(_scope, _page(), limit: 24, current: () => true);
     backend.readGate = Completer<void>();
     var current = true;
 
@@ -298,6 +336,7 @@ void main() {
       _resource(),
       query: 'matrix',
       mediaKind: ServerMediaCatalogKind.movie,
+      limit: 24,
       current: () => current,
     );
     await Future<void>.delayed(Duration.zero);
@@ -317,7 +356,12 @@ void main() {
           now: () => DateTime.utc(2026, 9, 23, 12),
         );
         var current = true;
-        final write = cache.write(_scope, _page(), current: () => current);
+        final write = cache.write(
+          _scope,
+          _page(),
+          limit: 24,
+          current: () => current,
+        );
         while (backend.value == null) {
           await Future<void>.delayed(Duration.zero);
         }

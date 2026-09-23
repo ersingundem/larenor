@@ -141,6 +141,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
             ),
             query: query,
             mediaKind: mediaKind,
+            limit: limit,
             current: requestCurrent,
           );
           if (!requestCurrent()) return;
@@ -164,6 +165,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
             await _cache.write(
               ServerMediaCatalogCacheScope.fromSession(session),
               value,
+              limit: limit,
               current: requestCurrent,
             );
           } catch (_) {
