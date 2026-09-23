@@ -91,6 +91,12 @@ final class ServerMediaCatalogItem {
   final String itemId, mediaKey, title;
   final ServerMediaCatalogKind kind;
   final int? runtimeSeconds;
+
+  String get flowMediaKey {
+    if (kind == ServerMediaCatalogKind.movie) return mediaKey;
+    final parts = mediaKey.split(':');
+    return 'series:tvdb:${parts[2]}';
+  }
 }
 
 final class ServerMediaCatalogPage {
