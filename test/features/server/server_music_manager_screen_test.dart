@@ -415,4 +415,90 @@ void main() {
     );
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   });
+
+  testWidgets('legacy chooser never renders an unsafe unbounded label', (
+    tester,
+  ) async {
+    final generation = Object();
+    final discovery = MusicDiscovery(
+      accountGeneration: generation,
+      readAt: DateTime.now().toUtc(),
+      entries: const [
+        MusicAssistantEntry(
+          id: 'legacy-entry',
+          title: 'Legacy server',
+          state: 'loaded',
+          disabled: false,
+        ),
+      ],
+      queueTargets: const [
+        MusicQueueTarget(
+          entityId: 'media_player.unsafe',
+          configEntryId: 'legacy-entry',
+          name: '\u202ehttps://token.example',
+          registryId: 'legacy-registry-unsafe',
+          deviceId: 'legacy-device-unsafe',
+          available: true,
+          enabled: true,
+        ),
+        MusicQueueTarget(
+          entityId: 'media_player.safe',
+          configEntryId: 'legacy-entry',
+          name: 'Safe living room',
+          registryId: 'legacy-registry-safe',
+          deviceId: 'legacy-device-safe',
+          available: true,
+          enabled: true,
+        ),
+      ],
+    );
+    final fixture = MusicManagerFixture();
+    await fixture.account.initialize();
+    addTearDown(() {
+      fixture.account.dispose();
+      tester.view.reset();
+    });
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 1000);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMusicManagerScreen(
+            legacyDiscovery: () async => discovery,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final verify = find.byKey(const ValueKey('music-manager-verify'));
+    await tester.scrollUntilVisible(
+      verify,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(verify);
+    await tester.pumpAndSettle();
+    final migration = find.byKey(
+      const ValueKey('music-manager-migrate-legacy'),
+    );
+    await tester.scrollUntilVisible(
+      migration,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(migration);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('token.example'), findsNothing);
+    expect(find.text('Safe living room'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('music-manager-migrate-confirm')),
+      findsOneWidget,
+    );
+  });
 }
