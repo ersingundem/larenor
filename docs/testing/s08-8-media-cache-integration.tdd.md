@@ -14,8 +14,10 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
    installation and snapshot revisions. Media-flow records are read only after
    a fresh authority response matches the exact media key, flow revision and
    ordered source revisions. A miss performs the existing Core body read and
-   conditionally persists the verified result. No cache path contacts or falls
-   back to a Direct provider.
+   conditionally persists the verified result. The catalog cache request proof
+   binds query, media kind and requested limit; offset pages never use the
+   cache, while installation and all revision dimensions remain bound by the
+   resource proof. No cache path contacts or falls back to a Direct provider.
 2. **Lifecycle-safe tablet rendering.** Catalog and flow routes render the same
    strict models for a live response and a verified cache hit, with localized
    live-region source labels. A miss followed by Core failure shows a localized
@@ -38,6 +40,11 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
 - GREEN `f12758f5e9a232c587e60d8d114099920a6d715f` split fresh authority from body
   reads, integrated both bounded caches, added exact post-write retirement
   cleanup and localized route provenance/fallback UI.
+- RED `07b38f16` proves that a two-item cached result previously bypassed a
+  later `limit: 1` request and was published as a verified cache hit.
+- GREEN `7a9d2d48` binds the cache record and controller read/write calls to the
+  exact validated limit, while retaining the existing exact query, media-kind,
+  offset-zero-only, installation and revision checks.
 
 ## Focused verification
 
@@ -52,7 +59,7 @@ flutter test \
   test/features/server/server_media_flow_cache_test.dart
 ```
 
-Result: **50/50 passed**. Focused analysis over the changed production and test
+Result: **51/51 passed**. Focused analysis over the changed production and test
 surfaces reports no issues. Queue validation, progress trailers, security,
 secret scanning and diff checks are final exact-head gates after restacking on
 the accepted migration head.
