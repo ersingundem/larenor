@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from conftest import auth, login, ready
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
+from larenor_server.media_language_preferences import schema
 from test_admin import activate, create
 
 
@@ -167,3 +168,32 @@ def test_private_bounded_storage_and_tamper_are_fail_closed(server):
     )
     with pytest.raises(StartupError, match="media_language_preference_storage_invalid"):
         create_app(settings)
+
+
+def test_preference_record_capacity_rejects_new_owner(server, monkeypatch):
+    app, client, _settings, _clock = server
+    admin = ready(server)
+    endpoint = root(app)
+    revision = account_revision(client, admin)
+    assert client.put(endpoint, headers=auth(admin), json=body(revision)).status_code == 200
+
+    create(client, admin, "listener")
+    listener = activate(client, "listener")
+    listener_revision = next(
+        value["revision"]
+        for value in client.get(
+            "/api/v1/admin/users", headers=auth(admin)
+        ).json()["users"]
+        if value["id"] == listener["user"]["id"]
+    )
+    monkeypatch.setattr(schema, "MAX_RECORDS", 1)
+    denied = client.put(
+        endpoint,
+        headers=auth(listener),
+        json=body(listener_revision),
+    )
+
+    assert (denied.status_code, denied.json()["error"]["code"]) == (
+        409,
+        "media_language_preference_limit_reached",
+    )

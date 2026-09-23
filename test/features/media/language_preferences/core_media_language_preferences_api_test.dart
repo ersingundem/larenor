@@ -172,6 +172,7 @@ void main() {
         token,
         context,
         account,
+        family,
       );
 
       final empty = await api.read();
@@ -208,6 +209,13 @@ void main() {
         ...response(revision: 1, audio: 'en'),
         'authority': {
           ...(response(revision: 1, audio: 'en')['authority']! as Map),
+          'sessionFamilyId': 'f' * 32,
+        },
+      },
+      {
+        ...response(revision: 1, audio: 'en'),
+        'authority': {
+          ...(response(revision: 1, audio: 'en')['authority']! as Map),
           'preferenceRevision': 1.0,
         },
       },
@@ -217,6 +225,7 @@ void main() {
           raw,
           context: context,
           accountId: account,
+          sessionFamilyId: family,
         ),
         throwsA(isA<LarenorServerException>()),
       );
