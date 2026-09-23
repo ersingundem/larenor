@@ -188,3 +188,26 @@ def test_post_dispatch_protocol_failure_is_always_uncertain(
 
     assert raised.value.uncertain_effect is True
     assert TOKEN not in str(raised.value) + repr(raised.value)
+
+
+def test_post_dispatch_final_endpoint_drift_is_always_uncertain(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    connections = [
+        Connection(response('200 OK', sessions())),
+        Connection(response('204 No Content', content_type=False)),
+        Connection(response('200 OK', sessions(item=ITEM, position=12))),
+    ]
+    opened(monkeypatch, stack, binding, engine, connections)
+    selected = executor(binding, operations)
+    monkeypatch.setattr(
+        selected, '_final',
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            JellyfinPlaybackExecutionError(
+                'jellyfin_playback_endpoint_changed')))
+
+    with pytest.raises(JellyfinPlaybackExecutionError) as raised:
+        selected.execute(
+            action(stack), deadline=time.monotonic() + 1, gate=lambda: True)
+
+    assert raised.value.uncertain_effect is True
