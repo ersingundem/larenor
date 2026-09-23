@@ -38,10 +38,13 @@ Status: **software slice ready; K03.remaining stays open**
   headers, cookies or diagnostics back over the channel or to logs.
 - Native `shouldInterceptRequest` rejects direct cross-origin iframe, fetch and
   subresource HTTP(S) requests with an empty, non-cacheable response before the
-  plugin delegate or network handles them. Exact default and explicit ports are
-  tested, including subdomain, scheme, port, file and data negatives. Allowed
-  POST requests are delegated without inspecting method, headers or body; a
-  blocked request is never proxied.
+  plugin delegate or network handles them. Exact-origin non-main-frame GETs use
+  a dedicated anonymous OkHttp client instead of WebView networking. It accepts
+  no WebView headers, cookies, credentials or request body, follows at most
+  three redirects and rechecks every target before opening the next socket.
+  Non-GET requests, user-info URLs, cross-origin redirects, responses over 16 MB
+  and calls beyond the 15-second deadline fail closed. Detach, replacement,
+  disposal and renderer death cancel the exact attachment's in-flight calls.
 - Service Worker network, content and file access is disabled process-wide
   before a panel loads. Attachment fails closed when any required AndroidX
   WebKit feature is unavailable or a setting cannot be applied. This global
@@ -51,6 +54,13 @@ Status: **software slice ready; K03.remaining stays open**
   windows and multiple-window support must both read back as disabled or the
   panel fails to attach; same-view navigation remains behind the exact-origin
   navigation firewall.
+- Attachment also requires AndroidX WebKit's official document-start script
+  feature. Before document JavaScript runs in each allowed origin, the installed
+  non-configurable guard disables `WebSocket`, `Worker` and `SharedWorker`.
+  WebSocket is deliberately unavailable because Android WebView exposes no
+  supported redirect-aware request callback; this evidence does not claim a
+  native WebSocket interceptor. Service Worker networking remains closed by the
+  separate process-wide policy above.
 - TLS errors, client-certificate requests and HTTP-authentication challenges
   are cancelled by the native wrapper and are never delegated to the plugin.
   Host, realm and certificate details are not sent to Dart or logged.
@@ -73,27 +83,24 @@ renderer termination delivery, Huawei WebView, DeX mouse/keyboard and actual
 website forms remain MANUAL. Pop-ups remain disabled and external intents
 remain blocked.
 
-K03.remaining is still open for two documented Android platform gaps:
+The two documented software gaps are now closed without claiming unsupported
+WebView behavior. [`shouldInterceptRequest`](https://developer.android.com/reference/android/webkit/WebViewClient.html#shouldInterceptRequest(android.webkit.WebView,%20android.webkit.WebResourceRequest))
+still reports only the initial URL, so allowed subresource GETs are fetched by
+the owned transport and WebView never follows their redirects. Android exposes
+no native pre-request WebSocket callback, so
+[`addDocumentStartJavaScript`](https://developer.android.com/reference/androidx/webkit/WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,java.lang.String,java.util.Set%3Cjava.lang.String%3E))
+is used only to disable WebSockets and worker creation before document script.
+The supported
+[`ServiceWorkerWebSettingsCompat`](https://developer.android.com/reference/kotlin/androidx/webkit/ServiceWorkerWebSettingsCompat#setBlockNetworkLoads(kotlin.Boolean))
+network block remains the process-wide Service Worker boundary.
 
-1. [`shouldInterceptRequest`](https://developer.android.com/reference/android/webkit/WebViewClient.html#shouldInterceptRequest(android.webkit.WebView,%20android.webkit.WebResourceRequest))
-   is called only for the initial resource URL, not later redirect targets. An
-   allowed subresource can therefore redirect cross-origin without another
-   native callback. Closing that gap would require a proxy/transport that reads
-   or replays requests, which this contract explicitly forbids.
-2. Android WebView exposes no official native pre-request WebSocket callback.
-   [`addDocumentStartJavaScript`](https://developer.android.com/reference/androidx/webkit/WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,java.lang.String,java.util.Set%3Cjava.lang.String%3E))
-   runs script before document JavaScript, but it is not a native network
-   boundary and does not cover worker execution contexts. It is therefore not
-   presented as WebSocket enforcement. The supported
-   [`ServiceWorkerWebSettingsCompat`](https://developer.android.com/reference/kotlin/androidx/webkit/ServiceWorkerWebSettingsCompat#setBlockNetworkLoads(kotlin.Boolean))
-   network block is installed and negatively tested, but its documentation does
-   not promise WebSocket interception.
-
-The focused RED checkpoints were the new Dart attach-contract tests failing to
-compile and the Kotlin/Robolectric firewall tests failing on missing native
-types. The popup and credential hardening follow-up first failed because the
-plugin defaults remained permissive and security callbacks still reached its
-delegate. GREEN requires the 92-test WebPanel suite, the focused Android bridge
-Robolectric suite, Flutter analysis, formatting and `git diff --check`.
-K03.remaining and progress stay at **26/125** and **0/63** until the two
-software platform gaps and remaining manual gates are accepted.
+The owned-transport RED checkpoint `5fd7420a` failed to compile because its
+transport, document-start policy and lifecycle retirement did not exist. The
+WebSocket RED `7ad30fad` then rejected the temporary same-origin exception:
+redirect-aware WebSocket enforcement is unsupported, so allowing it was not an
+honest boundary. GREEN `dcc6ecd8` and `bfb2e7d1` supply the owned transport and
+fail-closed dynamic-context policy. The grouped milestone passes **17/17**
+Android WebPanel Robolectric tests and **113/113** Flutter WebPanel tests;
+focused Flutter analysis reports no issues. K03.remaining and progress stay at
+**26/125** and **0/63** until review and exact-head CI are recorded. Physical
+tablet/DeX/OEM evidence stays in the separate manual gate described above.
