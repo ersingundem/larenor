@@ -232,6 +232,8 @@ class KioskRemoteService:
             "deviceId": row["device_id"], "pairingRevision": row["revision"],
             "listenerEnabled": False, "commandRetainAllowed": False,
             "availabilityTopic": prefix + "/availability",
+            "commandTopic": prefix + "/command",
+            "ackTopic": prefix + "/ack",
             "sensors": [
                 {"kind": kind, "stateTopic": prefix + "/sensor/" + kind + "/state", "retained": True}
                 for kind in ("battery", "network", "app_version", "kiosk_state")

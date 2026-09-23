@@ -1,6 +1,6 @@
 # K07 paired remote API and MQTT acceptance
 
-Status: **software pairing, protocol and tablet management slice complete; live broker and physical-device acceptance pending**. K07 stays `pending` and progress remains **22/125** and **0/63** until a supported MQTT broker adapter and device journey pass the manual gates.
+Status: **software pairing, protocol, tablet management and managed MQTT runtime slices complete; app lifecycle, live broker and physical-device acceptance pending**. K07 stays `pending` until the secure app wiring and manual gates pass. The runtime evidence is recorded in [`k07-mqtt-runtime.tdd.md`](k07-mqtt-runtime.tdd.md).
 
 ## Three accepted criteria
 
@@ -16,6 +16,6 @@ Status: **software pairing, protocol and tablet management slice complete; live 
 
 ## Remaining gates
 
-- Connect a supported local MQTT broker through an explicit component-egress permission and prove TLS/client identity, reconnect and broker restart behavior. The current slice defines and persists the transport-neutral envelopes but does not claim a live broker connection.
-- Publish real Android battery/network/app/kiosk sensor readings and consume command acknowledgements from the managed tablet runtime.
+- Wire the concrete TLS MQTT adapter into the app/session lifecycle with secure pairing-token retrieval and a current component-egress grant, then prove it against a live local Mosquitto ACL/TLS fixture. The runtime rechecks egress and pairing authority before explicit reconnects, but does not claim a live broker acceptance run.
+- Bind the tested telemetry and command-ACK runtime ports to real Android battery/network/app/kiosk readings and native kiosk command effects.
 - Verify broker loss, Huawei background behavior, Samsung DeX resize and physical keyboard/TalkBack on hardware.
