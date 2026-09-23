@@ -21,6 +21,7 @@ import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
 import 'package:larenor/features/web_panel/data/web_panel_renderer_monitor.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_view.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -250,6 +251,7 @@ void resume(WidgetTester tester) {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('one-shot transfer bar is accessible $language $width 2x', (
@@ -588,6 +590,10 @@ void main() {
     await h.mount(tester);
     await tester.pump(const Duration(seconds: 31));
     expect(find.text(h.l10n.webPanelTimedOut), findsOneWidget);
+    expect(
+      (await h.usage.read()).count(KioskUsageEvent.timeout),
+      1,
+    );
     await tester.pump(const Duration(minutes: 1));
     expect(h.platform.controllers, hasLength(1));
     expect(h.platform.controllers.single.html, ['<html></html>']);
