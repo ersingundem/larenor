@@ -139,4 +139,48 @@ void main() {
       expect(backend.values[storageKey], previous);
     },
   );
+
+  test('CAS rejects a before record owned by another authority', () async {
+    final backend = MemoryBackend();
+    final store = LocalNotificationStore(backend: backend);
+    final before = LocalNotificationStore.create(
+      context(),
+      'c' * 32,
+      DateTime.utc(2026, 9, 20),
+    );
+    await store.write(before, before: null, isCurrent: () => true);
+    final replacement = LocalNotificationStoredSubscription(
+      context: before.context,
+      actorId: before.actorId,
+      id: before.id,
+      revision: before.revision + 1,
+      expiresAt: before.expiresAt,
+    );
+    final wrongAuthority = LocalNotificationStoredSubscription(
+      context: ServerContext.fromJson({
+        'schemaVersion': 1,
+        'coreId': 'd' * 32,
+        'homeId': 'e' * 32,
+      }),
+      actorId: 'f' * 32,
+      id: before.id,
+      revision: before.revision,
+      expiresAt: before.expiresAt,
+    );
+
+    await expectLater(
+      store.write(
+        replacement,
+        before: wrongAuthority,
+        isCurrent: () => true,
+      ),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'revision_conflict',
+        ),
+      ),
+    );
+  });
 }
