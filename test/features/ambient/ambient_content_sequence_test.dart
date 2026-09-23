@@ -6,6 +6,7 @@ import 'package:larenor/features/ambient/data/ambient_content_repository.dart';
 import 'package:larenor/features/ambient/domain/ambient_content.dart';
 import 'package:larenor/features/ambient/presentation/ambient_content_sequence.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
@@ -160,6 +161,49 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('ambient-video-reduced-motion')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('PDF decoder failure advances to the next verified item', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final brokenPdf = AmbientContent.local(
+      id: '7' * 64,
+      kind: AmbientContentKind.pdf,
+      sizeBytes: 16,
+    );
+    final video = AmbientContent.local(
+      id: '8' * 64,
+      kind: AmbientContentKind.video,
+      sizeBytes: 16,
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: AmbientContentSequence(
+          repository: repository,
+          items: [brokenPdf, video],
+          interval: const Duration(minutes: 1),
+          active: true,
+          reducedMotion: true,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final viewer = tester.widget<PdfViewer>(find.byType(PdfViewer));
+    viewer.params.errorBannerBuilder!(
+      tester.element(find.byType(PdfViewer)),
+      const FormatException('broken_pdf'),
+      null,
+      viewer.documentRef,
+    );
+    tester.binding.scheduleFrame();
+    await tester.pump();
+    await tester.pump();
     expect(
       find.byKey(const ValueKey('ambient-video-reduced-motion')),
       findsOneWidget,

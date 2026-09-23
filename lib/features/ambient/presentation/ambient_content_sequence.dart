@@ -188,17 +188,11 @@ class _AmbientContentSurface extends StatelessWidget {
               active: active,
               onComplete: onComplete,
             ),
-    AmbientContentKind.pdf => IgnorePointer(
-      child: PdfViewer.data(
-        bytes!,
-        sourceName: item.id,
-        params: const PdfViewerParams(
-          panEnabled: false,
-          scaleEnabled: false,
-          enableKeyboardNavigation: false,
-          forceEnableTextSemantics: false,
-        ),
-      ),
+    AmbientContentKind.pdf => _AmbientPdf(
+      bytes: bytes!,
+      sourceName: item.id,
+      active: active,
+      onFailure: onComplete,
     ),
     AmbientContentKind.web => WebPanelView(
       policy: item.policy,
@@ -207,6 +201,57 @@ class _AmbientContentSurface extends StatelessWidget {
       requireActiveInteraction: false,
     ),
   };
+}
+
+class _AmbientPdf extends StatefulWidget {
+  const _AmbientPdf({
+    required this.bytes,
+    required this.sourceName,
+    required this.active,
+    required this.onFailure,
+  });
+
+  final Uint8List bytes;
+  final String sourceName;
+  final bool active;
+  final VoidCallback onFailure;
+
+  @override
+  State<_AmbientPdf> createState() => _AmbientPdfState();
+}
+
+class _AmbientPdfState extends State<_AmbientPdf> {
+  bool _failureReported = false;
+
+  Widget _error(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+    PdfDocumentRef documentRef,
+  ) {
+    if (!_failureReported) {
+      _failureReported = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) widget.onFailure();
+      });
+    }
+    return const ColoredBox(color: CupertinoColors.black);
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: PdfViewer.data(
+      widget.bytes,
+      sourceName: widget.sourceName,
+      params: PdfViewerParams(
+        panEnabled: false,
+        scaleEnabled: false,
+        enableKeyboardNavigation: false,
+        forceEnableTextSemantics: false,
+        errorBannerBuilder: _error,
+      ),
+    ),
+  );
 }
 
 class _ReducedMotionVideo extends StatelessWidget {

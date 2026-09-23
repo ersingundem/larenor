@@ -45,3 +45,9 @@ navigation even though the ambient source rejected those addresses on import.
 Ambient content now requests a clean-navigation policy while ordinary WebPanel
 pages retain their existing behavior. Repository and WebView delegate tests
 cover same-origin secret-bearing redirects.
+
+Follow-up decoder regression: a digest-valid file could still fail inside the
+PDF decoder after the repository's bounded container checks. The viewer now
+turns that decoder error into one generation-bound playlist completion, shows
+no library or stack-trace detail, and advances to the next verified item. A
+retired route cannot use a late decoder error to advance a replacement item.
