@@ -321,77 +321,71 @@ void main() {
     );
   });
 
-  test(
-    'browse rejects a stored page exceeding its exact limit without clearing a replacement',
-    () async {
-      final backend = _MemoryBackend();
-      final cache = ServerMediaCatalogCache(
-        backend: backend,
-        now: () => DateTime.utc(2026, 9, 23, 12),
-      );
-      final browse = ServerMediaCatalogPage.fromJson(
-        _pageJson(),
-        operation: ServerMediaCatalogOperation.browse,
+  test('browse rejects a stored page exceeding its exact limit without clearing a replacement', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMediaCatalogCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 12),
+    );
+    final browse = ServerMediaCatalogPage.fromJson(
+      _pageJson(),
+      operation: ServerMediaCatalogOperation.browse,
+      mediaKind: ServerMediaCatalogKind.movie,
+    );
+    await cache.write(_scope, browse, limit: 1, current: () => true);
+    final validReplacement = backend.value!;
+    final tampered = jsonDecode(validReplacement) as Map<String, dynamic>;
+    tampered['page'] = _pageJson(itemCount: 2);
+    backend.value = jsonEncode(tampered);
+    backend.replacementBeforeClear = validReplacement;
+
+    expect(
+      await cache.readBrowse(
+        _scope,
+        _resource(),
         mediaKind: ServerMediaCatalogKind.movie,
-      );
-      await cache.write(_scope, browse, limit: 1, current: () => true);
-      final validReplacement = backend.value!;
-      final tampered = jsonDecode(validReplacement) as Map<String, dynamic>;
-      tampered['page'] = _pageJson(itemCount: 2);
-      backend.value = jsonEncode(tampered);
-      backend.replacementBeforeClear = validReplacement;
+        limit: 1,
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(backend.value, validReplacement);
+  });
 
-      expect(
-        await cache.readBrowse(
-          _scope,
-          _resource(),
-          mediaKind: ServerMediaCatalogKind.movie,
-          limit: 1,
-          current: () => true,
-        ),
-        isNull,
-      );
-      expect(backend.value, validReplacement);
-    },
-  );
+  test('browse rejects a stored item outside its exact kind without clearing a replacement', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMediaCatalogCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 12),
+    );
+    final browse = ServerMediaCatalogPage.fromJson(
+      _pageJson(),
+      operation: ServerMediaCatalogOperation.browse,
+      mediaKind: ServerMediaCatalogKind.movie,
+    );
+    await cache.write(_scope, browse, limit: 24, current: () => true);
+    final validReplacement = backend.value!;
+    final tampered = jsonDecode(validReplacement) as Map<String, dynamic>;
+    final page = tampered['page'] as Map<String, dynamic>;
+    final item =
+        (page['items'] as List<dynamic>).single as Map<String, dynamic>;
+    item['mediaKey'] = 'episode:tvdb:1:1:1';
+    item['mediaKind'] = 'episode';
+    backend.value = jsonEncode(tampered);
+    backend.replacementBeforeClear = validReplacement;
 
-  test(
-    'browse rejects a stored item outside its exact kind without clearing a replacement',
-    () async {
-      final backend = _MemoryBackend();
-      final cache = ServerMediaCatalogCache(
-        backend: backend,
-        now: () => DateTime.utc(2026, 9, 23, 12),
-      );
-      final browse = ServerMediaCatalogPage.fromJson(
-        _pageJson(),
-        operation: ServerMediaCatalogOperation.browse,
+    expect(
+      await cache.readBrowse(
+        _scope,
+        _resource(),
         mediaKind: ServerMediaCatalogKind.movie,
-      );
-      await cache.write(_scope, browse, limit: 24, current: () => true);
-      final validReplacement = backend.value!;
-      final tampered = jsonDecode(validReplacement) as Map<String, dynamic>;
-      final page = tampered['page'] as Map<String, dynamic>;
-      final item = (page['items'] as List<dynamic>).single
-          as Map<String, dynamic>;
-      item['mediaKey'] = 'episode:tvdb:1:1:1';
-      item['mediaKind'] = 'episode';
-      backend.value = jsonEncode(tampered);
-      backend.replacementBeforeClear = validReplacement;
-
-      expect(
-        await cache.readBrowse(
-          _scope,
-          _resource(),
-          mediaKind: ServerMediaCatalogKind.movie,
-          limit: 24,
-          current: () => true,
-        ),
-        isNull,
-      );
-      expect(backend.value, validReplacement);
-    },
-  );
+        limit: 24,
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(backend.value, validReplacement);
+  });
 
   test('strict parse clears only the exact malformed owner', () async {
     final backend = _MemoryBackend();
