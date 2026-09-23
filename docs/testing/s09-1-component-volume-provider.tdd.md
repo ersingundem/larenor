@@ -23,21 +23,27 @@ S09.1.
    service/schema versions, installation revision and directory inode. A
    required private authority revalidates the complete immutable source set
    before pause, after capture and again after the consumer finishes while the
-   containers remain paused. Shared containers, incomplete service volume
+   containers remain paused, then once more after unpause reconciliation.
+   Shared containers, incomplete service volume
    sets, nested/aliased paths, catalog drift, path swaps and release-time
    authority drift fail closed.
 
 ## RED and GREEN evidence
 
-- `d0a65ffa` defined archive, rollback and bound requirements before the module
-  existed; `0b652611` implemented the first provider.
+- `133e1c96` defined archive, rollback and bound requirements before the module
+  existed; `3c0c6d98` implemented the first provider.
 - Independent review found uncertain pause, unbound installation metadata and
-  pre-capture path-swap gaps. `3026a109` reproduced them; `09b1f835` bound the
+  pre-capture path-swap gaps. `23549bcf` reproduced them; `93fd2f55` bound the
   provider to exact installed authority and inode identity.
 - Review then found authority could drift while the consumer held the snapshot.
-  `5b4337e2` reproduced that exit race; `503f97ce` added the final pre-release
-  revalidation. The worker server separately delays its `released` frame until
-  provider exit and unpause have succeeded.
+  `7d9a4cff` reproduced that exit race; `7e847df2` added the pre-release
+  revalidation. `be1f87aa` and `556bbd43` close drift during unpause with a
+  final post-reconciliation readback. `331e1079` and `603038df` close late
+  same-name archive mutation by rechecking every captured entry fingerprint.
+  `c323ff11` adds a malformed-deadline regression; the following implementation
+  normalizes it before arithmetic or private value exposure.
+  The stacked worker server delays its `released` frame until provider exit and
+  unpause have succeeded.
 
 The focused package command is:
 
@@ -50,7 +56,7 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **44 passed**. Python compilation and `git diff --check` also pass.
+Result: **47 passed**. Python compilation and `git diff --check` also pass.
 
 ## Remaining S09.1 gates
 

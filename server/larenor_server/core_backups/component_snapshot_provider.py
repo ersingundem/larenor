@@ -64,13 +64,14 @@ def _exact(value, cls):
 
 
 def _remaining(deadline):
-    remaining = deadline - time.monotonic()
     if (
         type(deadline) not in (int, float)
         or type(deadline) is bool
         or not math.isfinite(deadline)
-        or remaining <= 0
     ):
+        raise ComponentSnapshotProviderError()
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
         raise ComponentSnapshotProviderError()
     return remaining
 
