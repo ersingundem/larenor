@@ -2,7 +2,7 @@
 
 Date: 23 September 2026
 
-Status: **software acceptance candidate; exact-head review and CI pending**
+Status: **software acceptance complete; physical protocol gates remain manual**
 
 ## Acceptance boundary
 
@@ -49,6 +49,7 @@ must also pass.
 
 F61, F62 and F63 remain separate because their real target interoperability and
 physical Huawei/DeX acceptance are protocol-specific. REMOTE.COMMON closes only
-the shared profile, trust and session-lifecycle foundation. The queue stays at
-**25/125** until this exact head passes independent review and required CI; the
-closure commit will then record **26/125** and **0/63**.
+the shared profile, trust and session-lifecycle foundation. Exact head
+`63a1a33d` passed independent review, 216 remote-access tests with four
+documented OpenSSH fixture skips, Android Build run `35827908569` and Security
+run `35827908316`. The closure commit records **26/125** and **0/63**.
