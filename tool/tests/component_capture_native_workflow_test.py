@@ -15,6 +15,7 @@ class ComponentCaptureNativeWorkflowTest(unittest.TestCase):
         self.assertEqual(value.count("platform: linux/arm64"), 1)
         self.assertIn('"btrfs-progs=6.6.3-1.1build2"', value)
         self.assertIn("mkfs.btrfs --force", value)
+        self.assertIn("/var/lib/larenor-component-capture-", value)
         self.assertIn("test_core_backup_linux_cow_capture_native.py", value)
         self.assertIn("--check-platform", value)
 

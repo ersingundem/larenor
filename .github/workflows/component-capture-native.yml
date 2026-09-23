@@ -26,6 +26,8 @@ jobs:
     name: Native COW (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
+    env:
+      LARENOR_NATIVE_CAPTURE_ROOT: /var/lib/larenor-component-capture-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -61,11 +63,11 @@ jobs:
           set -euo pipefail
           truncate --size=512M "$RUNNER_TEMP/component-capture.img"
           sudo /usr/sbin/mkfs.btrfs --force "$RUNNER_TEMP/component-capture.img"
-          mkdir "$RUNNER_TEMP/component-capture"
+          sudo install -d -m 0700 -o root -g root "$LARENOR_NATIVE_CAPTURE_ROOT"
           sudo mount --options loop,noatime \
-            "$RUNNER_TEMP/component-capture.img" "$RUNNER_TEMP/component-capture"
-          sudo chown root:root "$RUNNER_TEMP/component-capture"
-          sudo chmod 0700 "$RUNNER_TEMP/component-capture"
+            "$RUNNER_TEMP/component-capture.img" "$LARENOR_NATIVE_CAPTURE_ROOT"
+          sudo chown root:root "$LARENOR_NATIVE_CAPTURE_ROOT"
+          sudo chmod 0700 "$LARENOR_NATIVE_CAPTURE_ROOT"
       - name: Verify packaged entrypoint and real restart cleanup
         shell: bash
         env:
@@ -80,7 +82,7 @@ jobs:
           sudo --non-interactive env -i \
             PATH=/usr/bin:/bin \
             PYTHONPATH="$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE/server/tests" \
-            LARENOR_NATIVE_CAPTURE_ROOT="$RUNNER_TEMP/component-capture" \
+            LARENOR_NATIVE_CAPTURE_ROOT="$LARENOR_NATIVE_CAPTURE_ROOT" \
             "$GITHUB_WORKSPACE/server/.venv/bin/python" -B -m pytest -q \
             server/tests/test_core_backup_linux_cow_capture_native.py
           "$GITHUB_WORKSPACE/server/.venv/bin/larenor-component-backup-worker" \
@@ -89,6 +91,9 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if mountpoint --quiet "$RUNNER_TEMP/component-capture"; then
-            sudo umount "$RUNNER_TEMP/component-capture"
+          if mountpoint --quiet "$LARENOR_NATIVE_CAPTURE_ROOT"; then
+            sudo umount "$LARENOR_NATIVE_CAPTURE_ROOT"
+          fi
+          if test -d "$LARENOR_NATIVE_CAPTURE_ROOT"; then
+            sudo rmdir "$LARENOR_NATIVE_CAPTURE_ROOT"
           fi
