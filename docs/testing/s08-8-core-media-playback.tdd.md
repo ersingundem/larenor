@@ -16,6 +16,11 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   after the effect publishes no success and records an uncertain receipt for
   explicit recovery. The public intent/receipt schema contains no provider
   address, token or direct-service credential.
+- Intent and receipt journals are bounded at 256 rows. Capacity recovery runs
+  in the same transaction as the next insert: it removes expired, unconsumed
+  intents and then the oldest succeeded receipt/intent pairs only. Pending or
+  uncertain effect evidence is never pruned; when only that evidence remains,
+  Core rejects the new command before consuming its intent.
 - The Client follows catalog → detail → managed playback through Core only.
   Exact parsers reject unknown and secret-shaped fields. Account generation,
   route visibility and application lifecycle retire delayed prepare/command
@@ -40,11 +45,19 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   `072777581eacd8d75a5a9faee04ebd0b605c7e1a` adds the confirmation journey,
   real loopback HTTP replay, member policy, route retirement and EN/TR
   accessibility matrix.
+- Storage-bound RED `e144e71ca1af53608bdc6e4c49abd0aa33c697be` showed that
+  the 257th intent and receipt could grow the durable journal. GREEN
+  `23410ac240e63486375a306194c310ceb0666a19` enforced atomic capacity
+  checks and startup bounds. Retention RED
+  `142ef925f965f7ad0244c3cf258ee02cc75f4c55` then proved that a hard cap
+  could permanently exhaust normal playback. GREEN
+  `b8c1d1ae016dbdb9569d615ca43869e345bf1931` added safe expiry and terminal
+  receipt recycling while preserving pending effect evidence.
 
-Focused Server playback/catalog/flow tests pass **42/42** and targeted Ruff is
-clean for every new Server module and test. The grouped Flutter playback,
-catalog, flow, loopback and tablet package passes **33/33** tests with targeted
-analysis clean.
+The current focused Server playback suite passes **9/9**; the grouped playback,
+catalog-read and flow package passes **40/40**. The current Flutter playback,
+catalog tablet and real-loopback package passes **20/20**. Earlier accepted
+broader groups remain recorded by their exact commits above.
 
 ## Remaining S08.8 acceptance
 
