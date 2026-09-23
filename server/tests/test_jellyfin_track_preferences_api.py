@@ -49,6 +49,7 @@ def test_preferences_are_exact_core_account_scoped_and_revisioned(server):
     assert created.json()["preference"] == {
         "schemaVersion": 1,
         "ref": {
+            "schemaVersion": 1,
             "coreId": authority["coreId"],
             "homeId": authority["homeId"],
             "accountId": authority["accountId"],

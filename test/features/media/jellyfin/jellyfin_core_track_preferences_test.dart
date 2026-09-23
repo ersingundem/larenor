@@ -34,6 +34,7 @@ Map<String, dynamic> _response(
       : {
           'schemaVersion': 1,
           'ref': {
+            'schemaVersion': 1,
             'coreId': 'a' * 32,
             'homeId': 'b' * 32,
             'accountId': accountId ?? fixture.user.id,
@@ -46,81 +47,80 @@ Map<String, dynamic> _response(
 };
 
 void main() {
-  test('player preferences use only the current Core account contract', () async {
-    final fixture = AdminFixture();
-    await fixture.account.initialize();
-    addTearDown(fixture.account.dispose);
-    var revision = 0;
-    String? audio, subtitle;
-    final original = fixture.respond!;
-    fixture.respond = (request) async {
-      if (request.url.path.contains('/media/jellyfin/preferences/')) {
-        if (request.method == 'GET') {
+  test(
+    'player preferences use only the current Core account contract',
+    () async {
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      var revision = 0;
+      String? audio, subtitle;
+      fixture.respond = (request) async {
+        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+          if (request.method == 'GET') {
+            return fixture.json(
+              _response(
+                fixture,
+                revision: revision == 0 ? null : revision,
+                audio: audio,
+                subtitle: subtitle,
+              ),
+            );
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['expectedRevision'], revision);
+          audio = body['audioLanguage'] as String?;
+          subtitle = body['subtitleLanguage'] as String?;
+          revision++;
           return fixture.json(
             _response(
               fixture,
-              revision: revision == 0 ? null : revision,
+              revision: revision,
               audio: audio,
               subtitle: subtitle,
             ),
           );
         }
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['expectedRevision'], revision);
-        audio = body['audioLanguage'] as String?;
-        subtitle = body['subtitleLanguage'] as String?;
-        revision++;
-        return fixture.json(
-          _response(
-            fixture,
-            revision: revision,
-            audio: audio,
-            subtitle: subtitle,
-          ),
-        );
-      }
-      return original(request);
-    };
-    final store = JellyfinTrackPreferencesStore(account: fixture.account);
+        return fixture.defaultResponse(request);
+      };
+      final store = JellyfinTrackPreferencesStore(account: fixture.account);
 
-    expect(await store.read(_direct, isCurrent: () => true), isNull);
-    await store.save(
-      _direct,
-      audioLanguage: 'tr-TR',
-      subtitleLanguage: 'off',
-      isCurrent: () => true,
-    );
-    final saved = await store.read(_direct, isCurrent: () => true);
+      expect(await store.read(_direct, isCurrent: () => true), isNull);
+      await store.save(
+        _direct,
+        audioLanguage: 'tr-TR',
+        subtitleLanguage: 'off',
+        isCurrent: () => true,
+      );
+      final saved = await store.read(_direct, isCurrent: () => true);
 
-    expect(saved?.audioLanguage, 'tr-tr');
-    expect(saved?.subtitleLanguage, 'off');
-    final wire = fixture.calls
-        .where((request) => request.url.path.contains('/media/jellyfin/preferences/'))
-        .map((request) => '${request.url} ${request.body}')
-        .join(' ');
-    expect(wire, isNot(contains(_direct.baseUrl)));
-    expect(wire, isNot(contains(_direct.userId)));
-    expect(wire, isNot(contains(_direct.accessToken)));
-    expect(wire, contains('${'a' * 32}/${'b' * 32}'));
-  });
+      expect(saved?.audioLanguage, 'tr-tr');
+      expect(saved?.subtitleLanguage, 'off');
+      final wire = fixture.calls
+          .where(
+            (request) =>
+                request.url.path.contains('/media/jellyfin/preferences/'),
+          )
+          .map((request) => '${request.url} ${request.body}')
+          .join(' ');
+      expect(wire, isNot(contains(_direct.baseUrl)));
+      expect(wire, isNot(contains(_direct.userId)));
+      expect(wire, isNot(contains(_direct.accessToken)));
+      expect(wire, contains('${'a' * 32}/${'b' * 32}'));
+    },
+  );
 
   test('mismatched Core account authority is rejected', () async {
     final fixture = AdminFixture();
     await fixture.account.initialize();
     addTearDown(fixture.account.dispose);
-    final original = fixture.respond!;
     fixture.respond = (request) async {
       if (request.url.path.contains('/media/jellyfin/preferences/')) {
         return fixture.json(
-          _response(
-            fixture,
-            revision: 1,
-            audio: 'en',
-            accountId: 'f' * 32,
-          ),
+          _response(fixture, revision: 1, audio: 'en', accountId: 'f' * 32),
         );
       }
-      return original(request);
+      return fixture.defaultResponse(request);
     };
     final store = JellyfinTrackPreferencesStore(account: fixture.account);
 
