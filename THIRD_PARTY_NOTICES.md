@@ -10,6 +10,7 @@ source or application bundles.
 | noVNC | `assets/console/novnc/`; [upstream license summary](assets/console/novnc/LICENSE.txt), [MPL 2.0 text](assets/console/novnc/docs/LICENSE.MPL-2.0). Individual files retain their additional notices. | [noVNC](https://github.com/novnc/noVNC) |
 | pako, included with noVNC | [MIT license](assets/console/novnc/vendor/pako/LICENSE); source-file notices also apply | [pako](https://github.com/nodeca/pako) |
 | dartssh2 4.1.0 | Flutter package license registry; MIT, copyright upstream contributors | [dartssh2](https://pub.dev/packages/dartssh2/versions/4.1.0) |
+| mqtt_client 10.11.11 | Flutter package license registry; MIT plus its included Dart Observable BSD notice | [mqtt_client](https://pub.dev/packages/mqtt_client/versions/10.11.11) |
 | xterm.js | `assets/console/xterm/`; [MIT license](assets/console/xterm/LICENSE) | [xterm.js](https://github.com/xtermjs/xterm.js) |
 | AOSP apksig test fixture | Android host tests only; [provenance and exact source revision](android/app/src/test/resources/updater/NOTICE.md), [Apache 2.0](android/app/src/test/resources/updater/LICENSE.apksig) | [Android apksig](https://android.googlesource.com/platform/tools/apksig/) |
 

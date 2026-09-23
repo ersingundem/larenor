@@ -64,6 +64,7 @@ dependencies:
   mobile_scanner: ^7.4.2
   qr: ^4.0.0
   pdfrx: ^2.6.5
+  mqtt_client: 10.11.11
 
 dev_dependencies:
   shared_preferences_platform_interface: 2.4.2

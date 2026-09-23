@@ -67,6 +67,10 @@ def test_pairing_identity_scope_revoke_and_secret_free_inventory(server):
     assert discovery.json()["listenerEnabled"] is False
     assert discovery.json()["commandRetainAllowed"] is False
     assert len(discovery.json()["sensors"]) == 4
+    assert discovery.json()["commandTopic"] == (
+        f"larenor/{pairing['id']}/command"
+    )
+    assert discovery.json()["ackTopic"] == f"larenor/{pairing['id']}/ack"
     assert token not in discovery.text
     assert server[1].get(
         remote + f"/pairings/{pairing['id']}/mqtt/discovery?token={token}"
