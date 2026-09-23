@@ -26,7 +26,7 @@ identifiers into Core state, close S08.8, or change progress counters.
 
 ## RED
 
-Commit `eba815ff77df453cec92e2ddec9e8a65b3767191` added the focused preview,
+Commit `55300a84e873045328d3fdc64e44a3426c8f2415` added the focused preview,
 confirmation, source-drift, concurrency, replay and delayed-persistence
 journeys. The package failed to compile because the mapping contract did not
 exist.
