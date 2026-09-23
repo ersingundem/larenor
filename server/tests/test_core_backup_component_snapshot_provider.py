@@ -30,9 +30,10 @@ class InstalledAuthority:
 
 
 class PauseController:
-    def __init__(self, *, fail_on=None, uncertain_on=None):
+    def __init__(self, *, fail_on=None, uncertain_on=None, on_unpause=None):
         self.fail_on = fail_on
         self.uncertain_on = uncertain_on
+        self.on_unpause = on_unpause
         self.calls = []
         self.paused = set()
 
@@ -50,6 +51,8 @@ class PauseController:
         assert time.monotonic() < deadline
         self.calls.append(("unpause", container_id))
         self.paused.remove(container_id)
+        if self.on_unpause is not None:
+            self.on_unpause()
         return True
 
 
@@ -126,7 +129,7 @@ def test_provider_pauses_once_and_returns_deterministic_catalog_snapshots(tmp_pa
 
     with snapshot_provider.quiesce(time.monotonic() + 3) as second:
         assert [item.payload for item in second] == [item.payload for item in first]
-    assert len(authority.calls) == 6
+    assert len(authority.calls) == 8
 
 
 def test_provider_rolls_back_partial_pause_without_reading_volumes(tmp_path):
@@ -325,6 +328,33 @@ def test_installed_authority_drift_before_release_fails_snapshot(tmp_path):
             authority.available = False
 
     assert len(authority.calls) == 3
+    assert controller.paused == set()
+    assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
+
+
+def test_installed_authority_drift_during_unpause_fails_snapshot(tmp_path):
+    config = tmp_path / "config"
+    cache = tmp_path / "cache"
+    config.mkdir()
+    cache.mkdir()
+    authority = InstalledAuthority()
+    controller = PauseController(
+        on_unpause=lambda: setattr(authority, "available", False)
+    )
+    snapshot_provider = provider(
+        (
+            source("jellyfin", "config", config),
+            source("jellyfin", "cache", cache),
+        ),
+        controller,
+        authority,
+    )
+
+    with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+        with snapshot_provider.quiesce(time.monotonic() + 3):
+            pass
+
+    assert len(authority.calls) == 4
     assert controller.paused == set()
     assert controller.calls[-1] == ("unpause", "larenor-jellyfin")
 
