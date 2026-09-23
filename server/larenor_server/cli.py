@@ -26,16 +26,22 @@ def main(argv=None) -> int:
     try:
         settings = Settings.from_environment()
         if args.restore is not None:
-            bundle = private_read(args.restore, MAX_BUNDLE_BYTES)
-            encoded = private_read(args.restore_passphrase_file, 513)
+            try:
+                bundle = private_read(args.restore, MAX_BUNDLE_BYTES)
+                encoded = private_read(args.restore_passphrase_file, 513)
+            except OSError:
+                raise StartupError("restore_input_unavailable") from None
             try:
                 passphrase = validate_backup_passphrase(
                     encoded.decode("utf-8").removesuffix("\n")
                 )
             except (UnicodeError, ValueError):
                 raise StartupError("restore_passphrase_invalid") from None
-            restore_empty(settings, bundle, passphrase)
-            create_configured_app(settings)
+            try:
+                restore_empty(settings, bundle, passphrase)
+                create_configured_app(settings)
+            except OSError:
+                raise StartupError("restore_storage_unavailable") from None
             print("Larenor Core restore completed.")
             return 0
         app = create_configured_app(settings)

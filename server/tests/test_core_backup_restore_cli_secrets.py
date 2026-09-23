@@ -108,3 +108,94 @@ def test_cli_rejects_invalid_passphrase_before_restore_without_echo(
     assert invalid not in output.err
     assert not target.database_file.exists()
     assert not target.key_file.exists()
+
+
+def test_cli_hides_unavailable_bundle_path(server, tmp_path, monkeypatch, capsys):
+    source = (tmp_path / "private-input").resolve()
+    bundle_path = source / "missing-secret-backup.larenor-core"
+    passphrase_path = source / "passphrase"
+    private_create(
+        passphrase_path,
+        b"Correct horse battery staple 2026\n",
+    )
+    target = _target(tmp_path / "target", server[3])
+
+    result = _run_restore(
+        monkeypatch,
+        target,
+        bundle_path,
+        passphrase_path,
+    )
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert output.out == ""
+    assert output.err == (
+        "Larenor Server initialization failed: restore_input_unavailable\n"
+    )
+    assert str(bundle_path) not in output.err
+
+
+def test_cli_hides_unavailable_passphrase_path(
+    server, tmp_path, monkeypatch, capsys
+):
+    source = (tmp_path / "private-input").resolve()
+    bundle_path = source / "backup.larenor-core"
+    passphrase_path = source / "missing-secret-passphrase"
+    private_create(bundle_path, b"synthetic bounded bundle")
+    target = _target(tmp_path / "target", server[3])
+
+    result = _run_restore(
+        monkeypatch,
+        target,
+        bundle_path,
+        passphrase_path,
+    )
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert output.out == ""
+    assert output.err == (
+        "Larenor Server initialization failed: restore_input_unavailable\n"
+    )
+    assert str(passphrase_path) not in output.err
+
+
+@pytest.mark.parametrize("failure", ["restore", "reopen"])
+def test_cli_hides_restore_storage_error_details(
+    server, tmp_path, monkeypatch, capsys, failure
+):
+    source = (tmp_path / "private-input").resolve()
+    bundle_path = source / "backup.larenor-core"
+    passphrase_path = source / "passphrase"
+    private_create(bundle_path, b"synthetic bounded bundle")
+    private_create(
+        passphrase_path,
+        b"Correct horse battery staple 2026\n",
+    )
+    target = _target(tmp_path / "private-target", server[3])
+    sensitive = str(target.data_dir / "secret-restore-stage")
+
+    def unavailable(*_args, **_kwargs):
+        raise OSError(sensitive)
+
+    if failure == "restore":
+        monkeypatch.setattr(cli, "restore_empty", unavailable)
+    else:
+        monkeypatch.setattr(cli, "restore_empty", lambda *_args: None)
+        monkeypatch.setattr(cli, "create_configured_app", unavailable)
+
+    result = _run_restore(
+        monkeypatch,
+        target,
+        bundle_path,
+        passphrase_path,
+    )
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert output.out == ""
+    assert output.err == (
+        "Larenor Server initialization failed: restore_storage_unavailable\n"
+    )
+    assert sensitive not in output.err
