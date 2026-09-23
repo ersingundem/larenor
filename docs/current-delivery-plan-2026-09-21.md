@@ -1,116 +1,75 @@
-# Larenor — güncel teslim sırası (21 Eylül 2026)
+# Larenor — güncel teslim sırası (23 Eylül 2026)
 
-Bu sayfa, `origin/main` **`d0a3a43f`** ve GitHub'daki **35 açık PR**
-görünümünün 21 Eylül 2026 anlık görüntüsüdür. Canlı kabul sayacı
-[`execution-queue.json`](execution-queue.json) ile üretilen
-[`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **23/125 iş**, **0/63
-seçili özellik**. Açık PR, yerel test veya auto-merge ayarı kabul değildir.
-Bir iş yalnız kuyruktaki bütün ölçütler, zorunlu exact-head CI ve bağımlı
-birleşimler kanıtlandığında `done` olur. Fiziksel kapılar ayrıca MANUAL kalır.
-PR ve check sayıları anlık görüntüdür; canlı durum için [açık PR'ları](https://github.com/ersingundem/larenor/pulls)
-ve her PR'ın son HEAD check'lerini açın. GitHub `BLOCKED`, yalnız bekleyen
-zorunlu check nedeniyle de görünebilir; ürün hatası anlamına gelmez.
+Bu sayfa `origin/main` **`70c667b5`** ve GitHub'daki **0 açık PR** görünümünü
+kaydeder. Canlı kabul sayacı [`execution-queue.json`](execution-queue.json) ile
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **23/125 iş**,
+**0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
+birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
+girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
 
 | Durum | Anlamı | Sayaç etkisi |
 | --- | --- | --- |
-| `PENDING` | Kod veya öncül henüz açık; kabul kanıtı eksik. | Yok |
-| `CI` | PR açık; kendi exact head'i ve gerekli öncül PR'lar bekleniyor. | Yok |
-| `MANUAL` | Gerçek tablet, ağ, alıcı, sensör veya ev kurulumu gerekiyor. | Yazılım kabulünün yerine geçmez |
-| `DONE` | Kuyruk ölçütleri, test/review/CI ve birleşim doğrulandı. | Yalnız ilgili iş |
+| `PENDING` | Kod, bağımlılık veya kabul kanıtı eksik. | Yok |
+| `AWAITING_CI` | Tam kabul dilimi kendi exact head CI'ını bekliyor. | Yok |
+| `NEEDS_USER` | Gerçek tablet, ağ, alıcı, sensör veya ev kurulumu gerekiyor. | Yazılım kabulünün yerine geçmez |
+| `DONE` | Bütün ölçütler, test/review/CI ve bağımlılıklar doğrulandı. | Yalnız ilgili iş |
 
-## Birleşim sırası ve bağımlılıklar
+## Birleşik kapanış kanıtı
 
-1. **S09 yedek/kurtarma zinciri — CI.** #302 Core capture sözleşmesi → #315
-   şifreli bundle → #316 boş Core'a journal'lı restore → #317 iki mimarili
-   Server image restore kabulü → #313 Android'de salt okunur backup readiness.
-   #315 ve #316 güvenlik incelemesindeki iki P2 düzeltme, alt dallara aynı
-   içerikle taşındı. #313 yalnız readiness gösterir; Client'tan yedek indirme,
-   açık onaylı restore UX, kurulum/yükseltme ve bileşen volume verileri ayrıca
-   kabul gerektirir. S09.1–S09.3 **PENDING/CI**; B4 **0/3** kalır.
-2. **Kiosk temel zinciri — CI/PENDING.** #303 ortak test güvenilirliği ve #318
-   Core resource E2E görünürlüğü main'e birleşti; #304 WebPanel
-   renderer/transfer; #306 eşlenmiş uzaktan kumanda ve MQTT; #308 watchdog ve
-   içeriksiz kullanım ölçümü; #309 sınırlı remote-view yetkisi; #310 sensör
-   oturumu; #311 kiosk gezinmesi; #312 çevre birimi sınırı; #320 bunun tablet
-   görünümü; #314 filo profili dry-run/rollout. #305 ortam video/PDF/web
-   listeleri ve #319 HID girdi oturumu ayrı PR'lardır. #307 K08 native köprü
-   temelini main'e getirdi;
-   K08'in WebPanel/K07 uçtan uca kullanıcı kabulü hâlâ kuyrukta `pending`.
-   K11 için #320, #312'den sonra; K13 için K07,
-   K12 ve F53 yazılım kapıları kanıtlanmadan sıra atlanmaz. DPC/OEM,
-   force-stop sonrası yeniden başlatma, gerçek çevre birimi ve sensör davranışı
-   **MANUAL** kalır.
-3. **Özellik entegrasyonları — CI/MANUAL.** Açık F31/F35–F60 paketleri Core
-   otoritesi, kalıcı durum, Android tablet ekranı ve fail-closed readback
-   dilimlerini taşıyor. Her F görevi kendi kuyruk kabulünde değerlendirilir;
-   PR'ları topluca 63 özelliği tamamladı diye sayılmaz. Özellikle kamera,
-   enerji/inverter, varlık algısı, e-paper, IR/RF ve DeX çift ekranının gerçek
-   donanım kanıtı ayrı kalır. #279 F58'de kullanıcı kaynaklı ACK yalnız
-   `acknowledged` olabilir; eşlenmiş cihaz imzası ve fiziksel görüntü kanıtı
-   olmadan `verified` kabul edilmez.
-4. **S07.4 CI; S08.10 DONE.** Tek kurulum/ayar kabulü #300 açık kalır.
-   Bounded ürün transfer yazılım kapanışı #301 exact CI sonrası main'e
-   birleşti ve kuyruk 23/125 oldu. Medya abonelikleri, HomePod/Cast oynatma,
-   Home Assistant, Keenetic ve Proxmox canlı sonuçları **MANUAL** kapılarındadır.
+- [PR #328](https://github.com/ersingundem/larenor/pull/328), 21 Eylül 2026'da
+  merge commit `70c667b5` ile birleşti. Kaynak PR #274, #275, #276, #277,
+  #279, #281, #282, #283, #284, #286, #287, #289, #290, #291, #292, #293,
+  #294, #295, #296, #298, #300, #306, #311, #313, #316, #317, #320 ve #327
+  bu ancestry içinde kapandı.
+- Exact head `e154242d` üzerinde Flutter statik analiz ve dört test shardı,
+  dört Server shardı ile aggregate kapılar, API 35 E2E, debug APK, Security,
+  SSH ve medya bileşenlerinin iki mimarili native kabulü geçti.
+- Aile panosu v2 şifreli yedeğe eklendi; v1 geri yükleme uyumluluğu ve kesilmiş
+  v2 geri yükleme kurtarması test edildi.
+- GitHub'da açık PR yok. Eski bağımlı PR zincirleri ve conflict listeleri artık
+  aktif teslim planı değildir.
 
-## Sıradaki çalışma adımları ve kapanış kapıları
+## Kanıtı açık kalan sınırlar
 
-1. **Ortak E2E tabanının üstünde yeniden doğrula.** #303 remount/klavye/transfer
-   ve #318 Core resource görünürlüğü main'e birleşti. Yalnız bu ortak hatadan
-   etkilenen #275, #287, #298 ve diğer ürün
-   PR'larında güncel base ile seçici E2E doğrulansın. Eski iptal edilmiş run'lar
-   ürün kusuru sayılmasın.
-2. **S09'u alttan üste birleştir.** #302 → #315 → #316 → #317 → #313. Her
-   basamakta base/head ve kayıp yanıt, yanlış anahtar, bozuk bundle, kesilen
-   restore, journal/orphan stage temizliği sınansın. Component volume'leri,
-   temiz kurulum/yükseltme ve Client açık onaylı geri yükleme bitmeden S09
-   kapanmaz. Bir öncülde fix çıkarsa üst dalların exact HEAD'i yenilenir.
-3. **S07.4'ü bağımsız kabul et.** S08.10 main'de `done`; #300 için kurulum
-   durumu, ayarlar, belirsiz sonuç ve gerçek paket yaşam
-   döngüsü karşılaştırılır; tek başına yeşil bir API testi yeterli değildir.
-4. **Kiosk bağımlılıklarını aç.** #304/#305 WebPanel ve ortam listeleri;
-   #306 K07; #312→#320 K11; #308 K12; #314 K13 sırası korunur. K07,
-   S08.10'un birleşmiş sözleşmesine; K11, K08 tam kabulüne; K13,
-   K07/K12/F53'e bağlıdır. Her PR
-   birleşse bile kuyruktaki tüm K kabulü otomatik kapanmaz.
-5. **Özellikleri tek tek doğrula.** F31/F35–F60 PR'ları için tam üç kullanıcı
-   ölçütü, Core/Client yetki ve stale-readback sınırı, tablet EN/TR erişim
-   matrisi ve ilgili servis/hardware MANUAL kanıtı ayrı dosyada izlenir.
-   F58 radio teslimi, F56 IR/RF, F52 fiziksel DeX ve F47 inverter yazma
-   kabulü gerçek cihaz olmadan kapatılmaz.
-6. **Son ürün bütünlüğü.** Ortak tablet tasarım/performans/güvenlik ve
-   cihazlar arası akış denetiminden sonra README kurulum adımları ve gerçek
-   tablet ekran görüntüleri güncellenir. Son release imza, güncelleme,
-   geri yükleme ve CasaOS/Proxmox kurulum kanıtına dayanır.
+1. **S07.4:** Client'ın yalnız medya/sağlayıcı ayarlarını yönetmesi, doğrulanmış
+   entegrasyon ile çalışan sürecin ayrılması, eksik yeteneğin açık görünmesi ve
+   iki mimarili restart içeren çapraz servis E2E tek kapanışta kanıtlanmalı.
+2. **S09.1–S09.3:** DB, ayrı anahtar, yapılandırma, bileşen verisi/sürümleri,
+   temiz kurulum/yükseltme ve geri yükleme zinciri aynı sözleşmede tamamlanmalı.
+   Mevcut aile panosu/boş Core restore dilimleri bu kapsamın tamamı değildir.
+3. **Kiosk:** WebPanel ileri işlemleri, ortam içerik listeleri, eşleştirilmiş
+   remote/MQTT, sensör ve çevre birimi yaşam döngüsü kendi kabul matrislerine
+   göre kapanmalı. DPC/OEM, force-stop ve gerçek çevre birimi kanıtları manuel.
+4. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
+   sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
+   görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
+   F60 paketlenmiş yayın motorunu, F46–F49 üretim adaptörlerini bekliyor.
+5. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
+   ekran görüntüleri, README, imzalı güncelleme ve CasaOS/Proxmox kurulumu son
+   yazılım kapılarından sonra yapılır.
 
-## İki PR hattının çalışma kuralı
+## Sıradaki üç bağımsız yazılım hattı
 
-- **Hat A:** S09 gibi tabanlı PR zincirlerinde önce en alt bağımlılığı temizler;
-  sonraki dalı exact öncül HEAD'e taşır. Review düzeltmesi alt dalda çıkarsa
-  test edilip sırayla üst dallara taşınır. Aynı dosyaya eşzamanlı yazılmaz.
-- **Hat B:** Dosya çakışması olmayan kiosk/özellik PR'larının gerçek CI
-  hatalarını düzeltir. Bağımsız yeşil PR'ları otomatik birleşmeye bırakır;
-  bağımlı PR'larda base/head eşleşmesini ve merge-tree'yi denetler.
-- **Hat C:** Bağımsız ürün PR'ları #276/#281/#297/#298 ile docs #321, CI
-  politikası #322 ve medya tercihi #323'ün exact HEAD kontrollerini izler;
-  yalnız gerçek failure veya merge conflict için dar düzeltme gönderir.
-- Her hat yalnız değişen dosyaların hedefli testini yerelde çalıştırır.
-  CI'da bir PR'ın kendi exact HEAD'i esastır; eski/cancelled çalıştırmalar
-  veya sentetik merge checkout'taki eski ilerleme trailer'ları yeni ürün
-  hatası gibi topluca rerun edilmez. Her düzeltme kanıtı ve PR durumu
-  ilgili `docs/testing/` dosyasında tutulur.
-
-## Sonraki kabul kapıları
-
-| Kapı | Eksik kanıt | Statü |
+| Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| S09.1 | Şifreli Core bundle CI; component-volume/sürüm kapsamı ve tek kurulum sözleşmesi | `CI` / `PENDING` |
-| S09.2 | Boş hedef, wrong-key/tamper, restart ve journal recovery'nin image kabulü | `CI` |
-| S09.3 | amd64/arm64 temiz kurulum + yükseltme + Client restore sınırı + bileşen sağlığı | `CI` / `PENDING` |
-| K05/K11/K12/K13 | Bağımlı PR birleşimleri, exact CI, tablette EN/TR erişilebilirlik ve yetki/lifecycle | `CI` / `MANUAL` |
-| F01–F63 | Her özellik için ayrı fonksiyonel kabul; uygun gerçek cihaz/servis ölçümü | `PENDING` / `MANUAL` |
-| Son UI/README | Ortak tablet tasarımının son bütünlük incelemesi, tablet görüntüleri, kurulum/release kanıtı | `PENDING` |
+| A — S07.4 | Medya ve sağlayıcı ayarlarında capability/readback durumlarını tek Client sözleşmesinde doğrula. | Çapraz servis E2E, restart ve iki mimarili exact-head CI |
+| B — S09.1 | Yedek manifestini DB, ayrı anahtar, config, bileşen verisi ve sürüm uyumuyla genişlet. | Wrong-key/tamper, kesinti sınırı, şema uyumu ve exact-head CI |
+| C — K03.remaining | WebPanel upload/download, pop-up/intent ve renderer kurtarma sınırlarını tamamla. | Origin/redirect/iframe, auth/sertifika, sır sızıntısı ve Android CI |
 
-Canlı Home Assistant erişiminde yalnız okuma yapılır. Sunucu restore veya
-cihaz yazma eylemleri, bu planın test kanıtlarından hareketle canlı ortamda
+Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
+başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük
+teslim sonunda exact-head zorunlu CI kullanır. Aynı başarısız koşu körlemesine
+yeniden başlatılmaz; iptal edilmiş veya eski SHA'ya ait sonuç kabul sayılmaz.
+
+## Fiziksel ve kullanıcı katılımlı kapılar
+
+- CasaOS/Proxmox tek Larenor kurulumu ve aynı imzalı Client güncellemesi.
+- Huawei MatePad, Android tablet, Samsung DeX, klavye ve TalkBack matrisi.
+- Gerçek Home Assistant/ağ/altyapı servisleri; yalnız salt okunur doğrulama.
+- Spotify, Apple Music, YouTube Music, HomePod, Cast ve Apple TV oynatma.
+- Sağlık/tartı sağlayıcı izinleri, kiosk DPC/OEM ve çevre birimleri.
+- Netelsan Algan 7 elektronik köprüsü ve diğer donanım özellikleri.
+
+Canlı Home Assistant erişiminde yalnız okuma yapılır. Sunucu restore, cihaz
+yazma veya elektronik kapı eylemleri test kanıtından hareketle canlı ortamda
 kendiliğinden çalıştırılmaz.
