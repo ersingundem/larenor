@@ -21,7 +21,7 @@ request command, close S08.8, or change progress counters.
 
 ## RED
 
-Commit `d015dcedbb860c42a2fd13bc97008781a4168925` added the focused widget
+Commit `2950965a4964ee14599237b56d4185297e6fb7d6` added the focused widget
 journeys. The package ran and failed because catalog rows were not buttons, no
 flow route or Core flow calls existed, and no canonical episode-to-series
 mapping or route retirement behavior was available.
