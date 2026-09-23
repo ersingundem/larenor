@@ -40,14 +40,12 @@ def initialized_journals(tmp_path):
     return containers, volumes
 
 
-def config(tmp_path):
+def config(tmp_path, runtime):
     containers, volumes = initialized_journals(tmp_path)
-    runtime = tmp_path / "runtime"
     runtime.mkdir(mode=0o700)
     captures = tmp_path / "captures"
     captures.mkdir(mode=0o700)
-    engine_socket = tmp_path / "engine.sock"
-    engine_socket.touch(mode=0o600)
+    engine_socket = Path("/tmp") / f"engine-{os.getpid()}-{tmp_path.name}.sock"
     return ComponentWorkerRuntimeConfig(
         socket_path=runtime / "component.sock",
         container_journal=containers,
@@ -61,8 +59,16 @@ def config(tmp_path):
     )
 
 
-def test_runtime_composes_durable_authority_docker_adapter_and_capture(tmp_path):
-    selected = config(tmp_path)
+@pytest.fixture
+def selected_config(tmp_path):
+    runtime = Path("/private/tmp") / f"larenor-worker-{os.getpid()}-{tmp_path.name}"
+    selected = config(tmp_path, runtime)
+    yield selected
+    runtime.rmdir()
+
+
+def test_runtime_composes_durable_authority_docker_adapter_and_capture(selected_config):
+    selected = selected_config
     with build_runtime(
         selected,
         backend=Backend(),
@@ -79,8 +85,8 @@ def test_runtime_composes_durable_authority_docker_adapter_and_capture(tmp_path)
     "damage",
     ["relative", "same_journals", "journal_inside_capture", "bool_uid"],
 )
-def test_runtime_configuration_is_exact_and_fail_closed(tmp_path, damage):
-    selected = config(tmp_path)
+def test_runtime_configuration_is_exact_and_fail_closed(selected_config, damage):
+    selected = selected_config
     values = vars(selected).copy()
     if damage == "relative":
         values["engine_socket"] = Path("engine.sock")
@@ -90,11 +96,15 @@ def test_runtime_configuration_is_exact_and_fail_closed(tmp_path, damage):
         values["capture_journal"] = selected.capture_root / "journal.json"
     else:
         values["api_uid"] = True
-    with pytest.raises(ComponentWorkerRuntimeError, match="worker_configuration_invalid"):
+    with pytest.raises(
+        ComponentWorkerRuntimeError, match="worker_configuration_invalid"
+    ):
         ComponentWorkerRuntimeConfig(**values)
 
 
-def test_packaged_entrypoint_rejects_unsupported_platform_without_paths(capsys, monkeypatch):
+def test_packaged_entrypoint_rejects_unsupported_platform_without_paths(
+    capsys, monkeypatch
+):
     monkeypatch.setattr(
         "larenor_server.core_backups.component_worker_runtime._platform",
         lambda: "unsupported",
@@ -106,6 +116,6 @@ def test_packaged_entrypoint_rejects_unsupported_platform_without_paths(capsys, 
 def test_package_exposes_component_backup_worker_entrypoint():
     project = Path(__file__).parents[1] / "pyproject.toml"
     assert (
-        'larenor-component-backup-worker = '
+        "larenor-component-backup-worker = "
         '"larenor_server.core_backups.component_worker_runtime:main"'
     ) in project.read_text()

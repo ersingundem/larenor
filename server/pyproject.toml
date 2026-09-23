@@ -24,6 +24,7 @@ larenor-installation-worker = "larenor_server.plugins.installation_runtime:main"
 larenor-proxmox-power-worker = "larenor_server.proxmox_commands.worker_runtime:main"
 larenor-proxmox-power-supervisor = "larenor_server.proxmox_commands.worker_supervisor:main"
 larenor-keenetic-worker = "larenor_server.keenetic_commands.worker_runtime:main"
+larenor-component-backup-worker = "larenor_server.core_backups.component_worker_runtime:main"
 
 [build-system]
 requires = ["hatchling==1.29.0"]
