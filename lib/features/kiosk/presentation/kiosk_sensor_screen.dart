@@ -175,10 +175,16 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
     _epoch++;
     _poller?.cancel();
     _poller = null;
-    _snapshot = null;
-    _pending = false;
+    if (mounted) {
+      setState(() {
+        _snapshot = null;
+        _pending = false;
+      });
+    } else {
+      _snapshot = null;
+      _pending = false;
+    }
     await _controller.retire();
-    if (mounted) setState(() {});
   }
 
   String _failure(Object error) {

@@ -29,6 +29,7 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
 final class _Api implements KioskSensorApi {
   int starts = 0, stops = 0, reads = 0;
   Completer<KioskSensorSnapshot>? pending;
+  Completer<KioskSensorStopReceipt>? pendingStop;
   @override
   Future<KioskSensorSnapshot> start({required int intervalMillis}) async {
     starts++;
@@ -44,7 +45,8 @@ final class _Api implements KioskSensorApi {
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
     stops++;
-    return const KioskSensorStopReceipt(sessionId: _session, stopped: true);
+    return pendingStop?.future ??
+        const KioskSensorStopReceipt(sessionId: _session, stopped: true);
   }
 }
 
@@ -167,6 +169,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     expect(api.reads, 1);
     expect(find.textContaining('8.0 lx'), findsOneWidget);
+    api.pendingStop = Completer<KioskSensorStopReceipt>();
 
     tester.binding.handleViewFocusChanged(
       ViewFocusEvent(
@@ -179,6 +182,18 @@ void main() {
 
     expect(api.stops, 1);
     expect(find.textContaining('8.0 lx'), findsNothing);
-    expect(find.byKey(const ValueKey('kiosk-sensor-start')), findsOneWidget);
+    expect(
+      tester.widget<CupertinoButton>(
+        find.descendant(
+          of: find.byKey(const ValueKey('kiosk-sensor-start')),
+          matching: find.byType(CupertinoButton),
+        ),
+      ).onPressed,
+      isNull,
+    );
+    api.pendingStop!.complete(
+      const KioskSensorStopReceipt(sessionId: _session, stopped: true),
+    );
+    await tester.pump();
   });
 }
