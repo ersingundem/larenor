@@ -8,6 +8,8 @@ import 'package:larenor/features/inventory/data/inventory_api.dart';
 import 'package:larenor/features/inventory/data/inventory_catalog_controller.dart';
 import 'package:larenor/features/inventory/domain/inventory_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'inventory_models_test.dart';
@@ -22,7 +24,147 @@ Map<String, Object?> pageResponse({
   'nextCursor': nextCursor,
 };
 
+final class _MemorySessions implements ServerSessionPersistence {
+  _MemorySessions(this.value);
+  ServerSession? value;
+
+  @override
+  Future<ServerSession?> read() async => value;
+
+  @override
+  Future<void> write(ServerSession? session) async => value = session;
+}
+
+ServerSession _session() => ServerSession(
+  endpoint: ServerEndpoint('https://core.example'),
+  accessToken: 'valid-access-token-000000000000',
+  refreshToken: 'valid-refresh-token-00000000000',
+  expiresAt: DateTime.utc(2026, 9, 23, 18),
+  user: ServerUser(
+    id: '9' * 32,
+    username: 'fixture',
+    role: ServerRole.admin,
+    mustChangePassword: false,
+  ),
+  context: context,
+);
+
+http.Response _jsonResponse(Object value) => http.Response(
+  jsonEncode(value),
+  200,
+  headers: {'content-type': 'application/json'},
+);
+
 void main() {
+  test('account gateway contains throwing route authority before network', () async {
+    var inventoryRequests = 0;
+    LarenorServerApi factory(ServerEndpoint endpoint) => LarenorServerApi(
+      endpoint: endpoint,
+      clock: () => DateTime.utc(2026, 9, 23, 12),
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('/auth/me')) {
+          return _jsonResponse({
+            'user': {
+              'id': '9' * 32,
+              'username': 'fixture',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _jsonResponse(context.toJson());
+        }
+        inventoryRequests++;
+        return _jsonResponse(pageResponse());
+      }),
+    );
+    final account = ServerAccountController(
+      store: _MemorySessions(_session()),
+      apiFactory: factory,
+      clock: () => DateTime.utc(2026, 9, 23, 12),
+    );
+    addTearDown(account.dispose);
+    await account.initialize();
+    final gateway = InventoryAccountGateway(
+      account: account,
+      context: context,
+      isCurrent: () => throw StateError('retired route'),
+      apiFactory: factory,
+    );
+    addTearDown(gateway.close);
+
+    await expectLater(
+      gateway.list(),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'cancelled',
+        ),
+      ),
+    );
+    expect(inventoryRequests, 0);
+  });
+
+  test('account gateway rejects a page after route authority drifts', () async {
+    final delayed = Completer<http.Response>();
+    final requested = Completer<void>();
+    var current = true;
+    LarenorServerApi factory(ServerEndpoint endpoint) => LarenorServerApi(
+      endpoint: endpoint,
+      clock: () => DateTime.utc(2026, 9, 23, 12),
+      client: MockClient((request) {
+        if (request.url.path.endsWith('/auth/me')) {
+          return Future.value(
+            _jsonResponse({
+              'user': {
+                'id': '9' * 32,
+                'username': 'fixture',
+                'role': 'admin',
+                'mustChangePassword': false,
+              },
+            }),
+          );
+        }
+        if (request.url.path.endsWith('/context')) {
+          return Future.value(_jsonResponse(context.toJson()));
+        }
+        if (!requested.isCompleted) requested.complete();
+        return delayed.future;
+      }),
+    );
+    final account = ServerAccountController(
+      store: _MemorySessions(_session()),
+      apiFactory: factory,
+      clock: () => DateTime.utc(2026, 9, 23, 12),
+    );
+    addTearDown(account.dispose);
+    await account.initialize();
+    final gateway = InventoryAccountGateway(
+      account: account,
+      context: context,
+      isCurrent: () => current,
+      apiFactory: factory,
+    );
+    addTearDown(gateway.close);
+
+    final result = gateway.list();
+    await requested.future;
+    current = false;
+    delayed.complete(_jsonResponse(pageResponse()));
+    await expectLater(
+      result,
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'cancelled',
+        ),
+      ),
+    );
+  });
+
   test('catalog page is strict bounded scoped and duplicate free', () {
     final page = InventoryPage.fromResponse(
       pageResponse(nextCursor: 'cursor'),

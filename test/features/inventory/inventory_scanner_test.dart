@@ -8,6 +8,7 @@ final class FakeScannerSession implements InventoryScannerSession {
   final codes = StreamController<String>.broadcast();
   final failures = StreamController<InventoryCameraFailure>.broadcast();
   int closes = 0;
+  Completer<void>? closeGate;
   @override
   Stream<String> get values => codes.stream;
   @override
@@ -17,6 +18,7 @@ final class FakeScannerSession implements InventoryScannerSession {
   @override
   Future<void> close() async {
     closes++;
+    await closeGate?.future;
   }
 }
 
@@ -36,6 +38,37 @@ final class ThrowingScannerPlatform implements InventoryScannerPlatform {
 }
 
 void main() {
+  test(
+    'unacknowledged camera close blocks reopen and never publishes old scan',
+    () async {
+      final platform = FakeScannerPlatform();
+      final values = <String>[];
+      final controller = InventoryScannerController(
+        platform: platform,
+        isCurrent: () => true,
+        onValue: values.add,
+        closeTimeout: const Duration(milliseconds: 10),
+      );
+      await controller.open();
+      final first = platform.sessions.single
+        ..closeGate = Completer<void>()
+        ..codes.add('old');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(values, isEmpty);
+      expect(controller.canOpen, isFalse);
+      await controller.open();
+      expect(platform.sessions, hasLength(1));
+
+      first.closeGate!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.canOpen, isTrue);
+      expect(values, isEmpty);
+      await controller.open();
+      expect(platform.sessions, hasLength(2));
+    },
+  );
+
   test(
     'camera creation failure closes safely and keeps manual entry',
     () async {
