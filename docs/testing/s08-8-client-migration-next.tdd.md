@@ -43,4 +43,3 @@ The queue item stays pending until all of these are evidenced together:
   account tuple, resource identity, schema/revision, TTL and quota boundaries;
 - same-URL Core replacement, authorization loss, restart and approved legacy
   migration pass real Client-to-local-Core E2E, independent review and CI.
-
