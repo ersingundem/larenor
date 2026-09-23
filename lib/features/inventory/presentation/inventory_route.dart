@@ -13,6 +13,7 @@ import '../../server/data/server_account_controller.dart';
 import '../data/inventory_api.dart';
 import '../data/inventory_controller.dart';
 import '../data/inventory_scanner.dart';
+import '../data/inventory_qr_share.dart';
 import 'inventory_screen.dart';
 
 /// Tablet route owning one exact home/session/window authority. Any authority,
@@ -23,10 +24,12 @@ final class InventoryRoute extends ConsumerStatefulWidget {
     super.key,
     this.apiFactory,
     this.scannerPlatform = const MobileInventoryScannerPlatform(),
+    this.shareGateway,
   });
 
   final ServerApiFactory? apiFactory;
   final InventoryScannerPlatform scannerPlatform;
+  final InventoryQrShareGateway? shareGateway;
 
   @override
   ConsumerState<InventoryRoute> createState() => _InventoryRouteState();
@@ -43,6 +46,7 @@ final class _InventoryRouteState extends ConsumerState<InventoryRoute>
   InventoryAccountGateway? _gateway;
   InventoryController? _controller;
   InventoryScannerController? _scanner;
+  InventoryLabelShareController? _labelShare;
 
   @override
   void initState() {
@@ -153,17 +157,26 @@ final class _InventoryRouteState extends ConsumerState<InventoryRoute>
         if (_current()) unawaited(controller.resolveScanned(value));
       },
     );
+    final labelShare = InventoryLabelShareController(
+      gateway: widget.shareGateway ?? InventoryQrShare(),
+      sessionId: 'inventory-${session.user.id}',
+      isCurrent: _current,
+    );
     _gateway = gateway;
     _controller = controller;
     _scanner = scanner;
+    _labelShare = labelShare;
   }
 
   void _disposeRuntime() {
     _scanner?.dispose();
+    _labelShare?.retire();
+    _labelShare?.dispose();
     _controller?.retire();
     _controller?.dispose();
     _gateway?.close();
     _scanner = null;
+    _labelShare = null;
     _controller = null;
     _gateway = null;
   }
@@ -243,6 +256,7 @@ final class _InventoryRouteState extends ConsumerState<InventoryRoute>
       return InventoryScreen(
         controller: controller,
         scanner: scanner,
+        labelShare: _labelShare,
         strings: strings,
       );
     }
