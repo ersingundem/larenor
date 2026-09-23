@@ -2,7 +2,9 @@ Never _invalid() => throw const FormatException('invalid_response');
 
 final _identityPattern = RegExp(r'^[0-9a-f]{32}$');
 final _targetPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$');
-final _unsafeText = RegExp(r'[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]');
+final _unsafeText = RegExp(
+  r'[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]',
+);
 
 Map<String, dynamic> _object(Object? value, Set<String> keys) {
   if (value is! Map<String, dynamic> ||

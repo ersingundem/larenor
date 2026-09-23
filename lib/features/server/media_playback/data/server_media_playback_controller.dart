@@ -65,10 +65,7 @@ final class ServerMediaPlaybackController extends ChangeNotifier {
     if (_disposed || busy || !_authorized || !_route(current)) return;
     final operation = ++_epoch;
     bool valid() =>
-        !_disposed &&
-        operation == _epoch &&
-        _authorized &&
-        _route(current);
+        !_disposed && operation == _epoch && _authorized && _route(current);
     busy = true;
     failure = null;
     intent = null;
@@ -111,10 +108,7 @@ final class ServerMediaPlaybackController extends ChangeNotifier {
     }
     final operation = ++_epoch;
     bool valid() =>
-        !_disposed &&
-        operation == _epoch &&
-        _authorized &&
-        _route(current);
+        !_disposed && operation == _epoch && _authorized && _route(current);
     // Consume locally before the first authority/network await. A failed
     // command requires a newly prepared server intent.
     intent = null;

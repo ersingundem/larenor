@@ -149,13 +149,15 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => ServerMediaPlaybackReceipt.fromJson({
-        ..._receiptJson(),
-        'targetId': 'foreign-room',
-      }, expectedRequestId: _commandId, expectedIntentId: _intentId,
-          expectedInstallationId: _installationId,
-          expectedItemId: '33333333333333333333333333333333',
-          expectedTargetId: 'living-room', expectedPlaybackRevision: 13),
+      () => ServerMediaPlaybackReceipt.fromJson(
+        {..._receiptJson(), 'targetId': 'foreign-room'},
+        expectedRequestId: _commandId,
+        expectedIntentId: _intentId,
+        expectedInstallationId: _installationId,
+        expectedItemId: '33333333333333333333333333333333',
+        expectedTargetId: 'living-room',
+        expectedPlaybackRevision: 13,
+      ),
       throwsFormatException,
     );
   });
@@ -177,7 +179,9 @@ void main() {
     addTearDown(controller.dispose);
     addTearDown(fixture.account.dispose);
     final page = ServerMediaCatalogPage.fromJson(
-      _pageJson(), query: 'matrix', mediaKind: null,
+      _pageJson(),
+      query: 'matrix',
+      mediaKind: null,
     );
 
     final pendingPrepare = controller.prepare(
@@ -191,11 +195,7 @@ void main() {
     await pendingPrepare;
     expect(controller.intent, isNull);
 
-    await controller.prepare(
-      page,
-      page.items.single,
-      current: () => true,
-    );
+    await controller.prepare(page, page.items.single, current: () => true);
     final pendingPlay = controller.play(
       controller.intent!.targets.single,
       current: () => true,
@@ -215,7 +215,9 @@ void main() {
     addTearDown(controller.dispose);
     addTearDown(fixture.account.dispose);
     final page = ServerMediaCatalogPage.fromJson(
-      _pageJson(), query: 'matrix', mediaKind: null,
+      _pageJson(),
+      query: 'matrix',
+      mediaKind: null,
     );
     final before = fixture.calls.length;
     await controller.prepare(
