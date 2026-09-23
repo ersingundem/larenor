@@ -485,14 +485,14 @@ class ServerMusicLongformChapter {
       _invalid();
     }
     final position = value['position'];
-    if (position is! int || position < 0 || position > 4095) _invalid();
+    if (position is! int || position < 0 || position > 10000) _invalid();
     final start = _number(
       value['startSeconds'],
-      max: 31536000,
+      max: 8640000,
       nullable: false,
     )!;
     final end = value.containsKey('endSeconds')
-        ? _number(value['endSeconds'], max: 31536000)
+        ? _number(value['endSeconds'], max: 8640000)
         : null;
     if (end != null && end <= start) _invalid();
     return ServerMusicLongformChapter._(
@@ -542,12 +542,12 @@ class ServerMusicLongformItem {
     }
     final duration = _number(
       map['durationSeconds'],
-      max: 31536000,
+      max: 8640000,
       nullable: false,
     )!;
     final resume = _number(
       map['resumePositionSeconds'],
-      max: 31536000,
+      max: 8640000,
       nullable: false,
     )!;
     if (duration <= 0 || resume > duration) _invalid();
@@ -556,11 +556,14 @@ class ServerMusicLongformItem {
         .toList(growable: false);
     for (var index = 0; index < chapters.length; index++) {
       final chapter = chapters[index];
-      if (chapter.position != index ||
-          chapter.startSeconds > duration ||
+      final previous = index == 0 ? null : chapters[index - 1];
+      if ((previous != null && chapter.position <= previous.position) ||
+          chapter.startSeconds >= duration ||
           (chapter.endSeconds != null && chapter.endSeconds! > duration) ||
-          (index > 0 &&
-              chapter.startSeconds <= chapters[index - 1].startSeconds)) {
+          (previous != null &&
+              (chapter.startSeconds <= previous.startSeconds ||
+                  (previous.endSeconds != null &&
+                      chapter.startSeconds < previous.endSeconds!)))) {
         _invalid();
       }
     }
@@ -631,8 +634,22 @@ class ServerMusicLongformCatalog {
 }
 
 bool _validLongformUri(Object? value) {
-  if (!_validUri(value)) return false;
-  final parsed = Uri.tryParse(value as String);
+  if (value is! String || value.length > 2048) return false;
+  final match = RegExp(r'^([a-z][a-z0-9_]{0,63})://[^\s]+$').firstMatch(value);
+  if (match == null ||
+      const {
+        'content',
+        'data',
+        'file',
+        'ftp',
+        'http',
+        'https',
+        'javascript',
+      }.contains(match.group(1)) ||
+      value.codeUnits.any((unit) => unit < 33 || unit == 127)) {
+    return false;
+  }
+  final parsed = Uri.tryParse(value);
   return parsed != null &&
       parsed.userInfo.isEmpty &&
       !parsed.hasQuery &&

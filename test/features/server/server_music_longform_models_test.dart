@@ -60,9 +60,7 @@ void main() {
     (chapters[0] as Map<String, dynamic>)['position'] = 2;
     (chapters[1] as Map<String, dynamic>)['position'] = 7;
 
-    final value = ServerMusicLongformCatalog.fromJson(
-      _catalog(items: [item]),
-    );
+    final value = ServerMusicLongformCatalog.fromJson(_catalog(items: [item]));
 
     expect(value.items.single.chapters.map((chapter) => chapter.position), [
       2,
@@ -133,9 +131,7 @@ void main() {
       overlapping,
     ]) {
       expect(
-        () => ServerMusicLongformCatalog.fromJson(
-          _catalog(items: [invalid]),
-        ),
+        () => ServerMusicLongformCatalog.fromJson(_catalog(items: [invalid])),
         throwsA(_invalid),
       );
     }
