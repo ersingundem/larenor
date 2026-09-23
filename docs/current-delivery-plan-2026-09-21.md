@@ -1,8 +1,8 @@
 # Larenor — güncel teslim sırası (23 Eylül 2026)
 
-Bu sayfa `origin/main` **`70c667b5`** ve GitHub'daki **0 açık PR** görünümünü
+Bu sayfa `origin/main` **`c9e7cc08`** ve GitHub'daki yalnız açık **PR #447** görünümünü
 kaydeder. Canlı kabul sayacı [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **23/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **26/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -26,14 +26,18 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   SSH ve medya bileşenlerinin iki mimarili native kabulü geçti.
 - Aile panosu v2 şifreli yedeğe eklendi; v1 geri yükleme uyumluluğu ve kesilmiş
   v2 geri yükleme kurtarması test edildi.
-- GitHub'da açık PR yok. Eski bağımlı PR zincirleri ve conflict listeleri artık
-  aktif teslim planı değildir.
+- PR #439, #443, #444, #445 ve #446 exact-head review/CI sonrasında main
+  `c9e7cc08` zincirine girdi. F28, S08.8, F24, F31 ve S09.1 tam kuyruk
+  bağımlılıkları veya kalan acceptance sınırları nedeniyle `pending` kaldı.
+- PR #447 bounded managed-volume provider dilimi olarak açıktır; henüz birleşmiş
+  veya kabul edilmiş sayılmaz. Eski bağımlı PR zincirleri aktif teslim planı
+  değildir.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S07.4:** Client'ın yalnız medya/sağlayıcı ayarlarını yönetmesi, doğrulanmış
-   entegrasyon ile çalışan sürecin ayrılması, eksik yeteneğin açık görünmesi ve
-   iki mimarili restart içeren çapraz servis E2E tek kapanışta kanıtlanmalı.
+1. **S08.8:** Üye kataloğu Core'a taşındı; eski ayarların açık geçişi,
+   provider/player/queue yolu ve tuple/resource/sürüm/TTL/kota bağlı kalıcı
+   cache kabulü hâlâ tamamlanmalı. S08.11 ve B3 kapanışı buna bağlıdır.
 2. **S09.1–S09.3:** DB, ayrı anahtar, yapılandırma, bileşen verisi/sürümleri,
    temiz kurulum/yükseltme ve geri yükleme zinciri aynı sözleşmede tamamlanmalı.
    Mevcut aile panosu/boş Core restore dilimleri bu kapsamın tamamı değildir.
@@ -52,8 +56,8 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S07.4 | Medya ve sağlayıcı ayarlarında capability/readback durumlarını tek Client sözleşmesinde doğrula. | Çapraz servis E2E, restart ve iki mimarili exact-head CI |
-| B — S09.1 | Yedek manifestini DB, ayrı anahtar, config, bileşen verisi ve sürüm uyumuyla genişlet. | Wrong-key/tamper, kesinti sınırı, şema uyumu ve exact-head CI |
+| A — S08.8 | Eski medya/müzik ayarlarını açık onayla Core kaynaklarına ve typed cache kimliklerine geçir. | Provider/player/queue, authority kaybı, başka Core ve TTL/kota E2E |
+| B — S09.1 | Açık PR #447'nin provider dilimini incele; journal-bound gerçek capture ve restore zincirini sürdür. | Engine/journal authority, restore/rollback, kesinti ve büyük hacim iki mimari kabulü |
 | C — K03.remaining | WebPanel upload/download, pop-up/intent ve renderer kurtarma sınırlarını tamamla. | Origin/redirect/iframe, auth/sertifika, sır sızıntısı ve Android CI |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü

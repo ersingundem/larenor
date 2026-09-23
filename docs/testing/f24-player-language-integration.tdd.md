@@ -52,7 +52,8 @@ progress remains **0/63**.
   implemented by this preference slice. The saved value is only a requested
   language and never claims subtitle availability.
 - Separate real Jellyfin service plus renderer/subtitle-engine integration
-  evidence, exact-head independent review and full commit CI remain required.
+  evidence remains required. Independent review and all required exact-head
+  checks passed on `900c0b74`, which merged as `193a6c77`.
 - Playback with actual language tracks on target Huawei/DeX hardware stays a
   physical MANUAL gate. F24 must not be marked done from this client contract
   alone.

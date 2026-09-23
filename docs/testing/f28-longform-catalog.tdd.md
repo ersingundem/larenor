@@ -48,7 +48,9 @@ security policy, execution-queue validation and diff checks are clean.
 F28 remains pending at **26/125 (20.8%)** and selected-feature progress remains
 **0/63 (0.0%)**. Client rendering, chapter selection, bookmarks, sleep timer,
 MediaSession/background behavior, provider capability disclosure, a real
-isolated Music Assistant fixture and full exact-head CI are still required.
+isolated Music Assistant fixture are still required. Independent review and
+all required exact-head checks passed on `92253ca1`, which merged as
+`38cefa3a`; those completed evidence gates are no longer remaining work.
 
 A final current-main audit added RED `4d04119257ddc7469bd49838c7169a084e4d161c`: a typed private-worker result
 could escape the captured provider bindings or repeat one media URI and still
