@@ -94,6 +94,57 @@ Map<String, dynamic> readyPlan() => {
   'manifest': backupManifest(),
 };
 
+Map<String, dynamic> manifestWithResourceLength(String id, int byteLength) => {
+  ...backupManifest(),
+  'resources': [
+    for (final raw
+        in (backupManifest()['resources']! as List)
+            .cast<Map<String, dynamic>>())
+      if (raw['id'] == id) {...raw, 'byteLength': byteLength} else raw,
+  ],
+};
+
+Map<String, dynamic> manifestWithComponentLengths(List<int> byteLengths) {
+  final original = backupManifest();
+  final fixedResources = (original['resources']! as List)
+      .cast<Map<String, dynamic>>()
+      .where(
+        (item) => !(item['id'] as String).startsWith('component-jellyfin-'),
+      )
+      .toList();
+  final components = <Map<String, dynamic>>[];
+  final volumeResources = <Map<String, dynamic>>[];
+  for (var component = 0; component * 3 < byteLengths.length; component++) {
+    final start = component * 3;
+    final end = (start + 3).clamp(0, byteLengths.length);
+    final serviceId = 'service$component';
+    final ids = <String>[];
+    for (var index = start; index < end; index++) {
+      final id = 'component-$serviceId-volume$index';
+      ids.add(id);
+      volumeResources.add({
+        'id': id,
+        'kind': 'componentData',
+        'version': 'component-v1',
+        'byteLength': byteLengths[index],
+        'sha256': '${component + 1}' * 64,
+      });
+    }
+    components.add({
+      'serviceId': serviceId,
+      'serviceVersion': '1.0.0',
+      'configSchemaVersion': 1,
+      'dataSchemaVersion': '1',
+      'volumeResourceIds': ids,
+    });
+  }
+  return {
+    ...original,
+    'components': components,
+    'resources': [...fixedResources, ...volumeResources],
+  };
+}
+
 final class BackupFixture extends AdminFixture {
   BackupFixture() {
     respond = (request) async {
@@ -299,6 +350,58 @@ void main() {
     final plan = CoreBackupManifest.fromJson(legacy);
     expect(plan.resources.length, 4);
     expect(plan.totalBytes, 4328);
+  });
+
+  test('manifest requires an exact 32-byte AES-256 vault key', () {
+    expect(
+      () => CoreBackupManifest.fromJson(backupManifest()),
+      returnsNormally,
+    );
+    for (final invalidLength in [31, 33]) {
+      expect(
+        () => CoreBackupManifest.fromJson(
+          manifestWithResourceLength('vault-key', invalidLength),
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
+  });
+
+  test('manifest enforces each database and component resource cap', () {
+    for (final (id, maximum) in [
+      ('core-database', 128 * 1024 * 1024),
+      ('family-board', 32 * 1024 * 1024),
+      ('component-jellyfin-cache', 64 * 1024 * 1024),
+    ]) {
+      expect(
+        () => CoreBackupManifest.fromJson(
+          manifestWithResourceLength(id, maximum),
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => CoreBackupManifest.fromJson(
+          manifestWithResourceLength(id, maximum + 1),
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
+  });
+
+  test('manifest caps all managed component volumes at 256 MiB', () {
+    const volumeCap = 64 * 1024 * 1024;
+    expect(
+      () => CoreBackupManifest.fromJson(
+        manifestWithComponentLengths(List.filled(4, volumeCap)),
+      ),
+      returnsNormally,
+    );
+    expect(
+      () => CoreBackupManifest.fromJson(
+        manifestWithComponentLengths([...List.filled(4, volumeCap), 1]),
+      ),
+      throwsA(isA<LarenorServerException>()),
+    );
   });
 
   test(
