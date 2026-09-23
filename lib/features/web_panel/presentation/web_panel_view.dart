@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../core/app_interaction_scope.dart';
+import '../../kiosk/domain/kiosk_watchdog.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_platform.dart';
@@ -28,6 +29,7 @@ class WebPanelView extends StatefulWidget {
     this.requireActiveInteraction = true,
     this.transferAccess,
     this.rendererMonitor,
+    this.recoveryGate,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
@@ -37,6 +39,7 @@ class WebPanelView extends StatefulWidget {
   final bool requireActiveInteraction;
   final WebPanelTransferAccess? transferAccess;
   final WebPanelRendererMonitor? rendererMonitor;
+  final KioskRecoveryGate? recoveryGate;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -51,6 +54,7 @@ class WebPanelViewState extends State<WebPanelView> {
   _Failure? _failure;
   Timer? _watchdog;
   final _recovery = WebPanelRecoveryBudget();
+  late KioskRecoveryGate _recoveryGate;
   bool _backBusy = false;
   late WebPanelDataCoordinator _data;
   WebPanelTransferController? _transfer;
@@ -60,6 +64,7 @@ class WebPanelViewState extends State<WebPanelView> {
   void initState() {
     super.initState();
     _data = widget.dataCoordinator ?? WebPanelDataCoordinator.shared;
+    _recoveryGate = widget.recoveryGate ?? KioskRecoveryGate();
     _data.register(_clearRetire);
     _data.addListener(_dataChanged);
     final state = WidgetsBinding.instance.lifecycleState;
@@ -96,6 +101,9 @@ class WebPanelViewState extends State<WebPanelView> {
   @override
   void didUpdateWidget(covariant WebPanelView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.recoveryGate, widget.recoveryGate)) {
+      _recoveryGate = widget.recoveryGate ?? KioskRecoveryGate();
+    }
     final data = widget.dataCoordinator ?? WebPanelDataCoordinator.shared;
     if (!identical(_data, data)) {
       _data.unregister(_clearRetire);
@@ -150,8 +158,14 @@ class WebPanelViewState extends State<WebPanelView> {
     if (mounted) setState(_retire);
   }
 
-  void restart() {
+  Future<void> restart() async {
     if (!_active || !_recovery.take()) return;
+    final generation = _generation;
+    if (!await _recoveryGate.allowExplicitRecovery()) {
+      if (_current(generation)) setState(() {});
+      return;
+    }
+    if (!_current(generation)) return;
     setState(() {
       _retire();
       _failure = null;
@@ -277,7 +291,9 @@ class WebPanelViewState extends State<WebPanelView> {
               }
               _watchdog?.cancel();
               _watchdog = null;
+              final firstReady = !_ready;
               setState(() => _ready = true);
+              if (firstReady) unawaited(_recoveryGate.recordReady());
             },
             onWebResourceError: (error) {
               if (error.errorType ==
@@ -334,6 +350,9 @@ class WebPanelViewState extends State<WebPanelView> {
 
   void _fail(_Failure failure, int generation) {
     if (!_current(generation)) return;
+    if (failure == _Failure.timeout) {
+      unawaited(_recoveryGate.recordRendererFailure(timeout: true));
+    }
     setState(() {
       _failure = failure;
       _retire();
@@ -342,6 +361,7 @@ class WebPanelViewState extends State<WebPanelView> {
 
   void _recoverRenderer(int generation) {
     if (!_current(generation)) return;
+    unawaited(_recoveryGate.recordRendererFailure(timeout: false));
     if (!_recovery.take()) {
       _fail(_Failure.load, generation);
       return;
@@ -415,7 +435,7 @@ class WebPanelViewState extends State<WebPanelView> {
                   _Failure.load => l10n.webPanelLoadFailed,
                 }, textAlign: TextAlign.center),
                 CupertinoButton(
-                  onPressed: restart,
+                  onPressed: _recoveryGate.maintenanceRequired ? null : restart,
                   child: Text(l10n.commonRetry),
                 ),
               ],

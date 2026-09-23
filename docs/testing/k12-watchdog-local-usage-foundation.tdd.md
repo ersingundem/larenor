@@ -1,9 +1,9 @@
 # K12 watchdog and local usage foundation — 2026-09-21
 
-K12 remains **pending** because `K03.remaining` has not yet supplied the final
-renderer-death and reconnect callbacks. This slice closes three independent
-software prerequisites without claiming Android force-stop recovery or a
-physical 24-hour tablet result.
+K12 remains **pending** while `K03.remaining` and the physical Huawei/DeX gates
+remain open. The final WebPanel renderer-death, ready and timeout callbacks now
+feed the content-free durable watchdog, and manual WebPanel retry consumes the
+same persistent explicit-recovery gate used by the maintenance surface.
 
 ## Acceptance contract
 
@@ -44,8 +44,18 @@ physical 24-hour tablet result.
 
 ## Remaining K12 gates
 
-- Wire the gate to the final `K03.remaining` renderer-death and reconnect
-  receipts after that contract lands; source identity must remain bounded and
-  must not enter the journal.
 - Run physical Huawei/DeX process-death and long-idle checks. Android
   force-stop and OS relaunch remain unsupported claims.
+
+## WebPanel integration evidence
+
+- A renderer-death receipt increments only the closed
+  `renderer_failure` counter; ready and timeout callbacks use their matching
+  closed counters. URL, origin, source identity and platform error text never
+  enter the journal.
+- Manual retry durably consumes `KioskRecoveryGate` before a new renderer is
+  constructed. A corrupt, unwritable or exhausted gate cannot reopen web
+  content, and the gate still reports that no automatic recovery is pending.
+- Focused WebPanel widget coverage exercises native renderer callbacks, ready
+  receipts and the persistent manual-retry gate alongside the existing stale
+  generation and bounded recovery cases.
