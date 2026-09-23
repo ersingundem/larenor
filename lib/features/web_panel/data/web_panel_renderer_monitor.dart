@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -27,6 +28,7 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   WebPanelRendererChannel({
     MethodChannel? channel,
     String Function()? attachmentIds,
+    this.operationTimeout = const Duration(seconds: 4),
   }) : _channel = channel ?? const MethodChannel(channelName),
        _attachmentIds = attachmentIds ?? _secureAttachmentId {
     _channel.setMethodCallHandler(_onMethodCall);
@@ -38,7 +40,9 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
 
   final MethodChannel _channel;
   final String Function() _attachmentIds;
+  final Duration operationTimeout;
   final Map<String, VoidCallback> _callbacks = {};
+  final Set<String> _pendingLateAcknowledgements = {};
 
   @override
   Future<WebPanelRendererHandle?> attach(
@@ -65,12 +69,14 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   ) async {
     final attachmentId = _attachmentIds();
     if (webViewIdentifier < 1 ||
+        operationTimeout <= Duration.zero ||
         !_idPattern.hasMatch(attachmentId) ||
         allowedOrigins.isEmpty ||
         allowedOrigins.length > 16) {
       throw StateError('renderer_monitor_invalid');
     }
-    if (_callbacks.containsKey(attachmentId)) {
+    if (_callbacks.containsKey(attachmentId) ||
+        _pendingLateAcknowledgements.contains(attachmentId)) {
       throw StateError('renderer_monitor_duplicate');
     }
     _callbacks[attachmentId] = onRendererGone;
@@ -96,11 +102,24 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
               if (host != 0) return host;
               return (a['port']! as int).compareTo(b['port']! as int);
             });
-      final attached = await _channel.invokeMethod<bool>('attach', {
+      final invocation = _channel.invokeMethod<bool>('attach', {
         'webViewIdentifier': webViewIdentifier,
         'attachmentId': attachmentId,
         'allowedOrigins': origins,
       });
+      bool? attached;
+      try {
+        attached = await invocation.timeout(operationTimeout);
+      } on TimeoutException {
+        _callbacks.remove(attachmentId);
+        _pendingLateAcknowledgements.add(attachmentId);
+        unawaited(
+          _detachLateAcknowledgement(invocation, attachmentId).whenComplete(
+            () => _pendingLateAcknowledgements.remove(attachmentId),
+          ),
+        );
+        throw StateError('renderer_monitor_timeout');
+      }
       if (attached != true) throw StateError('renderer_monitor_unavailable');
       return _ChannelRendererHandle(this, attachmentId);
     } catch (_) {
@@ -120,15 +139,36 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
     final id = arguments['attachmentId']! as String;
     if (!_idPattern.hasMatch(id)) return;
     final callback = _callbacks.remove(id);
-    callback?.call();
+    try {
+      callback?.call();
+    } catch (_) {
+      // A retired UI callback never becomes a platform-channel failure.
+    }
   }
 
   Future<void> _detach(String attachmentId) async {
     if (_callbacks.remove(attachmentId) == null) return;
+    await _invokeDetach(attachmentId);
+  }
+
+  Future<void> _detachLateAcknowledgement(
+    Future<bool?> invocation,
+    String attachmentId,
+  ) async {
     try {
-      await _channel.invokeMethod<bool>('detach', {
-        'attachmentId': attachmentId,
-      });
+      if (await invocation == true) await _invokeDetach(attachmentId);
+    } catch (_) {
+      // A late rejected/failed attachment has no native authority to revoke.
+    }
+  }
+
+  Future<void> _invokeDetach(String attachmentId) async {
+    try {
+      await _channel
+          .invokeMethod<bool>('detach', {'attachmentId': attachmentId})
+          .timeout(operationTimeout);
+    } on TimeoutException {
+      // Dart authority is already revoked; native owns its final cleanup.
     } on PlatformException {
       // Dart authority was already revoked. Native cleanup is best effort.
     } on MissingPluginException {

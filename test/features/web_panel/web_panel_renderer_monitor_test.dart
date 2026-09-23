@@ -148,4 +148,145 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test(
+    'attach deadline revokes Dart authority and detaches a late native ack',
+    () async {
+      final attach = Completer<bool>();
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        if (call.method == 'attach') return attach.future;
+        if (call.method == 'detach') return true;
+        fail('unexpected method ${call.method}');
+      });
+      var events = 0;
+      final monitor = WebPanelRendererChannel(
+        channel: channel,
+        operationTimeout: const Duration(milliseconds: 10),
+        attachmentIds: () => '11111111111111111111111111111111',
+      );
+
+      await expectLater(
+        monitor.attachIdentifier(
+          7,
+          WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+          () => events++,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'renderer_monitor_timeout',
+          ),
+        ),
+      );
+      await messenger.handlePlatformMessage(
+        WebPanelRendererChannel.channelName,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('rendererGone', {
+            'attachmentId': '11111111111111111111111111111111',
+          }),
+        ),
+        (_) {},
+      );
+      expect(events, 0);
+
+      await expectLater(
+        monitor.attachIdentifier(
+          8,
+          WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+          () {},
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'renderer_monitor_duplicate',
+          ),
+        ),
+      );
+      expect(calls.map((call) => call.method), ['attach']);
+
+      attach.complete(true);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.map((call) => call.method), ['attach', 'detach']);
+      expect(calls.last.arguments, {
+        'attachmentId': '11111111111111111111111111111111',
+      });
+    },
+  );
+
+  test(
+    'dispose is bounded while native detach acknowledgement stalls',
+    () async {
+      final detach = Completer<bool>();
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        if (call.method == 'attach') return true;
+        if (call.method == 'detach') return detach.future;
+        fail('unexpected method ${call.method}');
+      });
+      var events = 0;
+      final monitor = WebPanelRendererChannel(
+        channel: channel,
+        operationTimeout: const Duration(milliseconds: 10),
+        attachmentIds: () => '22222222222222222222222222222222',
+      );
+      final handle = await monitor.attachIdentifier(
+        8,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () => events++,
+      );
+
+      await handle.dispose().timeout(const Duration(milliseconds: 100));
+      await handle.dispose();
+      await messenger.handlePlatformMessage(
+        WebPanelRendererChannel.channelName,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('rendererGone', {
+            'attachmentId': '22222222222222222222222222222222',
+          }),
+        ),
+        (_) {},
+      );
+      expect(events, 0);
+      expect(calls.map((call) => call.method), ['attach', 'detach']);
+      detach.complete(true);
+    },
+  );
+
+  test(
+    'renderer callback failures do not cross the platform channel',
+    () async {
+      messenger.setMockMethodCallHandler(channel, (_) async => true);
+      final monitor = WebPanelRendererChannel(
+        channel: channel,
+        attachmentIds: () => '33333333333333333333333333333333',
+      );
+      await monitor.attachIdentifier(
+        9,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () => throw StateError('private callback failure'),
+      );
+      final response = Completer<ByteData?>();
+
+      await messenger.handlePlatformMessage(
+        WebPanelRendererChannel.channelName,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('rendererGone', {
+            'attachmentId': '33333333333333333333333333333333',
+          }),
+        ),
+        response.complete,
+      );
+
+      expect(
+        const StandardMethodCodec().decodeEnvelope((await response.future)!),
+        isNull,
+      );
+    },
+  );
 }
