@@ -31,6 +31,13 @@ including the existing target identity, item preflight, timeout/uncertain
 outcome, lifecycle, observation and duplicate-tap matrix. Targeted Flutter
 analysis covers the changed controller and focused test.
 
+Independent review found that a listener added after silent authority loss
+received the retained old-authority snapshot before the controller evaluated
+the authority callback. RED commit `74b30262` fixes the regression boundary;
+GREEN commit `30559738` now retires authority before subscribing or emitting
+the retained snapshot. The final focused controller batch passes **34/34**
+tests, and targeted analysis remains clean.
+
 ## Remaining S08.8 acceptance
 
 Other direct media service paths still need central Core replacements. The
