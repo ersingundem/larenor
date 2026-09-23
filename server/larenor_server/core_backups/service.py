@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import io
 import json
 import secrets
@@ -17,7 +18,7 @@ from pydantic import ValidationError
 from ..auth import AuthService, Principal
 from ..config import Settings
 from ..database import Database
-from ..errors import ApiError
+from ..errors import ApiError, StartupError
 from ..files import checked_path, private_read
 from ..legal import server_version
 from ..plugins.catalog import load_catalog
@@ -343,6 +344,26 @@ class CoreBackupContract:
                 values[row["key"]] = version
         return values
 
+    def _capture_vault_key(self, connection) -> bytes:
+        try:
+            key = private_read(self.settings.key_file, 32)
+            stored = connection.execute(
+                "SELECT value FROM metadata WHERE key='key_check'"
+            ).fetchone()
+            expected = hmac.new(
+                key, b"larenor-vault-key-check-v1", hashlib.sha256
+            ).hexdigest()
+            if (
+                len(key) != 32
+                or stored is None
+                or type(stored["value"]) is not str
+                or not secrets.compare_digest(stored["value"], expected)
+            ):
+                raise ValueError("vault_key_mismatch")
+            return key
+        except (OSError, sqlite3.Error, StartupError, TypeError, ValueError):
+            raise ApiError("server_unavailable", 503) from None
+
     def _capture_family_board(self) -> bytes:
         path = self.settings.data_dir / "family-board.sqlite3"
         checked_path(path)
@@ -389,6 +410,7 @@ class CoreBackupContract:
                 raise ApiError("backup_too_large", 413)
             deadline = self._monotonic() + COMPONENT_QUIESCENCE_SECONDS
             try:
+                key = self._capture_vault_key(connection)
                 with self._component_boundary.quiesce(deadline) as snapshots:
                     components, component_payloads = self._component_payloads(snapshots)
                     database = connection.serialize()
@@ -407,7 +429,6 @@ class CoreBackupContract:
                 raise BackupBlocked(["component_quiescence_timeout"])
             connection.rollback()
 
-        key = private_read(self.settings.key_file, 32)
         configuration = _canonical(
             {
                 "contractVersion": 1,

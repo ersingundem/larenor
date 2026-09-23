@@ -5,6 +5,7 @@ import sqlite3
 
 import pytest
 from conftest import auth, ready
+
 from larenor_server.errors import ApiError
 
 
@@ -61,6 +62,35 @@ def test_admin_plan_binds_one_consistent_db_key_config_and_component_set(
     assert hmac.compare_digest(stored, expected)
     assert snapshot.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     snapshot.close()
+
+
+def test_plan_and_export_reject_a_key_that_no_longer_matches_the_database(server):
+    _app, client, settings, _clock = server
+    pair = ready(server)
+    original = settings.key_file.read_bytes()
+    replacement = bytes(byte ^ 0xFF for byte in original)
+
+    try:
+        settings.key_file.write_bytes(replacement)
+        responses = (
+            client.get("/api/v1/admin/backups/plan", headers=auth(pair)),
+            client.post(
+                "/api/v1/admin/backups/export",
+                headers=auth(pair),
+                json={"passphrase": "Correct horse battery staple 2026"},
+            ),
+        )
+    finally:
+        settings.key_file.write_bytes(original)
+
+    for response in responses:
+        assert response.status_code == 503
+        assert response.json()["error"] == {
+            "code": "server_unavailable",
+            "message": "The service is temporarily unavailable.",
+        }
+        assert str(settings.key_file) not in response.text
+        assert replacement.hex() not in response.text
 
 
 def test_inflight_effect_blocks_cut_and_never_claims_ready(server):
