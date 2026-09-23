@@ -152,6 +152,76 @@ class CoreBackupDestinationBridgeTest {
         } finally { bridge.dispose() }
     }
 
+    @Test fun exactConfiguredCapCommitsAndStreamedOverflowDeletesPartial() {
+        assertEquals(424L * 1024 * 1024, CoreBackupDestinationBridge.MAX_BYTES)
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val exactHost = Host()
+        val exact = CoreBackupDestinationBridge(activity, Messenger(), exactHost, maxBytes = 3)
+        try {
+            val session = "f".repeat(32)
+            val uri = Uri.parse("content://documents/exact-cap")
+            val opened = open(exact, session, uri)
+            val handle = (opened.value as Map<*, *>)["handle"] as String
+            val payload = byteArrayOf(1, 2, 3)
+            val append = Result()
+            exact.onMethodCall(MethodCall("append", args(
+                session, handle, mapOf("bytes" to payload),
+            )), append)
+            await(append)
+            val digest = MessageDigest.getInstance("SHA-256").digest(payload)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            val commit = Result()
+            exact.onMethodCall(MethodCall("commit", args(session, handle, mapOf(
+                "byteLength" to 3L, "sha256" to digest,
+            ))), commit)
+            await(commit)
+            assertEquals(uri.toString(), commit.value)
+            assertTrue(exactHost.output.finished)
+            assertTrue(exactHost.deleted.isEmpty())
+        } finally { exact.dispose() }
+
+        val overflowHost = Host()
+        val overflow = CoreBackupDestinationBridge(
+            activity, Messenger(), overflowHost, maxBytes = 3,
+        )
+        try {
+            val session = "1".repeat(32)
+            val uri = Uri.parse("content://documents/overflow")
+            val opened = open(overflow, session, uri)
+            val handle = (opened.value as Map<*, *>)["handle"] as String
+            val append = Result()
+            overflow.onMethodCall(MethodCall("append", args(
+                session, handle, mapOf("bytes" to byteArrayOf(1, 2, 3, 4)),
+            )), append)
+            await(append)
+            awaitCondition { overflowHost.output.closed && overflowHost.deleted.contains(uri) }
+            assertEquals("invalid_request", append.code)
+            assertFalse(overflowHost.output.finished)
+            assertEquals(1, overflowHost.deleted.count { it == uri })
+        } finally { overflow.dispose() }
+    }
+
+    @Test fun declaredOverflowDeletesPartialBeforeCommit() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val bridge = CoreBackupDestinationBridge(activity, Messenger(), host, maxBytes = 3)
+        try {
+            val session = "2".repeat(32)
+            val uri = Uri.parse("content://documents/declared-overflow")
+            val opened = open(bridge, session, uri)
+            val handle = (opened.value as Map<*, *>)["handle"] as String
+            val commit = Result()
+            bridge.onMethodCall(MethodCall("commit", args(session, handle, mapOf(
+                "byteLength" to 4L, "sha256" to "0".repeat(64),
+            ))), commit)
+            awaitCondition { host.output.closed && host.deleted.contains(uri) }
+            assertEquals("invalid_request", commit.code)
+            assertNull(commit.value)
+            assertFalse(host.output.finished)
+            assertEquals(1, host.deleted.count { it == uri })
+        } finally { bridge.dispose() }
+    }
+
     @Test fun exactSessionCancelDeletesPartialAndLatePickerCannotClaimNewSession() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val host = Host()

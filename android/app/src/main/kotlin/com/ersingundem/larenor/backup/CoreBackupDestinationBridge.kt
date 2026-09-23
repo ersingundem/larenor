@@ -62,6 +62,7 @@ class CoreBackupDestinationBridge internal constructor(
     private val activity: Activity,
     messenger: BinaryMessenger,
     private val host: CoreBackupDestinationHost = AndroidCoreBackupDestinationHost(activity),
+    private val maxBytes: Long = MAX_BYTES,
 ) : MethodChannel.MethodCallHandler {
     private data class Pending(
         val sessionId: String,
@@ -196,13 +197,18 @@ class CoreBackupDestinationBridge internal constructor(
                 return@execute
             }
             try {
-                if (current.bytes + bytes.size > MAX_BYTES) throw IllegalArgumentException()
+                if (current.bytes + bytes.size > maxBytes) throw IllegalArgumentException()
                 current.output.write(bytes)
                 current.digest.update(bytes)
                 current.bytes += bytes.size
                 main.post {
                     if (current.retired || active !== current) fail(result, "expired")
                     else result.success(null)
+                }
+            } catch (_: IllegalArgumentException) {
+                main.post {
+                    retireActive(delete = true)
+                    fail(result, "invalid_request")
                 }
             } catch (_: Exception) {
                 main.post {
@@ -218,7 +224,7 @@ class CoreBackupDestinationBridge internal constructor(
         val current = requireActive(map)
         val length = (map["byteLength"] as? Number)?.toLong() ?: throw IllegalArgumentException()
         val digest = map["sha256"] as? String ?: throw IllegalArgumentException()
-        if (length !in 1..MAX_BYTES || !DIGEST.matches(digest)) {
+        if (length !in 1..maxBytes || !DIGEST.matches(digest)) {
             retireActive(delete = true)
             return fail(result, "invalid_request")
         }
@@ -337,7 +343,7 @@ class CoreBackupDestinationBridge internal constructor(
         const val CHANNEL = "com.ersingundem.larenor/core_backup_destination"
         const val REQUEST_CODE = 0x4C42
         const val MAX_CHUNK = 64 * 1024
-        const val MAX_BYTES = 168L * 1024 * 1024
+        const val MAX_BYTES = 424L * 1024 * 1024
         const val MIME = "application/vnd.larenor.core-backup"
         private val ID = Regex("^[0-9a-f]{32}$")
         private val DIGEST = Regex("^[0-9a-f]{64}$")
