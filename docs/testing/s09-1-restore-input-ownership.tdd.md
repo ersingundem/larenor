@@ -25,7 +25,11 @@ component-volume behavior and Client transport do not change.
 ## RED to GREEN evidence
 
 The focused RED run produced four failures because neither input helper
-existed. The GREEN smoke passes the four new ordering/termination/cleanup
+existed. Independent review then found that wrapping `private_read` in a
+`bytearray` wiped only a copy while the original immutable bytes remained.
+RED `1a414531` proves the exact I/O buffer was not owned; GREEN `dc74e86b`
+reads directly into one bounded mutable buffer and wipes it on every exit.
+The GREEN smoke passes the five new ordering/termination/cleanup
 regressions and the eight existing CLI secret/error regressions. The final
 single verification batch also includes encrypted-contract and empty-target
 restore coverage:
@@ -36,7 +40,7 @@ uv run --project server pytest \
   server/tests/test_core_backup_restore_cli_secrets.py \
   server/tests/test_core_backup_empty_restore.py \
   server/tests/test_core_backup_contract.py -q
-39 passed
+40 passed
 ```
 
 ## Remaining acceptance
