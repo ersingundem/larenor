@@ -482,22 +482,18 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       }
       final language = JellyfinTrackPreferences.normalize(track.language);
       if (language == null) return;
-      await ref
+      final saved = await ref
           .read(jellyfinTrackPreferencesStoreProvider)
-          .save(
+          .saveAudio(
             client.config,
-            audioLanguage: language,
-            subtitleLanguage: _preferredTracks?.subtitleLanguage,
+            language: language,
             isCurrent: () =>
                 sourceEpoch == _sourceEpoch &&
                 _interactionCurrent(generation) &&
                 identical(ref.read(jellyfinClientProvider), client),
           );
       if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
-        _preferredTracks = JellyfinTrackPreferenceRecord(
-          audioLanguage: language,
-          subtitleLanguage: _preferredTracks?.subtitleLanguage,
-        );
+        _preferredTracks = saved;
         _preferredAudioEpoch = sourceEpoch;
       }
     } catch (_) {
@@ -527,22 +523,18 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           ? 'off'
           : JellyfinTrackPreferences.normalize(track.language, allowOff: true);
       if (language == null) return;
-      await ref
+      final saved = await ref
           .read(jellyfinTrackPreferencesStoreProvider)
-          .save(
+          .saveSubtitle(
             client.config,
-            audioLanguage: _preferredTracks?.audioLanguage,
-            subtitleLanguage: language,
+            language: language,
             isCurrent: () =>
                 sourceEpoch == _sourceEpoch &&
                 _interactionCurrent(generation) &&
                 identical(ref.read(jellyfinClientProvider), client),
           );
       if (_interactionCurrent(generation) && sourceEpoch == _sourceEpoch) {
-        _preferredTracks = JellyfinTrackPreferenceRecord(
-          audioLanguage: _preferredTracks?.audioLanguage,
-          subtitleLanguage: language,
-        );
+        _preferredTracks = saved;
         _preferredSubtitleEpoch = sourceEpoch;
       }
     } catch (_) {
@@ -745,8 +737,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   String get _languagePreferenceHint =>
       Localizations.localeOf(context).languageCode == 'tr'
-      ? 'Dil etiketi olan bir parça seçmek bu Jellyfin hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
-      : 'Choosing a track with a language label saves that language for this Jellyfin account. If a later title lacks it, playback keeps an available track.';
+      ? 'Dil etiketi olan bir parça seçmek bu Larenor hesabı için dilini kaydeder. Sonraki içerikte yoksa oynatıcı mevcut bir parçayı kullanır.'
+      : 'Choosing a track with a language label saves that language for this Larenor account. If a later title lacks it, playback keeps an available track.';
 
   Future<void> _showSubtitlePicker() {
     final l10n = AppLocalizations.of(context);

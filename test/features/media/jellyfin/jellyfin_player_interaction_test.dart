@@ -112,18 +112,33 @@ class _Preferences extends JellyfinTrackPreferencesStore {
   }) async => isCurrent() ? value : null;
 
   @override
-  Future<void> save(
+  Future<JellyfinTrackPreferenceRecord> saveAudio(
     JellyfinConfig config, {
-    required String? audioLanguage,
-    required String? subtitleLanguage,
+    required String language,
     required bool Function() isCurrent,
   }) async {
     if (!isCurrent()) throw StateError('stale preference write');
     writes++;
     value = JellyfinTrackPreferenceRecord(
-      audioLanguage: audioLanguage,
-      subtitleLanguage: subtitleLanguage,
+      audioLanguage: language,
+      subtitleLanguage: value?.subtitleLanguage,
     );
+    return value!;
+  }
+
+  @override
+  Future<JellyfinTrackPreferenceRecord> saveSubtitle(
+    JellyfinConfig config, {
+    required String language,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw StateError('stale preference write');
+    writes++;
+    value = JellyfinTrackPreferenceRecord(
+      audioLanguage: value?.audioLanguage,
+      subtitleLanguage: language,
+    );
+    return value!;
   }
 }
 
@@ -275,8 +290,8 @@ void main() {
           expect(
             find.textContaining(
               language == 'tr'
-                  ? 'bu Jellyfin hesabı için dilini kaydeder'
-                  : 'saves that language for this Jellyfin account',
+                  ? 'bu Larenor hesabı için dilini kaydeder'
+                  : 'saves that language for this Larenor account',
             ),
             findsOneWidget,
           );

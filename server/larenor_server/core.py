@@ -53,6 +53,8 @@ from .keenetic_resources.schema import migrate as migrate_keenetic_resources
 from .keenetic_resources.service import KeeneticResourceAdapter
 from .local_notifications.schema import migrate_local_notifications
 from .local_notifications.service import LocalNotificationService
+from .media_preferences.schema import migrate_jellyfin_track_preferences
+from .media_preferences.service import JellyfinTrackPreferenceService
 from .meal_plans.repository import MealPlanRepository
 from .meal_plans.schema import migrate_meal_plans
 from .mesh_center.runtime import build_mesh_center_gateway
@@ -335,6 +337,7 @@ class CoreServices:
                 migrate_personal_profiles(connection)
                 migrate_inventory(connection, key, self.context)
                 migrate_local_notifications(connection)
+                migrate_jellyfin_track_preferences(connection)
                 migrate_tablet_fleet(connection)
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
@@ -451,6 +454,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.local_notifications.validate_storage()
+            self.jellyfin_track_preferences = JellyfinTrackPreferenceService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.jellyfin_track_preferences.validate_storage()
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context
             )

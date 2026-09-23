@@ -1,6 +1,6 @@
 import 'package:media_kit/media_kit.dart';
 
-/// A local Jellyfin user's preferred languages, never a claim that a stream
+/// A Larenor account's preferred languages, never a claim that a stream
 /// actually contains a requested audio or subtitle track.
 final class JellyfinTrackPreferenceRecord {
   const JellyfinTrackPreferenceRecord({
