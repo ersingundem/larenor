@@ -7,6 +7,8 @@ import os
 import re
 import secrets
 import shutil
+import stat
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
@@ -35,6 +37,44 @@ _EXPECTED_SCHEMA = 3
 
 def _digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+@contextmanager
+def _open_restore_lock(path: Path):
+    """Acquire one verified private lock descriptor without reopening it."""
+
+    def valid(info):
+        return (
+            stat.S_ISREG(info.st_mode)
+            and info.st_uid == os.geteuid()
+            and stat.S_IMODE(info.st_mode) == 0o600
+            and info.st_nlink == 1
+        )
+
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        info = os.fstat(descriptor)
+        if not valid(info):
+            raise ValueError("invalid_restore_lock")
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        current = os.stat(path, follow_symlinks=False)
+        if not valid(current) or (current.st_dev, current.st_ino) != (
+            info.st_dev,
+            info.st_ino,
+        ):
+            raise ValueError("replaced_restore_lock")
+    except (OSError, ValueError):
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise StartupError("restore_lock_invalid") from None
+    try:
+        yield descriptor
+    finally:
+        os.close(descriptor)
 
 
 def _paths(settings: Settings, snapshot_id: str):
@@ -204,14 +244,14 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
     try:
         private_create(lock_path, b"")
     except FileExistsError:
-        private_read(lock_path, 0)
-    with lock_path.open("rb") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        pass
+    with _open_restore_lock(lock_path):
         if _read_journal(settings) is not None:
             raise StartupError("restore_already_in_progress")
         marker = settings.data_dir / ".initialized"
         unexpected = [
-            entry for entry in settings.data_dir.iterdir()
+            entry
+            for entry in settings.data_dir.iterdir()
             if entry.name != lock_path.name
         ]
         if (
@@ -258,9 +298,7 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
                 if connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]:
                     raise StartupError("restore_validation_failed")
 
-            database = private_read(
-                stage_dir / "larenor.sqlite3", MAX_DATABASE_BYTES
-            )
+            database = private_read(stage_dir / "larenor.sqlite3", MAX_DATABASE_BYTES)
             key = private_read(stage_key, 32)
             family_board = (
                 private_read(stage_dir / "family-board.sqlite3", MAX_FAMILY_BOARD_BYTES)
