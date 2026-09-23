@@ -136,6 +136,8 @@ final class LocalNotificationStore {
       LocalNotificationStoredSubscription? a,
       LocalNotificationStoredSubscription? b,
     ) =>
+        a?.context == b?.context &&
+        a?.actorId == b?.actorId &&
         a?.id == b?.id &&
         a?.revision == b?.revision &&
         a?.expiresAt == b?.expiresAt;

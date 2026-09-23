@@ -169,11 +169,7 @@ void main() {
     );
 
     await expectLater(
-      store.write(
-        replacement,
-        before: wrongAuthority,
-        isCurrent: () => true,
-      ),
+      store.write(replacement, before: wrongAuthority, isCurrent: () => true),
       throwsA(
         isA<LarenorServerException>().having(
           (error) => error.code,
