@@ -89,6 +89,7 @@ class ComponentSnapshotWorkerServer:
                 "operation",
                 "timeoutMilliseconds",
             }
+            or type(value.get("protocol")) is not int
             or value.get("protocol") != PROTOCOL
             or type(value.get("requestId")) is not str
             or len(value["requestId"]) != 32
@@ -102,7 +103,7 @@ class ComponentSnapshotWorkerServer:
 
     @staticmethod
     def _validated_snapshots(values):
-        if type(values) not in (tuple, list) or not values:
+        if type(values) not in (tuple, list):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
         ordered = tuple(sorted(values, key=lambda item: (
             getattr(item, "serviceId", ""), getattr(item, "volumeId", ""))))
@@ -127,7 +128,8 @@ class ComponentSnapshotWorkerServer:
         }
 
     def _handle(self, connection):
-        if self.peer_uid(connection) != self.client_uid:
+        actual_uid = self.peer_uid(connection)
+        if type(actual_uid) is not int or actual_uid != self.client_uid:
             return
         read_deadline = self.monotonic() + 5
         request = _read_frame(connection, read_deadline)

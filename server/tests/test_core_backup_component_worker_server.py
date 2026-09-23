@@ -181,6 +181,31 @@ def test_server_allows_client_uid_to_differ_from_socket_owner(tmp_path):
         assert server.completed == 1
 
 
+def test_server_allows_empty_catalog_snapshot(tmp_path):
+    boundary = Boundary(())
+    with worker(tmp_path, boundary) as (path, server):
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == ()
+        assert boundary.entered == boundary.released == 1
+        assert server.completed == 1
+
+
+def test_server_rejects_boolean_peer_uid_even_when_equal_to_integer(tmp_path):
+    boundary = Boundary(snapshots())
+    with worker(
+        tmp_path,
+        boundary,
+        allowed_client_uid=1,
+        observed_peer_uid=True,
+    ) as (path, _server):
+        with (
+            pytest.raises(ComponentSnapshotWorkerError),
+            client(path).quiesce(time.monotonic() + 2),
+        ):
+            raise AssertionError("must_not_yield")
+    assert boundary.entered == boundary.released == 0
+
+
 @pytest.mark.parametrize("client_uid", [-1, 2**31, True, "10001"])
 def test_server_rejects_invalid_client_uid(tmp_path, client_uid):
     parent = Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}"
@@ -213,6 +238,30 @@ def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):
             assert captured == snapshots()
         assert server.completed == 1
     assert boundary.entered == boundary.released == 2
+
+
+def test_server_rejects_boolean_protocol_and_remains_available(tmp_path):
+    boundary = Boundary(snapshots())
+    with worker(tmp_path, boundary) as (path, server):
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        connection.settimeout(2)
+        connection.connect(str(path))
+        write_frame(
+            connection,
+            {
+                "protocol": True,
+                "requestId": "1" * 32,
+                "operation": "quiesce",
+                "timeoutMilliseconds": 1500,
+            },
+        )
+        assert connection.recv(1) == b""
+        connection.close()
+        assert boundary.entered == boundary.released == 0
+
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+        assert server.completed == 1
 
 
 def test_server_rejects_foreign_release_and_remains_available(tmp_path):
