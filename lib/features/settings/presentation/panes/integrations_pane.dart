@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/home_session_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../keenetic/presentation/keenetic_home_screen.dart';
 import '../../../keenetic/providers/keenetic_providers.dart';
@@ -38,134 +39,142 @@ class IntegrationsPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final enabledServices =
-        ref.watch(enabledServicesProvider).value ?? const {};
+    final home = ref.watch(homeSessionControllerProvider);
+    final directHome = home == null || home.usesLocalHome;
+    // A Core runtime owns every service connection. Do not even construct the
+    // legacy Direct providers from its settings surface; their saved records
+    // remain available only after an explicit switch back to Direct.
+    final enabledServices = directHome
+        ? ref.watch(enabledServicesProvider).value ?? const {}
+        : const <AppService>{};
 
     bool active(AppService service, bool connected) =>
         enabledServices.contains(service) && connected;
 
     final rows = <SettingsNavRow>[
-      if (active(
-        AppService.jellyfin,
-        ref.watch(jellyfinConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.play_rectangle,
-          color: CupertinoColors.systemPurple,
-          service: AppService.jellyfin,
-          title: 'Jellyfin',
-          builder: (_) => const JellyfinHomeScreen(),
-        ),
-      if (active(
-        AppService.jellyseerr,
-        ref.watch(jellyseerrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.search,
-          color: CupertinoColors.systemBlue,
-          service: AppService.jellyseerr,
-          title: 'Jellyseerr',
-          builder: (_) => const JellyseerrHomeScreen(),
-        ),
-      if (active(
-        AppService.sonarr,
-        ref.watch(sonarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.tv,
-          color: CupertinoColors.systemIndigo,
-          service: AppService.sonarr,
-          title: 'Sonarr',
-          builder: (_) => const SonarrScreen(),
-        ),
-      if (active(
-        AppService.radarr,
-        ref.watch(radarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.film,
-          color: CupertinoColors.systemYellow,
-          service: AppService.radarr,
-          title: 'Radarr',
-          builder: (_) => const RadarrScreen(),
-        ),
-      if (active(
-        AppService.lidarr,
-        ref.watch(lidarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.music_note,
-          color: CupertinoColors.systemGreen,
-          service: AppService.lidarr,
-          title: 'Lidarr',
-          builder: (_) => const LidarrScreen(),
-        ),
-      if (active(
-        AppService.readarr,
-        ref.watch(readarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.book,
-          color: CupertinoColors.systemOrange,
-          service: AppService.readarr,
-          title: 'Readarr',
-          builder: (_) => const ReadarrScreen(),
-        ),
-      if (active(
-        AppService.bazarr,
-        ref.watch(bazarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.captions_bubble,
-          color: CupertinoColors.systemTeal,
-          service: AppService.bazarr,
-          title: 'Bazarr',
-          builder: (_) => const BazarrHomeScreen(),
-        ),
-      if (active(
-        AppService.prowlarr,
-        ref.watch(prowlarrConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.dot_radiowaves_left_right,
-          color: CupertinoColors.systemOrange,
-          service: AppService.prowlarr,
-          title: 'Prowlarr',
-          builder: (_) => const ProwlarrIndexersScreen(),
-        ),
-      if (active(
-        AppService.qbittorrent,
-        ref.watch(qbittorrentConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.arrow_down_circle,
-          color: CupertinoColors.systemBlue,
-          service: AppService.qbittorrent,
-          title: 'qBittorrent',
-          builder: (_) => const QbittorrentTorrentsScreen(),
-        ),
-      if (active(
-        AppService.proxmox,
-        ref.watch(proxmoxConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.square_stack_3d_up,
-          color: CupertinoColors.systemOrange,
-          service: AppService.proxmox,
-          title: 'Proxmox',
-          builder: (_) => const ProxmoxNodesScreen(),
-        ),
-      if (active(
-        AppService.keenetic,
-        ref.watch(keeneticConnectionProvider).value != null,
-      ))
-        SettingsNavRow(
-          icon: CupertinoIcons.wifi,
-          color: CupertinoColors.systemGreen,
-          service: AppService.keenetic,
-          title: 'Keenetic',
-          builder: (_) => const KeeneticHomeScreen(),
-        ),
+      if (directHome) ...[
+        if (active(
+          AppService.jellyfin,
+          ref.watch(jellyfinConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.play_rectangle,
+            color: CupertinoColors.systemPurple,
+            service: AppService.jellyfin,
+            title: 'Jellyfin',
+            builder: (_) => const JellyfinHomeScreen(),
+          ),
+        if (active(
+          AppService.jellyseerr,
+          ref.watch(jellyseerrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.search,
+            color: CupertinoColors.systemBlue,
+            service: AppService.jellyseerr,
+            title: 'Jellyseerr',
+            builder: (_) => const JellyseerrHomeScreen(),
+          ),
+        if (active(
+          AppService.sonarr,
+          ref.watch(sonarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.tv,
+            color: CupertinoColors.systemIndigo,
+            service: AppService.sonarr,
+            title: 'Sonarr',
+            builder: (_) => const SonarrScreen(),
+          ),
+        if (active(
+          AppService.radarr,
+          ref.watch(radarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.film,
+            color: CupertinoColors.systemYellow,
+            service: AppService.radarr,
+            title: 'Radarr',
+            builder: (_) => const RadarrScreen(),
+          ),
+        if (active(
+          AppService.lidarr,
+          ref.watch(lidarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.music_note,
+            color: CupertinoColors.systemGreen,
+            service: AppService.lidarr,
+            title: 'Lidarr',
+            builder: (_) => const LidarrScreen(),
+          ),
+        if (active(
+          AppService.readarr,
+          ref.watch(readarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.book,
+            color: CupertinoColors.systemOrange,
+            service: AppService.readarr,
+            title: 'Readarr',
+            builder: (_) => const ReadarrScreen(),
+          ),
+        if (active(
+          AppService.bazarr,
+          ref.watch(bazarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.captions_bubble,
+            color: CupertinoColors.systemTeal,
+            service: AppService.bazarr,
+            title: 'Bazarr',
+            builder: (_) => const BazarrHomeScreen(),
+          ),
+        if (active(
+          AppService.prowlarr,
+          ref.watch(prowlarrConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.dot_radiowaves_left_right,
+            color: CupertinoColors.systemOrange,
+            service: AppService.prowlarr,
+            title: 'Prowlarr',
+            builder: (_) => const ProwlarrIndexersScreen(),
+          ),
+        if (active(
+          AppService.qbittorrent,
+          ref.watch(qbittorrentConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.arrow_down_circle,
+            color: CupertinoColors.systemBlue,
+            service: AppService.qbittorrent,
+            title: 'qBittorrent',
+            builder: (_) => const QbittorrentTorrentsScreen(),
+          ),
+        if (active(
+          AppService.proxmox,
+          ref.watch(proxmoxConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.square_stack_3d_up,
+            color: CupertinoColors.systemOrange,
+            service: AppService.proxmox,
+            title: 'Proxmox',
+            builder: (_) => const ProxmoxNodesScreen(),
+          ),
+        if (active(
+          AppService.keenetic,
+          ref.watch(keeneticConnectionProvider).value != null,
+        ))
+          SettingsNavRow(
+            icon: CupertinoIcons.wifi,
+            color: CupertinoColors.systemGreen,
+            service: AppService.keenetic,
+            title: 'Keenetic',
+            builder: (_) => const KeeneticHomeScreen(),
+          ),
+      ],
     ];
 
     return SettingsPaneScaffold(
@@ -197,12 +206,14 @@ class IntegrationsPane extends ConsumerWidget {
               builder: (_) => const RoomPresenceRoute(),
             ),
             ...rows,
-            SettingsNavRow(
-              icon: CupertinoIcons.slider_horizontal_3,
-              color: CupertinoColors.systemGrey,
-              title: l10n.settingsManageIntegrations,
-              builder: (_) => const ManageIntegrationsScreen(),
-            ),
+            if (directHome)
+              SettingsNavRow(
+                key: const ValueKey('integrations-manage-direct-action'),
+                icon: CupertinoIcons.slider_horizontal_3,
+                color: CupertinoColors.systemGrey,
+                title: l10n.settingsManageIntegrations,
+                builder: (_) => const ManageIntegrationsScreen(),
+              ),
           ],
         ),
       ],
