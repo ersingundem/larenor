@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 23 Eylül 2026, main `be825d43` — 24/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. PR #330 exact head `223ff08f` üzerinde zorunlu CI, API 35 uygulama yolculukları ve iki mimarili restart kapılarını geçti; S07.4 main'e birleşerek yazılım kabulünü tamamladı. PR #331'in yedekleme ve PR #332'nin WebPanel renderer dilimleri birleşti; kendi tam kuyruk kabullerini tek başına kapatmadıkları için başka sayaç değişmedi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, exact kabul kaynağı `9431c911` — 25/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. K05 ortam içerik listeleri exact-head CI ve bağımsız incelemeyi geçerek yazılım kabulünü tamamladı; fiziksel decoder, ekran ve OEM kabulü manuel kapıda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  24/125 iş (%19,2; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  25/125 iş (%20,0; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -17,13 +17,27 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### K05 ortam içerik listeleri — yazılım kabul edildi
+
+Exact `9431c911` kaynağında video, PDF ve izinli HTTPS içerikleri için 24 öğe
+ve fiziksel 256 MiB offline kota sınırı; bozuk içerik atlama; tek geçişli
+decoder hata bütçesi; hareket azaltma; aktif medya sahipliği ve exact-origin
+web politikası birlikte doğrulandı. Kesilmiş import orphan'ları temizleniyor;
+eksik, yanlış boyutlu veya regular-file olmayan manifest girdileri kapalı
+davranıyor. 79 ambient testi, 67 testlik kabul paketi ve bağımsız güvenlik/race
+incelemesi geçti. Android Build `35821461533` API 35 gerçek uygulama
+yolculukları ve debug APK ile, Security `35821461367` aynı committe geçti.
+[TDD ve exact-head kanıtı](testing/k05-ambient-content-lists.tdd.md). K05
+`done`; kuyruk **25/125 (%20,0)**, seçili özellikler **0/63**. Fiziksel
+decoder, ekran ve OEM kabulü MANUAL kalır.
+
 ### Bekleyen PR'ların birleşik kapanışı — PR #328
 
 PR #328, 28 kaynak PR'ın exact head commitlerini merge commitleriyle koruyarak
 main `70c667b5` içine aldı. Exact `e154242d` başlığında dört Flutter shardı,
 dört Server shardı ve birleşik kapıları, API 35 emülatörde gerçek uygulama
 yolculukları, debug APK, Security, SSH, iki mimarili Music Assistant ve birleşik
-medya yığını kontrolleri geçti. GitHub'da açık PR kalmadı.
+medya yığını kontrolleri geçti. Bu birleşim anında GitHub'da açık PR kalmadı.
 
 Bu birleşim; aile panosu, rezervasyonlar, ev belgeleri, ev işleri/masraflar,
 kamera, enerji/iklim, kat planı, oda varlığı, e-paper, atölye, kiosk ve uzak

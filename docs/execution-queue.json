@@ -2449,14 +2449,15 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Ortam ekranı video/PDF/web listeleri",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B5"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k05-ambient-content-lists.tdd.md"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2467,9 +2468,42 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k05-ambient-content-lists.tdd.md",
+          "commit": "9431c9115e3a04221ef4bc7e2926c1b1f9f501c3",
+          "state": "completed",
+          "result": "passed",
+          "label": "79 ambient ve 67 testlik ambient/settings/lifecycle kabul paketi"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/k05-ambient-content-lists.tdd.md",
+          "commit": "9431c9115e3a04221ef4bc7e2926c1b1f9f501c3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Decoder pass bütçesi, fiziksel kota, authority ve stale callback bağımsız incelemesi"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35821461533",
+          "commit": "9431c9115e3a04221ef4bc7e2926c1b1f9f501c3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android Build, dört Flutter shardı, API 35 uygulama yolculukları ve debug APK"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35821461367",
+          "commit": "9431c9115e3a04221ef4bc7e2926c1b1f9f501c3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security, secret scan, platform policy ve dependency scan"
+        }
+      ],
+      "completionCommit": "9431c9115e3a04221ef4bc7e2926c1b1f9f501c3",
+      "reason": "Exact-head yazılım kabulü tamamlandı; fiziksel decoder, ekran ve OEM kabulü MANUAL kalır."
     },
     {
       "id": "K07",

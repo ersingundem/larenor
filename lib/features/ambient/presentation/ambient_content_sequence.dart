@@ -46,6 +46,7 @@ class AmbientContentSequence extends StatefulWidget {
 class _AmbientContentSequenceState extends State<AmbientContentSequence> {
   Timer? _timer;
   int _index = 0, _generation = 0;
+  final Set<String> _failedThisPass = {};
   AmbientContent? _item;
   Uint8List? _bytes;
 
@@ -73,6 +74,7 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
     _item = null;
     _bytes = null;
     _index = 0;
+    _failedThisPass.clear();
     if (widget.active && widget.items.isNotEmpty) {
       unawaited(_load(_generation));
     }
@@ -83,6 +85,10 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
     for (var attempt = 0; attempt < items.length; attempt++) {
       if (!_current(generation)) return;
       final item = items[_index];
+      if (_failedThisPass.contains(item.id)) {
+        _index = (_index + 1) % items.length;
+        continue;
+      }
       try {
         final bytes = item.kind == AmbientContentKind.web
             ? null
@@ -98,6 +104,7 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
         return;
       } catch (_) {
         if (!_current(generation)) return;
+        _failedThisPass.add(item.id);
         _index = (_index + 1) % items.length;
       }
     }
@@ -121,12 +128,27 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
   void _next() {
     if (!mounted || !widget.active || widget.items.isEmpty) return;
     _timer?.cancel();
+    _failedThisPass.clear();
     setState(() {
       _item = null;
       _bytes = null;
       _index = (_index + 1) % widget.items.length;
     });
     unawaited(_load(_generation));
+  }
+
+  void _fail(AmbientContent item) {
+    if (!mounted || !widget.active || !identical(_item, item)) return;
+    _timer?.cancel();
+    _failedThisPass.add(item.id);
+    setState(() {
+      _item = null;
+      _bytes = null;
+      _index = (_index + 1) % widget.items.length;
+    });
+    if (_failedThisPass.length < widget.items.length) {
+      unawaited(_load(_generation));
+    }
   }
 
   @override
@@ -145,6 +167,10 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
       if (_current(generation) && identical(_item, item)) _next();
     }
 
+    void failIfCurrent() {
+      if (_current(generation) && identical(_item, item)) _fail(item);
+    }
+
     final renderer = widget.renderer;
     final child = renderer != null
         ? renderer(item, _bytes, widget.active, nextIfCurrent)
@@ -154,6 +180,7 @@ class _AmbientContentSequenceState extends State<AmbientContentSequence> {
             active: widget.active,
             reducedMotion: widget.reducedMotion,
             onComplete: nextIfCurrent,
+            onFailure: failIfCurrent,
           );
     return AnimatedSwitcher(
       duration: widget.reducedMotion
@@ -171,12 +198,14 @@ class _AmbientContentSurface extends StatelessWidget {
     required this.active,
     required this.reducedMotion,
     required this.onComplete,
+    required this.onFailure,
   });
 
   final AmbientContent item;
   final Uint8List? bytes;
   final bool active, reducedMotion;
   final VoidCallback onComplete;
+  final VoidCallback onFailure;
 
   @override
   Widget build(BuildContext context) => switch (item.kind) {
@@ -187,18 +216,13 @@ class _AmbientContentSurface extends StatelessWidget {
               bytes: bytes!,
               active: active,
               onComplete: onComplete,
+              onFailure: onFailure,
             ),
-    AmbientContentKind.pdf => IgnorePointer(
-      child: PdfViewer.data(
-        bytes!,
-        sourceName: item.id,
-        params: const PdfViewerParams(
-          panEnabled: false,
-          scaleEnabled: false,
-          enableKeyboardNavigation: false,
-          forceEnableTextSemantics: false,
-        ),
-      ),
+    AmbientContentKind.pdf => _AmbientPdf(
+      bytes: bytes!,
+      sourceName: item.id,
+      active: active,
+      onFailure: onFailure,
     ),
     AmbientContentKind.web => WebPanelView(
       policy: item.policy,
@@ -207,6 +231,57 @@ class _AmbientContentSurface extends StatelessWidget {
       requireActiveInteraction: false,
     ),
   };
+}
+
+class _AmbientPdf extends StatefulWidget {
+  const _AmbientPdf({
+    required this.bytes,
+    required this.sourceName,
+    required this.active,
+    required this.onFailure,
+  });
+
+  final Uint8List bytes;
+  final String sourceName;
+  final bool active;
+  final VoidCallback onFailure;
+
+  @override
+  State<_AmbientPdf> createState() => _AmbientPdfState();
+}
+
+class _AmbientPdfState extends State<_AmbientPdf> {
+  bool _failureReported = false;
+
+  Widget _error(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+    PdfDocumentRef documentRef,
+  ) {
+    if (!_failureReported) {
+      _failureReported = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) widget.onFailure();
+      });
+    }
+    return const ColoredBox(color: CupertinoColors.black);
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: PdfViewer.data(
+      widget.bytes,
+      sourceName: widget.sourceName,
+      params: PdfViewerParams(
+        panEnabled: false,
+        scaleEnabled: false,
+        enableKeyboardNavigation: false,
+        forceEnableTextSemantics: false,
+        errorBannerBuilder: _error,
+      ),
+    ),
+  );
 }
 
 class _ReducedMotionVideo extends StatelessWidget {
@@ -230,10 +305,12 @@ class _AmbientVideo extends StatefulWidget {
     required this.bytes,
     required this.active,
     required this.onComplete,
+    required this.onFailure,
   });
   final Uint8List bytes;
   final bool active;
   final VoidCallback onComplete;
+  final VoidCallback onFailure;
 
   @override
   State<_AmbientVideo> createState() => _AmbientVideoState();
@@ -306,7 +383,7 @@ class _AmbientVideoState extends State<_AmbientVideo> {
           generation == _generation &&
           widget.active &&
           _foreground) {
-        widget.onComplete();
+        widget.onFailure();
       }
     }
   }

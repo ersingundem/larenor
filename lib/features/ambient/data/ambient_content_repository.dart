@@ -81,6 +81,7 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
           .toList(growable: false);
       if (values.length > maxItems ||
           values.map((value) => value.id).toSet().length != values.length ||
+          values.any((value) => !_withinItemLimit(value)) ||
           values.fold<int>(0, (sum, value) => sum + value.sizeBytes) >
               maxLibraryBytes) {
         throw const AmbientContentException();
@@ -107,10 +108,12 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
     if (items.length >= maxItems) {
       throw const AmbientContentException(limit: true);
     }
+    final root = await _root(create: true);
+    final physicalBytes = await _reconcileManagedFiles(root, items, isCurrent);
+    if (physicalBytes == null) return;
     final id = sha256.convert(bytes).toString();
     if (items.any((item) => item.id == id)) return;
-    if (items.fold<int>(0, (sum, item) => sum + item.sizeBytes) + bytes.length >
-        maxLibraryBytes) {
+    if (physicalBytes + bytes.length > maxLibraryBytes) {
       throw const AmbientContentException(limit: true);
     }
     final item = AmbientContent.local(
@@ -118,19 +121,21 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
       kind: kind,
       sizeBytes: bytes.length,
     );
-    final root = await _root(create: true);
     final destination = File('${root.path}/$id.${item.extension}');
     if (await FileSystemEntity.type(destination.path, followLinks: false) !=
         FileSystemEntityType.notFound) {
       throw const AmbientContentException();
     }
+    if (!isCurrent()) return;
     try {
       await destination.writeAsBytes(bytes, flush: true);
       if (!isCurrent()) return;
       await _save(root, [...items, item], isCurrent);
     } finally {
       final current = await list();
-      if (!current.contains(item) && await destination.exists()) {
+      if (!current.contains(item) &&
+          await FileSystemEntity.type(destination.path, followLinks: false) ==
+              FileSystemEntityType.file) {
         await destination.delete();
       }
     }
@@ -171,6 +176,9 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
         throw const AmbientContentException();
       }
       final root = await _root(create: true);
+      if (await _reconcileManagedFiles(root, current, isCurrent) == null) {
+        return;
+      }
       if (await _save(root, selected, isCurrent)) {
         await _collectOrphans(root, selected);
       }
@@ -187,6 +195,10 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
       if (!current.contains(item)) throw const AmbientContentException();
       final root = await _root();
       final file = File('${root.path}/${item.id}.${item.extension}');
+      if (await FileSystemEntity.type(file.path, followLinks: false) !=
+          FileSystemEntityType.file) {
+        throw const AmbientContentException();
+      }
       final limit = item.kind == AmbientContentKind.pdf
           ? maxPdfBytes
           : maxVideoBytes;
@@ -233,6 +245,12 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
     }
   }
 
+  static bool _withinItemLimit(AmbientContent item) => switch (item.kind) {
+    AmbientContentKind.pdf => item.sizeBytes <= maxPdfBytes,
+    AmbientContentKind.video => item.sizeBytes <= maxVideoBytes,
+    AmbientContentKind.web => item.sizeBytes == 0,
+  };
+
   Future<bool> _save(
     Directory root,
     List<AmbientContent> items,
@@ -269,13 +287,60 @@ final class AmbientContentRepository implements AmbientContentRepositoryApi {
     };
     await for (final entry in root.list(followLinks: false)) {
       final name = entry.uri.pathSegments.last;
-      if (entry is File &&
-          RegExp(r'^[a-f0-9]{64}\.(pdf|mp4)$').hasMatch(name) &&
-          !names.contains(name)) {
-        await entry.delete();
+      if (_managedName.hasMatch(name)) {
+        final type = await FileSystemEntity.type(
+          entry.path,
+          followLinks: false,
+        );
+        if (type != FileSystemEntityType.file) {
+          throw const AmbientContentException();
+        }
+        if (!names.contains(name)) await File(entry.path).delete();
       }
     }
   }
+
+  Future<int?> _reconcileManagedFiles(
+    Directory root,
+    List<AmbientContent> items,
+    bool Function() isCurrent,
+  ) async {
+    final expected = <String, AmbientContent>{
+      for (final item in items)
+        if (item.kind != AmbientContentKind.web)
+          '${item.id}.${item.extension}': item,
+    };
+    final seen = <String>{};
+    var physicalBytes = 0;
+    await for (final entry in root.list(followLinks: false)) {
+      if (!isCurrent()) return null;
+      final name = entry.uri.pathSegments.last;
+      if (!_managedName.hasMatch(name)) continue;
+      final type = await FileSystemEntity.type(entry.path, followLinks: false);
+      if (type != FileSystemEntityType.file) {
+        throw const AmbientContentException();
+      }
+      final item = expected[name];
+      if (item == null) {
+        if (!isCurrent()) return null;
+        await File(entry.path).delete();
+        continue;
+      }
+      final length = await File(entry.path).length();
+      if (length != item.sizeBytes) throw const AmbientContentException();
+      physicalBytes += length;
+      seen.add(name);
+    }
+    if (!isCurrent()) return null;
+    if (seen.length != expected.length ||
+        !seen.containsAll(expected.keys) ||
+        physicalBytes > maxLibraryBytes) {
+      throw const AmbientContentException();
+    }
+    return physicalBytes;
+  }
+
+  static final RegExp _managedName = RegExp(r'^[a-f0-9]{64}\.(pdf|mp4)$');
 
   static bool _same(List<AmbientContent> a, List<AmbientContent> b) =>
       a.length == b.length &&
