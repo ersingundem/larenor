@@ -16,6 +16,7 @@ import '../../providers/server_providers.dart';
 import '../data/legacy_music_player_mapping.dart';
 import '../data/server_music_manager_controller.dart';
 import '../domain/server_music_manager_models.dart';
+import 'server_music_longform_card.dart';
 
 class ServerMusicManagerScreen extends ConsumerStatefulWidget {
   const ServerMusicManagerScreen({
@@ -128,7 +129,19 @@ class _ServerMusicManagerScreenState
 
   void _verify() {
     final current = _capture();
-    if (current()) unawaited(_controller.verify(current: current));
+    if (current()) unawaited(_verifyAndLoad(current));
+  }
+
+  Future<void> _verifyAndLoad(bool Function() current) async {
+    await _controller.verify(current: current);
+    if (current() && _controller.verified) {
+      await _controller.loadInProgress(current: current);
+    }
+  }
+
+  void _loadLongform() {
+    final current = _capture();
+    if (current()) unawaited(_controller.loadInProgress(current: current));
   }
 
   void _submitSearch(String value) {
@@ -557,6 +570,21 @@ class _ServerMusicManagerScreenState
     ),
   ];
 
+  List<Widget> _longform() => [
+    SliverToBoxAdapter(
+      child: _bounded(
+        ServerMusicLongformCard(
+          catalog: _controller.longform,
+          failure: _controller.longformFailure,
+          busy: _controller.longformBusy,
+          onRetry: _active && _controller.verified && !_controller.longformBusy
+              ? _loadLongform
+              : null,
+        ),
+      ),
+    ),
+  ];
+
   Widget _action(
     String keyName,
     String label,
@@ -724,6 +752,7 @@ class _ServerMusicManagerScreenState
                 ..._providers(l, manager),
                 ..._receivers(l, manager),
                 ..._legacyMigration(l),
+                if (_controller.verified) ..._longform(),
                 ..._catalog(l),
                 ..._controls(l),
               ],

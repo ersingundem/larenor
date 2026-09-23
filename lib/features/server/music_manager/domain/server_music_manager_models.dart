@@ -468,6 +468,177 @@ class ServerMusicCatalog {
   final List<ServerMusicCatalogItem> items;
 }
 
+class ServerMusicLongformChapter {
+  const ServerMusicLongformChapter._({
+    required this.position,
+    required this.name,
+    required this.startSeconds,
+    required this.endSeconds,
+  });
+
+  factory ServerMusicLongformChapter.fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) _invalid();
+    const requiredKeys = {'position', 'name', 'startSeconds'};
+    const allowedKeys = {...requiredKeys, 'endSeconds'};
+    if (!value.keys.toSet().containsAll(requiredKeys) ||
+        !allowedKeys.containsAll(value.keys)) {
+      _invalid();
+    }
+    final position = value['position'];
+    if (position is! int || position < 0 || position > 4095) _invalid();
+    final start = _number(
+      value['startSeconds'],
+      max: 31536000,
+      nullable: false,
+    )!;
+    final end = value.containsKey('endSeconds')
+        ? _number(value['endSeconds'], max: 31536000)
+        : null;
+    if (end != null && end <= start) _invalid();
+    return ServerMusicLongformChapter._(
+      position: position,
+      name: _text(value['name'], max: 256),
+      startSeconds: start,
+      endSeconds: end,
+    );
+  }
+
+  final int position;
+  final String name;
+  final double startSeconds;
+  final double? endSeconds;
+
+  @override
+  String toString() => 'ServerMusicLongformChapter($position)';
+}
+
+class ServerMusicLongformItem {
+  const ServerMusicLongformItem._({
+    required this.uri,
+    required this.name,
+    required this.mediaType,
+    required this.providerInstanceId,
+    required this.durationSeconds,
+    required this.resumePositionSeconds,
+    required this.chapters,
+  });
+
+  factory ServerMusicLongformItem.fromJson(Object? value) {
+    final map = _object(value, {
+      'uri',
+      'name',
+      'mediaType',
+      'providerInstanceId',
+      'durationSeconds',
+      'resumePositionSeconds',
+      'fullyPlayed',
+      'chapters',
+    });
+    if (!_validLongformUri(map['uri']) ||
+        map['fullyPlayed'] != false ||
+        map['chapters'] is! List ||
+        (map['chapters'] as List).length > 512) {
+      _invalid();
+    }
+    final duration = _number(
+      map['durationSeconds'],
+      max: 31536000,
+      nullable: false,
+    )!;
+    final resume = _number(
+      map['resumePositionSeconds'],
+      max: 31536000,
+      nullable: false,
+    )!;
+    if (duration <= 0 || resume > duration) _invalid();
+    final chapters = (map['chapters'] as List)
+        .map(ServerMusicLongformChapter.fromJson)
+        .toList(growable: false);
+    for (var index = 0; index < chapters.length; index++) {
+      final chapter = chapters[index];
+      if (chapter.position != index ||
+          chapter.startSeconds > duration ||
+          (chapter.endSeconds != null && chapter.endSeconds! > duration) ||
+          (index > 0 &&
+              chapter.startSeconds <= chapters[index - 1].startSeconds)) {
+        _invalid();
+      }
+    }
+    return ServerMusicLongformItem._(
+      uri: map['uri'] as String,
+      name: _text(map['name'], max: 512),
+      mediaType: _choice(map['mediaType'], {'audiobook', 'podcast_episode'}),
+      providerInstanceId: _binding(map['providerInstanceId']),
+      durationSeconds: duration,
+      resumePositionSeconds: resume,
+      chapters: List.unmodifiable(chapters),
+    );
+  }
+
+  final String uri, name, mediaType, providerInstanceId;
+  final double durationSeconds, resumePositionSeconds;
+  final List<ServerMusicLongformChapter> chapters;
+
+  double get progress => resumePositionSeconds / durationSeconds;
+
+  ServerMusicLongformChapter? get currentChapter {
+    ServerMusicLongformChapter? current;
+    for (final chapter in chapters) {
+      if (chapter.startSeconds > resumePositionSeconds) break;
+      if (chapter.endSeconds == null ||
+          resumePositionSeconds < chapter.endSeconds!) {
+        current = chapter;
+      }
+    }
+    return current;
+  }
+
+  @override
+  String toString() => 'ServerMusicLongformItem($mediaType)';
+}
+
+class ServerMusicLongformCatalog {
+  const ServerMusicLongformCatalog._(
+    this.requestId,
+    this.managerRevision,
+    this.items,
+  );
+
+  factory ServerMusicLongformCatalog.fromJson(Object? value) {
+    final map = _object(value, {'requestId', 'managerRevision', 'items'});
+    if (map['items'] is! List || (map['items'] as List).length > 25) {
+      _invalid();
+    }
+    final items = (map['items'] as List)
+        .map(ServerMusicLongformItem.fromJson)
+        .toList(growable: false);
+    if (items.map((item) => item.uri).toSet().length != items.length) {
+      _invalid();
+    }
+    return ServerMusicLongformCatalog._(
+      _id(map['requestId']),
+      _revision(map['managerRevision']),
+      List.unmodifiable(items),
+    );
+  }
+
+  final String requestId;
+  final int managerRevision;
+  final List<ServerMusicLongformItem> items;
+
+  @override
+  String toString() => 'ServerMusicLongformCatalog(items: ${items.length})';
+}
+
+bool _validLongformUri(Object? value) {
+  if (!_validUri(value)) return false;
+  final parsed = Uri.tryParse(value as String);
+  return parsed != null &&
+      parsed.userInfo.isEmpty &&
+      !parsed.hasQuery &&
+      !parsed.hasFragment;
+}
+
 class ServerMusicReceipt {
   const ServerMusicReceipt._({
     required this.requestId,

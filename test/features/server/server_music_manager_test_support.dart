@@ -141,6 +141,35 @@ class MusicManagerFixture extends AdminFixture {
         },
       });
     }
+    if (request.method == 'POST' &&
+        path.endsWith('/manager/catalog/in-progress')) {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      return json({
+        'longform': {
+          'requestId': body['requestId'],
+          'managerRevision': revision,
+          'items': [
+            {
+              'uri': 'spotify://audiobook/fixture',
+              'name': 'Fixture audiobook',
+              'mediaType': 'audiobook',
+              'providerInstanceId': 'spotify--fixture',
+              'durationSeconds': 3600.0,
+              'resumePositionSeconds': 900.0,
+              'fullyPlayed': false,
+              'chapters': [
+                {
+                  'position': 0,
+                  'name': 'Opening',
+                  'startSeconds': 0.0,
+                  'endSeconds': 1200.0,
+                },
+              ],
+            },
+          ],
+        },
+      });
+    }
     if (request.method == 'POST' && path.endsWith('/manager/commands')) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       switch (body['operation']) {
