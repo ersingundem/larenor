@@ -73,9 +73,11 @@ class CoreBackupDestinationBridgeTest {
         @Volatile var requestCode = -1
         @Volatile var openCalls = 0
         @Volatile var openThread = -1L
+        var launchFailure: RuntimeException? = null
         var openStarted: CountDownLatch? = null
         var openGate: CountDownLatch? = null
         override fun launch(intent: Intent, requestCode: Int) {
+            launchFailure?.let { throw it }
             assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
             this.requestCode = requestCode
             launches++
@@ -431,5 +433,69 @@ class CoreBackupDestinationBridgeTest {
         awaitCondition { lateHost.deleted.contains(lateUri) }
         assertEquals(0, lateHost.openCalls)
         assertEquals(1, lateHost.deleted.count { it == lateUri })
+    }
+
+    @Test fun completedPickerCodeWrapsAndCanBeReused() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val pool = CoreBackupRequestCodePool(80, 80)
+        val bridge = CoreBackupDestinationBridge(
+            activity,
+            Messenger(),
+            host,
+            requestCodePool = pool,
+        )
+        try {
+            val first = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to "7".repeat(32),
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), first)
+            val firstCode = host.requestCode
+            assertTrue(bridge.onActivityResult(firstCode, Activity.RESULT_CANCELED, null))
+            assertNull(first.value)
+
+            val second = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to "8".repeat(32),
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), second)
+            assertEquals(firstCode, host.requestCode)
+            assertFalse(second.done)
+        } finally { bridge.dispose() }
+    }
+
+    @Test fun failedPickerLaunchReleasesItsRequestCode() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host().also {
+            it.launchFailure = IllegalStateException("synthetic launch failure")
+        }
+        val bridge = CoreBackupDestinationBridge(
+            activity,
+            Messenger(),
+            host,
+            requestCodePool = CoreBackupRequestCodePool(81, 81),
+        )
+        try {
+            val failed = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to "9".repeat(32),
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), failed)
+            assertEquals("unavailable", failed.code)
+
+            host.launchFailure = null
+            val retry = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to "a".repeat(32),
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), retry)
+            assertEquals(81, host.requestCode)
+            assertFalse(retry.done)
+        } finally { bridge.dispose() }
     }
 }

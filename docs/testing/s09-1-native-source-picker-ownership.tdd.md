@@ -24,8 +24,10 @@ the owner early.
    consumes the disposed bridge's stale result while its own picker remains
    pending and authoritative.
 
-Codes are never reused during the process lifetime. The tombstone set is
-therefore bounded by the finite request-code range. Cancellation after a
+The original delivery never reused codes during the process lifetime. The
+follow-up [request-code reuse slice](s09-1-native-request-code-reuse.tdd.md)
+now recycles only completed codes after bounded wrap. Retired codes remain
+reserved until their exact stale result is consumed. Cancellation after a
 picker result has already started the serial scan does not add an unreachable
 tombstone; it closes the current descriptor through the existing cleanup
 executor.
