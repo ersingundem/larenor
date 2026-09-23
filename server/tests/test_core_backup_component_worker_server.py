@@ -77,20 +77,17 @@ def worker(
 ):
     del tmp_path
     path = (
-        Path("/tmp").resolve()
-        / f"larenor-worker-{uuid.uuid4().hex}"
-        / "component.sock"
+        Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}" / "component.sock"
     )
     path.parent.mkdir(mode=0o700)
     if socket_gid is not None:
+        os.chown(path.parent, -1, socket_gid)
         os.chmod(path.parent, 0o710)
     server = ComponentSnapshotWorkerServer(
         path,
         boundary,
         owner_uid=os.getuid(),
-        client_uid=(
-            os.getuid() if allowed_client_uid is None else allowed_client_uid
-        ),
+        client_uid=(os.getuid() if allowed_client_uid is None else allowed_client_uid),
         socket_gid=socket_gid,
         peer_uid=(lambda _connection: os.getuid())
         if observed_peer_uid is None
@@ -221,6 +218,7 @@ def test_server_rejects_boolean_peer_uid_even_when_equal_to_integer(tmp_path):
         boundary,
         allowed_client_uid=1,
         observed_peer_uid=True,
+        socket_gid=os.getgid(),
     ) as (path, _server):
         with (
             pytest.raises(ComponentSnapshotWorkerError),

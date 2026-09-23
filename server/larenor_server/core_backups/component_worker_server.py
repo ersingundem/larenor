@@ -34,6 +34,7 @@ class ComponentSnapshotWorkerServer:
         *,
         owner_uid=0,
         client_uid=None,
+        socket_gid=None,
         peer_uid=None,
         monotonic=time.monotonic,
     ):
@@ -55,12 +56,21 @@ class ComponentSnapshotWorkerServer:
             or not 0 <= owner_uid < 2**31
             or type(client_uid) is not int
             or not 0 <= client_uid < 2**31
+            or (
+                socket_gid is not None
+                and (type(socket_gid) is not int or not 0 <= socket_gid < 2**31)
+            )
+            or (socket_gid is None and client_uid != owner_uid)
             or peer_uid is not None
             and not callable(peer_uid)
             or not hasattr(provider, "quiesce")
             or not callable(provider.quiesce)
             or not stat.S_ISDIR(parent.st_mode)
             or parent.st_uid != owner_uid
+            or (
+                socket_gid is not None
+                and (parent.st_gid != socket_gid or not parent.st_mode & stat.S_IXGRP)
+            )
             or stat.S_IMODE(parent.st_mode) & 0o022
         ):
             _invalid_configuration()
@@ -68,6 +78,7 @@ class ComponentSnapshotWorkerServer:
         self.provider = provider
         self.owner_uid = owner_uid
         self.client_uid = client_uid
+        self.socket_gid = socket_gid
         self.peer_uid = _peer_uid if peer_uid is None else peer_uid
         self.monotonic = monotonic
         self.completed = 0
@@ -83,7 +94,8 @@ class ComponentSnapshotWorkerServer:
     @staticmethod
     def _request(value, now):
         if (
-            set(value) != {
+            set(value)
+            != {
                 "protocol",
                 "requestId",
                 "operation",
@@ -105,8 +117,15 @@ class ComponentSnapshotWorkerServer:
     def _validated_snapshots(values):
         if type(values) not in (tuple, list):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
-        ordered = tuple(sorted(values, key=lambda item: (
-            getattr(item, "serviceId", ""), getattr(item, "volumeId", ""))))
+        ordered = tuple(
+            sorted(
+                values,
+                key=lambda item: (
+                    getattr(item, "serviceId", ""),
+                    getattr(item, "volumeId", ""),
+                ),
+            )
+        )
         if any(type(item) is not ComponentVolumeSnapshot for item in ordered):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
         try:
@@ -171,14 +190,22 @@ class ComponentSnapshotWorkerServer:
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             listener.bind(str(self.path))
-            os.chmod(self.path, 0o600)
-            if self.owner_uid != os.getuid():
-                os.chown(self.path, self.owner_uid, -1)
+            if self.owner_uid != os.getuid() or (
+                self.socket_gid is not None and self.socket_gid != os.getgid()
+            ):
+                os.chown(
+                    self.path,
+                    self.owner_uid,
+                    -1 if self.socket_gid is None else self.socket_gid,
+                )
+            mode = 0o600 if self.socket_gid is None else 0o660
+            os.chmod(self.path, mode)
             info = self.path.lstat()
             if (
                 not stat.S_ISSOCK(info.st_mode)
                 or info.st_uid != self.owner_uid
-                or stat.S_IMODE(info.st_mode) != 0o600
+                or (self.socket_gid is not None and info.st_gid != self.socket_gid)
+                or stat.S_IMODE(info.st_mode) != mode
                 or info.st_nlink != 1
             ):
                 raise OSError()
@@ -209,13 +236,7 @@ class ComponentSnapshotWorkerServer:
                 with connection:
                     try:
                         self._handle(connection)
-                    except (
-                        ComponentSnapshotWorkerError,
-                        OSError,
-                        RuntimeError,
-                        TypeError,
-                        ValueError,
-                    ):
+                    except Exception:  # noqa: BLE001,S110 -- private seam.
                         pass
                 if one_shot:
                     return
