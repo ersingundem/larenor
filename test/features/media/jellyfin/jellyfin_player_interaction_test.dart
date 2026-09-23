@@ -104,6 +104,8 @@ class _Audio extends LocalAudioBridge {
 class _Preferences extends JellyfinTrackPreferencesStore {
   JellyfinTrackPreferenceRecord? value;
   int writes = 0;
+  Object? writeError;
+  Completer<void>? writeGate;
 
   @override
   Future<JellyfinTrackPreferenceRecord?> read(
@@ -119,6 +121,9 @@ class _Preferences extends JellyfinTrackPreferencesStore {
   }) async {
     if (!isCurrent()) throw StateError('stale preference write');
     writes++;
+    await writeGate?.future;
+    if (!isCurrent()) throw StateError('stale preference write');
+    if (writeError case final error?) throw error;
     value = JellyfinTrackPreferenceRecord(
       audioLanguage: language,
       subtitleLanguage: value?.subtitleLanguage,
@@ -134,6 +139,9 @@ class _Preferences extends JellyfinTrackPreferencesStore {
   }) async {
     if (!isCurrent()) throw StateError('stale preference write');
     writes++;
+    await writeGate?.future;
+    if (!isCurrent()) throw StateError('stale preference write');
+    if (writeError case final error?) throw error;
     value = JellyfinTrackPreferenceRecord(
       audioLanguage: value?.audioLanguage,
       subtitleLanguage: language,
@@ -380,6 +388,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(h.preferences.value?.audioLanguage, 'tr');
     expect(h.preferences.writes, 1);
+    await h.close(tester);
+  });
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      testWidgets('local track fallback is disclosed at $language $width 2x', (
+        tester,
+      ) async {
+        final h = _Harness();
+        h.preferences.writeError = StateError('Core unavailable');
+        await h.mount(
+          tester,
+          locale: Locale(language),
+          width: width,
+          textScale: 2,
+        );
+        final choose = await h.pick(
+          tester,
+          CupertinoIcons.speaker_2,
+          'Turkish audio',
+        );
+        choose();
+        await tester.pumpAndSettle();
+        expect(h.player.commands, ['audio:2']);
+        expect(h.preferences.writes, 1);
+        expect(
+          find.byKey(const ValueKey('jellyfin-language-preference-fallback')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            language == 'tr'
+                ? 'yalnızca bu video için değişti'
+                : 'changed for this video only',
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await h.close(tester);
+      });
+    }
+  }
+
+  testWidgets('retired preference write cannot publish fallback state', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.preferences.writeGate = Completer<void>();
+    h.preferences.writeError = StateError('Core unavailable');
+    await h.mount(tester);
+    final choose = await h.pick(
+      tester,
+      CupertinoIcons.speaker_2,
+      'Turkish audio',
+    );
+    choose();
+    await tester.pump();
+    expect(h.player.commands, ['audio:2']);
+    h.invalidate('account', tester);
+    h.preferences.writeGate!.complete();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('jellyfin-language-preference-fallback')),
+      findsNothing,
+    );
     await h.close(tester);
   });
 
