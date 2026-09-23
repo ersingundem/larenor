@@ -7,6 +7,45 @@ import '../data/remote_profiles.dart';
 import 'ssh_security_store.dart';
 import 'ssh_engine.dart';
 
+const _maxTranscriptBytes = 65536;
+
+String _sanitizeTerminalText(String value) => value
+    .replaceAllMapped(
+      RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]'),
+      (match) => match[0] == '\x1b' ? '␛' : '',
+    )
+    .replaceAll(
+      RegExp('[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]'),
+      '⟦bidi⟧',
+    );
+
+String _utf8Tail(String value, int limit) {
+  var index = value.length;
+  var bytes = 0;
+  while (index > 0) {
+    var candidate = index - 1;
+    var codePoint = value.codeUnitAt(candidate);
+    if (codePoint >= 0xdc00 && codePoint <= 0xdfff && candidate > 0) {
+      final high = value.codeUnitAt(candidate - 1);
+      if (high >= 0xd800 && high <= 0xdbff) {
+        candidate--;
+        codePoint = 0x10000 + ((high - 0xd800) << 10) + (codePoint - 0xdc00);
+      }
+    }
+    final width = codePoint <= 0x7f
+        ? 1
+        : codePoint <= 0x7ff
+        ? 2
+        : codePoint <= 0xffff
+        ? 3
+        : 4;
+    if (bytes + width > limit) break;
+    bytes += width;
+    index = candidate;
+  }
+  return value.substring(index);
+}
+
 enum SshSessionPhase {
   idle,
   connecting,
@@ -247,22 +286,19 @@ class SshSessionController extends ChangeNotifier {
     void listen(Stream<List<int>> stream) {
       _subscriptions.add(
         stream
-            .transform(const Utf8Decoder(allowMalformed: true))
+            .transform(const Utf8Decoder(allowMalformed: false))
             .listen(
               (chunk) {
                 if (!_current(generation)) {
                   retire();
                   return;
                 }
-                // Plain text terminal: no ANSI, OSC clipboard, links, or local actions.
-                final safe = chunk.replaceAllMapped(
-                  RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]'),
-                  (m) => m[0] == '\x1b' ? '␛' : '',
+                // Plain text terminal: no ANSI/OSC actions or hidden bidi reordering.
+                final safe = _utf8Tail(
+                  _sanitizeTerminalText(chunk),
+                  _maxTranscriptBytes,
                 );
-                transcript += safe;
-                if (transcript.length > 65536) {
-                  transcript = transcript.substring(transcript.length - 65536);
-                }
+                transcript = _utf8Tail('$transcript$safe', _maxTranscriptBytes);
                 _publish();
               },
               onDone: () {
