@@ -64,6 +64,25 @@ void main() {
     final record = jsonDecode(backend.value!) as Map<String, dynamic>;
     expect(record['schemaVersion'], 1);
     expect(record['recordId'], matches(RegExp(r'^[a-f0-9]{32}$')));
+    expect(record['resource'], {
+      'kind': 'music_retained_overview',
+      'contractVersion': 1,
+      'installations': [
+        {
+          'installationId': 'a' * 32,
+          'installationRevision': 4,
+          'bootstrap': {
+            'revision': 2,
+            'schemaVersion': 27,
+            'homeAssistant': {'serviceId': 'b' * 32, 'serviceRevision': 8},
+            'jellyfin': {'serviceId': 'c' * 32, 'serviceRevision': 5},
+          },
+          'providers': [
+            {'id': 'd' * 32, 'revision': 3},
+          ],
+        },
+      ],
+    });
     expect(backend.value, isNot(contains('token')));
     expect(backend.value, isNot(contains('password')));
     final firstRaw = backend.value!;
@@ -72,17 +91,25 @@ void main() {
     expect(await backend.compareAndClear(firstRaw), isFalse);
     expect(backend.value, isNotNull);
 
-    expect(
-      await cache.read(
-        const ServerMusicRetainedCacheScope(
-          coreId: '33333333333333333333333333333333',
-          homeId: '22222222222222222222222222222222',
-          accountId: 'operator@example.test',
-        ),
-        current: () => true,
+    for (final otherScope in const [
+      ServerMusicRetainedCacheScope(
+        coreId: '33333333333333333333333333333333',
+        homeId: '22222222222222222222222222222222',
+        accountId: 'operator@example.test',
       ),
-      isNull,
-    );
+      ServerMusicRetainedCacheScope(
+        coreId: '11111111111111111111111111111111',
+        homeId: '33333333333333333333333333333333',
+        accountId: 'operator@example.test',
+      ),
+      ServerMusicRetainedCacheScope(
+        coreId: '11111111111111111111111111111111',
+        homeId: '22222222222222222222222222222222',
+        accountId: 'other@example.test',
+      ),
+    ]) {
+      expect(await cache.read(otherScope, current: () => true), isNull);
+    }
 
     now = now.add(ServerMusicRetainedCache.timeToLive);
     expect(await cache.read(scope, current: () => true), isNull);
@@ -99,6 +126,37 @@ void main() {
 
     expect(await cache.read(scope, current: () => true), isNull);
     expect(backend.clears, 1);
+  });
+
+  test('cache rejects float schema and resource revision drift', () async {
+    final backend = MemoryMusicRetainedCacheBackend();
+    final cache = ServerMusicRetainedCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    final overview = ServerMusicRetainedOverview.fromJson(retainedJson());
+
+    Future<void> rejects(void Function(Map<String, dynamic>) mutate) async {
+      expect(await cache.write(scope, overview, current: () => true), isTrue);
+      final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+      mutate(record);
+      backend.value = jsonEncode(record);
+
+      expect(await cache.read(scope, current: () => true), isNull);
+      expect(backend.value, isNull);
+    }
+
+    await rejects((record) => record['schemaVersion'] = 1.0);
+    await rejects(
+      (record) =>
+          (record['resource'] as Map<String, dynamic>)['contractVersion'] = 1.0,
+    );
+    await rejects((record) {
+      final resource = record['resource'] as Map<String, dynamic>;
+      final installation =
+          (resource['installations'] as List).single as Map<String, dynamic>;
+      installation['installationRevision'] = 4.0;
+    });
   });
 
   test('retired owner cannot publish a delayed cache write', () async {

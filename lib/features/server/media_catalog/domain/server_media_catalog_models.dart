@@ -133,7 +133,8 @@ final class ServerMediaCatalogPage {
     final next = map['nextOffset'];
     final total = map['total'];
     final rawItems = map['items'];
-    if (map['schemaVersion'] != 1 ||
+    if (map['schemaVersion'] is! int ||
+        map['schemaVersion'] != 1 ||
         offset is! int ||
         offset < 0 ||
         offset > 4096 ||

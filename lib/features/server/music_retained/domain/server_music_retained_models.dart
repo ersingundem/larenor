@@ -251,7 +251,8 @@ class ServerMusicRetainedOverview {
       'installations',
     });
     final values = map['installations'];
-    if (map['schemaVersion'] != 1 ||
+    if (map['schemaVersion'] is! int ||
+        map['schemaVersion'] != 1 ||
         map['installAvailable'] != false ||
         values is! List ||
         values.length > 64) {
