@@ -49,6 +49,7 @@ class WebPanelRendererBridgeTest {
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "file", "host" to "fixture.invalid", "port" to 443))),
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "", "port" to 443))),
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "fixture.invalid", "port" to 0))),
+            attachArguments(allowedOrigins = List(2) { mapOf("scheme" to "https", "host" to "fixture.invalid", "port" to 443) }),
             attachArguments(allowedOrigins = List(17) { mapOf("scheme" to "https", "host" to "$it.invalid", "port" to 443) }),
             mapOf(
                 "webViewIdentifier" to 41L,
@@ -78,6 +79,7 @@ class WebPanelRendererBridgeTest {
 
         assertNull(wrapper.shouldInterceptRequest(view, Request("https://FIXTURE.invalid/asset.js")))
         assertNull(wrapper.shouldInterceptRequest(view, Request("http://fixture.invalid:8080/api", method = "POST")))
+        assertFalse(wrapper.shouldOverrideUrlLoading(view, Request("https://fixture.invalid/frame")))
         for (url in listOf(
             "http://fixture.invalid/asset.js",
             "https://fixture.invalid:444/asset.js",
@@ -89,8 +91,10 @@ class WebPanelRendererBridgeTest {
             assertNotNull(url, blocked)
             assertEquals(403, blocked!!.statusCode)
             assertEquals(-1, blocked.data.read())
+            assertTrue(wrapper.shouldOverrideUrlLoading(view, Request(url)))
         }
         assertEquals(2, delegate.intercepted)
+        assertEquals(1, delegate.navigations)
     }
 
     @Test
@@ -117,7 +121,10 @@ class WebPanelRendererBridgeTest {
     fun wrapperPreservesPluginCallbacksAndConsumesRendererGoneOnce() {
         val delegate = RecordingClient()
         var gone = 0
-        val wrapper = RendererAwareWebViewClient(delegate) { gone++ }
+        val wrapper = RendererAwareWebViewClient(
+            delegate,
+            WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
+        ) { gone++ }
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
 
         wrapper.onPageStarted(view, "https://fixture.invalid", null)
@@ -139,6 +146,7 @@ class WebPanelRendererBridgeTest {
         val events = mutableListOf<String>()
         var rendererGone = 0
         var intercepted = 0
+        var navigations = 0
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             events += "start"
         }
@@ -156,6 +164,10 @@ class WebPanelRendererBridgeTest {
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             intercepted++
             return null
+        }
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            navigations++
+            return false
         }
     }
 

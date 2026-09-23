@@ -302,7 +302,11 @@ class WebPanelViewState extends State<WebPanelView> {
       await step(() async {
         final handle =
             await (widget.rendererMonitor ?? WebPanelRendererChannel.shared)
-                .attach(controller, () => _recoverRenderer(generation));
+                .attach(
+                  controller,
+                  policy.allowedOrigins,
+                  () => _recoverRenderer(generation),
+                );
         if (!_current(generation)) {
           await handle?.dispose();
           throw const _Cancelled();

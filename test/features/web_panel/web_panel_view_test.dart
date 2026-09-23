@@ -730,10 +730,9 @@ void main() {
     final h = Harness();
     await h.mount(tester, rendererMonitor: monitor);
     expect(monitor.attachments, 1);
-    expect(
-      monitor.allowedOrigins,
-      {WebOrigin.parse('https://fixture.invalid')},
-    );
+    expect(monitor.allowedOrigins, {
+      WebOrigin.parse('https://fixture.invalid'),
+    });
     final stale = monitor.gone!;
 
     stale();

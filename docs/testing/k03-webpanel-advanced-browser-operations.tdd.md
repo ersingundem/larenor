@@ -30,11 +30,22 @@ Status: **software slice ready; K03.remaining stays open**
   settings persistence, EN/TR tablet layout, renderer recovery and existing
   origin/auth/TLS/data-retirement protections.
 - The Android bridge now binds the plugin-owned native WebView identifier to an
-  opaque one-shot attachment. `onRenderProcessGone` retires that exact Dart
-  controller generation; duplicate, malformed and post-disposal events cannot
-  recover or revive a newer controller. The wrapper forwards the existing
-  plugin WebViewClient callbacks and never sends URLs, headers or diagnostics
-  over the channel.
+  opaque one-shot attachment and a bounded set of structured
+  `{scheme, host, effective-port}` descriptors. `onRenderProcessGone` retires
+  that exact Dart controller generation; duplicate, malformed and post-disposal
+  events cannot recover or revive a newer controller. The wrapper forwards the
+  existing plugin WebViewClient callbacks and never sends request URLs, paths,
+  headers, cookies or diagnostics back over the channel or to logs.
+- Native `shouldInterceptRequest` rejects direct cross-origin iframe, fetch and
+  subresource HTTP(S) requests with an empty, non-cacheable response before the
+  plugin delegate or network handles them. Exact default and explicit ports are
+  tested, including subdomain, scheme, port, file and data negatives. Allowed
+  POST requests are delegated without inspecting method, headers or body; a
+  blocked request is never proxied.
+- Service Worker network, content and file access is disabled process-wide
+  before a panel loads. Attachment fails closed when any required AndroidX
+  WebKit feature is unavailable or a setting cannot be applied. This global
+  boundary is deliberate because Android Service Workers may outlive a WebView.
 - Download publication no longer trusts the response `Content-Type` alone.
   PDF object/xref/EOF framing, JPEG marker framing, PNG chunk lengths and CRCs,
   WebP RIFF/chunk lengths, strict UTF-8 text/CSV, and parseable JSON are checked
@@ -51,11 +62,28 @@ Status: **software slice ready; K03.remaining stays open**
 
 Android WebView file chooser URI handling, SAF save behavior, physical OEM
 renderer termination delivery, Huawei WebView, DeX mouse/keyboard and actual
-website forms remain MANUAL. The app-level Android adapter now covers the
-renderer-gone callback missing from the pinned plugin, but that plugin still
-does not provide a complete pre-request firewall for every
-iframe/fetch/WebSocket. Cross-origin subresource enforcement and physical
-renderer-death acceptance are therefore not claimed. Pop-ups remain disabled
-and external intents remain blocked. K03.remaining and progress stay at
-**23/125** and **0/63** until those remaining gates are implemented and
-accepted.
+website forms remain MANUAL. Pop-ups remain disabled and external intents
+remain blocked.
+
+K03.remaining is still open for two documented Android platform gaps:
+
+1. [`shouldInterceptRequest`](https://developer.android.com/reference/android/webkit/WebViewClient.html#shouldInterceptRequest(android.webkit.WebView,%20android.webkit.WebResourceRequest))
+   is called only for the initial resource URL, not later redirect targets. An
+   allowed subresource can therefore redirect cross-origin without another
+   native callback. Closing that gap would require a proxy/transport that reads
+   or replays requests, which this contract explicitly forbids.
+2. Android WebView exposes no official native pre-request WebSocket callback.
+   [`addDocumentStartJavaScript`](https://developer.android.com/reference/androidx/webkit/WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,java.lang.String,java.util.Set%3Cjava.lang.String%3E))
+   runs script before document JavaScript, but it is not a native network
+   boundary and does not cover worker execution contexts. It is therefore not
+   presented as WebSocket enforcement. The supported
+   [`ServiceWorkerWebSettingsCompat`](https://developer.android.com/reference/kotlin/androidx/webkit/ServiceWorkerWebSettingsCompat#setBlockNetworkLoads(kotlin.Boolean))
+   network block is installed and negatively tested, but its documentation does
+   not promise WebSocket interception.
+
+The focused RED checkpoints were the new Dart attach-contract tests failing to
+compile and the Kotlin/Robolectric firewall tests failing on missing native
+types. GREEN requires the 92-test WebPanel suite, the focused Android bridge
+Robolectric suite, Flutter analysis, formatting and `git diff --check`.
+K03.remaining and progress stay at **24/125** and **0/63** until the two
+software platform gaps and remaining manual gates are accepted.

@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../domain/web_panel_policy.dart';
+
 abstract interface class WebPanelRendererHandle {
   Future<void> dispose();
 }
@@ -12,13 +14,15 @@ abstract interface class WebPanelRendererHandle {
 abstract interface class WebPanelRendererMonitor {
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
+    Set<WebOrigin> allowedOrigins,
     VoidCallback onRendererGone,
   );
 }
 
 /// Connects an Android WebView renderer lifetime to one exact Dart controller.
-/// The channel carries only an opaque attachment id and the plugin-owned
-/// WebView identifier; URLs, headers, cookies and credentials never cross it.
+/// The attach call carries only exact origin descriptors, an opaque attachment
+/// id and the plugin-owned WebView identifier. Request URLs, paths, headers,
+/// cookies and credentials never return over the channel.
 final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   WebPanelRendererChannel({
     MethodChannel? channel,
@@ -39,22 +43,31 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   @override
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
+    Set<WebOrigin> allowedOrigins,
     VoidCallback onRendererGone,
   ) async {
     if (defaultTargetPlatform != TargetPlatform.android) return null;
     final platform = controller.platform;
     // Test/fallback platform implementations have no native WebView identity.
     if (platform is! AndroidWebViewController) return null;
-    return attachIdentifier(platform.webViewIdentifier, onRendererGone);
+    return attachIdentifier(
+      platform.webViewIdentifier,
+      allowedOrigins,
+      onRendererGone,
+    );
   }
 
   @visibleForTesting
   Future<WebPanelRendererHandle> attachIdentifier(
     int webViewIdentifier,
+    Set<WebOrigin> allowedOrigins,
     VoidCallback onRendererGone,
   ) async {
     final attachmentId = _attachmentIds();
-    if (webViewIdentifier < 1 || !_idPattern.hasMatch(attachmentId)) {
+    if (webViewIdentifier < 1 ||
+        !_idPattern.hasMatch(attachmentId) ||
+        allowedOrigins.isEmpty ||
+        allowedOrigins.length > 16) {
       throw StateError('renderer_monitor_invalid');
     }
     if (_callbacks.containsKey(attachmentId)) {
@@ -62,9 +75,31 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
     }
     _callbacks[attachmentId] = onRendererGone;
     try {
+      final origins =
+          allowedOrigins
+              .map(
+                (origin) => <String, Object>{
+                  'scheme': origin.scheme,
+                  'host': origin.host,
+                  'port': origin.port,
+                },
+              )
+              .toList(growable: false)
+            ..sort((a, b) {
+              final scheme = (a['scheme']! as String).compareTo(
+                b['scheme']! as String,
+              );
+              if (scheme != 0) return scheme;
+              final host = (a['host']! as String).compareTo(
+                b['host']! as String,
+              );
+              if (host != 0) return host;
+              return (a['port']! as int).compareTo(b['port']! as int);
+            });
       final attached = await _channel.invokeMethod<bool>('attach', {
         'webViewIdentifier': webViewIdentifier,
         'attachmentId': attachmentId,
+        'allowedOrigins': origins,
       });
       if (attached != true) throw StateError('renderer_monitor_unavailable');
       return _ChannelRendererHandle(this, attachmentId);
