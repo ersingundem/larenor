@@ -37,6 +37,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   final ServerMusicManagerCache _cache;
   final ServerMusicSelectionCache _selectionCache;
   int _epoch = 0;
+  int _selectionEpoch = 0;
   bool _disposed = false;
 
   bool busy = false;
@@ -101,6 +102,7 @@ class ServerMusicManagerController extends ChangeNotifier {
 
   void invalidate() {
     _epoch++;
+    _selectionEpoch++;
     busy = false;
     stored = false;
     reachable = false;
@@ -303,8 +305,9 @@ class ServerMusicManagerController extends ChangeNotifier {
     selectedProviderId = id;
     catalog = null;
     selectedMediaUri = null;
+    final selectionEpoch = ++_selectionEpoch;
     _emit();
-    await _writeSelection();
+    await _writeSelection(selectionEpoch);
   }
 
   Future<void> selectReceiver(String id) async {
@@ -317,11 +320,12 @@ class ServerMusicManagerController extends ChangeNotifier {
       return;
     }
     selectedReceiverId = id;
+    final selectionEpoch = ++_selectionEpoch;
     _emit();
-    await _writeSelection();
+    await _writeSelection(selectionEpoch);
   }
 
-  Future<void> _writeSelection() async {
+  Future<void> _writeSelection(int selectionEpoch) async {
     final value = manager;
     final provider = selectedProvider;
     final receiver = selectedReceiver;
@@ -345,7 +349,8 @@ class ServerMusicManagerController extends ChangeNotifier {
           !identical(account.session, session) ||
           !identical(manager, value) ||
           !identical(selectedProvider, provider) ||
-          !identical(selectedReceiver, receiver)) {
+          !identical(selectedReceiver, receiver) ||
+          selectionEpoch != _selectionEpoch) {
         return;
       }
       await _selectionCache.write(
@@ -354,6 +359,28 @@ class ServerMusicManagerController extends ChangeNotifier {
         provider: provider,
         receiver: receiver,
       );
+      if (!_disposed &&
+          epoch == _epoch &&
+          selectionEpoch == _selectionEpoch &&
+          _authorized &&
+          verified &&
+          identical(account.session, session) &&
+          identical(manager, value) &&
+          identical(selectedProvider, provider) &&
+          identical(selectedReceiver, receiver)) {
+        return;
+      }
+      if (!_disposed &&
+          _authorized &&
+          verified &&
+          manager != null &&
+          selectedProvider != null &&
+          selectedReceiver != null &&
+          selectionEpoch != _selectionEpoch) {
+        await _writeSelection(_selectionEpoch);
+      } else {
+        await _selectionCache.clear();
+      }
     } catch (_) {
       // Selection remains valid in memory; persistence is best effort.
     }

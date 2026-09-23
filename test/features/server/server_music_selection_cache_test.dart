@@ -357,6 +357,10 @@ void main() {
       backend.gates[1].complete();
       await latest;
       backend.gates[0].complete();
+      while (backend.gates.length < 3) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      backend.gates[2].complete();
       await older;
 
       final restored = await ServerMusicSelectionCache(backend: backend)
@@ -390,6 +394,10 @@ void main() {
       backend.gates[1].complete();
       await latest;
       backend.gates[0].complete();
+      while (backend.gates.length < 3) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      backend.gates[2].complete();
       await older;
 
       final restored = await ServerMusicSelectionCache(backend: backend)

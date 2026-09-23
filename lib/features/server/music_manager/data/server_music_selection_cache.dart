@@ -270,6 +270,8 @@ final class ServerMusicSelectionCache {
     await _backend.write(raw);
   }
 
+  Future<void> clear() => _clearQuietly();
+
   Future<void> _clearQuietly() async {
     try {
       await _backend.clear();

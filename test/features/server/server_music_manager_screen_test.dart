@@ -1,4 +1,5 @@
 import 'dart:convert' show jsonDecode;
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +89,16 @@ void main() {
           final receiver = find.byKey(
             const ValueKey('music-manager-receiver-homepod-living'),
           );
+          final kitchen = find.byKey(
+            const ValueKey('music-manager-receiver-cast-kitchen'),
+          );
+          await tester.scrollUntilVisible(
+            kitchen,
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.tap(kitchen);
+          await tester.pump();
           await tester.scrollUntilVisible(
             receiver,
             300,
@@ -96,6 +107,12 @@ void main() {
           await tester.pumpAndSettle();
           expect(tester.getRect(receiver).height, greaterThanOrEqualTo(48));
           expect(tester.getSemantics(receiver).flagsCollection.isButton, true);
+          await tester.tap(receiver);
+          await tester.pumpAndSettle();
+          expect(
+            tester.getSemantics(receiver).flagsCollection.isSelected,
+            Tristate.isTrue,
+          );
           final heading = find.byKey(
             const ValueKey('music-manager-playback-heading'),
           );
