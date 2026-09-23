@@ -95,6 +95,7 @@ void main() {
         account: fixture.account,
         storage: storage,
       );
+      addTearDown(migration.dispose);
       final receipt = await migration.prepare(isCurrent: () => true);
       expect(receipt?.provider, LegacyMediaProvider.jellyfin);
       expect(receipt?.requiresCredentialReentry, isTrue);
@@ -140,6 +141,7 @@ void main() {
       account: fixture.account,
       storage: storage,
     );
+    addTearDown(migration.dispose);
     final receipt = await migration.prepare(isCurrent: () => true);
     final unchanged = ServerService.fromJson(fixture.records.single);
 
@@ -177,17 +179,18 @@ void main() {
 
   test('uncertain direct retirement retries without a Core mutation or source read', () async {
     final storage = _Storage(_legacy)..failDeleteAt = 1;
-    final fixture = ServicesFixture()
-      ..records.add(
-        _service(revision: 1, checkedAt: '2026-09-23T09:31:00.000Z'),
-      );
+    final fixture = ServicesFixture();
     await fixture.account.initialize();
     addTearDown(fixture.account.dispose);
     final migration = LegacyJellyfinProviderMigration(
       account: fixture.account,
       storage: storage,
     );
+    addTearDown(migration.dispose);
     final receipt = await migration.prepare(isCurrent: () => true);
+    fixture.records.add(
+      _service(revision: 1, checkedAt: '2026-09-23T09:31:00.000Z'),
+    );
     final target = ServerService.fromJson(fixture.records.single);
 
     await expectLater(
