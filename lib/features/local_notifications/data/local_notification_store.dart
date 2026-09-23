@@ -10,6 +10,7 @@ import '../../server/domain/server_models.dart';
 abstract interface class LocalNotificationStoreBackend {
   Future<String?> read(String key);
   Future<void> write(String key, String value);
+  Future<void> delete(String key);
 }
 
 final class SecureLocalNotificationStoreBackend
@@ -22,6 +23,8 @@ final class SecureLocalNotificationStoreBackend
   @override
   Future<void> write(String key, String value) =>
       _storage.write(key: key, value: value);
+  @override
+  Future<void> delete(String key) => _storage.delete(key: key);
 }
 
 final class LocalNotificationStoredSubscription {
@@ -50,6 +53,13 @@ final class LocalNotificationStore {
   LocalNotificationStore({LocalNotificationStoreBackend? backend})
     : _backend = backend ?? SecureLocalNotificationStoreBackend();
   final LocalNotificationStoreBackend _backend;
+
+  static void _check(bool Function() isCurrent) {
+    try {
+      if (isCurrent()) return;
+    } catch (_) {}
+    throw const LarenorServerException('cancelled');
+  }
 
   static String key(ServerContext context, String actorId) =>
       'local_notification_subscription_v1_${sha256.convert(utf8.encode(jsonEncode([context.coreId, context.homeId, actorId])))}';
@@ -106,9 +116,9 @@ final class LocalNotificationStore {
     String actor, {
     required bool Function() isCurrent,
   }) => ConfigurationWrites.run(() async {
-    if (!isCurrent()) throw const LarenorServerException('cancelled');
+    _check(isCurrent);
     final raw = await _backend.read(key(context, actor));
-    if (!isCurrent()) throw const LarenorServerException('cancelled');
+    _check(isCurrent);
     return _decode(raw, context, actor);
   });
 
@@ -117,14 +127,11 @@ final class LocalNotificationStore {
     required LocalNotificationStoredSubscription? before,
     required bool Function() isCurrent,
   }) => ConfigurationWrites.run(() async {
-    if (!isCurrent()) throw const LarenorServerException('cancelled');
+    _check(isCurrent);
     final storageKey = key(record.context, record.actorId);
-    final current = _decode(
-      await _backend.read(storageKey),
-      record.context,
-      record.actorId,
-    );
-    if (!isCurrent()) throw const LarenorServerException('cancelled');
+    final previous = await _backend.read(storageKey);
+    final current = _decode(previous, record.context, record.actorId);
+    _check(isCurrent);
     bool same(
       LocalNotificationStoredSubscription? a,
       LocalNotificationStoredSubscription? b,
@@ -136,7 +143,16 @@ final class LocalNotificationStore {
       throw const LarenorServerException('revision_conflict');
     }
     await _backend.write(storageKey, jsonEncode(record.toJson()));
-    if (!isCurrent()) throw const LarenorServerException('cancelled');
+    try {
+      _check(isCurrent);
+    } on LarenorServerException {
+      if (previous == null) {
+        await _backend.delete(storageKey);
+      } else {
+        await _backend.write(storageKey, previous);
+      }
+      rethrow;
+    }
   });
 
   static LocalNotificationStoredSubscription create(

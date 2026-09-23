@@ -199,6 +199,12 @@ class LocalNotificationController extends ChangeNotifier {
   Future<void> _load({required bool more}) async {
     final original = _ready;
     if (original == null || busy || (more && !canLoadMore)) return;
+    final knownBySequence = <int, LocalNotificationEvent>{
+      for (final event in events) event.sequence: event,
+    };
+    final knownIdentities = <String, int>{
+      for (final event in events) event.id: event.sequence,
+    };
     final generation = home.account.generation,
         interactionEpoch = home.interaction.epoch,
         operation = ++epoch;
@@ -244,8 +250,11 @@ class LocalNotificationController extends ChangeNotifier {
       };
       for (final event in page.events) {
         final before = merged[event.sequence];
-        final previousSequence = identities[event.id];
-        if ((before != null && !before.sameEnvelope(event)) ||
+        final known = knownBySequence[event.sequence];
+        final previousSequence =
+            knownIdentities[event.id] ?? identities[event.id];
+        if ((known != null && !known.sameEnvelope(event)) ||
+            (before != null && !before.sameEnvelope(event)) ||
             (previousSequence != null && previousSequence != event.sequence)) {
           throw const LarenorServerException('invalid_response');
         }

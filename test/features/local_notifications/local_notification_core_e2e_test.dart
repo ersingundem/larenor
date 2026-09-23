@@ -45,6 +45,8 @@ final class _MemoryNotificationStore implements LocalNotificationStoreBackend {
   Future<String?> read(String key) async => values[key];
   @override
   Future<void> write(String key, String value) async => values[key] = value;
+  @override
+  Future<void> delete(String key) async => values.remove(key);
 }
 
 final class _Owner extends ChangeNotifier implements LocalNotificationOwner {
@@ -153,8 +155,11 @@ final class _LoopbackCore {
   int registerCalls = 0, pullCalls = 0, ackCalls = 0;
   String? wrongScopeHome;
   int? wrongSubscriptionRevision;
-  bool malformed = false, dropNextPull = false, duplicateIdentity = false;
-  Completer<void>? pullBarrier;
+  bool malformed = false,
+      dropNextPull = false,
+      duplicateIdentity = false,
+      mutateReceipt = false;
+  Completer<void>? pullBarrier, ackBarrier;
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
 
@@ -253,6 +258,7 @@ final class _LoopbackCore {
           jsonEncode(body['sequences']) != '[1]') {
         return _error(request, 409, 'notification_subscription_changed');
       }
+      await ackBarrier?.future;
       acknowledged = true;
       return _json(request, {
         'schemaVersion': 1,
@@ -291,7 +297,7 @@ final class _LoopbackCore {
     'category': 'security',
     'sensitivity': 'private',
     'title': 'Private door event',
-    'body': 'Private event body',
+    'body': mutateReceipt ? 'Mutated private event body' : 'Private event body',
     'target': '/today',
     'createdAt': 1789920000.0,
     'deliveryState': 'delivered',
@@ -432,6 +438,109 @@ void main() {
         harness.controller.events.single.readState,
         LocalNotificationReadState.read,
       );
+    },
+  );
+
+  test('home drift discards late poll and acknowledgement results', () async {
+    final polling = await _Harness.start();
+    addTearDown(polling.close);
+    final pullBarrier = Completer<void>();
+    polling.core.pullBarrier = pullBarrier;
+    polling.controller.setVisible(true);
+    for (var i = 0; i < 100 && polling.core.pullCalls == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    expect(polling.core.pullCalls, 1);
+    await polling.home.choose(HomeSource.directLocal);
+    pullBarrier.complete();
+    await polling.settle();
+    expect(polling.controller.loaded, isFalse);
+    expect(polling.controller.events, isEmpty);
+
+    final acknowledging = await _Harness.start();
+    addTearDown(acknowledging.close);
+    await acknowledging.load();
+    final ackBarrier = Completer<void>();
+    acknowledging.core.ackBarrier = ackBarrier;
+    final pending = acknowledging.controller.markRead(
+      acknowledging.controller.events.single,
+      interactionCurrent: () => true,
+    );
+    for (var i = 0; i < 100 && acknowledging.core.ackCalls == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    expect(acknowledging.core.ackCalls, 1);
+    await acknowledging.home.choose(HomeSource.directLocal);
+    ackBarrier.complete();
+    expect(await pending, isFalse);
+    expect(acknowledging.controller.loaded, isFalse);
+    expect(acknowledging.controller.events, isEmpty);
+  });
+
+  test(
+    'same receipt is displayed once and a changed replay fails closed',
+    () async {
+      final harness = await _Harness.start();
+      final platform = _Platform();
+      final runtime = LocalNotificationRuntimeCoordinator(
+        home: harness.home,
+        controller: harness.controller,
+        platform: platform,
+        clock: () => DateTime.utc(2026, 9, 20, 12),
+        active: () => harness.owner.current,
+        navigate: (_) {},
+      );
+      addTearDown(() async {
+        runtime.dispose();
+        await platform.close();
+        await harness.close(disposeController: false);
+      });
+      runtime.setEnabled(true);
+      await harness.settle();
+      for (var i = 0; i < 100 && platform.reconciles == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+      expect(platform.reconciles, 1);
+
+      await harness.controller.refresh();
+      expect(harness.controller.failure, isNull);
+      expect(platform.reconciles, 1);
+
+      harness.core.mutateReceipt = true;
+      await harness.controller.refresh();
+      expect(harness.controller.failure, 'invalid_response');
+      expect(harness.controller.events, isEmpty);
+      expect(platform.reconciles, 1);
+    },
+  );
+
+  test(
+    'throwing runtime authority callback stops before network or display',
+    () async {
+      final harness = await _Harness.start();
+      final platform = _Platform();
+      final runtime = LocalNotificationRuntimeCoordinator(
+        home: harness.home,
+        controller: harness.controller,
+        platform: platform,
+        clock: () => DateTime.utc(2026, 9, 20, 12),
+        active: () => throw StateError('retired route authority'),
+        navigate: (_) {},
+      );
+      addTearDown(() async {
+        runtime.dispose();
+        await platform.close();
+        await harness.close(disposeController: false);
+      });
+
+      runtime.setEnabled(true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(runtime.enabled, isFalse);
+      expect(harness.core.registerCalls, 0);
+      expect(harness.core.pullCalls, 0);
+      expect(platform.probes, 0);
+      expect(platform.reconciles, 0);
     },
   );
 

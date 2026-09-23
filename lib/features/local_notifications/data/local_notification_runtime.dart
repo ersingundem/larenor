@@ -61,11 +61,19 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
   bool get platformBusy => _platformBusy;
   bool get permissionPending => _permissionPending;
 
+  bool _routeActive() {
+    try {
+      return active();
+    } catch (_) {
+      return false;
+    }
+  }
+
   ServerSession? get _ready {
     final session = home.account.session;
     if (_disposed ||
         !_enabled ||
-        !active() ||
+        !_routeActive() ||
         home.source != HomeSource.verifiedCore ||
         home.busy ||
         home.failure != null ||
@@ -101,7 +109,7 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
         !home.busy &&
         home.failure == null &&
         (!requireActive || _enabled) &&
-        (!requireActive || active()) &&
+        (!requireActive || _routeActive()) &&
         _epoch == authority.runtimeEpoch &&
         home.account.isCurrent(authority.accountGeneration) &&
         identical(current, authority.session) &&
@@ -113,15 +121,17 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
   }
 
   void setEnabled(bool value) {
-    if (_disposed || value == _enabled) return;
-    _enabled = value;
+    if (_disposed) return;
+    final next = value && _routeActive();
+    if (next == _enabled) return;
+    _enabled = next;
     _epoch++;
     _timer?.cancel();
     _timer = null;
     _platformBusy = false;
     _lastReconcile = null;
-    controller.setVisible(value);
-    if (value) {
+    controller.setVisible(next);
+    if (next) {
       _timer = Timer.periodic(pollInterval, (_) {
         if (_capture() != null && controller.canRefresh) {
           unawaited(controller.refresh());
@@ -159,7 +169,7 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
   }
 
   void authorityChanged() {
-    final shouldEnable = !_disposed && active();
+    final shouldEnable = !_disposed && _routeActive();
     if (!shouldEnable) {
       setEnabled(false);
     } else if (!_enabled) {
