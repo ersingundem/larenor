@@ -43,3 +43,31 @@ def test_invalid_passphrase_is_rejected_before_bundle_read(monkeypatch, tmp_path
         cli._read_restore_inputs(bundle, passphrase)
 
     assert [path for path, _maximum in reads] == [passphrase]
+
+
+def test_restore_reads_the_secret_into_the_exact_buffer_that_is_wiped(
+    monkeypatch, tmp_path
+):
+    bundle = tmp_path / "backup.larenor-core"
+    passphrase = tmp_path / "passphrase"
+    source = bytearray(PASSPHRASE.encode("utf-8") + b"\n")
+
+    def private_read_mutable(path, maximum):
+        assert path == passphrase
+        assert maximum == 514
+        return source
+
+    def private_read(path, maximum):
+        assert path == bundle
+        return b"bounded bundle"
+
+    monkeypatch.setattr(
+        cli, "private_read_mutable", private_read_mutable, raising=False
+    )
+    monkeypatch.setattr(cli, "private_read", private_read)
+
+    loaded, decoded = cli._read_restore_inputs(bundle, passphrase)
+
+    assert loaded == b"bounded bundle"
+    assert decoded == PASSPHRASE
+    assert source == bytearray(len(source))
