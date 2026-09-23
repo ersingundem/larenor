@@ -100,6 +100,13 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
   @override
   void didUpdateWidget(covariant WeeklyMealPlanScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.shoppingActions, widget.shoppingActions)) {
+      _handoffOperation++;
+      _handoffBusy = false;
+      _handoffFailed = false;
+      _handoffReceipt = null;
+      _handoffListTitle = null;
+    }
     if (!identical(oldWidget.gateway, widget.gateway) || !_current) {
       _clear();
       if (_current) {
@@ -540,7 +547,10 @@ class _WeeklyMealPlanScreenState extends State<WeeklyMealPlanScreen>
     if (lease == null) return;
     final operation = ++_handoffOperation;
     bool valid() =>
-        operation == _handoffOperation && _current && _listCurrent(list);
+        operation == _handoffOperation &&
+        identical(widget.shoppingActions, actions) &&
+        _current &&
+        _listCurrent(list);
     setState(() {
       _handoffBusy = true;
       _handoffFailed = false;
