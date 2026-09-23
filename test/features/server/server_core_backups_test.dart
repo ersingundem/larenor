@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert' show jsonDecode, utf8;
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:larenor/features/server/core_backups/data/server_core_backups_controller.dart';
 import 'package:larenor/features/server/core_backups/domain/server_core_backup_models.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'server_admin_test_support.dart';
@@ -14,14 +18,44 @@ Map<String, dynamic> backupManifest() => {
   'createdAt': 1789952400,
   'coreVersion': '0.5.0',
   'databaseSchemaVersion': 61,
-  'componentSchemaVersions': {'auth': 1, 'vault': 1},
+  'componentSchemaVersions': {'auth': 1, 'vault': 1, 'jellyfin': 1},
+  'components': [
+    {
+      'serviceId': 'jellyfin',
+      'serviceVersion': '10.11.11',
+      'configSchemaVersion': 1,
+      'dataSchemaVersion': 'upstream_managed_unverified',
+      'volumeResourceIds': [
+        'component-jellyfin-cache',
+        'component-jellyfin-config',
+      ],
+    },
+  ],
+  'consistencyBoundary': {
+    'mode': 'core_write_lock_and_component_quiescence',
+    'maxDurationSeconds': 5,
+  },
   'resources': [
     {
       'id': 'component-index',
       'kind': 'componentData',
-      'version': '1',
+      'version': '2',
       'byteLength': 80,
       'sha256': '1' * 64,
+    },
+    {
+      'id': 'component-jellyfin-cache',
+      'kind': 'componentData',
+      'version': 'component-v1',
+      'byteLength': 250,
+      'sha256': '6' * 64,
+    },
+    {
+      'id': 'component-jellyfin-config',
+      'kind': 'componentData',
+      'version': 'component-v1',
+      'byteLength': 350,
+      'sha256': '7' * 64,
     },
     {
       'id': 'core-configuration',
@@ -70,6 +104,25 @@ final class BackupFixture extends AdminFixture {
           request.url.path.endsWith('/admin/backups/plan')) {
         return pending?.future ?? json(response);
       }
+      if (request.method == 'POST' &&
+          request.url.path.endsWith('/admin/backups/export')) {
+        return exportPending?.future ??
+            http.Response.bytes(
+              bundle,
+              200,
+              headers: {
+                'content-type': 'application/vnd.larenor.core-backup',
+                'content-disposition':
+                    'attachment; filename="larenor-core-backup.larenor-core"',
+                'cache-control': 'no-store',
+                'x-content-type-options': 'nosniff',
+              },
+            );
+      }
+      if (request.method == 'POST' &&
+          request.url.path.endsWith('/admin/backups/restore/validate')) {
+        return validationPending?.future ?? json(validationResponse);
+      }
       return json({
         'error': {'code': 'not_found'},
       }, 404);
@@ -77,14 +130,105 @@ final class BackupFixture extends AdminFixture {
   }
 
   Map<String, dynamic> response = readyPlan();
+  Map<String, dynamic> validationResponse = {
+    'compatible': true,
+    'reasons': <String>[],
+  };
+  Uint8List bundle = Uint8List.fromList([
+    ...utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'),
+    ...List<int>.filled(64, 7),
+  ]);
   Completer<http.Response>? pending;
+  Completer<http.Response>? exportPending;
+  Completer<http.Response>? validationPending;
 }
+
+class BackupDestinationFixture implements LarenorBinaryDestination {
+  final BytesBuilder _bytes = BytesBuilder(copy: false);
+  bool cancelled = false;
+  bool committed = false;
+  int maxChunk = 0;
+  Uint8List get bytes => _bytes.toBytes();
+
+  @override
+  Future<void> add(Uint8List bytes) async {
+    if (cancelled || committed) throw StateError('closed');
+    maxChunk = bytes.length > maxChunk ? bytes.length : maxChunk;
+    _bytes.add(bytes);
+  }
+
+  @override
+  Future<Uri> commit({required int byteLength, required String sha256}) async {
+    final value = bytes;
+    expect(byteLength, value.length);
+    expect(sha256, crypto.sha256.convert(value).toString());
+    committed = true;
+    return Uri.parse('content://larenor-test/export');
+  }
+
+  @override
+  Future<void> cancel() async => cancelled = true;
+}
+
+class StreamingClient extends http.BaseClient {
+  StreamingClient(this.handler);
+  final Future<http.StreamedResponse> Function(http.BaseRequest) handler;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      handler(request);
+}
+
+class CountingDestination implements LarenorBinaryDestination {
+  int bytes = 0;
+  int maxChunk = 0;
+  bool cancelled = false;
+  bool committed = false;
+  Completer<void>? addGate;
+  final Completer<void> addStarted = Completer<void>();
+
+  @override
+  Future<void> add(Uint8List value) async {
+    if (!addStarted.isCompleted) addStarted.complete();
+    await addGate?.future;
+    bytes += value.length;
+    maxChunk = value.length > maxChunk ? value.length : maxChunk;
+  }
+
+  @override
+  Future<Uri> commit({required int byteLength, required String sha256}) async {
+    expect(byteLength, bytes);
+    expect(sha256, matches(RegExp(r'^[0-9a-f]{64}$')));
+    committed = true;
+    return Uri.parse('content://larenor-test/counting');
+  }
+
+  @override
+  Future<void> cancel() async => cancelled = true;
+}
+
+Map<String, String> exportHeaders() => {
+  'content-type': 'application/vnd.larenor.core-backup',
+  'content-disposition':
+      'attachment; filename="larenor-core-backup.larenor-core"',
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+};
+
+LarenorServerApi directApi(http.Client client, {Duration? timeout}) =>
+    LarenorServerApi(
+      endpoint: ServerEndpoint('https://fixture.invalid/prefix'),
+      client: client,
+      timeout: timeout ?? const Duration(seconds: 20),
+    );
 
 void main() {
   test('plan parser accepts only exact bounded backup metadata', () {
     final plan = CoreBackupPlan.fromJson(readyPlan());
     expect(plan.ready, isTrue);
-    expect(plan.manifest!.totalBytes, 5352);
+    expect(plan.manifest!.totalBytes, 5952);
+    expect(plan.manifest!.components.single.serviceVersion, '10.11.11');
+    expect(plan.manifest!.components.single.volumeResourceIds.length, 2);
+    expect(plan.manifest!.consistencyBoundary!.maxDurationSeconds, 5);
     expect(plan.manifest!.resources.map((item) => item.kind), {
       CoreBackupResourceKind.componentData,
       CoreBackupResourceKind.configuration,
@@ -135,12 +279,21 @@ void main() {
   });
 
   test('legacy four-resource Core backup remains readable', () {
-    final legacy = {
-      ...backupManifest(),
+    final current = backupManifest();
+    final legacy = <String, dynamic>{
+      for (final entry in current.entries)
+        if (entry.key != 'components' && entry.key != 'consistencyBoundary')
+          entry.key: entry.value,
       'contractVersion': 1,
       'resources': [
-        for (final item in backupManifest()['resources']! as List)
-          if ((item as Map)['id'] != 'family-board') item,
+        for (final raw
+            in (current['resources']! as List).cast<Map<String, dynamic>>())
+          if (raw['id'] != 'family-board' &&
+              !(raw['id'] as String).startsWith('component-jellyfin-'))
+            if (raw['id'] == 'component-index')
+              {...raw, 'version': '1'}
+            else
+              raw,
       ],
     };
     final plan = CoreBackupManifest.fromJson(legacy);
@@ -207,5 +360,522 @@ void main() {
     await controller.load(current: () => true);
     expect(fixture.adminCalls, isEmpty);
     expect(controller.plan, isNull);
+  });
+
+  test('export keeps passphrase in the fixed body and returns only bounded ciphertext', () async {
+    final fixture = BackupFixture();
+    await fixture.account.initialize();
+    final controller = ServerCoreBackupsController(fixture.account);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+    const passphrase = 'Synthetic export passphrase 2026';
+
+    final destination = BackupDestinationFixture();
+    final secret = LarenorRequestSecret.coreBackup(passphrase);
+    final exported = await controller.export(
+      secret,
+      destination,
+      current: () => true,
+    );
+
+    expect(destination.bytes, fixture.bundle);
+    expect(destination.maxChunk, lessThanOrEqualTo(64 * 1024));
+    expect(exported!.byteLength, fixture.bundle.length);
+    expect(exported.destination, Uri.parse('content://larenor-test/export'));
+    final request = fixture.adminCalls.single;
+    expect(request.url.path, endsWith('/admin/backups/export'));
+    expect(request.url.query, isEmpty);
+    expect(jsonDecode(request.body), {'passphrase': passphrase});
+    expect(request.headers['authorization'], startsWith('Bearer '));
+    expect(secret.disposed, isTrue);
+    expect(controller.toString(), isNot(contains(passphrase)));
+    expect(exported.toString(), isNot(contains(passphrase)));
+  });
+
+  test('export accepts the 168 MiB cap as bounded reused chunks', () async {
+    const maxBytes = 168 * 1024 * 1024;
+    const chunkBytes = 64 * 1024;
+    final zero = Uint8List(chunkBytes);
+    final first = Uint8List(chunkBytes);
+    first.setAll(0, utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'));
+    final client = StreamingClient(
+      (_) async => http.StreamedResponse(
+        Stream<List<int>>.fromIterable([
+          first,
+          for (var offset = chunkBytes; offset < maxBytes; offset += chunkBytes)
+            zero,
+        ]),
+        200,
+        contentLength: maxBytes,
+        headers: exportHeaders(),
+      ),
+    );
+    final api = directApi(client);
+    final destination = CountingDestination();
+    addTearDown(api.close);
+
+    final receipt = await api.exportCoreBackup(
+      token: 'synthetic-token',
+      passphrase: LarenorRequestSecret.coreBackup(
+        'Synthetic export passphrase 2026',
+      ),
+      destination: destination,
+      cancellation: LarenorTransferCancellation(),
+    );
+
+    expect(receipt.byteLength, maxBytes);
+    expect(destination.bytes, maxBytes);
+    expect(destination.maxChunk, chunkBytes);
+    expect(destination.committed, isTrue);
+    expect(destination.cancelled, isFalse);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test(
+    'declared overflow and exact-length mismatch delete partial output',
+    () async {
+      const maxBytes = 168 * 1024 * 1024;
+      final overflowDestination = CountingDestination();
+      final overflowApi = directApi(
+        StreamingClient(
+          (_) async => http.StreamedResponse(
+            const Stream<List<int>>.empty(),
+            200,
+            contentLength: maxBytes + 1,
+            headers: exportHeaders(),
+          ),
+        ),
+      );
+      addTearDown(overflowApi.close);
+      await expectLater(
+        overflowApi.exportCoreBackup(
+          token: 'synthetic-token',
+          passphrase: LarenorRequestSecret.coreBackup(
+            'Synthetic export passphrase 2026',
+          ),
+          destination: overflowDestination,
+          cancellation: LarenorTransferCancellation(),
+        ),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+      expect(overflowDestination.cancelled, isTrue);
+      expect(overflowDestination.committed, isFalse);
+
+      final body = Uint8List.fromList([
+        ...utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'),
+        ...List<int>.filled(64, 7),
+      ]);
+      final mismatchDestination = CountingDestination();
+      final mismatchApi = directApi(
+        StreamingClient(
+          (_) async => http.StreamedResponse(
+            Stream.value(body),
+            200,
+            contentLength: body.length + 1,
+            headers: exportHeaders(),
+          ),
+        ),
+      );
+      addTearDown(mismatchApi.close);
+      await expectLater(
+        mismatchApi.exportCoreBackup(
+          token: 'synthetic-token',
+          passphrase: LarenorRequestSecret.coreBackup(
+            'Synthetic export passphrase 2026',
+          ),
+          destination: mismatchDestination,
+          cancellation: LarenorTransferCancellation(),
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(mismatchDestination.bytes, body.length);
+      expect(mismatchDestination.cancelled, isTrue);
+      expect(mismatchDestination.committed, isFalse);
+    },
+  );
+
+  test(
+    'cancellation closes the response stream and blocks late add commit',
+    () async {
+      final streamCancelled = Completer<void>();
+      final stream = StreamController<List<int>>(
+        onCancel: () {
+          if (!streamCancelled.isCompleted) streamCancelled.complete();
+        },
+      );
+      final destination = CountingDestination()..addGate = Completer<void>();
+      final cancellation = LarenorTransferCancellation();
+      final secret = LarenorRequestSecret.coreBackup(
+        'Synthetic export passphrase 2026',
+      );
+      final api = directApi(
+        StreamingClient(
+          (_) async => http.StreamedResponse(
+            stream.stream,
+            200,
+            headers: exportHeaders(),
+          ),
+        ),
+        timeout: const Duration(seconds: 1),
+      );
+      addTearDown(api.close);
+      final export = api.exportCoreBackup(
+        token: 'synthetic-token',
+        passphrase: secret,
+        destination: destination,
+        cancellation: cancellation,
+      );
+      stream.add(
+        Uint8List.fromList([
+          ...utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'),
+          ...List<int>.filled(64, 7),
+        ]),
+      );
+      await destination.addStarted.future;
+
+      cancellation.cancel();
+      await expectLater(
+        export,
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'cancelled',
+          ),
+        ),
+      );
+      await streamCancelled.future;
+      destination.addGate!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(secret.disposed, isTrue);
+      expect(destination.cancelled, isTrue);
+      expect(destination.committed, isFalse);
+    },
+  );
+
+  test('error response always cancels the uncommitted destination', () async {
+    final destination = CountingDestination();
+    final api = directApi(
+      StreamingClient(
+        (_) async => http.StreamedResponse(
+          Stream.value(utf8.encode('{"error":{"code":"invalid_request"}}')),
+          400,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      api.exportCoreBackup(
+        token: 'synthetic-token',
+        passphrase: LarenorRequestSecret.coreBackup(
+          'Synthetic export passphrase 2026',
+        ),
+        destination: destination,
+        cancellation: LarenorTransferCancellation(),
+      ),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_request',
+        ),
+      ),
+    );
+
+    expect(destination.cancelled, isTrue);
+    expect(destination.committed, isFalse);
+  });
+
+  test(
+    'send failure scrubs mutable request buffers and cancels output',
+    () async {
+      Uint8List? requestBody;
+      Uint8List? observedBody;
+      final client = StreamingClient((request) async {
+        requestBody = request is http.Request ? request.bodyBytes : null;
+        observedBody = requestBody == null
+            ? null
+            : Uint8List.fromList(requestBody!);
+        throw http.ClientException('synthetic transport failure');
+      });
+      final api = directApi(client);
+      final destination = CountingDestination();
+      final secret = LarenorRequestSecret.coreBackup(
+        'Synthetic export passphrase 2026',
+      );
+      addTearDown(api.close);
+
+      await expectLater(
+        api.exportCoreBackup(
+          token: 'synthetic-token',
+          passphrase: secret,
+          destination: destination,
+          cancellation: LarenorTransferCancellation(),
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+
+      expect(jsonDecode(utf8.decode(observedBody!)), {
+        'passphrase': 'Synthetic export passphrase 2026',
+      });
+      expect(requestBody, everyElement(0));
+      expect(secret.disposed, isTrue);
+      expect(destination.cancelled, isTrue);
+    },
+  );
+
+  test(
+    'abort before response headers stays cancelled and scrubs body',
+    () async {
+      final requestSeen = Completer<void>();
+      final response = Completer<http.StreamedResponse>();
+      Uint8List? requestBody;
+      final api = directApi(
+        StreamingClient((request) {
+          requestBody = (request as http.Request).bodyBytes;
+          requestSeen.complete();
+          return response.future;
+        }),
+        timeout: const Duration(seconds: 1),
+      );
+      final destination = CountingDestination();
+      final secret = LarenorRequestSecret.coreBackup(
+        'Synthetic export passphrase 2026',
+      );
+      final cancellation = LarenorTransferCancellation();
+      addTearDown(api.close);
+
+      final export = api.exportCoreBackup(
+        token: 'synthetic-token',
+        passphrase: secret,
+        destination: destination,
+        cancellation: cancellation,
+      );
+      await requestSeen.future;
+      cancellation.cancel();
+
+      await expectLater(
+        export,
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'cancelled',
+          ),
+        ),
+      );
+      expect(requestBody, everyElement(0));
+      expect(secret.disposed, isTrue);
+      expect(destination.cancelled, isTrue);
+    },
+  );
+
+  test(
+    'restore preflight exposes exact incompatibility reasons without restore',
+    () async {
+      final fixture = BackupFixture()
+        ..validationResponse = {
+          'compatible': false,
+          'reasons': [
+            'unsupported_contract_version',
+            'core_version_mismatch',
+            'database_schema_mismatch',
+            'component_schema_mismatch',
+            'component_version_mismatch',
+            'component_volume_mismatch',
+          ],
+        };
+      await fixture.account.initialize();
+      final controller = ServerCoreBackupsController(fixture.account);
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      final manifest = CoreBackupManifest.fromJson(backupManifest());
+
+      await controller.preflight(manifest, current: () => true);
+
+      expect(controller.compatibility!.compatible, isFalse);
+      expect(controller.compatibility!.reasons, {
+        CoreBackupCompatibilityReason.unsupportedContract,
+        CoreBackupCompatibilityReason.coreVersion,
+        CoreBackupCompatibilityReason.databaseSchema,
+        CoreBackupCompatibilityReason.componentSchema,
+        CoreBackupCompatibilityReason.componentVersion,
+        CoreBackupCompatibilityReason.componentVolume,
+      });
+      final request = fixture.adminCalls.single;
+      expect(request.url.path, endsWith('/admin/backups/restore/validate'));
+      expect(request.url.query, isEmpty);
+      expect(jsonDecode(request.body), {'manifest': backupManifest()});
+      expect(
+        fixture.adminCalls.where(
+          (call) => !call.url.path.endsWith('/restore/validate'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('retired route drops delayed export and preflight results', () async {
+    final fixture = BackupFixture();
+    await fixture.account.initialize();
+    final controller = ServerCoreBackupsController(fixture.account);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    fixture.exportPending = Completer<http.Response>();
+    final destination = BackupDestinationFixture();
+    final export = controller.export(
+      LarenorRequestSecret.coreBackup('Synthetic export passphrase 2026'),
+      destination,
+      current: () => true,
+    );
+    controller.invalidate();
+    fixture.exportPending!.complete(
+      http.Response.bytes(
+        fixture.bundle,
+        200,
+        headers: {
+          'content-type': 'application/vnd.larenor.core-backup',
+          'content-disposition':
+              'attachment; filename="larenor-core-backup.larenor-core"',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        },
+      ),
+    );
+    expect(await export, isNull);
+    expect(destination.cancelled, isTrue);
+
+    fixture.exportPending = null;
+    fixture.validationPending = Completer<http.Response>();
+    final preflight = controller.preflight(
+      CoreBackupManifest.fromJson(backupManifest()),
+      current: () => true,
+    );
+    controller.invalidate();
+    fixture.validationPending!.complete(
+      fixture.json({'compatible': true, 'reasons': <String>[]}),
+    );
+    await preflight;
+    expect(controller.compatibility, isNull);
+    expect(controller.actionFailure, isNull);
+  });
+
+  test('invalid passphrase is rejected before any admin request', () async {
+    final fixture = BackupFixture();
+    await fixture.account.initialize();
+    final controller = ServerCoreBackupsController(fixture.account);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    expect(
+      () => LarenorRequestSecret.coreBackup('too short'),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(fixture.adminCalls, isEmpty);
+  });
+
+  test('binary envelope headers and compatibility shape fail closed', () async {
+    final fixture = BackupFixture();
+    await fixture.account.initialize();
+    final controller = ServerCoreBackupsController(fixture.account);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+    fixture.respond = (request) async {
+      if (request.url.path.endsWith('/admin/backups/export')) {
+        return http.Response.bytes(
+          fixture.bundle,
+          200,
+          headers: {'content-type': 'application/octet-stream'},
+        );
+      }
+      return fixture.json({
+        'compatible': false,
+        'reasons': ['unknown_mismatch'],
+      });
+    };
+    expect(
+      await controller.export(
+        LarenorRequestSecret.coreBackup('Synthetic export passphrase 2026'),
+        BackupDestinationFixture(),
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(controller.actionFailure, 'invalid_response');
+
+    fixture.respond = (request) async {
+      if (request.url.path.endsWith('/admin/backups/export')) {
+        return http.Response.bytes(
+          Uint8List(80),
+          200,
+          headers: {
+            'content-type': 'application/vnd.larenor.core-backup',
+            'content-disposition':
+                'attachment; filename="larenor-core-backup.larenor-core"',
+            'cache-control': 'no-store',
+            'x-content-type-options': 'nosniff',
+          },
+        );
+      }
+      return fixture.json({
+        'compatible': false,
+        'reasons': ['unknown_mismatch'],
+      });
+    };
+    expect(
+      await controller.export(
+        LarenorRequestSecret.coreBackup('Synthetic export passphrase 2026'),
+        BackupDestinationFixture(),
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(controller.actionFailure, 'invalid_response');
+
+    fixture.respond = (request) async {
+      if (request.url.path.endsWith('/admin/backups/export')) {
+        return fixture.json({
+          'error': {'code': 'invalid_request'},
+        }, 400);
+      }
+      return fixture.json({
+        'compatible': false,
+        'reasons': ['unknown_mismatch'],
+      });
+    };
+    expect(
+      await controller.export(
+        LarenorRequestSecret.coreBackup('Synthetic export passphrase 2026'),
+        BackupDestinationFixture(),
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(controller.actionFailure, 'invalid_request');
+
+    await controller.preflight(
+      CoreBackupManifest.fromJson(backupManifest()),
+      current: () => true,
+    );
+    expect(controller.compatibility, isNull);
+    expect(controller.actionFailure, 'invalid_response');
   });
 }

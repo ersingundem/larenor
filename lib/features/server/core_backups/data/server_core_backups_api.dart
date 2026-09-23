@@ -10,6 +10,35 @@ final class ServerCoreBackupsApi {
     await api.request('GET', '/admin/backups/plan', token: token),
   );
 
+  Future<CoreBackupExport> export(
+    LarenorRequestSecret passphrase,
+    LarenorBinaryDestination destination,
+    LarenorTransferCancellation cancellation,
+  ) async {
+    final receipt = await api.exportCoreBackup(
+      token: token,
+      passphrase: passphrase,
+      destination: destination,
+      cancellation: cancellation,
+    );
+    return CoreBackupExport(
+      destination: receipt.destination,
+      byteLength: receipt.byteLength,
+      sha256: receipt.sha256,
+    );
+  }
+
+  Future<CoreBackupCompatibility> preflight(
+    CoreBackupManifest manifest,
+  ) async => CoreBackupCompatibility.fromJson(
+    await api.request(
+      'POST',
+      '/admin/backups/restore/validate',
+      token: token,
+      body: {'manifest': manifest.toJson()},
+    ),
+  );
+
   @override
   String toString() => 'ServerCoreBackupsApi';
 }
