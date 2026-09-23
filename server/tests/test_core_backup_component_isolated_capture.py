@@ -1,8 +1,10 @@
 """S09.1 authority-bound isolated component capture contract."""
 
 import fcntl
+import io
 import os
 import time
+import zipfile
 from dataclasses import replace
 
 import pytest
@@ -12,7 +14,14 @@ from larenor_server.core_backups.component_isolated_capture import (
     IsolatedComponentVolume,
     IsolatedComponentCaptureError,
 )
-from test_core_backup_component_snapshot_provider import source
+from larenor_server.core_backups.component_snapshot_provider import (
+    ManagedComponentSnapshotProvider,
+)
+from test_core_backup_component_snapshot_provider import (
+    InstalledAuthority,
+    PauseController,
+    source,
+)
 
 
 class CaptureEngine:
@@ -191,3 +200,60 @@ def test_capture_rejects_expired_or_malformed_deadline_without_dispatch(tmp_path
             with provider.acquire(sources, deadline):
                 raise AssertionError("must_not_yield")
     assert engine.calls == []
+
+
+def test_managed_provider_archives_only_isolated_descriptors(tmp_path):
+    sources, engine = setup(tmp_path)
+    for item in sources:
+        (item.path / "state.txt").write_text("live-writer-data")
+    controller = PauseController()
+    provider = ManagedComponentSnapshotProvider(
+        sources,
+        controller,
+        InstalledAuthority(),
+        isolated_capture=AuthorityBoundIsolatedCapture(engine),
+    )
+
+    with provider.quiesce(time.monotonic() + 3) as snapshots:
+        assert controller.paused == {"larenor-jellyfin"}
+        assert [call[0] for call in engine.calls][-1] == "release"
+        payloads = {
+            item.volumeId: zipfile.ZipFile(io.BytesIO(item.payload)).read("state.txt")
+            for item in snapshots
+        }
+        assert payloads == {
+            "jellyfin-cache": b"cache-stable",
+            "jellyfin-config": b"config-stable",
+        }
+
+    assert controller.paused == set()
+    assert [call[0] for call in engine.calls] == [
+        "capture",
+        "revalidate",
+        "revalidate",
+        "release",
+    ]
+
+
+def test_managed_provider_releases_capture_and_container_on_authority_drift(tmp_path):
+    sources, engine = setup(tmp_path)
+
+    class DriftingAuthority(InstalledAuthority):
+        def revalidate(self, sources, deadline):
+            result = super().revalidate(sources, deadline)
+            return result and len(self.calls) < 3
+
+    controller = PauseController()
+    provider = ManagedComponentSnapshotProvider(
+        sources,
+        controller,
+        DriftingAuthority(),
+        isolated_capture=AuthorityBoundIsolatedCapture(engine),
+    )
+
+    with pytest.raises(Exception, match="snapshot_unavailable"):
+        with provider.quiesce(time.monotonic() + 3):
+            raise AssertionError("must_not_yield")
+
+    assert controller.paused == set()
+    assert [call[0] for call in engine.calls].count("release") == 1
