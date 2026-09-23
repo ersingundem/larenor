@@ -9,6 +9,7 @@ from .media_archive_core_models import (
     MediaArchiveAuthorityRequest,
     MediaArchiveCollectionAuthority,
     MediaArchiveReadRequest,
+    MediaCatalogSearchRequest,
     PrivateMediaArchiveCollection,
 )
 from .media_archive_health import build_media_archive_health
@@ -105,9 +106,7 @@ class MediaArchiveHealthManagement:
         if returned != expected:
             raise ApiError('media_archive_authority_changed', 409)
 
-    def read(self, actor, body):
-        if type(body) is not MediaArchiveReadRequest:
-            raise ApiError('invalid_request')
+    def _collect(self, actor, body):
         if self.binding_reader is None or self.backend is None:
             raise ApiError('media_archive_worker_unavailable', 503)
         with self.db.connection() as connection:
@@ -141,6 +140,12 @@ class MediaArchiveHealthManagement:
             raise ApiError('media_archive_authority_changed', 409)
         observation = self._observation(observed)
         self._match(current, observation)
+        return current, observation
+
+    def read(self, actor, body):
+        if type(body) is not MediaArchiveReadRequest:
+            raise ApiError('invalid_request')
+        _current, observation = self._collect(actor, body)
         try:
             archive = build_media_archive_health(
                 observation, now=int(self.settings.clock()))
@@ -158,6 +163,46 @@ class MediaArchiveHealthManagement:
                     else 'media_archive_worker_unavailable')
             raise ApiError(code, status) from None
         return {'requestId': body.requestId, 'archive': archive.model_dump()}
+
+    def search(self, actor, body):
+        if type(body) is not MediaCatalogSearchRequest:
+            raise ApiError('invalid_request')
+        current, observation = self._collect(actor, body)
+        query = body.query.casefold()
+        items = [
+            item for item in observation.jellyfin.items
+            if item.integrity == 'playable'
+            and query in item.title.casefold()
+            and (body.mediaKind is None or item.mediaKind == body.mediaKind)
+        ]
+        items.sort(key=lambda item: (
+            item.title.casefold(), item.mediaKey, item.itemId))
+        if body.offset > len(items):
+            raise ApiError('invalid_request')
+        selected = items[body.offset:body.offset + body.limit]
+        end = body.offset + len(selected)
+        source = next(
+            item for item in current.sources if item.serviceId == 'jellyfin')
+        return {
+            'requestId': body.requestId,
+            'catalog': {
+                'schemaVersion': 1,
+                'installationId': current.installationId,
+                'installationRevision': current.installationRevision,
+                'snapshotRevision': current.snapshotRevision,
+                'jellyfinServiceRevision': source.serviceRevision,
+                'offset': body.offset,
+                'nextOffset': end if end < len(items) else None,
+                'total': len(items),
+                'items': [{
+                    'itemId': item.itemId,
+                    'mediaKey': item.mediaKey,
+                    'title': item.title,
+                    'mediaKind': item.mediaKind,
+                    'runtimeSeconds': item.runtimeSeconds,
+                } for item in selected],
+            },
+        }
 
     def authority(self, actor, body):
         """Return only the revisions needed to make a subsequent exact read."""

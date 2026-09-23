@@ -97,6 +97,7 @@ def test_search_is_bounded_revision_bound_and_secret_free(server):
 @pytest.mark.parametrize('change', [
     {'query': ' x'},
     {'query': 'x\n'},
+    {'query': 'x\u202e'},
     {'query': 'x' * 81},
     {'mediaKind': 'audio'},
     {'offset': True},
@@ -120,6 +121,27 @@ def test_invalid_search_never_reaches_private_worker(server, change):
     assert 'must-not-cross-boundary' not in response.text
 
 
+def test_cross_kind_worker_item_fails_before_publication(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    forged = worker.result.jellyfin.items[0].model_copy(update={
+        'mediaKind': 'episode',
+    })
+    worker.result = worker.result.model_copy(update={
+        'jellyfin': worker.result.jellyfin.model_copy(update={
+            'items': [forged],
+        }),
+    })
+    response = server[1].post(BASE, headers=auth(pair), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_archive_worker_unavailable'
+
+
 def test_search_rechecks_binding_session_and_admin_policy(server):
     pair, _installation, current, reader, worker, body = configured(server)
     request = {
@@ -140,6 +162,13 @@ def test_search_rechecks_binding_session_and_admin_policy(server):
     assert response.json()['error']['code'] == 'media_archive_authority_changed'
     assert len(worker.calls) == 1
 
+    worker.calls.clear()
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+    response = server[1].post(BASE, headers=auth(member), json=request)
+    assert response.status_code == 403
+    assert worker.calls == []
+
     reader.values = [current]
     worker.calls.clear()
     worker.change = lambda: server[1].post(
@@ -147,16 +176,3 @@ def test_search_rechecks_binding_session_and_admin_policy(server):
     response = server[1].post(BASE, headers=auth(pair), json=request)
     assert response.status_code == 401
     assert len(worker.calls) == 1
-
-    pair, _installation, _current, _reader, worker, body = configured(server)
-    create_user(server[1], pair)
-    member = activate(server[1], 'member')
-    response = server[1].post(BASE, headers=auth(member), json={
-        **body,
-        'query': 'matrix',
-        'mediaKind': None,
-        'offset': 0,
-        'limit': 24,
-    })
-    assert response.status_code == 403
-    assert worker.calls == []

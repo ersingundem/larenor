@@ -170,6 +170,15 @@ void main() {
       client.search(
         installationId: _installationId,
         expectedInstallationRevision: 7,
+        query: 'matrix\u202e',
+      ),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(calls, 0);
+    await expectLater(
+      client.search(
+        installationId: _installationId,
+        expectedInstallationRevision: 7,
         query: 'matrix',
       ),
       throwsA(
@@ -200,6 +209,35 @@ void main() {
     );
     await Future<void>.delayed(Duration.zero);
     await fixture.account.signOut();
+    fixture.pending!.complete(
+      fixture.json({'requestId': _requestId, 'catalog': _catalog()}),
+    );
+    await pending;
+
+    expect(controller.page, isNull);
+    expect(controller.failure, isNull);
+    expect(controller.busy, false);
+  });
+
+  test('route retirement discards a delayed catalog result', () async {
+    final fixture = _CatalogFixture()..pending = Completer<http.Response>();
+    await fixture.account.initialize();
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(fixture.account.dispose);
+    var current = true;
+
+    final pending = controller.search(
+      installationId: _installationId,
+      expectedInstallationRevision: 7,
+      query: 'matrix',
+      current: () => current,
+    );
+    await Future<void>.delayed(Duration.zero);
+    current = false;
     fixture.pending!.complete(
       fixture.json({'requestId': _requestId, 'catalog': _catalog()}),
     );
