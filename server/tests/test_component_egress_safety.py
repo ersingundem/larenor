@@ -131,6 +131,45 @@ def test_completed_lease_cannot_append_a_second_completion(server, monkeypatch):
     assert client.get(policy_url(record), headers=auth(pair)).json()['audit'] == before
 
 
+def test_completion_remains_retryable_when_outer_service_write_rolls_back(
+        server, monkeypatch):
+    app, client, pair, record, _ = setup(server)
+    leases = capture_leases(app, monkeypatch)
+    network(monkeypatch)
+    services = app.state.core.services
+    original_save = services._save
+    failed = False
+
+    def fail_once(*args, **kwargs):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise ApiError('server_unavailable', 503)
+        return original_save(*args, **kwargs)
+
+    monkeypatch.setattr(services, '_save', fail_once)
+    response = client.post(
+        check_url(record), headers=auth(pair), json={'expectedRevision': 1})
+    assert response.status_code == 503, response.text
+    lease = leases.pop()
+    monkeypatch.setattr(services, '_save', original_save)
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+
+    result = services.record_verification(
+        actor,
+        record['id'],
+        record['revision'],
+        state='authenticated',
+        version='2026.9.0',
+        before_save=lease.complete,
+    )
+
+    assert result['service']['verification']['state'] == 'authenticated'
+    audit = client.get(policy_url(record), headers=auth(pair)).json()['audit']
+    assert [event['reason'] for event in audit] == [
+        'policy_replaced', 'dispatch_authorized', 'probe_completed']
+
+
 def test_failed_lease_is_terminal_and_cannot_duplicate_outcome(server, monkeypatch):
     app, client, pair, record, body = setup(server)
     leases = capture_leases(app, monkeypatch)
