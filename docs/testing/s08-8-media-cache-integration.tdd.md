@@ -3,8 +3,8 @@
 Date: 23 September 2026
 
 This slice connects the existing bounded Core catalog and media-flow caches to
-the tablet routes. It is stacked on legacy migration head
-`49c717ad19cc0b1be5076f7081c3ea4e63c9bf15`. S08.8 remains pending, so queue
+the tablet routes. It is stacked on accepted legacy migration head
+`f12c37b48ac45da027a8f3e209b7ef53c3afb253`. S08.8 remains pending, so queue
 progress stays **26/125** and selected-feature progress stays **0/63**.
 
 ## Three delivered jobs
@@ -31,11 +31,11 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
 
 ## RED and GREEN
 
-- RED `2c7797c86f2871e1fb605586adf3d9084ee2b07c` added controller, tablet,
+- RED `559e2197e6784723a29aa96eb8b2e4ffc5450536` added controller, tablet,
   lifecycle and real-loopback expectations before cache integration existed.
-- RED `8c70e83d3bcb141728bfc073540620fc7513d145` added the explicit accessible
+- RED `0b36ccf24740116db1ea2e622ee3bec4bf0b5e4c` added the explicit accessible
   cache-miss fallback expectation.
-- GREEN `d05403843ff9712df5bcf72b951f9c6044c26cff` split fresh authority from body
+- GREEN `6a44a8c084db875a744e92af9df41aea6cf17b55` split fresh authority from body
   reads, integrated both bounded caches, added exact post-write retirement
   cleanup and localized route provenance/fallback UI.
 
