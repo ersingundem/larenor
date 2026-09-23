@@ -46,6 +46,17 @@ class WebPanelRendererBridgeTest {
             ),
             accepted.allowedOrigins,
         )
+        val ipv6 = RendererAttachRequest.parse(
+            attachArguments(
+                allowedOrigins = listOf(
+                    mapOf("scheme" to "http", "host" to "2001:db8::1", "port" to 8123),
+                ),
+            ),
+        )
+        assertEquals(
+            setOf(WebRequestOrigin("http", "2001:db8::1", 8123)),
+            ipv6.allowedOrigins,
+        )
 
         for (rejected in listOf(
             null,
@@ -56,6 +67,12 @@ class WebPanelRendererBridgeTest {
             attachArguments(allowedOrigins = emptyList()),
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "file", "host" to "fixture.invalid", "port" to 443))),
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "", "port" to 443))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "HTTPS", "host" to "fixture.invalid", "port" to 443))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "FIXTURE.invalid", "port" to 443))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "fixture%2einvalid", "port" to 443))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "fixture\\invalid", "port" to 443))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "http", "host" to "[2001:db8::1]", "port" to 8123))),
+            attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "-fixture.invalid", "port" to 443))),
             attachArguments(allowedOrigins = listOf(mapOf("scheme" to "https", "host" to "fixture.invalid", "port" to 0))),
             attachArguments(allowedOrigins = List(2) { mapOf("scheme" to "https", "host" to "fixture.invalid", "port" to 443) }),
             attachArguments(allowedOrigins = List(17) { mapOf("scheme" to "https", "host" to "$it.invalid", "port" to 443) }),
@@ -99,6 +116,15 @@ class WebPanelRendererBridgeTest {
             assertNotNull(url, blocked)
             assertEquals(403, blocked!!.statusCode)
             assertEquals(-1, blocked.data.read())
+            assertEquals(
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "Content-Security-Policy" to "default-src 'none'; sandbox",
+                    "Referrer-Policy" to "no-referrer",
+                    "X-Content-Type-Options" to "nosniff",
+                ),
+                blocked.responseHeaders,
+            )
             assertTrue(wrapper.shouldOverrideUrlLoading(view, Request(url)))
         }
         assertEquals(2, delegate.intercepted)
@@ -195,6 +221,28 @@ class WebPanelRendererBridgeTest {
         assertTrue(wrapper.onRenderProcessGone(view, detail))
         assertEquals(1, gone)
         assertEquals(0, delegate.rendererGone)
+    }
+
+    @Test
+    fun rendererGoneContainsLocalCallbackFailureAndStillConsumesTheEvent() {
+        var attempts = 0
+        val wrapper = RendererAwareWebViewClient(
+            RecordingClient(),
+            WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
+            rendererGone = {
+                attempts++
+                error("private callback failure")
+            },
+        )
+        val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
+        val detail = object : RenderProcessGoneDetail() {
+            override fun didCrash() = true
+            override fun rendererPriorityAtExit() = 0
+        }
+
+        assertTrue(wrapper.onRenderProcessGone(view, detail))
+        assertTrue(wrapper.onRenderProcessGone(view, detail))
+        assertEquals(1, attempts)
     }
 
     private class RecordingClient : WebViewClient() {
