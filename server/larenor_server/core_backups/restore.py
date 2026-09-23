@@ -21,7 +21,7 @@ from ..files import (
 )
 from ..legal import server_version
 from .service import (
-    MAX_BUNDLE_BYTES,
+    MAX_DATABASE_BYTES,
     MAX_FAMILY_BOARD_BYTES,
     _open_authenticated_bundle,
     _validate_payload_contract,
@@ -120,7 +120,7 @@ def recover_empty_restore(settings: Settings) -> bool:
         (
             stage_dir / "larenor.sqlite3",
             settings.database_file,
-            MAX_BUNDLE_BYTES,
+            MAX_DATABASE_BYTES,
             journal["databaseSha256"],
         )
     )
@@ -242,7 +242,7 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
                     raise StartupError("restore_validation_failed")
 
             database = private_read(
-                stage_dir / "larenor.sqlite3", MAX_BUNDLE_BYTES
+                stage_dir / "larenor.sqlite3", MAX_DATABASE_BYTES
             )
             key = private_read(stage_key, 32)
             family_board = (
