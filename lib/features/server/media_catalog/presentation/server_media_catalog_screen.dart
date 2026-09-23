@@ -11,6 +11,7 @@ import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_media_catalog_controller.dart';
 import '../domain/server_media_catalog_models.dart';
+import '../../media_flow/presentation/server_media_flow_screen.dart';
 
 /// Explicit, read-only Core catalog search. It never mounts or falls back to a
 /// device-local Jellyfin client.
@@ -140,6 +141,21 @@ final class _ServerMediaCatalogScreenState
     null => 0,
   };
 
+  void _open(ServerMediaCatalogItem item) {
+    if (!_active) return;
+    unawaited(
+      Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => ServerMediaFlowScreen(
+            mediaKey: item.flowMediaKey,
+            title: item.title,
+            requestId: widget.requestId,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -210,26 +226,37 @@ final class _ServerMediaCatalogScreenState
       for (final item in page.items)
         Semantics(
           key: ValueKey('server-media-catalog-item-${item.itemId}'),
+          button: true,
           label: '${item.title}, ${_kind(l, item.kind)}',
           child: ExcludeSemantics(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(CupertinoIcons.film, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.title, style: AppText.headline),
-                        const SizedBox(height: 4),
-                        Text(_kind(l, item.kind), style: AppText.footnote),
-                      ],
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(48, 48),
+              onPressed: _active ? () => _open(item) : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(CupertinoIcons.film, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.title, style: AppText.headline),
+                          const SizedBox(height: 4),
+                          Text(_kind(l, item.kind), style: AppText.footnote),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    const Icon(CupertinoIcons.chevron_forward, size: 18),
+                  ],
+                ),
               ),
             ),
           ),
