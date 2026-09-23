@@ -38,6 +38,7 @@ class ManagedTabletSourceBridge(
             when (call.method) {
                 "start" -> result.success(start(call.arguments))
                 "snapshot" -> result.success(snapshot(call.arguments))
+                "command" -> result.success(command(call.arguments))
                 "stop" -> { stop(call.arguments); result.success(null) }
                 else -> result.notImplemented()
             }
@@ -69,6 +70,17 @@ class ManagedTabletSourceBridge(
         val current = session
         if (!resumed || current == null || current.id != id) throw ManagedTabletSourceFailure("denied")
         return host.read(appForeground = true).toWire()
+    }
+
+    private fun command(raw: Any?): Map<String, String> {
+        val input = exactMap(raw, setOf("sessionId", "kind"))
+        val id = validId(input["sessionId"])
+        if (input["kind"] != "lockKiosk") invalid()
+        val current = session
+        if (!resumed || current == null || current.id != id) {
+            throw ManagedTabletSourceFailure("denied")
+        }
+        return mapOf("result" to host.lockKiosk().name)
     }
 
     private fun stop(raw: Any?) {
