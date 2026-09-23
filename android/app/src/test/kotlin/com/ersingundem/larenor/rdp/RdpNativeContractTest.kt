@@ -165,4 +165,15 @@ class RdpNativeContractTest {
         assertTrue(unexpectedGatewaySecret.closed)
         assertEquals(0, backend.openCalls)
     }
+
+    @Test fun imeTextIsStrictUtf8BoundedAndSecretFree() {
+        val parsed = RdpNativeImeText.parse("İstanbul")
+        assertEquals("İstanbul", parsed.value)
+        assertEquals("RdpNativeImeText(<redacted>)", parsed.toString())
+        assertEquals(4096, RdpNativeImeText.parse("x".repeat(4096)).value.length)
+
+        for (invalid in listOf("", "bad\u0000text", "x".repeat(4097), "\ud800")) {
+            reject("invalidRequest") { RdpNativeImeText.parse(invalid) }
+        }
+    }
 }

@@ -36,6 +36,7 @@ class UiChannel implements RdpChannel {
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
+  final texts = <String>[];
   @override
   Future<void> get done => doneCompleter.future;
   @override
@@ -49,6 +50,8 @@ class UiChannel implements RdpChannel {
   void pointer(RdpPointerEvent event) => pointers.add(event);
   @override
   void resize(RdpDisplaySpec display) => displays.add(display);
+  @override
+  void text(String value) => texts.add(value);
 }
 
 class UiEngine implements RdpEngine {
@@ -191,6 +194,13 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
     expect(engine.channel.pointers, isNotEmpty);
     expect(engine.channel.keys, hasLength(2));
+    await tester.enterText(key('rdp-text-input'), 'İstanbul');
+    await press(tester, 'rdp-text-send');
+    expect(engine.channel.texts, ['İstanbul']);
+    expect(
+      tester.widget<CupertinoTextField>(key('rdp-text-input')).controller!.text,
+      isEmpty,
+    );
     tester.view.physicalSize = const Size(1000, 900);
     await tester.pumpAndSettle();
     expect(engine.channel.displays, isNotEmpty);
