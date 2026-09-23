@@ -282,6 +282,45 @@ void main() {
     },
   );
 
+  test('browse and search cache identities never collide', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMediaCatalogCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 12),
+    );
+    final browse = ServerMediaCatalogPage.fromJson(
+      _pageJson(),
+      operation: ServerMediaCatalogOperation.browse,
+      mediaKind: ServerMediaCatalogKind.movie,
+    );
+
+    expect(
+      await cache.write(_scope, browse, limit: 24, current: () => true),
+      isTrue,
+    );
+    expect(
+      await cache.read(
+        _scope,
+        _resource(),
+        query: 'matrix',
+        mediaKind: ServerMediaCatalogKind.movie,
+        limit: 24,
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(
+      await cache.readBrowse(
+        _scope,
+        _resource(),
+        mediaKind: ServerMediaCatalogKind.movie,
+        limit: 24,
+        current: () => true,
+      ),
+      isNotNull,
+    );
+  });
+
   test('strict parse clears only the exact malformed owner', () async {
     final backend = _MemoryBackend();
     final cache = ServerMediaCatalogCache(

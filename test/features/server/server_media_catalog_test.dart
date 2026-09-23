@@ -48,7 +48,8 @@ final class _CatalogFixture extends AdminFixture {
           'jellyfinServiceRevision': 11,
         });
       }
-      if (request.url.path.endsWith('/catalog/search')) {
+      if (request.url.path.endsWith('/catalog/search') ||
+          request.url.path.endsWith('/catalog/browse')) {
         return pending?.future ??
             this.json({'requestId': _requestId, 'catalog': _catalog()});
       }
@@ -145,6 +146,38 @@ void main() {
       ),
     );
     expect(calls, hasLength(callsBeforeMismatch));
+  });
+
+  test('browse uses an exact body and cannot collide with search', () async {
+    final fixture = _CatalogFixture();
+    await fixture.account.initialize();
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(fixture.account.dispose);
+
+    await controller.browseCurrent(
+      mediaKind: ServerMediaCatalogKind.movie,
+      current: () => true,
+    );
+
+    expect(controller.page?.operation, ServerMediaCatalogOperation.browse);
+    expect(controller.page?.query, isNull);
+    final browse = fixture.calls.singleWhere(
+      (call) => call.url.path.endsWith('/media/catalog/browse'),
+    );
+    expect(browse.url.query, isEmpty);
+    expect(jsonDecode(browse.body), {
+      'requestId': _requestId,
+      'installationId': _installationId,
+      'expectedInstallationRevision': 7,
+      'expectedSnapshotRevision': 9,
+      'mediaKind': 'movie',
+      'offset': 0,
+      'limit': 24,
+    });
   });
 
   test('invalid query and secret-bearing response fail closed', () async {
