@@ -6,9 +6,9 @@ from larenor_server.plugins.media_playback_models import (
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
 )
-from test_admin import activate, create as create_user
+from test_admin import activate
+from test_admin import create as create_user
 from test_media_archive_core_read import configured
-
 
 BASE = '/api/v1/media/playback'
 
@@ -56,7 +56,7 @@ def _request(installation, current, *, request_id='a' * 32):
         'expectedInstallationRevision': installation['revision'],
         'expectedSnapshotRevision': current.snapshotRevision,
         'expectedJellyfinServiceRevision': jellyfin.serviceRevision,
-        'itemId': 'a' * 32,
+        'itemId': 'b' * 32,
         'mediaKey': 'movie:tmdb:603',
     }
 
@@ -127,7 +127,7 @@ def test_intent_is_one_use_and_same_command_replays_only_its_receipt(server):
     first = client.post(BASE + '/commands', headers=auth(pair), json=command)
     assert first.status_code == 201, first.text
     assert first.json()['receipt']['code'] == 'authenticated_readback'
-    assert first.json()['receipt']['itemId'] == 'a' * 32
+    assert first.json()['receipt']['itemId'] == 'b' * 32
     replay = client.post(BASE + '/commands', headers=auth(pair), json=command)
     assert replay.status_code == 201 and replay.json() == first.json()
     conflict = client.post(

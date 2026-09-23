@@ -73,6 +73,8 @@ from .plugins.media_archive_weekly_trend_schema import (
 )
 from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
 from .plugins.media_flow_schema import migrate_media_flow
+from .plugins.media_playback import MediaPlaybackManagement
+from .plugins.media_playback_schema import migrate_media_playback
 from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.media_installation_schema import migrate_media_installations
@@ -383,6 +385,7 @@ class CoreServices:
                 migrate_music_playback(connection)
                 migrate_media_archive_weekly_trends(connection)
                 migrate_media_flow(connection)
+                migrate_media_playback(connection)
                 migrate_proxmox_power(connection, key)
                 migrate_keenetic_commands(
                     connection,
@@ -768,6 +771,13 @@ class CoreServices:
                 self._media_archive_binding_reader,
                 self._media_archive_worker,
             )
+            self.media_playback = MediaPlaybackManagement(
+                self.db,
+                self.auth,
+                settings,
+                self.media_archive_health,
+            )
+            self.media_playback.validate_storage()
             media_flow_provider = (
                 MediaFlowWorkerProvider(installation_backend)
                 if callable(getattr(installation_backend, "read_media_flow", None))
