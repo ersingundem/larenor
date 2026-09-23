@@ -69,26 +69,26 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       var now = DateTime.utc(2026, 9, 23, 10);
-    final store = MovieNightStore(now: () => now);
-    await store.save(_preset, isCurrent: () => true);
-    final preferences = await SharedPreferences.getInstance();
+      final store = MovieNightStore(now: () => now);
+      await store.save(_preset, isCurrent: () => true);
+      final preferences = await SharedPreferences.getInstance();
 
-    final wrongSchema =
-        jsonDecode(preferences.getString(MovieNightPreset.storageKey)!)
-            as Map<String, dynamic>;
-    wrongSchema['schemaVersion'] = 2;
-    await preferences.setString(
-      MovieNightPreset.storageKey,
-      jsonEncode(wrongSchema),
-    );
-    expect(
-      await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
-      isNull,
-    );
-    expect(preferences.getString(MovieNightPreset.storageKey), isNull);
+      final wrongSchema = jsonDecode(
+        preferences.getString(MovieNightPreset.storageKey)!,
+      ) as Map<String, dynamic>;
+      wrongSchema['schemaVersion'] = 2;
+      await preferences.setString(
+        MovieNightPreset.storageKey,
+        jsonEncode(wrongSchema),
+      );
+      expect(
+        await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
+        isNull,
+      );
+      expect(preferences.getString(MovieNightPreset.storageKey), isNull);
 
-    await store.save(_preset, isCurrent: () => true);
-    now = now.add(MovieNightStore.timeToLive);
+      await store.save(_preset, isCurrent: () => true);
+      now = now.add(MovieNightStore.timeToLive);
       expect(
         await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
         isNull,
@@ -106,6 +106,62 @@ void main() {
       expect(preferences.getString(MovieNightPreset.storageKey), isNull);
     },
   );
+
+  test('save validates and canonicalizes before persistent mutation', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = MovieNightStore(now: () => DateTime.utc(2026, 9, 23, 10));
+    const invalid = MovieNightPreset(
+      serverUrl: 'https://ha.test',
+      startEntityId: 'lock.front',
+    );
+
+    await expectLater(
+      store.save(invalid, isCurrent: () => true),
+      throwsFormatException,
+    );
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.get(MovieNightPreset.storageKey), isNull);
+  });
+
+  test('all persisted version fields require exact integer one', () async {
+    for (final field in [
+      'schemaVersion',
+      'resource.revision',
+      'preset.version',
+    ]) {
+      SharedPreferences.setMockInitialValues({});
+      final store = MovieNightStore(now: () => DateTime.utc(2026, 9, 23, 10));
+      await store.save(_preset, isCurrent: () => true);
+      final preferences = await SharedPreferences.getInstance();
+      final record = jsonDecode(
+        preferences.getString(MovieNightPreset.storageKey)!,
+      ) as Map<String, dynamic>;
+      switch (field) {
+        case 'schemaVersion':
+          record['schemaVersion'] = 1.0;
+        case 'resource.revision':
+          (record['resource'] as Map<String, dynamic>)['revision'] = 1.0;
+        case 'preset.version':
+          (record['preset'] as Map<String, dynamic>)['version'] = 1.0;
+      }
+      await preferences.setString(
+        MovieNightPreset.storageKey,
+        jsonEncode(record),
+      );
+
+      expect(
+        await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
+        isNull,
+        reason: field,
+      );
+      expect(
+        preferences.getString(MovieNightPreset.storageKey),
+        isNull,
+        reason: field,
+      );
+    }
+  });
 
   test('retired lifecycle cannot consume a queued persistent read', () async {
     SharedPreferences.setMockInitialValues({
