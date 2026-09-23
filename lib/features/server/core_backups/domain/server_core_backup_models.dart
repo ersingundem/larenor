@@ -219,16 +219,19 @@ final class CoreBackupManifest {
     final coreVersion = json['coreVersion'];
     final databaseVersion = json['databaseSchemaVersion'];
     final rawComponents = json['componentSchemaVersions'];
-    final hasComponentContract = json.keys.toSet().containsAll(componentKeys);
+    final contractVersion = json['contractVersion'];
+    final hasLegacyContract =
+        contractVersion == 1 &&
+        json.length == legacyKeys.length &&
+        json.keys.every(legacyKeys.contains);
+    final hasComponentContract =
+        contractVersion == 2 &&
+        json.length == componentKeys.length &&
+        json.keys.every(componentKeys.contains);
     final rawManagedComponents = json['components'];
     final rawBoundary = json['consistencyBoundary'];
     final rawResources = json['resources'];
-    final contractVersion = json['contractVersion'];
-    if ((json.length != legacyKeys.length &&
-            json.length != componentKeys.length) ||
-        !json.keys.every(
-          (hasComponentContract ? componentKeys : legacyKeys).contains,
-        ) ||
+    if ((!hasLegacyContract && !hasComponentContract) ||
         (contractVersion != 1 && contractVersion != 2) ||
         snapshot is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(snapshot) ||
@@ -246,7 +249,8 @@ final class CoreBackupManifest {
         rawResources.length < (contractVersion == 2 ? 5 : 4) ||
         rawResources.length > 133 ||
         (hasComponentContract && rawManagedComponents is! List) ||
-        (hasComponentContract && rawManagedComponents.length > 128)) {
+        (hasComponentContract && rawManagedComponents.length > 128) ||
+        (hasComponentContract && rawBoundary == null)) {
       throw const LarenorServerException('invalid_response');
     }
     final managedComponents = hasComponentContract
@@ -321,7 +325,7 @@ final class CoreBackupManifest {
         (contractVersion == 2 &&
             resourcesById['family-board']!.byteLength > _maxFamilyBoardBytes) ||
         componentBytes > _maxComponentBytes ||
-        versions['component-index'] != (boundary == null ? '1' : '2') ||
+        versions['component-index'] != (contractVersion == 1 ? '1' : '2') ||
         versions['core-configuration'] != '1' ||
         versions['core-database'] != '$databaseVersion' ||
         (contractVersion == 2 && versions['family-board'] != '1') ||
@@ -361,7 +365,7 @@ final class CoreBackupManifest {
     'coreVersion': coreVersion,
     'databaseSchemaVersion': databaseSchemaVersion,
     'componentSchemaVersions': Map<String, int>.of(componentSchemaVersions),
-    if (consistencyBoundary != null) ...{
+    if (contractVersion == 2) ...{
       'components': components.map((item) => item.toJson()).toList(),
       'consistencyBoundary': consistencyBoundary!.toJson(),
     },

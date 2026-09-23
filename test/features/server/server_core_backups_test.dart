@@ -352,6 +352,70 @@ void main() {
     expect(plan.totalBytes, 4328);
   });
 
+  test('contract v1 rejects component-era fields', () {
+    final current = backupManifest();
+    final malformed = <String, dynamic>{
+      ...current,
+      'contractVersion': 1,
+      'resources': [
+        for (final raw
+            in (current['resources']! as List).cast<Map<String, dynamic>>())
+          if (raw['id'] != 'family-board') raw,
+      ],
+    };
+
+    expect(
+      () => CoreBackupManifest.fromJson(malformed),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
+
+  test('contract v2 requires component contract fields', () {
+    final current = backupManifest();
+    final malformed = <String, dynamic>{
+      for (final entry in current.entries)
+        if (entry.key != 'components' && entry.key != 'consistencyBoundary')
+          entry.key: entry.value,
+      'resources': [
+        for (final raw
+            in (current['resources']! as List).cast<Map<String, dynamic>>())
+          if (!(raw['id'] as String).startsWith('component-jellyfin-'))
+            if (raw['id'] == 'component-index')
+              {...raw, 'version': '1'}
+            else
+              raw,
+      ],
+    };
+
+    expect(
+      () => CoreBackupManifest.fromJson(malformed),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
+
+  test('contract v2 rejects a null consistency boundary', () {
+    final current = backupManifest();
+    final malformed = <String, dynamic>{
+      ...current,
+      'components': <Object>[],
+      'consistencyBoundary': null,
+      'resources': [
+        for (final raw
+            in (current['resources']! as List).cast<Map<String, dynamic>>())
+          if (!(raw['id'] as String).startsWith('component-jellyfin-'))
+            if (raw['id'] == 'component-index')
+              {...raw, 'version': '1'}
+            else
+              raw,
+      ],
+    };
+
+    expect(
+      () => CoreBackupManifest.fromJson(malformed),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
+
   test('manifest requires an exact 32-byte AES-256 vault key', () {
     expect(
       () => CoreBackupManifest.fromJson(backupManifest()),
