@@ -8,7 +8,11 @@ import '../domain/server_music_manager_models.dart';
 
 abstract interface class ServerMusicCommandReceiptCacheBackend {
   Future<String?> read();
-  Future<bool> compareAndWrite(String? expected, String value);
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  });
   Future<bool> compareAndClear(String expected);
 }
 
@@ -29,16 +33,37 @@ final class SharedPreferencesServerMusicCommandReceiptCacheBackend
   });
 
   @override
-  Future<bool> compareAndWrite(String? expected, String value) =>
-      ConfigurationWrites.run(() async {
-        final preferences = await _loadPreferences();
-        await preferences.reload();
-        if (preferences.getString(key) != expected) return false;
-        if (!await preferences.setString(key, value)) {
-          throw StateError('music_receipt_cache_write_failed');
-        }
-        return true;
-      });
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) => ConfigurationWrites.run(() async {
+    bool isCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!isCurrent()) return false;
+    final preferences = await _loadPreferences();
+    if (!isCurrent()) return false;
+    await preferences.reload();
+    if (!isCurrent() || preferences.getString(key) != expected) return false;
+    if (!await preferences.setString(key, value)) {
+      throw StateError('music_receipt_cache_write_failed');
+    }
+    if (!isCurrent()) {
+      await preferences.reload();
+      if (preferences.getString(key) == value &&
+          !await preferences.remove(key)) {
+        throw StateError('music_receipt_cache_clear_failed');
+      }
+      return false;
+    }
+    return true;
+  });
 
   @override
   Future<bool> compareAndClear(String expected) =>
@@ -244,7 +269,11 @@ final class ServerMusicCommandReceiptCache {
       throw StateError('music_receipt_cache_quota_exceeded');
     }
     if (!isCurrent()) return false;
-    final written = await _backend.compareAndWrite(expected, raw);
+    final written = await _backend.compareAndWrite(
+      expected,
+      raw,
+      current: isCurrent,
+    );
     if (!written) return false;
     if (!isCurrent()) {
       await _clearIfCurrent(raw, () => true);
