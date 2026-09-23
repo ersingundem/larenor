@@ -18,7 +18,7 @@ ServerMusicProviderCommandsController createController(
   providerRevision: 3,
   providerDomain: 'spotify',
   requestId: () => 'f' * 32,
-  now: now ?? () => DateTime.utc(2026, 9, 10, 10, 5),
+  now: now,
 );
 
 Future<void> flush() => Future<void>.delayed(Duration.zero);
@@ -175,7 +175,17 @@ void main() {
       );
       addTearDown(controller.dispose);
       addTearDown(fixture.account.dispose);
-      await controller.review('disable', current: () => true);
+      fixture.previewResponse = Completer();
+      final review = controller.review('disable', current: () => true);
+      await flush();
+      fixture.previewResponse!.complete(
+        fixture.json({
+          'preview': providerCommandPreviewJson(
+            createdAt: DateTime.utc(2026, 9, 10, 10),
+          ),
+        }, 201),
+      );
+      await review;
       expect(controller.preview, isNotNull);
 
       expireDuringConfirm = true;

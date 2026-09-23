@@ -23,11 +23,11 @@ void main() {
       {...providerCommandPreviewJson(), 'effectAvailable': true},
       {...providerCommandJson(requestId: 'f' * 32), 'state': 'succeeded'},
       {
-        ...providerCommandPreviewJson(),
+        ...providerCommandPreviewJson(createdAt: DateTime.utc(2026, 9, 10, 10)),
         'expiresAt': '2026-09-10T10:09:59.000Z',
       },
       {
-        ...providerCommandPreviewJson(),
+        ...providerCommandPreviewJson(createdAt: DateTime.utc(2026, 9, 10, 10)),
         'expiresAt': '2026-09-10T10:10:01.000Z',
       },
     ]) {
