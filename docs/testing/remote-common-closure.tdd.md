@@ -30,9 +30,11 @@ is still optional for creating and opening a personal profile, but signing in,
 signing out, refreshing or replacing that authority must retire an already-open
 sensitive session.
 
-The new widget journey first failed with `SshTerminalPanel` still mounted after
-`signOut()`. `RemoteProfilesScreen` now observes the controller generation,
-invalidates every held action and session closure on change, and removes the
+The widget journeys first failed with `SshTerminalPanel` still mounted after
+`signOut()` and after a current authenticated action received `401` without
+advancing the controller generation. `RemoteProfilesScreen` now observes both
+the controller generation and the in-memory session identity, invalidates every
+held action and session closure when either authority changes, and removes the
 listener on disposal. The same personal profile remains in secure storage and
 can be opened again through a fresh PIN/current-route lease.
 

@@ -47,6 +47,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   PersonalRemoteAccount? _account;
   late final ServerAccountController _serverAccount;
   late int _serverAccountGeneration;
+  Object? _serverAccountSession;
   RemoteProfilesStore? _store;
   RemoteProfilesSnapshot? _snapshot;
   RemoteProfile? _selected;
@@ -77,14 +78,20 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     super.initState();
     _serverAccount = ref.read(serverAccountControllerProvider);
     _serverAccountGeneration = _serverAccount.generation;
+    _serverAccountSession = _serverAccount.session;
     _serverAccount.addListener(_serverAuthorityChanged);
     WidgetsBinding.instance.addObserver(this);
   }
 
   void _serverAuthorityChanged() {
     final generation = _serverAccount.generation;
-    if (generation == _serverAccountGeneration) return;
+    final session = _serverAccount.session;
+    if (generation == _serverAccountGeneration &&
+        identical(session, _serverAccountSession)) {
+      return;
+    }
     _serverAccountGeneration = generation;
+    _serverAccountSession = session;
     _invalidate();
     if (mounted) setState(() {});
   }
