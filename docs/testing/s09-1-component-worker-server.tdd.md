@@ -43,9 +43,10 @@ the completed-operation count.
 ## Remaining S09.1 gates
 
 Independent review and all required exact-head checks passed on `12c6ddf0`,
-which merged as `c9e7cc08`. PR #447 is an open, unmerged bounded
-managed-volume provider slice and is not acceptance evidence yet. Production
-Engine and durable installation-journal adapters, hostile/shared-writer
+which merged as `c9e7cc08`. The bounded managed-volume provider exact
+`11139268` then passed independent review and all required checks and merged as
+`36e05f9a` in PR #447. Production Engine and durable installation-journal
+adapters, hostile/shared-writer
 read-only snapshot safety, component restore/rollback, interruption recovery
 and large-volume amd64/arm64 acceptance remain open. Queue progress stays
 **26/125** and selected-feature progress stays **0/63**.

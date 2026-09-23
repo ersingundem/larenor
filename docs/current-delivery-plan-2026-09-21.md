@@ -1,6 +1,6 @@
 # Larenor — güncel teslim sırası (23 Eylül 2026)
 
-Bu sayfa `origin/main` **`c9e7cc08`** ve GitHub'daki yalnız açık **PR #447** görünümünü
+Bu sayfa `origin/main` **`36e05f9a`** ve GitHub'daki **0 açık PR** görünümünü
 kaydeder. Canlı kabul sayacı [`execution-queue.json`](execution-queue.json) ile
 üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **26/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
@@ -26,18 +26,19 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   SSH ve medya bileşenlerinin iki mimarili native kabulü geçti.
 - Aile panosu v2 şifreli yedeğe eklendi; v1 geri yükleme uyumluluğu ve kesilmiş
   v2 geri yükleme kurtarması test edildi.
-- PR #439, #443, #444, #445 ve #446 exact-head review/CI sonrasında main
-  `c9e7cc08` zincirine girdi. F28, S08.8, F24, F31 ve S09.1 tam kuyruk
+- PR #439, #443, #444, #445, #446 ve #447 exact-head review/CI sonrasında main
+  `36e05f9a` zincirine girdi. F28, S08.8, F24, F31 ve S09.1 tam kuyruk
   bağımlılıkları veya kalan acceptance sınırları nedeniyle `pending` kaldı.
-- PR #447 bounded managed-volume provider dilimi olarak açıktır; henüz birleşmiş
-  veya kabul edilmiş sayılmaz. Eski bağımlı PR zincirleri aktif teslim planı
-  değildir.
+- PR #447 bounded managed-volume provider dilimini birleştirdi; S09.1'in
+  Engine/journal, restore ve iki mimarili native kapıları açık kaldı. Eski
+  bağımlı PR zincirleri aktif teslim planı değildir.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S08.8:** Üye kataloğu Core'a taşındı; eski ayarların açık geçişi,
-   provider/player/queue yolu ve tuple/resource/sürüm/TTL/kota bağlı kalıcı
-   cache kabulü hâlâ tamamlanmalı. S08.11 ve B3 kapanışı buna bağlıdır.
+1. **S08.8:** Katalog, arama ve müzik merkezi Core yolunda; provider-neutral
+   Jellyfin oynatma, mevcut açık geçiş sözleşmelerinin erişilebilir UI'ı ve
+   katalog/flow cachelerinin controller + replacement/logout/restart E2E'si
+   hâlâ tamamlanmalı. S08.11 ve B3 kapanışı buna bağlıdır.
 2. **S09.1–S09.3:** DB, ayrı anahtar, yapılandırma, bileşen verisi/sürümleri,
    temiz kurulum/yükseltme ve geri yükleme zinciri aynı sözleşmede tamamlanmalı.
    Mevcut aile panosu/boş Core restore dilimleri bu kapsamın tamamı değildir.
@@ -56,8 +57,8 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S08.8 | Eski medya/müzik ayarlarını açık onayla Core kaynaklarına ve typed cache kimliklerine geçir. | Provider/player/queue, authority kaybı, başka Core ve TTL/kota E2E |
-| B — S09.1 | PR #447 exact-head CI ve birleşme kapısından sonra Engine ve journal authority'ye bağlı gerçek capture/restore zincirini sürdür. | Engine/journal authority, restore/rollback, kesinti ve büyük hacim iki mimari kabulü |
+| A — S08.8 | Provider-neutral Core medya oynatma, member-safe detay politikası ve catalog→detail→play tablet yolunu ekle. | Açık Jellyfin geçiş UI'ı, aktif cacheler, authority kaybı/başka Core/restart E2E |
+| B — S09.1 | Engine ve durable journal authority'ye bağlı gerçek capture/restore zincirini sürdür. | Engine/journal authority, restore/rollback, kesinti ve büyük hacim iki mimari kabulü |
 | C — K03.remaining | WebPanel upload/download, pop-up/intent ve renderer kurtarma sınırlarını tamamla. | Origin/redirect/iframe, auth/sertifika, sır sızıntısı ve Android CI |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
