@@ -24,9 +24,10 @@ from larenor_server.core_backups.service import ComponentVolumeSnapshot
 
 
 class Boundary:
-    def __init__(self, snapshots, *, failure=None):
+    def __init__(self, snapshots, *, failure=None, release_failure=None):
         self.snapshots = snapshots
         self.failure = failure
+        self.release_failure = release_failure
         self.entered = 0
         self.released = 0
         self.active = False
@@ -43,6 +44,8 @@ class Boundary:
         finally:
             self.active = False
             self.released += 1
+            if self.release_failure is not None:
+                raise self.release_failure
 
 
 def snapshots():
@@ -278,6 +281,20 @@ def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):
             assert captured == snapshots()
         assert server.completed == 1
     assert boundary.entered == boundary.released == 2
+
+
+def test_server_never_acknowledges_release_before_provider_exit(tmp_path):
+    boundary = Boundary(
+        snapshots(),
+        release_failure=RuntimeError("private unpause failure"),
+    )
+    with worker(tmp_path, boundary) as (path, server):
+        with pytest.raises(ComponentSnapshotWorkerError) as error:
+            with client(path).quiesce(time.monotonic() + 2) as captured:
+                assert captured == snapshots()
+        assert str(error.value) == "invalid_worker_result"
+        assert boundary.entered == boundary.released == 1
+        assert server.completed == 0
 
 
 def test_server_contains_arbitrary_provider_exception_and_recovers(tmp_path):
