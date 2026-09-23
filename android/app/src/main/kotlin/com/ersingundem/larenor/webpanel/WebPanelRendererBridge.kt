@@ -36,6 +36,7 @@ internal data class WebRequestOrigin(
     val port: Int,
 ) {
     fun matches(uri: Uri): Boolean {
+        if (uri.isOpaque || uri.userInfo != null) return false
         val candidateScheme = uri.scheme?.lowercase() ?: return false
         val candidateHost = uri.host?.removeSurrounding("[", "]")?.lowercase() ?: return false
         val candidatePort = when {
@@ -191,6 +192,8 @@ class WebPanelRendererBridge(
     private val channel = MethodChannel(messenger, CHANNEL)
     private val serviceWorkerFirewall = ServiceWorkerRequestFirewall()
     private val windowPolicy = WebPanelWindowPolicy()
+    private val dynamicEgressPolicy = WebPanelDynamicEgressPolicy()
+    private val requestLimiter = WebPanelRequestLimiter.process
     private val attachments = mutableMapOf<String, Attachment>()
     private val viewOwners = mutableMapOf<Long, String>()
     private var disposed = false
@@ -228,27 +231,45 @@ class WebPanelRendererBridge(
             previous.restore()
         }
 
+        val firewall = WebRequestFirewall(request.allowedOrigins)
+        val dynamicEgress = dynamicEgressPolicy.install(webView, request.allowedOrigins)
+            ?: return false
+        val ownedTransport = runCatching {
+            WebPanelOwnedHttpTransport(firewall, requestLimiter = requestLimiter)
+        }.getOrElse {
+            dynamicEgress.close()
+            return false
+        }
         val current = webView.webViewClient
         val delegate = if (current is RendererAwareWebViewClient) current.delegate else current
         lateinit var wrapper: RendererAwareWebViewClient
         wrapper = RendererAwareWebViewClient(
             delegate,
-            WebRequestFirewall(request.allowedOrigins),
+            firewall,
             rendererGone = {
                 val binding = attachments.remove(request.attachmentId)
                 if (binding == null || binding.wrapper !== wrapper) return@RendererAwareWebViewClient
                 viewOwners.remove(request.webViewIdentifier, request.attachmentId)
+                binding.release(restoreClient = false)
                 channel.invokeMethod(
                     "rendererGone",
                     mapOf("attachmentId" to request.attachmentId),
                 )
             },
+            ownedTransport = ownedTransport,
         )
-        webView.webViewClient = wrapper
+        try {
+            webView.webViewClient = wrapper
+        } catch (error: RuntimeException) {
+            ownedTransport.close()
+            dynamicEgress.close()
+            throw error
+        }
         attachments[request.attachmentId] = Attachment(
             request.webViewIdentifier,
             webView,
             wrapper,
+            dynamicEgress,
         )
         viewOwners[request.webViewIdentifier] = request.attachmentId
         return true
@@ -282,9 +303,18 @@ class WebPanelRendererBridge(
         val webViewIdentifier: Long,
         val webView: WebView,
         val wrapper: RendererAwareWebViewClient,
+        val dynamicEgress: AutoCloseable,
     ) {
         fun restore() {
-            if (webView.webViewClient === wrapper) webView.webViewClient = wrapper.delegate
+            release(restoreClient = true)
+        }
+
+        fun release(restoreClient: Boolean) {
+            wrapper.retire()
+            runCatching(dynamicEgress::close)
+            if (restoreClient && webView.webViewClient === wrapper) {
+                webView.webViewClient = wrapper.delegate
+            }
         }
     }
 
@@ -298,6 +328,7 @@ internal class RendererAwareWebViewClient(
     internal val delegate: WebViewClient,
     private val firewall: WebRequestFirewall,
     private val rendererGone: () -> Unit,
+    private val ownedTransport: WebPanelRequestTransport? = null,
     private val rejectClientCertificate: (ClientCertRequest) -> Unit = { it.cancel() },
     private val rejectHttpAuthentication: (HttpAuthHandler) -> Unit = { it.cancel() },
     private val rejectTlsError: (SslErrorHandler) -> Unit = { it.cancel() },
@@ -308,9 +339,15 @@ internal class RendererAwareWebViewClient(
     },
 ) : WebViewClient() {
     private val consumed = AtomicBoolean(false)
+    private val transportRetired = AtomicBoolean(false)
+
+    fun retire() {
+        if (transportRetired.compareAndSet(false, true)) ownedTransport?.close()
+    }
 
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
         if (consumed.compareAndSet(false, true)) {
+            retire()
             runCatching { retireRenderer(view) }
             runCatching(rendererGone)
         }
@@ -333,18 +370,16 @@ internal class RendererAwareWebViewClient(
     override fun onPageCommitVisible(view: WebView, url: String) =
         delegate.onPageCommitVisible(view, url)
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-        if (firewall.allows(request.url)) {
+        if (!firewall.allows(request.url)) {
+            firewall.blockedResponse()
+        } else if (request.isForMainFrame) {
             delegate.shouldInterceptRequest(view, request)
         } else {
-            firewall.blockedResponse()
+            ownedTransport?.fetch(request.url, request.method) ?: firewall.blockedResponse()
         }
     @Suppress("DEPRECATION")
     override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? =
-        if (firewall.allows(url)) {
-            delegate.shouldInterceptRequest(view, url)
-        } else {
-            firewall.blockedResponse()
-        }
+        firewall.blockedResponse()
     override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) =
         delegate.onReceivedError(view, request, error)
     @Suppress("DEPRECATION")

@@ -66,9 +66,11 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
 4. **Kiosk:** K03 native SAF indirmesi, external action ve renderer ölüm
-   yaşam döngüleri main'de. Allowed subresource cross-origin redirect ve
-   WebSocket/worker egress'i için owned, bounded network transport açık;
-   fiziksel Android/DeX/OEM, DPC, force-stop ve çevre birimi kanıtları manuel.
+   yaşam döngüleri main'de. Hat C, alt kaynak GET'lerini her redirectte exact
+   origin doğrulayan anonymous, bounded transporta taşır; desteklenmeyen
+   WebSocket/worker egress'ini document-start kapısında kapatır. K03 review/CI
+   kanıtı tamamlanana kadar pending kalır; fiziksel Android/DeX/OEM, DPC,
+   force-stop ve çevre birimi kanıtları ayrı manuel kapıdır.
 5. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
@@ -83,7 +85,7 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 | --- | --- | --- |
 | A — S08.8 | Merkezi browse/recent/resume eşliğini tamamla; dashboard, hub, arama, casting, hedef ve ayar yüzeylerindeki aktif direct Jellyfin/MA runtime tüketicilerini devreden çıkar. | Client ayrı adres-token istemez; Core route değişimi/logout/restart E2E eski veriyi göstermez; gerçek alıcılar ayrı MANUAL.MEDIA |
 | B — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
-| C — K03.remaining | WebPanel için same-origin redirect takipli owned/bounded transport kur; WebSocket ve worker egress'ini fail-closed sınırla. | Subresource redirect/iframe adversarial Android testleri, mevcut origin ve sır sızıntısı kapıları; fiziksel Android/DeX/OEM ayrı manuel kapıda kalır |
+| C — K03.remaining | Anonymous owned transportu ve WebSocket/worker fail-closed sınırını exact review/CI kanıtına taşı. | Subresource redirect/iframe adversarial Android testleri, mevcut origin ve sır sızıntısı kapıları; fiziksel Android/DeX/OEM ayrı manuel kapıda kalır |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük

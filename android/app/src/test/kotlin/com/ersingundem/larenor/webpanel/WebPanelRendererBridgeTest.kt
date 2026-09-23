@@ -91,7 +91,7 @@ class WebPanelRendererBridgeTest {
     }
 
     @Test
-    fun exactOriginFirewallRejectsBeforeDelegateWithoutReadingHeadersOrBody() {
+    fun exactOriginFirewallOwnsSubresourcesWithoutReadingHeadersOrBody() {
         val delegate = RecordingClient()
         val firewall = WebRequestFirewall(
             setOf(
@@ -99,16 +99,43 @@ class WebPanelRendererBridgeTest {
                 WebRequestOrigin("http", "fixture.invalid", 8080),
             ),
         )
-        val wrapper = RendererAwareWebViewClient(delegate, firewall, rendererGone = {})
+        val transport = RecordingTransport(firewall.blockedResponse())
+        val wrapper = RendererAwareWebViewClient(
+            delegate,
+            firewall,
+            rendererGone = {},
+            ownedTransport = transport,
+        )
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
 
-        assertNull(wrapper.shouldInterceptRequest(view, Request("https://FIXTURE.invalid/asset.js")))
-        assertNull(wrapper.shouldInterceptRequest(view, Request("http://fixture.invalid:8080/api", method = "POST")))
-        assertFalse(wrapper.shouldOverrideUrlLoading(view, Request("https://fixture.invalid/frame")))
+        assertSame(
+            transport.response,
+            wrapper.shouldInterceptRequest(view, Request("https://FIXTURE.invalid/asset.js")),
+        )
+        assertSame(
+            transport.response,
+            wrapper.shouldInterceptRequest(
+                view,
+                Request("http://fixture.invalid:8080/api", method = "POST"),
+            ),
+        )
+        assertFalse(
+            wrapper.shouldOverrideUrlLoading(
+                view,
+                Request("https://fixture.invalid/frame", mainFrame = true),
+            ),
+        )
+        assertNull(
+            wrapper.shouldInterceptRequest(
+                view,
+                Request("https://fixture.invalid/main", mainFrame = true),
+            ),
+        )
         for (url in listOf(
             "http://fixture.invalid/asset.js",
             "https://fixture.invalid:444/asset.js",
             "https://sub.fixture.invalid/asset.js",
+            "https://private@fixture.invalid/asset.js",
             "file:///private/data",
             "data:text/plain,private",
         )) {
@@ -127,8 +154,18 @@ class WebPanelRendererBridgeTest {
             )
             assertTrue(wrapper.shouldOverrideUrlLoading(view, Request(url)))
         }
-        assertEquals(2, delegate.intercepted)
+        assertEquals(1, delegate.intercepted)
         assertEquals(1, delegate.navigations)
+        assertEquals(
+            listOf(
+                "GET https://FIXTURE.invalid/asset.js",
+                "POST http://fixture.invalid:8080/api",
+            ),
+            transport.requests,
+        )
+        wrapper.retire()
+        wrapper.retire()
+        assertEquals(1, transport.closes)
     }
 
     @Test
@@ -333,15 +370,33 @@ class WebPanelRendererBridgeTest {
     private class Request(
         rawUrl: String,
         private val method: String = "GET",
+        private val mainFrame: Boolean = false,
     ) : WebResourceRequest {
         private val uri = Uri.parse(rawUrl)
         override fun getUrl() = uri
-        override fun isForMainFrame() = false
+        override fun isForMainFrame() = mainFrame
         override fun isRedirect() = false
         override fun hasGesture() = false
         override fun getMethod() = method
         override fun getRequestHeaders(): MutableMap<String, String> =
             throw AssertionError("firewall must not read request headers")
+    }
+
+    private class RecordingTransport(
+        val response: WebResourceResponse,
+    ) : WebPanelRequestTransport {
+        val requests = mutableListOf<String>()
+        var closes = 0
+
+        override fun fetch(uri: Uri, method: String): WebResourceResponse {
+            val port = if (uri.port >= 0) ":${uri.port}" else ""
+            requests += "$method ${uri.scheme}://${uri.host}$port${uri.path}"
+            return response
+        }
+
+        override fun close() {
+            closes++
+        }
     }
 
     private fun attachArguments(
