@@ -28,6 +28,7 @@ from .service import (
 )
 
 _JOURNAL = ".restore-state.json"
+_INITIALIZED_MARKER = b"larenor-schema-1\n"
 _SNAPSHOT = re.compile(r"^[0-9a-f]{32}$")
 _EXPECTED_SCHEMA = 3
 
@@ -79,6 +80,18 @@ def _verify_file(path: Path, maximum: int, digest: str) -> bytes:
     return value
 
 
+def _verify_initialized_marker(settings: Settings) -> bool:
+    marker = settings.data_dir / ".initialized"
+    if not os.path.lexists(marker):
+        return False
+    try:
+        if private_read(marker, 64) != _INITIALIZED_MARKER:
+            raise ValueError("invalid_marker")
+    except (OSError, StartupError, ValueError):
+        raise StartupError("restore_recovery_invalid") from None
+    return True
+
+
 def _publish_one(stage: Path, target: Path, maximum: int, digest: str) -> None:
     if target.exists():
         _verify_file(target, maximum, digest)
@@ -104,6 +117,7 @@ def recover_empty_restore(settings: Settings) -> bool:
         return False
     snapshot_id = journal["snapshotId"]
     stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)
+    marker_exists = _verify_initialized_marker(settings)
     artifacts = [
         (stage_key, settings.key_file, 32, journal["keySha256"]),
     ]
@@ -132,10 +146,13 @@ def recover_empty_restore(settings: Settings) -> bool:
     for stage, target, maximum, digest in artifacts:
         _publish_one(stage, target, maximum, digest)
     marker = settings.data_dir / ".initialized"
-    if not marker.exists():
-        private_create(marker, b"larenor-schema-1\n")
-    elif private_read(marker, 64) != b"larenor-schema-1\n":
-        raise StartupError("restore_recovery_invalid")
+    if not marker_exists:
+        try:
+            private_create(marker, _INITIALIZED_MARKER)
+        except FileExistsError:
+            _verify_initialized_marker(settings)
+    else:
+        _verify_initialized_marker(settings)
     # Keep the journal authoritative until every staged artifact is gone.
     # If cleanup is interrupted, the next startup verifies both published
     # files and retries cleanup instead of orphaning private stage data.
