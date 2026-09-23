@@ -114,6 +114,19 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                 if (controller.account.context != null &&
                     controller.account.session?.user.canAdminister == true)
                   SettingsActionTile(
+                    key: const ValueKey('core-home-media-catalog-entry'),
+                    buttonKey: const ValueKey('core-home-media-catalog-action'),
+                    title: Text(l10n.mediaSearchTitle),
+                    additionalInfo: Text(l10n.mediaSearchPrompt),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/media/catalog');
+                          },
+                  ),
+                if (controller.account.context != null &&
+                    controller.account.session?.user.canAdminister == true)
+                  SettingsActionTile(
                     key: const ValueKey('core-home-music-entry'),
                     buttonKey: const ValueKey('core-home-music-action'),
                     title: Text(l10n.serverMusicManagerTitle),

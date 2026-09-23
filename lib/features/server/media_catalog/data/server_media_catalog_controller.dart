@@ -55,6 +55,41 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     int offset = 0,
     int limit = 24,
     required bool Function() current,
+  }) => _search(
+    (api) => api.search(
+      installationId: installationId,
+      expectedInstallationRevision: expectedInstallationRevision,
+      query: query,
+      mediaKind: mediaKind,
+      offset: offset,
+      limit: limit,
+    ),
+    current: current,
+  );
+
+  Future<void> searchCurrent({
+    required String query,
+    ServerMediaCatalogKind? mediaKind,
+    int offset = 0,
+    int limit = 24,
+    required bool Function() current,
+  }) {
+    final previousPage = offset == 0 ? null : page;
+    return _search(
+      (api) => api.searchCurrent(
+        query: query,
+        mediaKind: mediaKind,
+        offset: offset,
+        limit: limit,
+        previousPage: previousPage,
+      ),
+      current: current,
+    );
+  }
+
+  Future<void> _search(
+    Future<ServerMediaCatalogPage> Function(ServerMediaCatalogApi api) read, {
+    required bool Function() current,
   }) async {
     bool routeCurrent() {
       try {
@@ -74,19 +109,13 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     notifyListeners();
     try {
       await account.withSession((api, session) async {
-        final value =
-            await ServerMediaCatalogApi(
-              api,
-              session.accessToken,
-              requestId: _requestId,
-            ).search(
-              installationId: installationId,
-              expectedInstallationRevision: expectedInstallationRevision,
-              query: query,
-              mediaKind: mediaKind,
-              offset: offset,
-              limit: limit,
-            );
+        final value = await read(
+          ServerMediaCatalogApi(
+            api,
+            session.accessToken,
+            requestId: _requestId,
+          ),
+        );
         if (valid() && identical(account.session, session)) page = value;
       });
     } on LarenorServerException catch (error) {
