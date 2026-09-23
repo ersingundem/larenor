@@ -50,16 +50,29 @@ class RemotePlaybackController {
       _refreshAgain = false;
   Future<void>? _refreshing;
   Timer? _timer;
-  bool get _active =>
-      !_disposed && _foreground && _visible && _listeners > 0 && isCurrent();
+  bool get _lifecycleActive =>
+      !_disposed && _foreground && _visible && _listeners > 0;
+  bool _authorityCurrent() {
+    try {
+      return isCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _active => _lifecycleActive && _authorityCurrent();
 
   Stream<RemotePlaybackSnapshot> get changes => Stream.multi((sink) {
     if (_disposed) {
       sink.close();
       return;
     }
-    final subscription = _changes.stream.listen(sink.add, onDone: sink.close);
     _listeners++;
+    // Check authority before this listener can receive the retained snapshot.
+    // Existing listeners are retired through the same invalidation publish;
+    // this listener subscribes afterwards and receives the cleared state once.
+    if (!_authorityCurrent()) _invalidate();
+    final subscription = _changes.stream.listen(sink.add, onDone: sink.close);
     sink.add(_state);
     if (_listeners == 1 && _active) unawaited(refresh());
     sink.onCancel = () {
@@ -69,8 +82,15 @@ class RemotePlaybackController {
     };
   }, isBroadcast: true);
 
+  bool _operationCurrent(int generation) {
+    if (!_lifecycleActive || generation != _generation) return false;
+    if (_authorityCurrent()) return true;
+    _invalidate();
+    return false;
+  }
+
   void _check(int generation) {
-    if (!_active || generation != _generation) {
+    if (!_operationCurrent(generation)) {
       throw const RemotePlaybackException(RemotePlaybackFailure.invalidIntent);
     }
   }
@@ -113,7 +133,8 @@ class RemotePlaybackController {
   );
 
   Future<void> refresh() {
-    if (!_active) return Future.value();
+    if (!_lifecycleActive) return Future.value();
+    if (!_operationCurrent(_generation)) return Future.value();
     if (_busy) {
       _refreshAgain = true;
       return Future.value();
@@ -164,7 +185,7 @@ class RemotePlaybackController {
         ),
       );
     } catch (error) {
-      if (_active && generation == _generation) {
+      if (_operationCurrent(generation)) {
         _publish(
           _copy(
             loading: false,
@@ -213,7 +234,7 @@ class RemotePlaybackController {
       throw RemotePlaybackException(remotePlaybackFailure(error));
     } finally {
       _finishOperation();
-      if (_active && generation == _generation) _publish(_copy(busy: false));
+      if (_operationCurrent(generation)) _publish(_copy(busy: false));
     }
   }
 
@@ -233,16 +254,19 @@ class RemotePlaybackController {
 
   Future<RemotePlaybackReceipt> play(RemotePlaybackIntent intent) async {
     final generation = _generation;
-    _check(generation);
+    if (!identical(intent._owner, _owner) || intent._generation != generation) {
+      throw const RemotePlaybackException(RemotePlaybackFailure.invalidIntent);
+    }
     if (_busy || _refreshing != null || _state.isLoading) {
       throw const RemotePlaybackException(RemotePlaybackFailure.busy);
     }
-    if (!identical(intent._owner, _owner) ||
-        intent._generation != generation ||
-        intent._used) {
+    if (intent._used) {
       throw const RemotePlaybackException(RemotePlaybackFailure.invalidIntent);
     }
+    // Consume before authority checks so a failed/throwing authority callback
+    // cannot make the same command identity replayable after recovery.
     intent._used = true;
+    _check(generation);
     if (!_now().toUtc().isBefore(intent.expiresAt)) {
       throw const RemotePlaybackException(RemotePlaybackFailure.expiredIntent);
     }
@@ -303,7 +327,7 @@ class RemotePlaybackController {
             RemotePlaybackFailure.timeout,
             RemotePlaybackFailure.invalidResponse,
           }.contains(failure);
-      if (_active && generation == _generation) {
+      if (_operationCurrent(generation)) {
         _publish(
           _copy(busy: false, failure: failure, outcomeUnknown: uncertain),
         );
@@ -320,7 +344,7 @@ class RemotePlaybackController {
     int observation,
     int attempt,
   ) {
-    if (!_active || generation != _generation || observation != _observation) {
+    if (!_operationCurrent(generation) || observation != _observation) {
       return;
     }
     final delay = [1, 2, 3][attempt];
@@ -337,7 +361,7 @@ class RemotePlaybackController {
     int attempt,
   ) async {
     bool current() =>
-        _active && generation == _generation && observation == _observation;
+        _operationCurrent(generation) && observation == _observation;
     if (!current()) return;
     try {
       final targets = _eligible(await _read(api.getTargets));

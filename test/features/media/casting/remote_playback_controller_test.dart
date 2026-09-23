@@ -217,6 +217,134 @@ void main() {
     await tester.pump();
   });
   testWidgets(
+    'authority callback failure before refresh stays closed without a read',
+    (tester) async {
+      var authorityThrows = false;
+      final api = FakeRemoteApi();
+      final controller = remoteController(
+        api,
+        isCurrent: () {
+          if (authorityThrows) throw StateError('private authority failure');
+          return true;
+        },
+      );
+      final listener = controller.changes.listen((_) {});
+      await tester.pump();
+      expect(api.reads, 1);
+      expect(controller.state.targets, hasLength(1));
+
+      authorityThrows = true;
+      await expectLater(Future<void>.sync(controller.refresh), completes);
+
+      expect(api.reads, 1);
+      expect(controller.state.targets, isEmpty);
+      expect(controller.state.receipt, isNull);
+      expect(controller.state.isBusy, isFalse);
+      unawaited(listener.cancel());
+      controller.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets('new listener never receives a snapshot from retired authority', (
+    tester,
+  ) async {
+    var current = true;
+    final api = FakeRemoteApi();
+    final controller = remoteController(api, isCurrent: () => current);
+    final first = controller.changes.listen((_) {});
+    await tester.pump();
+    expect(controller.state.targets, hasLength(1));
+
+    current = false;
+    final received = <RemotePlaybackSnapshot>[];
+    final second = controller.changes.listen(received.add);
+    await tester.pump();
+
+    expect(received, isNotEmpty);
+    expect(received.first.targets, isEmpty);
+    expect(received.first.receipt, isNull);
+    expect(controller.state.targets, isEmpty);
+    unawaited(first.cancel());
+    unawaited(second.cancel());
+    controller.dispose();
+    await tester.pump();
+  });
+  testWidgets(
+    'silent authority drift after command await publishes no stale result',
+    (tester) async {
+      var current = true;
+      final api = FakeRemoteApi();
+      final controller = remoteController(api, isCurrent: () => current);
+      final listener = controller.changes.listen((_) {});
+      await tester.pump();
+      final intent = await controller.createIntent(
+        controller.state.targets.single,
+        itemId,
+      );
+      api.playGate = Completer<void>();
+      final pending = expectLater(
+        controller.play(intent),
+        throwsA(failure(RemotePlaybackFailure.invalidIntent)),
+      );
+      await tester.pump();
+      expect(api.commands, hasLength(1));
+
+      current = false;
+      api.playGate!.complete();
+      await pending;
+
+      expect(controller.state.targets, isEmpty);
+      expect(controller.state.receipt, isNull);
+      expect(controller.state.failure, isNull);
+      expect(controller.state.isBusy, isFalse);
+      expect(controller.state.outcomeUnknown, isFalse);
+      unawaited(listener.cancel());
+      controller.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets(
+    'intent rejected by an authority callback failure cannot be replayed',
+    (tester) async {
+      var authorityThrows = false;
+      final api = FakeRemoteApi();
+      final controller = remoteController(
+        api,
+        isCurrent: () {
+          if (authorityThrows) throw StateError('private authority failure');
+          return true;
+        },
+      );
+      final listener = controller.changes.listen((_) {});
+      await tester.pump();
+      final intent = await controller.createIntent(
+        controller.state.targets.single,
+        itemId,
+      );
+      final itemReads = api.itemReads;
+      authorityThrows = true;
+
+      await expectLater(
+        Future<RemotePlaybackReceipt>.sync(() => controller.play(intent)),
+        throwsA(failure(RemotePlaybackFailure.invalidIntent)),
+      );
+      expect(api.itemReads, itemReads);
+      expect(api.commands, isEmpty);
+
+      authorityThrows = false;
+      await controller.refresh();
+      await expectLater(
+        controller.play(intent),
+        throwsA(failure(RemotePlaybackFailure.invalidIntent)),
+      );
+      expect(api.itemReads, itemReads);
+      expect(api.commands, isEmpty);
+      unawaited(listener.cancel());
+      controller.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets(
     'preflight timeout is unsent; POST timeout has uncertain outcome and is never retried',
     (tester) async {
       final api = FakeRemoteApi();
