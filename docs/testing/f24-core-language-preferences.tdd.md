@@ -36,6 +36,14 @@ queue progress stays **26/125** and selected-feature progress stays **0/63**.
 - Targeted Flutter analysis, security policy, queue validation, progress
   trailers and diff checks are required before review.
 
+Independent exact-head audit RED `8a3d0928` showed that the Client accepted a
+foreign session-family snapshot and that runtime writes could exceed the
+256-record storage bound, leaving the next startup unable to validate storage.
+GREEN `cf4b6164` binds parsing and save preflight to the expected family and
+rejects a new owner before the bounded registry overflows. The expanded Server
+batch passes **38/38**, the Flutter batch passes **7/7**, and targeted analysis
+is clean.
+
 ## Remaining F24 acceptance
 
 - The provider-neutral contract is not yet selected by the existing Jellyfin
