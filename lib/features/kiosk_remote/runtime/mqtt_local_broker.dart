@@ -89,13 +89,18 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
   MqttClientLocalBroker({
     this.securityContext,
     this.subscriptionAckTimeout = const Duration(seconds: 5),
-  }) : assert(subscriptionAckTimeout > Duration.zero);
+    this.publishAckTimeout = const Duration(seconds: 5),
+  }) : assert(subscriptionAckTimeout > Duration.zero),
+       assert(publishAckTimeout > Duration.zero);
 
   final SecurityContext? securityContext;
   final Duration subscriptionAckTimeout;
+  final Duration publishAckTimeout;
   MqttServerClient? _client;
   StreamSubscription<List<MqttReceivedMessage<MqttMessage>>>? _updates;
+  StreamSubscription<MqttPublishMessage>? _publishedAcks;
   final Map<String, Completer<void>> _pendingSubscriptions = {};
+  final Map<int, Completer<void>> _pendingPublications = {};
   bool _closing = false;
 
   @override
@@ -129,6 +134,7 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       ..onSubscribeFail = _rejectSubscription
       ..onDisconnected = () {
         _rejectPendingSubscriptions('mqtt_disconnected');
+        _rejectPendingPublications('mqtt_disconnected');
         if (!_closing) onDisconnected();
       };
     _client = client;
@@ -143,6 +149,16 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       await disconnect();
       throw StateError('mqtt_updates_unavailable');
     }
+    final published = client.published;
+    if (published == null) {
+      await disconnect();
+      throw StateError('mqtt_publish_receipts_unavailable');
+    }
+    _publishedAcks = published.listen((message) {
+      final id = message.variableHeader?.messageIdentifier;
+      final pending = id == null ? null : _pendingPublications.remove(id);
+      if (pending != null && !pending.isCompleted) pending.complete();
+    });
     _updates = updates.listen((batch) {
       for (final received in batch) {
         final message = received.payload;
@@ -221,20 +237,48 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
   }) async {
     final builder = MqttClientPayloadBuilder();
     builder.payload!.addAll(payload);
-    _connected.publishMessage(
+    final acknowledgement = Completer<void>();
+    final messageId = _connected.publishMessage(
       topic,
       MqttQos.atLeastOnce,
       builder.payload!,
       retain: retained,
     );
+    if (_pendingPublications.containsKey(messageId)) {
+      throw StateError('mqtt_publish_in_flight');
+    }
+    _pendingPublications[messageId] = acknowledgement;
+    try {
+      await acknowledgement.future.timeout(
+        publishAckTimeout,
+        onTimeout: () => throw StateError('mqtt_publish_timeout'),
+      );
+    } finally {
+      if (identical(_pendingPublications[messageId], acknowledgement)) {
+        _pendingPublications.remove(messageId);
+      }
+    }
+  }
+
+  void _rejectPendingPublications(String reason) {
+    final pending = _pendingPublications.values.toList(growable: false);
+    _pendingPublications.clear();
+    for (final acknowledgement in pending) {
+      if (!acknowledgement.isCompleted) {
+        acknowledgement.completeError(StateError(reason));
+      }
+    }
   }
 
   @override
   Future<void> disconnect() async {
     _closing = true;
     _rejectPendingSubscriptions('mqtt_disconnected');
+    _rejectPendingPublications('mqtt_disconnected');
     await _updates?.cancel();
     _updates = null;
+    await _publishedAcks?.cancel();
+    _publishedAcks = null;
     _client?.disconnect();
     _client = null;
   }
