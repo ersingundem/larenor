@@ -128,7 +128,10 @@ void main() {
     test('$timing preview response never becomes confirm authority', () async {
       final fixture = ProviderCommandFixture();
       await fixture.account.initialize();
-      final controller = createController(fixture);
+      final controller = createController(
+        fixture,
+        now: () => DateTime.utc(2026, 9, 10, 10, 5),
+      );
       addTearDown(controller.dispose);
       addTearDown(fixture.account.dispose);
       fixture.previewResponse = Completer();
