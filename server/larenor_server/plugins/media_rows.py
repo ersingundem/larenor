@@ -93,7 +93,9 @@ class MediaRowsManagement:
             result = self.backend.read_media_rows(
                 private, deadline=deadline, gate=gate
             )
-            if type(result) is not MediaRowsReadback or gate() is not True:
+            if type(result) is not MediaRowsReadback:
+                raise ValueError()
+            if gate() is not True:
                 raise JellyfinMediaRowsExecutionError(
                     'jellyfin_media_rows_authority_changed'
                 )

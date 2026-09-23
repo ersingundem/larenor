@@ -28,12 +28,15 @@ class RowsWorker:
         self.calls = []
         self.change = None
         self.failure = None
+        self.malformed = False
 
     def read_media_rows(self, private, *, deadline, gate):
         assert deadline > 0 and gate() is True
         self.calls.append(private)
         if self.failure is not None:
             raise self.failure
+        if self.malformed:
+            return {'private': 'malformed-worker-detail'}
         if self.change is not None:
             self.change()
         return MediaRowsReadback(
@@ -175,4 +178,17 @@ def test_private_worker_failure_is_static_and_never_exposes_detail(server):
     assert response.status_code == 503
     assert response.json()['error']['code'] == 'media_rows_worker_unavailable'
     assert 'endpoint_changed' not in response.text
+    assert len(worker.calls) == 1
+
+
+def test_malformed_worker_result_is_unavailable_not_authority_drift(server):
+    _app, client, _, _ = server
+    pair, _installation, worker, body = configured(server)
+    worker.malformed = True
+
+    response = client.post(BASE, headers=auth(pair), json=body)
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_rows_worker_unavailable'
+    assert 'malformed-worker-detail' not in response.text
     assert len(worker.calls) == 1
