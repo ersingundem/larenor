@@ -32,11 +32,11 @@ def longform_body(setup, readiness, manager):
     }
 
 
-def result():
+def result(provider='audiobookshelf--home'):
     return MusicLongformWorkerResult(items=[MusicLongformItem(
         uri='audiobookshelf://audiobook/book-one',
         name='Book One', mediaType='audiobook',
-        providerInstanceId='audiobookshelf--home',
+        providerInstanceId=provider,
         durationSeconds=3600, resumePositionSeconds=900,
         fullyPlayed=False,
         chapters=[
@@ -55,13 +55,15 @@ def private_action():
             requestId='8' * 32, installationId='b' * 32,
             expectedInstallationRevision=3, expectedCoreRevision=2,
             expectedManagerRevision=1, limit=10),
+        allowedProviderInstanceIds=['audiobookshelf--home'],
         token='private-token')
 
 
-def raw_item(*, uri='audiobookshelf://audiobook/book-one'):
+def raw_item(*, uri='audiobookshelf://audiobook/book-one',
+             provider='audiobookshelf--home'):
     return {
         'uri': uri, 'name': 'Book One', 'media_type': 'audiobook',
-        'provider': 'audiobookshelf--home', 'duration': 3600,
+        'provider': provider, 'duration': 3600,
         'resume_position_ms': 900000, 'fully_played': False,
         'metadata': {'chapters': [
             {'position': 0, 'name': 'Opening', 'start': 0, 'end': 600},
@@ -104,6 +106,56 @@ def test_runtime_rejects_detail_that_does_not_match_in_progress_identity():
         raise AssertionError('mismatched detail was accepted')
 
 
+def test_runtime_rejects_detail_from_an_unbound_provider_instance():
+    calls = []
+    summary = raw_item()
+    summary.pop('metadata')
+    responses = [[summary], raw_item(provider='unbound-provider')]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+
+    try:
+        runtime.longform(private_action(), deadline=time.monotonic() + 2)
+    except Exception as error:
+        assert str(error) == 'music_longform_readback_changed'
+    else:
+        raise AssertionError('unbound provider detail was accepted')
+
+
+def test_runtime_rejects_falsey_malformed_longform_metadata():
+    calls = []
+    summary = raw_item()
+    summary.pop('metadata')
+    malformed = raw_item()
+    malformed['metadata'] = []
+    responses = [[summary], malformed]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+
+    try:
+        runtime.longform(private_action(), deadline=time.monotonic() + 2)
+    except Exception as error:
+        assert str(error) == 'music_longform_readback_changed'
+    else:
+        raise AssertionError('falsey malformed metadata was accepted')
+
+
+def test_runtime_rejects_overlapping_longform_chapters():
+    calls = []
+    summary = raw_item()
+    summary.pop('metadata')
+    overlapping = raw_item()
+    overlapping['metadata']['chapters'][0]['end'] = 900
+    overlapping['metadata']['chapters'][1]['start'] = 600
+    responses = [[summary], overlapping]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+
+    try:
+        runtime.longform(private_action(), deadline=time.monotonic() + 2)
+    except Exception as error:
+        assert str(error) == 'music_longform_readback_changed'
+    else:
+        raise AssertionError('overlapping chapter boundaries were accepted')
+
+
 def test_private_worker_ipc_returns_longform_without_token():
     class Backend:
         def read_music_longform(self, action, *, deadline, gate):
@@ -134,11 +186,12 @@ def test_private_worker_ipc_returns_longform_without_token():
 def test_in_progress_catalog_exposes_bounded_progress_and_chapters(server):
     pair, setup, readiness, worker, manager = ready_manager(server)
     reads = []
+    provider = manager['providers'][0]['providerInstanceId']
 
     def read(action, *, deadline, gate):
         assert gate() is True
         reads.append(action)
-        return result()
+        return result(provider)
 
     worker.read_music_longform = read
     response = server[1].post(
@@ -149,7 +202,7 @@ def test_in_progress_catalog_exposes_bounded_progress_and_chapters(server):
     assert response.json()['longform']['items'][0] == {
         'uri': 'audiobookshelf://audiobook/book-one',
         'name': 'Book One', 'mediaType': 'audiobook',
-        'providerInstanceId': 'audiobookshelf--home',
+        'providerInstanceId': provider,
         'durationSeconds': 3600.0, 'resumePositionSeconds': 900.0,
         'fullyPlayed': False,
         'chapters': [
@@ -173,6 +226,7 @@ def test_in_progress_catalog_exposes_bounded_progress_and_chapters(server):
 def test_manager_revision_drift_discards_longform_result(server):
     app, client, _, _ = server
     pair, setup, readiness, worker, manager = ready_manager(server)
+    provider = manager['providers'][0]['providerInstanceId']
 
     def drift(action, *, deadline, gate):
         assert gate() is True
@@ -184,7 +238,7 @@ def test_manager_revision_drift_discards_longform_result(server):
             changed = dict(row)
             changed['revision'] += 1
             app.state.core.music_playback._save(connection, changed, stored)
-        return result()
+        return result(provider)
 
     worker.read_music_longform = drift
     response = client.post(
