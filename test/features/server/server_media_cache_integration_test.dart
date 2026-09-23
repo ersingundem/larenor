@@ -192,6 +192,11 @@ final class _MediaFixture extends AdminFixture {
       }
       if (request.url.path.endsWith('/media/catalog/search')) {
         catalogCalls++;
+        if (catalogFailure) {
+          return this.json({
+            'error': {'code': 'server_error'},
+          }, 503);
+        }
         final response = this.json({
           'requestId': _requestId,
           'catalog': _pageJson(),
@@ -216,6 +221,7 @@ final class _MediaFixture extends AdminFixture {
   }
 
   int targetCalls = 0, catalogCalls = 0, authorityCalls = 0, flowCalls = 0;
+  bool catalogFailure = false;
   Completer<http.Response>? catalogGate;
 }
 
@@ -315,6 +321,50 @@ void main() {
       expect(catalogBackend.value, isNull);
     },
   );
+
+  testWidgets('cache miss and Core failure expose an accessible fallback', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final fixture = _MediaFixture()..catalogFailure = true;
+    await fixture.account.initialize();
+    addTearDown(() {
+      semantics.dispose();
+      fixture.account.dispose();
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(
+            requestId: _fixedRequestId,
+            catalogCache: ServerMediaCatalogCache(
+              backend: _CatalogBackend(),
+              now: () => _now,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'matrix',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    final fallback = find.byKey(
+      const ValueKey('server-media-catalog-cache-fallback'),
+    );
+    expect(fallback, findsOneWidget);
+    expect(tester.getSemantics(fallback).flagsCollection.isLiveRegion, isTrue);
+    expect(find.text('The Matrix'), findsNothing);
+    expect(fixture.catalogCalls, 1);
+  });
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
