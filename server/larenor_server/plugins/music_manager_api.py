@@ -9,9 +9,11 @@ from ..auth import Principal
 from ..dependencies import get_core, require_admin, require_ready_user
 from ..models import ErrorResponse
 from .music_playback_models import (
-    MusicCatalogSearchResponse, MusicManagerStateResponse,
+    MusicCatalogSearchResponse, MusicLongformCatalogResponse,
+    MusicManagerStateResponse,
     MusicPlaybackCommandRequest, MusicPlaybackReceiptResponse,
-    RefreshMusicPlaybackRequest, SearchMusicCatalogRequest,
+    ReadMusicLongformRequest, RefreshMusicPlaybackRequest,
+    SearchMusicCatalogRequest,
 )
 
 
@@ -40,6 +42,11 @@ def manager(installation_id: ObjectId, core: Core, actor: Ready):
 @router.post('/catalog/search', response_model=MusicCatalogSearchResponse)
 def search_catalog(body: SearchMusicCatalogRequest, core: Core, actor: Ready):
     return core.music_playback.search(actor, body)
+
+
+@router.post('/catalog/in-progress', response_model=MusicLongformCatalogResponse)
+def read_longform(body: ReadMusicLongformRequest, core: Core, actor: Ready):
+    return core.music_playback.longform(actor, body)
 
 
 @router.post('/commands', response_model=MusicPlaybackReceiptResponse,

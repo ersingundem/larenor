@@ -335,6 +335,14 @@ class _RuntimeBackend:
             raise ValueError('music_catalog_authority_changed')
         return result
 
+    def read_music_longform(self, action, *, deadline, gate):
+        if gate() is not True:
+            raise ValueError('music_longform_authority_changed')
+        result = self.music_playback.longform(action, deadline=deadline)
+        if gate() is not True:
+            raise ValueError('music_longform_authority_changed')
+        return result
+
     def bootstrap(self, job, plan, private, *, deadline, gate):
         return self.bootstrap_executor.execute(
             job, plan, private, deadline=deadline, gate=gate)

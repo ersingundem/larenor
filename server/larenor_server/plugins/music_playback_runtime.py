@@ -10,7 +10,9 @@ from pydantic import ValidationError
 
 from .music_playback_models import (
     MusicCatalogItem, MusicCatalogWorkerResult, MusicPlaybackReadback,
+    MusicLongformChapter, MusicLongformItem, MusicLongformWorkerResult,
     MusicPlaybackWorkerResult, PrivateMusicCatalogAction,
+    PrivateMusicLongformAction,
     PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
     VerifiedMusicPlayer, VerifiedMusicQueue,
 )
@@ -232,6 +234,81 @@ class MusicPlaybackRuntime:
         except (KeyError, TypeError, ValueError, ValidationError):
             raise MusicPlaybackRuntimeError(
                 'music_catalog_readback_changed') from None
+
+    @staticmethod
+    def _longform_item(raw, expected, allowed_providers):
+        try:
+            if type(raw) is not dict or type(expected) is not dict:
+                raise ValueError()
+            uri = raw['uri']
+            media_type = raw['media_type']
+            if (uri != expected.get('uri')
+                    or media_type != expected.get('media_type')
+                    or media_type not in {'audiobook', 'podcast_episode'}):
+                raise ValueError()
+            metadata = raw.get('metadata', {})
+            if type(metadata) is not dict:
+                raise ValueError()
+            chapters = metadata.get('chapters', [])
+            if type(chapters) is not list:
+                raise ValueError()
+            if len(chapters) > 512:
+                raise ValueError()
+            parsed_chapters = []
+            for chapter in chapters:
+                if type(chapter) is not dict:
+                    raise ValueError()
+                parsed_chapters.append(MusicLongformChapter(
+                    position=chapter['position'], name=chapter['name'],
+                    startSeconds=chapter['start'], endSeconds=chapter.get('end')))
+            duration = raw['duration']
+            resume = raw.get('resume_position_ms')
+            if (type(duration) not in (int, float) or type(duration) is bool
+                    or not math.isfinite(duration)
+                    or type(resume) not in (int, float) or type(resume) is bool
+                    or not math.isfinite(resume)):
+                raise ValueError()
+            provider = raw['provider']
+            if provider not in allowed_providers:
+                raise ValueError()
+            return MusicLongformItem(
+                uri=uri, name=raw['name'], mediaType=media_type,
+                providerInstanceId=provider,
+                durationSeconds=float(duration),
+                resumePositionSeconds=float(resume) / 1000,
+                fullyPlayed=raw.get('fully_played'), chapters=parsed_chapters)
+        except (KeyError, TypeError, ValueError, ValidationError):
+            raise MusicPlaybackRuntimeError(
+                'music_longform_readback_changed') from None
+
+    def longform(self, action, *, deadline, cancelled=None):
+        if type(action) is not PrivateMusicLongformAction:
+            raise MusicPlaybackRuntimeError('invalid_music_playback_action')
+        cancelled = threading.Event() if cancelled is None else cancelled
+        request = action.request
+        summaries = self._command(
+            request.requestId, action.token, 'music/in_progress_items',
+            {'limit': request.limit}, deadline, cancelled)
+        if type(summaries) is not list or len(summaries) > request.limit:
+            raise MusicPlaybackRuntimeError(
+                'music_longform_readback_changed')
+        items = []
+        seen = set()
+        for summary in summaries:
+            if type(summary) is not dict or type(summary.get('uri')) is not str:
+                raise MusicPlaybackRuntimeError(
+                    'music_longform_readback_changed')
+            uri = summary['uri']
+            if uri in seen:
+                raise MusicPlaybackRuntimeError(
+                    'music_longform_readback_changed')
+            seen.add(uri)
+            detail = self._command(
+                request.requestId, action.token, 'music/item_by_uri',
+                {'uri': uri}, deadline, cancelled)
+            items.append(self._longform_item(
+                detail, summary, set(action.allowedProviderInstanceIds)))
+        return MusicLongformWorkerResult(items=items)
 
     def execute(self, action, *, deadline, cancelled=None):
         if type(action) is not PrivateMusicPlaybackAction:
