@@ -266,9 +266,14 @@ void main() {
     await h.mount(tester);
     await h.tap(tester, find.byKey(const ValueKey('web-settings-uploads')));
     await h.tap(tester, find.byKey(const ValueKey('web-settings-downloads')));
+    await h.tap(
+      tester,
+      find.byKey(const ValueKey('web-settings-external-actions')),
+    );
     await h.tap(tester, find.byKey(const ValueKey('web-settings-save')));
     expect(h.saved?.webPanel?.allowUploads, true);
     expect(h.saved?.webPanel?.allowDownloads, true);
+    expect(h.saved?.webPanel?.allowExternalActions, true);
   });
   testWidgets('origin cancel retains no new grant', (tester) async {
     final h = Harness();

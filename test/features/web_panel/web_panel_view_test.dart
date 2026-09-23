@@ -17,6 +17,7 @@ import 'package:larenor/features/kiosk/domain/kiosk_watchdog.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
+import 'package:larenor/features/web_panel/data/web_panel_external_actions.dart';
 import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
 import 'package:larenor/features/web_panel/data/web_panel_renderer_monitor.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_view.dart';
@@ -64,6 +65,18 @@ final class TransferAccess implements WebPanelTransferAccess {
   ) async {
     downloads++;
     return isCurrent() && policy.allows(uri.toString());
+  }
+}
+
+final class ExternalActionPort implements WebPanelExternalActionPort {
+  int launches = 0;
+  WebPanelExternalAction? last;
+
+  @override
+  Future<bool> launch(WebPanelExternalAction action) async {
+    launches++;
+    last = action;
+    return true;
   }
 }
 
@@ -115,6 +128,7 @@ class Harness {
     WebPanelOptions? options,
     WebPanelDataCoordinator? coordinator,
     WebPanelTransferAccess? transferAccess,
+    WebPanelExternalActionPort? externalActionPort,
     WebPanelRendererMonitor? rendererMonitor,
   }) async {
     final previous = WebViewPlatform.instance;
@@ -167,6 +181,7 @@ class Harness {
                             options: options,
                             dataCoordinator: coordinator,
                             transferAccess: transferAccess,
+                            externalActionPort: externalActionPort,
                             rendererMonitor: monitor,
                             recoveryGate: recoveryGate,
                             policy:
@@ -316,6 +331,91 @@ void main() {
         await h.close(tester);
         semantics.dispose();
       });
+    }
+  }
+
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      testWidgets(
+        'external action requires arm and confirmation $language $width 2x',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final port = ExternalActionPort();
+          final h = Harness();
+          await h.mount(
+            tester,
+            size: Size(width, 900),
+            scale: 2,
+            locale: Locale(language),
+            externalActionPort: port,
+            options: WebPanelOptions(allowExternalActions: true),
+          );
+          final controller = h.platform.controllers.single;
+          controller.delegate.finished('https://fixture.invalid/start');
+          await tester.pump();
+          final arm = find.byKey(
+            const ValueKey('web-panel-arm-external-action'),
+          );
+          expect(tester.getSize(arm).height, greaterThanOrEqualTo(48));
+          expect(
+            tester
+                .getSemantics(
+                  find.bySemanticsLabel(h.l10n.webPanelArmExternalAction),
+                )
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: arm, matching: find.byType(Text)).first,
+            ),
+          ).requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          expect(
+            await controller.delegate.navigation(
+              const NavigationRequest(
+                url: 'mailto:person@example.com',
+                isMainFrame: true,
+              ),
+            ),
+            NavigationDecision.prevent,
+          );
+          await tester.pump();
+          expect(find.text('person@example.com'), findsOneWidget);
+          expect(port.launches, 0);
+          await tester.tap(
+            find.byKey(const ValueKey('web-panel-confirm-external-action')),
+          );
+          await tester.pump();
+          expect(port.launches, 1);
+          expect(port.last?.uri.toString(), 'mailto:person@example.com');
+          expect(
+            find.text(h.l10n.webPanelExternalActionUnconfirmed),
+            findsOneWidget,
+          );
+          expect(
+            await controller.delegate.navigation(
+              const NavigationRequest(
+                url: 'tel:+902121234567',
+                isMainFrame: true,
+              ),
+            ),
+            NavigationDecision.prevent,
+          );
+          await tester.pump();
+          expect(port.launches, 1);
+          expect(
+            find.text(h.l10n.webPanelExternalActionDenied),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await h.close(tester);
+          semantics.dispose();
+        },
+      );
     }
   }
 

@@ -11,6 +11,7 @@ class WebPanelOptions {
     this.textZoom = 100,
     this.allowUploads = false,
     this.allowDownloads = false,
+    this.allowExternalActions = false,
   }) : additionalOrigins = List.unmodifiable(additionalOrigins) {
     validateJson(toJson());
   }
@@ -18,7 +19,7 @@ class WebPanelOptions {
   final List<String> additionalOrigins;
   final bool zoomEnabled;
   final int textZoom;
-  final bool allowUploads, allowDownloads;
+  final bool allowUploads, allowDownloads, allowExternalActions;
 
   factory WebPanelOptions.fromJson(Map<String, dynamic> json) {
     validateJson(json);
@@ -29,6 +30,7 @@ class WebPanelOptions {
       textZoom: json['textZoom'] as int? ?? 100,
       allowUploads: json['allowUploads'] as bool? ?? false,
       allowDownloads: json['allowDownloads'] as bool? ?? false,
+      allowExternalActions: json['allowExternalActions'] as bool? ?? false,
     );
   }
 
@@ -38,6 +40,7 @@ class WebPanelOptions {
     'textZoom': textZoom,
     'allowUploads': allowUploads,
     'allowDownloads': allowDownloads,
+    'allowExternalActions': allowExternalActions,
   };
 
   static void validateJson(Object? value) {
@@ -49,6 +52,7 @@ class WebPanelOptions {
           'textZoom',
           'allowUploads',
           'allowDownloads',
+          'allowExternalActions',
         }.containsAll(value.keys)) {
       throw invalid;
     }
@@ -74,6 +78,10 @@ class WebPanelOptions {
         value['allowDownloads'] is! bool) {
       throw invalid;
     }
+    if (value.containsKey('allowExternalActions') &&
+        value['allowExternalActions'] is! bool) {
+      throw invalid;
+    }
     final zoom = value.containsKey('textZoom') ? value['textZoom'] : 100;
     if (zoom is! int || zoom < 75 || zoom > 200) throw invalid;
   }
@@ -92,7 +100,8 @@ class WebPanelOptions {
       zoomEnabled == other.zoomEnabled &&
       textZoom == other.textZoom &&
       allowUploads == other.allowUploads &&
-      allowDownloads == other.allowDownloads;
+      allowDownloads == other.allowDownloads &&
+      allowExternalActions == other.allowExternalActions;
   @override
   int get hashCode => Object.hash(
     Object.hashAll(additionalOrigins),
@@ -100,6 +109,7 @@ class WebPanelOptions {
     textZoom,
     allowUploads,
     allowDownloads,
+    allowExternalActions,
   );
 }
 
