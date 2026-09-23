@@ -1,20 +1,28 @@
 """S09.1 durable installed-component authority from private journals."""
 
+from dataclasses import replace
+import time
+
 import pytest
 
+import larenor_server.core_backups.component_installation_authority as authority_module
 from larenor_server.core_backups.component_installation_authority import (
     ComponentInstallationAuthorityError,
     DurableComponentInstallationAuthority,
     InstalledComponentReceipt,
     InstalledComponentVolumeReceipt,
 )
+from larenor_server.core_backups.component_snapshot_provider import ComponentVolumeSource
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedWorkerJournal,
 )
+from larenor_server.plugins.worker import WorkerStep
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 from larenor_server.plugins.volume_plan import build_volume_plan
-from test_managed_container_binding import Engine, build, command, source
+from test_managed_container_binding import (
+    Engine, build, build_qbittorrent, command, source,
+)
 from test_volume_journal import observe
 
 
@@ -40,6 +48,29 @@ def ready_volume(journal, data, resource):
     journal.prepare(**data, resource_id=resource.resourceId)
     journal.begin_create(resource.resourceId, 1, **data)
     journal.reconcile(resource.resourceId, 2, observe, **data)
+
+
+def snapshot_sources(snapshot, root):
+    root.mkdir()
+    result = []
+    for component in snapshot:
+        for volume in component.volumes:
+            path = root / volume.volume_id
+            path.mkdir()
+            identity = path.lstat()
+            result.append(ComponentVolumeSource(
+                service_id=component.service_id,
+                container_id=component.container_id,
+                volume_id=volume.volume_id,
+                path=path,
+                service_version=component.service_version,
+                config_schema_version=component.config_schema_version,
+                data_schema_version=component.data_schema_version,
+                installation_revision=volume.intent.receipt.revision,
+                device=identity.st_dev,
+                inode=identity.st_ino,
+            ))
+    return tuple(result)
 
 
 def test_snapshot_joins_exact_catalog_appdata_receipts_and_excludes_library(tmp_path):
@@ -99,6 +130,74 @@ def test_snapshot_rejects_incomplete_or_nonready_appdata_receipts(tmp_path, stat
             ready_volume(volumes, data, library)
             if state == 'prepared':
                 volumes.prepare(**data, resource_id=appdata[1].resourceId)
+        authority = DurableComponentInstallationAuthority(containers, volumes)
+        with pytest.raises(
+            ComponentInstallationAuthorityError,
+            match='^installation_authority_unavailable$',
+        ):
+            authority.snapshot()
+
+
+def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
+        tmp_path, monkeypatch):
+    data = volume_inputs()
+    selected = tuple(item for item in data['plan'].resources
+                     if item.serviceId == 'jellyfin')
+    with (
+        ManagedWorkerJournal(tmp_path / 'containers', initialize=True) as containers,
+        VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volumes,
+    ):
+        install_container(containers)
+        with volumes.locked():
+            for resource in selected:
+                ready_volume(volumes, data, resource)
+        authority = DurableComponentInstallationAuthority(containers, volumes)
+        sources = snapshot_sources(authority.snapshot(), tmp_path / 'payloads')
+        deadline = time.monotonic() + 2
+        assert authority.revalidate(sources, deadline) is True
+        assert authority.revalidate(sources, deadline) is True
+
+        malformed = (
+            replace(sources[0], installation_revision=4),
+            *sources[1:],
+        )
+        assert authority.revalidate(malformed, deadline) is False
+        assert authority.revalidate((sources[0], sources[0]), deadline) is False
+        assert authority.revalidate(sources[:1], deadline) is False
+        assert authority.revalidate(sources, time.monotonic() - 1) is False
+
+        monkeypatch.setattr(authority_module, 'load_catalog',
+                            lambda: (_ for _ in ()).throw(RuntimeError('private drift')))
+        assert authority.revalidate(sources, deadline) is False
+        monkeypatch.undo()
+
+        volumes._db.execute('UPDATE resources SET revision=revision+1 LIMIT 1')
+        assert authority.revalidate(sources, deadline) is False
+
+
+def test_snapshot_rejects_two_installed_services_sharing_one_container_identity(
+        tmp_path):
+    data = volume_inputs()
+    selected = tuple(item for item in data['plan'].resources
+                     if item.serviceId in {'jellyfin', 'qbittorrent'})
+    with (
+        ManagedWorkerJournal(tmp_path / 'containers', initialize=True) as containers,
+        VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volumes,
+    ):
+        install_container(containers)
+        _builder, _stack, binding = build_qbittorrent(containers.identity)
+        worker = JournaledManagedContainerOperations(containers, Engine(binding))
+        worker.apply(WorkerStep(
+            '9' * 32, binding.name.removeprefix('larenor-'),
+            'create_container', 'a' * 32, time.time() + 30,
+        ), binding)
+        worker.apply(WorkerStep(
+            '9' * 32, binding.name.removeprefix('larenor-'),
+            'start_container', 'b' * 32, time.time() + 30,
+        ), binding)
+        with volumes.locked():
+            for resource in selected:
+                ready_volume(volumes, data, resource)
         authority = DurableComponentInstallationAuthority(containers, volumes)
         with pytest.raises(
             ComponentInstallationAuthorityError,
