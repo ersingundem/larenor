@@ -1,4 +1,10 @@
-"""Bounded read-only snapshots for catalog-managed component volumes."""
+"""Bounded read-only snapshots for catalog-managed component volumes.
+
+The required installed authority must prove the paused managed container is the
+only volume writer for the complete context. A hostile host administrator or a
+shared out-of-band writer requires a native read-only/COW snapshot and is not a
+claim of this portable filesystem boundary.
+"""
 
 import io
 import math
@@ -327,7 +333,7 @@ def _open_absolute_directory(path):
 
 
 class ManagedComponentSnapshotProvider:
-    """Pause exact managed containers and snapshot their complete appdata set."""
+    """Pause sole-writer managed containers and snapshot complete appdata."""
 
     def __init__(
         self,
