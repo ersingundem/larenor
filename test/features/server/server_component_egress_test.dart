@@ -95,8 +95,14 @@ void main() {
     final response = ServerComponentEgressResponse.fromJson(
       _responseJson(policyRevision: 1, grants: [_grantJson()]),
     );
-    expect(response.policy.component, ServerComponentEgressComponent.homeAssistantProbe);
-    expect(response.policy.grants.single.addresses.single.network, ServerEgressNetwork.lan);
+    expect(
+      response.policy.component,
+      ServerComponentEgressComponent.homeAssistantProbe,
+    );
+    expect(
+      response.policy.grants.single.addresses.single.network,
+      ServerEgressNetwork.lan,
+    );
     expect(response.toString(), isNot(contains('192.168')));
     expect(response.toString(), isNot(contains('ha.example')));
 
@@ -114,6 +120,21 @@ void main() {
               'addresses': [
                 {'address': '192.168.1.150', 'network': 'lan'},
                 {'address': '192.168.1.150', 'network': 'lan'},
+              ],
+            },
+          ],
+        },
+      },
+      {
+        ..._responseJson(policyRevision: 1, grants: [_grantJson()]),
+        'policy': {
+          ...(_responseJson(policyRevision: 1, grants: [_grantJson()])['policy']
+              as Map),
+          'grants': [
+            {
+              ..._grantJson(),
+              'addresses': [
+                {'address': '192.168.1.150', 'network': 'public'},
               ],
             },
           ],
@@ -140,29 +161,35 @@ void main() {
     }
   });
 
-  test('API binds exact service revisions and verifies mutation readback', () async {
-    final fixture = _EgressFixture();
-    await fixture.account.initialize();
-    addTearDown(fixture.account.dispose);
-    final service = ServerService.fromJson(_serviceJson());
-    await fixture.account.withSession((raw, session) async {
-      final api = ServerComponentEgressApi(raw, session.accessToken);
-      final initial = await api.read(service);
-      expect(initial.policy.revision, 0);
-      final grant = ServerComponentEgressGrant.fromJson(_grantJson());
-      final updated = await api.replace(service, initial, grant: grant);
-      expect(updated.policy.revision, 1);
-      expect(updated.policy.grants, [grant]);
-      final request = fixture.mutations.single;
-      expect(request.url.path, '/prefix/api/v1/admin/services/$_serviceId/outbound-policy');
-      expect(jsonDecode(request.body), {
-        'expectedRevision': 0,
-        'expectedServiceRevision': 4,
-        'grants': [_grantJson()],
+  test(
+    'API binds exact service revisions and verifies mutation readback',
+    () async {
+      final fixture = _EgressFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final service = ServerService.fromJson(_serviceJson());
+      await fixture.account.withSession((raw, session) async {
+        final api = ServerComponentEgressApi(raw, session.accessToken);
+        final initial = await api.read(service);
+        expect(initial.policy.revision, 0);
+        final grant = ServerComponentEgressGrant.fromJson(_grantJson());
+        final updated = await api.replace(service, initial, grant: grant);
+        expect(updated.policy.revision, 1);
+        expect(updated.policy.grants, [grant]);
+        final request = fixture.mutations.single;
+        expect(
+          request.url.path,
+          '/prefix/api/v1/admin/services/$_serviceId/outbound-policy',
+        );
+        expect(jsonDecode(request.body), {
+          'expectedRevision': 0,
+          'expectedServiceRevision': 4,
+          'grants': [_grantJson()],
+        });
+        expect(request.body, isNot(contains('token')));
       });
-      expect(request.body, isNot(contains('token')));
-    });
-  });
+    },
+  );
 
   test('unsupported services never issue an outbound-policy request', () async {
     final fixture = _EgressFixture();
