@@ -212,7 +212,10 @@ void main() {
 
     await expectLater(binding, throwsStateError);
     expect(source.status, NativeManagedTabletSourceStatus.retired);
-    expect(stops, isNotEmpty);
+    expect(stops, [
+      {'sessionId': 'c' * 32},
+      {'sessionId': 'c' * 32},
+    ]);
   });
 
   test(
