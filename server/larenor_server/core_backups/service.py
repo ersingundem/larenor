@@ -190,8 +190,29 @@ def _validate_payload_contract(capture: BackupCapture) -> None:
     try:
         configuration_bytes = capture.payloads["core-configuration"]
         component_index_bytes = capture.payloads["component-index"]
+        database_bytes = capture.payloads["core-database"]
         configuration = json.loads(configuration_bytes)
         component_index = json.loads(component_index_bytes)
+        if (
+            type(database_bytes) is not bytes
+            or not 20 <= len(database_bytes) <= MAX_DATABASE_BYTES
+            or database_bytes[:16] != b"SQLite format 3\x00"
+        ):
+            raise ValueError("invalid_database")
+        database_image = bytearray(database_bytes)
+        # Serialized WAL databases need a rollback-journal header before an
+        # isolated in-memory reader can inspect them without a sidecar file.
+        database_image[18:20] = b"\x01\x01"
+        with closing(sqlite3.connect(":memory:")) as database:
+            database.row_factory = sqlite3.Row
+            database.deserialize(database_image)
+            database.execute("PRAGMA trusted_schema=OFF")
+            database.execute("PRAGMA query_only=ON")
+            schema_row = database.execute(
+                "SELECT value FROM metadata WHERE key='schema_version'"
+            ).fetchone()
+            database_schema = int(schema_row["value"])
+            component_schemas = CoreBackupContract._schema_versions(database)
         expected_components = [
             component.model_dump(mode="json")
             for component in capture.manifest.components
@@ -216,11 +237,20 @@ def _validate_payload_contract(capture: BackupCapture) -> None:
                 for value in configuration["workers"].values()
             )
             or configuration_bytes != _canonical(configuration)
+            or database_schema != capture.manifest.databaseSchemaVersion
+            or component_schemas != capture.manifest.componentSchemaVersions
             or component_index != expected_index
             or component_index_bytes != _canonical(component_index)
         ):
             raise ValueError("invalid_backup_payload_contract")
-    except (KeyError, TypeError, UnicodeError, ValueError):
+    except (
+        KeyError,
+        OverflowError,
+        sqlite3.Error,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ):
         raise ValueError("invalid_backup_payload_contract") from None
 
 
