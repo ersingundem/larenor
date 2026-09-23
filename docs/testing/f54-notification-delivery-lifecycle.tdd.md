@@ -46,6 +46,13 @@ The focused Server batch passes **11/11** and the real loopback Client/Core
 batch passes **8/8**, including bounded foreground reconciliation, authority
 retirement and duplicate-identity rejection.
 
+Independent review found that replay exclusion trusted the state and expiry of
+a referenced retired subscription without validating its HMAC envelope. RED
+commit `c59a497e` proves a corrupted retired owner returned 200 instead of
+failing closed. GREEN commit `a2afe2e7` validates the bounded set of referenced
+subscription rows and uses one transaction clock snapshot for active, retired
+and delivery-time decisions. The final focused Server batch passes **12/12**.
+
 The receipt identity contains no credential or plaintext payload. Event
 payloads remain AEAD-encrypted, and private lock-screen projection remains
 redacted. F54 still depends on its Android background delivery, permission,
