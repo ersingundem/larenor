@@ -9,6 +9,7 @@ from .media_archive_core_models import (
     MediaArchiveAuthorityRequest,
     MediaArchiveCollectionAuthority,
     MediaArchiveReadRequest,
+    MediaCatalogBrowseRequest,
     MediaCatalogSearchRequest,
     PrivateMediaArchiveCollection,
 )
@@ -201,15 +202,15 @@ class MediaArchiveHealthManagement:
         if type(body) is not MediaCatalogSearchRequest:
             raise ApiError('invalid_request')
         current, observation = self._collect(actor, body)
-        return self._search_response(body, current, observation)
+        return self._catalog_response(body, current, observation,
+                                      query=body.query.casefold())
 
     @staticmethod
-    def _search_response(body, current, observation):
-        query = body.query.casefold()
+    def _catalog_response(body, current, observation, *, query=None):
         items = [
             item for item in observation.jellyfin.items
             if item.integrity == 'playable'
-            and query in item.title.casefold()
+            and (query is None or query in item.title.casefold())
             and (body.mediaKind is None or item.mediaKind == body.mediaKind)
         ]
         items.sort(key=lambda item: (
@@ -245,7 +246,14 @@ class MediaArchiveHealthManagement:
         if type(body) is not MediaCatalogSearchRequest:
             raise ApiError('invalid_request')
         current, observation = self._collect(actor, body, member=True)
-        return self._search_response(body, current, observation)
+        return self._catalog_response(body, current, observation,
+                                      query=body.query.casefold())
+
+    def member_browse(self, actor, body):
+        if type(body) is not MediaCatalogBrowseRequest:
+            raise ApiError('invalid_request')
+        current, observation = self._collect(actor, body, member=True)
+        return self._catalog_response(body, current, observation)
 
     def member_target(self, actor):
         with self.db.connection() as connection:
