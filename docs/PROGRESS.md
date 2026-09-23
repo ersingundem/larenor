@@ -27,7 +27,7 @@ yazılmış eski kaydı exact kimlikle temizliyor. Oluşturma tek başına yerel
 çalışma zamanını başlatmıyor; 48 dp EN/TR onay eylemi ve canlı başarı kanıtı
 tablet arayüzünde ayrı kalıyor.
 
-Odaklı Client, secure-store ve runtime-owner paketi **24/24** geçti; hedefli
+Odaklı Client, secure-store ve runtime-owner paketi **26/26** geçti; hedefli
 analiz temiz. K07 hâlâ `pending`: açık TLS broker ayarı, canlı Mosquitto ACL/TLS,
 native cihaz kimliği/komut yetkisi ve Huawei/DeX fiziksel kabulü tamamlanmadan
 sayaç **26/125 (%20,8)** ve seçili özellikler **0/63** kalır.

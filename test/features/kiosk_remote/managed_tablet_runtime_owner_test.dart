@@ -50,6 +50,16 @@ final class _Store implements ManagedTabletCredentialStore {
       clears++;
     }
   }
+
+  @override
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment) async {
+    if (value?.binding == enrollment.binding &&
+        value?.pairingId == enrollment.pairingId &&
+        value?.revision == enrollment.revision) {
+      value = null;
+      clears++;
+    }
+  }
 }
 
 final class _Authority implements ManagedTabletCoreAuthority {

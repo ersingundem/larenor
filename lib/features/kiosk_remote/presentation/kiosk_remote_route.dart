@@ -126,6 +126,7 @@ class _KioskRemoteRouteState extends ConsumerState<KioskRemoteRoute> {
               clientId: pairing.mqttClientId,
               topicPrefix: pairing.mqttTopicPrefix,
             ),
+            isCurrent: () => _current(generation) && identical(_api, api),
           );
         },
       );
