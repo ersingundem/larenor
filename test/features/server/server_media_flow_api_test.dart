@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,7 +7,10 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/media_flow/data/server_media_flow_api.dart';
+import 'package:larenor/features/server/media_flow/data/server_media_flow_controller.dart';
 import 'package:larenor/features/server/media_flow/domain/server_media_flow_models.dart';
+
+import 'server_admin_test_support.dart';
 
 const requestId = '11111111111111111111111111111111';
 const mediaKey = 'movie:tmdb:603';
@@ -65,6 +69,34 @@ Map<String, Object?> flowJson() => {
     'fileCount': 1,
   },
 };
+
+final class _FlowFixture extends AdminFixture {
+  _FlowFixture() {
+    respond = (request) async {
+      if (request.url.path.endsWith('/authority')) {
+        if (unauthorized) {
+          return this.json({
+            'error': {'code': 'unauthorized'},
+          }, 401);
+        }
+        return this.json({
+          'requestId': requestId,
+          'mediaKey': mediaKey,
+          'flowRevision': 9,
+          'sources': sources(),
+        });
+      }
+      if (request.url.path.endsWith('/read')) {
+        return pending?.future ??
+            this.json({'requestId': requestId, 'flow': flowJson()});
+      }
+      return defaultResponse(request);
+    };
+  }
+
+  bool unauthorized = false;
+  Completer<http.Response>? pending;
+}
 
 void main() {
   test(
@@ -293,5 +325,44 @@ void main() {
       throwsA(isA<LarenorServerException>()),
     );
     expect(calls, 0);
+  });
+
+  test('account loss retires an in-flight central flow read', () async {
+    final fixture = _FlowFixture()..pending = Completer<http.Response>();
+    await fixture.account.initialize();
+    final controller = ServerMediaFlowController(
+      fixture.account,
+      requestId: () => requestId,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(fixture.account.dispose);
+
+    final pending = controller.load(mediaKey, current: () => true);
+    await Future<void>.delayed(Duration.zero);
+    await fixture.account.signOut();
+    fixture.pending!.complete(
+      fixture.json({'requestId': requestId, 'flow': flowJson()}),
+    );
+    await pending;
+
+    expect(controller.status, isNull);
+    expect(controller.busy, false);
+  });
+
+  test('active unauthorized retires the exact account session', () async {
+    final fixture = _FlowFixture()..unauthorized = true;
+    await fixture.account.initialize();
+    final controller = ServerMediaFlowController(
+      fixture.account,
+      requestId: () => requestId,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(fixture.account.dispose);
+
+    await controller.load(mediaKey, current: () => true);
+
+    expect(controller.status, isNull);
+    expect(fixture.account.session, isNull);
+    expect(fixture.account.failure, 'unauthorized');
   });
 }
