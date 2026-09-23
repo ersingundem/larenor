@@ -6,21 +6,59 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import 'managed_tablet_credential_store.dart';
+import 'managed_tablet_mqtt_settings.dart';
 import 'managed_tablet_mqtt_runtime.dart';
 import 'managed_tablet_runtime_owner.dart';
 import 'mqtt_local_broker.dart';
 import 'native_managed_tablet_source.dart';
 
-final managedTabletMqttSettingsProvider = Provider<LocalMqttBrokerSettings>(
-  (_) => LocalMqttBrokerSettings(
-    // Production remains inert until a trusted enrollment/configuration flow
-    // explicitly opts this device into its local TLS broker.
-    enabled: false,
-    host: 'localhost',
-    port: 8883,
-    tls: true,
-  ),
-);
+final managedTabletMqttSettingsStoreProvider =
+    Provider<ManagedTabletMqttSettingsStore>(
+      (_) => SharedPreferencesManagedTabletMqttSettingsStore(),
+    );
+
+final managedTabletMqttSettingsRepositoryProvider =
+    Provider<ManagedTabletMqttSettingsRepository>(
+      (ref) => ManagedTabletMqttSettingsRepository(
+        ref.watch(managedTabletMqttSettingsStoreProvider),
+      ),
+    );
+
+final managedTabletMqttSettingsProvider =
+    AsyncNotifierProvider<
+      ManagedTabletMqttSettingsController,
+      LocalMqttBrokerSettings
+    >(ManagedTabletMqttSettingsController.new);
+
+final class ManagedTabletMqttSettingsController
+    extends AsyncNotifier<LocalMqttBrokerSettings> {
+  @override
+  Future<LocalMqttBrokerSettings> build() =>
+      ref.watch(managedTabletMqttSettingsRepositoryProvider).read();
+
+  Future<void> save(
+    LocalMqttBrokerSettings settings, {
+    required bool Function() isCurrent,
+  }) async {
+    await ref
+        .read(managedTabletMqttSettingsRepositoryProvider)
+        .save(
+          settings,
+          isCurrent: isCurrent,
+          publish: (saved) {
+            if (!isCurrent()) {
+              throw StateError('mqtt_settings_write_retired');
+            }
+            state = AsyncData(saved);
+          },
+        );
+  }
+}
+
+final managedTabletDefaultMqttSettingsProvider =
+    Provider<LocalMqttBrokerSettings>(
+      (_) => LocalMqttBrokerSettings.disabled(),
+    );
 
 final managedTabletCredentialStoreProvider =
     Provider<ManagedTabletCredentialStore>(
@@ -33,15 +71,16 @@ final managedTabletCoreAuthorityProvider = Provider<ManagedTabletCoreAuthority>(
 
 final managedTabletRuntimeOwnerProvider =
     Provider.autoDispose<ManagedTabletRuntimeOwner>((ref) {
-      final settings = ref.watch(managedTabletMqttSettingsProvider);
       final owner = ManagedTabletRuntimeOwner(
         store: ref.watch(managedTabletCredentialStoreProvider),
         authority: ref.watch(managedTabletCoreAuthorityProvider),
         source: NativeManagedTabletSource(
-          config: NativeManagedTabletSourceConfig(enabled: settings.enabled),
+          // The source is still gated by verified enrollment, foreground and
+          // enabled TLS settings in the owner before a native lease is asked.
+          config: const NativeManagedTabletSourceConfig(enabled: true),
         ),
         broker: MqttClientLocalBroker(),
-        settings: settings,
+        settings: ref.watch(managedTabletDefaultMqttSettingsProvider),
         stateStore: SharedPreferencesManagedMqttStateStore(),
         now: DateTime.now,
       );
@@ -65,6 +104,8 @@ final class _ManagedTabletRuntimeScopeState
     extends ConsumerState<ManagedTabletRuntimeScope>
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
+  LocalMqttBrokerSettings? _appliedSettings;
+  ManagedTabletRuntimeOwner? _appliedOwner;
 
   @override
   void initState() {
@@ -122,7 +163,20 @@ final class _ManagedTabletRuntimeScopeState
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(managedTabletRuntimeOwnerProvider);
+    final owner = ref.watch(managedTabletRuntimeOwnerProvider);
+    final settings = ref.watch(managedTabletMqttSettingsProvider).value;
+    if (settings != null &&
+        (settings != _appliedSettings || !identical(owner, _appliedOwner))) {
+      _appliedSettings = settings;
+      _appliedOwner = owner;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _appliedSettings == settings &&
+            identical(_appliedOwner, owner)) {
+          unawaited(owner.updateSettings(settings));
+        }
+      });
+    }
     return widget.child;
   }
 }

@@ -24,7 +24,7 @@ final class ManagedTabletRuntimeOwner {
   final ManagedTabletCoreAuthority authority;
   final ManagedTabletSourcePort source;
   final LocalMqttBroker broker;
-  final LocalMqttBrokerSettings settings;
+  LocalMqttBrokerSettings settings;
   final ManagedMqttStateStore stateStore;
   final DateTime Function() now;
   final void Function(String event)? logger;
@@ -46,6 +46,13 @@ final class ManagedTabletRuntimeOwner {
   Future<void> setForeground(bool value) {
     if (_disposed || value == _foreground) return Future.value();
     _foreground = value;
+    final generation = ++_generation;
+    return _schedule(generation);
+  }
+
+  Future<void> updateSettings(LocalMqttBrokerSettings value) {
+    if (_disposed || settings == value) return Future.value();
+    settings = value;
     final generation = ++_generation;
     return _schedule(generation);
   }
