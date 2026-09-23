@@ -57,7 +57,7 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
 | A — S08.8 | Eski medya/müzik ayarlarını açık onayla Core kaynaklarına ve typed cache kimliklerine geçir. | Provider/player/queue, authority kaybı, başka Core ve TTL/kota E2E |
-| B — S09.1 | Açık PR #447'nin provider dilimini incele; journal-bound gerçek capture ve restore zincirini sürdür. | Engine/journal authority, restore/rollback, kesinti ve büyük hacim iki mimari kabulü |
+| B — S09.1 | PR #447 exact-head CI ve birleşme kapısından sonra Engine ve journal authority'ye bağlı gerçek capture/restore zincirini sürdür. | Engine/journal authority, restore/rollback, kesinti ve büyük hacim iki mimari kabulü |
 | C — K03.remaining | WebPanel upload/download, pop-up/intent ve renderer kurtarma sınırlarını tamamla. | Origin/redirect/iframe, auth/sertifika, sır sızıntısı ve Android CI |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
