@@ -10,10 +10,11 @@ import '../domain/server_music_manager_models.dart';
 import 'server_music_manager_cache.dart';
 import 'server_music_manager_api.dart';
 
-const _managerAuthorityFailures = {
-  'forbidden',
-  'invalid_session',
-  'password_change_required',
+const _managerFallbackFailures = {
+  'connection_failed',
+  'timeout',
+  'server_error',
+  'rate_limited',
 };
 
 class ServerMusicManagerController extends ChangeNotifier {
@@ -202,10 +203,11 @@ class ServerMusicManagerController extends ChangeNotifier {
             await _writeCache(scope, value, valid);
           }
         } on LarenorServerException catch (error) {
+          if (error.code == 'unauthorized') rethrow;
           if (valid()) {
             failure = error.code;
             if (cached != null &&
-                !_managerAuthorityFailures.contains(error.code)) {
+                _managerFallbackFailures.contains(error.code)) {
               _acceptManager(cached, isVerified: false, isReachable: false);
             }
           }
