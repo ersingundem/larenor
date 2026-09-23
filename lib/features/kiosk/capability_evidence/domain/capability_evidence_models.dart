@@ -72,6 +72,7 @@ final class CapabilityEvidenceRecord {
         map['schemaVersion'] is! int ||
         map['revision'] is! int ||
         (map['revision'] as int) < 1 ||
+        (map['revision'] as int) > 9223372036854775807 ||
         map['updatedAt'] is! num ||
         !(map['updatedAt'] as num).isFinite) {
       throw const FormatException('Invalid evidence');

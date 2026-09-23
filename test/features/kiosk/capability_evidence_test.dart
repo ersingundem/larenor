@@ -69,6 +69,7 @@ void main() {
         );
       }
       for (final changes in [
+        {'revision': jsonDecode('9223372036854775808')},
         {'artifactName': '/tmp/private'},
         {'artifactName': 'https:evil.invalid'},
         {'sourceCommit': 'B' * 40},
@@ -85,6 +86,37 @@ void main() {
       }
     },
   );
+
+  test('Core adapter rejects duplicate record ids within one page', () async {
+    final context = serverContext();
+    final duplicateId = '0' * 32;
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.invalid'),
+      client: MockClient(
+        (_) async => jsonResponse({
+          'schemaVersion': 1,
+          'scope': context.toJson(),
+          'records': [
+            recordJson('tested', id: duplicateId),
+            recordJson('failed', id: duplicateId),
+          ],
+          'nextAfter': null,
+        }),
+      ),
+    );
+    addTearDown(transport.close);
+
+    await expectLater(
+      CapabilityEvidenceApi(transport, 'x' * 43, context).list(),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+  });
 
   test('Core adapter paginates exact scope and rejects public-shape drift', () async {
     final context = serverContext();

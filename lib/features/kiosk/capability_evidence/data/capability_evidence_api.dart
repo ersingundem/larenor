@@ -40,14 +40,14 @@ final class CapabilityEvidenceApi {
         final batch = (response['records'] as List)
             .map(CapabilityEvidenceRecord.fromJson)
             .toList();
-        if (batch.length > 50 ||
-            batch.any(
-              (record) =>
-                  records.isNotEmpty &&
-                  record.id.compareTo(records.last.id) <= 0,
-            ) ||
-            batch.map((record) => record.id).toList().join('|') !=
-                (batch.map((record) => record.id).toList()..sort()).join('|')) {
+        var previousId = records.lastOrNull?.id;
+        final strictlyIncreasing = batch.every((record) {
+          final accepted =
+              previousId == null || record.id.compareTo(previousId!) > 0;
+          previousId = record.id;
+          return accepted;
+        });
+        if (batch.length > 50 || !strictlyIncreasing) {
           throw const FormatException('Invalid evidence');
         }
         records.addAll(batch);
