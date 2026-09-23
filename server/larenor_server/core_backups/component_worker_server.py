@@ -175,15 +175,15 @@ class ComponentSnapshotWorkerServer:
                 "operation": "release",
             }:
                 raise ComponentSnapshotWorkerError("invalid_worker_result")
-            _write_frame(
-                connection,
-                {
-                    "protocol": PROTOCOL,
-                    "requestId": request_id,
-                    "status": "released",
-                },
-                deadline,
-            )
+        _write_frame(
+            connection,
+            {
+                "protocol": PROTOCOL,
+                "requestId": request_id,
+                "status": "released",
+            },
+            deadline,
+        )
         self.completed += 1
 
     def _bind(self):
