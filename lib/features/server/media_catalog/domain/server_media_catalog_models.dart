@@ -95,6 +95,8 @@ final class ServerMediaCatalogItem {
 
 final class ServerMediaCatalogPage {
   const ServerMediaCatalogPage._({
+    required this.query,
+    required this.mediaKind,
     required this.installationId,
     required this.installationRevision,
     required this.snapshotRevision,
@@ -105,7 +107,11 @@ final class ServerMediaCatalogPage {
     required this.items,
   });
 
-  factory ServerMediaCatalogPage.fromJson(Object? value) {
+  factory ServerMediaCatalogPage.fromJson(
+    Object? value, {
+    required String query,
+    required ServerMediaCatalogKind? mediaKind,
+  }) {
     final map = _object(value, {
       'schemaVersion',
       'installationId',
@@ -144,6 +150,8 @@ final class ServerMediaCatalogPage {
       _invalid();
     }
     return ServerMediaCatalogPage._(
+      query: query,
+      mediaKind: mediaKind,
       installationId: _identity(map['installationId']),
       installationRevision: _revision(map['installationRevision']),
       snapshotRevision: _revision(map['snapshotRevision']),
@@ -156,6 +164,8 @@ final class ServerMediaCatalogPage {
   }
 
   final String installationId;
+  final String query;
+  final ServerMediaCatalogKind? mediaKind;
   final int installationRevision, snapshotRevision, jellyfinServiceRevision;
   final int offset, total;
   final int? nextOffset;

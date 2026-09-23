@@ -63,7 +63,10 @@ final class ServerMediaCatalogApi {
     ServerMediaCatalogPage? previousPage,
   }) async {
     if ((offset == 0) != (previousPage == null) ||
-        previousPage != null && previousPage.nextOffset != offset) {
+        previousPage != null &&
+            (previousPage.nextOffset != offset ||
+                previousPage.query != query ||
+                previousPage.mediaKind != mediaKind)) {
       throw const LarenorServerException('invalid_request');
     }
     final target = await _discoverTarget();
@@ -160,7 +163,11 @@ final class ServerMediaCatalogApi {
         {'requestId', 'catalog'},
       );
       if (response['requestId'] != requestId) throw const FormatException();
-      final page = ServerMediaCatalogPage.fromJson(response['catalog']);
+      final page = ServerMediaCatalogPage.fromJson(
+        response['catalog'],
+        query: query,
+        mediaKind: mediaKind,
+      );
       if (page.installationId != installationId ||
           page.installationRevision != expectedInstallationRevision ||
           page.snapshotRevision != authority['snapshotRevision'] ||

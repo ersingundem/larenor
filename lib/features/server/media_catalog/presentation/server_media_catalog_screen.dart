@@ -34,6 +34,7 @@ final class _ServerMediaCatalogScreenState
   final _query = TextEditingController();
   ValueListenable<TickerModeData>? _ticker;
   String? _submitted;
+  ServerMediaCatalogKind? _mediaKind;
   int _lifecycle = 0;
   bool _visible = true, _expired = false;
 
@@ -94,6 +95,7 @@ final class _ServerMediaCatalogScreenState
     _expired = true;
     _lifecycle++;
     _submitted = null;
+    _mediaKind = null;
     _query.clear();
     _controller.retire();
   }
@@ -110,9 +112,33 @@ final class _ServerMediaCatalogScreenState
     if (query.isEmpty || query != value || query.length > 80) return;
     setState(() => _submitted = query);
     unawaited(
-      _controller.searchCurrent(query: query, offset: offset, current: current),
+      _controller.searchCurrent(
+        query: query,
+        mediaKind: _mediaKind,
+        offset: offset,
+        current: current,
+      ),
     );
   }
+
+  void _selectFilter(int? value) {
+    final next = switch (value) {
+      1 => ServerMediaCatalogKind.movie,
+      2 => ServerMediaCatalogKind.episode,
+      _ => null,
+    };
+    if (!_active || next == _mediaKind) return;
+    final query = _submitted;
+    _controller.retire();
+    setState(() => _mediaKind = next);
+    if (query != null) _search(query);
+  }
+
+  int get _filterValue => switch (_mediaKind) {
+    ServerMediaCatalogKind.movie => 1,
+    ServerMediaCatalogKind.episode => 2,
+    null => 0,
+  };
 
   @override
   void dispose() {
@@ -247,6 +273,50 @@ final class _ServerMediaCatalogScreenState
                   placeholder: l.mediaSearchPlaceholder,
                   onSubmitted: _search,
                   enabled: _active && !_controller.busy,
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _bounded(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  child: CupertinoSlidingSegmentedControl<int>(
+                    key: const ValueKey('server-media-catalog-filters'),
+                    groupValue: _filterValue,
+                    children: {
+                      0: Padding(
+                        key: const ValueKey('server-media-catalog-filter-all'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                        child: Text(l.mediaFilterAll),
+                      ),
+                      1: Padding(
+                        key: const ValueKey(
+                          'server-media-catalog-filter-movies',
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                        child: Text(l.mediaFilterMovies),
+                      ),
+                      2: Padding(
+                        key: const ValueKey('server-media-catalog-filter-tv'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                        child: Text(l.mediaFilterTv),
+                      ),
+                    },
+                    onValueChanged: _selectFilter,
+                  ),
                 ),
               ),
             ),
