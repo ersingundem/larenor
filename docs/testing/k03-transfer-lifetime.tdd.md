@@ -8,7 +8,7 @@ This slice closes three independent Android Web Panel transfer boundaries:
 
 ## TDD evidence
 
-- RED `d3b34311ec40997edbcb06edf4b628e3c22c64c3`: the focused test file failed to compile because the production access had no injectable total transfer deadline. The same commit specifies local-file rejection, duplicate and aggregate grant rejection, timeout suppression and post-save retirement.
-- GREEN `ef3dfb8cc10f3c77a9c155277388cd8d9b039357`: all 10 focused transfer tests pass.
+- RED `14fc7eeb`: the focused test file failed to compile because the production access had no injectable total transfer deadline. The same commit specifies local-file rejection, duplicate and aggregate grant rejection, timeout suppression and post-save retirement.
+- GREEN `ef3f318e`: all 10 focused transfer tests pass.
 
 The queue remains **26/125 (20.8%)** and selected-feature progress remains **0/63 (0.0%)**. This is a bounded K03 hardening slice; it does not claim the remaining kiosk browser device and release gates.
