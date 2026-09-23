@@ -29,6 +29,10 @@ const en = InventoryStrings(
   closeScanner: 'Close camera',
   cameraDenied: 'Camera permission denied',
   cameraUnavailable: 'Camera unavailable',
+  shareLabel: 'Share printable label',
+  shareLoading: 'Preparing label',
+  shareUnavailable: 'Label unavailable',
+  shareStale: 'Session changed',
 );
 const tr = InventoryStrings(
   title: 'Ev envanteri',
@@ -53,6 +57,10 @@ const tr = InventoryStrings(
   closeScanner: 'Kamerayı kapat',
   cameraDenied: 'Kamera izni verilmedi',
   cameraUnavailable: 'Kamera kullanılamıyor',
+  shareLabel: 'Yazdırılabilir etiketi paylaş',
+  shareLoading: 'Etiket hazırlanıyor',
+  shareUnavailable: 'Etiket kullanılamıyor',
+  shareStale: 'Oturum değişti',
 );
 
 void main() {

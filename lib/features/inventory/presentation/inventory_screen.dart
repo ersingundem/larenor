@@ -9,6 +9,7 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/inventory_controller.dart';
 import '../data/inventory_scanner.dart';
+import '../data/inventory_qr_share.dart';
 import '../domain/inventory_models.dart';
 
 /// Localized copy supplied by the route's AppLocalizations adapter.
@@ -36,6 +37,10 @@ final class InventoryStrings {
     required this.closeScanner,
     required this.cameraDenied,
     required this.cameraUnavailable,
+    required this.shareLabel,
+    required this.shareLoading,
+    required this.shareUnavailable,
+    required this.shareStale,
   });
 
   factory InventoryStrings.fromLocalizations(AppLocalizations l) =>
@@ -62,12 +67,17 @@ final class InventoryStrings {
         closeScanner: l.inventoryCloseScanner,
         cameraDenied: l.inventoryCameraDenied,
         cameraUnavailable: l.inventoryCameraUnavailable,
+        shareLabel: l.inventoryShareLabel,
+        shareLoading: l.inventoryShareLoading,
+        shareUnavailable: l.inventoryShareUnavailable,
+        shareStale: l.inventoryShareStale,
       );
   final String title, manualLabel, open, emptyTitle, emptyBody;
   final String room, device, documents, grants, audit;
   final String loading, accessVerified;
   final String invalidQr, foreignQr, offline, stale, invalidResponse;
   final String required, scan, closeScanner, cameraDenied, cameraUnavailable;
+  final String shareLabel, shareLoading, shareUnavailable, shareStale;
 }
 
 final class InventoryScreen extends StatefulWidget {
@@ -76,10 +86,12 @@ final class InventoryScreen extends StatefulWidget {
     required this.controller,
     required this.strings,
     this.scanner,
+    this.labelShare,
   });
   final InventoryController controller;
   final InventoryStrings strings;
   final InventoryScannerController? scanner;
+  final InventoryLabelShareController? labelShare;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -128,6 +140,7 @@ final class _InventoryScreenState extends State<InventoryScreen>
         listenable: Listenable.merge([
           widget.controller,
           if (widget.scanner != null) widget.scanner!,
+          if (widget.labelShare != null) widget.labelShare!,
         ]),
         builder: (context, _) {
           final controller = widget.controller;
@@ -178,6 +191,18 @@ final class _InventoryScreenState extends State<InventoryScreen>
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Text(_failure(failure)),
+                        ),
+                      ),
+                    if (widget.labelShare?.failure case final failure?)
+                      Semantics(
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            failure == InventoryLabelShareFailure.stale
+                                ? widget.strings.shareStale
+                                : widget.strings.shareUnavailable,
+                          ),
                         ),
                       ),
                     const SizedBox(height: 12),
@@ -365,6 +390,26 @@ final class _InventoryScreenState extends State<InventoryScreen>
               widget.strings.audit,
               '${detail.history.entries.length}',
             ),
+            if (widget.labelShare != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                key: const ValueKey('inventory-share-label'),
+                height: 48,
+                width: double.infinity,
+                child: CupertinoButton(
+                  minimumSize: const Size(48, 48),
+                  color: CupertinoColors.activeBlue,
+                  onPressed: widget.labelShare!.busy
+                      ? null
+                      : () => unawaited(widget.labelShare!.share(item)),
+                  child: Text(
+                    widget.labelShare!.busy
+                        ? widget.strings.shareLoading
+                        : widget.strings.shareLabel,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -28,6 +28,9 @@ String? _optionalHex(Object? value) => value == null ? null : _hex(value);
 
 final class InventoryQr {
   const InventoryQr._(this.context, this.itemId, this.canonical);
+  factory InventoryQr.forItem(InventoryItem item) => InventoryQr.parse(
+    'larenor:inventory:v1:${item.context.coreId}:${item.context.homeId}:${item.id}',
+  );
   factory InventoryQr.parse(String raw) {
     final match = RegExp(
       r'^larenor:inventory:v1:([0-9a-f]{32}):([0-9a-f]{32}):([0-9a-f]{32})$',
