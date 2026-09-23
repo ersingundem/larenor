@@ -101,6 +101,11 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   records whether the effect request was attempted: before-read failures are
   typed static no-effect failures that retire the exact pending attempt, while
   POST response and later readback failures remain uncertain.
+- Post-effect RED `7bc33840` reproduced successful 204 effects followed by
+  unchanged, wrong-target or wrong-position authenticated readback being
+  misclassified as no-effect. GREEN `c0519a97` keeps every semantic mismatch
+  after POST uncertain, preserves the exact pending receipt and prevents replay
+  from issuing a second worker effect.
 
 The production-worker package adds **20/20** protocol/container tests and the
 private IPC/credential/provider groups bring the focused Server batch to
@@ -108,10 +113,10 @@ private IPC/credential/provider groups bring the focused Server batch to
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
-The final runtime/executor/IPC/provider regression batch passes **32/32**,
+The final runtime/executor/IPC/provider regression batch passes **35/35**,
 including both pre-effect authority/deadline boundaries.
 The grouped runtime, executor, Core playback, IPC, provider and encrypted
-bootstrap batch passes **68/68** after the phase-aware certainty fix.
+bootstrap batch passes **72/72** after the post-effect certainty fix.
 
 ## Remaining S08.8 acceptance
 
