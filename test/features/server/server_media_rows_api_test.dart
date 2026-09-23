@@ -65,10 +65,27 @@ void main() {
           );
         }
         expect(request.url.query, isEmpty);
+        if (request.url.path.endsWith('/media/rows/target')) {
+          expect(jsonDecode(request.body), {
+            'installationId': _installationId,
+            'expectedInstallationRevision': 7,
+          });
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'installationId': _installationId,
+              'installationRevision': 7,
+              'bindingRevision': 4,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
         expect(jsonDecode(request.body), {
           'requestId': _requestId,
           'installationId': _installationId,
           'expectedInstallationRevision': 7,
+          'expectedBindingRevision': 4,
         });
         return http.Response(
           jsonEncode(_response()),
@@ -92,6 +109,7 @@ void main() {
     expect(result.rows.resume.single.progress, 0.25);
     expect(calls.map((call) => call.url.path), [
       '/api/v1/media/catalog/target',
+      '/api/v1/media/rows/target',
       '/api/v1/media/rows/read',
     ]);
     expect(calls.last.body, isNot(contains('token')));
@@ -100,11 +118,83 @@ void main() {
 
   test('rejects secret fields, incoherent lanes and changed authority', () {
     expect(
+      () => ServerMediaRowsTarget.fromJson(
+        {
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 4,
+          'userId': 'must-not-cross-boundary',
+        },
+        expectedInstallationId: _installationId,
+        expectedInstallationRevision: 7,
+      ),
+      throwsFormatException,
+    );
+    for (final invalid in <Map<String, Object?>>[
+      {
+        'schemaVersion': 1.0,
+        'installationId': _installationId,
+        'installationRevision': 7,
+        'bindingRevision': 4,
+      },
+      {
+        'schemaVersion': 1,
+        'installationId': '55555555555555555555555555555555',
+        'installationRevision': 7,
+        'bindingRevision': 4,
+      },
+      {
+        'schemaVersion': 1,
+        'installationId': _installationId,
+        'installationRevision': 8,
+        'bindingRevision': 4,
+      },
+      {
+        'schemaVersion': 1,
+        'installationId': _installationId,
+        'installationRevision': 7,
+        'bindingRevision': 4.0,
+      },
+      {
+        'schemaVersion': 1,
+        'installationId': _installationId,
+        'installationRevision': 7,
+        'bindingRevision': true,
+      },
+      {
+        'schemaVersion': 1,
+        'installationId': _installationId,
+        'installationRevision': 7,
+        'bindingRevision': 0,
+      },
+    ]) {
+      expect(
+        () => ServerMediaRowsTarget.fromJson(
+          invalid,
+          expectedInstallationId: _installationId,
+          expectedInstallationRevision: 7,
+        ),
+        throwsFormatException,
+      );
+    }
+    expect(
       () => ServerAccountMediaRows.fromJson(
         {..._response(), 'apiKey': 'must-not-cross-boundary'},
         expectedRequestId: _requestId,
         expectedInstallationId: _installationId,
         expectedInstallationRevision: 7,
+        expectedBindingRevision: 4,
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => ServerAccountMediaRows.fromJson(
+        _response(),
+        expectedRequestId: _requestId,
+        expectedInstallationId: _installationId,
+        expectedInstallationRevision: 7,
+        expectedBindingRevision: 5,
       ),
       throwsFormatException,
     );
@@ -118,6 +208,7 @@ void main() {
         expectedRequestId: _requestId,
         expectedInstallationId: _installationId,
         expectedInstallationRevision: 7,
+        expectedBindingRevision: 4,
       ),
       throwsFormatException,
     );
@@ -127,6 +218,7 @@ void main() {
         expectedRequestId: _requestId,
         expectedInstallationId: _installationId,
         expectedInstallationRevision: 8,
+        expectedBindingRevision: 4,
       ),
       throwsFormatException,
     );
@@ -141,6 +233,7 @@ void main() {
           expectedRequestId: _requestId,
           expectedInstallationId: _installationId,
           expectedInstallationRevision: 7,
+          expectedBindingRevision: 4,
         ),
         throwsFormatException,
         reason: 'Unicode category C character must fail closed',
@@ -195,5 +288,127 @@ void main() {
       throwsA(isA<LarenorServerException>()),
     );
     expect(calls, 1);
+  });
+
+  for (final retirePath in <String>[
+    '/api/v1/media/rows/target',
+    '/api/v1/media/rows/read',
+  ]) {
+    test('retired caller discards $retirePath response', () async {
+      var current = true;
+      final calls = <String>[];
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.test'),
+        client: MockClient((request) async {
+          calls.add(request.url.path);
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': 7,
+                'snapshotRevision': 8,
+                'jellyfinServiceRevision': 9,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          if (request.url.path.endsWith('/media/rows/target')) {
+            if (retirePath == request.url.path) current = false;
+            return http.Response(
+              jsonEncode({
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': 7,
+                'bindingRevision': 4,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          if (retirePath == request.url.path) current = false;
+          return http.Response(
+            jsonEncode(_response()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(api.close);
+
+      await expectLater(
+        ServerMediaRowsApi(
+          api,
+          'synthetic-access',
+          requestId: () => _requestId,
+        ).readCurrent(current: () => current),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'retired',
+          ),
+        ),
+      );
+      expect(calls, [
+        '/api/v1/media/catalog/target',
+        '/api/v1/media/rows/target',
+        if (retirePath.endsWith('/read')) '/api/v1/media/rows/read',
+      ]);
+    });
+  }
+
+  test('invalid target response never reaches rows read', () async {
+    final calls = <String>[];
+    final api = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.test'),
+      client: MockClient((request) async {
+        calls.add(request.url.path);
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'installationId': _installationId,
+              'installationRevision': 7,
+              'snapshotRevision': 8,
+              'jellyfinServiceRevision': 9,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'schemaVersion': 1,
+            'installationId': _installationId,
+            'installationRevision': 7,
+            'bindingRevision': 0,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      ServerMediaRowsApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).readCurrent(),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+    expect(calls, [
+      '/api/v1/media/catalog/target',
+      '/api/v1/media/rows/target',
+    ]);
   });
 }

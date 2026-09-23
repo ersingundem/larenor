@@ -79,6 +79,7 @@ def configured(server):
         'requestId': 'e' * 32,
         'installationId': installation['id'],
         'expectedInstallationRevision': installation['revision'],
+        'expectedBindingRevision': 1,
     }
     return pair, installation, worker, body
 
@@ -190,6 +191,7 @@ def test_ready_owner_reads_bounded_recent_and_resume_without_private_identity(se
 def test_stale_installation_or_unbound_account_never_reaches_worker(server):
     app, client, _, _ = server
     pair, _installation, worker, body = configured(server)
+    app.state.core.media_rows.backend = None
 
     stale = client.post(
         BASE,
@@ -202,6 +204,18 @@ def test_stale_installation_or_unbound_account_never_reaches_worker(server):
     )
     assert stale.status_code == 409
     assert stale.json()['error']['code'] == 'media_rows_authority_changed'
+
+    stale_binding = client.post(
+        BASE,
+        headers=auth(pair),
+        json=body | {
+            'requestId': 'b' * 32,
+            'expectedBindingRevision': body['expectedBindingRevision'] + 1,
+        },
+    )
+    assert stale_binding.status_code == 409
+    assert (stale_binding.json()['error']['code'] ==
+            'media_rows_authority_changed')
 
     create_user(client, pair)
     member = activate(client, 'member')

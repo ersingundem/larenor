@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
-import '../../media_catalog/data/server_media_catalog_api.dart';
 import '../../media_result_origin.dart';
 import '../domain/server_media_rows_models.dart';
 import 'server_media_rows_api.dart';
@@ -75,16 +74,17 @@ final class ServerMediaRowsController extends ChangeNotifier {
     try {
       await account.withSession((api, session) async {
         bool requestCurrent() => valid() && identical(account.session, session);
-        final target = await ServerMediaCatalogApi(
-          api,
-          session.accessToken,
-        ).discoverTarget(current: requestCurrent);
-        if (!requestCurrent()) return;
-        final fresh = await ServerMediaRowsApi(
+        final client = ServerMediaRowsApi(
           api,
           session.accessToken,
           requestId: _requestId,
-        ).readVerifiedTarget(target: target, current: requestCurrent);
+        );
+        final target = await client.discoverTarget(current: requestCurrent);
+        if (!requestCurrent()) return;
+        final fresh = await client.readVerifiedTarget(
+          target: target,
+          current: requestCurrent,
+        );
         if (!requestCurrent()) return;
         value = fresh;
         origin = ServerMediaResultOrigin.live;

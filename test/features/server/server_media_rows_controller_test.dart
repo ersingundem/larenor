@@ -46,6 +46,14 @@ final class _Fixture extends AdminFixture {
       if (request.url.path.endsWith('/media/catalog/target')) {
         return json(_target());
       }
+      if (request.url.path.endsWith('/media/rows/target')) {
+        return json({
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 4,
+        });
+      }
       if (request.url.path.endsWith('/media/rows/read')) {
         final gate = rowsGate;
         if (gate != null) return gate.future;
@@ -128,6 +136,14 @@ void main() {
       if (request.url.path.endsWith('/media/catalog/target')) {
         return fixture.json(_target());
       }
+      if (request.url.path.endsWith('/media/rows/target')) {
+        return fixture.json({
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 4,
+        });
+      }
       return fixture.json({
         'error': {'code': 'media_rows_worker_unavailable'},
       }, 503);
@@ -139,6 +155,14 @@ void main() {
     fixture.respond = (request) async {
       if (request.url.path.endsWith('/media/catalog/target')) {
         return fixture.json(_target());
+      }
+      if (request.url.path.endsWith('/media/rows/target')) {
+        return fixture.json({
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 4,
+        });
       }
       return fixture.json({
         'error': {'code': 'media_rows_authority_changed'},
