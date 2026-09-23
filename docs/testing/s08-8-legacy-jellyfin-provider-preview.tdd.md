@@ -35,8 +35,9 @@ flutter analyze lib/features/media/jellyfin/data/legacy_jellyfin_provider_previe
 python3 tool/execution_queue.py validate
 ```
 
-S08.8 remains pending. A user-facing confirmation route and exact Core
-provider resource must consume a fresh, unchanged preview and require new Core
-credential entry before retiring direct state. Wider catalog/search/player/
-queue adoption, provider/player confirmation, cache, E2E, review, and CI
-evidence remain open. Progress stays 26/125 and 0/63.
+S08.8 remains pending. The follow-up migration contract now requires a fresh,
+unchanged preview and newly authenticated Core service before retiring direct
+state; see `s08-8-legacy-jellyfin-provider-migration.tdd.md`. Its accessible
+user confirmation surface, active media/provider integration, other direct
+provider migrations, wider catalog/search/player/queue adoption, E2E, review,
+and CI evidence remain open. Progress stays 26/125 and 0/63.
