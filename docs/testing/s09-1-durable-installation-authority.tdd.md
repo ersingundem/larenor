@@ -27,6 +27,13 @@ remains **0/63**.
    corruption, duplicate service identities and shared container identities do
    not replace the captured authority. RED `590cccba`; GREEN `e2606bc0`.
 
+Independent audit then found that a structurally valid installed container from
+an older or foreign plan could be joined to current volume receipts. RED
+`cedab984` preserves five plan, catalog, manifest, image and component-config
+drifts. GREEN `8621834b` re-derives the complete stored binding from the current
+stack component, packaged catalog, worker policy, container journal identity,
+pinned image and terminal volume receipts before publishing authority.
+
 ## Focused evidence
 
 ```text
@@ -38,6 +45,10 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_plugin_worker.py \
   server/tests/test_installation_runtime.py
 ```
+
+Result: **232 passed**. The queue and selected-feature counts remain unchanged
+because the Linux Docker adapter, durable effect recovery and native acceptance
+gates are still open.
 
 The next Linux adapter must still inspect the exact Docker Engine container and
 volume receipts, resolve and retain the volume path identities, reconcile
