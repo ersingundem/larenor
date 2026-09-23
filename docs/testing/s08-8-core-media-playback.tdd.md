@@ -79,6 +79,11 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
 - Authority-retention `107f3928` re-resolves the encrypted bootstrap binding
   before and after worker dispatch. API-key, plan or bootstrap-revision drift
   therefore suppresses success even when an external effect already occurred.
+- Pre-effect RED `48ef1e9d` reproduced retained-authority loss and monotonic
+  deadline expiry after the authenticated before-read but before the playback
+  POST. GREEN `34a7bd5b` revalidates both at the effect boundary, writes no
+  request after either failure, closes all opened streams and reports the
+  authority change without marking an unstarted effect uncertain.
 
 The production-worker package adds **20/20** protocol/container tests and the
 private IPC/credential/provider groups bring the focused Server batch to
@@ -86,6 +91,8 @@ private IPC/credential/provider groups bring the focused Server batch to
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
+The final runtime/executor/IPC/provider regression batch passes **25/25**,
+including both pre-effect authority/deadline boundaries.
 
 ## Remaining S08.8 acceptance
 
