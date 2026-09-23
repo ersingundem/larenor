@@ -45,6 +45,41 @@ class MediaPlaybackManagement:
         except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
             raise StartupError('invalid_media_playback_storage') from None
 
+    @staticmethod
+    def _prune_succeeded(connection, count):
+        rows = connection.execute(
+            "SELECT request_id,intent_id FROM media_playback_receipts "
+            "WHERE state='succeeded' ORDER BY created_at,request_id LIMIT ?",
+            (count,),
+        ).fetchall()
+        for row in rows:
+            deleted_receipt = connection.execute(
+                "DELETE FROM media_playback_receipts "
+                "WHERE request_id=? AND intent_id=? AND state='succeeded'",
+                (row['request_id'], row['intent_id']),
+            ).rowcount
+            deleted_intent = connection.execute(
+                'DELETE FROM media_playback_intents '
+                'WHERE id=? AND consumed_by=?',
+                (row['intent_id'], row['request_id']),
+            ).rowcount
+            if deleted_receipt != 1 or deleted_intent != 1:
+                raise ApiError('media_playback_storage_unavailable', 503)
+        return len(rows)
+
+    def _make_intent_room(self, connection):
+        connection.execute(
+            'DELETE FROM media_playback_intents '
+            'WHERE consumed_by IS NULL AND expires_at<=?',
+            (int(self.settings.clock()),),
+        )
+        count = connection.execute(
+            'SELECT COUNT(*) AS count FROM media_playback_intents'
+        ).fetchone()['count']
+        required = max(0, count - _MAX_RECORDS + 1)
+        if required and self._prune_succeeded(connection, required) != required:
+            raise ApiError('media_playback_storage_unavailable', 503)
+
     def _catalog(self, actor, body):
         authority, observation = self.archive._collect(
             actor, body, member=True)
@@ -123,11 +158,7 @@ class MediaPlaybackManagement:
                     (body.requestId,)).fetchone()
                 if existing is not None:
                     raise ApiError('media_playback_intent_conflict', 409)
-                count = connection.execute(
-                    'SELECT COUNT(*) AS count FROM media_playback_intents'
-                ).fetchone()['count']
-                if count >= _MAX_RECORDS:
-                    raise ApiError('media_playback_storage_unavailable', 503)
+                self._make_intent_room(connection)
                 connection.execute(
                     'INSERT INTO media_playback_intents VALUES('
                     '?,?,?,?,?,?,?,?,?,?,?,NULL)',
@@ -217,7 +248,9 @@ class MediaPlaybackManagement:
             receipt_count = connection.execute(
                 'SELECT COUNT(*) AS count FROM media_playback_receipts'
             ).fetchone()['count']
-            if receipt_count >= _MAX_RECORDS:
+            required = max(0, receipt_count - _MAX_RECORDS + 1)
+            if (required
+                    and self._prune_succeeded(connection, required) != required):
                 raise ApiError('media_playback_storage_unavailable', 503)
             changed = connection.execute(
                 'UPDATE media_playback_intents SET consumed_by=? '
