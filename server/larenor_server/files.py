@@ -44,6 +44,40 @@ def private_read(path: Path, maximum: int) -> bytes:
         return value
 
 
+def private_read_mutable(path: Path, maximum: int) -> bytearray:
+    """Read one private file directly into a bounded, caller-owned buffer."""
+    checked_path(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    value = bytearray(maximum + 1)
+    try:
+        with os.fdopen(fd, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_nlink != 1
+            ):
+                raise StartupError("storage_file_not_private")
+            view = memoryview(value)
+            try:
+                length = 0
+                while length < len(value):
+                    count = stream.readinto(view[length:])
+                    if not count:
+                        break
+                    length += count
+            finally:
+                view.release()
+            if length > maximum:
+                raise StartupError("invalid_storage_file")
+            del value[length:]
+            return value
+    except BaseException:
+        value[:] = b"\0" * len(value)
+        raise
+
+
 def sync_directory(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:

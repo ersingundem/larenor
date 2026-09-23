@@ -31,13 +31,20 @@ def test_invalid_passphrase_is_rejected_before_bundle_read(monkeypatch, tmp_path
     passphrase = tmp_path / "passphrase"
     reads = []
 
-    def private_read(path, maximum):
+    def private_read_mutable(path, maximum):
         reads.append((path, maximum))
         if path == passphrase:
-            return b"too short\n"
+            return bytearray(b"too short\n")
         raise AssertionError("bundle must not be read for an invalid passphrase")
 
-    monkeypatch.setattr(cli, "private_read", private_read)
+    monkeypatch.setattr(cli, "private_read_mutable", private_read_mutable)
+    monkeypatch.setattr(
+        cli,
+        "private_read",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("bundle must not be read for an invalid passphrase")
+        ),
+    )
 
     with pytest.raises(StartupError, match="restore_passphrase_invalid"):
         cli._read_restore_inputs(bundle, passphrase)

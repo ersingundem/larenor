@@ -9,7 +9,7 @@ from .core_backups.models import validate_backup_passphrase
 from .core_backups.restore import restore_empty
 from .core_backups.service import MAX_BUNDLE_BYTES
 from .errors import ApiError, StartupError
-from .files import private_read
+from .files import private_read, private_read_mutable
 from .runtime import create_configured_app
 
 
@@ -30,7 +30,7 @@ def _decode_restore_passphrase(encoded: bytearray) -> str:
 
 def _read_restore_inputs(bundle_path: Path, passphrase_path: Path):
     """Validate the small secret before allocating the bounded bundle."""
-    encoded = bytearray(private_read(passphrase_path, 514))
+    encoded = private_read_mutable(passphrase_path, 514)
     passphrase = _decode_restore_passphrase(encoded)
     return private_read(bundle_path, MAX_BUNDLE_BYTES), passphrase
 
