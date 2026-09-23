@@ -297,7 +297,7 @@ def _body(reader, headers, max_bytes, max_chunks, *, allow_eof=False):
             yield piece
 
 
-def _empty_effect_response(status, headers):
+def _empty_effect_response(status, headers, reader):
     """Accept only an unambiguous bodyless Docker action acknowledgement."""
     framing = {}
     for key, value in headers:
@@ -314,6 +314,10 @@ def _empty_effect_response(status, headers):
             'transfer-encoding', 'content-encoding', 'content-type', 'location',
         })
     )
+    # Every operation request carries Connection: close. EOF is therefore the
+    # only unambiguous proof that an otherwise bodyless 204 has no unframed
+    # trailing bytes waiting outside Content-Length/Transfer-Encoding.
+    _require(reader.receive(1) == b'')
 
 
 class _ScopedChunks:
@@ -415,7 +419,7 @@ class VerifiedEngineHttp:
             connection.sendall(wire)
             status, headers = _headers(reader)
             if container_effect:
-                _empty_effect_response(status, headers)
+                _empty_effect_response(status, headers, reader)
                 chunks = _ScopedChunks((item for item in ()))
             else:
                 chunks = _ScopedChunks(_body(
