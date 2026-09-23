@@ -246,6 +246,31 @@ void main() {
     },
   );
   testWidgets(
+    'new listener never receives a snapshot from retired authority',
+    (tester) async {
+      var current = true;
+      final api = FakeRemoteApi();
+      final controller = remoteController(api, isCurrent: () => current);
+      final first = controller.changes.listen((_) {});
+      await tester.pump();
+      expect(controller.state.targets, hasLength(1));
+
+      current = false;
+      final received = <RemotePlaybackSnapshot>[];
+      final second = controller.changes.listen(received.add);
+      await tester.pump();
+
+      expect(received, isNotEmpty);
+      expect(received.first.targets, isEmpty);
+      expect(received.first.receipt, isNull);
+      expect(controller.state.targets, isEmpty);
+      unawaited(first.cancel());
+      unawaited(second.cancel());
+      controller.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets(
     'silent authority drift after command await publishes no stale result',
     (tester) async {
       var current = true;
