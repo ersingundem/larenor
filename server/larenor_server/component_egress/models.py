@@ -8,7 +8,6 @@ from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
 from ..services.models import canonical_base_url
 
-
 _LAN = tuple(ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'))
 
 
@@ -78,6 +77,22 @@ class Update(StrictModel):
     expectedRevision: int = Field(ge=0, le=2**63-2)
     expectedServiceRevision: Revision
     grants: list[Grant] = Field(max_length=1)
+
+
+class Resolve(StrictModel):
+    expectedServiceRevision: Revision
+
+
+class ResolveResponse(StrictModel):
+    schemaVersion: Literal[1] = 1
+    serviceId: ObjectId
+    serviceRevision: Revision
+    component: Literal[
+        'home_assistant_probe',
+        'proxmox_command_worker',
+        'keenetic_command_worker',
+    ]
+    grant: Grant
 
 
 class Event(StrictModel):

@@ -107,6 +107,7 @@ MESSAGES = {
     'tablet_rollout_replay_changed': 'The kiosk rollout preview no longer matches this request.',
     'tablet_release_unavailable': 'No verified Larenor Client release is available for this rollout.',
     'outbound_denied': 'This component has no current permission for that destination.',
+    'resolution_unavailable': 'The configured service address could not be resolved safely.',
     'ha_migration_changed': 'The selected migration source or target changed. Review it again.',
     'ha_migration_preview_invalid': 'The migration preview is no longer available. Review it again.',
     'ha_migration_limit_reached': 'The Home Assistant migration limit has been reached.',
