@@ -102,6 +102,50 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 20)),
   );
+
+  test(
+    'TLS adapter does not report publish success without broker receipt',
+    () async {
+      final fixture = await _TlsMqttFixture.start(suppressPublishAck: true);
+      addTearDown(fixture.close);
+      final broker = MqttClientLocalBroker(
+        securityContext: fixture.clientContext,
+        publishAckTimeout: const Duration(milliseconds: 100),
+      );
+      addTearDown(broker.disconnect);
+
+      await broker.connect(
+        settings: LocalMqttBrokerSettings(
+          enabled: true,
+          host: InternetAddress.loopbackIPv4.address,
+          port: fixture.port,
+          tls: true,
+        ),
+        clientId: 'larenor-tablet-unacknowledged',
+        username: 'fixture-user',
+        password: 'fixture-password',
+        onMessage: (_) async {},
+        onDisconnected: () {},
+      );
+      await broker.subscribe('larenor/tablets/device-1/commands');
+
+      await expectLater(
+        broker.publish(
+          'larenor/tablets/device-1/telemetry',
+          utf8.encode('{"state":"ready"}'),
+          retained: true,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'mqtt_publish_timeout',
+          ),
+        ),
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
 }
 
 final class _TlsMqttFixture {
@@ -123,6 +167,7 @@ final class _TlsMqttFixture {
 
   static Future<_TlsMqttFixture> start({
     bool rejectSubscription = false,
+    bool suppressPublishAck = false,
   }) async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'larenor-mqtt-tls-',
@@ -173,6 +218,7 @@ final class _TlsMqttFixture {
       server,
       observed,
       rejectSubscription: rejectSubscription,
+      suppressPublishAck: suppressPublishAck,
     );
     return _TlsMqttFixture._(
       server: server,
@@ -187,6 +233,7 @@ final class _TlsMqttFixture {
     SecureServerSocket server,
     Completer<_ObservedSession> observed, {
     required bool rejectSubscription,
+    required bool suppressPublishAck,
   }) async {
     try {
       final socket = await server.first.timeout(const Duration(seconds: 5));
@@ -219,7 +266,8 @@ final class _TlsMqttFixture {
           }
         } else if (packet.type == 3) {
           published = _decodePublish(packet);
-          if (published.packetIdentifier case final id?) {
+          final id = published.packetIdentifier;
+          if (!suppressPublishAck && id != null) {
             socket.add([0x40, 0x02, id.$1, id.$2]);
             await socket.flush();
           }
