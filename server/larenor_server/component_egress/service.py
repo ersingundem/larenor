@@ -316,12 +316,21 @@ class _Lease:
     def complete(self, c):
         with self._lock:
             self._require('open', 'dispatched')
+            retry_phase = self._phase
             state = storage.load(c, self.owner.key, self.owner.scope)
             self._current(c, state)
             self.owner._event(
                 c, state, self.actor, self.policy, self.correlation,
                 'probe_completed')
-            self._phase = 'completed'
+            self._phase = 'completing'
+
+        def finish(committed):
+            with self._lock:
+                if self._phase != 'completing':
+                    return
+                self._phase = 'completed' if committed else retry_phase
+
+        return finish
 
     def failed(self):
         # Already authenticated correlation only; no new authority after revocation.

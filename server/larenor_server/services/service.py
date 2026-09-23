@@ -231,12 +231,20 @@ class ServiceManagement:
             verification = ServiceVerification(state=state, checkedAt=utc(self.settings.clock()), version=version).model_dump()
         except ValidationError:
             raise ApiError("invalid_request") from None
-        with self._mutation(actor, "check", service_id) as connection:
-            row, record = self._record(connection, service_id, expected_revision)
-            if version is not None and any(secret in version for secret in record["credentials"].values()):
-                verification["version"] = None
-            if before_save is not None:
-                before_save(connection)
-            record = {**record, "verification": verification}
-            self._save(connection, service_id, row["revision"], record)
+        finish_save = None
+        try:
+            with self._mutation(actor, "check", service_id) as connection:
+                row, record = self._record(connection, service_id, expected_revision)
+                if version is not None and any(secret in version for secret in record["credentials"].values()):
+                    verification["version"] = None
+                if before_save is not None:
+                    finish_save = before_save(connection)
+                record = {**record, "verification": verification}
+                self._save(connection, service_id, row["revision"], record)
+        except BaseException:
+            if finish_save is not None:
+                finish_save(False)
+            raise
+        if finish_save is not None:
+            finish_save(True)
         return {"service": self._public(service_id, row["revision"], record)}
