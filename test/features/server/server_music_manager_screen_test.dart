@@ -7,10 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/music_manager/presentation/server_music_manager_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_music_manager_test_support.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   Future<MusicManagerFixture> mount(
     WidgetTester tester, {
     required String locale,
