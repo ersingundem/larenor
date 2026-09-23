@@ -443,7 +443,7 @@ final class CoreBackupPlan {
     if (json.length != keys.length ||
         !json.keys.every(keys.contains) ||
         rawBlockers is! List ||
-        rawBlockers.length > allowedBlockers.length ||
+        rawBlockers.length > maxBlockers ||
         rawBlockers.any(
           (item) => item is! String || !allowedBlockers.contains(item),
         )) {
@@ -474,7 +474,10 @@ final class CoreBackupPlan {
     'active_music_assistant_bootstrap',
     'active_keenetic_command',
     'active_tablet_command',
+    'component_quiescence_timeout',
+    'component_quiescence_unavailable',
   };
+  static const maxBlockers = 11;
 
   final List<String> blockers;
   final CoreBackupManifest? manifest;
