@@ -196,6 +196,8 @@ MESSAGES = {
     'media_playback_command_conflict': 'This managed media playback request conflicts with an existing command.',
     'media_playback_worker_unavailable': 'The managed media playback worker is unavailable.',
     'media_playback_storage_unavailable': 'The managed media playback journal is unavailable.',
+    'media_rows_authority_changed': 'The account media rows authority changed. Refresh it.',
+    'media_rows_worker_unavailable': 'The private account media rows worker is unavailable.',
     'media_archive_authority_changed': 'The managed media archive sources changed. Read them again.',
     'media_archive_snapshot_stale': 'The managed media archive snapshot is out of date.',
     'media_flow_provider_unavailable': 'The managed media flow sources are unavailable.',

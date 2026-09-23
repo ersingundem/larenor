@@ -59,6 +59,7 @@ from .plugins.media_archive_core_api import (
 )
 from .plugins.media_flow_api import router as media_flow_router
 from .plugins.media_playback_api import router as media_playback_router
+from .plugins.media_rows_api import router as media_rows_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .legacy_remote.api import router as legacy_remote_router
 from .bounded_transfer.models import TransferLimits
@@ -390,6 +391,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_catalog_router, prefix="/api/v1")
     app.include_router(media_flow_router, prefix="/api/v1")
     app.include_router(media_playback_router, prefix="/api/v1")
+    app.include_router(media_rows_router, prefix="/api/v1")
     app.include_router(proxmox_power_router, prefix="/api/v1")
     app.include_router(keenetic_command_router, prefix="/api/v1")
     for extension in routers:

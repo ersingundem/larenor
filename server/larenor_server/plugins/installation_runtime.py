@@ -39,6 +39,7 @@ from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .jellyfin_playback_executor import JellyfinPlaybackExecutor
+from .jellyfin_media_rows_executor import JellyfinMediaRowsExecutor
 from .seerr_bootstrap_executor import SeerrBootstrapExecutor
 from .seerr_initial_admin import SeerrInitialAdmin
 from .seerr_arr_wiring import SeerrArrWiring
@@ -294,6 +295,11 @@ class _RuntimeBackend:
             if type(operations) is JournaledManagedContainerOperations
             else None
         )
+        self.media_rows = (
+            JellyfinMediaRowsExecutor(operations, binding_builder)
+            if type(operations) is JournaledManagedContainerOperations
+            else None
+        )
 
     def apply(self, step, plan):
         service = service_for_step(step, plan)
@@ -344,6 +350,12 @@ class _RuntimeBackend:
             raise ValueError('jellyfin_playback_worker_unavailable')
         return self.media_playback.execute(
             action, deadline=deadline, gate=gate)
+
+    def read_media_rows(self, authority, *, deadline, gate):
+        if self.media_rows is None:
+            raise ValueError('jellyfin_media_rows_worker_unavailable')
+        return self.media_rows.read(
+            authority, deadline=deadline, gate=gate)
 
     def search_music_catalog(self, action, *, deadline, gate):
         if gate() is not True:

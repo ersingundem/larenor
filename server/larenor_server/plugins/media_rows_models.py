@@ -52,6 +52,20 @@ class MediaRowsReadback(StrictModel):
         return self
 
 
+class ReadAccountMediaRowsRequest(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+
+
+class AccountMediaRowsResponse(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    installationRevision: Revision
+    bindingRevision: Revision
+    rows: MediaRowsReadback
+
+
 class PrivateJellyfinMediaRowsAuthority(StrictModel):
     requestId: ObjectId
     installationId: ObjectId

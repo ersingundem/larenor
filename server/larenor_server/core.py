@@ -80,6 +80,7 @@ from .plugins.media_playback import (
     MediaPlaybackWorkerProvider,
 )
 from .plugins.media_playback_schema import migrate_media_playback
+from .plugins.media_rows import MediaRowsManagement
 from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.media_installation_schema import migrate_media_installations
@@ -798,6 +799,16 @@ class CoreServices:
                  else None),
             )
             self.media_playback.validate_storage()
+            self.media_rows = MediaRowsManagement(
+                self.auth,
+                settings,
+                self.media_account_bindings,
+                self.media_service_bootstraps,
+                (installation_backend
+                 if callable(getattr(
+                     installation_backend, 'read_media_rows', None))
+                 else None),
+            )
             media_flow_provider = (
                 MediaFlowWorkerProvider(installation_backend)
                 if callable(getattr(installation_backend, "read_media_flow", None))

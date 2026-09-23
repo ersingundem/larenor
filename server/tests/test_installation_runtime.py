@@ -514,6 +514,9 @@ def test_runtime_routes_every_engine_connection_through_one_peer_verifier(config
         assert readers._networks._http._peer_uid is verifier
         assert readers._bootstrap._engine._transport.peer_uid is verifier
         assert built.backend.operations.engine.peer_uid is verifier
+        assert built.backend.media_rows.operations is built.backend.operations
+        assert (built.backend.media_rows.binding_builder
+                is built.backend.binding_builder)
         qbit = built.backend.qbittorrent_config._installer._engine
         assert qbit._transport.peer_uid is verifier
         assert qbit._stdin._peer_uid is verifier

@@ -477,6 +477,22 @@ class SupervisedInstallationBackend:
         finally:
             self._peer_verifier.deactivate()
 
+    def read_media_rows_with_deadline(self, authority, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            result = self.backend.read_media_rows(
+                authority, deadline=deadline, gate=gate)
+            self._check(deadline)
+            return result
+        finally:
+            self._peer_verifier.deactivate()
+
     def execute_music_playback_with_deadline(self, action, deadline):
         return self._music_playback_call(
             'execute_music_playback', action, deadline)
