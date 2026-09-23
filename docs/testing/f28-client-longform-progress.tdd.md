@@ -30,6 +30,13 @@ URL/secret rejection, exact request fields, throwing callbacks, route/account
 retirement, overlapping reverify, localized accessibility layouts, explicit
 empty/error states, and the production Media screen wiring.
 
+Independent exact-head audit RED `2f4d6007` exposed contract drift from the
+matching Core slice: non-contiguous chapter positions and safe provider URI
+schemes were rejected, while overlong durations, a chapter starting exactly at
+duration and overlapping chapter ranges were accepted. GREEN `2f2f2ee9`
+aligns URI, numeric and timeline validation with Core. The expanded focused
+batch passes **41/41** with targeted analysis clean.
+
 Verification commands:
 
 ```text
