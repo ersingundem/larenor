@@ -150,6 +150,8 @@ final class _ServerMediaCatalogScreenState
           builder: (_) => ServerMediaFlowScreen(
             mediaKey: item.flowMediaKey,
             title: item.title,
+            catalogPage: _controller.page,
+            catalogItem: item,
             requestId: widget.requestId,
           ),
         ),

@@ -673,13 +673,25 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('server-media-playback-prepare')),
+    final prepare = find.byKey(const ValueKey('server-media-playback-prepare'));
+    await tester.scrollUntilVisible(
+      prepare,
+      300,
+      scrollable: find.byType(Scrollable).last,
     );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('server-media-playback-target-living-room')),
+    await tester.tap(prepare);
+    await tester.pumpAndSettle();
+    final target = find.byKey(
+      const ValueKey('server-media-playback-target-living-room'),
     );
+    await tester.scrollUntilVisible(
+      target,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(target);
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('server-media-playback-confirm')),

@@ -8,6 +8,9 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../data/server_account_controller.dart';
+import '../../media_catalog/domain/server_media_catalog_models.dart';
+import '../../media_playback/data/server_media_playback_controller.dart';
+import '../../media_playback/domain/server_media_playback_models.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_media_flow_controller.dart';
 import '../domain/server_media_flow_models.dart';
@@ -18,10 +21,17 @@ final class ServerMediaFlowScreen extends ConsumerStatefulWidget {
     super.key,
     required this.mediaKey,
     required this.title,
+    this.catalogPage,
+    this.catalogItem,
     this.requestId,
-  });
+  }) : assert(
+         (catalogPage == null) == (catalogItem == null),
+         'catalogPage and catalogItem must be provided together',
+       );
 
   final String mediaKey, title;
+  final ServerMediaCatalogPage? catalogPage;
+  final ServerMediaCatalogItem? catalogItem;
 
   @visibleForTesting
   final String Function()? requestId;
@@ -36,6 +46,7 @@ final class _ServerMediaFlowScreenState
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
   late final ServerMediaFlowController _controller;
+  late final ServerMediaPlaybackController? _playback;
   late final int _accountGeneration;
   ValueListenable<TickerModeData>? _ticker;
   int _lifecycle = 0;
@@ -48,8 +59,13 @@ final class _ServerMediaFlowScreenState
       _account.isCurrent(_accountGeneration) &&
       _account.initialized &&
       !_account.working &&
-      _account.session?.user.canAdminister == true &&
+      !_account.hasPendingContext &&
+      _account.session != null &&
+      _account.session?.authMutationPending == false &&
+      _account.session?.user.mustChangePassword == false &&
       (ModalRoute.of(context)?.isCurrent ?? true);
+
+  bool get _canReadFlow => _account.session?.user.canAdminister == true;
 
   @override
   void initState() {
@@ -61,6 +77,9 @@ final class _ServerMediaFlowScreenState
       _account,
       requestId: widget.requestId,
     );
+    _playback = widget.catalogPage == null
+        ? null
+        : ServerMediaPlaybackController(_account, requestId: widget.requestId);
     _account.addListener(_accountChanged);
   }
 
@@ -83,8 +102,7 @@ final class _ServerMediaFlowScreenState
   }
 
   void _accountChanged() {
-    if (!_account.isCurrent(_accountGeneration) ||
-        _account.session?.user.canAdminister != true) {
+    if (!_account.isCurrent(_accountGeneration) || !_active) {
       _expire();
     }
   }
@@ -104,6 +122,7 @@ final class _ServerMediaFlowScreenState
     _expired = true;
     _lifecycle++;
     _controller.retire();
+    _playback?.retire();
   }
 
   bool Function() _capture() {
@@ -113,7 +132,7 @@ final class _ServerMediaFlowScreenState
 
   void _load() {
     final current = _capture();
-    if (!current() || _controller.busy) return;
+    if (!current() || !_canReadFlow || _controller.busy) return;
     unawaited(_controller.load(widget.mediaKey, current: current));
   }
 
@@ -123,6 +142,7 @@ final class _ServerMediaFlowScreenState
     _ticker?.removeListener(_visibilityChanged);
     _account.removeListener(_accountChanged);
     _controller.dispose();
+    _playback?.dispose();
     super.dispose();
   }
 
@@ -195,6 +215,7 @@ final class _ServerMediaFlowScreenState
   }
 
   List<Widget> _body(AppLocalizations l) {
+    if (!_canReadFlow) return const [];
     if (_controller.busy ||
         _controller.status == null && _controller.failure == null) {
       return [
@@ -247,9 +268,133 @@ final class _ServerMediaFlowScreenState
     ];
   }
 
+  void _prepare() {
+    final page = widget.catalogPage;
+    final item = widget.catalogItem;
+    final playback = _playback;
+    final current = _capture();
+    if (page == null || item == null || playback == null || !current()) return;
+    unawaited(playback.prepare(page, item, current: current));
+  }
+
+  Future<void> _confirm(
+    AppLocalizations l,
+    ServerMediaPlaybackTarget target,
+  ) async {
+    final playback = _playback;
+    final current = _capture();
+    if (playback == null || !current()) return;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(l.serverMediaPlaybackConfirmTitle),
+        content: Text(l.serverMediaPlaybackConfirmBody),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l.commonCancel),
+          ),
+          CupertinoDialogAction(
+            key: const ValueKey('server-media-playback-confirm'),
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.serverMediaPlaybackConfirm),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && current()) {
+      await playback.play(target, current: current);
+    }
+  }
+
+  List<Widget> _playbackBody(AppLocalizations l) {
+    final playback = _playback;
+    if (playback == null) return const [];
+    final intent = playback.intent;
+    final receipt = playback.receipt;
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+        child: Text(l.serverMediaPlaybackTitle, style: AppText.title2),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Text(l.serverMediaPlaybackBody, style: AppText.body),
+      ),
+      if (playback.busy)
+        Semantics(
+          liveRegion: true,
+          child: const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+        )
+      else if (receipt != null)
+        Semantics(
+          key: ValueKey(
+            receipt.state == ServerMediaPlaybackReceiptState.succeeded
+                ? 'server-media-playback-succeeded'
+                : 'server-media-playback-needs-attention',
+          ),
+          liveRegion: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+            child: Text(
+              receipt.state == ServerMediaPlaybackReceiptState.succeeded
+                  ? l.serverMediaPlaybackAccepted
+                  : l.serverMediaPlaybackUnknown,
+              style: AppText.body,
+            ),
+          ),
+        )
+      else if (playback.failure != null)
+        Semantics(
+          liveRegion: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+            child: Text(l.commonError, style: AppText.body),
+          ),
+        )
+      else if (intent == null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
+          child: Semantics(
+            key: const ValueKey('server-media-playback-prepare'),
+            button: true,
+            label: l.serverMediaPlaybackPrepare,
+            child: ExcludeSemantics(
+              child: CupertinoButton.filled(
+                minimumSize: const Size(48, 48),
+                onPressed: _active ? _prepare : null,
+                child: Text(l.serverMediaPlaybackPrepare),
+              ),
+            ),
+          ),
+        )
+      else
+        for (final target in intent.targets.where((item) => item.available))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 80),
+            child: Semantics(
+              key: ValueKey('server-media-playback-target-${target.id}'),
+              button: true,
+              label: l.serverMediaPlaybackTarget(target.name),
+              child: ExcludeSemantics(
+                child: CupertinoButton(
+                  minimumSize: const Size(48, 48),
+                  onPressed: _active ? () => _confirm(l, target) : null,
+                  child: Text(target.name),
+                ),
+              ),
+            ),
+          ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _controller,
+    listenable: Listenable.merge([_controller, ?_playback]),
     builder: (context, _) {
       final l = AppLocalizations.of(context);
       return ServiceRootScaffold(
@@ -265,7 +410,7 @@ final class _ServerMediaFlowScreenState
                   explicitChildNodes: true,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: _body(l),
+                    children: [..._body(l), ..._playbackBody(l)],
                   ),
                 ),
               ),

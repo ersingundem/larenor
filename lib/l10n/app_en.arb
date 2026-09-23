@@ -2427,6 +2427,18 @@
   "serverMediaRecover": "Recover this preparation",
   "serverMediaNameConflict": "A prepared record already uses this name. Open the existing preparation or choose a different name.",
   "serverMediaCatalogChanged": "The component catalog changed. Start a new preparation to review the current requirements.",
+  "serverMediaPlaybackTitle": "Managed playback",
+  "serverMediaPlaybackBody": "Choose an available player. Core rechecks this catalog item and the selected player before replacing playback.",
+  "serverMediaPlaybackPrepare": "Choose a player",
+  "serverMediaPlaybackTarget": "Play on {name}",
+  "@serverMediaPlaybackTarget": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "serverMediaPlaybackConfirmTitle": "Start managed playback?",
+  "serverMediaPlaybackConfirmBody": "Core will recheck this item and player before replacing its current playback.",
+  "serverMediaPlaybackConfirm": "Play",
+  "serverMediaPlaybackAccepted": "Playback was verified on the selected player.",
+  "serverMediaPlaybackUnknown": "The result is uncertain. Check the player before trying again.",
   "serverMediaContextChanged": "The Server home context changed. Reopen media preparation before saving a new record.",
   "serverMediaCapacity": "The Server preparation limit has been reached. Review existing preparations.",
   "serverMediaStorageUnavailable": "Saved preparations are temporarily unavailable on the Server.",
