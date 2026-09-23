@@ -4,7 +4,6 @@ import copy
 
 import pytest
 from conftest import auth, ready
-
 from larenor_server.core_backups import service as backup_service
 
 
