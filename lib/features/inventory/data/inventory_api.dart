@@ -112,6 +112,7 @@ final class InventoryAccountGateway
     ServerApiFactory? apiFactory,
   }) : _generation = account.generation,
        _endpoint = account.session!.endpoint,
+       _accountId = account.session!.user.id,
        _api =
            (apiFactory ?? ((endpoint) => LarenorServerApi(endpoint: endpoint)))(
              account.session!.endpoint,
@@ -122,36 +123,50 @@ final class InventoryAccountGateway
   final bool Function() isCurrent;
   final int _generation;
   final ServerEndpoint _endpoint;
+  final String _accountId;
   final LarenorServerApi _api;
   bool _closed = false;
 
+  bool _current() {
+    try {
+      return !_closed && isCurrent() && account.isCurrent(_generation);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<InventoryApi> _authorized() async {
-    if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
+    if (!_current()) {
       throw const LarenorServerException('cancelled');
     }
     final session = await account.ensureSession();
-    if (_closed ||
-        !isCurrent() ||
-        !account.isCurrent(_generation) ||
+    if (!_current() ||
         session.context != context ||
-        session.endpoint.baseUrl != _endpoint.baseUrl) {
+        session.endpoint.baseUrl != _endpoint.baseUrl ||
+        session.user.id != _accountId) {
       throw const LarenorServerException('cancelled');
     }
     return InventoryApi(_api, session.accessToken, context);
   }
 
+  Future<T> _operation<T>(Future<T> Function(InventoryApi api) action) async {
+    final value = await action(await _authorized());
+    await _authorized();
+    return value;
+  }
+
   @override
-  Future<InventoryItem> resolve(InventoryQr qr) async =>
-      (await _authorized()).resolve(qr);
+  Future<InventoryItem> resolve(InventoryQr qr) =>
+      _operation((api) => api.resolve(qr));
   @override
-  Future<InventoryHistory> history(InventoryItem item) async =>
-      (await _authorized()).history(item);
+  Future<InventoryHistory> history(InventoryItem item) =>
+      _operation((api) => api.history(item));
   @override
-  Future<InventoryGrants> grants(InventoryItem item) async =>
-      (await _authorized()).grants(item);
+  Future<InventoryGrants> grants(InventoryItem item) =>
+      _operation((api) => api.grants(item));
   @override
-  Future<InventoryPage> list({int limit = 25, String? cursor}) async =>
-      (await _authorized()).list(limit: limit, cursor: cursor);
+  Future<InventoryPage> list({int limit = 25, String? cursor}) =>
+      _operation((api) => api.list(limit: limit, cursor: cursor));
 
   void close() {
     if (_closed) return;

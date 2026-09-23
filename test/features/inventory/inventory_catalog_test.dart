@@ -56,56 +56,59 @@ http.Response _jsonResponse(Object value) => http.Response(
 );
 
 void main() {
-  test('account gateway contains throwing route authority before network', () async {
-    var inventoryRequests = 0;
-    LarenorServerApi factory(ServerEndpoint endpoint) => LarenorServerApi(
-      endpoint: endpoint,
-      clock: () => DateTime.utc(2026, 9, 23, 12),
-      client: MockClient((request) async {
-        if (request.url.path.endsWith('/auth/me')) {
-          return _jsonResponse({
-            'user': {
-              'id': '9' * 32,
-              'username': 'fixture',
-              'role': 'admin',
-              'mustChangePassword': false,
-            },
-          });
-        }
-        if (request.url.path.endsWith('/context')) {
-          return _jsonResponse(context.toJson());
-        }
-        inventoryRequests++;
-        return _jsonResponse(pageResponse());
-      }),
-    );
-    final account = ServerAccountController(
-      store: _MemorySessions(_session()),
-      apiFactory: factory,
-      clock: () => DateTime.utc(2026, 9, 23, 12),
-    );
-    addTearDown(account.dispose);
-    await account.initialize();
-    final gateway = InventoryAccountGateway(
-      account: account,
-      context: context,
-      isCurrent: () => throw StateError('retired route'),
-      apiFactory: factory,
-    );
-    addTearDown(gateway.close);
+  test(
+    'account gateway contains throwing route authority before network',
+    () async {
+      var inventoryRequests = 0;
+      LarenorServerApi factory(ServerEndpoint endpoint) => LarenorServerApi(
+        endpoint: endpoint,
+        clock: () => DateTime.utc(2026, 9, 23, 12),
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/auth/me')) {
+            return _jsonResponse({
+              'user': {
+                'id': '9' * 32,
+                'username': 'fixture',
+                'role': 'admin',
+                'mustChangePassword': false,
+              },
+            });
+          }
+          if (request.url.path.endsWith('/context')) {
+            return _jsonResponse(context.toJson());
+          }
+          inventoryRequests++;
+          return _jsonResponse(pageResponse());
+        }),
+      );
+      final account = ServerAccountController(
+        store: _MemorySessions(_session()),
+        apiFactory: factory,
+        clock: () => DateTime.utc(2026, 9, 23, 12),
+      );
+      addTearDown(account.dispose);
+      await account.initialize();
+      final gateway = InventoryAccountGateway(
+        account: account,
+        context: context,
+        isCurrent: () => throw StateError('retired route'),
+        apiFactory: factory,
+      );
+      addTearDown(gateway.close);
 
-    await expectLater(
-      gateway.list(),
-      throwsA(
-        isA<LarenorServerException>().having(
-          (error) => error.code,
-          'code',
-          'cancelled',
+      await expectLater(
+        gateway.list(),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'cancelled',
+          ),
         ),
-      ),
-    );
-    expect(inventoryRequests, 0);
-  });
+      );
+      expect(inventoryRequests, 0);
+    },
+  );
 
   test('account gateway rejects a page after route authority drifts', () async {
     final delayed = Completer<http.Response>();
