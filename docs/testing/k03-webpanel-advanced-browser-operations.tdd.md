@@ -46,6 +46,14 @@ Status: **software slice ready; K03.remaining stays open**
   before a panel loads. Attachment fails closed when any required AndroidX
   WebKit feature is unavailable or a setting cannot be applied. This global
   boundary is deliberate because Android Service Workers may outlive a WebView.
+- The native attachment reverses the Android plugin's permissive popup defaults
+  before JavaScript or the initial request is enabled. Automatic JavaScript
+  windows and multiple-window support must both read back as disabled or the
+  panel fails to attach; same-view navigation remains behind the exact-origin
+  navigation firewall.
+- TLS errors, client-certificate requests and HTTP-authentication challenges
+  are cancelled by the native wrapper and are never delegated to the plugin.
+  Host, realm and certificate details are not sent to Dart or logged.
 - Download publication no longer trusts the response `Content-Type` alone.
   PDF object/xref/EOF framing, JPEG marker framing, PNG chunk lengths and CRCs,
   WebP RIFF/chunk lengths, strict UTF-8 text/CSV, and parseable JSON are checked
@@ -83,7 +91,9 @@ K03.remaining is still open for two documented Android platform gaps:
 
 The focused RED checkpoints were the new Dart attach-contract tests failing to
 compile and the Kotlin/Robolectric firewall tests failing on missing native
-types. GREEN requires the 92-test WebPanel suite, the focused Android bridge
+types. The popup and credential hardening follow-up first failed because the
+plugin defaults remained permissive and security callbacks still reached its
+delegate. GREEN requires the 92-test WebPanel suite, the focused Android bridge
 Robolectric suite, Flutter analysis, formatting and `git diff --check`.
-K03.remaining and progress stay at **24/125** and **0/63** until the two
+K03.remaining and progress stay at **25/125** and **0/63** until the two
 software platform gaps and remaining manual gates are accepted.

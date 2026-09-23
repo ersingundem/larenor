@@ -3,16 +3,24 @@ package com.ersingundem.larenor.webpanel
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Message
+import android.webkit.ClientCertRequest
+import android.webkit.HttpAuthHandler
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.SslErrorHandler
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.security.Principal
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.util.ReflectionHelpers
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -74,7 +82,7 @@ class WebPanelRendererBridgeTest {
                 WebRequestOrigin("http", "fixture.invalid", 8080),
             ),
         )
-        val wrapper = RendererAwareWebViewClient(delegate, firewall) {}
+        val wrapper = RendererAwareWebViewClient(delegate, firewall, rendererGone = {})
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
 
         assertNull(wrapper.shouldInterceptRequest(view, Request("https://FIXTURE.invalid/asset.js")))
@@ -118,13 +126,60 @@ class WebPanelRendererBridgeTest {
     }
 
     @Test
+    fun popupDefaultsAreReversedBeforeThePanelLoads() {
+        val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
+        view.settings.javaScriptCanOpenWindowsAutomatically = true
+        view.settings.setSupportMultipleWindows(true)
+
+        assertTrue(WebPanelWindowPolicy().install(view))
+        assertFalse(view.settings.javaScriptCanOpenWindowsAutomatically)
+        assertFalse(view.settings.supportMultipleWindows())
+    }
+
+    @Test
+    fun credentialAndTlsChallengesFailClosedBeforeThePluginDelegate() {
+        val delegate = RecordingClient()
+        val clientCertificate = RecordingClientCertRequest()
+        var httpAuthRejected = 0
+        var tlsRejected = 0
+        val wrapper = RendererAwareWebViewClient(
+            delegate,
+            WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
+            rendererGone = {},
+            rejectClientCertificate = { it.cancel() },
+            rejectHttpAuthentication = { httpAuthRejected++ },
+            rejectTlsError = { tlsRejected++ },
+        )
+        val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
+
+        wrapper.onReceivedClientCertRequest(view, clientCertificate)
+        wrapper.onReceivedHttpAuthRequest(
+            view,
+            ReflectionHelpers.newInstance(HttpAuthHandler::class.java),
+            "private.invalid",
+            "private",
+        )
+        wrapper.onReceivedSslError(
+            view,
+            ReflectionHelpers.newInstance(SslErrorHandler::class.java),
+            ReflectionHelpers.newInstance(SslError::class.java),
+        )
+
+        assertTrue(clientCertificate.cancelled)
+        assertEquals(1, httpAuthRejected)
+        assertEquals(1, tlsRejected)
+        assertEquals(0, delegate.securityChallenges)
+    }
+
+    @Test
     fun wrapperPreservesPluginCallbacksAndConsumesRendererGoneOnce() {
         val delegate = RecordingClient()
         var gone = 0
         val wrapper = RendererAwareWebViewClient(
             delegate,
             WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
-        ) { gone++ }
+            rendererGone = { gone++ },
+        )
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
 
         wrapper.onPageStarted(view, "https://fixture.invalid", null)
@@ -147,6 +202,7 @@ class WebPanelRendererBridgeTest {
         var rendererGone = 0
         var intercepted = 0
         var navigations = 0
+        var securityChallenges = 0
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             events += "start"
         }
@@ -168,6 +224,33 @@ class WebPanelRendererBridgeTest {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             navigations++
             return false
+        }
+        override fun onReceivedClientCertRequest(view: WebView, request: ClientCertRequest) {
+            securityChallenges++
+        }
+        override fun onReceivedHttpAuthRequest(
+            view: WebView,
+            handler: HttpAuthHandler,
+            host: String,
+            realm: String,
+        ) {
+            securityChallenges++
+        }
+        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+            securityChallenges++
+        }
+    }
+
+    private class RecordingClientCertRequest : ClientCertRequest() {
+        var cancelled = false
+        override fun getKeyTypes() = emptyArray<String>()
+        override fun getPrincipals() = emptyArray<Principal>()
+        override fun getHost() = "private.invalid"
+        override fun getPort() = 443
+        override fun proceed(privateKey: PrivateKey, chain: Array<out X509Certificate>) = Unit
+        override fun ignore() = Unit
+        override fun cancel() {
+            cancelled = true
         }
     }
 

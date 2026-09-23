@@ -111,6 +111,16 @@ internal class ServiceWorkerRequestFirewall(
     }
 }
 
+/** Reverses the Flutter plugin's permissive popup defaults before any load. */
+internal class WebPanelWindowPolicy {
+    fun install(webView: WebView): Boolean = runCatching {
+        webView.settings.javaScriptCanOpenWindowsAutomatically = false
+        webView.settings.setSupportMultipleWindows(false)
+        !webView.settings.javaScriptCanOpenWindowsAutomatically &&
+            !webView.settings.supportMultipleWindows()
+    }.getOrDefault(false)
+}
+
 internal data class RendererAttachRequest(
     val webViewIdentifier: Long,
     val attachmentId: String,
@@ -159,6 +169,7 @@ class WebPanelRendererBridge(
 ) : MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, CHANNEL)
     private val serviceWorkerFirewall = ServiceWorkerRequestFirewall()
+    private val windowPolicy = WebPanelWindowPolicy()
     private val attachments = mutableMapOf<String, Attachment>()
     private val viewOwners = mutableMapOf<Long, String>()
     private var disposed = false
@@ -189,7 +200,7 @@ class WebPanelRendererBridge(
     private fun attach(request: RendererAttachRequest): Boolean {
         val webView = WebViewFlutterAndroidExternalApi.getWebView(engine, request.webViewIdentifier)
             ?: return false
-        if (!serviceWorkerFirewall.install()) return false
+        if (!serviceWorkerFirewall.install() || !windowPolicy.install(webView)) return false
         viewOwners.remove(request.webViewIdentifier)?.let(::detach)
         attachments.remove(request.attachmentId)?.let { previous ->
             viewOwners.remove(previous.webViewIdentifier, request.attachmentId)
@@ -199,15 +210,19 @@ class WebPanelRendererBridge(
         val current = webView.webViewClient
         val delegate = if (current is RendererAwareWebViewClient) current.delegate else current
         lateinit var wrapper: RendererAwareWebViewClient
-        wrapper = RendererAwareWebViewClient(delegate, WebRequestFirewall(request.allowedOrigins)) {
-            val binding = attachments.remove(request.attachmentId)
-            if (binding == null || binding.wrapper !== wrapper) return@RendererAwareWebViewClient
-            viewOwners.remove(request.webViewIdentifier, request.attachmentId)
-            channel.invokeMethod(
-                "rendererGone",
-                mapOf("attachmentId" to request.attachmentId),
-            )
-        }
+        wrapper = RendererAwareWebViewClient(
+            delegate,
+            WebRequestFirewall(request.allowedOrigins),
+            rendererGone = {
+                val binding = attachments.remove(request.attachmentId)
+                if (binding == null || binding.wrapper !== wrapper) return@RendererAwareWebViewClient
+                viewOwners.remove(request.webViewIdentifier, request.attachmentId)
+                channel.invokeMethod(
+                    "rendererGone",
+                    mapOf("attachmentId" to request.attachmentId),
+                )
+            },
+        )
         webView.webViewClient = wrapper
         attachments[request.attachmentId] = Attachment(
             request.webViewIdentifier,
@@ -262,6 +277,9 @@ internal class RendererAwareWebViewClient(
     internal val delegate: WebViewClient,
     private val firewall: WebRequestFirewall,
     private val rendererGone: () -> Unit,
+    private val rejectClientCertificate: (ClientCertRequest) -> Unit = { it.cancel() },
+    private val rejectHttpAuthentication: (HttpAuthHandler) -> Unit = { it.cancel() },
+    private val rejectTlsError: (SslErrorHandler) -> Unit = { it.cancel() },
 ) : WebViewClient() {
     private val consumed = AtomicBoolean(false)
 
@@ -315,16 +333,20 @@ internal class RendererAwareWebViewClient(
         delegate.onTooManyRedirects(view, cancelMsg, continueMsg)
     override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) =
         delegate.doUpdateVisitedHistory(view, url, isReload)
-    override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) =
-        delegate.onReceivedSslError(view, handler, error)
-    override fun onReceivedClientCertRequest(view: WebView, request: ClientCertRequest) =
-        delegate.onReceivedClientCertRequest(view, request)
+    override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+        runCatching { rejectTlsError(handler) }
+    }
+    override fun onReceivedClientCertRequest(view: WebView, request: ClientCertRequest) {
+        runCatching { rejectClientCertificate(request) }
+    }
     override fun onReceivedHttpAuthRequest(
         view: WebView,
         handler: HttpAuthHandler,
         host: String,
         realm: String,
-    ) = delegate.onReceivedHttpAuthRequest(view, handler, host, realm)
+    ) {
+        runCatching { rejectHttpAuthentication(handler) }
+    }
     override fun shouldOverrideKeyEvent(view: WebView, event: KeyEvent) =
         delegate.shouldOverrideKeyEvent(view, event)
     override fun onUnhandledKeyEvent(view: WebView, event: KeyEvent) =
