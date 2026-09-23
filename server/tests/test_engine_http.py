@@ -21,6 +21,8 @@ from larenor_server.plugins.engine_http import (
 
 REFERENCE = 'ghcr.io/example/image@sha256:' + 'a' * 64
 TARGET = '/v1.47/images/' + quote(REFERENCE, safe='') + '/json'
+CONTAINER_ID = 'd' * 64
+CONTAINER_TARGET = '/v1.47/containers/' + CONTAINER_ID + '/json'
 VERSION = {'MinAPIVersion': '1.24', 'ApiVersion': '1.47', 'Os': 'linux', 'Arch': 'amd64'}
 
 
@@ -505,3 +507,121 @@ def test_shared_wire_is_recomputed_and_compared_after_authority_gate(monkeypatch
             client.exchange(create_request(), lambda *_: None, platform='linux/amd64',
                             limits=EngineHttpLimits(2, 1, 4096, 128), before_dispatch=gate)
     assert len(calls) == 1
+
+
+def container_request(action=None):
+    suffix = '/json' if action is None else '/' + action
+    return EngineHttpRequest(
+        'GET' if action is None else 'POST',
+        '/v1.47/containers/' + CONTAINER_ID + suffix,
+    )
+
+
+def container_exchange(client, action=None, *, gate=None):
+    return client.exchange(
+        container_request(action),
+        lambda status, _headers, chunks: (status, b''.join(chunks)),
+        platform='linux/amd64',
+        limits=EngineHttpLimits(2, 1, 65536, 4096),
+        before_dispatch=gate,
+    )
+
+
+def test_container_engine_routes_accept_only_exact_full_id_operations():
+    assert container_request().target == CONTAINER_TARGET
+    assert container_request('pause').method == 'POST'
+    assert container_request('unpause').method == 'POST'
+
+
+@pytest.mark.parametrize('method,target,headers,body', [
+    ('GET', '/v1.47/containers/larenor-' + 'a' * 32 + '/json',
+     (('Accept', 'application/json'),), None),
+    ('GET', '/v1.47/containers/' + 'D' * 64 + '/json',
+     (('Accept', 'application/json'),), None),
+    ('GET', '/v1.47/containers/' + 'd' * 63 + '/json',
+     (('Accept', 'application/json'),), None),
+    ('GET', CONTAINER_TARGET + '?size=true', (('Accept', 'application/json'),), None),
+    ('GET', '/v1.47/containers/../' + CONTAINER_ID + '/json',
+     (('Accept', 'application/json'),), None),
+    ('GET', 'http://localhost' + CONTAINER_TARGET,
+     (('Accept', 'application/json'),), None),
+    ('POST', '/v1.47/containers/' + CONTAINER_ID + '/pause?signal=1',
+     (('Accept', 'application/json'),), None),
+    ('POST', '/v1.47/containers/' + CONTAINER_ID + '/restart',
+     (('Accept', 'application/json'),), None),
+    ('POST', '/v1.47/containers/' + CONTAINER_ID + '/pause',
+     (('Accept', 'application/json'),), b'{}'),
+    ('POST', '/v1.47/containers/' + CONTAINER_ID + '/unpause',
+     (('Accept', 'application/json'), ('Authorization', 'private')), None),
+    ('GET', CONTAINER_TARGET, (('Accept', 'application/json'), ('X-Test', '1')), None),
+])
+def test_container_engine_routes_reject_query_body_header_alias_and_traversal(
+        method, target, headers, body):
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        EngineHttpRequest(method, target, headers, body)
+
+
+@pytest.mark.parametrize('action', ['pause', 'unpause'])
+def test_container_engine_effect_requires_literal_true_gate_after_version(action):
+    with server(reply=b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n') as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+            container_exchange(client, action)
+    assert calls == []
+
+    for returned in (False, 1, 'true', None):
+        with server(reply=b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n') as (client, calls):
+            with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+                container_exchange(client, action, gate=lambda: returned)
+        assert len(calls) == 1
+
+    def rejected():
+        raise RuntimeError('private authority detail')
+
+    with server(reply=b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n') as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+            container_exchange(client, action, gate=rejected)
+    assert len(calls) == 1
+
+
+def test_container_engine_inspect_rejects_effect_gate_and_keeps_json_framing():
+    with server() as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+            container_exchange(client, gate=lambda: True)
+    assert calls == []
+    with server(reply=response({'Id': CONTAINER_ID})) as (client, calls):
+        assert container_exchange(client) == (
+            200,
+            json.dumps({'Id': CONTAINER_ID}).encode(),
+        )
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('reply', [
+    b'HTTP/1.1 204 No Content\r\n\r\n',
+    b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n',
+])
+@pytest.mark.parametrize('action', ['pause', 'unpause'])
+def test_container_engine_effect_accepts_exact_204_empty_framing(action, reply):
+    gates = []
+    with server(reply=reply) as (client, calls):
+        assert container_exchange(
+            client,
+            action,
+            gate=lambda: gates.append(len(calls)) or True,
+        ) == (204, b'')
+    assert gates == [1]
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('reply', [
+    response({}, status=200),
+    b'HTTP/1.1 301 Moved\r\nLocation: http://private.invalid/\r\nContent-Length: 0\r\n\r\n',
+    b'HTTP/1.1 204 No Content\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n',
+    b'HTTP/1.1 204 No Content\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n',
+    b'HTTP/1.1 204 No Content\r\nContent-Length: 2\r\n\r\n{}',
+])
+def test_container_engine_effect_rejects_redirect_transfer_encoding_and_body(reply):
+    with server(reply=reply) as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_protocol$'):
+            container_exchange(client, 'pause', gate=lambda: True)
+    assert len(calls) == 2
