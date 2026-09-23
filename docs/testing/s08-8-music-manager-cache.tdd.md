@@ -48,7 +48,7 @@ Targeted `flutter analyze` reported no issues for the three changed production
 files and two changed tests. The three cache tests cover the real
 SharedPreferences restart path, the full tuple/resource/revision/schema/TTL/
 quota matrix, and controller restart fallback. Focused cache-module line
-coverage is 99/113, or 87.6%. The existing EN/TR, 600/1200, 2x text,
+coverage is 100/113, or 88.5%. The existing EN/TR, 600/1200, 2x text,
 keyboard, semantics and lifecycle matrix remains green.
 
 ## Remaining S08.8 work

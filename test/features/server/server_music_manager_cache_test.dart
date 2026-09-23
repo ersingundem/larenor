@@ -37,6 +37,33 @@ const _scope = ServerMusicManagerCacheScope(
 ServerMusicManager _manager() =>
     ServerMusicManager.fromJson(musicManagerJson());
 
+ServerMusicManager _oversizedManager() {
+  final ids = List.generate(
+    256,
+    (index) => 'player-${index.toString().padLeft(3, '0')}-${'x' * 115}',
+  );
+  final value = musicManagerJson();
+  value['receivers'] = [
+    for (final id in ids)
+      {
+        'playerId': id,
+        'name': 'N' * 160,
+        'provider': 'provider-${'x' * 119}',
+        'targetKind': 'group',
+        'available': true,
+        'enabled': true,
+        'playbackState': 'idle',
+        'volumeLevel': 25,
+        'muted': false,
+        'groupMembers': ids.take(64).toList(),
+        'queueId': null,
+        'positionSeconds': 0.0,
+        'capabilities': ['play', 'pause', 'seek', 'stop', 'queue'],
+      },
+  ];
+  return ServerMusicManager.fromJson(value);
+}
+
 Future<ServerMusicManager?> _read(
   ServerMusicManagerCache cache,
   ServerMusicManager manager, {
@@ -141,6 +168,13 @@ void main() {
       backend.value = 'x' * (ServerMusicManagerCache.maximumBytes + 1);
       expect(await _read(cache, manager), isNull);
       expect(backend.value, isNull);
+
+      final writes = backend.writes;
+      await expectLater(
+        cache.write(_scope, _oversizedManager()),
+        throwsA(isA<StateError>()),
+      );
+      expect(backend.writes, writes);
     },
   );
 
