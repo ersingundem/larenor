@@ -17,15 +17,18 @@ remains **0/63**.
    `POST /v1.47/containers/{id}/unpause`. Effects require a literal-`True`
    dispatch gate after same-stream API 1.47 validation and accept only exact
    bodyless 204 framing. Query, body, custom-header, traversal, redirect,
-   transfer-encoding and response-body variants fail closed. RED `bc7585ee`;
-   GREEN `8ba2bad4`.
+   transfer-encoding and response-body variants fail closed. RED `364c6d7a`;
+   GREEN `592f5f7b`. A separate trailing-byte RED
+   `7fb2301e` proved that headerless or zero-length 204 responses could hide
+   bytes after their headers; GREEN `36ad1777` now requires bounded immediate
+   EOF on the connection-close stream.
 2. **Exact durable volume sources.** A full container inspect must match the
    installed binding, current running state, every generated appdata
    name/target/source mount, and each exact volume label receipt. The selected
    host path must remain an absolute non-symlink directory, and the complete
    set must have unique paths and device/inode identities before durable
    authority binds it. Raw daemon values and paths never enter diagnostics.
-   RED `9022524a`; GREEN `6b999bd7`.
+   RED `c5284308`; GREEN `6f54f0bd`.
 3. **One-shot reconciled quiescence.** Pause and unpause each send at most one
    POST. A normal 204 and a timeout after the daemon applied the effect both
    require a fresh full container inspect, fresh exact volume receipt checks,
@@ -33,8 +36,8 @@ remains **0/63**.
    Authority drift before dispatch prevents POST; drift after dispatch cannot
    publish success. Process-local attempted/owned state permits cleanup of an
    uncertain effect without replay, while a new process rejects an initially
-   paused container and never adopts or unpauses it. RED `51fae3c2`; GREEN
-   `9d43e5c4`.
+   paused container and never adopts or unpauses it. RED `8dcba3bb`; GREEN
+   `6d0bdd11`.
 
 ## Focused evidence
 
@@ -49,7 +52,7 @@ PYTHONPATH=server /Users/ersingundem/oikos/server/.venv/bin/python -m pytest -q 
   server/tests/test_core_backup_component_docker_adapter.py
 ```
 
-Result: **411 passed, 2 existing platform skips** from **413 collected**. The
+Result: **413 passed, 2 existing platform skips** from **415 collected**. The
 new adapter file contributes 12 synthetic Unix Engine tests, including normal
 effects, timeout-after-effect reconciliation, no POST replay, pre/post authority
 drift, exact label/mount/path identity and restart-paused rejection.
