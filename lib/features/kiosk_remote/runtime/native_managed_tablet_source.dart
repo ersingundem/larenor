@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -16,10 +17,16 @@ enum NativeManagedTabletSourceStatus {
 }
 
 final class NativeManagedTabletSourceConfig {
-  const NativeManagedTabletSourceConfig({this.enabled = false});
+  const NativeManagedTabletSourceConfig({
+    this.enabled = false,
+    this.nativeCallTimeout = const Duration(seconds: 10),
+  });
 
   /// Native collection is opt-in. Constructing this port never starts it.
   final bool enabled;
+
+  /// One total deadline for each platform call; chunks do not reset it.
+  final Duration nativeCallTimeout;
 }
 
 abstract interface class ManagedTabletLocalActions {
@@ -69,10 +76,15 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
            isAndroid ??
            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
        _sessionId = sessionId ?? _secureSessionId,
-       _actions = actions ?? const DisabledManagedTabletLocalActions();
+       _actions = actions ?? const DisabledManagedTabletLocalActions() {
+    if (config.nativeCallTimeout <= Duration.zero) {
+      throw ArgumentError.value(config.nativeCallTimeout, 'nativeCallTimeout');
+    }
+  }
 
   static const channelName =
       'com.ersingundem.larenor/kiosk_remote_tablet_source';
+  static final Object _retiredNativeCall = Object();
 
   final NativeManagedTabletSourceConfig config;
   final MethodChannel _channel;
@@ -84,6 +96,7 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
   int _generation = 0;
   _NativeManagedTabletSourceLease? _current;
   String? _pendingSessionId;
+  Completer<void>? _pendingRetirement;
 
   @override
   Future<NativeManagedTabletSourceLease?> bind(String scope) async {
@@ -105,31 +118,43 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     }
     status = NativeManagedTabletSourceStatus.starting;
     _pendingSessionId = id;
+    final retirement = Completer<void>();
+    _pendingRetirement = retirement;
     try {
-      final response = await _channel.invokeMethod<Object?>('start', {
-        'schemaVersion': 1,
-        'enabled': true,
-        'sessionId': id,
-        'scope': scope,
-      });
+      final response = await _awaitNative(
+        _channel.invokeMethod<Object?>('start', {
+          'schemaVersion': 1,
+          'enabled': true,
+          'sessionId': id,
+          'scope': scope,
+        }),
+      );
       if (generation != _generation ||
           response is! Map ||
           response.length != 1 ||
           response['status'] != 'active') {
-        await _stopSession(id);
         throw StateError('native_tablet_source_not_started');
       }
       _pendingSessionId = null;
+      _pendingRetirement = null;
       final lease = _NativeManagedTabletSourceLease(
         owner: this,
         sessionId: id,
         generation: generation,
+        retirement: retirement,
       );
       _current = lease;
       status = NativeManagedTabletSourceStatus.active;
       return lease;
     } catch (_) {
       if (_pendingSessionId == id) _pendingSessionId = null;
+      if (identical(_pendingRetirement, retirement)) {
+        _pendingRetirement = null;
+      }
+      if (!retirement.isCompleted) {
+        retirement.complete();
+        await _stopSession(id);
+      }
       if (generation == _generation) {
         status = NativeManagedTabletSourceStatus.failed;
       }
@@ -148,10 +173,15 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
   Future<void> _retireCurrent() async {
     final previous = _current;
     final pending = _pendingSessionId;
+    final pendingRetirement = _pendingRetirement;
     _current = null;
     _pendingSessionId = null;
+    _pendingRetirement = null;
     _generation += 1;
     if (previous == null && pending == null) return;
+    if (pendingRetirement != null && !pendingRetirement.isCompleted) {
+      pendingRetirement.complete();
+    }
     previous?._retire();
     status = NativeManagedTabletSourceStatus.retired;
     if (pending != null) await _stopSession(pending);
@@ -160,48 +190,80 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
 
   Future<void> _stopSession(String sessionId) async {
     try {
-      await _channel.invokeMethod<void>('stop', {'sessionId': sessionId});
+      await _channel
+          .invokeMethod<void>('stop', {'sessionId': sessionId})
+          .timeout(config.nativeCallTimeout);
     } on MissingPluginException {
       // The generation is already retired locally.
     } on PlatformException {
       // The generation is already retired locally.
+    } on TimeoutException {
+      // The local generation is already retired; native cleanup is bounded.
     }
   }
 
-  Future<ManagedTabletTelemetry> _read(String sessionId, int generation) async {
-    _assertCurrent(sessionId, generation);
-    final raw = await _channel.invokeMethod<Object?>('snapshot', {
-      'sessionId': sessionId,
-    });
-    _assertCurrent(sessionId, generation);
+  Future<T> _awaitNative<T>(
+    Future<T> operation, [
+    Future<void>? retired,
+  ]) async {
+    try {
+      final result = await Future.any<Object?>([
+        operation,
+        if (retired != null) retired.then<Object?>((_) => _retiredNativeCall),
+      ]).timeout(config.nativeCallTimeout);
+      if (identical(result, _retiredNativeCall)) {
+        throw StateError('native_tablet_source_retired');
+      }
+      return result as T;
+    } on TimeoutException {
+      throw StateError('native_tablet_source_timeout');
+    }
+  }
+
+  Future<ManagedTabletTelemetry> _read(
+    _NativeManagedTabletSourceLease lease,
+  ) async {
+    _assertCurrent(lease);
+    final raw = await _awaitNative(
+      _channel.invokeMethod<Object?>('snapshot', {
+        'sessionId': lease._sessionId,
+      }),
+    );
+    _assertCurrent(lease);
     return _parseSnapshot(raw);
   }
 
   Future<ManagedTabletCommandResult> _executeNativeCommand(
-    String sessionId,
-    int generation,
+    _NativeManagedTabletSourceLease lease,
     String kind,
   ) async {
-    _assertCurrent(sessionId, generation);
+    _assertCurrent(lease);
     Object? raw;
     try {
-      raw = await _channel.invokeMethod<Object?>('command', {
-        'sessionId': sessionId,
-        'kind': kind,
-      });
+      raw = await _awaitNative(
+        _channel.invokeMethod<Object?>('command', {
+          'sessionId': lease._sessionId,
+          'kind': kind,
+        }),
+        lease._retirement.future,
+      );
     } on MissingPluginException {
-      return _isCurrent(sessionId, generation)
+      return _isCurrent(lease)
           ? ManagedTabletCommandResult.unsupported
           : ManagedTabletCommandResult.denied;
     } on PlatformException catch (error) {
-      if (!_isCurrent(sessionId, generation)) {
+      if (!_isCurrent(lease)) {
         return ManagedTabletCommandResult.denied;
       }
       return error.code == 'denied'
           ? ManagedTabletCommandResult.denied
           : ManagedTabletCommandResult.failed;
+    } on StateError {
+      return _isCurrent(lease)
+          ? ManagedTabletCommandResult.failed
+          : ManagedTabletCommandResult.denied;
     }
-    if (!_isCurrent(sessionId, generation)) {
+    if (!_isCurrent(lease)) {
       return ManagedTabletCommandResult.denied;
     }
     if (raw is! Map ||
@@ -218,20 +280,18 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     };
   }
 
-  void _assertCurrent(String sessionId, int generation) {
+  void _assertCurrent(_NativeManagedTabletSourceLease lease) {
     final current = _current;
-    if (current == null ||
-        current._sessionId != sessionId ||
-        current._generation != generation ||
-        current._retired ||
-        generation != _generation) {
+    if (!identical(current, lease) ||
+        lease._retired ||
+        lease._generation != _generation) {
       throw StateError('native_tablet_source_retired');
     }
   }
 
-  bool _isCurrent(String sessionId, int generation) {
+  bool _isCurrent(_NativeManagedTabletSourceLease lease) {
     try {
-      _assertCurrent(sessionId, generation);
+      _assertCurrent(lease);
       return true;
     } on StateError {
       return false;
@@ -306,51 +366,47 @@ final class _NativeManagedTabletSourceLease
     implements NativeManagedTabletSourceLease {
   _NativeManagedTabletSourceLease({
     required NativeManagedTabletSource owner,
-    required String sessionId,
-    required int generation,
-  }) : _owner = owner,
-       _sessionId = sessionId,
-       _generation = generation,
-       commandExecutor = _NativeManagedTabletCommandExecutor(
-         owner,
-         sessionId,
-         generation,
-         owner._actions,
-       );
+    required this._sessionId,
+    required this._generation,
+    required this._retirement,
+  }) : _owner = owner {
+    commandExecutor = _NativeManagedTabletCommandExecutor(
+      owner,
+      this,
+      owner._actions,
+    );
+  }
 
   final NativeManagedTabletSource _owner;
   final String _sessionId;
   final int _generation;
+  final Completer<void> _retirement;
   bool _retired = false;
 
   @override
-  final ManagedTabletCommandExecutor commandExecutor;
+  late final ManagedTabletCommandExecutor commandExecutor;
 
   @override
-  Future<ManagedTabletTelemetry> readTelemetry() =>
-      _owner._read(_sessionId, _generation);
+  Future<ManagedTabletTelemetry> readTelemetry() => _owner._read(this);
 
-  void _retire() => _retired = true;
+  void _retire() {
+    _retired = true;
+    if (!_retirement.isCompleted) _retirement.complete();
+  }
 }
 
 final class _NativeManagedTabletCommandExecutor
     implements ManagedTabletCommandExecutor {
-  _NativeManagedTabletCommandExecutor(
-    this._owner,
-    this._sessionId,
-    this._generation,
-    this._actions,
-  );
+  _NativeManagedTabletCommandExecutor(this._owner, this._lease, this._actions);
 
   final NativeManagedTabletSource _owner;
-  final String _sessionId;
-  final int _generation;
+  final _NativeManagedTabletSourceLease _lease;
   final ManagedTabletLocalActions _actions;
   bool _working = false;
 
   @override
   Future<ManagedTabletCommandResult> execute(String kind) async {
-    bool current() => _owner._isCurrent(_sessionId, _generation);
+    bool current() => _owner._isCurrent(_lease);
     if (!current()) return ManagedTabletCommandResult.denied;
     if (kind != 'refreshDashboard' && kind != 'lockKiosk') {
       return ManagedTabletCommandResult.unsupported;
@@ -362,13 +418,13 @@ final class _NativeManagedTabletCommandExecutor
             await _actions.refreshDashboard(isCurrent: current);
             return ManagedTabletCommandResult.succeeded;
           })
-        : _owner._executeNativeCommand(_sessionId, _generation, kind);
+        : _owner._executeNativeCommand(_lease, kind);
     operation.then<void>(
       (_) => _working = false,
       onError: (_, _) => _working = false,
     );
     try {
-      final result = await operation.timeout(const Duration(seconds: 10));
+      final result = await operation.timeout(configuredTimeout);
       return current() ? result : ManagedTabletCommandResult.denied;
     } on UnsupportedError {
       return current()
@@ -380,4 +436,6 @@ final class _NativeManagedTabletCommandExecutor
           : ManagedTabletCommandResult.denied;
     }
   }
+
+  Duration get configuredTimeout => _owner.config.nativeCallTimeout;
 }
