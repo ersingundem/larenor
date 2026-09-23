@@ -111,24 +111,50 @@ ServerEgressNetwork _addressNetwork(InternetAddress address) {
         (first == 172 && second >= 16 && second <= 31) ||
         (first == 192 && second == 168);
     if (lan) return ServerEgressNetwork.lan;
+    final protocolAssignments =
+        first == 192 &&
+        second == 0 &&
+        bytes[2] == 0 &&
+        bytes[3] != 9 &&
+        bytes[3] != 10;
+    final documentation =
+        (first == 192 && second == 0 && bytes[2] == 2) ||
+        (first == 198 && second == 51 && bytes[2] == 100) ||
+        (first == 203 && second == 0 && bytes[2] == 113);
+    final benchmarking = first == 198 && (second == 18 || second == 19);
     if (first == 0 ||
         first == 127 ||
         first >= 224 ||
         (first == 169 && second == 254) ||
-        (first == 100 && second >= 64 && second <= 127)) {
+        (first == 100 && second >= 64 && second <= 127) ||
+        protocolAssignments ||
+        documentation ||
+        benchmarking) {
       _invalid();
     }
     return ServerEgressNetwork.public;
   }
   final lan = (bytes[0] & 0xfe) == 0xfc;
-  if (lan) return ServerEgressNetwork.lan;
+  if (lan) {
+    if (address.address.toLowerCase() == 'fd00:ec2::254') _invalid();
+    return ServerEgressNetwork.lan;
+  }
   final linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
   final multicast = bytes[0] == 0xff;
   final global = (bytes[0] & 0xe0) == 0x20;
   final transition6to4 = bytes[0] == 0x20 && bytes[1] == 0x02;
-  final teredo =
-      bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0 && bytes[3] == 0;
-  if (!global || linkLocal || multicast || transition6to4 || teredo) {
+  final special2001 = bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] <= 0x01;
+  final documentation2001 =
+      bytes[0] == 0x20 &&
+      bytes[1] == 0x01 &&
+      bytes[2] == 0x0d &&
+      bytes[3] == 0xb8;
+  if (!global ||
+      linkLocal ||
+      multicast ||
+      transition6to4 ||
+      special2001 ||
+      documentation2001) {
     _invalid();
   }
   return ServerEgressNetwork.public;

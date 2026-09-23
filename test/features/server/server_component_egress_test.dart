@@ -161,6 +161,40 @@ void main() {
     }
   });
 
+  test('address classes match Core global, LAN and metadata boundaries', () {
+    for (final value in [
+      {'address': '8.8.8.8', 'network': 'public'},
+      {'address': '192.0.0.9', 'network': 'public'},
+      {'address': '192.88.99.1', 'network': 'public'},
+      {'address': '192.168.1.150', 'network': 'lan'},
+      {'address': 'fd12:3456::1', 'network': 'lan'},
+      {'address': '3fff::1', 'network': 'public'},
+      {'address': '2606:4700:4700::1111', 'network': 'public'},
+    ]) {
+      expect(
+        ServerComponentEgressAddress.fromJson(value).address,
+        value['address'],
+      );
+    }
+    for (final address in [
+      '192.0.2.1',
+      '198.18.0.1',
+      '198.51.100.1',
+      '203.0.113.1',
+      '2001:db8::1',
+      '2001:1::1',
+      'fd00:ec2::254',
+    ]) {
+      expect(
+        () => ServerComponentEgressAddress.fromJson({
+          'address': address,
+          'network': address.startsWith('fd') ? 'lan' : 'public',
+        }),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
+  });
+
   test(
     'API binds exact service revisions and verifies mutation readback',
     () async {

@@ -29,11 +29,12 @@ pending and neither progress counter changes.
 The RED checkpoint `fef5f6ce` specified the missing typed model, exact API and
 authority-safe controller and failed because those production modules did not
 exist. The GREEN implementation passes the five focused contract and lifecycle
-tests plus targeted static analysis.
+tests plus the Core-parity address classification regression and targeted
+static analysis.
 
 ```text
 flutter test test/features/server/server_component_egress_test.dart
-00:00 +5: All tests passed!
+00:00 +6: All tests passed!
 
 flutter analyze lib/features/server/component_egress \
   test/features/server/server_component_egress_test.dart
