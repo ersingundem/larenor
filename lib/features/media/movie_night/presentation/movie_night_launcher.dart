@@ -107,9 +107,11 @@ class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
         ref.read(haActionsProvider.future),
       ]).timeout(const Duration(seconds: 20));
       if (!mounted || !current()) return;
-      final saved = await ref.read(movieNightStoreProvider).read();
-      if (!mounted || !current()) return;
       final baseUrl = parseServerUrl(connection.baseUrl).toString();
+      final saved = await ref
+          .read(movieNightStoreProvider)
+          .read(serverUrl: baseUrl, isCurrent: current);
+      if (!mounted || !current()) return;
       final setupRoute = CupertinoPageRoute<MovieNightPreset>(
         builder: (_) => _MovieNightSetupScreen(
           title: widget.title,

@@ -49,6 +49,19 @@ void main() {
       isNull,
     );
     expect(preferences.getString(MovieNightPreset.storageKey), raw);
+
+    const noFinish = MovieNightPreset(
+      serverUrl: 'https://ha.test',
+      startEntityId: 'scene.quiet',
+    );
+    await store.save(noFinish, isCurrent: () => true);
+    expect(
+      (await store.read(
+        serverUrl: noFinish.serverUrl,
+        isCurrent: () => true,
+      ))?.finishEntityId,
+      isNull,
+    );
   });
 
   test(
@@ -56,11 +69,26 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({});
       var now = DateTime.utc(2026, 9, 23, 10);
-      final store = MovieNightStore(now: () => now);
-      await store.save(_preset, isCurrent: () => true);
-      final preferences = await SharedPreferences.getInstance();
+    final store = MovieNightStore(now: () => now);
+    await store.save(_preset, isCurrent: () => true);
+    final preferences = await SharedPreferences.getInstance();
 
-      now = now.add(MovieNightStore.timeToLive);
+    final wrongSchema =
+        jsonDecode(preferences.getString(MovieNightPreset.storageKey)!)
+            as Map<String, dynamic>;
+    wrongSchema['schemaVersion'] = 2;
+    await preferences.setString(
+      MovieNightPreset.storageKey,
+      jsonEncode(wrongSchema),
+    );
+    expect(
+      await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
+      isNull,
+    );
+    expect(preferences.getString(MovieNightPreset.storageKey), isNull);
+
+    await store.save(_preset, isCurrent: () => true);
+    now = now.add(MovieNightStore.timeToLive);
       expect(
         await store.read(serverUrl: _preset.serverUrl, isCurrent: () => true),
         isNull,

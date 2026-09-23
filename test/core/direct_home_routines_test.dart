@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,11 @@ import 'package:shared_preferences_platform_interface/shared_preferences_platfor
 import 'direct_home_boundary_test.dart' as home_fixture;
 import '../features/intercom/door_station_test.dart' show fixtureStation;
 import '../features/media/movie_night/movie_night_runner_test.dart' show preset;
+
+MovieNightPreset _moviePresetFromRecord(String raw) {
+  final record = jsonDecode(raw) as Map<String, dynamic>;
+  return MovieNightPreset.decodeStored(jsonEncode(record['preset']));
+}
 
 class RoutinesPreferences extends InMemorySharedPreferencesStore {
   RoutinesPreferences()
@@ -217,8 +223,12 @@ void main() {
         );
         expect(prefs.writes, hasLength(1));
         final durable = await prefs.getAll();
+        final stored =
+            durable['flutter.${movie ? MovieNightPreset.storageKey : DoorStation.storageKey}'];
         expect(
-          durable['flutter.${movie ? MovieNightPreset.storageKey : DoorStation.storageKey}'],
+          movie
+              ? _moviePresetFromRecord(stored! as String).encodeStored()
+              : stored,
           movie ? preset.encodeStored() : DoorStation.encodeStored([]),
         );
       },
@@ -294,8 +304,12 @@ void main() {
       expect(prefs.writes, hasLength(1));
       prefs.afterWrite = null;
       final restored = await prefs.getAll();
+      final stored =
+          restored['flutter.${movie ? MovieNightPreset.storageKey : DoorStation.storageKey}'];
       expect(
-        restored['flutter.${movie ? MovieNightPreset.storageKey : DoorStation.storageKey}'],
+        movie
+            ? _moviePresetFromRecord(stored! as String).encodeStored()
+            : stored,
         movie ? changedPreset.encodeStored() : DoorStation.encodeStored([]),
       );
     });
@@ -432,7 +446,7 @@ void main() {
     '{"private":"sentinel-private-home",',
   ]) {
     test(
-      'movie malformed JSON (${malformed.length} chars) remains a static FormatException without stored source',
+      'movie malformed JSON (${malformed.length} chars) fails closed and is removed',
       () async {
         await prefs.setValue(
           'String',
@@ -440,17 +454,10 @@ void main() {
           malformed,
         );
         final (container, _) = await routinesHome('direct');
-        await expectLater(
-          container.read(movieNightStoreProvider).read(),
-          throwsA(
-            isA<FormatException>()
-                .having((e) => e.source, 'source', isNull)
-                .having(
-                  (e) => e.toString(),
-                  'message',
-                  isNot(contains('sentinel-private-home')),
-                ),
-          ),
+        expect(await container.read(movieNightStoreProvider).read(), isNull);
+        expect(
+          (await prefs.getAll())['flutter.${MovieNightPreset.storageKey}'],
+          isNull,
         );
       },
     );
