@@ -348,6 +348,57 @@ void main() {
     },
   );
 
+  test('concurrent F31 retries share one request-item side effect', () async {
+    const key =
+        'abababababababababababababababababababababababababababababababab';
+    final gate = Completer<void>();
+    var entered = false;
+    api.beforeItems = (_) async {
+      if (!entered) {
+        entered = true;
+        await gate.future;
+      }
+    };
+    api.onService = (_, service, data, _) async {
+      expect(service, 'add_item');
+      expect(data, {
+        'item': '200 g Mercimek',
+        'description': 'Larenor F31 v1 $key',
+      });
+      api.items['todo.shopping'] = {
+        'items': [
+          todoItem(),
+          {
+            ...todoItem(uid: 'recipe-item', summary: '200 g Mercimek'),
+            'description': 'Larenor F31 v1 $key',
+          },
+        ],
+      };
+    };
+
+    final first = actions.addTodoBound(
+      list,
+      '200 g Mercimek',
+      current: () => true,
+      idempotencyKey: key,
+    );
+    while (!entered) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final retry = actions.addTodoBound(
+      list,
+      '200 g Mercimek',
+      current: () => true,
+      idempotencyKey: key,
+    );
+    gate.complete();
+    await Future.wait([first, retry]);
+
+    expect(api.serviceCalls, hasLength(1));
+    expect(receipts.receipts, hasLength(1));
+    expect(receipts.receipts.single.status, ActionStatus.confirmed);
+  });
+
   test('changed summary with the same F31 marker fails before write', () async {
     const key =
         'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
