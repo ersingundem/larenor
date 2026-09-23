@@ -46,3 +46,12 @@ Physical tablet/DeX, OEM renderer behavior and trusted client-certificate
 installation remain separate device/manual evidence. WebPanel keeps rejecting
 HTTP auth, TLS bypass and client-certificate prompts; this slice does not add a
 credential path.
+
+## Independent audit follow-up
+
+Exact head `e28833ce` was kept out of auto-merge after source inspection of
+the pinned Android file-picker showed that it writes through SAF but returns
+only `Uri.path`. Requiring `content://` in Dart therefore reported every real
+Android export as failed after it had already written. A permanent native RED
+requires a boolean-only SAF bridge, off-main write, invalid-URI rejection,
+dispose cancellation and late-result cleanup before auto-merge is restored.
