@@ -92,6 +92,12 @@ void main() {
       () => ServerMediaRecoveryStatus.fromJson(reordered),
       throwsA(anyOf(isA<LarenorServerException>(), isA<FormatException>())),
     );
+    final floatingSchema = recoveryJson()..['schemaVersion'] = 2.0;
+    expect(
+      () => ServerMediaRecoveryStatus.fromJson(floatingSchema),
+      throwsA(isA<FormatException>()),
+      reason: 'the recovery contract requires exact integer schema 2',
+    );
     final missingCore = recoveryJson();
     final core = (missingCore['services'] as List).first;
     core
