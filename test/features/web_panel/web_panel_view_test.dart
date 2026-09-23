@@ -51,6 +51,9 @@ class Connection extends ConnectionConfig {
 
 final class TransferAccess implements WebPanelTransferAccess {
   int uploads = 0, downloads = 0;
+
+  @override
+  Future<void> cancel() async {}
   @override
   Future<List<String>> pickUpload(FileSelectorParams request) async {
     uploads++;

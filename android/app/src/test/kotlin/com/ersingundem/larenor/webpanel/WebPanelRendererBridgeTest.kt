@@ -226,6 +226,7 @@ class WebPanelRendererBridgeTest {
     @Test
     fun rendererGoneContainsLocalCallbackFailureAndStillConsumesTheEvent() {
         var attempts = 0
+        var retirements = 0
         val wrapper = RendererAwareWebViewClient(
             RecordingClient(),
             WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
@@ -233,6 +234,7 @@ class WebPanelRendererBridgeTest {
                 attempts++
                 error("private callback failure")
             },
+            retireRenderer = { retirements++ },
         )
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
         val detail = object : RenderProcessGoneDetail() {
@@ -243,6 +245,32 @@ class WebPanelRendererBridgeTest {
         assertTrue(wrapper.onRenderProcessGone(view, detail))
         assertTrue(wrapper.onRenderProcessGone(view, detail))
         assertEquals(1, attempts)
+        assertEquals(1, retirements)
+    }
+
+    @Test
+    fun rendererRetirementFailureCannotSuppressRecoveryOrReplayCleanup() {
+        var callbacks = 0
+        var retirements = 0
+        val wrapper = RendererAwareWebViewClient(
+            RecordingClient(),
+            WebRequestFirewall(setOf(WebRequestOrigin("https", "fixture.invalid", 443))),
+            rendererGone = { callbacks++ },
+            retireRenderer = {
+                retirements++
+                error("private destroy failure")
+            },
+        )
+        val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
+        val detail = object : RenderProcessGoneDetail() {
+            override fun didCrash() = true
+            override fun rendererPriorityAtExit() = 0
+        }
+
+        assertTrue(wrapper.onRenderProcessGone(view, detail))
+        assertTrue(wrapper.onRenderProcessGone(view, detail))
+        assertEquals(1, retirements)
+        assertEquals(1, callbacks)
     }
 
     private class RecordingClient : WebViewClient() {

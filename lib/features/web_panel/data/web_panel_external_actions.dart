@@ -118,8 +118,17 @@ final class WebPanelExternalActionController extends ChangeNotifier {
   int _epoch = 0;
   bool _disposed = false;
 
+  bool get _current {
+    if (_disposed) return false;
+    try {
+      return isCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
   void arm() {
-    if (_disposed || !enabled || !isCurrent()) return;
+    if (!enabled || !_current) return;
     _epoch++;
     pending = null;
     _deadline = _elapsed() + const Duration(seconds: 30);
@@ -134,7 +143,7 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     final action = WebPanelExternalAction.parse(raw);
     if (action == null) return false;
     final deadline = _deadline;
-    if (!isCurrent() ||
+    if (!_current ||
         status != WebPanelExternalActionStatus.armed ||
         deadline == null ||
         _elapsed() >= deadline) {
@@ -163,7 +172,7 @@ final class WebPanelExternalActionController extends ChangeNotifier {
     final epoch = ++_epoch;
     pending = null;
     _deadline = null;
-    if (!isCurrent() || _elapsed() >= deadline) {
+    if (!_current || _elapsed() >= deadline) {
       status = WebPanelExternalActionStatus.denied;
       notifyListeners();
       return;
@@ -174,13 +183,13 @@ final class WebPanelExternalActionController extends ChangeNotifier {
       final launched = await port
           .launch(action)
           .timeout(const Duration(seconds: 5));
-      if (_disposed || epoch != _epoch || !isCurrent()) return;
+      if (_disposed || epoch != _epoch || !_current) return;
       status = launched
           ? WebPanelExternalActionStatus.unconfirmed
           : WebPanelExternalActionStatus.failed;
       notifyListeners();
     } catch (_) {
-      if (_disposed || epoch != _epoch || !isCurrent()) return;
+      if (_disposed || epoch != _epoch || !_current) return;
       status = WebPanelExternalActionStatus.failed;
       notifyListeners();
     }

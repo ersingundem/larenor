@@ -5,6 +5,7 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Message
 import android.view.KeyEvent
+import android.view.ViewGroup
 import android.webkit.ClientCertRequest
 import android.webkit.HttpAuthHandler
 import android.webkit.RenderProcessGoneDetail
@@ -300,11 +301,19 @@ internal class RendererAwareWebViewClient(
     private val rejectClientCertificate: (ClientCertRequest) -> Unit = { it.cancel() },
     private val rejectHttpAuthentication: (HttpAuthHandler) -> Unit = { it.cancel() },
     private val rejectTlsError: (SslErrorHandler) -> Unit = { it.cancel() },
+    private val retireRenderer: (WebView) -> Unit = { dead ->
+        (dead.parent as? ViewGroup)?.removeView(dead)
+        dead.stopLoading()
+        dead.destroy()
+    },
 ) : WebViewClient() {
     private val consumed = AtomicBoolean(false)
 
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-        if (consumed.compareAndSet(false, true)) runCatching(rendererGone)
+        if (consumed.compareAndSet(false, true)) {
+            runCatching { retireRenderer(view) }
+            runCatching(rendererGone)
+        }
         return true
     }
 
