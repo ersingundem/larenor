@@ -187,14 +187,42 @@ void main() {
     'one ready target plus any incoherent sibling fails before authority',
     () async {
       final malformed = <Map<String, Object?>>[
-        _installationWith({'state': 'queued', 'phase': 'executing', 'revision': 1}),
-        _installationWith({'state': 'queued', 'phase': 'queued', 'revision': 2}),
-        _installationWith({'state': 'queued', 'phase': 'queued', 'revision': 1, 'cancelRequested': true}),
-        _installationWith({'state': 'running', 'phase': 'queued', 'revision': 2}),
-        _installationWith({'state': 'running', 'phase': 'executing', 'revision': 1}),
+        _installationWith({
+          'state': 'queued',
+          'phase': 'executing',
+          'revision': 1,
+        }),
+        _installationWith({
+          'state': 'queued',
+          'phase': 'queued',
+          'revision': 2,
+        }),
+        _installationWith({
+          'state': 'queued',
+          'phase': 'queued',
+          'revision': 1,
+          'cancelRequested': true,
+        }),
+        _installationWith({
+          'state': 'running',
+          'phase': 'queued',
+          'revision': 2,
+        }),
+        _installationWith({
+          'state': 'running',
+          'phase': 'executing',
+          'revision': 1,
+        }),
         _installationWith({'state': 'container_started', 'phase': 'executing'}),
-        _installationWith({'state': 'container_started', 'phase': 'complete', 'revision': 1}),
-        _installationWith({'state': 'container_started', 'errorCode': 'worker_unavailable'}),
+        _installationWith({
+          'state': 'container_started',
+          'phase': 'complete',
+          'revision': 1,
+        }),
+        _installationWith({
+          'state': 'container_started',
+          'errorCode': 'worker_unavailable',
+        }),
         _installationWith({'state': 'cancelled', 'cancelRequested': false}),
         _installationWith({'state': 'needs_attention', 'errorCode': null}),
         _installationWith({'state': 'failed', 'errorCode': null}),

@@ -30,6 +30,11 @@ pagination, ambiguous-target/logout, member-policy, tablet and semantics tests.
 The focused test failed to compile because `searchCurrent` and
 `ServerMediaCatalogScreen` did not exist.
 
+Follow-up RED commit `7ab036fa` paired a valid ready target with every
+state/phase/revision/cancellation/error coherence violation from the Server
+`MediaInstallation` contract. The first malformed sibling was accepted and
+authority plus catalog search still ran.
+
 ## GREEN
 
 Run from the branch head:
@@ -42,8 +47,10 @@ flutter analyze lib/core/router.dart lib/features/home_scope/presentation/core_h
 python3 tool/execution_queue.py validate
 ```
 
-The focused batch passes 16 tests. Scoped analysis and queue validation are
-clean.
+The focused batch passes 17 tests. Scoped analysis and queue validation are
+clean. Target discovery now mirrors the Server coherence matrix before it
+selects the single ready Jellyfin installation, so any malformed sibling
+fails closed before authority or search.
 
 S08.8 remains pending. Catalog detail/playback dispatch, non-admin product
 policy if required, remaining direct Jellyfin surfaces, explicit player

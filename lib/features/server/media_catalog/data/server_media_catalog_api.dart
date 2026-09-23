@@ -265,6 +265,22 @@ final class ServerMediaCatalogApi {
         throw const FormatException();
       }
     }
+    final coherent = switch (state) {
+      'queued' => phase == 'queued' && revision == 1 && !cancelled,
+      'running' => phase == 'executing' && revision >= 2,
+      _ => phase == 'complete' && revision >= 2,
+    };
+    final errorCoherent = switch (state) {
+      'queued' ||
+      'running' ||
+      'container_started' ||
+      'cancelled' => error == null,
+      'needs_attention' || 'failed' => error != null,
+      _ => false,
+    };
+    if (!coherent || !errorCoherent || state == 'cancelled' && !cancelled) {
+      throw const FormatException();
+    }
     return (
       installationId: id,
       installationRevision: revision,
