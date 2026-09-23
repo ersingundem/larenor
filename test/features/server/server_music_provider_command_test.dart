@@ -22,6 +22,14 @@ void main() {
       {...providerCommandPreviewJson(), 'token': 'secret'},
       {...providerCommandPreviewJson(), 'effectAvailable': true},
       {...providerCommandJson(requestId: 'f' * 32), 'state': 'succeeded'},
+      {
+        ...providerCommandPreviewJson(createdAt: DateTime.utc(2026, 9, 10, 10)),
+        'expiresAt': '2026-09-10T10:09:59.000Z',
+      },
+      {
+        ...providerCommandPreviewJson(createdAt: DateTime.utc(2026, 9, 10, 10)),
+        'expiresAt': '2026-09-10T10:10:01.000Z',
+      },
     ]) {
       expect(
         () => value.containsKey('planHash')
