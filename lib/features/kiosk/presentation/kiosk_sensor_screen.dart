@@ -193,6 +193,8 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
       KioskSensorException(failure: KioskSensorFailure.unsupported) =>
         l.kioskUnsupported,
       KioskSensorException(failure: KioskSensorFailure.denied) => l.kioskDenied,
+      KioskSensorException(failure: KioskSensorFailure.powerLimited) =>
+        l.kioskSensorsPowerLimited,
       _ => l.kioskSensorsUnavailable,
     };
   }

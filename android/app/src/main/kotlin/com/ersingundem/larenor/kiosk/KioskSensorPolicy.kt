@@ -217,6 +217,8 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
     }
 
     companion object {
-        private val SESSION = Regex("^[a-f0-9-]{36}$")
+        private val SESSION = Regex(
+            "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+        )
     }
 }

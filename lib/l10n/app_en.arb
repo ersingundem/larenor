@@ -3700,6 +3700,7 @@
   "kioskSensorsStopped": "Local sensing stopped.",
   "kioskSensorsExpired": "The sensor session ended. Start a new session to continue.",
   "kioskSensorsUnavailable": "The sensor state could not be verified. Sampling was stopped.",
+  "kioskSensorsPowerLimited": "Sampling stopped because battery or thermal load is critical.",
   "kioskSensorsBackground": "Sampling paused while Larenor is not in the foreground.",
   "kioskSensorsInactive": "Sampling is off",
   "kioskSensorsWaiting": "Waiting for the first bounded sample",

@@ -27,6 +27,9 @@ final class KioskSensorController {
         }
         throw const KioskSensorException(KioskSensorFailure.expired);
       }
+      if (value.powerLimited) {
+        await _stopPowerLimited(value.sessionId);
+      }
       _snapshot = value;
       return value;
     } finally {
@@ -39,33 +42,59 @@ final class KioskSensorController {
     if (previous == null || !previous.sampling) {
       throw const KioskSensorException(KioskSensorFailure.expired);
     }
+    if (_busy) throw const KioskSensorException(KioskSensorFailure.busy);
     final generation = _generation;
-    final value = await _api.read(previous.sessionId);
-    final current = _snapshot;
-    if (generation != _generation ||
-        current == null ||
-        current.sessionId != previous.sessionId ||
-        !value.sampling ||
-        value.sequence < current.sequence ||
-        value.observedAtElapsedMillis < current.observedAtElapsedMillis) {
-      throw const KioskSensorException(KioskSensorFailure.expired);
+    _busy = true;
+    try {
+      final value = await _api.read(previous.sessionId);
+      final current = _snapshot;
+      if (generation != _generation ||
+          current == null ||
+          current.sessionId != previous.sessionId ||
+          !value.sampling ||
+          value.sequence < current.sequence ||
+          value.observedAtElapsedMillis < current.observedAtElapsedMillis) {
+        throw const KioskSensorException(KioskSensorFailure.expired);
+      }
+      if (value.sequence == current.sequence &&
+          (value.observedAtElapsedMillis != current.observedAtElapsedMillis ||
+              value.lux != current.lux ||
+              value.motionDelta != current.motionDelta ||
+              value.approachDistanceCm != current.approachDistanceCm ||
+              value.lightAvailable != current.lightAvailable ||
+              value.motionAvailable != current.motionAvailable ||
+              value.approachAvailable != current.approachAvailable ||
+              value.approachMaxRangeCm != current.approachMaxRangeCm ||
+              value.cameraStatus != current.cameraStatus ||
+              value.batteryPercent != current.batteryPercent ||
+              value.thermalStatus != current.thermalStatus)) {
+        throw const KioskSensorException(KioskSensorFailure.unavailable);
+      }
+      if (value.powerLimited) {
+        _generation++;
+        _snapshot = null;
+        await _stopPowerLimited(value.sessionId);
+      }
+      _snapshot = value;
+      return value;
+    } finally {
+      _busy = false;
     }
-    if (value.sequence == current.sequence &&
-        (value.observedAtElapsedMillis != current.observedAtElapsedMillis ||
-            value.lux != current.lux ||
-            value.motionDelta != current.motionDelta ||
-            value.approachDistanceCm != current.approachDistanceCm ||
-            value.lightAvailable != current.lightAvailable ||
-            value.motionAvailable != current.motionAvailable ||
-            value.approachAvailable != current.approachAvailable ||
-            value.approachMaxRangeCm != current.approachMaxRangeCm ||
-            value.cameraStatus != current.cameraStatus ||
-            value.batteryPercent != current.batteryPercent ||
-            value.thermalStatus != current.thermalStatus)) {
+  }
+
+  Future<Never> _stopPowerLimited(String sessionId) async {
+    try {
+      final receipt = await _api.stop(sessionId);
+      if (receipt.sessionId != sessionId || !receipt.stopped) {
+        throw const KioskSensorException(KioskSensorFailure.unavailable);
+      }
+    } on KioskSensorException catch (error) {
+      if (error.failure == KioskSensorFailure.unavailable) rethrow;
+      throw const KioskSensorException(KioskSensorFailure.unavailable);
+    } catch (_) {
       throw const KioskSensorException(KioskSensorFailure.unavailable);
     }
-    _snapshot = value;
-    return value;
+    throw const KioskSensorException(KioskSensorFailure.powerLimited);
   }
 
   Future<void> stop() async {

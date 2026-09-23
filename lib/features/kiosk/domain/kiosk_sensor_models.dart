@@ -13,7 +13,15 @@ enum KioskSensorThermalStatus {
   unknown,
 }
 
-enum KioskSensorFailure { unsupported, unavailable, denied, expired, busy }
+enum KioskSensorFailure {
+  unsupported,
+  unavailable,
+  denied,
+  expired,
+  busy,
+  invalid,
+  powerLimited,
+}
 
 const _snapshotKeys = <String>{
   'version',
@@ -65,6 +73,14 @@ final class KioskSensorSnapshot {
   final KioskSensorCameraStatus cameraStatus;
   final int? batteryPercent;
   final KioskSensorThermalStatus thermalStatus;
+
+  bool get powerLimited =>
+      (batteryPercent != null && batteryPercent! <= 3) ||
+      const {
+        KioskSensorThermalStatus.critical,
+        KioskSensorThermalStatus.emergency,
+        KioskSensorThermalStatus.shutdown,
+      }.contains(thermalStatus);
 
   bool? get isDark => !lightAvailable || lux == null ? null : lux! < 20;
   bool? isMoving(KioskSensorSensitivity sensitivity) {
@@ -127,7 +143,9 @@ final class KioskSensorSnapshot {
     final thermal = KioskSensorThermalStatus.values
         .where((value) => value.name == raw['thermalStatus'])
         .firstOrNull;
-    if (!RegExp(r'^[a-f0-9-]{36}$').hasMatch(sessionId) ||
+    if (!RegExp(
+          r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',
+        ).hasMatch(sessionId) ||
         (expectedSessionId != null && sessionId != expectedSessionId) ||
         sequence < 0 ||
         observed < 0 ||

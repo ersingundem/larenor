@@ -98,6 +98,7 @@ void main() {
       {..._sample(), 'secret': 'must-not-be-accepted'},
       identitySubstitution,
       {..._sample(), 'sessionId': 'foreign'},
+      {..._sample(), 'sessionId': '------------------------------------'},
       {..._sample(), 'lux': -1.0},
       {..._sample(), 'motionDelta': double.infinity},
       {..._sample(), 'approachDistanceCm': -1.0},
@@ -214,31 +215,28 @@ void main() {
     expect(api.stops, 1);
   });
 
-  test('late refresh cannot roll the sensor sequence backward', () async {
-    final api = _Api();
-    final controller = KioskSensorController(api);
-    await controller.start();
-    final firstGate = Completer<KioskSensorSnapshot>();
-    final secondGate = Completer<KioskSensorSnapshot>();
-    api.pendingReads.addAll([firstGate, secondGate]);
-    final first = controller.refresh();
-    final second = controller.refresh();
-    secondGate.complete(
-      KioskSensorSnapshot.fromChannel({
+  test(
+    'a completed refresh cannot be rolled backward by a later read',
+    () async {
+      final api = _Api();
+      final controller = KioskSensorController(api);
+      await controller.start();
+      api.readValue = {
         ..._sample(sequence: 2),
         'observedAtElapsedMillis': 1002,
-      }),
-    );
-    expect((await second).sequence, 2);
-    firstGate.complete(
-      KioskSensorSnapshot.fromChannel({
+      };
+      expect((await controller.refresh()).sequence, 2);
+      api.readValue = {
         ..._sample(sequence: 1),
         'observedAtElapsedMillis': 1001,
-      }),
-    );
-    await expectLater(first, throwsA(isA<KioskSensorException>()));
-    expect(controller.snapshot?.sequence, 2);
-  });
+      };
+      await expectLater(
+        controller.refresh(),
+        throwsA(isA<KioskSensorException>()),
+      );
+      expect(controller.snapshot?.sequence, 2);
+    },
+  );
 
   test('one sensor session permits only one native read at a time', () async {
     final api = _Api();
@@ -425,6 +423,7 @@ void main() {
       }
       for (final sessionId in [
         'foreign',
+        '------------------------------------',
         '00000000-0000-0000-0000-00000000000g',
       ]) {
         await expectLater(

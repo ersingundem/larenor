@@ -28,6 +28,10 @@ class KioskSensorPolicyTest {
         fun emit(sample: KioskSensorSample) = listener?.invoke(sample)
     }
 
+    private class InvalidTokenHost : KioskSensorHost by Host() {
+        override fun token() = "------------------------------------"
+    }
+
     private fun fails(code: String, action: () -> Unit) {
         try { action(); fail("Expected $code") } catch (error: KioskFailure) { assertEquals(code, error.code) }
     }
@@ -45,6 +49,13 @@ class KioskSensorPolicyTest {
         policy.setInteractive(false)
         assertEquals(1, host.stopped)
         fails("expired") { policy.read(mapOf("sessionId" to started["sessionId"])) }
+    }
+
+    @Test fun malformedNativeSessionTokenNeverStartsAnOwnedSession() {
+        val policy = KioskSensorPolicy(InvalidTokenHost())
+        policy.setInteractive(true)
+        fails("unavailable") { policy.start(mapOf("intervalMillis" to 1000)) }
+        assertFalse(policy.hasSession())
     }
 
     @Test fun samplesAreThrottledBoundedAndCarryNoRawHistory() {
