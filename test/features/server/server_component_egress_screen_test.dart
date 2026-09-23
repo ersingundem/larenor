@@ -185,6 +185,7 @@ void main() {
       find.byKey(const ValueKey('egress-addresses')),
       '192.168.1.150',
     );
+    await tester.pump();
     expect(
       find.text('Addresses resolved by Core for this exact service revision.'),
       findsNothing,

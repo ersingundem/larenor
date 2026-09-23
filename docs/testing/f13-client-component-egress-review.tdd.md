@@ -20,15 +20,18 @@ and real LAN acceptance is recorded.
 3. **Visible review before grant.** The tablet editor opens read-only. Saving
    addresses requires an explicit **Resolve and review** action and an exact
    match between the visible pins and the current receipt. Editing even one pin
-   requires another review; blocking all access remains an explicit independent
-   action. English and Turkish tablet controls keep the existing scroll and 2x
-   text behavior.
+   immediately removes the reviewed indicator and requires another review;
+   blocking all access remains an explicit independent action. English and
+   Turkish tablet controls keep the existing scroll and 2x text behavior.
 
 ## RED to GREEN evidence
 
 The RED checkpoint `a2378aea` adds strict receipt/API tests and late controller retirement
 before the model, endpoint call and controller state existed. GREEN passes the
 combined domain, API, lifecycle and tablet widget matrix.
+
+Follow-up RED checkpoint `59460ec4` proves that editing a reviewed field must
+retire its visible receipt immediately while save remains blocked.
 
 ```text
 flutter test test/features/server/server_component_egress_test.dart \

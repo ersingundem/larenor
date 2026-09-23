@@ -66,6 +66,12 @@ final class ServerComponentEgressController extends ChangeNotifier {
     });
   }
 
+  void retireResolution() {
+    if (_disposed || resolution == null) return;
+    resolution = null;
+    _emit();
+  }
+
   Future<void> replace({
     ServerComponentEgressGrant? grant,
     required bool Function() current,

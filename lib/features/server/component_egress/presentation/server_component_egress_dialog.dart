@@ -192,6 +192,7 @@ class _ServerComponentEgressDialogState
                           textInputAction: TextInputAction.newline,
                           placeholder: l10n.serverEgressAddressesHint,
                           onChanged: (_) {
+                            _controller.retireResolution();
                             if (_draftFailure != null) {
                               setState(() => _draftFailure = null);
                             }
