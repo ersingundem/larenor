@@ -71,6 +71,13 @@ void main() {
     final first = controller.load(current: () => true);
     await Future<void>.delayed(Duration.zero);
     await controller.load(current: () => true);
+    for (
+      var attempt = 0;
+      attempt < 20 && fixture.adminCalls.isEmpty;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
     expect(
       fixture.adminCalls.where(
         (call) => call.url.path.endsWith('/music-assistant/retained'),

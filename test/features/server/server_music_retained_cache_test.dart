@@ -63,8 +63,14 @@ void main() {
     expect(await cache.read(scope, current: () => true), isNotNull);
     final record = jsonDecode(backend.value!) as Map<String, dynamic>;
     expect(record['schemaVersion'], 1);
+    expect(record['recordId'], matches(RegExp(r'^[a-f0-9]{32}$')));
     expect(backend.value, isNot(contains('token')));
     expect(backend.value, isNot(contains('password')));
+    final firstRaw = backend.value!;
+    expect(await cache.write(scope, overview, current: () => true), isTrue);
+    expect(backend.value, isNot(firstRaw));
+    expect(await backend.compareAndClear(firstRaw), isFalse);
+    expect(backend.value, isNotNull);
 
     expect(
       await cache.read(
