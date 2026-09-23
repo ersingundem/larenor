@@ -30,6 +30,37 @@ final validJpeg = Uint8List.fromList(const [
   0xff,
   0xc0,
   0x00,
+  0x0b,
+  0x08,
+  0x00,
+  0x01,
+  0x00,
+  0x01,
+  0x01,
+  0x01,
+  0x11,
+  0x00,
+  0xff,
+  0xda,
+  0x00,
+  0x08,
+  0x01,
+  0x01,
+  0x00,
+  0x00,
+  0x3f,
+  0x00,
+  0x01,
+  0xff,
+  0xd9,
+]);
+
+final malformedJpeg = Uint8List.fromList(const [
+  0xff,
+  0xd8,
+  0xff,
+  0xc0,
+  0x00,
   0x08,
   0x08,
   0x00,
@@ -54,9 +85,56 @@ final validPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 );
 
+final oversizedPngHeader = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUv////8AAAABCAIAAACPPoGdAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC',
+);
+
+final invalidPngColorDepth = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAwQAAADCzD0TAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC',
+);
+
 final validWebp = base64Decode(
   'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA',
 );
+
+final animationHeaderOnlyWebp = Uint8List.fromList(const [
+  0x52,
+  0x49,
+  0x46,
+  0x46,
+  0x1c,
+  0x00,
+  0x00,
+  0x00,
+  0x57,
+  0x45,
+  0x42,
+  0x50,
+  0x41,
+  0x4e,
+  0x4d,
+  0x46,
+  0x10,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+]);
 
 final class Access implements WebPanelTransferAccess {
   final uploadGate = Completer<List<String>>();
@@ -305,10 +383,14 @@ void main() {
       ('application/pdf', '%PDF-1.7<html>polyglot</html>'.codeUnits),
       ('image/jpeg', [0x89, 0x50, 0x4e, 0x47]),
       ('image/jpeg', [0xff, 0xd8, 0xff, 0xe0]),
+      ('image/jpeg', malformedJpeg),
       ('image/png', [0xff, 0xd8, 0xff, 0xe0]),
       ('image/png', [...validPng]..removeLast()),
+      ('image/png', oversizedPngHeader),
+      ('image/png', invalidPngColorDepth),
       ('image/webp', 'RIFF0000NOPE'.codeUnits),
       ('image/webp', 'RIFF0000WEBP'.codeUnits),
+      ('image/webp', animationHeaderOnlyWebp),
       ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
       ('text/csv', [0xc3, 0x28]),
       ('application/json', '{"unfinished":'.codeUnits),

@@ -193,15 +193,43 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       (bytes[offset + 2] << 16) |
       (bytes[offset + 3] << 24);
 
-  static int _crc32(Uint8List bytes, int start, int end) {
-    var crc = 0xffffffff;
-    for (var index = start; index < end; index++) {
-      crc ^= bytes[index];
+  static final _crc32Table = List<int>.unmodifiable(
+    List<int>.generate(256, (value) {
+      var crc = value;
       for (var bit = 0; bit < 8; bit++) {
         crc = (crc & 1) == 1 ? 0xedb88320 ^ (crc >> 1) : crc >> 1;
       }
+      return crc;
+    }),
+  );
+
+  static int _crc32(Uint8List bytes, int start, int end) {
+    var crc = 0xffffffff;
+    for (var index = start; index < end; index++) {
+      crc = _crc32Table[(crc ^ bytes[index]) & 0xff] ^ (crc >> 8);
     }
     return (crc ^ 0xffffffff) & 0xffffffff;
+  }
+
+  static bool _validPngHeader(Uint8List bytes, int start) {
+    final width = _uint32BigEndian(bytes, start);
+    final height = _uint32BigEndian(bytes, start + 4);
+    if (width < 1 ||
+        height < 1 ||
+        width > 0x7fffffff ||
+        height > 0x7fffffff ||
+        bytes[start + 10] != 0 ||
+        bytes[start + 11] != 0 ||
+        bytes[start + 12] > 1) {
+      return false;
+    }
+    final bitDepth = bytes[start + 8];
+    return switch (bytes[start + 9]) {
+      0 => const {1, 2, 4, 8, 16}.contains(bitDepth),
+      2 || 4 || 6 => const {8, 16}.contains(bitDepth),
+      3 => const {1, 2, 4, 8}.contains(bitDepth),
+      _ => false,
+    };
   }
 
   static bool _validPdf(Uint8List bytes) {
@@ -255,9 +283,25 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
           (marker >= 0xc9 && marker <= 0xcb) ||
           (marker >= 0xcd && marker <= 0xcf)) {
         if (length < 8) return false;
+        final components = bytes[offset + 7];
+        final width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+        if (components < 1 ||
+            components > 4 ||
+            length != 8 + (3 * components) ||
+            width == 0) {
+          return false;
+        }
         sawFrame = true;
       }
-      if (marker == 0xda && length < 6) return false;
+      if (marker == 0xda) {
+        if (!sawFrame || length < 6) return false;
+        final components = bytes[offset + 2];
+        if (components < 1 ||
+            components > 4 ||
+            length != 6 + (2 * components)) {
+          return false;
+        }
+      }
       offset += length;
       if (marker != 0xda) continue;
       sawScan = true;
@@ -296,11 +340,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       if (chunks++ == 0) {
         if (type != 'IHDR' ||
             length != 13 ||
-            _uint32BigEndian(bytes, dataStart) == 0 ||
-            _uint32BigEndian(bytes, dataStart + 4) == 0 ||
-            bytes[dataStart + 10] != 0 ||
-            bytes[dataStart + 11] != 0 ||
-            bytes[dataStart + 12] > 1) {
+            !_validPngHeader(bytes, dataStart)) {
           return false;
         }
       } else if (type == 'IHDR') {
@@ -335,23 +375,72 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       final paddedEnd = dataEnd + (length.isOdd ? 1 : 0);
       if (length < 0 || paddedEnd > bytes.length) return false;
       if (type == 'VP8 ') {
-        if (length < 10 ||
-            bytes[dataStart + 3] != 0x9d ||
-            bytes[dataStart + 4] != 0x01 ||
-            bytes[dataStart + 5] != 0x2a) {
+        if (!_validVp8(bytes, dataStart, length)) {
           return false;
         }
         imageChunks++;
       } else if (type == 'VP8L') {
-        if (length < 5 || bytes[dataStart] != 0x2f) return false;
+        if (!_validVp8l(bytes, dataStart, length)) return false;
         imageChunks++;
       } else if (type == 'ANMF') {
-        if (length < 16) return false;
+        if (length < 24 || !_validWebpFrame(bytes, dataStart + 16, dataEnd)) {
+          return false;
+        }
         imageChunks++;
       }
       offset = paddedEnd;
     }
     return offset == bytes.length && imageChunks > 0;
+  }
+
+  static bool _validVp8(Uint8List bytes, int start, int length) {
+    if (length < 10 ||
+        bytes[start] & 1 != 0 ||
+        bytes[start + 3] != 0x9d ||
+        bytes[start + 4] != 0x01 ||
+        bytes[start + 5] != 0x2a) {
+      return false;
+    }
+    final width = bytes[start + 6] | ((bytes[start + 7] & 0x3f) << 8);
+    final height = bytes[start + 8] | ((bytes[start + 9] & 0x3f) << 8);
+    return width > 0 && height > 0;
+  }
+
+  static bool _validVp8l(Uint8List bytes, int start, int length) {
+    if (length < 5 || bytes[start] != 0x2f || bytes[start + 4] >> 5 != 0) {
+      return false;
+    }
+    final width = 1 + bytes[start + 1] + ((bytes[start + 2] & 0x3f) << 8);
+    final height =
+        1 +
+        (bytes[start + 2] >> 6) +
+        (bytes[start + 3] << 2) +
+        ((bytes[start + 4] & 0x0f) << 10);
+    return width > 0 && height > 0;
+  }
+
+  static bool _validWebpFrame(Uint8List bytes, int start, int end) {
+    var offset = start;
+    var imageChunks = 0;
+    while (offset + 8 <= end) {
+      final type = ascii.decode(bytes.sublist(offset, offset + 4));
+      final length = _uint32LittleEndian(bytes, offset + 4);
+      final dataStart = offset + 8;
+      final dataEnd = dataStart + length;
+      final paddedEnd = dataEnd + (length.isOdd ? 1 : 0);
+      if (paddedEnd > end) return false;
+      if (type == 'VP8 ') {
+        if (!_validVp8(bytes, dataStart, length)) return false;
+        imageChunks++;
+      } else if (type == 'VP8L') {
+        if (!_validVp8l(bytes, dataStart, length)) return false;
+        imageChunks++;
+      } else if (type != 'ALPH') {
+        return false;
+      }
+      offset = paddedEnd;
+    }
+    return offset == end && imageChunks == 1;
   }
 
   static String? _safeText(Uint8List bytes) {
