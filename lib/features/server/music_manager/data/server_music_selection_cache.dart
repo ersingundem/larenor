@@ -8,7 +8,8 @@ import '../domain/server_music_manager_models.dart';
 
 abstract interface class ServerMusicSelectionCacheBackend {
   Future<String?> read();
-  Future<void> write(String value);
+  Future<bool> compareAndWrite(String? expected, String value);
+  Future<bool> compareAndClear(String expected);
   Future<void> clear();
 }
 
@@ -29,12 +30,28 @@ final class SharedPreferencesServerMusicSelectionCacheBackend
   });
 
   @override
-  Future<void> write(String value) => ConfigurationWrites.run(() async {
-    final preferences = await _loadPreferences();
-    if (!await preferences.setString(key, value)) {
-      throw StateError('music_selection_write_failed');
-    }
-  });
+  Future<bool> compareAndWrite(String? expected, String value) =>
+      ConfigurationWrites.run(() async {
+        final preferences = await _loadPreferences();
+        await preferences.reload();
+        if (preferences.getString(key) != expected) return false;
+        if (!await preferences.setString(key, value)) {
+          throw StateError('music_selection_write_failed');
+        }
+        return true;
+      });
+
+  @override
+  Future<bool> compareAndClear(String expected) =>
+      ConfigurationWrites.run(() async {
+        final preferences = await _loadPreferences();
+        await preferences.reload();
+        if (preferences.getString(key) != expected) return false;
+        if (!await preferences.remove(key)) {
+          throw StateError('music_selection_clear_failed');
+        }
+        return true;
+      });
 
   @override
   Future<void> clear() => ConfigurationWrites.run(() async {
@@ -123,7 +140,7 @@ final class ServerMusicSelectionCache {
     }
     if (raw == null) return null;
     if (utf8.encode(raw).length > maximumBytes) {
-      await _clearQuietly();
+      await clearIfCurrent(raw);
       return null;
     }
     try {
@@ -222,12 +239,12 @@ final class ServerMusicSelectionCache {
         receiverId: currentReceiver.id,
       );
     } catch (_) {
-      await _clearQuietly();
+      await clearIfCurrent(raw);
       return null;
     }
   }
 
-  Future<void> write(
+  Future<String?> write(
     ServerMusicSelectionScope scope,
     ServerMusicManager manager, {
     required ServerMusicProviderBinding provider,
@@ -240,6 +257,7 @@ final class ServerMusicSelectionCache {
         !receiver.enabled) {
       throw StateError('music_selection_invalid');
     }
+    final expected = await _backend.read();
     final raw = jsonEncode({
       'schemaVersion': 1,
       'scope': scope.toJson(),
@@ -267,7 +285,15 @@ final class ServerMusicSelectionCache {
     if (utf8.encode(raw).length > maximumBytes) {
       throw StateError('music_selection_quota_exceeded');
     }
-    await _backend.write(raw);
+    return await _backend.compareAndWrite(expected, raw) ? raw : null;
+  }
+
+  Future<void> clear() => _clearQuietly();
+
+  Future<void> clearIfCurrent(String value) async {
+    try {
+      await _backend.compareAndClear(value);
+    } catch (_) {}
   }
 
   Future<void> _clearQuietly() async {

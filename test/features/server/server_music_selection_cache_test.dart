@@ -23,9 +23,48 @@ final class _MemoryBackend implements ServerMusicSelectionCacheBackend {
   Future<String?> read() => pendingRead?.future ?? Future.value(value);
 
   @override
-  Future<void> write(String value) async {
+  Future<bool> compareAndWrite(String? expected, String value) async {
+    if (this.value != expected) return false;
     writes++;
     this.value = value;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    if (value != expected) return false;
+    await clear();
+    return true;
+  }
+}
+
+final class _DelayedWriteBackend implements ServerMusicSelectionCacheBackend {
+  String? value;
+  final writes = <String>[];
+  final gates = <Completer<void>>[];
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<bool> compareAndWrite(String? expected, String value) async {
+    writes.add(value);
+    final gate = Completer<void>();
+    gates.add(gate);
+    await gate.future;
+    if (this.value != expected) return false;
+    this.value = value;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    if (value != expected) return false;
+    value = null;
+    return true;
   }
 }
 
@@ -230,6 +269,35 @@ void main() {
     expect(backend.writes, writes);
   });
 
+  test(
+    'delayed invalid read cannot clear a replacement owner record',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicSelectionCache(backend: backend);
+      final manager = _manager();
+      await cache.write(
+        _scope,
+        manager,
+        provider: _provider(manager),
+        receiver: _receiver(manager),
+      );
+      final replacement = backend.value!;
+      const invalid = '{"schemaVersion":2}';
+      backend.value = invalid;
+      backend.pendingRead = Completer<String?>();
+
+      final delayed = cache.read(_scope, manager);
+      await Future<void>.delayed(Duration.zero);
+      backend.value = replacement;
+      backend.pendingRead!.complete(invalid);
+
+      expect(await delayed, isNull);
+      backend.pendingRead = null;
+      expect(backend.value, replacement);
+      expect(await cache.read(_scope, manager), isNotNull);
+    },
+  );
+
   test('explicit provider and receiver choices restore only after live verification', () async {
     final backend = _MemoryBackend();
     final cache = ServerMusicSelectionCache(
@@ -310,4 +378,140 @@ void main() {
     expect(controller.selectedProviderId, isNull);
     expect(controller.selectedReceiverId, isNull);
   });
+
+  test(
+    'rapid provider choices persist only the latest verified choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final controller = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      await controller.load(current: () => true);
+      await controller.verify(current: () => true);
+
+      final older = controller.selectProvider('e' * 32);
+      await Future<void>.delayed(Duration.zero);
+      final latest = controller.selectProvider('d' * 32);
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.writes, hasLength(2));
+      backend.gates[1].complete();
+      await latest;
+      backend.gates[0].complete();
+      await older;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.providerId, 'd' * 32);
+    },
+  );
+
+  test(
+    'rapid receiver choices persist only the latest verified choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final controller = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      await controller.load(current: () => true);
+      await controller.verify(current: () => true);
+
+      final older = controller.selectReceiver('cast-kitchen');
+      await Future<void>.delayed(Duration.zero);
+      final latest = controller.selectReceiver('homepod-living');
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.writes, hasLength(2));
+      backend.gates[1].complete();
+      await latest;
+      backend.gates[0].complete();
+      await older;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.receiverId, 'homepod-living');
+    },
+  );
+
+  test('logout during a delayed save leaves no restorable selection', () async {
+    final backend = _DelayedWriteBackend();
+    final fixture = _MultiProviderFixture();
+    await fixture.account.initialize();
+    final controller = ServerMusicManagerController(
+      fixture.account,
+      selectionCache: ServerMusicSelectionCache(backend: backend),
+    );
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+    await controller.load(current: () => true);
+    await controller.verify(current: () => true);
+
+    final saving = controller.selectProvider('e' * 32);
+    await Future<void>.delayed(Duration.zero);
+    await fixture.account.signOut();
+    backend.gates.single.complete();
+    await saving;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager()),
+      isNull,
+    );
+  });
+
+  test(
+    'retired screen cannot overwrite the replacement screen choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final old = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      await old.load(current: () => true);
+      await old.verify(current: () => true);
+      final staleSave = old.selectProvider('e' * 32);
+      await Future<void>.delayed(Duration.zero);
+      old.dispose();
+
+      final replacement = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        replacement.dispose();
+        fixture.account.dispose();
+      });
+      await replacement.load(current: () => true);
+      await replacement.verify(current: () => true);
+      final currentSave = replacement.selectReceiver('cast-kitchen');
+      await Future<void>.delayed(Duration.zero);
+
+      backend.gates[1].complete();
+      await currentSave;
+      backend.gates[0].complete();
+      await staleSave;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.providerId, 'd' * 32);
+      expect(restored?.receiverId, 'cast-kitchen');
+    },
+  );
 }
