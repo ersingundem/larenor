@@ -325,7 +325,7 @@ class ServerMusicManagerController extends ChangeNotifier {
     await _writeSelection(selectionEpoch);
   }
 
-  Future<void> _writeSelection(int selectionEpoch) async {
+  Future<void> _writeSelection(int selectionEpoch, {int conflicts = 0}) async {
     final value = manager;
     final provider = selectedProvider;
     final receiver = selectedReceiver;
@@ -353,12 +353,27 @@ class ServerMusicManagerController extends ChangeNotifier {
           selectionEpoch != _selectionEpoch) {
         return;
       }
-      await _selectionCache.write(
+      final written = await _selectionCache.write(
         scope,
         value,
         provider: provider,
         receiver: receiver,
       );
+      if (written == null) {
+        if (conflicts < 3 &&
+            !_disposed &&
+            selectionEpoch == _selectionEpoch &&
+            epoch == _epoch &&
+            _authorized &&
+            verified &&
+            identical(account.session, session) &&
+            identical(manager, value) &&
+            identical(selectedProvider, provider) &&
+            identical(selectedReceiver, receiver)) {
+          await _writeSelection(selectionEpoch, conflicts: conflicts + 1);
+        }
+        return;
+      }
       if (!_disposed &&
           epoch == _epoch &&
           selectionEpoch == _selectionEpoch &&
@@ -379,7 +394,7 @@ class ServerMusicManagerController extends ChangeNotifier {
           selectionEpoch != _selectionEpoch) {
         await _writeSelection(_selectionEpoch);
       } else {
-        await _selectionCache.clear();
+        await _selectionCache.clearIfCurrent(written);
       }
     } catch (_) {
       // Selection remains valid in memory; persistence is best effort.

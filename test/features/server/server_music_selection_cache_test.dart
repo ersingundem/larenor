@@ -23,9 +23,18 @@ final class _MemoryBackend implements ServerMusicSelectionCacheBackend {
   Future<String?> read() => pendingRead?.future ?? Future.value(value);
 
   @override
-  Future<void> write(String value) async {
+  Future<bool> compareAndWrite(String? expected, String value) async {
+    if (this.value != expected) return false;
     writes++;
     this.value = value;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    if (value != expected) return false;
+    await clear();
+    return true;
   }
 }
 
@@ -41,12 +50,21 @@ final class _DelayedWriteBackend implements ServerMusicSelectionCacheBackend {
   Future<String?> read() async => value;
 
   @override
-  Future<void> write(String value) async {
+  Future<bool> compareAndWrite(String? expected, String value) async {
     writes.add(value);
     final gate = Completer<void>();
     gates.add(gate);
     await gate.future;
+    if (this.value != expected) return false;
     this.value = value;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    if (value != expected) return false;
+    value = null;
+    return true;
   }
 }
 
@@ -357,10 +375,6 @@ void main() {
       backend.gates[1].complete();
       await latest;
       backend.gates[0].complete();
-      while (backend.gates.length < 3) {
-        await Future<void>.delayed(Duration.zero);
-      }
-      backend.gates[2].complete();
       await older;
 
       final restored = await ServerMusicSelectionCache(backend: backend)
@@ -394,10 +408,6 @@ void main() {
       backend.gates[1].complete();
       await latest;
       backend.gates[0].complete();
-      while (backend.gates.length < 3) {
-        await Future<void>.delayed(Duration.zero);
-      }
-      backend.gates[2].complete();
       await older;
 
       final restored = await ServerMusicSelectionCache(backend: backend)
@@ -434,4 +444,45 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'retired screen cannot overwrite the replacement screen choice',
+    () async {
+      final backend = _DelayedWriteBackend();
+      final fixture = _MultiProviderFixture();
+      await fixture.account.initialize();
+      final old = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      await old.load(current: () => true);
+      await old.verify(current: () => true);
+      final staleSave = old.selectProvider('e' * 32);
+      await Future<void>.delayed(Duration.zero);
+      old.dispose();
+
+      final replacement = ServerMusicManagerController(
+        fixture.account,
+        selectionCache: ServerMusicSelectionCache(backend: backend),
+      );
+      addTearDown(() {
+        replacement.dispose();
+        fixture.account.dispose();
+      });
+      await replacement.load(current: () => true);
+      await replacement.verify(current: () => true);
+      final currentSave = replacement.selectReceiver('cast-kitchen');
+      await Future<void>.delayed(Duration.zero);
+
+      backend.gates[1].complete();
+      await currentSave;
+      backend.gates[0].complete();
+      await staleSave;
+
+      final restored = await ServerMusicSelectionCache(backend: backend)
+          .read(_fixtureScope, _manager());
+      expect(restored?.providerId, 'd' * 32);
+      expect(restored?.receiverId, 'cast-kitchen');
+    },
+  );
 }

@@ -15,7 +15,9 @@ S08.8 or change the progress counters.
    result after completion, so a later session cannot restore that stale
    choice. Reconciliation rechecks the exact session, manager, provider,
    receiver, controller epoch and selection epoch after every persistence
-   await.
+   await. Cache compare-and-set/compare-and-clear ownership also prevents a
+   retired screen from overwriting or clearing a replacement screen's newer
+   choice.
 
 ## RED
 
