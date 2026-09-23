@@ -164,6 +164,14 @@ def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
         assert authority.revalidate(malformed, deadline) is False
         assert authority.revalidate((sources[0], sources[0]), deadline) is False
         assert authority.revalidate(sources[:1], deadline) is False
+        shared_identity = (
+            sources[0],
+            replace(
+                sources[1], path=sources[0].path,
+                device=sources[0].device, inode=sources[0].inode,
+            ),
+        )
+        assert authority.revalidate(shared_identity, deadline) is False
         assert authority.revalidate(sources, time.monotonic() - 1) is False
 
         monkeypatch.setattr(authority_module, 'load_catalog',
@@ -171,7 +179,10 @@ def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
         assert authority.revalidate(sources, deadline) is False
         monkeypatch.undo()
 
-        volumes._db.execute('UPDATE resources SET revision=revision+1 LIMIT 1')
+        volumes._db.execute(
+            'UPDATE resources SET revision=revision+1 WHERE resource_id='
+            '(SELECT resource_id FROM resources ORDER BY resource_id LIMIT 1)'
+        )
         assert authority.revalidate(sources, deadline) is False
 
 

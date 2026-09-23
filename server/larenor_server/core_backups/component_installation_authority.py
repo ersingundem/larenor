@@ -1,8 +1,11 @@
 """Durable journal authority for the exact installed component volume set."""
 
 from dataclasses import dataclass, field, fields
+import math
+from pathlib import Path
 import re
 import threading
+import time
 
 from ..plugins.catalog import load_catalog
 from ..plugins.managed_container import (
@@ -13,6 +16,7 @@ from ..plugins.volume_create_journal import (
     VolumeCreateIntent,
     VolumeCreateJournal,
 )
+from .component_snapshot_provider import ComponentVolumeSource
 
 
 _VOLUME_ID = re.compile(r"[a-z][a-z0-9-]{0,127}\Z")
@@ -113,6 +117,7 @@ class DurableComponentInstallationAuthority:
         self._volumes = volumes
         self._mutex = threading.Lock()
         self._expected = None
+        self._sources = None
 
     @staticmethod
     def _catalog():
@@ -213,7 +218,86 @@ class DurableComponentInstallationAuthority:
                     key=lambda item: item.service_id,
                 )
             )
+            services = [item.service_id for item in result]
+            containers = [item.container_id for item in result]
+            names = [
+                volume.intent.binding.resource.name
+                for component in result
+                for volume in component.volumes
+            ]
+            resources = [
+                volume.intent.binding.resource.resourceId
+                for component in result
+                for volume in component.volumes
+            ]
+            if (
+                len(services) != len(set(services))
+                or len(containers) != len(set(containers))
+                or len(names) != len(set(names))
+                or len(resources) != len(set(resources))
+            ):
+                raise ComponentInstallationAuthorityError()
         return result
+
+    @staticmethod
+    def _source_set(sources, receipts):
+        if type(sources) not in (tuple, list) or len(sources) > 128:
+            raise ComponentInstallationAuthorityError()
+        expected = {
+            (component.service_id, volume.volume_id): (
+                component.container_id,
+                component.service_version,
+                component.config_schema_version,
+                component.data_schema_version,
+                volume.intent.receipt.revision,
+            )
+            for component in receipts
+            for volume in component.volumes
+        }
+        selected = []
+        identities = set()
+        paths = set()
+        for value in sources:
+            if not _exact(value, ComponentVolumeSource):
+                raise ComponentInstallationAuthorityError()
+            key = (value.service_id, value.volume_id)
+            if (
+                key not in expected
+                or (
+                    value.container_id,
+                    value.service_version,
+                    value.config_schema_version,
+                    value.data_schema_version,
+                    value.installation_revision,
+                )
+                != expected[key]
+                or not isinstance(value.path, Path)
+                or type(value.device) is not int
+                or value.device < 0
+                or type(value.inode) is not int
+                or value.inode <= 0
+                or key in {item[:2] for item in selected}
+                or value.path in paths
+                or (value.device, value.inode) in identities
+            ):
+                raise ComponentInstallationAuthorityError()
+            selected.append((
+                value.service_id,
+                value.volume_id,
+                value.container_id,
+                value.service_version,
+                value.config_schema_version,
+                value.data_schema_version,
+                value.installation_revision,
+                value.path,
+                value.device,
+                value.inode,
+            ))
+            paths.add(value.path)
+            identities.add((value.device, value.inode))
+        if {item[:2] for item in selected} != set(expected):
+            raise ComponentInstallationAuthorityError()
+        return tuple(sorted(selected))
 
     def snapshot(self):
         if not self._mutex.acquire(blocking=False):
@@ -229,5 +313,31 @@ class DurableComponentInstallationAuthority:
             raise
         except Exception:
             raise ComponentInstallationAuthorityError() from None
+        finally:
+            self._mutex.release()
+
+    def revalidate(self, sources, deadline):
+        """Return literal True only for the bound sources and current journals."""
+        if (
+            type(deadline) not in (int, float)
+            or type(deadline) is bool
+            or not math.isfinite(deadline)
+            or time.monotonic() >= deadline
+            or not self._mutex.acquire(blocking=False)
+        ):
+            return False
+        try:
+            if self._expected is None:
+                return False
+            selected = self._source_set(sources, self._expected)
+            if self._sources is not None and selected != self._sources:
+                return False
+            if self._read() != self._expected or time.monotonic() >= deadline:
+                return False
+            if self._sources is None:
+                self._sources = selected
+            return True
+        except Exception:
+            return False
         finally:
             self._mutex.release()
