@@ -23,21 +23,23 @@ published by a newer owner. SharedPreferences mutations remain serialized by
 
 ## RED and GREEN evidence
 
-RED commit `6bc9dc02` defined the missing serialization, tuple/TTL/quota,
+RED commit `140451ba` defined the missing serialization, tuple/TTL/quota,
 retirement and stored-before-network contracts.
 
-GREEN commit `8496aeb1` passes the focused batch:
+GREEN commit `ca95960f` passes the focused batch:
 
 ```text
 flutter test test/features/server/server_music_retained_status_test.dart \
   test/features/server/server_music_retained_cache_test.dart \
-  test/features/server/server_music_retained_controller_test.dart
-10 tests passed.
+  test/features/server/server_music_retained_controller_test.dart \
+  test/features/server/server_music_retained_screen_test.dart
+19 tests passed.
 
 flutter analyze lib/features/server/music_retained \
   test/features/server/server_music_retained_status_test.dart \
   test/features/server/server_music_retained_cache_test.dart \
-  test/features/server/server_music_retained_controller_test.dart
+  test/features/server/server_music_retained_controller_test.dart \
+  test/features/server/server_music_retained_screen_test.dart
 No issues found.
 ```
 
