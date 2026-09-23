@@ -6,6 +6,7 @@ import 'package:larenor/features/server/music_manager/data/server_music_manager_
 import 'package:larenor/features/server/music_manager/data/server_music_manager_controller.dart';
 import 'package:larenor/features/server/music_manager/domain/server_music_manager_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import 'server_music_manager_test_support.dart';
 
@@ -66,6 +67,26 @@ final class _MemoryBackend implements ServerMusicManagerCacheBackend {
   }
 }
 
+final class _DelayedPreferences extends InMemorySharedPreferencesStore {
+  _DelayedPreferences() : super.empty();
+
+  final started = Completer<void>();
+  final gate = Completer<void>();
+  Future<void> Function(String key)? afterPersist;
+
+  @override
+  Future<bool> setValue(String type, String key, Object value) async {
+    if (!started.isCompleted) started.complete();
+    await gate.future;
+    final result = await super.setValue(type, key, value);
+    await afterPersist?.call(key);
+    return result;
+  }
+
+  Future<void> replace(String key, String value) =>
+      super.setValue('String', key, value);
+}
+
 const _scope = ServerMusicManagerCacheScope(
   coreId: '11111111111111111111111111111111',
   homeId: '22222222222222222222222222222222',
@@ -117,6 +138,8 @@ Future<ServerMusicManager?> _read(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('SharedPreferences backend survives a fresh cache backend', () async {
     SharedPreferences.setMockInitialValues({});
     final writer = SharedPreferencesServerMusicManagerCacheBackend();
@@ -128,6 +151,61 @@ void main() {
     await reader.clear();
     expect(await writer.read(), isNull);
   });
+
+  test('SharedPreferences backend retracts its exact write when lifecycle retires during setString', () async {
+    SharedPreferences.resetStatic();
+    final previous = SharedPreferencesStorePlatform.instance;
+    final preferences = _DelayedPreferences();
+    SharedPreferencesStorePlatform.instance = preferences;
+    addTearDown(() {
+      SharedPreferencesStorePlatform.instance = previous;
+      SharedPreferences.resetStatic();
+    });
+    var current = true;
+    final backend = SharedPreferencesServerMusicManagerCacheBackend();
+
+    final writing = backend.compareAndWrite(
+      null,
+      'retired-snapshot',
+      current: () => current,
+    );
+    await preferences.started.future;
+    current = false;
+    preferences.gate.complete();
+
+    expect(await writing, isFalse);
+    expect(await backend.read(), isNull);
+  });
+
+  test(
+    'post-write retirement preserves a replacement owner snapshot',
+    () async {
+      SharedPreferences.resetStatic();
+      final previous = SharedPreferencesStorePlatform.instance;
+      final preferences = _DelayedPreferences();
+      SharedPreferencesStorePlatform.instance = preferences;
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = previous;
+        SharedPreferences.resetStatic();
+      });
+      var current = true;
+      preferences.afterPersist = (key) async {
+        current = false;
+        await preferences.replace(key, 'replacement-snapshot');
+      };
+      final backend = SharedPreferencesServerMusicManagerCacheBackend();
+      final writing = backend.compareAndWrite(
+        null,
+        'retired-snapshot',
+        current: () => current,
+      );
+      await preferences.started.future;
+      preferences.gate.complete();
+
+      expect(await writing, isFalse);
+      expect(await backend.read(), 'replacement-snapshot');
+    },
+  );
 
   test(
     'cache binds exact scope, resource revisions, schema, TTL and quota',
