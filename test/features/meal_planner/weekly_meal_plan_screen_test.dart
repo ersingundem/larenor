@@ -201,6 +201,31 @@ final class RefreshGateway implements WeeklyMealPlanGateway {
   }) => throw UnimplementedError();
 }
 
+Widget mealApp({
+  required Locale locale,
+  required WeeklyMealPlanGateway gateway,
+  required bool Function() current,
+  List<TodayTodoList> shoppingLists = const [],
+  TodayActions? shoppingActions,
+  RecipeShoppingAuthoritySource? shoppingAuthoritySource,
+}) => CupertinoApp(
+  locale: locale,
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context)
+        .copyWith(textScaler: const TextScaler.linear(2)),
+    child: child!,
+  ),
+  home: WeeklyMealPlanScreen(
+    gateway: gateway,
+    isCurrent: current,
+    shoppingLists: shoppingLists,
+    shoppingActions: shoppingActions,
+    shoppingAuthoritySource: shoppingAuthoritySource,
+  ),
+);
+
 Future<void> mount(
   WidgetTester tester, {
   required Locale locale,
@@ -215,22 +240,13 @@ Future<void> mount(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    CupertinoApp(
+    mealApp(
       locale: locale,
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(2)),
-        child: child!,
-      ),
-      home: WeeklyMealPlanScreen(
-        gateway: gateway,
-        isCurrent: current,
-        shoppingLists: shoppingLists,
-        shoppingActions: shoppingActions,
-        shoppingAuthoritySource: shoppingAuthoritySource,
-      ),
+      gateway: gateway,
+      current: current,
+      shoppingLists: shoppingLists,
+      shoppingActions: shoppingActions,
+      shoppingAuthoritySource: shoppingAuthoritySource,
     ),
   );
   await tester.pumpAndSettle();
@@ -382,6 +398,57 @@ void main() {
     await tester.pump();
 
     expect(actions.calls, hasLength(1));
+    expect(find.byKey(const ValueKey('meal-shopping-success')), findsNothing);
+  });
+
+  testWidgets('replaced HA action owner stops remaining shopping writes', (
+    tester,
+  ) async {
+    final source = ShoppingSource();
+    final actions = ShoppingActions()..first = Completer<void>();
+    final replacement = ShoppingActions();
+    final gateway = FakeGateway(Future.value(snapshot(extraIngredient: true)));
+    await mount(
+      tester,
+      locale: const Locale('en'),
+      width: 600,
+      gateway: gateway,
+      current: () => true,
+      shoppingLists: const [shopping],
+      shoppingActions: actions,
+      shoppingAuthoritySource: source,
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('meal-shopping-$entry')),
+    );
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-$entry')));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -320));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-review')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('meal-shopping-confirm')));
+    for (var frame = 0; frame < 10 && actions.calls.isEmpty; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(actions.calls, hasLength(1));
+
+    await tester.pumpWidget(
+      mealApp(
+        locale: const Locale('en'),
+        gateway: gateway,
+        current: () => true,
+        shoppingLists: const [shopping],
+        shoppingActions: replacement,
+        shoppingAuthoritySource: source,
+      ),
+    );
+    await tester.pump();
+    actions.first!.complete();
+    await tester.pumpAndSettle();
+
+    expect(actions.calls, hasLength(1));
+    expect(replacement.calls, isEmpty);
     expect(find.byKey(const ValueKey('meal-shopping-success')), findsNothing);
   });
 
