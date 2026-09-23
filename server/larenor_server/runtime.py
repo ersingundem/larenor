@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .app import create_app
 from .config import Settings
+from .core_backups.service import CoreBackupContract
 from .errors import ApiError, StartupError
 from .files import checked_path, private_create, private_directory, private_read
 from .releases import (
@@ -37,11 +38,12 @@ def _verified_rollout_release(releases: ReleaseService, channel: str) -> dict | 
         stream.close()
 
 
-def create_configured_app(settings: Settings):
+def create_configured_app(settings: Settings, *, component_backup_boundary=None):
     """Normal entry point: accounts, administration, vault and Client releases.
 
     Publication has its own locally generated credential. Missing verifier
     binaries disable publication with an explicit error, never verification.
+    The optional component backup boundary is process-owned composition state.
     """
     try:
         beta_poll = int(os.environ.get("LARENOR_BETA_POLL_SECONDS", "900"))
@@ -66,6 +68,13 @@ def create_configured_app(settings: Settings):
     try:
         # Check source/core before creating the additional publishing credential.
         app = create_app(settings)
+        if component_backup_boundary is not None:
+            app.state.core.core_backups = CoreBackupContract(
+                app.state.core.db,
+                app.state.core.auth,
+                settings,
+                component_boundary=component_backup_boundary,
+            )
         private_directory(publisher_file.parent)
         created = False
         try:
