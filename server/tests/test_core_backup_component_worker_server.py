@@ -1,10 +1,14 @@
 """S09.1 host-owned component snapshot worker server boundary."""
 
+import json
 import os
 import socket
+import struct
 import threading
 import time
+import uuid
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -63,7 +67,12 @@ def snapshots():
 
 @contextmanager
 def worker(tmp_path, boundary, *, client_uid=None):
-    path = tmp_path / "private" / "component.sock"
+    del tmp_path
+    path = (
+        Path("/tmp").resolve()
+        / f"larenor-worker-{uuid.uuid4().hex}"
+        / "component.sock"
+    )
     path.parent.mkdir(mode=0o700)
     server = ComponentSnapshotWorkerServer(
         path,
@@ -71,9 +80,11 @@ def worker(tmp_path, boundary, *, client_uid=None):
         owner_uid=os.getuid(),
         peer_uid=(lambda _connection: os.getuid())
         if client_uid is None
+        else client_uid
+        if callable(client_uid)
         else (lambda _connection: client_uid),
     )
-    thread = threading.Thread(target=server.serve_once, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     assert server.wait_ready(2)
     try:
@@ -82,6 +93,7 @@ def worker(tmp_path, boundary, *, client_uid=None):
         server.close()
         thread.join(2)
         assert not thread.is_alive()
+        path.parent.rmdir()
 
 
 def client(path):
@@ -90,6 +102,25 @@ def client(path):
         owner_uid=os.getuid(),
         peer_uid=lambda _connection: os.getuid(),
     )
+
+
+def write_frame(connection, value):
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("ascii")
+    connection.sendall(struct.pack("!I", len(raw)) + raw)
+
+
+def read_exact(connection, count):
+    result = bytearray()
+    while len(result) < count:
+        part = connection.recv(count - len(result))
+        assert part
+        result.extend(part)
+    return bytes(result)
+
+
+def read_frame(connection):
+    count = struct.unpack("!I", read_exact(connection, 4))[0]
+    return json.loads(read_exact(connection, count))
 
 
 def test_server_holds_exact_quiescence_until_authenticated_release(tmp_path):
@@ -107,25 +138,73 @@ def test_server_holds_exact_quiescence_until_authenticated_release(tmp_path):
 
 def test_server_rejects_foreign_peer_before_provider_and_recovers(tmp_path):
     boundary = Boundary(snapshots())
-    with worker(tmp_path, boundary, client_uid=os.getuid() + 1) as (path, _server):
+    peers = iter((os.getuid() + 1, os.getuid()))
+    with worker(tmp_path, boundary, client_uid=lambda _connection: next(peers)) as (
+        path,
+        _server,
+    ):
         with (
             pytest.raises(ComponentSnapshotWorkerError),
             client(path).quiesce(time.monotonic() + 2),
         ):
             raise AssertionError("must_not_yield")
-    assert boundary.entered == boundary.released == 0
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+    assert boundary.entered == boundary.released == 1
 
 
 def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):
     boundary = Boundary(snapshots(), fail=True)
     with worker(tmp_path, boundary) as (path, server):
         with (
-            pytest.raises(ComponentSnapshotWorkerError, match="worker_unavailable"),
+            pytest.raises(ComponentSnapshotWorkerError) as error,
             client(path).quiesce(time.monotonic() + 2),
         ):
             raise AssertionError("must_not_yield")
-        assert server.completed == 0
-    assert boundary.entered == boundary.released == 1
+        assert str(error.value) in {"worker_unavailable", "invalid_worker_result"}
+        assert "private provider detail" not in str(error.value)
+        boundary.fail = False
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+        assert server.completed == 1
+    assert boundary.entered == boundary.released == 2
+
+
+def test_server_rejects_foreign_release_and_remains_available(tmp_path):
+    boundary = Boundary(snapshots())
+    with worker(tmp_path, boundary) as (path, server):
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        connection.settimeout(2)
+        connection.connect(str(path))
+        request_id = "1" * 32
+        write_frame(
+            connection,
+            {
+                "protocol": 1,
+                "requestId": request_id,
+                "operation": "quiesce",
+                "timeoutMilliseconds": 1500,
+            },
+        )
+        ready = read_frame(connection)
+        assert ready["requestId"] == request_id
+        for descriptor in ready["snapshots"]:
+            read_exact(connection, descriptor["byteLength"])
+        write_frame(
+            connection,
+            {
+                "protocol": 1,
+                "requestId": "2" * 32,
+                "operation": "release",
+            },
+        )
+        assert connection.recv(1) == b""
+        connection.close()
+        assert boundary.entered == boundary.released == 1
+
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+        assert server.completed == 1
 
 
 def test_server_rejects_insecure_parent_and_preserves_replaced_socket(tmp_path):
@@ -140,7 +219,7 @@ def test_server_rejects_insecure_parent_and_preserves_replaced_socket(tmp_path):
             peer_uid=lambda _connection: os.getuid(),
         )
 
-    private = tmp_path / "private"
+    private = Path("/tmp").resolve() / f"larenor-worker-{uuid.uuid4().hex}"
     private.mkdir(mode=0o700)
     path = private / "component.sock"
     server = ComponentSnapshotWorkerServer(
@@ -162,3 +241,4 @@ def test_server_rejects_insecure_parent_and_preserves_replaced_socket(tmp_path):
     finally:
         replacement.close()
         path.unlink(missing_ok=True)
+        private.rmdir()
