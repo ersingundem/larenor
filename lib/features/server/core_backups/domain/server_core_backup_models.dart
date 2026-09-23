@@ -473,6 +473,11 @@ final class CoreBackupPlan {
       throw const LarenorServerException('invalid_response');
     }
     final blockers = List<String>.unmodifiable(rawBlockers.cast<String>());
+    final quiescenceCount = blockers.where(quiescenceBlockers.contains).length;
+    if ((quiescenceCount > 0 && blockers.length != 1) ||
+        (quiescenceCount == 0 && !_activeBlockersAreCanonical(blockers))) {
+      throw const LarenorServerException('invalid_response');
+    }
     return switch (json['status']) {
       'ready' when blockers.isEmpty && json['manifest'] != null =>
         CoreBackupPlan._(
@@ -501,6 +506,34 @@ final class CoreBackupPlan {
     'component_quiescence_unavailable',
   };
   static const maxBlockers = 11;
+
+  static const activeBlockerOrder = [
+    'active_bounded_transfer',
+    'active_plugin_job',
+    'active_media_inspection',
+    'active_media_installation',
+    'active_media_bootstrap',
+    'active_qbittorrent_configuration',
+    'active_arr_configuration',
+    'active_seerr_bootstrap',
+    'active_music_assistant_bootstrap',
+    'active_keenetic_command',
+    'active_tablet_command',
+  ];
+  static const quiescenceBlockers = {
+    'component_quiescence_timeout',
+    'component_quiescence_unavailable',
+  };
+
+  static bool _activeBlockersAreCanonical(List<String> blockers) {
+    var prior = -1;
+    for (final blocker in blockers) {
+      final index = activeBlockerOrder.indexOf(blocker);
+      if (index <= prior) return false;
+      prior = index;
+    }
+    return true;
+  }
 
   final List<String> blockers;
   final CoreBackupManifest? manifest;

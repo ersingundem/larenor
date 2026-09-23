@@ -41,6 +41,22 @@ Blocker = Literal[
     "component_quiescence_timeout",
     "component_quiescence_unavailable",
 ]
+BACKUP_ACTIVE_BLOCKER_ORDER = (
+    "active_bounded_transfer",
+    "active_plugin_job",
+    "active_media_inspection",
+    "active_media_installation",
+    "active_media_bootstrap",
+    "active_qbittorrent_configuration",
+    "active_arr_configuration",
+    "active_seerr_bootstrap",
+    "active_music_assistant_bootstrap",
+    "active_keenetic_command",
+    "active_tablet_command",
+)
+BACKUP_QUIESCENCE_BLOCKERS = frozenset(
+    {"component_quiescence_timeout", "component_quiescence_unavailable"}
+)
 
 
 def validate_backup_passphrase(value: str) -> str:
@@ -211,6 +227,18 @@ class BackupPlanResponse(StrictModel):
             not self.blockers or self.manifest is not None
         ):
             raise ValueError("invalid_backup_plan")
+        quiescence = BACKUP_QUIESCENCE_BLOCKERS.intersection(self.blockers)
+        if quiescence:
+            if len(self.blockers) != 1:
+                raise ValueError("invalid_backup_blockers")
+        else:
+            order = {
+                blocker: index
+                for index, blocker in enumerate(BACKUP_ACTIVE_BLOCKER_ORDER)
+            }
+            indexes = [order[blocker] for blocker in self.blockers]
+            if indexes != sorted(set(indexes)):
+                raise ValueError("invalid_backup_blockers")
         return self
 
 
