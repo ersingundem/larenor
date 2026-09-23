@@ -239,6 +239,24 @@ void main() {
       );
       final first = await save();
       final replay = await save();
+      final editedEntry = MealPlanEntry.fromJson({
+        'schemaVersion': 1,
+        'id': entry,
+        'date': '2026-09-21',
+        'slot': 'dinner',
+        'recipeId': recipe,
+        'servings': 6,
+        'personId': person,
+        'expectedPersonRevision': 2,
+        'expectedPersonAclRevision': 3,
+      });
+      final edited = await api.save(
+        base: first,
+        requestId: '9' * 32,
+        weekStart: first.plan!.weekStart,
+        recipes: first.plan!.recipes,
+        entries: [editedEntry],
+      );
 
       expect(
         first.plan!.recipeFor(first.plan!.entries.single).title,
@@ -253,11 +271,15 @@ void main() {
         ['500 g Mercimek'],
       );
       expect(replay.authority.planRevision, first.authority.planRevision);
+      expect(edited.authority.planRevision, 2);
+      expect(edited.plan!.entries.single.servings, 6);
       expect(coreHost.requests.map((value) => value['method']), [
         'GET',
         'PUT',
         'PUT',
+        'PUT',
       ]);
+      expect((coreHost.requests.last['body']! as Map)['expectedRevision'], 1);
       expect(
         (coreHost.requests.last['body']! as Map)['expectedAccountRevision'],
         4,
