@@ -240,7 +240,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   ) async {
     if (!valid()) return;
     try {
-      await _cache.write(scope, value);
+      await _cache.write(scope, value, isCurrent: valid);
     } catch (_) {}
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,12 +6,49 @@ import 'package:larenor/features/server/music_manager/data/server_music_manager_
 import 'package:larenor/features/server/music_manager/data/server_music_manager_controller.dart';
 import 'package:larenor/features/server/music_manager/domain/server_music_manager_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import 'server_music_manager_test_support.dart';
 
 final class _MemoryBackend implements ServerMusicManagerCacheBackend {
   String? value;
   int writes = 0, clears = 0;
+  String? replacementBeforeMutation;
+  Completer<void>? mutationGate;
+  Completer<void>? mutationStarted;
+
+  Future<void> _gate() async {
+    mutationStarted?.complete();
+    await mutationGate?.future;
+  }
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) value = replacement;
+    if (value != expected) return false;
+    clears++;
+    value = null;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) async {
+    await _gate();
+    if (!current()) return false;
+    final replacement = replacementBeforeMutation;
+    replacementBeforeMutation = null;
+    if (replacement != null) this.value = replacement;
+    if (this.value != expected || !current()) return false;
+    writes++;
+    this.value = value;
+    return true;
+  }
 
   @override
   Future<void> clear() async {
@@ -23,9 +61,30 @@ final class _MemoryBackend implements ServerMusicManagerCacheBackend {
 
   @override
   Future<void> write(String value) async {
+    await _gate();
     writes++;
     this.value = value;
   }
+}
+
+final class _DelayedPreferences extends InMemorySharedPreferencesStore {
+  _DelayedPreferences() : super.empty();
+
+  final started = Completer<void>();
+  final gate = Completer<void>();
+  Future<void> Function(String key)? afterPersist;
+
+  @override
+  Future<bool> setValue(String type, String key, Object value) async {
+    if (!started.isCompleted) started.complete();
+    await gate.future;
+    final result = await super.setValue(type, key, value);
+    await afterPersist?.call(key);
+    return result;
+  }
+
+  Future<void> replace(String key, String value) =>
+      super.setValue('String', key, value);
 }
 
 const _scope = ServerMusicManagerCacheScope(
@@ -79,6 +138,8 @@ Future<ServerMusicManager?> _read(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('SharedPreferences backend survives a fresh cache backend', () async {
     SharedPreferences.setMockInitialValues({});
     final writer = SharedPreferencesServerMusicManagerCacheBackend();
@@ -90,6 +151,61 @@ void main() {
     await reader.clear();
     expect(await writer.read(), isNull);
   });
+
+  test('SharedPreferences backend retracts its exact write when lifecycle retires during setString', () async {
+    SharedPreferences.resetStatic();
+    final previous = SharedPreferencesStorePlatform.instance;
+    final preferences = _DelayedPreferences();
+    SharedPreferencesStorePlatform.instance = preferences;
+    addTearDown(() {
+      SharedPreferencesStorePlatform.instance = previous;
+      SharedPreferences.resetStatic();
+    });
+    var current = true;
+    final backend = SharedPreferencesServerMusicManagerCacheBackend();
+
+    final writing = backend.compareAndWrite(
+      null,
+      'retired-snapshot',
+      current: () => current,
+    );
+    await preferences.started.future;
+    current = false;
+    preferences.gate.complete();
+
+    expect(await writing, isFalse);
+    expect(await backend.read(), isNull);
+  });
+
+  test(
+    'post-write retirement preserves a replacement owner snapshot',
+    () async {
+      SharedPreferences.resetStatic();
+      final previous = SharedPreferencesStorePlatform.instance;
+      final preferences = _DelayedPreferences();
+      SharedPreferencesStorePlatform.instance = preferences;
+      addTearDown(() {
+        SharedPreferencesStorePlatform.instance = previous;
+        SharedPreferences.resetStatic();
+      });
+      var current = true;
+      preferences.afterPersist = (key) async {
+        current = false;
+        await preferences.replace(key, 'replacement-snapshot');
+      };
+      final backend = SharedPreferencesServerMusicManagerCacheBackend();
+      final writing = backend.compareAndWrite(
+        null,
+        'retired-snapshot',
+        current: () => current,
+      );
+      await preferences.started.future;
+      preferences.gate.complete();
+
+      expect(await writing, isFalse);
+      expect(await backend.read(), 'replacement-snapshot');
+    },
+  );
 
   test(
     'cache binds exact scope, resource revisions, schema, TTL and quota',
@@ -314,4 +430,112 @@ void main() {
       expect(fixture.account.failure, 'unauthorized');
     },
   );
+
+  test(
+    'malformed expired and oversized cleanup preserves a replacement owner',
+    () async {
+      for (final invalid in ['malformed', 'expired', 'oversized']) {
+        final backend = _MemoryBackend();
+        var now = DateTime.utc(2026, 9, 23, 8);
+        final cache = ServerMusicManagerCache(backend: backend, now: () => now);
+        final manager = _manager();
+        await cache.write(_scope, manager);
+        final valid = backend.value!;
+        final replacement = '$valid ';
+
+        switch (invalid) {
+          case 'malformed':
+            final record = jsonDecode(valid) as Map<String, dynamic>;
+            record['unexpected'] = true;
+            backend.value = jsonEncode(record);
+          case 'expired':
+            backend.value = valid;
+            now = now.add(ServerMusicManagerCache.timeToLive);
+          case 'oversized':
+            backend.value = 'x' * (ServerMusicManagerCache.maximumBytes + 1);
+        }
+        backend.replacementBeforeMutation = replacement;
+
+        expect(await _read(cache, manager), isNull, reason: invalid);
+        expect(backend.value, replacement, reason: invalid);
+      }
+    },
+  );
+
+  test('a stale writer cannot replace a newer manager snapshot', () async {
+    final backend = _MemoryBackend();
+    final cache = ServerMusicManagerCache(
+      backend: backend,
+      now: () => DateTime.utc(2026, 9, 23, 8),
+    );
+    await cache.write(_scope, _manager());
+    final stale = backend.value!;
+    final newer = ServerMusicManager.fromJson(musicManagerJson(revision: 7));
+    await cache.write(_scope, newer);
+    final replacement = backend.value!;
+    backend.value = stale;
+    backend.replacementBeforeMutation = replacement;
+
+    await cache.write(_scope, _manager());
+
+    expect(backend.value, replacement);
+    expect(await _read(cache, newer), isNotNull);
+  });
+
+  test('schema and resource revisions require exact integers', () async {
+    for (final field in [
+      'schemaVersion',
+      'resource.installationRevision',
+      'resource.coreRevision',
+      'resource.managerRevision',
+    ]) {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      );
+      final manager = _manager();
+      await cache.write(_scope, manager);
+      final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+      if (field == 'schemaVersion') {
+        record['schemaVersion'] = 1.0;
+      } else {
+        final resource = record['resource'] as Map<String, dynamic>;
+        final key = field.split('.').last;
+        resource[key] = (resource[key] as int).toDouble();
+      }
+      backend.value = jsonEncode(record);
+
+      expect(await _read(cache, manager), isNull, reason: field);
+      expect(backend.value, isNull, reason: field);
+    }
+  });
+
+  test('retired controller cannot complete a delayed cache mutation', () async {
+    final backend = _MemoryBackend()
+      ..mutationGate = Completer<void>()
+      ..mutationStarted = Completer<void>();
+    final fixture = MusicManagerFixture();
+    await fixture.account.initialize();
+    final controller = ServerMusicManagerController(
+      fixture.account,
+      cache: ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      ),
+    );
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    final loading = controller.load(current: () => true);
+    await backend.mutationStarted!.future;
+    controller.invalidate();
+    backend.mutationGate!.complete();
+    await loading;
+
+    expect(backend.writes, 0);
+    expect(backend.value, isNull);
+  });
 }
