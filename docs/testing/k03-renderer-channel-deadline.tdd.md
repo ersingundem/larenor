@@ -27,6 +27,12 @@ forever for detach, and allowed a callback exception to cross the channel.
 Commit `581b873a26f919f6a3555decf1f67498413b599c` added explicit operation
 ownership, timeout cleanup and exception containment.
 
+The independent ownership audit then recorded failing commit `12bc3688`: after
+an attach timeout, the revoked id could be reused while its positive native
+acknowledgement was still pending, allowing the old cleanup to detach the new
+binding. Commit `b57e4f81` reserves that exact id until late acknowledgement
+cleanup completes.
+
 ```text
 flutter test test/features/web_panel/web_panel_renderer_monitor_test.dart
 # 6 passed
