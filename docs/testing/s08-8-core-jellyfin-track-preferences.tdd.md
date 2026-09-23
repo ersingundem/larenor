@@ -17,6 +17,9 @@ progress remains **0/63**.
 - A retired player route cannot issue a preference read or write. Retirement
   while the initial Core read is pending is checked again before the PUT, so a
   stale player cannot publish a preference.
+- Audio and subtitle edits are field-specific. Each edit reads the fresh Core
+  revision and merges the unchanged sibling field before its optimistic PUT;
+  a same-account edit made after the player's earlier read is not overwritten.
 - The player discloses in English and Turkish that the language preference is
   saved for the Larenor account. The disclosure fits 600 px and 1200 px tablet
   widths at 2x text scale.
@@ -30,8 +33,8 @@ not exist. GREEN commit `00fc7a8fe2a0992c9b06a0343c7f5312f54e0c33`
 implemented the Core API, persistent authenticated record, and account-scoped
 client adapter.
 
-The focused Flutter contract run passed **5/5** tests with **94/100 executable
-store lines (94.0%)** covered. The EN/TR disclosure and player interaction run
+The focused Flutter contract run passed **6/6** tests with **103/108 executable
+store lines (95.4%)** covered. The EN/TR disclosure and player interaction run
 passed at both tablet widths. The focused server API run passed **3/3** tests;
 the `media_preferences` package covered **144/162 statements (89%)**. Targeted
 Flutter analysis and Python bytecode compilation passed. The wider focused

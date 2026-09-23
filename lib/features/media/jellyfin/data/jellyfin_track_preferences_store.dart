@@ -193,26 +193,46 @@ class JellyfinTrackPreferencesStore {
     return result;
   }
 
-  Future<void> save(
+  Future<JellyfinTrackPreferenceRecord> saveAudio(
     JellyfinConfig config, {
-    required String? audioLanguage,
-    required String? subtitleLanguage,
+    required String language,
+    required bool Function() isCurrent,
+  }) => _save(
+    config,
+    audioLanguage: JellyfinTrackPreferences.normalize(language),
+    isCurrent: isCurrent,
+  );
+
+  Future<JellyfinTrackPreferenceRecord> saveSubtitle(
+    JellyfinConfig config, {
+    required String language,
+    required bool Function() isCurrent,
+  }) => _save(
+    config,
+    subtitleLanguage: JellyfinTrackPreferences.normalize(
+      language,
+      allowOff: true,
+    ),
+    isCurrent: isCurrent,
+  );
+
+  Future<JellyfinTrackPreferenceRecord> _save(
+    JellyfinConfig config, {
+    String? audioLanguage,
+    String? subtitleLanguage,
     required bool Function() isCurrent,
   }) async {
-    final audio = JellyfinTrackPreferences.normalize(audioLanguage);
-    final subtitle = JellyfinTrackPreferences.normalize(
-      subtitleLanguage,
-      allowOff: true,
-    );
-    if (audio == null && subtitle == null) {
-      throw const FormatException('Empty preference');
+    if ((audioLanguage == null) == (subtitleLanguage == null)) {
+      throw const FormatException('Exactly one preference is required');
     }
     _check(isCurrent);
-    await _requiredAccount.withSession((api, session) async {
+    final result = await _requiredAccount.withSession((api, session) async {
       final client = _JellyfinTrackPreferencesApi(api, session);
       _check(isCurrent);
       final old = await client.read();
       _check(isCurrent);
+      final audio = audioLanguage ?? old?.value.audioLanguage;
+      final subtitle = subtitleLanguage ?? old?.value.subtitleLanguage;
       final saved = await client.write(
         expectedRevision: old?.revision ?? 0,
         audioLanguage: audio,
@@ -223,7 +243,9 @@ class JellyfinTrackPreferencesStore {
           saved.value.subtitleLanguage != subtitle) {
         throw const LarenorServerException('invalid_response');
       }
+      return saved.value;
     });
     _check(isCurrent);
+    return result;
   }
 }

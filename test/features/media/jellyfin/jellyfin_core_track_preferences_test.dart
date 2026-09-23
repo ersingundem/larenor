@@ -88,12 +88,8 @@ void main() {
       final store = JellyfinTrackPreferencesStore(account: fixture.account);
 
       expect(await store.read(_direct, isCurrent: () => true), isNull);
-      await store.save(
-        _direct,
-        audioLanguage: 'tr-TR',
-        subtitleLanguage: 'off',
-        isCurrent: () => true,
-      );
+      await store.saveAudio(_direct, language: 'tr-TR', isCurrent: () => true);
+      await store.saveSubtitle(_direct, language: 'off', isCurrent: () => true);
       final saved = await store.read(_direct, isCurrent: () => true);
 
       expect(saved?.audioLanguage, 'tr-tr');
@@ -133,7 +129,7 @@ void main() {
   });
 
   test(
-    'audio edit preserves a same-account subtitle changed after stale read',
+    'field edits preserve same-account sibling changes after stale reads',
     () async {
       final fixture = AdminFixture();
       await fixture.account.initialize();
@@ -154,10 +150,17 @@ void main() {
             );
           }
           final body = jsonDecode(request.body) as Map<String, dynamic>;
-          expect(body['expectedRevision'], 2);
-          expect(body['audioLanguage'], 'fr');
-          expect(body['subtitleLanguage'], 'tr');
-          revision = 3;
+          if (revision == 2) {
+            expect(body['expectedRevision'], 2);
+            expect(body['audioLanguage'], 'fr');
+            expect(body['subtitleLanguage'], 'tr');
+          } else {
+            expect(revision, 4);
+            expect(body['expectedRevision'], 4);
+            expect(body['audioLanguage'], 'de');
+            expect(body['subtitleLanguage'], 'off');
+          }
+          revision++;
           audio = body['audioLanguage'] as String;
           subtitle = body['subtitleLanguage'] as String;
           return fixture.json(
@@ -186,6 +189,17 @@ void main() {
 
       expect(saved.audioLanguage, 'fr');
       expect(saved.subtitleLanguage, 'tr');
+
+      revision = 4;
+      audio = 'de';
+      final savedSubtitle = await store.saveSubtitle(
+        _direct,
+        language: 'off',
+        isCurrent: () => true,
+      );
+
+      expect(savedSubtitle.audioLanguage, 'de');
+      expect(savedSubtitle.subtitleLanguage, 'off');
     },
   );
 
@@ -200,12 +214,7 @@ void main() {
       throwsStateError,
     );
     await expectLater(
-      store.save(
-        _direct,
-        audioLanguage: 'en',
-        subtitleLanguage: null,
-        isCurrent: () => false,
-      ),
+      store.saveAudio(_direct, language: 'en', isCurrent: () => false),
       throwsStateError,
     );
     expect(
@@ -233,10 +242,9 @@ void main() {
       };
       final store = JellyfinTrackPreferencesStore(account: fixture.account);
 
-      final saving = store.save(
+      final saving = store.saveAudio(
         _direct,
-        audioLanguage: 'en',
-        subtitleLanguage: null,
+        language: 'en',
         isCurrent: () => current,
       );
       while (!fixture.calls.any(
