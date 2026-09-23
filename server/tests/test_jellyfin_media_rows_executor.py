@@ -103,7 +103,7 @@ def test_read_opens_two_proved_streams_and_revalidates_endpoint(
 
     assert result.revision == 100
     assert result.recent[0].title == "Arrival"
-    assert len(gates) == 2
+    assert len(gates) == 4
     assert all(connection.closed for connection in connections)
     assert USER not in repr(authority(stack)) + repr(result)
     assert TOKEN not in repr(authority(stack)) + repr(result)
@@ -148,6 +148,51 @@ def test_second_stream_proof_drift_closes_both(prepared, monkeypatch):
             authority(stack), deadline=time.monotonic() + 1, gate=lambda: True
         )
     assert first.closed and second.closed
+
+
+def test_opened_endpoint_proof_drift_is_classified_and_closed(
+    prepared, monkeypatch
+):
+    stack, binding, engine, operations = prepared
+    proof = prove_jellyfin_endpoint(
+        engine.container, binding, stack, engine.container["Id"]
+    )
+    connection = Connection([json_response(recent())])
+    monkeypatch.setattr(
+        "larenor_server.plugins.jellyfin_media_rows_executor.open_jellyfin_endpoint",
+        lambda *_args, **_kwargs: OpenJellyfinEndpoint(
+            connection, replace(proof, address="172.28.0.99")
+        ),
+    )
+
+    with pytest.raises(
+        JellyfinMediaRowsExecutionError,
+        match="^jellyfin_media_rows_endpoint_changed$",
+    ):
+        executor(binding, operations).read(
+            authority(stack), deadline=time.monotonic() + 1, gate=lambda: True
+        )
+    assert connection.closed
+
+
+def test_authority_loss_between_streams_opens_no_second_endpoint(
+    prepared, monkeypatch
+):
+    stack, binding, engine, operations = prepared
+    first = Connection([json_response(recent())])
+    opened(monkeypatch, stack, binding, engine, (first,))
+    decisions = iter((True, True, False))
+
+    with pytest.raises(
+        JellyfinMediaRowsExecutionError,
+        match="^jellyfin_media_rows_authority_changed$",
+    ):
+        executor(binding, operations).read(
+            authority(stack),
+            deadline=time.monotonic() + 1,
+            gate=lambda: next(decisions),
+        )
+    assert first.closed
 
 
 def test_malformed_readback_is_static_and_closes_both(prepared, monkeypatch):

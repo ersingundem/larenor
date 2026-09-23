@@ -131,8 +131,17 @@ class JellyfinMediaRowsExecutor:
                 timeout=min(5.0, max(0.001, deadline - time.monotonic())),
             )
             if opened.proof != proof:
-                raise ValueError()
+                raise JellyfinMediaRowsExecutionError(
+                    "jellyfin_media_rows_endpoint_changed"
+                )
             return opened.connection, proof
+        except JellyfinMediaRowsExecutionError:
+            if opened is not None:
+                try:
+                    opened.connection.close()
+                except Exception:
+                    pass
+            raise
         except Exception:
             if opened is not None:
                 try:
@@ -167,6 +176,7 @@ class JellyfinMediaRowsExecutor:
         opened = []
         try:
             for _ in range(2):
+                self._gate(gate)
                 connection, proof = self._open(
                     plan, binding, container_id, deadline
                 )

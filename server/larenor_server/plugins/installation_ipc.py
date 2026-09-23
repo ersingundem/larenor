@@ -808,10 +808,19 @@ class InstallationWorkerClient:
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
                   music_playback=None, music_bootstrap=None, media_flow=None,
-                  jellyfin_playback=None, jellyfin_media_rows=None):
+                  jellyfin_playback=None, jellyfin_media_rows=None,
+                  exchange_deadline=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
+            if exchange_deadline is not None:
+                if (type(exchange_deadline) not in (int, float)
+                        or type(exchange_deadline) is bool
+                        or not math.isfinite(exchange_deadline)):
+                    raise InstallationIPCError('invalid_request')
+                deadline = min(deadline, exchange_deadline)
+            if time.monotonic() >= deadline:
+                raise InstallationIPCError()
             request = {'protocol': 1, 'requestId': uuid.uuid4().hex, 'operation': operation}
             if step is not None:
                 request['step'] = {
@@ -996,10 +1005,19 @@ class InstallationWorkerClient:
         except Exception:
             raise JellyfinMediaRowsExecutionError(
                 'jellyfin_media_rows_authority_changed') from None
-        result = _jellyfin_media_rows_result(self._exchange(
-            'jellyfin_media_rows_read', jellyfin_media_rows=authority))
         try:
-            if gate() is not True:
+            result = _jellyfin_media_rows_result(self._exchange(
+                'jellyfin_media_rows_read',
+                jellyfin_media_rows=authority,
+                exchange_deadline=deadline,
+            ))
+        except JellyfinMediaRowsExecutionError:
+            raise
+        except InstallationIPCError:
+            raise JellyfinMediaRowsExecutionError(
+                'jellyfin_media_rows_resources_unavailable') from None
+        try:
+            if time.monotonic() >= deadline or gate() is not True:
                 raise ValueError()
         except Exception:
             raise JellyfinMediaRowsExecutionError(

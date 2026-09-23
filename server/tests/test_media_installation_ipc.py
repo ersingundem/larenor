@@ -240,6 +240,49 @@ def test_media_rows_authority_loss_after_ipc_discards_worker_result():
     assert backend.calls[0][0] == 'media_rows'
 
 
+def test_media_rows_caller_deadline_bounds_ipc_and_maps_transport_failure():
+    private = media_rows_authority()
+    with running() as (backend, client):
+        original = backend.read_media_rows
+
+        def delayed(*args, **kwargs):
+            time.sleep(.08)
+            return original(*args, **kwargs)
+
+        backend.read_media_rows = delayed
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                private,
+                deadline=time.monotonic() + .02,
+                gate=lambda: True,
+            )
+
+
+def test_media_rows_malformed_transport_failure_uses_typed_static_error(
+    monkeypatch,
+):
+    with running() as (_backend, client):
+        monkeypatch.setattr(
+            client,
+            '_exchange',
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                InstallationIPCError('invalid_worker_result')
+            ),
+        )
+        with pytest.raises(
+            JellyfinMediaRowsExecutionError,
+            match='^jellyfin_media_rows_resources_unavailable$',
+        ):
+            client.read_media_rows(
+                media_rows_authority(),
+                deadline=time.monotonic() + .4,
+                gate=lambda: True,
+            )
+
+
 def test_bootstrap_failure_roundtrip_preserves_only_static_partial_outcome():
     class FailedBackend(Backend):
         def bootstrap(self, job, component, private, *, deadline):
