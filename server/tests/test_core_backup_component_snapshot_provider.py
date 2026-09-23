@@ -205,6 +205,8 @@ def test_archive_is_bounded_and_rejects_expired_deadline(tmp_path):
             )
         with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
             archive_component_directory(descriptor, time.monotonic() - 1)
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_unavailable"):
+            archive_component_directory(descriptor, "private-deadline")
     finally:
         os.close(descriptor)
 
