@@ -8,7 +8,11 @@ import '../domain/server_media_catalog_models.dart';
 
 abstract interface class ServerMediaCatalogCacheBackend {
   Future<String?> read();
-  Future<bool> compareAndWrite(String? expected, String value);
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  });
   Future<bool> compareAndClear(String expected);
 }
 
@@ -29,16 +33,37 @@ final class SharedPreferencesServerMediaCatalogCacheBackend
   });
 
   @override
-  Future<bool> compareAndWrite(String? expected, String value) =>
-      ConfigurationWrites.run(() async {
-        final preferences = await _loadPreferences();
-        await preferences.reload();
-        if (preferences.getString(key) != expected) return false;
-        if (!await preferences.setString(key, value)) {
-          throw StateError('media_catalog_cache_write_failed');
-        }
-        return true;
-      });
+  Future<bool> compareAndWrite(
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) => ConfigurationWrites.run(() async {
+    bool isCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!isCurrent()) return false;
+    final preferences = await _loadPreferences();
+    if (!isCurrent()) return false;
+    await preferences.reload();
+    if (!isCurrent() || preferences.getString(key) != expected) return false;
+    if (!await preferences.setString(key, value)) {
+      throw StateError('media_catalog_cache_write_failed');
+    }
+    if (!isCurrent()) {
+      await preferences.reload();
+      if (preferences.getString(key) == value &&
+          !await preferences.remove(key)) {
+        throw StateError('media_catalog_cache_clear_failed');
+      }
+      return false;
+    }
+    return true;
+  });
 
   @override
   Future<bool> compareAndClear(String expected) =>
@@ -153,11 +178,11 @@ final class ServerMediaCatalogCache {
     ServerMediaCatalogCacheResource resource, {
     required String query,
     required ServerMediaCatalogKind? mediaKind,
-    bool Function()? current,
+    required bool Function() current,
   }) async {
     bool isCurrent() {
       try {
-        return current?.call() ?? true;
+        return current();
       } catch (_) {
         return false;
       }
@@ -282,7 +307,11 @@ final class ServerMediaCatalogCache {
       throw StateError('media_catalog_cache_quota_exceeded');
     }
     if (!isCurrent()) return false;
-    final written = await _backend.compareAndWrite(expected, raw);
+    final written = await _backend.compareAndWrite(
+      expected,
+      raw,
+      current: isCurrent,
+    );
     if (!written) return false;
     if (!isCurrent()) {
       await _clearIfCurrent(raw, () => true);

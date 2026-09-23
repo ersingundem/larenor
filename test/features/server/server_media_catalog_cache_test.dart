@@ -129,6 +129,25 @@ void main() {
   });
 
   test(
+    'SharedPreferences write clears an owner retired after persistence',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final backend = SharedPreferencesServerMediaCatalogCacheBackend();
+      var checks = 0;
+
+      expect(
+        await backend.compareAndWrite(
+          null,
+          'stale snapshot',
+          current: () => ++checks < 4,
+        ),
+        isFalse,
+      );
+      expect(await backend.read(), isNull);
+    },
+  );
+
+  test(
     'binds exact tuple, query, kind, resource, schema, TTL and UTF-8 quota',
     () async {
       final backend = _MemoryBackend();
