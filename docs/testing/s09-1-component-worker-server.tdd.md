@@ -24,7 +24,7 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **30 passed**. The package covers client/server framing, digest and size bounds, separate socket-owner/client identity with exact group access, exact typed UID/GID/protocol policy, an empty component catalog, normal and foreign release, arbitrary provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
+Result: **31 passed**. The package covers client/server framing, digest and size bounds, separate socket-owner/client identity with exact group access, exact typed UID/GID/protocol policy, an empty component catalog, normal and foreign release, arbitrary provider failure recovery, socket replacement cleanup, Core wiring, encrypted component capture and compatibility rejection.
 
 Independent review RED commits `89c98d58` and `7efb4912` proved that an
 unlisted provider exception terminated `serve_forever` and that the claimed
@@ -32,6 +32,13 @@ distinct client UID could not connect through a mode `0600` socket. GREEN
 commit `a1607d77` contains all private provider exceptions at the connection
 boundary and adds the exact optional GID/mode/parent traversal contract while
 preserving the same-UID `0600` default.
+
+Cross-branch provider review RED `0448689e` proved that the server sent its
+`released` acknowledgement before the provider context exited, so a failed
+unpause could be reported to the Client as success. GREEN `7def2033` sends the
+acknowledgement only after the provider has exited successfully; provider exit
+failure closes the exchange with a static Client error and never increments
+the completed-operation count.
 
 ## Remaining S09.1 gates
 
