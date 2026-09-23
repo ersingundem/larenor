@@ -45,6 +45,13 @@ The focused GREEN run passes **14/14**. After rebasing onto the exact live
 targeted analysis reports no issues. Security, execution-queue,
 progress-trailer and diff checks remain mandatory before the PR is opened.
 
+The independent exact-head audit also exercised the store's CAS authority
+identity. RED `8f59ec6c` proved that a `before` record from another
+Core/home/actor could authorize a write when its lease tuple happened to
+match. GREEN `47f92914` includes the context and actor in the exact comparison;
+the complete local-notification suite now passes **32/32**, with targeted
+analysis, security policy and execution-queue validation clean.
+
 No access token, refresh token, notification body or secure-store value is
 logged or exported. The temporary synthetic loopback credentials remain test
 fixtures only. Background/OEM/Huawei and physical-device acceptance gates are
