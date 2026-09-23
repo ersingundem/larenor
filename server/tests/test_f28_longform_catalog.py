@@ -1,7 +1,14 @@
 import json
+import os
+from pathlib import Path
+import tempfile
 import time
 
 from conftest import auth
+from larenor_server.plugins.installation_ipc import (
+    InstallationWorkerClient,
+    InstallationWorkerServer,
+)
 from larenor_server.plugins.music_playback_models import (
     MusicLongformChapter,
     MusicLongformItem,
@@ -95,6 +102,33 @@ def test_runtime_rejects_detail_that_does_not_match_in_progress_identity():
         assert str(error) == 'music_longform_readback_changed'
     else:
         raise AssertionError('mismatched detail was accepted')
+
+
+def test_private_worker_ipc_returns_longform_without_token():
+    class Backend:
+        def read_music_longform(self, action, *, deadline, gate):
+            assert gate() is True
+            assert action.request.limit == 10
+            return result()
+
+    base = '/private/tmp' if Path('/private/tmp').is_dir() else '/tmp'
+    with tempfile.TemporaryDirectory(prefix='f28-', dir=base) as root:
+        path = Path(root) / 'worker.sock'
+        server = InstallationWorkerServer(
+            path, Backend(), allowed_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(), timeout=1)
+        server.start()
+        try:
+            client = InstallationWorkerClient(
+                path, owner_uid=os.getuid(),
+                peer_uid=lambda _connection: os.getuid(), timeout=1)
+            observed = client.read_music_longform(
+                private_action(), deadline=time.monotonic() + 1,
+                gate=lambda: True)
+            assert observed == result()
+            assert 'private-token' not in observed.model_dump_json()
+        finally:
+            server.close()
 
 
 def test_in_progress_catalog_exposes_bounded_progress_and_chapters(server):

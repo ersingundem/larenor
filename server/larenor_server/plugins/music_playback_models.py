@@ -267,6 +267,75 @@ class MusicCatalogSearchResponse(StrictModel):
     catalog: MusicCatalogSearchResult
 
 
+class ReadMusicLongformRequest(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+    expectedCoreRevision: Revision
+    expectedManagerRevision: Revision
+    limit: int = Field(default=10, ge=1, le=25)
+
+
+class MusicLongformChapter(StrictModel):
+    position: int = Field(ge=0, le=10000)
+    name: str = Field(min_length=1, max_length=256)
+    startSeconds: float = Field(ge=0, le=8640000)
+    endSeconds: float | None = Field(default=None, ge=0, le=8640000)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (self.name != self.name.strip()
+                or any(ord(char) < 32 or ord(char) == 127 for char in self.name)
+                or self.endSeconds is not None
+                and self.endSeconds <= self.startSeconds):
+            raise ValueError('invalid_music_longform_readback')
+        return self
+
+
+class MusicLongformItem(StrictModel):
+    uri: str = Field(min_length=1, max_length=2048)
+    name: str = Field(min_length=1, max_length=512)
+    mediaType: Literal['audiobook', 'podcast_episode']
+    providerInstanceId: str = Field(min_length=1, max_length=128)
+    durationSeconds: float = Field(gt=0, le=8640000)
+    resumePositionSeconds: float = Field(ge=0, le=8640000)
+    fullyPlayed: Literal[False] = False
+    chapters: list[MusicLongformChapter] = Field(default_factory=list,
+                                                  max_length=512)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (re.fullmatch(r'[a-z][a-z0-9_]{0,63}://[^\s]+', self.uri) is None
+                or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
+                                self.providerInstanceId) is None
+                or self.name != self.name.strip()
+                or any(ord(char) < 32 or ord(char) == 127 for char in self.name)
+                or self.resumePositionSeconds > self.durationSeconds):
+            raise ValueError('invalid_music_longform_readback')
+        previous_position = -1
+        previous_start = -1.0
+        for chapter in self.chapters:
+            if (chapter.position <= previous_position
+                    or chapter.startSeconds <= previous_start
+                    or chapter.startSeconds >= self.durationSeconds
+                    or chapter.endSeconds is not None
+                    and chapter.endSeconds > self.durationSeconds):
+                raise ValueError('invalid_music_longform_readback')
+            previous_position = chapter.position
+            previous_start = chapter.startSeconds
+        return self
+
+
+class MusicLongformCatalog(StrictModel):
+    requestId: ObjectId
+    managerRevision: Revision
+    items: list[MusicLongformItem] = Field(max_length=25)
+
+
+class MusicLongformCatalogResponse(StrictModel):
+    longform: MusicLongformCatalog
+
+
 class MusicPlaybackReceipt(StrictModel):
     requestId: ObjectId
     targetId: str = Field(min_length=1, max_length=128)
@@ -296,8 +365,17 @@ class PrivateMusicCatalogAction(StrictModel):
     token: str = Field(min_length=1, max_length=2048, repr=False)
 
 
+class PrivateMusicLongformAction(StrictModel):
+    request: ReadMusicLongformRequest = Field(repr=False)
+    token: str = Field(min_length=1, max_length=2048, repr=False)
+
+
 class MusicCatalogWorkerResult(StrictModel):
     items: list[MusicCatalogItem] = Field(max_length=100)
+
+
+class MusicLongformWorkerResult(StrictModel):
+    items: list[MusicLongformItem] = Field(max_length=25)
 
 
 class MusicPlaybackWorkerResult(StrictModel):

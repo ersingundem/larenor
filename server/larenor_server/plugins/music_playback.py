@@ -11,10 +11,12 @@ from pydantic import ValidationError
 from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .music_playback_models import (
-    MusicCatalogWorkerResult, MusicManagerProvider, MusicManagerState,
+    MusicCatalogWorkerResult, MusicLongformWorkerResult, MusicManagerProvider,
+    MusicManagerState,
     MusicPlaybackCommandRequest, MusicPlaybackReadback, MusicPlaybackState,
     MusicPlaybackWorkerResult, PrivateMusicPlaybackAction,
     PrivateMusicPlaybackAuthority, PrivateMusicCatalogAction,
+    PrivateMusicLongformAction, ReadMusicLongformRequest,
     RefreshMusicPlaybackRequest, SearchMusicCatalogRequest,
     _StoredMusicPlayback, _StoredPlaybackCommand,
 )
@@ -378,6 +380,70 @@ class MusicPlaybackManagement:
         except Exception:
             raise ApiError('music_catalog_worker_unavailable', 503) from None
         return {'catalog': {
+            'requestId': body.requestId,
+            'managerRevision': body.expectedManagerRevision,
+            'items': [item.model_dump() for item in result.items],
+        }}
+
+    def longform(self, actor, body):
+        if type(body) is not ReadMusicLongformRequest:
+            raise ApiError('invalid_request')
+        callback = getattr(self.backend, 'read_music_longform', None)
+        if not callable(callback):
+            raise ApiError('music_longform_worker_unavailable', 503)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self._assert_user(connection, actor)
+            authority = self._authority(
+                connection, body.installationId,
+                body.expectedInstallationRevision, body.expectedCoreRevision)
+            row = connection.execute(
+                'SELECT * FROM music_playback WHERE installation_id=?',
+                (body.installationId,)).fetchone()
+            if row is None:
+                raise ApiError('music_player_readback_required', 409)
+            stored = self._decode(row)
+            bindings = self._provider_bindings(
+                connection, body.installationId,
+                body.expectedInstallationRevision)
+            if (row['revision'] != body.expectedManagerRevision
+                    or bindings != stored.providerBindings):
+                raise ApiError('music_provider_changed', 409)
+        deadline = time.monotonic() + 5
+
+        def gate():
+            if time.monotonic() >= deadline:
+                return False
+            try:
+                with self.db.connection() as connection:
+                    self._authority(
+                        connection, body.installationId,
+                        body.expectedInstallationRevision,
+                        body.expectedCoreRevision)
+                    current = connection.execute(
+                        'SELECT * FROM music_playback WHERE installation_id=?',
+                        (body.installationId,)).fetchone()
+                    if (current is None or current['revision']
+                            != body.expectedManagerRevision):
+                        return False
+                    current_stored = self._decode(current)
+                    return self._provider_bindings(
+                        connection, body.installationId,
+                        body.expectedInstallationRevision
+                    ) == current_stored.providerBindings == bindings
+            except ApiError:
+                return False
+
+        try:
+            result = callback(
+                PrivateMusicLongformAction(
+                    request=body, token=authority.token),
+                deadline=deadline, gate=gate)
+            if type(result) is not MusicLongformWorkerResult or gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise ApiError('music_longform_worker_unavailable', 503) from None
+        return {'longform': {
             'requestId': body.requestId,
             'managerRevision': body.expectedManagerRevision,
             'items': [item.model_dump() for item in result.items],

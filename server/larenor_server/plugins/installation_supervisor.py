@@ -481,6 +481,10 @@ class SupervisedInstallationBackend:
         return self._music_playback_call(
             'execute_music_playback', action, deadline)
 
+    def read_music_longform_with_deadline(self, action, deadline):
+        return self._music_playback_call(
+            'read_music_longform', action, deadline)
+
     def _music_playback_call(self, method, private, deadline):
         self._check(deadline)
         self._peer_verifier.activate(deadline)
