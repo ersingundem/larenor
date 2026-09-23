@@ -885,7 +885,11 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(fixture.calls, hasLength(2), reason: 'only account bootstrap');
+        expect(
+          fixture.calls,
+          hasLength(4),
+          reason: 'account bootstrap plus bounded initial catalog browse',
+        );
 
         final filters = find.byKey(
           const ValueKey('server-media-catalog-filters'),

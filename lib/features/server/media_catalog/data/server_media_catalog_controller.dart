@@ -132,9 +132,9 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     }
 
     if (_disposed || busy || !_authorized || !routeCurrent()) return;
-    final operation = ++_epoch;
+    final operationEpoch = ++_epoch;
     bool valid() =>
-        !_disposed && operation == _epoch && _authorized && routeCurrent();
+        !_disposed && operationEpoch == _epoch && _authorized && routeCurrent();
     busy = true;
     failure = null;
     page = null;
@@ -222,7 +222,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
     } catch (_) {
       if (valid()) failure = 'connection_failed';
     } finally {
-      if (!_disposed && operation == _epoch) {
+      if (!_disposed && operationEpoch == _epoch) {
         busy = false;
         notifyListeners();
       }
