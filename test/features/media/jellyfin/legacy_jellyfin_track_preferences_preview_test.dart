@@ -104,6 +104,7 @@ void main() {
   test('fails closed for malformed, incompatible and empty records', () async {
     final invalid = <Object?>[
       '{',
+      '{"version":1.0,"audio":"en","subtitle":null}',
       jsonEncode({'version': 2, 'audio': 'en', 'subtitle': null}),
       jsonEncode({
         'version': 1,

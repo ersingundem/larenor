@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +18,13 @@ import 'package:larenor/features/media/jellyfin/presentation/player/jellyfin_pla
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/features/media/local_audio/data/local_audio_bridge.dart';
 import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
+import 'package:larenor/features/server/data/server_account_controller.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _source = JellyfinPlaybackSource(
   streamUrl: 'https://fixture.invalid/video',
@@ -104,6 +111,7 @@ class _Audio extends LocalAudioBridge {
 class _Preferences extends JellyfinTrackPreferencesStore {
   JellyfinTrackPreferenceRecord? value;
   int writes = 0;
+  int legacyMerges = 0;
   Object? writeError;
   Completer<void>? writeGate;
 
@@ -148,6 +156,57 @@ class _Preferences extends JellyfinTrackPreferencesStore {
     );
     return value!;
   }
+
+  @override
+  Future<JellyfinTrackPreferenceRecord> mergeLegacy(
+    JellyfinConfig config, {
+    String? audioLanguage,
+    String? subtitleLanguage,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw StateError('stale legacy migration');
+    legacyMerges++;
+    value = JellyfinTrackPreferenceRecord(
+      audioLanguage: audioLanguage ?? value?.audioLanguage,
+      subtitleLanguage: subtitleLanguage ?? value?.subtitleLanguage,
+    );
+    return value!;
+  }
+}
+
+final class _SessionStore implements ServerSessionPersistence {
+  @override
+  Future<ServerSession?> read() async => null;
+
+  @override
+  Future<void> write(ServerSession? session) async {}
+}
+
+final class _Account extends ServerAccountController {
+  _Account() : super(store: _SessionStore());
+
+  final ServerSession current = ServerSession(
+    endpoint: ServerEndpoint('https://core.invalid'),
+    accessToken: 'a' * 43,
+    refreshToken: 'b' * 43,
+    expiresAt: DateTime.utc(2099),
+    user: const ServerUser(
+      id: 'account',
+      username: 'listener',
+      role: ServerRole.member,
+      mustChangePassword: false,
+    ),
+  );
+
+  @override
+  ServerSession? get session => current;
+}
+
+String _legacyKey(JellyfinConfig config) {
+  final scope = sha256.convert(
+    utf8.encode('${config.baseUrl}\u0000${config.userId}'),
+  );
+  return 'jellyfin_track_languages_v1_$scope';
 }
 
 class _Harness {
@@ -156,6 +215,7 @@ class _Harness {
   final player = _Player();
   final audio = _Audio();
   final preferences = _Preferences();
+  final account = _Account();
   final interaction = AppInteractionController();
   final navigator = GlobalKey<NavigatorState>();
   final item = ValueNotifier(_movie);
@@ -176,12 +236,14 @@ class _Harness {
         jellyfinVideoSurfaceProvider.overrideWithValue((_) => const SizedBox()),
         localAudioBridgeProvider.overrideWithValue(audio),
         jellyfinTrackPreferencesStoreProvider.overrideWithValue(preferences),
+        serverAccountControllerProvider.overrideWithValue(account),
       ],
     );
     addTearDown(container.dispose);
     addTearDown(client.dispose);
     addTearDown(replacement.dispose);
     addTearDown(interaction.dispose);
+    addTearDown(account.dispose);
     addTearDown(item.dispose);
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
@@ -262,6 +324,7 @@ class _Harness {
           ),
           localAudioBridgeProvider.overrideWithValue(audio),
           jellyfinTrackPreferencesStoreProvider.overrideWithValue(preferences),
+          serverAccountControllerProvider.overrideWithValue(account),
         ]);
       case 'item':
         item.value = const JellyfinItem(
@@ -281,6 +344,8 @@ class _Harness {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
@@ -337,6 +402,55 @@ void main() {
     expect(h.player.commands, ['open:true']);
     await h.close(tester);
   });
+
+  for (final retirement in ['covered route', 'interaction epoch']) {
+    testWidgets(
+      'legacy migration confirm is inert after $retirement retirement',
+      (tester) async {
+        final h = _Harness();
+        final key = _legacyKey(h.client.config);
+        final raw = jsonEncode({
+          'version': 1,
+          'audio': 'tur',
+          'subtitle': 'off',
+        });
+        SharedPreferences.setMockInitialValues({key: raw});
+        await h.mount(tester);
+        final semantics = find.byKey(
+          const ValueKey('legacy-track-preferences-confirm'),
+        );
+        expect(semantics, findsOneWidget);
+        final retained = tester
+            .widget<CupertinoButton>(
+              find.descendant(
+                of: semantics,
+                matching: find.byType(CupertinoButton),
+              ),
+            )
+            .onPressed!;
+
+        if (retirement == 'covered route') {
+          h.navigator.currentState!.push(
+            CupertinoPageRoute<void>(
+              builder: (_) =>
+                  const CupertinoPageScaffold(child: SizedBox.expand()),
+            ),
+          );
+        } else {
+          h.interaction.setActive(false);
+          h.interaction.setActive(true);
+        }
+        await tester.pumpAndSettle();
+
+        retained();
+        await tester.pumpAndSettle();
+
+        expect(h.preferences.legacyMerges, 0);
+        expect((await SharedPreferences.getInstance()).getString(key), raw);
+        await h.close(tester);
+      },
+    );
+  }
 
   testWidgets('account drift retires pending preferred subtitle command', (
     tester,
