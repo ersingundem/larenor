@@ -13,8 +13,8 @@ void main() {
             tvdbId: 999,
             imdbId: 'tt0133093',
           ),
-        ),
-        const CoreMediaKey('movie:tmdb:603'),
+        )?.value,
+        'movie:tmdb:603',
       );
       expect(
         CoreMediaKey.fromIdentity(
@@ -24,8 +24,8 @@ void main() {
             tvdbId: 81189,
             imdbId: 'tt0903747',
           ),
-        ),
-        const CoreMediaKey('series:tvdb:81189'),
+        )?.value,
+        'series:tvdb:81189',
       );
     });
 
