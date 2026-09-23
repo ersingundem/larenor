@@ -41,6 +41,7 @@ Blocker = Literal[
     "active_keenetic_command",
     "active_tablet_command",
     "active_kiosk_command",
+    "active_game_stream_command",
     "component_quiescence_timeout",
     "component_quiescence_unavailable",
 ]
@@ -59,6 +60,7 @@ BACKUP_ACTIVE_BLOCKER_ORDER = (
     "active_keenetic_command",
     "active_tablet_command",
     "active_kiosk_command",
+    "active_game_stream_command",
 )
 BACKUP_QUIESCENCE_BLOCKERS = frozenset(
     {"component_quiescence_timeout", "component_quiescence_unavailable"}
@@ -220,7 +222,7 @@ class BackupManifest(StrictModel):
 
 class BackupPlanResponse(StrictModel):
     status: Literal["ready", "blocked"]
-    blockers: list[Blocker] = Field(max_length=14)
+    blockers: list[Blocker] = Field(max_length=15)
     manifest: BackupManifest | None
 
     @model_validator(mode="after")
