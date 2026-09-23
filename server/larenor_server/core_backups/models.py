@@ -139,6 +139,11 @@ class BackupManifest(StrictModel):
         found = {resource.id: resource.kind for resource in self.resources}
         if found != expected or len(found) != len(self.resources):
             raise ValueError("invalid_backup_resources")
+        lengths = {
+            resource.id: resource.byteLength for resource in self.resources
+        }
+        if lengths["vault-key"] != 32:
+            raise ValueError("invalid_backup_vault_key_length")
         versions = {resource.id: resource.version for resource in self.resources}
         expected_versions = {
             "component-index": "2" if self.consistencyBoundary is not None else "1",
