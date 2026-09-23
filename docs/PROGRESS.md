@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 23 Eylül 2026, exact kabul kaynağı `9431c911` — 25/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. K05 ortam içerik listeleri exact-head CI ve bağımsız incelemeyi geçerek yazılım kabulünü tamamladı; fiziksel decoder, ekran ve OEM kabulü manuel kapıda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, exact kabul kaynağı `63a1a33d` — 26/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. REMOTE.COMMON ortak profil, güven ve oturum kapanış temeli exact-head CI ve bağımsız incelemeyi geçti; gerçek uzak host, Huawei tablet ve DeX kabulü protokol ve manuel kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  25/125 iş (%20,0; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  26/125 iş (%20,8; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,25 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### REMOTE.COMMON ortak uzak erişim temeli — yazılım kabul edildi
+
+Exact `63a1a33d` kaynağında yerel ve Core profilleri, IP/domain/IPv6/port
+doğrulaması, sürümlü güvenli depo, host kimliği ve 15 dakikalık kişisel oturum
+lease'i birlikte doğrulandı. PIN, idle, lifecycle, route, profil revision, pencere
+ve DeX focus kaybı ile Core sign-in/sign-out/refresh/rebind ve aynı generation
+içindeki 401 revoke; SSH, SFTP, tünel, RDP ve VNC panellerini ve tutulmuş
+eylemleri kapatıyor. Belirsiz komut veya girdi yeniden oynatılmıyor.
+
+Tam uzak erişim paketi **216 testi** geçti; dört izole gerçek OpenSSH fixture'ı
+F63 protokol kabulünde belgeli skip olarak kaldı. Bağımsız exact-head inceleme
+temizdi. Android Build `35827908569` statik analiz, dört Flutter shardı, API 35
+uygulama yolculukları, Server kapıları ve debug APK'yı; Security
+`35827908316` secret, platform ve dependency kontrollerini geçti.
+[Kapanış kanıtı](testing/remote-common-closure.tdd.md). REMOTE.COMMON `done`;
+kuyruk **26/125 (%20,8)**, seçili özellikler **0/63**. Gerçek host uyumu,
+Huawei tablet/DeX ve protokol ayrıntıları F61-F63 ile MANUAL.FEATURES içinde
+açık kalır.
 
 ### K05 ortam içerik listeleri — yazılım kabul edildi
 

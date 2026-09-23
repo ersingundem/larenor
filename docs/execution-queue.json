@@ -4783,7 +4783,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Uzak erişim ortak profil/güven ve oturum temeli",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B0",
         "B5"
@@ -4803,9 +4803,42 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/remote-common-closure.tdd.md",
+          "commit": "63a1a33d69d32ab8983161d15c8544ccc459ae7f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Complete remote-access package passed 216 tests; four isolated OpenSSH real-host fixtures remain documented protocol-specific skips."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/remote-common-closure.tdd.md",
+          "commit": "63a1a33d69d32ab8983161d15c8544ccc459ae7f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent exact-head review confirmed generation and same-generation revoke retirement, Core-less personal profiles, bounded trust and no uncertain action replay."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35827908569",
+          "commit": "63a1a33d69d32ab8983161d15c8544ccc459ae7f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android Build exact source completed static analysis, four Flutter shards, API 35 application journeys, Server gates and debug APK."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35827908316",
+          "commit": "63a1a33d69d32ab8983161d15c8544ccc459ae7f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security exact source completed secret scan, platform policy and dependency scan."
+        }
+      ],
+      "completionCommit": "63a1a33d69d32ab8983161d15c8544ccc459ae7f",
+      "reason": "Shared local/Core profile trust and bounded session leases now retire on PIN, idle, lifecycle, route, window/DeX focus, profile revision and every Core authority transition, including same-generation revoke. Protocol interoperability and physical Huawei/DeX acceptance remain in F61-F63 and MANUAL.FEATURES."
     },
     {
       "id": "F63",
