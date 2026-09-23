@@ -593,6 +593,7 @@ void main() {
         await tester.pumpAndSettle();
         final order = [
           'services-refresh',
+          'services-legacy-jellyfin-review',
           for (final record in fixture.records)
             for (final action in ['check', 'edit', 'forget'])
               'service-$action-${record['id']}',

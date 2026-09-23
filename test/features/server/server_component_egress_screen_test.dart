@@ -135,7 +135,28 @@ void main() {
 
   Future<void> tap(WidgetTester tester, String key) async {
     final finder = find.byKey(ValueKey(key));
-    await tester.ensureVisible(finder);
+    final scrollable = find.ancestor(
+      of: finder,
+      matching: find.byType(Scrollable),
+    );
+    if (scrollable.evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(
+        finder,
+        160,
+        scrollable: scrollable.first,
+      );
+      for (
+        var attempt = 0;
+        attempt < 4 && finder.hitTestable().evaluate().isEmpty;
+        attempt++
+      ) {
+        await tester.drag(scrollable.first, const Offset(0, -160));
+        await tester.pumpAndSettle();
+      }
+    } else {
+      await tester.ensureVisible(finder);
+    }
+    expect(finder.hitTestable(), findsOneWidget);
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }

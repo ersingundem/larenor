@@ -13,6 +13,7 @@ import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/hub/presentation/media_session_state.dart';
+import '../../../media/jellyfin/data/legacy_jellyfin_provider_preview.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
@@ -22,7 +23,13 @@ import '../domain/server_service_models.dart';
 
 /// Reached through the Settings PIN gate and a signed-in administrator account.
 class ServerServicesScreen extends ConsumerStatefulWidget {
-  const ServerServicesScreen({super.key});
+  const ServerServicesScreen({super.key, this.legacyMigrationFactory});
+
+  @visibleForTesting
+  final LegacyJellyfinProviderMigrationGateway Function(
+    ServerAccountController account,
+  )?
+  legacyMigrationFactory;
   @override
   ConsumerState<ServerServicesScreen> createState() =>
       _ServerServicesScreenState();
@@ -32,12 +39,16 @@ class _ServerServicesScreenState
     extends MediaSessionState<ServerServicesScreen> {
   late final ServerAccountController _account;
   late final ServerServicesController _services;
+  late final LegacyJellyfinProviderMigrationGateway _legacyMigration;
   late final int _accountEpoch;
   ValueListenable<TickerModeData>? _ticker;
   Route<Object?>? _dialog;
   VoidCallback? _clearDraft;
   bool _visible = true, _expired = false, _loaded = false, _pinReady = false;
   bool _wasCurrent = true;
+  bool _legacyBusy = false, _legacyReviewed = false, _legacySucceeded = false;
+  String? _legacyFailure;
+  LegacyJellyfinProviderMigrationReceipt? _legacyReceipt;
 
   bool get _active =>
       !_expired &&
@@ -61,6 +72,9 @@ class _ServerServicesScreenState
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
     _services = ServerServicesController(_account);
+    _legacyMigration =
+        widget.legacyMigrationFactory?.call(_account) ??
+        LegacyJellyfinProviderMigration(account: _account);
     _account.addListener(_accountChanged);
   }
 
@@ -99,6 +113,8 @@ class _ServerServicesScreenState
     if (!mounted) return;
     final wasBusy = _services.busy;
     _expired = true;
+    _legacyMigration.dispose();
+    _legacyReceipt = null;
     sessionGeneration++;
     final clear = _clearDraft;
     _clearDraft = null;
@@ -129,6 +145,7 @@ class _ServerServicesScreenState
     _clearDraft = null;
     _account.removeListener(_accountChanged);
     _ticker?.removeListener(_visibilityChanged);
+    _legacyMigration.dispose();
     _services.dispose();
     super.dispose();
   }
@@ -148,6 +165,73 @@ class _ServerServicesScreenState
   Future<void> _load() async {
     if (!_active || _services.busy || _dialog != null) return;
     await _services.load(current: _capture());
+  }
+
+  Future<void> _reviewLegacyJellyfin() async {
+    if (!_enabled || _legacyBusy || _legacyReviewed) return;
+    final current = _capture();
+    setState(() {
+      _legacyBusy = true;
+      _legacyFailure = null;
+    });
+    try {
+      final receipt = await _legacyMigration.prepare(isCurrent: current);
+      if (!current()) return;
+      setState(() {
+        _legacyReviewed = true;
+        _legacyReceipt = receipt;
+      });
+    } catch (_) {
+      if (current()) setState(() => _legacyFailure = 'review_failed');
+    } finally {
+      if (mounted && current()) setState(() => _legacyBusy = false);
+    }
+  }
+
+  Future<void> _confirmLegacyJellyfin(ServerService target) async {
+    final receipt = _legacyReceipt;
+    if (!_enabled || _legacyBusy || receipt == null) return;
+    final current = _capture();
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await _show<bool>(
+      (context, valid) => CupertinoAlertDialog(
+        title: Text(l10n.serverServicesLegacyJellyfinConfirmTitle),
+        content: Text(l10n.serverServicesLegacyJellyfinConfirmBody),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () {
+              if (valid()) Navigator.pop(context, false);
+            },
+            child: Text(l10n.commonCancel),
+          ),
+          CupertinoDialogAction(
+            key: const ValueKey('services-legacy-jellyfin-confirm-dialog'),
+            isDefaultAction: true,
+            onPressed: () {
+              if (valid()) Navigator.pop(context, true);
+            },
+            child: Text(l10n.serverServicesLegacyJellyfinConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !current()) return;
+    setState(() {
+      _legacyBusy = true;
+      _legacyFailure = null;
+    });
+    try {
+      await _legacyMigration.confirm(receipt, target, isCurrent: current);
+      if (!current()) return;
+      setState(() {
+        _legacyReceipt = null;
+        _legacySucceeded = true;
+      });
+    } catch (_) {
+      if (current()) setState(() => _legacyFailure = 'confirm_failed');
+    } finally {
+      if (mounted && current()) setState(() => _legacyBusy = false);
+    }
   }
 
   Future<T?> _show<T>(
@@ -329,9 +413,27 @@ class _ServerServicesScreenState
                                 : null,
                             child: Text(l10n.commonRefresh),
                           ),
+                          if (!_legacyReviewed && !_legacySucceeded)
+                            _serviceButton(
+                              context,
+                              current: _capture(),
+                              key: const ValueKey(
+                                'services-legacy-jellyfin-review',
+                              ),
+                              onPressed: _enabled && !_legacyBusy
+                                  ? _callback(_reviewLegacyJellyfin)
+                                  : null,
+                              child: Text(
+                                l10n.serverServicesLegacyJellyfinReview,
+                              ),
+                            ),
                         ],
                       ),
                     ),
+                    if (_legacyReviewed ||
+                        _legacySucceeded ||
+                        _legacyFailure != null)
+                      _legacyJellyfinCard(l10n),
                     if (_services.busy)
                       const Padding(
                         padding: EdgeInsets.all(16),
@@ -361,6 +463,91 @@ class _ServerServicesScreenState
           },
         ),
       ),
+    );
+  }
+
+  Widget _legacyJellyfinCard(AppLocalizations l10n) {
+    final targets = _services.services
+        .where(
+          (service) =>
+              service.kind == ServerServiceKind.jellyfin &&
+              service.verification.state ==
+                  ServerServiceVerificationState.authenticated,
+        )
+        .toList(growable: false);
+    return SettingsSection(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.serverServicesLegacyJellyfinTitle,
+                  style: AppText.headline,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.serverServicesLegacyJellyfinBody),
+              if (_legacyBusy)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(child: CupertinoActivityIndicator()),
+                ),
+              if (_legacySucceeded)
+                Semantics(
+                  key: const ValueKey('services-legacy-jellyfin-success'),
+                  liveRegion: true,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(l10n.serverServicesLegacyJellyfinSuccess),
+                  ),
+                )
+              else if (_legacyReceipt == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(l10n.serverServicesLegacyJellyfinNone),
+                )
+              else ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(l10n.serverServicesLegacyJellyfinReady),
+                ),
+                for (final target in targets)
+                  _serviceButton(
+                    context,
+                    current: _capture(),
+                    key: ValueKey(
+                      'services-legacy-jellyfin-confirm-${target.id}',
+                    ),
+                    onPressed: _enabled && !_legacyBusy
+                        ? _callback(() => _confirmLegacyJellyfin(target))
+                        : null,
+                    child: Text(
+                      '${l10n.serverServicesLegacyJellyfinConfirm}: ${target.name}',
+                    ),
+                  ),
+              ],
+              if (_legacyFailure != null)
+                Semantics(
+                  liveRegion: true,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      l10n.serverServicesLegacyJellyfinFailure,
+                      style: TextStyle(
+                        color: CupertinoColors.systemRed.resolveFrom(context),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
