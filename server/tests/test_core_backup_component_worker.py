@@ -194,6 +194,30 @@ def test_component_worker_rejects_untrusted_peer_and_invalid_digest(tmp_path):
     }
 
 
+def test_component_worker_releases_after_malformed_ready_descriptors(tmp_path):
+    invalid = _descriptor(b"snapshot\n")
+    invalid["byteLength"] = 0
+    observed = []
+    with _worker(tmp_path, [invalid], [], observed) as path:
+        client = ComponentSnapshotWorkerClient(
+            path,
+            owner_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+        )
+        with (
+            pytest.raises(
+                ComponentSnapshotWorkerError, match="invalid_worker_result"
+            ),
+            client.quiesce(time.monotonic() + 2),
+        ):
+            raise AssertionError("must_not_yield")
+    assert observed[1] == {
+        "protocol": 1,
+        "requestId": observed[0]["requestId"],
+        "operation": "release",
+    }
+
+
 def test_configured_app_owns_opted_in_component_worker(tmp_path):
     path = (tmp_path / "component.sock").resolve()
     settings = Settings(
