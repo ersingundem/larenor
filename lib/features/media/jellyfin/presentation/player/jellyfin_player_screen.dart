@@ -13,9 +13,13 @@ import '../../../../../core/app_interaction_scope.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/jellyfin_client.dart';
 import '../../data/jellyfin_track_preferences_store.dart';
+import '../../data/legacy_jellyfin_track_preferences_controller.dart';
+import '../../data/legacy_jellyfin_track_preferences_preview.dart';
 import '../../data/models/jellyfin_item.dart';
 import '../../domain/jellyfin_track_preferences.dart';
+import '../legacy_jellyfin_track_preferences_migration_card.dart';
 import '../../providers/jellyfin_providers.dart';
+import '../../../../server/providers/server_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
 import 'playback_reporter.dart';
@@ -82,6 +86,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   late final VideoController _controller = VideoController(_player);
 
   JellyfinClient? _client;
+  LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
   PlaybackReporter? _reporter;
   late final ForegroundPoller _progressPoller;
   bool _opening = false;
@@ -134,6 +139,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   void _expireInteraction() {
     _interactionGeneration++;
+    _legacyMigration?.retire();
     _dragInteraction = null;
     _seekInteraction = null;
     _seekDraft = null;
@@ -246,6 +252,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       if (identical(previous, next) || _client == null) return;
       // Never continue a session with credentials from a previous account.
       _generation++;
+      _legacyMigration?.retire();
       _expireInteraction();
       _progressPoller.stop();
       unawaited(_reporter?.stop(_position));
@@ -300,6 +307,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     }
     _client = client;
     final generation = _generation;
+    _startLegacyMigration(client, generation);
 
     try {
       await ref.read(localAudioBridgeProvider).stopForVideo();
@@ -320,6 +328,31 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         });
       }
     }
+  }
+
+  void _startLegacyMigration(JellyfinClient client, int generation) {
+    _legacyMigration?.dispose();
+    _legacyMigration = null;
+    final account = ref.read(serverAccountControllerProvider);
+    final session = account.session;
+    if (session == null) return;
+    final interaction = _interactionGeneration;
+    final controller = LegacyJellyfinTrackPreferencesMigrationController(
+      migration: LegacyJellyfinTrackPreferencesMigration(
+        core: ref.read(jellyfinTrackPreferencesStoreProvider),
+      ),
+      config: client.config,
+      lifecycle: account,
+      isCurrent: () =>
+          mounted &&
+          generation == _generation &&
+          _interactionCurrent(interaction) &&
+          identical(_client, client) &&
+          identical(ref.read(jellyfinClientProvider), client) &&
+          identical(account.session, session),
+    );
+    _legacyMigration = controller;
+    unawaited(controller.start());
   }
 
   Future<bool> _openSource({
@@ -857,6 +890,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _hideControlsTimer?.cancel();
     _hudTimer?.cancel();
     _generation++;
+    _legacyMigration?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();
@@ -944,6 +978,18 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                   ),
                 ),
                 if (_hudKind != null) Center(child: _buildHud()),
+                if (_legacyMigration case final migration?)
+                  Positioned(
+                    top: 72,
+                    left: 16,
+                    right: 16,
+                    child: SafeArea(
+                      bottom: false,
+                      child: LegacyJellyfinTrackPreferencesMigrationCard(
+                        controller: migration,
+                      ),
+                    ),
+                  ),
                 if (_preferenceSaveFailed)
                   Positioned(
                     key: const ValueKey(

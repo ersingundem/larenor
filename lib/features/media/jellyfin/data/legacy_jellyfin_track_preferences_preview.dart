@@ -127,6 +127,7 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
           !decoded.keys.every(
             const {'version', 'audio', 'subtitle'}.contains,
           ) ||
+          decoded['version'] is! int ||
           decoded['version'] != 1 ||
           decoded['audio'] != null && decoded['audio'] is! String ||
           decoded['subtitle'] != null && decoded['subtitle'] is! String) {
@@ -181,7 +182,23 @@ final class LegacyJellyfinTrackPreferencesPreviewReader {
 
 /// Coordinates explicit migration without exposing or silently adopting the
 /// former direct-Jellyfin identity.
-final class LegacyJellyfinTrackPreferencesMigration {
+abstract interface class LegacyJellyfinTrackPreferencesMigrationGateway {
+  Future<LegacyJellyfinTrackPreferencesMigrationReceipt?> prepare(
+    JellyfinConfig config, {
+    required bool Function() isCurrent,
+  });
+
+  Future<JellyfinTrackPreferenceRecord> confirm(
+    JellyfinConfig config,
+    LegacyJellyfinTrackPreferencesMigrationReceipt receipt, {
+    required bool Function() isCurrent,
+  });
+
+  void cancel(LegacyJellyfinTrackPreferencesMigrationReceipt receipt);
+}
+
+final class LegacyJellyfinTrackPreferencesMigration
+    implements LegacyJellyfinTrackPreferencesMigrationGateway {
   LegacyJellyfinTrackPreferencesMigration({
     required JellyfinTrackPreferencesStore core,
     LegacyJellyfinTrackPreferencesPreviewReader? reader,
@@ -192,6 +209,7 @@ final class LegacyJellyfinTrackPreferencesMigration {
   final LegacyJellyfinTrackPreferencesPreviewReader _reader;
   final Expando<_LegacyJellyfinTrackPreferencesSnapshot> _sources = Expando();
 
+  @override
   Future<LegacyJellyfinTrackPreferencesMigrationReceipt?> prepare(
     JellyfinConfig config, {
     required bool Function() isCurrent,
@@ -206,6 +224,7 @@ final class LegacyJellyfinTrackPreferencesMigration {
     return receipt;
   }
 
+  @override
   Future<JellyfinTrackPreferenceRecord> confirm(
     JellyfinConfig config,
     LegacyJellyfinTrackPreferencesMigrationReceipt receipt, {
@@ -230,5 +249,10 @@ final class LegacyJellyfinTrackPreferencesMigration {
     await _reader._retire(expected, isCurrent: isCurrent);
     _sources[receipt] = null;
     return saved;
+  }
+
+  @override
+  void cancel(LegacyJellyfinTrackPreferencesMigrationReceipt receipt) {
+    _sources[receipt] = null;
   }
 }
