@@ -62,28 +62,32 @@ final class ManagedTabletRuntimeScope extends ConsumerStatefulWidget {
 }
 
 final class _ManagedTabletRuntimeScopeState
-    extends ConsumerState<ManagedTabletRuntimeScope> {
+    extends ConsumerState<ManagedTabletRuntimeScope>
+    with WidgetsBindingObserver {
   late final ServerAccountController _account;
-  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
     _account = ref.read(serverAccountControllerProvider)
       ..addListener(_synchronize);
+    WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     final foreground = state == null || state == AppLifecycleState.resumed;
     unawaited(
       ref.read(managedTabletRuntimeOwnerProvider).setForeground(foreground),
     );
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) => unawaited(
-        ref
-            .read(managedTabletRuntimeOwnerProvider)
-            .setForeground(state == AppLifecycleState.resumed),
-      ),
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _synchronize());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    unawaited(
+      ref
+          .read(managedTabletRuntimeOwnerProvider)
+          .setForeground(state == AppLifecycleState.resumed),
+    );
   }
 
   ManagedTabletBinding? _currentBinding() {
@@ -111,7 +115,7 @@ final class _ManagedTabletRuntimeScopeState
 
   @override
   void dispose() {
-    _lifecycle.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     _account.removeListener(_synchronize);
     super.dispose();
   }
