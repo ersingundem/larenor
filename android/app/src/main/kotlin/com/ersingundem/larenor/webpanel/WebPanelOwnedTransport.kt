@@ -205,7 +205,8 @@ private class BoundedResponseInputStream(
 
 /**
  * Uses the official document-start hook before any page JavaScript. Dedicated
- * and shared workers are disabled; exact-origin ws/wss remains available.
+ * and shared workers are disabled. WebSockets fail closed because Android
+ * WebView exposes no supported redirect-aware interception hook for them.
  * Service-worker networking is separately disabled by ServiceWorkerRequestFirewall.
  */
 internal class WebPanelDynamicEgressPolicy(
@@ -218,29 +219,15 @@ internal class WebPanelDynamicEgressPolicy(
     fun install(webView: WebView, origins: Set<WebRequestOrigin>): AutoCloseable? {
         if (!isSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return null
         val originRules = origins.mapTo(linkedSetOf()) { it.documentOrigin() }
-        val websocketOrigins = origins.map { it.websocketOrigin() }.sorted()
-        val values = websocketOrigins.joinToString(",") { "\"$it\"" }
         val script = """
             (() => {
               'use strict';
-              const allowed = new Set([$values]);
-              const nativeWebSocket = globalThis.WebSocket;
-              const normalize = (value) => {
-                const target = new URL(String(value), globalThis.location.href);
-                if (target.protocol !== 'ws:' && target.protocol !== 'wss:') throw new DOMException('Blocked', 'SecurityError');
-                const port = target.port || (target.protocol === 'wss:' ? '443' : '80');
-                return target.protocol + '//' + target.hostname.toLowerCase() + ':' + port;
+              const blockedNetworkContext = class {
+                constructor() { throw new DOMException('Blocked', 'SecurityError'); }
               };
-              class BoundedWebSocket extends nativeWebSocket {
-                constructor(url, protocols) {
-                  if (!allowed.has(normalize(url))) throw new DOMException('Blocked', 'SecurityError');
-                  if (protocols === undefined) super(url); else super(url, protocols);
-                }
-              }
-              const blockedWorker = class { constructor() { throw new DOMException('Blocked', 'SecurityError'); } };
-              Object.defineProperty(globalThis, 'WebSocket', { value: BoundedWebSocket, writable: false, configurable: false });
-              Object.defineProperty(globalThis, 'Worker', { value: blockedWorker, writable: false, configurable: false });
-              Object.defineProperty(globalThis, 'SharedWorker', { value: blockedWorker, writable: false, configurable: false });
+              Object.defineProperty(globalThis, 'WebSocket', { value: blockedNetworkContext, writable: false, configurable: false });
+              Object.defineProperty(globalThis, 'Worker', { value: blockedNetworkContext, writable: false, configurable: false });
+              Object.defineProperty(globalThis, 'SharedWorker', { value: blockedNetworkContext, writable: false, configurable: false });
             })();
         """.trimIndent()
         return runCatching {
@@ -252,12 +239,6 @@ internal class WebPanelDynamicEgressPolicy(
         val hostValue = if (':' in host) "[$host]" else host
         val defaultPort = (scheme == "https" && port == 443) || (scheme == "http" && port == 80)
         return "$scheme://$hostValue${if (defaultPort) "" else ":$port"}"
-    }
-
-    private fun WebRequestOrigin.websocketOrigin(): String {
-        val websocketScheme = if (scheme == "https") "wss" else "ws"
-        val hostValue = if (':' in host) "[$host]" else host
-        return "$websocketScheme://$hostValue:$port"
     }
 }
 
