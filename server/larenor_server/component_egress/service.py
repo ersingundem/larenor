@@ -280,6 +280,12 @@ class _Lease:
     def __init__(self, owner, actor, connection, policy, correlation):
         self.owner, self.actor, self.connection = owner, actor, connection
         self.policy, self.correlation = policy, correlation
+        self._lock = threading.Lock()
+        self._phase = 'open'
+
+    def _require(self, *phases):
+        if self._phase not in phases:
+            raise ApiError('outbound_denied', 403)
 
     def _current(self, c, state):
         self.owner.services._assert_admin(c, self.actor)
@@ -289,25 +295,43 @@ class _Lease:
             raise ApiError('outbound_denied', 403)
 
     def check(self, address=None):
-        with self.owner._tx(self.actor) as (c, state):
-            self._current(c, state)
-        if address is not None and address not in {p.address for p in self.policy.grants[0].addresses}:
-            raise ApiError('outbound_denied', 403)
+        with self._lock:
+            self._require('open', 'dispatched')
+            with self.owner._tx(self.actor) as (c, state):
+                self._current(c, state)
+            if address is not None and address not in {
+                    p.address for p in self.policy.grants[0].addresses}:
+                raise ApiError('outbound_denied', 403)
 
     def before_send(self):
-        with self.owner._tx(self.actor) as (c, state):
-            self._current(c, state)
-            self.owner._event(c, state, self.actor, self.policy, self.correlation, 'dispatch_authorized')
+        with self._lock:
+            self._require('open')
+            with self.owner._tx(self.actor) as (c, state):
+                self._current(c, state)
+                self.owner._event(
+                    c, state, self.actor, self.policy, self.correlation,
+                    'dispatch_authorized')
+            self._phase = 'dispatched'
 
     def complete(self, c):
-        state = storage.load(c, self.owner.key, self.owner.scope)
-        self._current(c, state)
-        self.owner._event(c, state, self.actor, self.policy, self.correlation, 'probe_completed')
+        with self._lock:
+            self._require('open', 'dispatched')
+            state = storage.load(c, self.owner.key, self.owner.scope)
+            self._current(c, state)
+            self.owner._event(
+                c, state, self.actor, self.policy, self.correlation,
+                'probe_completed')
+            self._phase = 'completed'
 
     def failed(self):
         # Already authenticated correlation only; no new authority after revocation.
-        with self.owner._tx() as (c, state):
-            self.owner._event(c, state, self.actor, self.policy, self.correlation, 'probe_unconfirmed')
+        with self._lock:
+            self._require('open', 'dispatched')
+            with self.owner._tx() as (c, state):
+                self.owner._event(
+                    c, state, self.actor, self.policy, self.correlation,
+                    'probe_unconfirmed')
+            self._phase = 'failed'
 
     def transport(self, base_url, **limits):
         if base_url != self.connection.base_url:
