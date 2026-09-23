@@ -52,7 +52,6 @@ class CoreBackupSourceBridge internal constructor(
     messenger: BinaryMessenger,
     private val host: CoreBackupSourceHost = AndroidCoreBackupSourceHost(activity),
     private val maxBytes: Long = MAX_BYTES,
-    internal val requestCode: Int = allocateRequestCode(),
 ) : MethodChannel.MethodCallHandler {
     private data class SourceLease(
         val input: CoreBackupInput,
@@ -67,9 +66,11 @@ class CoreBackupSourceBridge internal constructor(
 
     private data class Pending(
         val sessionId: String,
+        val requestCode: Int,
         val result: MethodChannel.Result,
         @Volatile var cancelled: Boolean = false,
         @Volatile var replied: Boolean = false,
+        @Volatile var pickerOutstanding: Boolean = true,
         @Volatile var lease: SourceLease? = null,
     )
 
@@ -96,6 +97,7 @@ class CoreBackupSourceBridge internal constructor(
     )
     private var pending: Pending? = null
     @Volatile private var disposed = false
+    internal val requestCode: Int get() = pending?.requestCode ?: -1
 
     init { channel.setMethodCallHandler(this) }
 
@@ -119,20 +121,21 @@ class CoreBackupSourceBridge internal constructor(
         val session = id(map["sessionId"])
         if (map["mimeType"] != MIME) throw IllegalArgumentException()
         if (pending != null) return fail(result, "busy")
-        val operation = Pending(session, result)
+        val operation = Pending(session, allocateRequestCode(), result)
         pending = operation
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(MIME)
-        try { host.launch(intent, requestCode) } catch (error: Exception) {
+        try { host.launch(intent, operation.requestCode) } catch (error: Exception) {
             pending = null
             throw error
         }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode != this.requestCode) return false
-        val operation = pending ?: return true
+        if (consumeRetiredRequestCode(requestCode)) return true
+        val operation = pending?.takeIf { it.requestCode == requestCode } ?: return false
+        operation.pickerOutstanding = false
         val uri = data?.data
         if (operation.cancelled || resultCode != Activity.RESULT_OK || uri == null) {
             if (!operation.replied) {
@@ -223,14 +226,22 @@ class CoreBackupSourceBridge internal constructor(
         val map = exact(raw, setOf("sessionId"))
         val session = id(map["sessionId"])
         pending?.takeIf { it.sessionId == session }?.let {
-            it.cancelled = true
-            it.lease?.let { lease -> cleanup.execute { lease.close() } }
-            if (!it.replied) {
-                it.replied = true
-                fail(it.result, "expired")
-            }
+            retire(it)
         }
         result.success(null)
+    }
+
+    private fun retire(operation: Pending) {
+        operation.cancelled = true
+        if (operation.pickerOutstanding) {
+            retireRequestCode(operation.requestCode)
+        }
+        if (pending === operation) pending = null
+        operation.lease?.let { lease -> cleanup.execute { lease.close() } }
+        if (!operation.replied) {
+            operation.replied = true
+            fail(operation.result, "expired")
+        }
     }
 
     private fun exact(raw: Any?, keys: Set<String>): Map<*, *> {
@@ -248,14 +259,7 @@ class CoreBackupSourceBridge internal constructor(
     fun dispose() {
         if (disposed) return
         disposed = true
-        pending?.let {
-            it.cancelled = true
-            it.lease?.let { lease -> cleanup.execute { lease.close() } }
-            if (!it.replied) {
-                it.replied = true
-                fail(it.result, "expired")
-            }
-        }
+        pending?.let(::retire)
         channel.setMethodCallHandler(null)
     }
 
@@ -273,11 +277,22 @@ class CoreBackupSourceBridge internal constructor(
         private val MAGIC = "LARENOR-CORE-BACKUP\u0000\u0001".toByteArray()
         private val ID = Regex("^[0-9a-f]{32}$")
         private val requestCodes = AtomicInteger(FIRST_REQUEST_CODE)
+        private val retiredRequestCodes = mutableSetOf<Int>()
 
         private fun allocateRequestCode(): Int {
             val value = requestCodes.getAndIncrement()
             check(value <= LAST_REQUEST_CODE) { "backup_source_request_codes_exhausted" }
             return value
         }
+
+        private fun retireRequestCode(requestCode: Int) =
+            synchronized(retiredRequestCodes) {
+                retiredRequestCodes.add(requestCode)
+            }
+
+        private fun consumeRetiredRequestCode(requestCode: Int): Boolean =
+            synchronized(retiredRequestCodes) {
+                retiredRequestCodes.remove(requestCode)
+            }
     }
 }
