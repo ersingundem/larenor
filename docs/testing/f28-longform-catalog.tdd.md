@@ -27,10 +27,10 @@ and its documented audiobook chapter metadata and resume behavior.
 
 ## TDD evidence
 
-- RED `a227b140`: the public Core long-form models and route did not exist.
-- RED `b834f244`: the authenticated runtime and fresh-detail path did not
+- RED `d48ce783`: the public Core long-form models and route did not exist.
+- RED `4e0f7dc7`: the authenticated runtime and fresh-detail path did not
   exist.
-- GREEN `31fbef6b`: 24 focused manager, runtime, authority and IPC tests pass.
+- GREEN `55c52383`: 24 focused manager, runtime, authority and IPC tests pass.
 
 F28 remains pending at **26/125 (20.8%)** and selected-feature progress remains
 **0/63 (0.0%)**. Client rendering, chapter selection, bookmarks, sleep timer,
