@@ -3917,5 +3917,44 @@
   "cameraSearchSemantic": "Semantic-assisted results",
   "cameraSearchCapturedAt": "Captured",
   "cameraSearchCamera": "Camera",
-  "cameraSearchRequired": "Connect to the verified Larenor Core for this home to search camera recordings."
+  "cameraSearchRequired": "Connect to the verified Larenor Core for this home to search camera recordings.",
+  "kioskEvidenceTitle": "Kiosk capability evidence",
+  "kioskEvidenceIntro": "Each result applies only to its model, Android API, WebView, DeX and permission combination, linked artifact, commit and test. Untested devices remain unverified.",
+  "kioskEvidenceUnavailable": "Core evidence could not be verified. Old results are hidden.",
+  "kioskEvidenceEmpty": "No evidence records yet. Huawei and DeX require physical acceptance.",
+  "kioskEvidenceTested": "Tested (linked evidence)",
+  "kioskEvidenceFailed": "Failed (linked evidence)",
+  "kioskEvidenceUntested": "Untested",
+  "kioskEvidenceManual": "Manual verification required",
+  "kioskEvidenceEnvironment": "Android API {api}; WebView {package} {version}; DeX {profile}",
+  "@kioskEvidenceEnvironment": {
+    "placeholders": {
+      "api": {
+        "type": "int"
+      },
+      "package": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "kioskEvidenceTrace": "Commit {commit}; test {test}; revision {revision}",
+  "@kioskEvidenceTrace": {
+    "placeholders": {
+      "commit": {
+        "type": "String"
+      },
+      "test": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  }
 }

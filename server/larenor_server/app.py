@@ -66,6 +66,7 @@ from .local_notifications.api import router as local_notification_router
 from .media_preferences.api import router as media_preferences_router
 from .room_comfort.api import router as room_comfort_router
 from .tablet_fleet.api import router as tablet_fleet_router
+from .capability_evidence.api import router as capability_evidence_router
 from .kiosk_remote.api import router as kiosk_remote_router
 from .workshop.api import router as workshop_router
 from .core_backups.api import router as core_backups_router
@@ -332,6 +333,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_preferences_router, prefix="/api/v1")
     app.include_router(room_comfort_router, prefix="/api/v1")
     app.include_router(tablet_fleet_router, prefix="/api/v1")
+    app.include_router(capability_evidence_router, prefix="/api/v1")
     app.include_router(kiosk_remote_router, prefix="/api/v1")
     app.include_router(workshop_router, prefix="/api/v1")
     app.include_router(core_backups_router, prefix="/api/v1")
