@@ -12,6 +12,8 @@ import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_frontend_screen.dart';
+import 'package:larenor/features/kiosk/data/kiosk_usage_repository.dart';
+import 'package:larenor/features/kiosk/domain/kiosk_watchdog.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
@@ -64,6 +66,26 @@ final class TransferAccess implements WebPanelTransferAccess {
   }
 }
 
+final class _UsageStore implements KioskUsageStore {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String value) async => this.value = value;
+}
+
+final class _AttemptStore implements KioskRecoveryAttemptStore {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String value) async => this.value = value;
+}
+
 class Harness {
   final platform = TestWebViewPlatform();
   final interaction = AppInteractionController();
@@ -72,6 +94,17 @@ class Harness {
   late ProviderContainer container;
   late AppLocalizations l10n;
   late ValueNotifier<WebPanelRendererMonitor?> _rendererMonitor;
+  final _usageStore = _UsageStore();
+  final _attemptStore = _AttemptStore();
+  late final usage = KioskUsageRepository(
+    store: _usageStore,
+    now: () => DateTime.utc(2026, 9, 23),
+  );
+  late final recoveryGate = KioskRecoveryGate(
+    repository: usage,
+    attemptStore: _attemptStore,
+    now: () => DateTime.utc(2026, 9, 23),
+  );
   Future<void> mount(
     WidgetTester tester, {
     bool ha = false,
@@ -134,6 +167,7 @@ class Harness {
                             dataCoordinator: coordinator,
                             transferAccess: transferAccess,
                             rendererMonitor: monitor,
+                            recoveryGate: recoveryGate,
                             policy:
                                 options?.policyFor(
                                   'https://fixture.invalid/start',
@@ -743,6 +777,49 @@ void main() {
 
     stale();
     await tester.pump();
+    expect(h.platform.controllers, hasLength(2));
+    await h.close(tester);
+  });
+
+  testWidgets('renderer and ready receipts reach the durable kiosk watchdog', (
+    tester,
+  ) async {
+    final monitor = RendererMonitor();
+    final h = Harness();
+    await h.mount(tester, rendererMonitor: monitor);
+    h.platform.controllers.single.delegate.finished(
+      'https://fixture.invalid/start',
+    );
+    await tester.pump();
+    monitor.gone!();
+    await tester.pump();
+
+    final usage = await h.usage.read();
+    expect(usage.count(KioskUsageEvent.ready), 1);
+    expect(usage.count(KioskUsageEvent.rendererFailure), 1);
+    expect(h.recoveryGate.pendingAutomaticRecovery, isFalse);
+    await h.close(tester);
+  });
+
+  testWidgets('manual WebPanel retry consumes the durable recovery gate', (
+    tester,
+  ) async {
+    final h = Harness();
+    await h.mount(tester);
+    h.platform.controllers.single.delegate.resourceError(
+      const WebResourceError(
+        errorCode: -1,
+        description: 'fixture failure',
+        isForMainFrame: true,
+      ),
+    );
+    await tester.pump();
+
+    await h.panel.currentState!.restart();
+    await tester.pump();
+
+    final usage = await h.usage.read();
+    expect(usage.count(KioskUsageEvent.recoveryAttempt), 1);
     expect(h.platform.controllers, hasLength(2));
     await h.close(tester);
   });
