@@ -22,6 +22,7 @@ final class ServerComponentEgressController extends ChangeNotifier {
   bool busy = false, needsRefresh = false;
   String? failure;
   ServerComponentEgressResponse? value;
+  ServerComponentEgressResolution? resolution;
 
   bool get _authorized =>
       account.isCurrent(_accountEpoch) &&
@@ -39,17 +40,31 @@ final class ServerComponentEgressController extends ChangeNotifier {
     needsRefresh = false;
     failure = null;
     value = null;
+    resolution = null;
     _emit();
   }
 
   bool _current(int epoch, bool Function() current) =>
       !_disposed && epoch == _epoch && _authorized && current();
 
-  Future<void> load({required bool Function() current}) =>
-      _run(current, (api, valid) async {
-        final response = await api.read(service);
-        if (valid()) value = response;
-      });
+  Future<void> load({required bool Function() current}) {
+    resolution = null;
+    return _run(current, (api, valid) async {
+      final response = await api.read(service);
+      if (valid()) value = response;
+    });
+  }
+
+  Future<void> resolve({required bool Function() current}) {
+    resolution = null;
+    return _run(current, (api, valid) async {
+      if (value == null) {
+        throw const LarenorServerException('invalid_request');
+      }
+      final response = await api.resolve(service);
+      if (valid()) resolution = response;
+    });
+  }
 
   Future<void> replace({
     ServerComponentEgressGrant? grant,
@@ -58,7 +73,10 @@ final class ServerComponentEgressController extends ChangeNotifier {
     final previous = value;
     if (previous == null) throw const LarenorServerException('invalid_request');
     final response = await api.replace(service, previous, grant: grant);
-    if (valid()) value = response;
+    if (valid()) {
+      value = response;
+      resolution = null;
+    }
   }, mutation: true);
 
   Future<void> _run(
@@ -92,6 +110,7 @@ final class ServerComponentEgressController extends ChangeNotifier {
       if (mutation) {
         needsRefresh = true;
         value = null;
+        resolution = null;
       }
       if ({
         'unauthorized',

@@ -77,6 +77,7 @@ class _EgressFixture extends AdminFixture {
 
   var revision = 0;
   List<Map<String, dynamic>> grants = [];
+  Map<String, dynamic> resolution = _resolutionJson();
 
   http.Response policyResponse(http.Request request) {
     if (request.url.path.endsWith('/context')) return defaultResponse(request);
@@ -87,7 +88,7 @@ class _EgressFixture extends AdminFixture {
           'error': {'code': 'revision_conflict'},
         }, 409);
       }
-      return this.json(_resolutionJson());
+      return this.json(resolution);
     }
     if (request.method == 'GET') {
       return this.json(_responseJson(policyRevision: revision, grants: grants));
@@ -219,15 +220,13 @@ void main() {
     for (final changed in [
       {..._resolutionJson(), 'token': 'synthetic-secret'},
       {..._resolutionJson(), 'schemaVersion': 2},
-      {..._resolutionJson(), 'serviceId': 'f' * 32},
-      {..._resolutionJson(), 'serviceRevision': 5},
-      {..._resolutionJson(), 'component': 'keenetic_command_worker'},
+      {..._resolutionJson(), 'serviceId': '../other'},
+      {..._resolutionJson(), 'serviceRevision': 0},
+      {..._resolutionJson(), 'component': 'arbitrary_worker'},
     ]) {
       expect(
         () => ServerComponentEgressResolution.fromJson(changed),
-        changed == _resolutionJson()
-            ? returnsNormally
-            : anyOf(returnsNormally, throwsA(isA<LarenorServerException>())),
+        throwsA(isA<LarenorServerException>()),
       );
     }
 
@@ -242,6 +241,19 @@ void main() {
       final request = fixture.mutations.single;
       expect(request.url.path, endsWith('/outbound-policy/resolve'));
       expect(jsonDecode(request.body), {'expectedServiceRevision': 4});
+      fixture.resolution = {..._resolutionJson(), 'serviceId': 'f' * 32};
+      await expectLater(
+        api.resolve(service),
+        throwsA(isA<LarenorServerException>()),
+      );
+      fixture.resolution = {
+        ..._resolutionJson(),
+        'grant': {..._grantJson(), 'host': 'other.example.test'},
+      };
+      await expectLater(
+        api.resolve(service),
+        throwsA(isA<LarenorServerException>()),
+      );
     });
   });
 

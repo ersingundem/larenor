@@ -27,10 +27,28 @@ Map<String, dynamic> _policy({
   'audit': <Map<String, dynamic>>[],
 };
 
+Map<String, dynamic> _grant() => {
+  'scheme': 'https',
+  'host': 'media.example.test',
+  'port': 443,
+  'addresses': [
+    {'address': '192.168.1.150', 'network': 'lan'},
+    {'address': '10.20.30.40', 'network': 'lan'},
+  ],
+};
+
+Map<String, dynamic> _resolution() => {
+  'schemaVersion': 1,
+  'serviceId': serviceId,
+  'serviceRevision': 1,
+  'component': 'home_assistant_probe',
+  'grant': _grant(),
+};
+
 class _Fixture extends ServicesFixture {
   _Fixture() {
     respond = (request) async {
-      if (request.url.path.endsWith('/outbound-policy')) {
+      if (request.url.path.contains('/outbound-policy')) {
         return egressResponse(request);
       }
       return serviceResponse(request);
@@ -45,6 +63,14 @@ class _Fixture extends ServicesFixture {
       return this.json(_policy(revision: policyRevision, grants: grants));
     }
     final body = jsonDecode(request.body) as Map<String, dynamic>;
+    if (request.url.path.endsWith('/outbound-policy/resolve')) {
+      if (body.length != 1 || body['expectedServiceRevision'] != 1) {
+        return this.json({
+          'error': {'code': 'revision_conflict'},
+        }, 409);
+      }
+      return this.json(_resolution());
+    }
     if (body.keys.toSet().difference({
           'expectedRevision',
           'expectedServiceRevision',
@@ -131,7 +157,7 @@ void main() {
     );
   });
 
-  testWidgets('explicit pins replace and clear the exact policy revision', (
+  testWidgets('reviewed pins replace and clear the exact policy revision', (
     tester,
   ) async {
     await mount(tester);
@@ -141,16 +167,23 @@ void main() {
       '192.168.1.150\n10.20.30.40',
     );
     await tap(tester, 'egress-save');
-    expect(fixture.policyRevision, 1);
-    expect(fixture.grants.single, {
-      'scheme': 'https',
-      'host': 'media.example.test',
-      'port': 443,
-      'addresses': [
-        {'address': '192.168.1.150', 'network': 'lan'},
-        {'address': '10.20.30.40', 'network': 'lan'},
-      ],
+    expect(fixture.policyRevision, 0);
+    expect(
+      find.text('Resolve and review the current addresses before saving them.'),
+      findsOneWidget,
+    );
+    expect(fixture.mutations, isEmpty);
+    await tap(tester, 'egress-resolve');
+    expect(jsonDecode(fixture.mutations.single.body), {
+      'expectedServiceRevision': 1,
     });
+    expect(
+      find.text('Addresses resolved by Core for this exact service revision.'),
+      findsOneWidget,
+    );
+    await tap(tester, 'egress-save');
+    expect(fixture.policyRevision, 1);
+    expect(fixture.grants.single, _grant());
     expect(find.text('Allowed for 2 pinned addresses'), findsOneWidget);
     await tap(tester, 'egress-disable');
     expect(fixture.policyRevision, 2);
