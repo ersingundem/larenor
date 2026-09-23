@@ -119,6 +119,35 @@ final class _Executor implements ManagedTabletCommandExecutor {
   }
 }
 
+final class _GatedStore implements ManagedMqttStateStore {
+  _GatedStore({this.readGate, this.writeGate, this.gatedWriteNumber = 1});
+
+  final Completer<void>? readGate;
+  final Completer<void>? writeGate;
+  final int gatedWriteNumber;
+  final readStarted = Completer<void>();
+  final writeStarted = Completer<void>();
+  ManagedMqttCommandState value = const ManagedMqttCommandState.empty();
+  int writes = 0;
+
+  @override
+  Future<ManagedMqttCommandState> read(String pairingId) async {
+    if (!readStarted.isCompleted) readStarted.complete();
+    await readGate?.future;
+    return value;
+  }
+
+  @override
+  Future<void> write(String pairingId, ManagedMqttCommandState state) async {
+    writes += 1;
+    if (writes == gatedWriteNumber) {
+      if (!writeStarted.isCompleted) writeStarted.complete();
+      await writeGate?.future;
+    }
+    value = state;
+  }
+}
+
 Map<String, Object?> command({
   int sequence = 1,
   String requestId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -531,6 +560,127 @@ void main() {
       expect(broker.publications, hasLength(6));
     },
   );
+
+  test(
+    'retire during delayed state read cannot execute an old command',
+    () async {
+      final gate = Completer<void>();
+      final store = _GatedStore(readGate: gate);
+      final broker = _Broker();
+      final executor = _Executor();
+      final subject = _runtime(
+        broker: broker,
+        store: store,
+        executor: executor,
+        authority: () async => pairing(),
+      );
+      await subject.start();
+      final publications = broker.publications.length;
+
+      final delivery = broker.deliver(command());
+      await store.readStarted.future;
+      await subject.retire();
+      gate.complete();
+      await delivery;
+
+      expect(subject.status, ManagedTabletMqttStatus.retired);
+      expect(executor.calls, isEmpty);
+      expect(store.value.sequence, 0);
+      expect(broker.publications.length, publications);
+    },
+  );
+
+  test(
+    'reconnect during delayed pending write cannot finish the old command',
+    () async {
+      final gate = Completer<void>();
+      final store = _GatedStore(writeGate: gate);
+      final broker = _Broker();
+      final executor = _Executor();
+      final subject = _runtime(
+        broker: broker,
+        store: store,
+        executor: executor,
+        authority: () async => pairing(),
+      );
+      await subject.start();
+
+      final delivery = broker.deliver(command());
+      await store.writeStarted.future;
+      await subject.reconnect();
+      gate.complete();
+      await delivery;
+
+      expect(subject.status, ManagedTabletMqttStatus.connected);
+      expect(executor.calls, isEmpty);
+      expect(store.value.pending, true);
+      expect(
+        broker.publications.where((entry) => entry.topic == '$_prefix/ack'),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'pairing authority is rechecked after pending state persistence',
+    () async {
+      final gate = Completer<void>();
+      final store = _GatedStore(writeGate: gate);
+      final broker = _Broker();
+      final executor = _Executor();
+      var credential = pairing();
+      final subject = _runtime(
+        broker: broker,
+        store: store,
+        executor: executor,
+        authority: () async => credential,
+      );
+      await subject.start();
+
+      final delivery = broker.deliver(command());
+      await store.writeStarted.future;
+      credential = pairing(active: false);
+      gate.complete();
+      await delivery;
+
+      expect(subject.status, ManagedTabletMqttStatus.revoked);
+      expect(executor.calls, isEmpty);
+      expect(store.value.pending, true);
+      expect(
+        broker.publications.where((entry) => entry.topic == '$_prefix/ack'),
+        isEmpty,
+      );
+    },
+  );
+
+  test('retire during result persistence leaves recovery pending', () async {
+    final gate = Completer<void>();
+    final store = _GatedStore(writeGate: gate, gatedWriteNumber: 2);
+    final broker = _Broker();
+    final executor = _Executor();
+    final subject = _runtime(
+      broker: broker,
+      store: store,
+      executor: executor,
+      authority: () async => pairing(),
+    );
+    await subject.start();
+
+    final delivery = broker.deliver(command());
+    await store.writeStarted.future;
+    await subject.retire();
+    gate.complete();
+    await delivery;
+
+    expect(subject.status, ManagedTabletMqttStatus.retired);
+    expect(executor.calls, ['refreshDashboard']);
+    expect(store.value.pending, true);
+    expect(store.value.result, isNull);
+    expect(
+      broker.publications.where((entry) => entry.topic == '$_prefix/ack'),
+      isEmpty,
+    );
+  });
 
   test('partial connect failure disconnects and fails closed', () async {
     final broker = _Broker()..subscribeFailure = StateError('subscribe_failed');

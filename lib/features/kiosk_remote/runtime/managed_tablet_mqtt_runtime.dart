@@ -428,7 +428,13 @@ final class ManagedTabletMqttRuntime {
         message.retained ||
         message.payload.isEmpty ||
         message.payload.length > 4096) {
-      await _publishError(current, 0, null, 'mqtt_retained_command_denied');
+      await _publishError(
+        current,
+        0,
+        null,
+        'mqtt_retained_command_denied',
+        generation,
+      );
       return;
     }
     Map<String, dynamic> body;
@@ -439,42 +445,64 @@ final class ManagedTabletMqttRuntime {
       if (raw is! Map<String, dynamic>) throw const FormatException();
       body = raw;
     } catch (_) {
-      await _publishError(current, 0, null, 'invalid_mqtt_command');
+      await _publishError(current, 0, null, 'invalid_mqtt_command', generation);
       return;
     }
     final parsed = _parse(body);
     if (parsed == null) {
-      await _publishError(current, 0, null, 'invalid_mqtt_command');
+      await _publishError(current, 0, null, 'invalid_mqtt_command', generation);
       return;
     }
     final (:requestId, :sequence, :kind, :expiresAt) = parsed;
     final currentTime = now().toUtc();
     if (!expiresAt.isAfter(currentTime) ||
         expiresAt.isAfter(currentTime.add(const Duration(minutes: 5)))) {
-      await _publishError(current, sequence, requestId, 'mqtt_command_expired');
+      await _publishError(
+        current,
+        sequence,
+        requestId,
+        'mqtt_command_expired',
+        generation,
+      );
       return;
     }
     if (kind == 'lockKiosk' && !current.scopes.contains('admin')) {
-      await _publishError(current, sequence, requestId, 'pairing_scope_denied');
+      await _publishError(
+        current,
+        sequence,
+        requestId,
+        'pairing_scope_denied',
+        generation,
+      );
       return;
     }
     final digest = sha256.convert(message.payload).toString();
     var state = await stateStore.read(current.pairingId);
+    final afterRead = await _current('control', generation);
+    if (afterRead == null) return;
     if (sequence < state.sequence) {
-      await _publishError(current, sequence, requestId, 'mqtt_command_replay');
+      await _publishError(
+        afterRead,
+        sequence,
+        requestId,
+        'mqtt_command_replay',
+        generation,
+      );
       return;
     }
     if (sequence == state.sequence && state.sequence != 0) {
       if (state.digest != digest || state.requestId != requestId) {
         await _publishError(
-          current,
+          afterRead,
           sequence,
           requestId,
           'mqtt_command_conflict',
+          generation,
         );
         return;
       }
       if (state.pending) {
+        final pending = state;
         state = ManagedMqttCommandState(
           sequence: state.sequence,
           requestId: state.requestId,
@@ -485,8 +513,17 @@ final class ManagedTabletMqttRuntime {
           acceptedAtMs: state.acceptedAtMs,
         );
         await stateStore.write(current.pairingId, state);
+        if (await _current('control', generation) == null) {
+          await stateStore.write(current.pairingId, pending);
+          return;
+        }
       }
-      await _publishState(current, state, replayed: true);
+      await _publishState(
+        afterRead,
+        state,
+        replayed: true,
+        generation: generation,
+      );
       return;
     }
     final cutoff = currentTime
@@ -494,11 +531,17 @@ final class ManagedTabletMqttRuntime {
         .millisecondsSinceEpoch;
     final recent = state.acceptedAtMs.where((value) => value > cutoff).toList();
     if (recent.length >= maxCommandsPerMinute) {
-      await _publishError(current, sequence, requestId, 'rate_limited');
+      await _publishError(
+        afterRead,
+        sequence,
+        requestId,
+        'rate_limited',
+        generation,
+      );
       return;
     }
     recent.add(currentTime.millisecondsSinceEpoch);
-    state = ManagedMqttCommandState(
+    final pending = ManagedMqttCommandState(
       sequence: sequence,
       requestId: requestId,
       digest: digest,
@@ -507,7 +550,9 @@ final class ManagedTabletMqttRuntime {
       error: null,
       acceptedAtMs: List.unmodifiable(recent),
     );
-    await stateStore.write(current.pairingId, state);
+    state = pending;
+    await stateStore.write(current.pairingId, pending);
+    if (await _current('control', generation) == null) return;
     ManagedTabletCommandResult result;
     String? error;
     try {
@@ -528,7 +573,17 @@ final class ManagedTabletMqttRuntime {
       acceptedAtMs: state.acceptedAtMs,
     );
     await stateStore.write(current.pairingId, state);
-    await _publishState(after, state, replayed: false);
+    final completed = await _current('control', generation);
+    if (completed == null) {
+      await stateStore.write(current.pairingId, pending);
+      return;
+    }
+    await _publishState(
+      completed,
+      state,
+      replayed: false,
+      generation: generation,
+    );
   }
 
   ({String requestId, int sequence, String kind, DateTime expiresAt})? _parse(
@@ -664,40 +719,62 @@ final class ManagedTabletMqttRuntime {
     ManagedTabletPairingCredential current,
     ManagedMqttCommandState state, {
     required bool replayed,
-  }) => broker.publish(
-    '${current.topicPrefix}/ack',
-    utf8.encode(
-      jsonEncode({
-        'schemaVersion': 1,
-        'requestId': state.requestId,
-        'sequence': state.sequence,
-        'result': state.result,
-        'replayed': replayed,
-        if (state.error != null) 'error': state.error,
-      }),
-    ),
-    retained: false,
-  );
+    required int generation,
+  }) async {
+    final authorized = await _current('control', generation);
+    if (authorized == null ||
+        authorized.pairingId != current.pairingId ||
+        authorized.deviceId != current.deviceId ||
+        authorized.revision != current.revision) {
+      return;
+    }
+    await broker.publish(
+      '${authorized.topicPrefix}/ack',
+      utf8.encode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'requestId': state.requestId,
+          'sequence': state.sequence,
+          'result': state.result,
+          'replayed': replayed,
+          if (state.error != null) 'error': state.error,
+        }),
+      ),
+      retained: false,
+    );
+    _assertGeneration(generation);
+  }
 
   Future<void> _publishError(
     ManagedTabletPairingCredential current,
     int sequence,
     String? requestId,
     String error,
-  ) => broker.publish(
-    '${current.topicPrefix}/ack',
-    utf8.encode(
-      jsonEncode({
-        'schemaVersion': 1,
-        'requestId': requestId,
-        'sequence': sequence,
-        'result': ManagedTabletCommandResult.denied.name,
-        'replayed': false,
-        'error': error,
-      }),
-    ),
-    retained: false,
-  );
+    int generation,
+  ) async {
+    final authorized = await _current('control', generation);
+    if (authorized == null ||
+        authorized.pairingId != current.pairingId ||
+        authorized.deviceId != current.deviceId ||
+        authorized.revision != current.revision) {
+      return;
+    }
+    await broker.publish(
+      '${authorized.topicPrefix}/ack',
+      utf8.encode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'requestId': requestId,
+          'sequence': sequence,
+          'result': ManagedTabletCommandResult.denied.name,
+          'replayed': false,
+          'error': error,
+        }),
+      ),
+      retained: false,
+    );
+    _assertGeneration(generation);
+  }
 
   void _log(String event) => logger?.call(event);
 }
