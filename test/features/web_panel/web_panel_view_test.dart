@@ -16,10 +16,11 @@ import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
 import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
+import 'package:larenor/features/web_panel/data/web_panel_renderer_monitor.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_view.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
-import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
 import 'web_panel_data_test.dart' show Api;
@@ -70,6 +71,7 @@ class Harness {
   final panel = GlobalKey<WebPanelViewState>();
   late ProviderContainer container;
   late AppLocalizations l10n;
+  late ValueNotifier<WebPanelRendererMonitor?> _rendererMonitor;
   Future<void> mount(
     WidgetTester tester, {
     bool ha = false,
@@ -79,6 +81,7 @@ class Harness {
     WebPanelOptions? options,
     WebPanelDataCoordinator? coordinator,
     WebPanelTransferAccess? transferAccess,
+    WebPanelRendererMonitor? rendererMonitor,
   }) async {
     final previous = WebViewPlatform.instance;
     WebViewPlatform.instance = platform;
@@ -89,10 +92,12 @@ class Harness {
         haRestClientProvider.overrideWithValue(null),
       ],
     );
+    _rendererMonitor = ValueNotifier(rendererMonitor);
     addTearDown(() {
       WebViewPlatform.instance = previous ?? TestWebViewPlatform();
       container.dispose();
       interaction.dispose();
+      _rendererMonitor.dispose();
     });
     if (size != null) {
       tester.view.physicalSize = size;
@@ -121,18 +126,22 @@ class Harness {
                 return ha
                     ? const HaFrontendScreen()
                     : CupertinoPageScaffold(
-                        child: WebPanelView(
-                          key: panel,
-                          options: options,
-                          dataCoordinator: coordinator,
-                          transferAccess: transferAccess,
-                          policy:
-                              options?.policyFor(
-                                'https://fixture.invalid/start',
-                              ) ??
-                              WebPanelPolicy.fromUrl(
-                                'https://fixture.invalid/start?token=fixture-secret',
-                              ),
+                        child: ValueListenableBuilder(
+                          valueListenable: _rendererMonitor,
+                          builder: (context, monitor, child) => WebPanelView(
+                            key: panel,
+                            options: options,
+                            dataCoordinator: coordinator,
+                            transferAccess: transferAccess,
+                            rendererMonitor: monitor,
+                            policy:
+                                options?.policyFor(
+                                  'https://fixture.invalid/start',
+                                ) ??
+                                WebPanelPolicy.fromUrl(
+                                  'https://fixture.invalid/start?token=fixture-secret',
+                                ),
+                          ),
                         ),
                       );
               },
@@ -145,9 +154,49 @@ class Harness {
     await tester.pump();
   }
 
+  Future<void> replaceRendererMonitor(
+    WidgetTester tester,
+    WebPanelRendererMonitor monitor,
+  ) async {
+    _rendererMonitor.value = monitor;
+    await tester.pump();
+    await tester.pump();
+  }
+
   Future<void> close(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+  }
+}
+
+final class RendererMonitor implements WebPanelRendererMonitor {
+  void Function()? gone;
+  int attachments = 0;
+  int disposals = 0;
+
+  @override
+  Future<WebPanelRendererHandle?> attach(
+    WebViewController controller,
+    void Function() onRendererGone,
+  ) async {
+    attachments++;
+    gone = onRendererGone;
+    return _RendererHandle(() {
+      disposals++;
+      if (identical(gone, onRendererGone)) gone = null;
+    });
+  }
+}
+
+final class _RendererHandle implements WebPanelRendererHandle {
+  _RendererHandle(this.onDispose);
+  final void Function() onDispose;
+  bool disposed = false;
+  @override
+  Future<void> dispose() async {
+    if (disposed) return;
+    disposed = true;
+    onDispose();
   }
 }
 
@@ -670,4 +719,46 @@ void main() {
     expect(find.textContaining('renderer terminated'), findsNothing);
     await h.close(tester);
   });
+
+  testWidgets('native renderer event retires its exact controller generation', (
+    tester,
+  ) async {
+    final monitor = RendererMonitor();
+    final h = Harness();
+    await h.mount(tester, rendererMonitor: monitor);
+    expect(monitor.attachments, 1);
+    final stale = monitor.gone!;
+
+    stale();
+    await tester.pump();
+    expect(h.platform.controllers, hasLength(2));
+    expect(monitor.attachments, 2);
+    expect(monitor.disposals, 1);
+
+    stale();
+    await tester.pump();
+    expect(h.platform.controllers, hasLength(2));
+    await h.close(tester);
+  });
+
+  testWidgets(
+    'replacing renderer monitor revokes the stale monitor generation',
+    (tester) async {
+      final first = RendererMonitor();
+      final second = RendererMonitor();
+      final h = Harness();
+      await h.mount(tester, rendererMonitor: first);
+      final stale = first.gone!;
+
+      await h.replaceRendererMonitor(tester, second);
+      expect(first.disposals, 1);
+      expect(second.attachments, 1);
+      expect(h.platform.controllers, hasLength(2));
+
+      stale();
+      await tester.pump();
+      expect(h.platform.controllers, hasLength(2));
+      await h.close(tester);
+    },
+  );
 }
