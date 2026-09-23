@@ -39,6 +39,11 @@ class ServerMusicServiceRevision {
   }
   final String serviceId;
   final int serviceRevision;
+
+  Map<String, Object> toJson() => {
+    'serviceId': serviceId,
+    'serviceRevision': serviceRevision,
+  };
 }
 
 class ServerMusicBootstrapReceipt {
@@ -81,6 +86,15 @@ class ServerMusicBootstrapReceipt {
   final int revision, schemaVersion;
   final String state, serverVersion;
   final ServerMusicServiceRevision homeAssistant, jellyfin;
+
+  Map<String, Object> toJson() => {
+    'revision': revision,
+    'state': state,
+    'serverVersion': serverVersion,
+    'schemaVersion': schemaVersion,
+    'homeAssistant': homeAssistant.toJson(),
+    'jellyfin': jellyfin.toJson(),
+  };
 }
 
 class ServerMusicProviderStatus {
@@ -119,6 +133,14 @@ class ServerMusicProviderStatus {
   final String id, domain, state;
   final int revision;
   final DateTime updatedAt;
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'providerDomain': domain,
+    'revision': revision,
+    'state': state,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 }
 
 class ServerMusicRetainedInstallation {
@@ -207,6 +229,16 @@ class ServerMusicRetainedInstallation {
   final String? errorCode;
   final ServerMusicBootstrapReceipt? bootstrap;
   final List<ServerMusicProviderStatus> providers;
+
+  Map<String, Object?> toJson() => {
+    'installationId': installationId,
+    'installationRevision': installationRevision,
+    'installationState': installationState,
+    'state': state,
+    'errorCode': errorCode,
+    'bootstrapReceipt': bootstrap?.toJson(),
+    'providers': [for (final provider in providers) provider.toJson()],
+  };
 }
 
 class ServerMusicRetainedOverview {
@@ -248,4 +280,13 @@ class ServerMusicRetainedOverview {
   final String state;
   final List<ServerMusicRetainedInstallation> installations;
   bool get installAvailable => false;
+
+  Map<String, Object> toJson() => {
+    'schemaVersion': 1,
+    'state': state,
+    'installAvailable': false,
+    'installations': [
+      for (final installation in installations) installation.toJson(),
+    ],
+  };
 }
