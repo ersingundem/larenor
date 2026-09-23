@@ -45,6 +45,11 @@ S09.1.
   `238e003f` and `b5fdf91c` replace per-directory assurance with a root-wide
   recursive fingerprint rescan, closing mutation of a completed nested subtree
   while later siblings are archived.
+  Independent exact-head review then found that `listdir` materialized an
+  unbounded directory before the entry cap. RED `12a1ec7a` proves enumeration
+  consumed past the 10,000-entry boundary; GREEN `7de039f3` uses deadline-aware
+  descriptor-relative `scandir` and rejects the first excess entry before any
+  deterministic sort in both capture and recursive revalidation.
   The stacked worker server delays its `released` frame until provider exit and
   unpause have succeeded.
 
@@ -59,7 +64,7 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **48 passed**. Python compilation and `git diff --check` also pass.
+Result: **49 passed**. Python compilation and `git diff --check` also pass.
 
 ## Remaining S09.1 gates
 
