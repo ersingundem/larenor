@@ -27,7 +27,7 @@ and real LAN acceptance is complete.
 
 ## RED to GREEN evidence
 
-The RED checkpoint `2ecfe12d` added the endpoint, literal, revision-race,
+The RED checkpoint `c3e785fa` added the endpoint, literal, revision-race,
 bounded-failure and authorization matrix; all cases returned 404 before the
 contract existed. GREEN passes that matrix together with the existing F13
 policy and network-race suites.
