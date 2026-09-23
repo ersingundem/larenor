@@ -4,8 +4,9 @@ import json
 import secrets
 import sqlite3
 import threading
+import time
 import zipfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidTag
@@ -19,7 +20,13 @@ from ..database import Database
 from ..errors import ApiError
 from ..files import checked_path, private_read
 from ..legal import server_version
-from .models import BackupManifest, BackupResource
+from ..plugins.catalog import load_catalog
+from .models import (
+    BackupConsistencyBoundary,
+    BackupManifest,
+    BackupResource,
+    ComponentBackup,
+)
 
 _ACTIVE = (
     ("bounded_transfer_receipts", "state='accepted'", "active_bounded_transfer"),
@@ -68,8 +75,16 @@ _ACTIVE = (
 )
 MAX_DATABASE_BYTES = 128 * 1024 * 1024
 MAX_FAMILY_BOARD_BYTES = 32 * 1024 * 1024
+MAX_COMPONENT_VOLUME_BYTES = 64 * 1024 * 1024
+MAX_COMPONENT_BYTES = 256 * 1024 * 1024
+COMPONENT_QUIESCENCE_SECONDS = 5
 MAGIC = b"LARENOR-CORE-BACKUP\x00\x01"
-MAX_BUNDLE_BYTES = MAX_DATABASE_BYTES + MAX_FAMILY_BOARD_BYTES + 8 * 1024 * 1024
+MAX_BUNDLE_BYTES = (
+    MAX_DATABASE_BYTES
+    + MAX_FAMILY_BOARD_BYTES
+    + MAX_COMPONENT_BYTES
+    + 8 * 1024 * 1024
+)
 _MANIFEST_NAME = "manifest.json"
 
 
@@ -110,7 +125,7 @@ def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
             infos = archive.infolist()
             names = [item.filename for item in infos]
             if (
-                len(infos) not in (5, 6)
+                not 5 <= len(infos) <= 134
                 or len(set(names)) != len(names)
                 or _MANIFEST_NAME not in names
                 or any(
@@ -158,6 +173,24 @@ class BackupCapture:
     payloads: dict[str, bytes]
 
 
+@dataclass(frozen=True)
+class ComponentVolumeSnapshot:
+    """One payload held behind a provider-owned read-only quiescence gate."""
+
+    serviceId: str
+    serviceVersion: str
+    configSchemaVersion: int
+    dataSchemaVersion: str
+    volumeId: str
+    payload: bytes
+
+
+class _NoComponents:
+    @contextmanager
+    def quiesce(self, _deadline):
+        yield ()
+
+
 class BackupBlocked(Exception):
     def __init__(self, blockers):
         self.blockers = blockers
@@ -166,9 +199,118 @@ class BackupBlocked(Exception):
 class CoreBackupContract:
     """Creates a redacted, consistent manifest without exporting secret bytes."""
 
-    def __init__(self, db: Database, auth: AuthService, settings: Settings):
+    def __init__(
+        self,
+        db: Database,
+        auth: AuthService,
+        settings: Settings,
+        *,
+        component_boundary=None,
+        monotonic=time.monotonic,
+    ):
         self.db, self.auth, self.settings = db, auth, settings
+        self._component_boundary = component_boundary or _NoComponents()
+        self._monotonic = monotonic
         self._export_lock = threading.Lock()
+
+    @staticmethod
+    def _catalog_components():
+        catalog = load_catalog()
+        result = {}
+        for entry in catalog.entries:
+            manifest = entry.manifest
+            volume_ids = tuple(
+                sorted(
+                    f"component-{manifest.serviceId.replace('_', '-')}-"
+                    f"{mount.relativePath.rsplit('/', 1)[-1]}"
+                    for mount in manifest.mounts
+                    if mount.kind == "managed_appdata"
+                )
+            )
+            result[manifest.serviceId] = {
+                "serviceVersion": manifest.version,
+                "configSchemaVersion": manifest.configSchemaVersion,
+                "dataSchemaVersion": manifest.dataSchemaVersion,
+                "volumeResourceIds": volume_ids,
+            }
+        return result
+
+    @classmethod
+    def _component_payloads(cls, snapshots):
+        try:
+            if type(snapshots) not in (tuple, list) or len(snapshots) > 128:
+                raise ValueError("invalid_component_capture")
+            catalog = cls._catalog_components()
+            grouped = {}
+            payloads = {}
+            total = 0
+            for snapshot in snapshots:
+                if type(snapshot) is not ComponentVolumeSnapshot:
+                    raise ValueError("invalid_component_capture")
+                expected = catalog.get(snapshot.serviceId)
+                resource_id = f"component-{snapshot.volumeId}"
+                payload = snapshot.payload
+                if (
+                    expected is None
+                    or snapshot.serviceVersion != expected["serviceVersion"]
+                    or snapshot.configSchemaVersion
+                    != expected["configSchemaVersion"]
+                    or snapshot.dataSchemaVersion != expected["dataSchemaVersion"]
+                    or resource_id not in expected["volumeResourceIds"]
+                    or type(payload) is not bytes
+                    or not 1 <= len(payload) <= MAX_COMPONENT_VOLUME_BYTES
+                    or resource_id in payloads
+                ):
+                    raise ValueError("invalid_component_capture")
+                total += len(payload)
+                if total > MAX_COMPONENT_BYTES:
+                    raise ValueError("component_capture_too_large")
+                payloads[resource_id] = payload
+                grouped.setdefault(snapshot.serviceId, []).append(resource_id)
+            components = []
+            for service_id in sorted(grouped):
+                expected = catalog[service_id]
+                volume_ids = sorted(grouped[service_id])
+                if tuple(volume_ids) != expected["volumeResourceIds"]:
+                    raise ValueError("incomplete_component_capture")
+                components.append(
+                    ComponentBackup(
+                        serviceId=service_id,
+                        serviceVersion=expected["serviceVersion"],
+                        configSchemaVersion=expected["configSchemaVersion"],
+                        dataSchemaVersion=expected["dataSchemaVersion"],
+                        volumeResourceIds=volume_ids,
+                    )
+                )
+            return components, payloads
+        except (AttributeError, TypeError, ValueError):
+            raise ApiError("server_unavailable", 503) from None
+
+    @classmethod
+    def _component_compatibility(cls, components):
+        catalog = cls._catalog_components()
+        reasons = []
+        for component in components:
+            expected = catalog.get(component.serviceId)
+            if (
+                expected is None
+                or component.serviceVersion != expected["serviceVersion"]
+            ):
+                if "component_version_mismatch" not in reasons:
+                    reasons.append("component_version_mismatch")
+                continue
+            if (
+                component.configSchemaVersion != expected["configSchemaVersion"]
+                or component.dataSchemaVersion != expected["dataSchemaVersion"]
+            ) and "component_schema_mismatch" not in reasons:
+                reasons.append("component_schema_mismatch")
+            if (
+                tuple(component.volumeResourceIds)
+                != expected["volumeResourceIds"]
+                and "component_volume_mismatch" not in reasons
+            ):
+                reasons.append("component_volume_mismatch")
+        return reasons
 
     @staticmethod
     def _blockers(connection):
@@ -245,8 +387,24 @@ class CoreBackupContract:
             if page_bytes * page_count > MAX_DATABASE_BYTES:
                 connection.rollback()
                 raise ApiError("backup_too_large", 413)
-            database = connection.serialize()
-            family_board = self._capture_family_board()
+            deadline = self._monotonic() + COMPONENT_QUIESCENCE_SECONDS
+            try:
+                with self._component_boundary.quiesce(deadline) as snapshots:
+                    components, component_payloads = self._component_payloads(snapshots)
+                    database = connection.serialize()
+                    family_board = self._capture_family_board()
+            except BackupBlocked:
+                connection.rollback()
+                raise
+            except ApiError:
+                connection.rollback()
+                raise
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                connection.rollback()
+                raise BackupBlocked(["component_quiescence_unavailable"]) from None
+            if self._monotonic() > deadline:
+                connection.rollback()
+                raise BackupBlocked(["component_quiescence_timeout"])
             connection.rollback()
 
         key = private_read(self.settings.key_file, 32)
@@ -264,8 +422,11 @@ class CoreBackupContract:
         )
         component_index = _canonical(
             {
-                "contractVersion": 1,
+                "contractVersion": 2,
                 "schemas": component_versions,
+                "components": [
+                    component.model_dump(mode="json") for component in components
+                ],
             }
         )
         payloads = {
@@ -274,6 +435,7 @@ class CoreBackupContract:
             "vault-key": key,
             "core-configuration": configuration,
             "component-index": component_index,
+            **component_payloads,
         }
         resources = sorted(
             (
@@ -281,7 +443,16 @@ class CoreBackupContract:
                 _resource("family-board", "familyBoard", "1", family_board),
                 _resource("vault-key", "vaultKey", "aes256-v1", key),
                 _resource("core-configuration", "configuration", "1", configuration),
-                _resource("component-index", "componentData", "1", component_index),
+                _resource("component-index", "componentData", "2", component_index),
+                *(
+                    _resource(
+                        identifier,
+                        "componentData",
+                        "component-v1",
+                        payload,
+                    )
+                    for identifier, payload in component_payloads.items()
+                ),
             ),
             key=lambda item: item.id,
         )
@@ -292,6 +463,11 @@ class CoreBackupContract:
             coreVersion=server_version(),
             databaseSchemaVersion=schema,
             componentSchemaVersions=component_versions,
+            components=components,
+            consistencyBoundary=BackupConsistencyBoundary(
+                mode="core_write_lock_and_component_quiescence",
+                maxDurationSeconds=COMPONENT_QUIESCENCE_SECONDS,
+            ),
             resources=resources,
         )
         return BackupCapture(manifest=manifest, payloads=payloads)
@@ -325,6 +501,9 @@ class CoreBackupContract:
             reasons.append("core_version_mismatch")
         if manifest.componentSchemaVersions != component_versions:
             reasons.append("component_schema_mismatch")
+        for reason in self._component_compatibility(manifest.components):
+            if reason not in reasons:
+                reasons.append(reason)
         return {"compatible": not reasons, "reasons": reasons}
 
     @staticmethod
