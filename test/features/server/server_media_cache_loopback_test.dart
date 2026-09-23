@@ -13,12 +13,16 @@ import 'package:larenor/features/server/media_catalog/data/server_media_catalog_
 import 'package:larenor/features/server/media_flow/data/server_media_flow_cache.dart';
 import 'package:larenor/features/server/media_flow/data/server_media_flow_controller.dart';
 import 'package:larenor/features/server/media_flow/domain/server_media_flow_models.dart';
+import 'package:larenor/features/server/media_playback/data/server_media_playback_controller.dart';
+import 'package:larenor/features/server/media_playback/domain/server_media_playback_models.dart';
 import 'package:larenor/features/server/media_result_origin.dart';
 
 const _requestId = '11111111111111111111111111111111';
 const _installationId = '22222222222222222222222222222222';
 const _accountId = '33333333333333333333333333333333';
 const _familyId = '44444444444444444444444444444444';
+const _intentId = '66666666666666666666666666666666';
+const _commandId = '77777777777777777777777777777777';
 const _mediaKey = 'movie:tmdb:603';
 final _now = DateTime.utc(2026, 9, 23, 8);
 
@@ -157,8 +161,9 @@ final class _LoopbackCore {
   final HttpServer server;
   String coreId = 'a' * 32;
   String homeId = 'b' * 32;
-  int catalogSearches = 0, flowReads = 0;
+  int catalogSearches = 0, flowReads = 0, playbackEffects = 0;
   final bodies = <Map<String, dynamic>>[];
+  final paths = <String>[];
 
   static Future<_LoopbackCore> start() async {
     final value = _LoopbackCore._(
@@ -182,6 +187,7 @@ final class _LoopbackCore {
 
   Future<void> _serve() async {
     await for (final request in server) {
+      paths.add(request.uri.path);
       final bodyText = await utf8.decoder.bind(request).join();
       final body = bodyText.isEmpty
           ? <String, dynamic>{}
@@ -288,6 +294,56 @@ final class _LoopbackCore {
             },
           },
         };
+      } else if (request.uri.path.endsWith('/media/playback/intents')) {
+        expect(body, {
+          'requestId': _intentId,
+          'installationId': _installationId,
+          'expectedInstallationRevision': 7,
+          'expectedSnapshotRevision': 9,
+          'expectedJellyfinServiceRevision': 11,
+          'itemId': '55555555555555555555555555555555',
+          'mediaKey': _mediaKey,
+        });
+        result = {
+          'intent': {
+            ...body,
+            'playbackRevision': 13,
+            'expiresAt': 2000000000,
+            'targets': const [
+              {
+                'targetId': 'living-room',
+                'targetRevision': 5,
+                'name': 'Living room',
+                'available': true,
+                'currentItemId': null,
+                'positionSeconds': 0,
+              },
+            ],
+          },
+        };
+      } else if (request.uri.path.endsWith('/media/playback/commands')) {
+        expect(body, {
+          'requestId': _commandId,
+          'intentId': _intentId,
+          'expectedPlaybackRevision': 13,
+          'targetId': 'living-room',
+          'expectedTargetRevision': 5,
+          'startSeconds': 0,
+        });
+        playbackEffects++;
+        result = {
+          'receipt': {
+            'requestId': body['requestId'],
+            'intentId': body['intentId'],
+            'installationId': _installationId,
+            'itemId': '55555555555555555555555555555555',
+            'targetId': body['targetId'],
+            'playbackRevision': 14,
+            'state': 'succeeded',
+            'code': 'authenticated_readback',
+            'installAvailable': false,
+          },
+        };
       } else {
         status = 404;
         result = {
@@ -309,7 +365,7 @@ final class _LoopbackCore {
 }
 
 void main() {
-  test('real loopback cache retires on logout and misses a same-URL Core replacement', () async {
+  test('real loopback product path searches, verifies, plays and retires on Core replacement', () async {
     final core = await _LoopbackCore.start();
     addTearDown(core.close);
     final sessions = _MemorySessions();
@@ -355,6 +411,23 @@ void main() {
     expect(oldCatalog.origin, ServerMediaResultOrigin.live);
     expect(oldFlow.origin, ServerMediaResultOrigin.live);
 
+    final playbackIds = [_intentId, _commandId].iterator;
+    final playback = ServerMediaPlaybackController(
+      account,
+      requestId: () {
+        if (!playbackIds.moveNext()) throw StateError('request id exhausted');
+        return playbackIds.current;
+      },
+    );
+    addTearDown(playback.dispose);
+    final page = oldCatalog.page!;
+    await playback.prepare(page, page.items.single, current: () => true);
+    expect(playback.intent?.id, _intentId);
+    expect(playback.intent?.targets.single.id, 'living-room');
+    await playback.play(playback.intent!.targets.single, current: () => true);
+    expect(playback.receipt?.state, ServerMediaPlaybackReceiptState.succeeded);
+    expect(core.playbackEffects, 1);
+
     final cachedCatalog = ServerMediaCatalogController(
       account,
       cache: catalogCache,
@@ -377,6 +450,8 @@ void main() {
     await account.signOut();
     expect(oldCatalog.page, isNull);
     expect(oldFlow.status, isNull);
+    expect(playback.intent, isNull);
+    expect(playback.receipt, isNull);
     core
       ..coreId = 'c' * 32
       ..homeId = 'd' * 32;
@@ -408,6 +483,12 @@ void main() {
     expect(replacementFlow.origin, ServerMediaResultOrigin.live);
     expect(core.catalogSearches, 2);
     expect(core.flowReads, 2);
+    expect(core.playbackEffects, 1);
+    expect(
+      core.paths.where((path) => path.contains('jellyfin')).toList(),
+      isEmpty,
+      reason: 'the Client product path must use only Larenor Core endpoints',
+    );
     expect(
       jsonEncode(
         core.bodies.where((body) => body.containsKey('requestId')).toList(),
