@@ -404,20 +404,33 @@ void main() {
     expect(await _read(cache, newer), isNotNull);
   });
 
-  test('schema version requires exact integer one', () async {
-    final backend = _MemoryBackend();
-    final cache = ServerMusicManagerCache(
-      backend: backend,
-      now: () => DateTime.utc(2026, 9, 23, 8),
-    );
-    final manager = _manager();
-    await cache.write(_scope, manager);
-    final record = jsonDecode(backend.value!) as Map<String, dynamic>;
-    record['schemaVersion'] = 1.0;
-    backend.value = jsonEncode(record);
+  test('schema and resource revisions require exact integers', () async {
+    for (final field in [
+      'schemaVersion',
+      'resource.installationRevision',
+      'resource.coreRevision',
+      'resource.managerRevision',
+    ]) {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicManagerCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 8),
+      );
+      final manager = _manager();
+      await cache.write(_scope, manager);
+      final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+      if (field == 'schemaVersion') {
+        record['schemaVersion'] = 1.0;
+      } else {
+        final resource = record['resource'] as Map<String, dynamic>;
+        final key = field.split('.').last;
+        resource[key] = (resource[key] as int).toDouble();
+      }
+      backend.value = jsonEncode(record);
 
-    expect(await _read(cache, manager), isNull);
-    expect(backend.value, isNull);
+      expect(await _read(cache, manager), isNull, reason: field);
+      expect(backend.value, isNull, reason: field);
+    }
   });
 
   test('retired controller cannot complete a delayed cache mutation', () async {
