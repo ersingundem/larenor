@@ -19,7 +19,7 @@ S08.8 or change the progress counters.
 
 ## RED
 
-Commit `628052464faf09bbf7cf50c9140feb6570f8a8e0` added delayed out-of-order
+Commit `5790ebd7c1bb879a1b5f357eb2fd910d26eaaad2` added delayed out-of-order
 provider/receiver saves and logout-during-save coverage. The older provider
 write won and restored the wrong provider.
 
