@@ -89,13 +89,23 @@ _ACTIVE = (
     ),
     (
         "managed_tablet_commands",
-        "state IN ('pending','delivered')",
+        "state IN ('pending','delivered') AND expires_at>:now",
         "active_tablet_command",
     ),
     (
         "kiosk_remote_commands",
-        "state='accepted'",
+        "state='accepted' AND expires_at>:now",
         "active_kiosk_command",
+    ),
+    (
+        "game_stream_commands",
+        (
+            "state='authorized' AND EXISTS("
+            "SELECT 1 FROM game_stream_sessions AS session "
+            "WHERE session.id=game_stream_commands.session_id "
+            "AND session.state='open' AND session.expires_at>:now)"
+        ),
+        "active_game_stream_command",
     ),
 )
 COMPONENT_QUIESCENCE_SECONDS = 5
@@ -450,7 +460,7 @@ class CoreBackupContract:
         return reasons
 
     @staticmethod
-    def _blockers(connection):
+    def _blockers(connection, now):
         tables = {
             row["name"]
             for row in connection.execute(
@@ -462,7 +472,8 @@ class CoreBackupContract:
             for table, predicate, code in _ACTIVE
             if table in tables
             and connection.execute(
-                f"SELECT 1 FROM {table} WHERE {predicate} LIMIT 1"
+                f"SELECT 1 FROM {table} WHERE {predicate} LIMIT 1",
+                {"now": now},
             ).fetchone()
         ]
 
@@ -535,7 +546,7 @@ class CoreBackupContract:
         with self.db.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self.auth.assert_current(connection, actor)
-            blockers = self._blockers(connection)
+            blockers = self._blockers(connection, self.settings.clock())
             if blockers:
                 connection.rollback()
                 raise BackupBlocked(blockers)
