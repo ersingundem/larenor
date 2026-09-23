@@ -12,6 +12,7 @@ from .media_archive_core_models import (
     MediaCatalogSearchRequest,
     PrivateMediaArchiveCollection,
 )
+from .media_installations import MAX_INSTALLATIONS
 from .media_archive_health import build_media_archive_health
 from .media_archive_health_models import (
     ArchiveSourceBinding,
@@ -50,13 +51,30 @@ class MediaArchiveHealthManagement:
         public = self.installations._public(row, payload)
         if (row['revision'] != body.expectedInstallationRevision
                 or row['state'] != 'container_started'
+                or row['phase'] != 'complete'
+                or row['cancel_requested']
+                or row['error_code'] is not None
                 or public['serviceId'] != 'jellyfin'):
             raise ApiError('media_installation_changed', 409)
 
-    def _session_gate(self, actor, body):
+    def _member_installation(self, connection, actor, body):
+        self.auth.assert_current(connection, actor)
+        row = self.installations._find(connection, body.installationId)
+        payload = self.installations._decode(row)
+        public = self.installations._public(row, payload)
+        if (row['revision'] != body.expectedInstallationRevision
+                or row['state'] != 'container_started'
+                or row['phase'] != 'complete'
+                or row['cancel_requested']
+                or row['error_code'] is not None
+                or public['serviceId'] != 'jellyfin'):
+            raise ApiError('media_installation_changed', 409)
+
+    def _session_gate(self, actor, body, *, member=False):
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self._installation(connection, actor, body)
+            gate = self._member_installation if member else self._installation
+            gate(connection, actor, body)
         return True
 
     def _authority(self, body, now):
@@ -106,12 +124,13 @@ class MediaArchiveHealthManagement:
         if returned != expected:
             raise ApiError('media_archive_authority_changed', 409)
 
-    def _collect(self, actor, body):
+    def _collect(self, actor, body, *, member=False):
         if self.binding_reader is None or self.backend is None:
             raise ApiError('media_archive_worker_unavailable', 503)
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self._installation(connection, actor, body)
+            gate = self._member_installation if member else self._installation
+            gate(connection, actor, body)
         now = int(self.settings.clock())
         authority = self._authority(body, now)
         deadline = time.monotonic() + 5
@@ -120,7 +139,7 @@ class MediaArchiveHealthManagement:
             if time.monotonic() >= deadline:
                 return False
             try:
-                return self._session_gate(actor, body)
+                return self._session_gate(actor, body, member=member)
             except ApiError:
                 return False
 
@@ -134,7 +153,7 @@ class MediaArchiveHealthManagement:
         if time.monotonic() >= deadline:
             raise ApiError('media_archive_worker_unavailable', 503)
         # Preserve authentication error semantics after a late worker result.
-        self._session_gate(actor, body)
+        self._session_gate(actor, body, member=member)
         current = self._authority(body, int(self.settings.clock()))
         if current != authority:
             raise ApiError('media_archive_authority_changed', 409)
@@ -168,6 +187,10 @@ class MediaArchiveHealthManagement:
         if type(body) is not MediaCatalogSearchRequest:
             raise ApiError('invalid_request')
         current, observation = self._collect(actor, body)
+        return self._search_response(body, current, observation)
+
+    @staticmethod
+    def _search_response(body, current, observation):
         query = body.query.casefold()
         items = [
             item for item in observation.jellyfin.items
@@ -202,6 +225,52 @@ class MediaArchiveHealthManagement:
                     'runtimeSeconds': item.runtimeSeconds,
                 } for item in selected],
             },
+        }
+
+    def member_search(self, actor, body):
+        if type(body) is not MediaCatalogSearchRequest:
+            raise ApiError('invalid_request')
+        current, observation = self._collect(actor, body, member=True)
+        return self._search_response(body, current, observation)
+
+    def member_target(self, actor):
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self.auth.assert_current(connection, actor)
+            rows = connection.execute(
+                'SELECT * FROM media_installations ORDER BY sequence DESC LIMIT ?',
+                (MAX_INSTALLATIONS + 1,),
+            ).fetchall()
+            if len(rows) > MAX_INSTALLATIONS:
+                raise ApiError('media_installation_storage_unavailable', 503)
+            candidates = []
+            for row in rows:
+                payload = self.installations._decode(row)
+                public = self.installations._public(row, payload)
+                if (public['serviceId'] == 'jellyfin'
+                        and row['state'] == 'container_started'
+                        and row['phase'] == 'complete'
+                        and not row['cancel_requested']
+                        and row['error_code'] is None):
+                    candidates.append(row)
+            if len(candidates) != 1:
+                raise ApiError('media_catalog_target_unavailable', 409)
+            row = candidates[0]
+        body = MediaArchiveAuthorityRequest(
+            requestId='0' * 32,
+            installationId=row['id'],
+            expectedInstallationRevision=row['revision'],
+        )
+        current = self._authority(body, int(self.settings.clock()))
+        self._session_gate(actor, body, member=True)
+        source = next(
+            item for item in current.sources if item.serviceId == 'jellyfin')
+        return {
+            'schemaVersion': 1,
+            'installationId': current.installationId,
+            'installationRevision': current.installationRevision,
+            'snapshotRevision': current.snapshotRevision,
+            'jellyfinServiceRevision': source.serviceRevision,
         }
 
     def authority(self, actor, body):

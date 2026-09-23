@@ -11,6 +11,8 @@ from test_media_archive_core_read import configured
 
 
 BASE = '/api/v1/admin/media/archive-health/catalog/search'
+MEMBER_TARGET = '/api/v1/media/catalog/target'
+MEMBER_SEARCH = '/api/v1/media/catalog/search'
 
 
 def _items(worker):
@@ -174,5 +176,53 @@ def test_search_rechecks_binding_session_and_admin_policy(server):
     worker.change = lambda: server[1].post(
         '/api/v1/auth/logout', headers=auth(pair))
     response = server[1].post(BASE, headers=auth(pair), json=request)
+    assert response.status_code == 401
+    assert len(worker.calls) == 1
+
+
+def test_member_discovers_and_searches_catalog_without_admin_surface(server):
+    pair, installation, _current, reader, worker, body = configured(server)
+    _items(worker)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    target = server[1].get(MEMBER_TARGET, headers=auth(member))
+    assert target.status_code == 200, target.text
+    assert target.json() == {
+        'schemaVersion': 1,
+        'installationId': installation['id'],
+        'installationRevision': installation['revision'],
+        'snapshotRevision': 4,
+        'jellyfinServiceRevision': 8,
+    }
+    response = server[1].post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': 'movie',
+        'offset': 0,
+        'limit': 1,
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()['catalog']['items'][0]['title'] == 'Matrix Reloaded'
+    assert reader.calls == 3 and len(worker.calls) == 1
+    wire = json.dumps(target.json() | response.json()).lower()
+    assert all(secret not in wire for secret in (
+        'token', 'password', 'cookie', 'endpoint', '/media/', '/data/'))
+
+
+def test_member_search_rechecks_session_after_private_worker(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+    worker.change = lambda: server[1].post(
+        '/api/v1/auth/logout', headers=auth(member))
+
+    response = server[1].post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
     assert response.status_code == 401
     assert len(worker.calls) == 1

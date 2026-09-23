@@ -30,7 +30,7 @@ final class ServerMediaCatalogController extends ChangeNotifier {
       account.initialized &&
       !account.working &&
       !account.hasPendingContext &&
-      account.session?.user.canAdminister == true &&
+      account.session != null &&
       account.session?.authMutationPending == false &&
       account.session?.user.mustChangePassword == false;
 

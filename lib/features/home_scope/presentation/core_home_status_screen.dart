@@ -111,8 +111,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             if (current()) context.push('/settings');
                           },
                   ),
-                if (controller.account.context != null &&
-                    controller.account.session?.user.canAdminister == true)
+                if (controller.account.context != null)
                   SettingsActionTile(
                     key: const ValueKey('core-home-media-catalog-entry'),
                     buttonKey: const ValueKey('core-home-media-catalog-action'),
