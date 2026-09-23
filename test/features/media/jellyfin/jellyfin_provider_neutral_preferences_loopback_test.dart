@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_track_preferences_store.dart';
+import 'package:larenor/features/media/jellyfin/data/legacy_jellyfin_track_preferences_controller.dart';
+import 'package:larenor/features/media/jellyfin/data/legacy_jellyfin_track_preferences_preview.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const core = '11111111111111111111111111111111';
 const home = '22222222222222222222222222222222';
@@ -188,7 +192,18 @@ final class LanguagePreferenceCore {
   Future<void> close() => server.close(force: true);
 }
 
+String _legacyKey(JellyfinConfig config) {
+  final scope = sha256.convert(
+    utf8.encode('${config.baseUrl}\u0000${config.userId}'),
+  );
+  return 'jellyfin_track_languages_v1_$scope';
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test(
     'uncertain Core PUT retries the exact request once over real loopback',
     () async {
@@ -233,6 +248,113 @@ void main() {
       expect(jsonEncode(coreHost.puts), isNot(contains(direct.accessToken)));
       expect(jsonEncode(coreHost.puts), isNot(contains(direct.baseUrl)));
       expect(jsonEncode(coreHost.puts), isNot(contains(direct.userId)));
+    },
+  );
+
+  test(
+    'confirmed legacy preview crosses real Core wire and retires on logout replacement',
+    () async {
+      final coreHost = await LanguagePreferenceCore.start();
+      addTearDown(coreHost.close);
+      final sessions = MemorySessions();
+      final accountController = ServerAccountController(
+        store: sessions,
+        apiFactory: (endpoint) =>
+            LarenorServerApi(endpoint: endpoint, client: SocketHttpClient()),
+      );
+      addTearDown(accountController.dispose);
+      await accountController.signIn(
+        baseUrl: coreHost.baseUrl,
+        username: 'listener',
+        password: 'synthetic password',
+        deviceName: 'tablet',
+      );
+      const direct = JellyfinConfig(
+        baseUrl: 'https://direct-jellyfin.invalid',
+        userId: 'direct-user',
+        accessToken: 'must-never-cross-core-wire',
+        deviceId: 'tablet',
+      );
+      final raw = jsonEncode({
+        'version': 1,
+        'audio': 'tur',
+        'subtitle': 'off',
+      });
+      SharedPreferences.setMockInitialValues({_legacyKey(direct): raw});
+      final session = accountController.session;
+      final controller = LegacyJellyfinTrackPreferencesMigrationController(
+        migration: LegacyJellyfinTrackPreferencesMigration(
+          core: JellyfinTrackPreferencesStore(account: accountController),
+        ),
+        config: direct,
+        isCurrent: () => identical(accountController.session, session),
+        lifecycle: accountController,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.start();
+      expect(
+        controller.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.ready,
+      );
+      await controller.confirm();
+
+      expect(
+        controller.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.applied,
+      );
+      expect(coreHost.revision, 1);
+      expect(coreHost.audio, 'tr');
+      expect(coreHost.subtitle, 'off');
+      expect(
+        (await SharedPreferences.getInstance()).containsKey(_legacyKey(direct)),
+        isFalse,
+      );
+      final wire = jsonEncode(coreHost.puts);
+      expect(wire, isNot(contains(direct.baseUrl)));
+      expect(wire, isNot(contains(direct.userId)));
+      expect(wire, isNot(contains(direct.accessToken)));
+      expect(wire, isNot(contains(raw)));
+
+      SharedPreferences.setMockInitialValues({_legacyKey(direct): raw});
+      final replacementSource = accountController.session;
+      final retiring = LegacyJellyfinTrackPreferencesMigrationController(
+        migration: LegacyJellyfinTrackPreferencesMigration(
+          core: JellyfinTrackPreferencesStore(account: accountController),
+        ),
+        config: direct,
+        isCurrent: () =>
+            identical(accountController.session, replacementSource),
+        lifecycle: accountController,
+      );
+      addTearDown(retiring.dispose);
+      await retiring.start();
+      expect(
+        retiring.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.ready,
+      );
+      await accountController.signOut();
+      expect(
+        retiring.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.retired,
+      );
+      await accountController.signIn(
+        baseUrl: coreHost.baseUrl,
+        username: 'listener',
+        password: 'replacement password',
+        deviceName: 'replacement tablet',
+      );
+      await retiring.confirm();
+
+      expect(
+        retiring.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.retired,
+      );
+      expect(coreHost.revision, 1);
+      expect(
+        (await SharedPreferences.getInstance()).getString(_legacyKey(direct)),
+        raw,
+      );
     },
   );
 }
