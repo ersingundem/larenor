@@ -422,17 +422,20 @@ void main() {
     'authority callback failures stay closed before and after read',
     () async {
       var reads = 0;
-      expect(
-        () => MediaArchiveHealthController(
-          read: () async {
-            reads++;
-            return MediaArchiveHealthSnapshot.fromJson(archiveJson());
-          },
-          authorized: () => true,
-          authorityRevision: () => throw StateError('revision unavailable'),
-        ),
-        returnsNormally,
+      final revisionBlocked = MediaArchiveHealthController(
+        read: () async {
+          reads++;
+          return MediaArchiveHealthSnapshot.fromJson(archiveJson());
+        },
+        authorized: () => true,
+        authorityRevision: () => throw StateError('revision unavailable'),
       );
+      addTearDown(revisionBlocked.dispose);
+      await expectLater(revisionBlocked.refresh(), completes);
+      expect(reads, 0);
+      expect(revisionBlocked.snapshot, isNull);
+      expect(revisionBlocked.state, MediaArchiveCardState.denied);
+
       final blocked = MediaArchiveHealthController(
         read: () async {
           reads++;
