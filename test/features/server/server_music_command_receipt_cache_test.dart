@@ -76,17 +76,20 @@ ServerMusicReceipt _receipt({
 });
 
 void main() {
-  test('SharedPreferences backend persists and exact-clears one receipt', () async {
-    SharedPreferences.setMockInitialValues({});
-    final writer = SharedPreferencesServerMusicCommandReceiptCacheBackend();
-    expect(await writer.compareAndWrite(null, 'receipt'), isTrue);
+  test(
+    'SharedPreferences backend persists and exact-clears one receipt',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final writer = SharedPreferencesServerMusicCommandReceiptCacheBackend();
+      expect(await writer.compareAndWrite(null, 'receipt'), isTrue);
 
-    final reader = SharedPreferencesServerMusicCommandReceiptCacheBackend();
-    expect(await reader.read(), 'receipt');
-    expect(await reader.compareAndClear('other'), isFalse);
-    expect(await reader.compareAndClear('receipt'), isTrue);
-    expect(await writer.read(), isNull);
-  });
+      final reader = SharedPreferencesServerMusicCommandReceiptCacheBackend();
+      expect(await reader.read(), 'receipt');
+      expect(await reader.compareAndClear('other'), isFalse);
+      expect(await reader.compareAndClear('receipt'), isTrue);
+      expect(await writer.read(), isNull);
+    },
+  );
 
   test('binds exact tuple, manager, receiver, schema, TTL and quota', () async {
     final backend = _MemoryBackend();
@@ -106,10 +109,7 @@ void main() {
     expect(raw['schemaVersion'], 1);
     expect(backend.value, isNot(contains('accessToken')));
     expect(backend.value, isNot(contains('spotify://')));
-    expect(
-      await cache.read(_scope, manager, current: () => true),
-      isNotNull,
-    );
+    expect(await cache.read(_scope, manager, current: () => true), isNotNull);
 
     for (final other in const [
       ServerMusicCommandReceiptScope(
@@ -175,6 +175,13 @@ void main() {
       (record) => record['unexpected'] = true,
       (record) =>
           (record['resource'] as Map<String, dynamic>)['managerRevision'] = 7.0,
+      (record) =>
+          (record['resource'] as Map<String, dynamic>)['installationRevision'] =
+              0x8000000000000000,
+      (record) =>
+          (record['resource'] as Map<String, dynamic>)['targetId'] = 'bad id',
+      (record) => (record['resource'] as Map<String, dynamic>)['groupMembers'] =
+          ['bad member'],
       (record) => (record['receipt'] as Map<String, dynamic>)['token'] =
           'must-not-cross-cache-boundary',
     ]) {
@@ -184,96 +191,99 @@ void main() {
       final replacement = '$valid ';
       backend.replacementBeforeClear = replacement;
 
-      expect(
-        await cache.read(_scope, _manager(), current: () => true),
-        isNull,
-      );
+      expect(await cache.read(_scope, _manager(), current: () => true), isNull);
       expect(backend.value, replacement);
     }
   });
 
-  test('retired delayed read/write publishes nothing and preserves replacement', () async {
-    final backend = _MemoryBackend();
-    final cache = ServerMusicCommandReceiptCache(
-      backend: backend,
-      now: () => DateTime.utc(2026, 9, 23, 13),
-    );
-    await cache.write(_scope, _manager(), _receipt(), current: () => true);
-    backend.readGate = Completer<void>();
-    var current = true;
-    final read = cache.read(_scope, _manager(), current: () => current);
-    await Future<void>.delayed(Duration.zero);
-    current = false;
-    backend.readGate!.complete();
-    expect(await read, isNull);
-
-    backend.readGate = null;
-    backend.value = null;
-    backend.writeGate = Completer<void>();
-    current = true;
-    final write = cache.write(
-      _scope,
-      _manager(),
-      _receipt(),
-      current: () => current,
-    );
-    while (backend.value == null) {
+  test(
+    'retired delayed read/write publishes nothing and preserves replacement',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicCommandReceiptCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 13),
+      );
+      await cache.write(_scope, _manager(), _receipt(), current: () => true);
+      backend.readGate = Completer<void>();
+      var current = true;
+      final read = cache.read(_scope, _manager(), current: () => current);
       await Future<void>.delayed(Duration.zero);
-    }
-    final stale = backend.value!;
-    current = false;
-    backend.replacementBeforeClear = '$stale ';
-    backend.writeGate!.complete();
+      current = false;
+      backend.readGate!.complete();
+      expect(await read, isNull);
 
-    expect(await write, isFalse);
-    expect(backend.value, '$stale ');
-  });
+      backend.readGate = null;
+      backend.value = null;
+      backend.writeGate = Completer<void>();
+      current = true;
+      final write = cache.write(
+        _scope,
+        _manager(),
+        _receipt(),
+        current: () => current,
+      );
+      while (backend.value == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      final stale = backend.value!;
+      current = false;
+      backend.replacementBeforeClear = '$stale ';
+      backend.writeGate!.complete();
 
-  test('controller restores an authenticated receipt without replaying a command', () async {
-    final backend = _MemoryBackend();
-    final cache = ServerMusicCommandReceiptCache(
-      backend: backend,
-      now: () => DateTime.utc(2026, 9, 23, 13),
-    );
-    final fixture = MusicManagerFixture();
-    await fixture.account.initialize();
-    var request = 0;
-    final first = ServerMusicManagerController(
-      fixture.account,
-      requestId: () => (++request).toRadixString(16).padLeft(32, '0'),
-      receiptCache: cache,
-    );
-    await first.load(current: () => true);
-    await first.verify(current: () => true);
-    await first.command(ServerMusicOperation.play, current: () => true);
-    expect(first.lastReceipt?.operation, 'play');
-    expect(backend.value, isNotNull);
-    first.dispose();
-    final commands = fixture.calls
-        .where((call) => call.url.path.endsWith('/manager/commands'))
-        .length;
+      expect(await write, isFalse);
+      expect(backend.value, '$stale ');
+    },
+  );
 
-    final restarted = ServerMusicManagerController(
-      fixture.account,
-      requestId: () => (++request).toRadixString(16).padLeft(32, '0'),
-      receiptCache: cache,
-    );
-    addTearDown(() {
-      restarted.dispose();
-      fixture.account.dispose();
-    });
-    await restarted.load(current: () => true);
-    expect(restarted.lastReceipt, isNull);
-    await restarted.verify(current: () => true);
-
-    expect(restarted.lastReceipt?.operation, 'play');
-    expect(restarted.lastReceipt?.authenticated, isTrue);
-    expect(
-      fixture.calls
+  test(
+    'controller restores an authenticated receipt without replaying a command',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicCommandReceiptCache(
+        backend: backend,
+        now: () => DateTime.utc(2026, 9, 23, 13),
+      );
+      final fixture = MusicManagerFixture();
+      await fixture.account.initialize();
+      var request = 0;
+      final first = ServerMusicManagerController(
+        fixture.account,
+        requestId: () => (++request).toRadixString(16).padLeft(32, '0'),
+        receiptCache: cache,
+      );
+      await first.load(current: () => true);
+      await first.verify(current: () => true);
+      await first.command(ServerMusicOperation.play, current: () => true);
+      expect(first.lastReceipt?.operation, 'play');
+      expect(backend.value, isNotNull);
+      first.dispose();
+      final commands = fixture.calls
           .where((call) => call.url.path.endsWith('/manager/commands'))
-          .length,
-      commands,
-      reason: 'restoration is read-only and must never replay an effect',
-    );
-  });
+          .length;
+
+      final restarted = ServerMusicManagerController(
+        fixture.account,
+        requestId: () => (++request).toRadixString(16).padLeft(32, '0'),
+        receiptCache: cache,
+      );
+      addTearDown(() {
+        restarted.dispose();
+        fixture.account.dispose();
+      });
+      await restarted.load(current: () => true);
+      expect(restarted.lastReceipt, isNull);
+      await restarted.verify(current: () => true);
+
+      expect(restarted.lastReceipt?.operation, 'play');
+      expect(restarted.lastReceipt?.authenticated, isTrue);
+      expect(
+        fixture.calls
+            .where((call) => call.url.path.endsWith('/manager/commands'))
+            .length,
+        commands,
+        reason: 'restoration is read-only and must never replay an effect',
+      );
+    },
+  );
 }

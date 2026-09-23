@@ -8,6 +8,7 @@ import '../../music_retained/data/server_music_retained_api.dart';
 import '../../music_retained/domain/server_music_retained_models.dart';
 import '../domain/server_music_manager_models.dart';
 import 'server_music_manager_cache.dart';
+import 'server_music_command_receipt_cache.dart';
 import 'server_music_manager_api.dart';
 import 'server_music_selection_cache.dart';
 
@@ -24,10 +25,12 @@ class ServerMusicManagerController extends ChangeNotifier {
     String Function()? requestId,
     ServerMusicManagerCache? cache,
     ServerMusicSelectionCache? selectionCache,
+    ServerMusicCommandReceiptCache? receiptCache,
   }) : _accountEpoch = account.generation,
        _requestId = requestId ?? _randomId,
        _cache = cache ?? ServerMusicManagerCache(),
-       _selectionCache = selectionCache ?? ServerMusicSelectionCache() {
+       _selectionCache = selectionCache ?? ServerMusicSelectionCache(),
+       _receiptCache = receiptCache ?? ServerMusicCommandReceiptCache() {
     account.addListener(_accountChanged);
   }
 
@@ -36,6 +39,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   final String Function() _requestId;
   final ServerMusicManagerCache _cache;
   final ServerMusicSelectionCache _selectionCache;
+  final ServerMusicCommandReceiptCache _receiptCache;
   int _epoch = 0;
   int _selectionEpoch = 0;
   bool _disposed = false;
@@ -51,6 +55,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   String? selectedProviderId;
   String? selectedReceiverId;
   String? selectedMediaUri;
+  ServerMusicReceipt? lastReceipt;
 
   static String _randomId() {
     final random = Random.secure();
@@ -114,6 +119,7 @@ class ServerMusicManagerController extends ChangeNotifier {
     selectedProviderId = null;
     selectedReceiverId = null;
     selectedMediaUri = null;
+    lastReceipt = null;
     _emit();
   }
 
@@ -168,6 +174,7 @@ class ServerMusicManagerController extends ChangeNotifier {
     installation = null;
     manager = null;
     catalog = null;
+    lastReceipt = null;
     _emit();
     try {
       await account.withSession((api, session) async {
@@ -274,8 +281,15 @@ class ServerMusicManagerController extends ChangeNotifier {
           ServerMusicSelectionScope.fromSession(session),
           value,
         );
+        if (!valid() || !identical(account.session, session)) return;
+        final receipt = await _receiptCache.read(
+          ServerMusicCommandReceiptScope.fromSession(session),
+          value,
+          current: valid,
+        );
         if (valid() && identical(account.session, session)) {
           _acceptManager(value, isVerified: true);
+          lastReceipt = receipt;
           if (selection != null) {
             selectedProviderId = selection.providerId;
             selectedReceiverId = selection.receiverId;
@@ -519,6 +533,7 @@ class ServerMusicManagerController extends ChangeNotifier {
         (!needsMedia || identical(selectedMedia, media));
     busy = true;
     failure = null;
+    lastReceipt = null;
     _emit();
     try {
       await account.withSession((api, session) async {
@@ -554,6 +569,26 @@ class ServerMusicManagerController extends ChangeNotifier {
           throw const LarenorServerException('effect_unknown');
         }
         _acceptManager(after, isVerified: true);
+        bool receiptCurrent() =>
+            !_disposed &&
+            epoch == _epoch &&
+            _authorized &&
+            current() &&
+            verified &&
+            identical(account.session, session) &&
+            identical(manager, after) &&
+            selectedReceiverId == receipt.targetId;
+        try {
+          await _receiptCache.write(
+            ServerMusicCommandReceiptScope.fromSession(session),
+            after,
+            receipt,
+            current: receiptCurrent,
+          );
+        } catch (_) {
+          // A verified in-memory receipt remains useful; persistence is best effort.
+        }
+        if (receiptCurrent()) lastReceipt = receipt;
       });
     } catch (error) {
       if (valid()) {
