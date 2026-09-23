@@ -17,14 +17,17 @@ class ServerMusicProviderCommandsController extends ChangeNotifier {
     required this.providerRevision,
     required this.providerDomain,
     String Function()? requestId,
+    DateTime Function()? now,
   }) : _accountEpoch = account.generation,
-       _requestId = requestId ?? _randomId {
+       _requestId = requestId ?? _randomId,
+       _now = now ?? DateTime.now {
     account.addListener(_accountChanged);
   }
   final ServerAccountController account;
   final String installationId, providerSetupId, providerDomain;
   final int installationRevision, providerRevision, _accountEpoch;
   final String Function() _requestId;
+  final DateTime Function() _now;
   int _epoch = 0;
   bool _disposed = false;
   bool busy = false;
@@ -90,7 +93,11 @@ class ServerMusicProviderCommandsController extends ChangeNotifier {
           session.accessToken,
         ).preview(intent);
         if (valid()) {
-          preview = value;
+          if (value.usableAt(_now())) {
+            preview = value;
+          } else {
+            failure = 'music_provider_preview_invalid';
+          }
         }
       });
     } catch (error) {
@@ -116,6 +123,12 @@ class ServerMusicProviderCommandsController extends ChangeNotifier {
         !current()) {
       return;
     }
+    if (!reviewed.usableAt(_now())) {
+      preview = null;
+      failure = 'music_provider_preview_invalid';
+      _emit();
+      return;
+    }
     final epoch = _epoch;
     bool valid() =>
         !_disposed &&
@@ -128,6 +141,12 @@ class ServerMusicProviderCommandsController extends ChangeNotifier {
     _emit();
     try {
       await account.withSession((api, session) async {
+        if (!valid()) return;
+        if (!reviewed.usableAt(_now())) {
+          preview = null;
+          failure = 'music_provider_preview_invalid';
+          return;
+        }
         final value = await ServerMusicProviderCommandsApi(
           api,
           session.accessToken,

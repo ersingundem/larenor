@@ -61,7 +61,7 @@ class ServerMusicProviderCommandPreview {
         blockers is! List ||
         blockers.length != 1 ||
         blockers.single != 'effect_unavailable' ||
-        !expiresAt.isAfter(createdAt)) {
+        expiresAt.difference(createdAt) != const Duration(minutes: 10)) {
       _invalid();
     }
   }
@@ -94,6 +94,11 @@ class ServerMusicProviderCommandPreview {
   final int revision, installationRevision, providerRevision;
   final DateTime createdAt, expiresAt;
   final bool effectAvailable, installAvailable;
+
+  bool usableAt(DateTime instant) {
+    final value = instant.toUtc();
+    return !value.isBefore(createdAt) && value.isBefore(expiresAt);
+  }
 }
 
 class ServerMusicProviderCommand {
