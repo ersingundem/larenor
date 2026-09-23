@@ -311,7 +311,11 @@ final class ServerMediaCatalogCache {
         query: storedQuery,
         mediaKind: storedKind,
       );
-      if (page.offset != 0 ||
+      if (!_pageMatchesRequest(
+            page,
+            mediaKind: storedKind,
+            limit: storedLimit,
+          ) ||
           !ServerMediaCatalogCacheResource.fromPage(page).matches(resource)) {
         throw const FormatException();
       }
@@ -459,3 +463,12 @@ bool _validRequest(ServerMediaCatalogOperation operation, String? query) =>
     : query != null && _validQuery(query);
 
 bool _validLimit(int value) => value >= 1 && value <= 50;
+
+bool _pageMatchesRequest(
+  ServerMediaCatalogPage page, {
+  required ServerMediaCatalogKind? mediaKind,
+  required int limit,
+}) =>
+    page.offset == 0 &&
+    page.items.length <= limit &&
+    (mediaKind == null || page.items.every((item) => item.kind == mediaKind));
