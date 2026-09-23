@@ -58,6 +58,22 @@ def test_each_create_intent_is_durable_and_never_means_installed(tmp_path, sourc
     assert b'DO-NOT-EXPOSE' not in (path / 'journal.sqlite').read_bytes()
 
 
+def test_typed_intent_view_is_read_only_and_requires_the_journal_lock(tmp_path, source):
+    cls = journal()
+    data = inputs(source)
+    resource = data['plan'].resources[0]
+    with cls(tmp_path / 'create', initialize=True) as j:
+        with j.locked():
+            j.prepare(**data, resource_id=resource.resourceId)
+            j.begin_create(resource.resourceId, 1, **data)
+            j.reconcile(resource.resourceId, 2, observe, **data)
+        error('lock_required', j.intents)
+        with j.locked():
+            values = j.intents()
+            assert values == (j.bind(resource.resourceId, 3, **data),)
+        assert repr(values[0]) == 'VolumeCreateIntent(<private>)'
+
+
 @pytest.mark.parametrize('existing', [ResourceJournal, VolumeJournal])
 @pytest.mark.parametrize('reverse', [False, True])
 def test_even_empty_old_domains_are_not_creation_intents(tmp_path, existing, reverse):
