@@ -43,6 +43,7 @@ class IsolatedComponentVolume:
     descriptor: int
     writer_container_ids: tuple[str, ...]
     capture_version: int
+    capture_generation: str
     capture_id: str
 
     def __repr__(self):
@@ -97,6 +98,7 @@ class AuthorityBoundIsolatedCapture:
 
         selected = []
         capture_ids = set()
+        capture_generations = set()
         snapshot_identities = set()
         descriptors = set()
         for value in capture:
@@ -141,6 +143,8 @@ class AuthorityBoundIsolatedCapture:
                 or value.writer_container_ids != (value.container_id,)
                 or type(value.capture_version) is not int
                 or value.capture_version != 1
+                or type(value.capture_generation) is not str
+                or _CAPTURE_ID.fullmatch(value.capture_generation) is None
                 or type(value.capture_id) is not str
                 or _CAPTURE_ID.fullmatch(value.capture_id) is None
                 or value.capture_id in capture_ids
@@ -150,12 +154,13 @@ class AuthorityBoundIsolatedCapture:
             ):
                 raise IsolatedComponentCaptureError()
             capture_ids.add(value.capture_id)
+            capture_generations.add(value.capture_generation)
             snapshot_identities.add((value.snapshot_device, value.snapshot_inode))
             descriptors.add(value.descriptor)
             selected.append(value)
         if set(expected) != {
             (item.service_id, item.volume_id) for item in selected
-        }:
+        } or len(capture_generations) != 1:
             raise IsolatedComponentCaptureError()
         return tuple(sorted(selected, key=lambda item: (item.service_id, item.volume_id)))
 
