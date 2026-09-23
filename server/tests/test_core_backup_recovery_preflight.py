@@ -1,11 +1,10 @@
 """Fail-closed publication preflight for interrupted Core restores."""
 
 import pytest
-from test_core_backup_empty_restore import PASSPHRASE, _bundle, _target
-
 from larenor_server.core_backups import restore as restore_module
 from larenor_server.errors import StartupError
 from larenor_server.files import private_create
+from test_core_backup_empty_restore import PASSPHRASE, _bundle, _target
 
 
 def _journaled_restore(server, tmp_path, monkeypatch):
