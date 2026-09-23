@@ -377,6 +377,100 @@ void main() {
     },
   );
 
+  test(
+    'silent authority revision drift retires a late successful read',
+    () async {
+      final pending = Completer<MediaArchiveHealthSnapshot>();
+      var revision = 1;
+      final controller = MediaArchiveHealthController(
+        read: () => pending.future,
+        authorized: () => true,
+        authorityRevision: () => revision,
+      );
+      addTearDown(controller.dispose);
+
+      final refresh = controller.refresh();
+      revision = 2;
+      pending.complete(MediaArchiveHealthSnapshot.fromJson(archiveJson()));
+      await refresh;
+
+      expect(controller.snapshot, isNull);
+      expect(controller.state, MediaArchiveCardState.idle);
+    },
+  );
+
+  test('silent authority revision drift retires a late failed read', () async {
+    final pending = Completer<MediaArchiveHealthSnapshot>();
+    var revision = 1;
+    final controller = MediaArchiveHealthController(
+      read: () => pending.future,
+      authorized: () => true,
+      authorityRevision: () => revision,
+    );
+    addTearDown(controller.dispose);
+
+    final refresh = controller.refresh();
+    revision = 2;
+    pending.completeError(const MediaArchiveReadException('connection_failed'));
+    await refresh;
+
+    expect(controller.snapshot, isNull);
+    expect(controller.state, MediaArchiveCardState.idle);
+  });
+
+  test(
+    'authority callback failures stay closed before and after read',
+    () async {
+      var reads = 0;
+      expect(
+        () => MediaArchiveHealthController(
+          read: () async {
+            reads++;
+            return MediaArchiveHealthSnapshot.fromJson(archiveJson());
+          },
+          authorized: () => true,
+          authorityRevision: () => throw StateError('revision unavailable'),
+        ),
+        returnsNormally,
+      );
+      final blocked = MediaArchiveHealthController(
+        read: () async {
+          reads++;
+          return MediaArchiveHealthSnapshot.fromJson(archiveJson());
+        },
+        authorized: () => throw StateError('authority unavailable'),
+        authorityRevision: () => 1,
+      );
+      addTearDown(blocked.dispose);
+      await expectLater(blocked.refresh(), completes);
+      expect(reads, 0);
+      expect(blocked.snapshot, isNull);
+      expect(blocked.state, MediaArchiveCardState.denied);
+
+      final pending = Completer<MediaArchiveHealthSnapshot>();
+      var throws = false;
+      final delayed = MediaArchiveHealthController(
+        read: () {
+          reads++;
+          return pending.future;
+        },
+        authorized: () {
+          if (throws) throw StateError('retired authority');
+          return true;
+        },
+        authorityRevision: () => 1,
+      );
+      addTearDown(delayed.dispose);
+      final refresh = delayed.refresh();
+      throws = true;
+      pending.complete(MediaArchiveHealthSnapshot.fromJson(archiveJson()));
+      await expectLater(refresh, completes);
+      expect(delayed.snapshot, isNull);
+      expect(delayed.state, MediaArchiveCardState.idle);
+      expect(reads, 1);
+    },
+  );
+
   test('controller keeps incomplete evidence distinct as partial', () async {
     final controller = MediaArchiveHealthController(
       read: () async =>
