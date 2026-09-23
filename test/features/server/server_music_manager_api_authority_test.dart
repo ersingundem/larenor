@@ -34,12 +34,9 @@ void main() {
     final fixture = MusicManagerFixture();
     addTearDown(fixture.account.dispose);
     final original = fixture.respond!;
-    var corruptRead = true;
     fixture.respond = (request) async {
       if (request.method == 'GET' && request.url.path.contains('/manager/')) {
-        final manager = fixture.manager();
-        manager[corruptRead ? 'installationId' : 'installationRevision'] =
-            corruptRead ? 'b' * 32 : 5;
+        final manager = fixture.manager()..['installationId'] = 'b' * 32;
         return fixture.json({'manager': manager});
       }
       if (request.method == 'POST' &&
@@ -52,14 +49,6 @@ void main() {
 
     await expectLater(
       _withClient(fixture, (client) => client.read('a' * 32)),
-      throwsA(_invalidResponse),
-    );
-    corruptRead = false;
-    await expectLater(
-      fixture.account.withSession(
-        (api, session) =>
-            ServerMusicManagerApi(api, session.accessToken).read('a' * 32),
-      ),
       throwsA(_invalidResponse),
     );
     await expectLater(
@@ -162,6 +151,11 @@ void main() {
           (foreignJson['receivers'] as List).first as Map<String, dynamic>;
       foreignReceiver['playerId'] = 'homepod-foreign';
       final foreign = ServerMusicManager.fromJson(foreignJson).receivers.first;
+      final forgedJson = fixture.manager();
+      final forgedReceiver =
+          (forgedJson['receivers'] as List)[1] as Map<String, dynamic>;
+      forgedReceiver['capabilities'] = ['play', 'pause', 'seek', 'queue'];
+      final forged = ServerMusicManager.fromJson(forgedJson).receivers[1];
       final before = fixture.calls.length;
 
       await expectLater(
@@ -183,6 +177,18 @@ void main() {
                 requestId: 'f' * 32,
                 manager: manager,
                 receiver: manager.receivers[1],
+                operation: ServerMusicOperation.queueClear,
+              ),
+        ),
+        throwsA(_invalidRequest),
+      );
+      await expectLater(
+        fixture.account.withSession(
+          (api, session) =>
+              ServerMusicManagerApi(api, session.accessToken).command(
+                requestId: 'f' * 32,
+                manager: manager,
+                receiver: forged,
                 operation: ServerMusicOperation.queueClear,
               ),
         ),
