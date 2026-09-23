@@ -23,7 +23,7 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 
 | Guarantee | RED evidence | GREEN evidence |
 | --- | --- | --- |
-| Managed-tablet runtime and broker port exist | `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart` at `9417b0ae` failed to compile because both runtime modules were absent | The same target passes 16 tests |
+| Managed-tablet runtime and broker port exist | `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart` at `9417b0ae` failed to compile because both runtime modules were absent | The same target passes 20 tests |
 | Discovery names command and ACK topics | `uv run pytest -q tests/test_k07_paired_remote_mqtt.py` at `9417b0ae` failed with `KeyError: 'commandTopic'` | The focused Server matrix passes 11 tests |
 | Restart/replay/rate-limit/revoke behavior is durable | New runtime tests fail before the runtime types exist | Runtime test recreates the owner with the same state store, rejects changed/old/rate-limited commands, and proves one device effect |
 | Token stays out of URL/log/export surfaces | New default-disabled and broker-settings tests fail before the credential/settings types exist | Public metadata and diagnostic strings are token-free, broker logging is disabled, and credential-bearing host strings are rejected |
@@ -48,11 +48,14 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 - Connect and reconnect attempts share one serialized Future chain. A newer
   generation waits until the stale attempt has completed cleanup before it can
   reuse the broker, so stale disconnect cannot close the replacement socket.
+- Command state reads and writes recheck both the runtime generation and exact
+  pairing authority before device execution, state completion, or ACK publish.
+  Retirement and reconnect therefore suppress delayed old-generation work.
 
 ## Verification
 
 - `flutter test --coverage test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart`
-  — 16 passed; runtime line coverage **297/312 (95.2%)**. The external package
+  — 20 passed; runtime line coverage **312/328 (95.1%)**. The external package
   socket glue is excluded from unit coverage and remains a live-broker gate.
 - `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart test/features/kiosk_remote/kiosk_remote_client_test.dart test/features/kiosk_remote/kiosk_remote_http_test.dart`
   — 11 passed.
