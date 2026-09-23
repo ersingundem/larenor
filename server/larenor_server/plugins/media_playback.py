@@ -15,6 +15,8 @@ from .media_playback_models import (
     PrepareMediaPlaybackIntentRequest,
     PrivateMediaPlaybackAction,
     PrivateMediaPlaybackAuthority,
+    PrivateJellyfinPlaybackAction,
+    PrivateJellyfinPlaybackAuthority,
 )
 
 _MAX_RECORDS = 256
@@ -34,6 +36,39 @@ _RECEIPT_QUERY = '''SELECT
     i.consumed_by AS intent_consumed_by
 FROM media_playback_receipts r
 LEFT JOIN media_playback_intents i ON i.id=r.intent_id'''
+
+
+class MediaPlaybackWorkerProvider:
+    """Add encrypted bootstrap authority only at the private worker boundary."""
+
+    def __init__(self, backend, bootstraps):
+        if (not callable(getattr(backend, 'read_media_playback', None))
+                or not callable(getattr(backend, 'execute_media_playback', None))
+                or not callable(getattr(bootstraps, 'playback_private', None))):
+            raise ValueError('invalid_media_playback_provider')
+        self.backend = backend
+        self.bootstraps = bootstraps
+
+    def __repr__(self):
+        return 'MediaPlaybackWorkerProvider(<private>)'
+
+    def read_media_playback(self, authority, *, deadline, gate):
+        private = self.bootstraps.playback_private(
+            authority.installationId, authority.installationRevision)
+        return self.backend.read_media_playback(
+            PrivateJellyfinPlaybackAuthority(
+                authority=authority, plan=private.plan,
+                apiKey=private.api_key),
+            deadline=deadline, gate=gate)
+
+    def execute_media_playback(self, action, *, deadline, gate):
+        private = self.bootstraps.playback_private(
+            action.installationId, action.installationRevision)
+        return self.backend.execute_media_playback(
+            PrivateJellyfinPlaybackAction(
+                action=action, plan=private.plan,
+                apiKey=private.api_key),
+            deadline=deadline, gate=gate)
 
 
 class MediaPlaybackManagement:
