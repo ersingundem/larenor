@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -154,6 +155,30 @@ void main() {
     expect(api.stops, 1);
     navigator.pop();
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kiosk-sensor-start')), findsOneWidget);
+  });
+
+  testWidgets('native view focus loss retires sampling and clears readings', (
+    tester,
+  ) async {
+    final api = _Api();
+    await _pump(tester, locale: const Locale('en'), width: 600, api: api);
+    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    await tester.pump(const Duration(seconds: 2));
+    expect(api.reads, 1);
+    expect(find.textContaining('8.0 lx'), findsOneWidget);
+
+    tester.binding.handleViewFocusChanged(
+      ViewFocusEvent(
+        viewId: tester.view.viewId,
+        state: ViewFocusState.unfocused,
+        direction: ViewFocusDirection.undefined,
+      ),
+    );
+    await tester.pump();
+
+    expect(api.stops, 1);
+    expect(find.textContaining('8.0 lx'), findsNothing);
     expect(find.byKey(const ValueKey('kiosk-sensor-start')), findsOneWidget);
   });
 }
