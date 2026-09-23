@@ -278,16 +278,15 @@ void main() {
       isCurrent: () => true,
     );
     await entered.future;
-    final second = migration.confirm(
-      receipt,
-      secondTarget,
-      isCurrent: () => true,
+    final second = expectLater(
+      migration.confirm(receipt, secondTarget, isCurrent: () => true),
+      throwsStateError,
     );
     await Future<void>.delayed(Duration.zero);
     release.complete();
 
     await first;
-    await expectLater(second, throwsStateError);
+    await second;
     expect(
       fixture.calls.where((call) => call.url.path.endsWith('/admin/services')),
       hasLength(2),

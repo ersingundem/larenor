@@ -20,6 +20,11 @@ not copy a legacy credential to Core and does not claim full S08.8 closure.
   the exact proven Core id/revision using GET, skips the now-partial source
   tuple, and safely retries retirement. Account, route, and direct-home
   authority are checked through the destructive boundary.
+- One receipt has a single in-flight owner and selected Core target. A
+  concurrent confirmation cannot select another target, start another Core
+  read, clear the tuple, or consume the receipt. Every await and each storage
+  effect rechecks the same receipt/target pairing; only an uncertain clear
+  releases that pairing for an explicit retry of the already proven target.
 
 ## RED
 
@@ -27,6 +32,11 @@ Commit `bd392b4be35d0f30bcd311bb6a33dd4525fd9127` added the exact-source,
 post-preview Core revision, secret-wire, and uncertain-retirement replay tests
 before `LegacyJellyfinProviderMigration` existed. The focused test failed to
 compile because the receipt and migration contract were absent.
+
+Follow-up RED commit `a16244f5` delayed target A's live Core read and showed
+target B could concurrently consume the same receipt and complete a second
+clear. The in-flight ownership and exact selected-target checks close that
+race while preserving same-target uncertain-clear retry.
 
 ## GREEN
 
@@ -39,7 +49,7 @@ flutter analyze lib/features/media/jellyfin/data/legacy_jellyfin_provider_previe
 python3 tool/execution_queue.py validate
 ```
 
-The focused and shared regression run passes 123 tests. The scoped analyze and
+The focused and shared regression run passes 124 tests. The scoped analyze and
 queue validation are clean.
 
 S08.8 remains pending. An accessible user confirmation surface, integration

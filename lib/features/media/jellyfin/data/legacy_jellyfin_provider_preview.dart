@@ -131,6 +131,10 @@ final class _LegacyJellyfinProviderMigrationState {
 
   final _LegacyJellyfinProviderSnapshot source;
   final Map<String, _CoreJellyfinBaseline> baseline;
+  bool inFlight = false;
+  bool consumed = false;
+  String? selectedTargetId;
+  int? selectedTargetRevision;
   String? verifiedTargetId;
   int? verifiedTargetRevision;
 }
@@ -193,6 +197,22 @@ final class LegacyJellyfinProviderMigration {
     }
   }
 
+  void _checkReceipt(
+    LegacyJellyfinProviderMigrationReceipt receipt,
+    _LegacyJellyfinProviderMigrationState state,
+    ServerService target,
+    bool Function() isCurrent,
+  ) {
+    _check(isCurrent);
+    if (!identical(_states[receipt], state) ||
+        state.consumed ||
+        !state.inFlight ||
+        state.selectedTargetId != target.id ||
+        state.selectedTargetRevision != target.revision) {
+      throw StateError('Legacy media provider confirmation expired');
+    }
+  }
+
   Future<List<ServerService>> _services(bool Function() isCurrent) async {
     _check(isCurrent);
     final result = await _account.withSession((api, session) async {
@@ -238,8 +258,11 @@ final class LegacyJellyfinProviderMigration {
   }) async {
     _check(isCurrent);
     final state = _states[receipt];
-    if (state == null) {
+    if (state == null || state.consumed) {
       throw StateError('Legacy media provider confirmation expired');
+    }
+    if (state.inFlight) {
+      throw StateError('Legacy media provider confirmation in progress');
     }
     final retry = state.verifiedTargetId != null;
     if (retry &&
@@ -247,30 +270,57 @@ final class LegacyJellyfinProviderMigration {
             target.revision != state.verifiedTargetRevision)) {
       throw StateError('Core media provider changed');
     }
-    if (!retry) {
-      final current = await _reader._readSnapshot(isCurrent: isCurrent);
-      if (current == null ||
-          !_sameFields(current.fields, state.source.fields)) {
-        throw StateError('Legacy media provider changed');
+    state
+      ..inFlight = true
+      ..selectedTargetId = target.id
+      ..selectedTargetRevision = target.revision;
+    try {
+      _checkReceipt(receipt, state, target, isCurrent);
+      if (!retry) {
+        final current = await _reader._readSnapshot(isCurrent: isCurrent);
+        _checkReceipt(receipt, state, target, isCurrent);
+        if (current == null ||
+            !_sameFields(current.fields, state.source.fields)) {
+          throw StateError('Legacy media provider changed');
+        }
+      }
+      final services = await _services(isCurrent);
+      _checkReceipt(receipt, state, target, isCurrent);
+      final candidate = services
+          .where(
+            (service) =>
+                service.id == target.id && service.revision == target.revision,
+          )
+          .firstOrNull;
+      if (candidate == null ||
+          !_sameService(candidate, target) ||
+          !_acceptableCoreTarget(candidate, state, retry: retry)) {
+        throw StateError('Core media provider is not freshly authenticated');
+      }
+      state.verifiedTargetId = candidate.id;
+      state.verifiedTargetRevision = candidate.revision;
+      await _reader._record.clear(
+        isCurrent: () =>
+            _stillCurrent(isCurrent) &&
+            identical(_states[receipt], state) &&
+            !state.consumed &&
+            state.inFlight &&
+            state.selectedTargetId == target.id &&
+            state.selectedTargetRevision == target.revision,
+      );
+      _checkReceipt(receipt, state, target, isCurrent);
+      state.consumed = true;
+      state.inFlight = false;
+      _states[receipt] = null;
+    } finally {
+      if (identical(_states[receipt], state) && !state.consumed) {
+        state.inFlight = false;
+        if (state.verifiedTargetId == null) {
+          state.selectedTargetId = null;
+          state.selectedTargetRevision = null;
+        }
       }
     }
-    final services = await _services(isCurrent);
-    final candidate = services
-        .where(
-          (service) =>
-              service.id == target.id && service.revision == target.revision,
-        )
-        .firstOrNull;
-    if (candidate == null ||
-        !_sameService(candidate, target) ||
-        !_acceptableCoreTarget(candidate, state, retry: retry)) {
-      throw StateError('Core media provider is not freshly authenticated');
-    }
-    state.verifiedTargetId = candidate.id;
-    state.verifiedTargetRevision = candidate.revision;
-    await _reader._record.clear(isCurrent: () => _stillCurrent(isCurrent));
-    _check(isCurrent);
-    _states[receipt] = null;
   }
 
   bool _acceptableCoreTarget(
