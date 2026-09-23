@@ -1,5 +1,10 @@
 import '../../domain/server_models.dart';
 
+const _maxCoreDatabaseBytes = 128 * 1024 * 1024;
+const _maxFamilyBoardBytes = 32 * 1024 * 1024;
+const _maxComponentVolumeBytes = 64 * 1024 * 1024;
+const _maxComponentBytes = 256 * 1024 * 1024;
+
 enum CoreBackupResourceKind {
   database,
   vaultKey,
@@ -298,10 +303,24 @@ final class CoreBackupManifest {
       throw const LarenorServerException('invalid_response');
     }
     final versions = {for (final item in resources) item.id: item.version};
+    final resourcesById = {for (final item in resources) item.id: item};
     final volumeIds = managedComponents
         .expand((item) => item.volumeResourceIds)
         .toList();
+    var componentBytes = 0;
+    for (final id in volumeIds) {
+      final bytes = resourcesById[id]!.byteLength;
+      if (bytes > _maxComponentVolumeBytes) {
+        throw const LarenorServerException('invalid_response');
+      }
+      componentBytes += bytes;
+    }
     if (volumeIds.toSet().length != volumeIds.length ||
+        resourcesById['vault-key']!.byteLength != 32 ||
+        resourcesById['core-database']!.byteLength > _maxCoreDatabaseBytes ||
+        (contractVersion == 2 &&
+            resourcesById['family-board']!.byteLength > _maxFamilyBoardBytes) ||
+        componentBytes > _maxComponentBytes ||
         versions['component-index'] != (boundary == null ? '1' : '2') ||
         versions['core-configuration'] != '1' ||
         versions['core-database'] != '$databaseVersion' ||
