@@ -7,6 +7,7 @@ from pydantic import Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
+from .stack_plan import MediaStackPlan
 
 
 class MediaRowItem(StrictModel):
@@ -49,3 +50,16 @@ class MediaRowsReadback(StrictModel):
         ):
             raise ValueError("invalid_media_rows")
         return self
+
+
+class PrivateJellyfinMediaRowsAuthority(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    installationRevision: Revision
+    bootstrapRevision: Revision
+    bindingRevision: Revision
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(
+        min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]+$", repr=False
+    )
+    userId: ObjectId = Field(repr=False)
