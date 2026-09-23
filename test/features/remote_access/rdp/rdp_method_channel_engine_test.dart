@@ -106,8 +106,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final ime = calls.singleWhere(
         (call) =>
-            call.method == 'input' &&
-            (call.arguments as Map)['kind'] == 'ime',
+            call.method == 'input' && (call.arguments as Map)['kind'] == 'ime',
       );
       expect(ime.arguments, {
         'requestId': arguments['requestId'],

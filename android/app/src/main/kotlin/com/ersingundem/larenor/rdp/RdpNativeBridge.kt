@@ -228,7 +228,8 @@ class RdpNativeBridge(
     private fun input(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = owned(raw, setOf("requestId", "sequence", "kind", "x", "y", "buttons"),
-            setOf("requestId", "sequence", "kind", "physicalKey", "down"))
+            setOf("requestId", "sequence", "kind", "physicalKey", "down"),
+            setOf("requestId", "sequence", "kind", "text"))
         val current = session ?: fail("staleSession")
         val sequence = sequence(value["sequence"])
         val accepted = when (value["kind"]) {
@@ -242,6 +243,10 @@ class RdpNativeBridge(
                 sequence,
                 (value["physicalKey"] as? Number)?.toLong() ?: fail("invalidRequest"),
                 value["down"] as? Boolean ?: fail("invalidRequest"),
+            )
+            "ime" -> current.ime(
+                sequence,
+                RdpNativeImeText.parse(value["text"]).value,
             )
             else -> fail("invalidRequest")
         }
@@ -331,7 +336,7 @@ private fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
         "dynamicResolution" to dynamicResolution, "externalDisplay" to externalDisplay,
         "maxWidth" to maxWidth, "maxHeight" to maxHeight, "maxDpi" to maxDpi,
     ),
-    "input" to mapOf("touchpad" to pointer, "keyboard" to keyboard),
+    "input" to mapOf("touchpad" to pointer, "keyboard" to keyboard, "ime" to ime),
     "channels" to mapOf(
         "clipboard" to clipboardModes.any { it != RdpClipboardMode.DISABLED },
         "audio" to audio, "files" to files,

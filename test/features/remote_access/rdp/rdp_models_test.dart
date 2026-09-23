@@ -26,6 +26,7 @@ void main() {
     expect(available.canConnect, isTrue);
     expect(available.supportsNla, isTrue);
     expect(available.supportsExternalDisplay, isTrue);
+    expect(available.supportsIme, isTrue);
     expect(unavailable.canConnect, isFalse);
     expect(unavailable.engineRevision, isNull);
     expect(

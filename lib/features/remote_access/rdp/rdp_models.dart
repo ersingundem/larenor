@@ -51,6 +51,7 @@ class RdpCapabilities {
     required this.maxDpi,
     required this.supportsTouchpad,
     required this.supportsKeyboard,
+    required this.supportsIme,
     required this.supportsClipboard,
     required this.supportsAudio,
     required this.supportsFiles,
@@ -61,7 +62,7 @@ class RdpCapabilities {
   final bool supportsTls, supportsCertificatePinning, supportsNla;
   final bool supportsDynamicResolution, supportsExternalDisplay;
   final int maxWidth, maxHeight, maxDpi;
-  final bool supportsTouchpad, supportsKeyboard;
+  final bool supportsTouchpad, supportsKeyboard, supportsIme;
   final bool supportsClipboard, supportsAudio, supportsFiles;
 
   bool get canConnect =>
@@ -106,7 +107,7 @@ class RdpCapabilities {
           'maxHeight',
           'maxDpi',
         }),
-        input = _object(value['input'], {'touchpad', 'keyboard'}),
+        input = _object(value['input'], {'touchpad', 'keyboard', 'ime'}),
         channels = _object(value['channels'], {'clipboard', 'audio', 'files'});
     final result = RdpCapabilities._(
       availability: availability,
@@ -121,6 +122,7 @@ class RdpCapabilities {
       maxDpi: _integer(display, 'maxDpi', max: 640),
       supportsTouchpad: _bool(input, 'touchpad'),
       supportsKeyboard: _bool(input, 'keyboard'),
+      supportsIme: _bool(input, 'ime'),
       supportsClipboard: _bool(channels, 'clipboard'),
       supportsAudio: _bool(channels, 'audio'),
       supportsFiles: _bool(channels, 'files'),
@@ -137,6 +139,7 @@ class RdpCapabilities {
             result.maxDpi != 0 ||
             result.supportsTouchpad ||
             result.supportsKeyboard ||
+            result.supportsIme ||
             result.supportsClipboard ||
             result.supportsAudio ||
             result.supportsFiles)) {

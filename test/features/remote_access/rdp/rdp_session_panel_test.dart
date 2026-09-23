@@ -172,6 +172,43 @@ void main() {
     },
   );
 
+  for (final locale in ['en', 'tr']) {
+    final width = locale == 'en' ? 1280.0 : 600.0;
+    testWidgets('$locale composed text is accessible at 2x', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: width,
+        scale: 2,
+        locale: locale,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      await press(tester, 'rdp-check');
+      await tester.ensureVisible(key('rdp-text-input'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          locale == 'tr'
+              ? 'Uzak masaüstüne gönderilecek metin'
+              : 'Type text for the remote desktop',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(key('rdp-text-send')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.enterText(key('rdp-text-input'), 'İstanbul');
+      await press(tester, 'rdp-text-send');
+      expect(engine.channel.texts, ['İstanbul']);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    });
+  }
+
   testWidgets('connected DeX surface forwards pointer keyboard and resize', (
     tester,
   ) async {
