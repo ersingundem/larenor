@@ -316,10 +316,15 @@ final class _NativeManagedTabletCommandExecutor
     }
     if (_working) return ManagedTabletCommandResult.denied;
     _working = true;
+    final operation = Future<void>.sync(
+      () => _actions.refreshDashboard(isCurrent: current),
+    );
+    operation.then<void>(
+      (_) => _working = false,
+      onError: (_, _) => _working = false,
+    );
     try {
-      await _actions
-          .refreshDashboard(isCurrent: current)
-          .timeout(const Duration(seconds: 10));
+      await operation.timeout(const Duration(seconds: 10));
       return current()
           ? ManagedTabletCommandResult.succeeded
           : ManagedTabletCommandResult.denied;
@@ -331,8 +336,6 @@ final class _NativeManagedTabletCommandExecutor
       return current()
           ? ManagedTabletCommandResult.failed
           : ManagedTabletCommandResult.denied;
-    } finally {
-      _working = false;
     }
   }
 }

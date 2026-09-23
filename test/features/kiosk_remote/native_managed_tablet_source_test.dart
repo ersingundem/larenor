@@ -279,6 +279,10 @@ void main() {
 
     final result = lease!.commandExecutor.execute('refreshDashboard');
     await Future<void>.delayed(Duration.zero);
+    expect(
+      await lease.commandExecutor.execute('refreshDashboard'),
+      ManagedTabletCommandResult.denied,
+    );
     await source.setForeground(false);
     gate.complete();
 
