@@ -8,6 +8,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/kiosk_remote_api.dart';
 import '../data/kiosk_remote_controller.dart';
+import '../runtime/managed_tablet_runtime_scope.dart';
 import 'kiosk_remote_screen.dart';
 
 class KioskRemoteRoute extends ConsumerStatefulWidget {
@@ -84,6 +85,7 @@ class _KioskRemoteRouteState extends ConsumerState<KioskRemoteRoute> {
       _controller = KioskRemoteController(
         api: api,
         isCurrent: () => _current(generation) && identical(_api, api),
+        onPairingRevoked: ref.read(managedTabletRuntimeOwnerProvider).revoke,
       );
     });
   }

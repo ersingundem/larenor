@@ -27,7 +27,13 @@ final class NativeManagedTabletSourceConfig {
 /// The wire contract has no arbitrary metadata field, so native code cannot
 /// return an SSID, URL, credential, device identifier, or log payload. Binding
 /// a new scope retires the previous lease before Android is contacted.
-final class NativeManagedTabletSource {
+abstract interface class ManagedTabletSourcePort {
+  Future<NativeManagedTabletSourceLease?> bind(String scope);
+  Future<void> setForeground(bool value);
+  Future<void> retire();
+}
+
+final class NativeManagedTabletSource implements ManagedTabletSourcePort {
   NativeManagedTabletSource({
     this.config = const NativeManagedTabletSourceConfig(),
     MethodChannel? channel,
@@ -52,6 +58,7 @@ final class NativeManagedTabletSource {
   _NativeManagedTabletSourceLease? _current;
   String? _pendingSessionId;
 
+  @override
   Future<NativeManagedTabletSourceLease?> bind(String scope) async {
     _validateScope(scope);
     await _retireCurrent();
@@ -103,10 +110,12 @@ final class NativeManagedTabletSource {
     }
   }
 
+  @override
   Future<void> setForeground(bool value) async {
     if (!value) await _retireCurrent();
   }
 
+  @override
   Future<void> retire() => _retireCurrent();
 
   Future<void> _retireCurrent() async {
