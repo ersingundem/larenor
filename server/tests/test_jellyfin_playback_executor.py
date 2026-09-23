@@ -133,6 +133,29 @@ def test_opened_connection_closes_when_returned_proof_mismatches_fresh_proof(
     assert connection.closed
 
 
+def test_new_connection_closes_when_its_proof_differs_from_first_stream(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    proof = prove_jellyfin_endpoint(
+        engine.container, binding, stack, engine.container['Id'])
+    first = Connection(response('200 OK', sessions()))
+    changed = Connection(response('200 OK', sessions()))
+    pending = [
+        (first, proof),
+        (changed, replace(proof, address='172.28.0.99')),
+    ]
+    selected = executor(binding, operations)
+    monkeypatch.setattr(
+        selected, '_open', lambda *_args: pending.pop(0))
+
+    with pytest.raises(JellyfinPlaybackExecutionError):
+        selected.execute(
+            action(stack), deadline=time.monotonic() + 1, gate=lambda: True)
+
+    assert first.closed
+    assert changed.closed
+
+
 def test_execute_revalidates_retained_authority_immediately_before_post(
         prepared, monkeypatch):
     stack, binding, engine, operations = prepared
