@@ -23,9 +23,9 @@ from larenor_server.core_backups.service import ComponentVolumeSnapshot
 
 
 class Boundary:
-    def __init__(self, snapshots, *, fail=False):
+    def __init__(self, snapshots, *, failure=None):
         self.snapshots = snapshots
-        self.fail = fail
+        self.failure = failure
         self.entered = 0
         self.released = 0
         self.active = False
@@ -36,8 +36,8 @@ class Boundary:
         self.entered += 1
         self.active = True
         try:
-            if self.fail:
-                raise RuntimeError("private provider detail")
+            if self.failure is not None:
+                raise self.failure
             yield self.snapshots
         finally:
             self.active = False
@@ -224,7 +224,7 @@ def test_server_rejects_invalid_client_uid(tmp_path, client_uid):
 
 
 def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):
-    boundary = Boundary(snapshots(), fail=True)
+    boundary = Boundary(snapshots(), failure=RuntimeError("private provider detail"))
     with worker(tmp_path, boundary) as (path, server):
         with (
             pytest.raises(ComponentSnapshotWorkerError) as error,
@@ -233,7 +233,23 @@ def test_server_provider_failure_is_static_and_releases_boundary(tmp_path):
             raise AssertionError("must_not_yield")
         assert str(error.value) in {"worker_unavailable", "invalid_worker_result"}
         assert "private provider detail" not in str(error.value)
-        boundary.fail = False
+        boundary.failure = None
+        with client(path).quiesce(time.monotonic() + 2) as captured:
+            assert captured == snapshots()
+        assert server.completed == 1
+    assert boundary.entered == boundary.released == 2
+
+
+def test_server_contains_arbitrary_provider_exception_and_recovers(tmp_path):
+    boundary = Boundary(snapshots(), failure=KeyError("private provider detail"))
+    with worker(tmp_path, boundary) as (path, server):
+        with (
+            pytest.raises(ComponentSnapshotWorkerError) as error,
+            client(path).quiesce(time.monotonic() + 2),
+        ):
+            raise AssertionError("must_not_yield")
+        assert "private provider detail" not in str(error.value)
+        boundary.failure = None
         with client(path).quiesce(time.monotonic() + 2) as captured:
             assert captured == snapshots()
         assert server.completed == 1
