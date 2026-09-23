@@ -41,7 +41,10 @@ S09.1.
   final post-reconciliation readback. `331e1079` and `603038df` close late
   same-name archive mutation by rechecking every captured entry fingerprint.
   `c323ff11` adds a malformed-deadline regression; the following implementation
-  normalizes it before arithmetic or private value exposure.
+  normalizes it before arithmetic or private value exposure. Finally,
+  `2adaa84f` and `20815669` replace per-directory assurance with a root-wide
+  recursive fingerprint rescan, closing mutation of a completed nested subtree
+  while later siblings are archived.
   The stacked worker server delays its `released` frame until provider exit and
   unpause have succeeded.
 
@@ -56,7 +59,7 @@ PYTHONPATH="$PWD/server" /Users/ersingundem/oikos/server/.venv/bin/pytest -q \
   server/tests/test_core_backup_component_wiring.py
 ```
 
-Result: **47 passed**. Python compilation and `git diff --check` also pass.
+Result: **48 passed**. Python compilation and `git diff --check` also pass.
 
 ## Remaining S09.1 gates
 
