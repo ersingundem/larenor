@@ -442,7 +442,15 @@ class MusicPlaybackManagement:
                         item.providerInstanceId for item in bindings],
                     token=authority.token),
                 deadline=deadline, gate=gate)
-            if type(result) is not MusicLongformWorkerResult or gate() is not True:
+            if type(result) is not MusicLongformWorkerResult:
+                raise ValueError()
+            allowed_providers = {
+                item.providerInstanceId for item in bindings}
+            uris = [item.uri for item in result.items]
+            if (len(set(uris)) != len(uris)
+                    or any(item.providerInstanceId not in allowed_providers
+                           for item in result.items)
+                    or gate() is not True):
                 raise ValueError()
         except Exception:
             raise ApiError('music_longform_worker_unavailable', 503) from None
