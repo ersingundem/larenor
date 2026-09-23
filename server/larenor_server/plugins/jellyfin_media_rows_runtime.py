@@ -87,6 +87,12 @@ class JellyfinMediaRowsProtocol:
             or not math.isfinite(deadline)
             or time.monotonic() >= deadline
         ):
+            if type(connections) in (tuple, list):
+                JellyfinMediaRowsProtocol._close(
+                    connection
+                    for connection in connections
+                    if callable(getattr(connection, "close", None))
+                )
             raise JellyfinMediaRowsRuntimeError(
                 "invalid_jellyfin_media_rows_request"
             )
@@ -190,6 +196,7 @@ class JellyfinMediaRowsProtocol:
             or len(value["Items"]) > 24
             or type(value["TotalRecordCount"]) is not int
             or not len(value["Items"]) <= value["TotalRecordCount"] <= 4096
+            or type(value["StartIndex"]) is not int
             or value["StartIndex"] != 0
         ):
             raise ValueError()

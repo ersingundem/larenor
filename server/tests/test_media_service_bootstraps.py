@@ -405,6 +405,38 @@ def test_authority_loss_before_dispatch_is_persisted_without_backend_call(server
     assert backend.calls == []
 
 
+def test_authority_loss_after_worker_receipt_discards_readback_and_binding(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    record = client.post(
+        BASE, headers=auth(pair), json=request(installation),
+    ).json()['bootstrap']
+
+    class RevokingBackend(BootstrapBackend):
+        def execute(self, *args, **kwargs):
+            result = super().execute(*args, **kwargs)
+            with app.state.core.db.connection() as connection:
+                connection.execute(
+                    'UPDATE session_families SET revoked_at=?',
+                    (int(settings.clock()),),
+                )
+            return result
+
+    app.state.core.media_service_bootstraps.backend = RevokingBackend()
+
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+
+    assert terminal['state'] == 'needs_attention'
+    assert terminal['errorCode'] == 'bootstrap_authority_changed'
+    assert terminal['credentialsConfigured'] is False
+    stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
+    assert stored.api_key is None and stored.user_id is None
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            'SELECT COUNT(*) FROM media_account_bindings',
+        ).fetchone()[0] == 0
+
+
 @pytest.mark.parametrize('failure,state', [
     (JellyfinBootstrapExecutionError('bootstrap_endpoint_unavailable'), 'failed'),
     (JellyfinBootstrapExecutionError(

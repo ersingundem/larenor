@@ -113,6 +113,7 @@ def test_revision_changes_only_when_projected_rows_change():
         "1" * 32, "A", "Movie", created="2026-09-23T20:00:00Z",
         runtime=100, position=101,
     )], "TotalRecordCount": 1, "StartIndex": 0}),
+    ("resume", {"Items": [], "TotalRecordCount": 0, "StartIndex": False}),
 ])
 def test_malformed_or_unbounded_rows_fail_closed(lane, payload):
     empty_recent = []
@@ -161,3 +162,4 @@ def test_invalid_inputs_open_no_stream(change):
     ):
         JellyfinMediaRowsProtocol().read(**values)
     assert all(connection.requests == [] for connection in connections)
+    assert all(connection.closed for connection in values["connections"])

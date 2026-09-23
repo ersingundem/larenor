@@ -474,6 +474,11 @@ class MediaServiceBootstrapManagement:
                         error='bootstrap_worker_unavailable')
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)
+                if not self._gate_locked(connection, row):
+                    return self._transition(
+                        connection, row, self._decode(row),
+                        state='needs_attention',
+                        error='bootstrap_authority_changed')
                 try:
                     verified = result.readback
                     stored = PrivateJellyfinReadback(
