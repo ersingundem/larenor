@@ -1,7 +1,8 @@
 # Larenor — güncel teslim sırası (23 Eylül 2026)
 
-Bu sayfa `origin/main` **`36e05f9a`** ve GitHub'daki **0 açık PR** görünümünü
-kaydeder. Canlı kabul sayacı [`execution-queue.json`](execution-queue.json) ile
+Bu sayfanın kod kanıtı `origin/main` ancestry'sindeki provider merge'i
+**`36e05f9a`** kapsar; teslim PR'ları kapandıktan sonra GitHub'da **0 açık PR**
+kalır. Canlı kabul sayacı [`execution-queue.json`](execution-queue.json) ile
 üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **26/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
