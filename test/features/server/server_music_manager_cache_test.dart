@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/music_manager/data/server_music_manager_cache.dart';
 import 'package:larenor/features/server/music_manager/data/server_music_manager_controller.dart';
 import 'package:larenor/features/server/music_manager/domain/server_music_manager_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_music_manager_test_support.dart';
 
@@ -51,6 +52,18 @@ Future<ServerMusicManager?> _read(
 );
 
 void main() {
+  test('SharedPreferences backend survives a fresh cache backend', () async {
+    SharedPreferences.setMockInitialValues({});
+    final writer = SharedPreferencesServerMusicManagerCacheBackend();
+    await writer.write('snapshot');
+
+    final reader = SharedPreferencesServerMusicManagerCacheBackend();
+    expect(await reader.read(), 'snapshot');
+
+    await reader.clear();
+    expect(await writer.read(), isNull);
+  });
+
   test(
     'cache binds exact scope, resource revisions, schema, TTL and quota',
     () async {
