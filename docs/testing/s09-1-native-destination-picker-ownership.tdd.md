@@ -12,11 +12,13 @@ backup envelope, passphrase handling, export stream, or restore contract:
 3. A result owned by a disposed bridge cannot be accepted by a replacement
    bridge or reach its output handle.
 
-Each picker operation receives a process-unique request code. Destination codes
-descend through `1..0x4c42`; source picker codes use the disjoint ascending
-range beginning at `0x4c43`. Cancelled or disposed outstanding codes are kept
-as process-scope tombstones until their Android result is consumed. The finite
-request-code space bounds retained tombstones and fails closed on exhaustion.
+Each outstanding picker operation receives a process-unique request code.
+Destination codes descend through `1..0x4c42`; source picker codes use the
+disjoint ascending range beginning at `0x4c43`. Cancelled or disposed codes are
+kept as process-scope tombstones until their Android result is consumed. The
+follow-up [request-code reuse slice](s09-1-native-request-code-reuse.tdd.md)
+recycles completed codes after bounded wrap while retained tombstones continue
+to fail closed on true exhaustion.
 
 ## RED
 

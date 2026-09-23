@@ -15,7 +15,6 @@ import java.util.UUID
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 internal interface CoreBackupOutput {
     fun write(bytes: ByteArray)
@@ -64,6 +63,7 @@ class CoreBackupDestinationBridge internal constructor(
     messenger: BinaryMessenger,
     private val host: CoreBackupDestinationHost = AndroidCoreBackupDestinationHost(activity),
     private val maxBytes: Long = MAX_BYTES,
+    private val requestCodePool: CoreBackupRequestCodePool = REQUEST_CODES,
 ) : MethodChannel.MethodCallHandler {
     private data class Pending(
         val sessionId: String,
@@ -129,7 +129,7 @@ class CoreBackupDestinationBridge internal constructor(
             map["mimeType"] != MIME
         ) throw IllegalArgumentException()
         if (pending != null || active != null) return fail(result, "busy")
-        val operation = Pending(session, allocateRequestCode(), result)
+        val operation = Pending(session, requestCodePool.allocate(), result)
         pending = operation
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
@@ -137,17 +137,24 @@ class CoreBackupDestinationBridge internal constructor(
             .putExtra(Intent.EXTRA_TITLE, "larenor-core-backup.larenor-core")
         try { host.launch(intent, operation.requestCode) } catch (error: Exception) {
             pending = null
+            check(requestCodePool.complete(operation.requestCode))
             throw error
         }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (consumeRetiredRequestCode(requestCode)) {
+        if (requestCodePool.consumeRetired(requestCode)) {
             data?.data?.let { uri -> io.execute { host.delete(uri) } }
             return true
         }
         val operation = pending?.takeIf { it.requestCode == requestCode } ?: return false
         operation.pickerOutstanding = false
+        if (!requestCodePool.complete(requestCode)) {
+            operation.replied = true
+            fail(operation.result, "unavailable")
+            if (pending === operation) pending = null
+            return true
+        }
         val uri = data?.data
         if (operation.cancelled || resultCode != Activity.RESULT_OK || uri == null) {
             if (uri != null) io.execute { host.delete(uri) }
@@ -288,7 +295,7 @@ class CoreBackupDestinationBridge internal constructor(
     private fun retirePending(operation: Pending) {
         operation.cancelled = true
         if (operation.pickerOutstanding) {
-            retireRequestCode(operation.requestCode)
+            check(requestCodePool.retire(operation.requestCode))
         }
         if (pending === operation) pending = null
         if (!operation.replied) {
@@ -361,23 +368,7 @@ class CoreBackupDestinationBridge internal constructor(
         const val MIME = "application/vnd.larenor.core-backup"
         private val ID = Regex("^[0-9a-f]{32}$")
         private val DIGEST = Regex("^[0-9a-f]{64}$")
-        private val requestCodes = AtomicInteger(FIRST_REQUEST_CODE)
-        private val retiredRequestCodes = mutableSetOf<Int>()
-
-        private fun allocateRequestCode(): Int {
-            val value = requestCodes.getAndDecrement()
-            check(value >= LAST_REQUEST_CODE) { "backup_destination_request_codes_exhausted" }
-            return value
-        }
-
-        private fun retireRequestCode(requestCode: Int) =
-            synchronized(retiredRequestCodes) {
-                retiredRequestCodes.add(requestCode)
-            }
-
-        private fun consumeRetiredRequestCode(requestCode: Int): Boolean =
-            synchronized(retiredRequestCodes) {
-                retiredRequestCodes.remove(requestCode)
-            }
+        private val REQUEST_CODES =
+            CoreBackupRequestCodePool(FIRST_REQUEST_CODE, LAST_REQUEST_CODE)
     }
 }

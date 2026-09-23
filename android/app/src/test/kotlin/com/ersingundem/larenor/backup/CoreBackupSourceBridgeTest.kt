@@ -69,8 +69,10 @@ class CoreBackupSourceBridgeTest {
         @Volatile var launches = 0
         @Volatile var opens = 0
         @Volatile var requestCode = -1
+        var launchFailure: RuntimeException? = null
         lateinit var intent: Intent
         override fun launch(intent: Intent, requestCode: Int) {
+            launchFailure?.let { throw it }
             this.intent = intent
             this.requestCode = requestCode
             launches++
@@ -293,5 +295,49 @@ class CoreBackupSourceBridgeTest {
             assertEquals(1, currentHost.opens)
             assertEquals(1, currentInput.closes)
         } finally { currentBridge.dispose() }
+    }
+
+    @Test fun completedPickerCodeWrapsAndCanBeReused() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host(Input(bundle()))
+        val pool = CoreBackupRequestCodePool(70, 70)
+        val bridge = CoreBackupSourceBridge(
+            activity,
+            Messenger(),
+            host,
+            requestCodePool = pool,
+        )
+        try {
+            val first = inspect(bridge, "7".repeat(32))
+            val firstCode = host.requestCode
+            assertTrue(bridge.onActivityResult(firstCode, Activity.RESULT_CANCELED, null))
+            assertNull(first.value)
+
+            val second = inspect(bridge, "8".repeat(32))
+            assertEquals(firstCode, host.requestCode)
+            assertFalse(second.done)
+        } finally { bridge.dispose() }
+    }
+
+    @Test fun failedPickerLaunchReleasesItsRequestCode() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host(Input(bundle())).also {
+            it.launchFailure = IllegalStateException("synthetic launch failure")
+        }
+        val bridge = CoreBackupSourceBridge(
+            activity,
+            Messenger(),
+            host,
+            requestCodePool = CoreBackupRequestCodePool(71, 71),
+        )
+        try {
+            val failed = inspect(bridge, "9".repeat(32))
+            assertEquals("unavailable", failed.code)
+
+            host.launchFailure = null
+            val retry = inspect(bridge, "a".repeat(32))
+            assertEquals(71, host.requestCode)
+            assertFalse(retry.done)
+        } finally { bridge.dispose() }
     }
 }
