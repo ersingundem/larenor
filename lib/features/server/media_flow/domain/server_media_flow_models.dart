@@ -183,6 +183,13 @@ final class ServerMediaFlowStage {
 
   final String name, state, provider;
   final int sourceRevision;
+
+  Map<String, Object> toJson() => {
+    'name': name,
+    'state': state,
+    'provider': provider,
+    'sourceRevision': sourceRevision,
+  };
 }
 
 final class ServerMediaSeasonCoverage {
@@ -281,6 +288,20 @@ final class ServerMediaSeasonCoverage {
   final List<int> knownEpisodes, downloadedEpisodes, importedEpisodes;
   final List<int> playableEpisodes, missingEpisodes;
   final bool requested, requestable, incomplete, missingSeason, partialImport;
+
+  Map<String, Object> toJson() => {
+    'seasonNumber': seasonNumber,
+    'knownEpisodes': knownEpisodes,
+    'downloadedEpisodes': downloadedEpisodes,
+    'importedEpisodes': importedEpisodes,
+    'playableEpisodes': playableEpisodes,
+    'missingEpisodes': missingEpisodes,
+    'requested': requested,
+    'requestable': requestable,
+    'incomplete': incomplete,
+    'missingSeason': missingSeason,
+    'partialImport': partialImport,
+  };
 }
 
 final class ServerMediaFlowDelivery {
@@ -303,6 +324,12 @@ final class ServerMediaFlowDelivery {
   }
 
   final int retryAttempt, fileCount;
+
+  Map<String, Object> toJson() => {
+    'state': 'hardlink_verified',
+    'retryAttempt': retryAttempt,
+    'fileCount': fileCount,
+  };
 }
 
 final class ServerMediaFlowStatus {
@@ -418,4 +445,14 @@ final class ServerMediaFlowStatus {
   final List<ServerMediaFlowSource> sources;
   final List<ServerMediaSeasonCoverage> seasons;
   final ServerMediaFlowDelivery? delivery;
+
+  Map<String, Object?> toJson() => {
+    'mediaKey': mediaKey,
+    'flowRevision': flowRevision,
+    'state': state,
+    'stages': [for (final stage in stages) stage.toJson()],
+    'sources': [for (final source in sources) source.toJson()],
+    'seasons': [for (final season in seasons) season.toJson()],
+    'delivery': delivery?.toJson(),
+  };
 }
