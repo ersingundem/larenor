@@ -54,6 +54,22 @@ void main() {
     expect(value.items.single.chapters.last.endSeconds, isNull);
   });
 
+  test('matches Core URI and non-contiguous chapter position contract', () {
+    final item = _item(uri: 'audiobookshelf://audiobook/book-one');
+    final chapters = item['chapters']! as List;
+    (chapters[0] as Map<String, dynamic>)['position'] = 2;
+    (chapters[1] as Map<String, dynamic>)['position'] = 7;
+
+    final value = ServerMusicLongformCatalog.fromJson(
+      _catalog(items: [item]),
+    );
+
+    expect(value.items.single.chapters.map((chapter) => chapter.position), [
+      2,
+      7,
+    ]);
+  });
+
   test('rejects URLs, secret-like query material and semantic drift', () {
     for (final invalid in [
       _item(uri: 'https://music.example/book?token=secret'),
@@ -99,6 +115,30 @@ void main() {
       ),
       throwsA(_invalid),
     );
+  });
+
+  test('rejects Core-overflowing and overlapping chapter timelines', () {
+    final startsAtDuration = _item(duration: 1200, resume: 100);
+    final startChapters = startsAtDuration['chapters']! as List;
+    (startChapters[1] as Map<String, dynamic>)['startSeconds'] = 1200.0;
+
+    final overlapping = _item();
+    final overlapChapters = overlapping['chapters']! as List;
+    (overlapChapters[0] as Map<String, dynamic>)['endSeconds'] = 1800.0;
+    (overlapChapters[1] as Map<String, dynamic>)['startSeconds'] = 1200.0;
+
+    for (final invalid in [
+      _item(duration: 8640001, resume: 100),
+      startsAtDuration,
+      overlapping,
+    ]) {
+      expect(
+        () => ServerMusicLongformCatalog.fromJson(
+          _catalog(items: [invalid]),
+        ),
+        throwsA(_invalid),
+      );
+    }
   });
 
   test('debug descriptions redact media URI and display text', () {
