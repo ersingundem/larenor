@@ -241,7 +241,7 @@ def test_managed_provider_releases_capture_and_container_on_authority_drift(tmp_
     class DriftingAuthority(InstalledAuthority):
         def revalidate(self, sources, deadline):
             result = super().revalidate(sources, deadline)
-            return result and len(self.calls) < 3
+            return result and len(self.calls) < 2
 
     controller = PauseController()
     provider = ManagedComponentSnapshotProvider(
