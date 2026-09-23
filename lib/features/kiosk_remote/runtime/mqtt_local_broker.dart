@@ -36,6 +36,7 @@ final class LocalMqttBrokerSettings {
         host.contains('?') ||
         host.contains('#') ||
         host.runes.any((value) => value < 33 || value == 127) ||
+        !_isLocalBrokerHost(host) ||
         port < 1 ||
         port > 65535) {
       throw ArgumentError('invalid_mqtt_broker');
@@ -74,6 +75,28 @@ final class LocalMqttBrokerSettings {
 
   @override
   int get hashCode => Object.hash(enabled, host, port, tls);
+
+  static bool _isLocalBrokerHost(String value) {
+    final normalized = value.toLowerCase();
+    if (normalized == 'localhost' ||
+        normalized.endsWith('.local') ||
+        normalized.endsWith('.home.arpa')) {
+      return true;
+    }
+    final address = InternetAddress.tryParse(value);
+    if (address == null) return false;
+    final bytes = address.rawAddress;
+    if (address.type == InternetAddressType.IPv4) {
+      return bytes[0] == 10 ||
+          bytes[0] == 127 ||
+          (bytes[0] == 169 && bytes[1] == 254) ||
+          (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+          (bytes[0] == 192 && bytes[1] == 168);
+    }
+    return address.isLoopback ||
+        (bytes[0] & 0xfe) == 0xfc ||
+        (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80);
+  }
 }
 
 abstract interface class LocalMqttBroker {

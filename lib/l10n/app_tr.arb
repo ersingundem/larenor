@@ -3525,7 +3525,7 @@
   "kioskRemoteBrokerEnabled": "Bu tableti bağla",
   "kioskRemoteBrokerHost": "Broker sunucusu",
   "kioskRemoteBrokerPort": "TLS portu",
-  "kioskRemoteBrokerInvalid": "URL, yol, kimlik bilgisi veya boşluk içermeyen bir sunucu ve 1-65535 arasında port girin.",
+  "kioskRemoteBrokerInvalid": "Özel/loopback IP ya da .local/.home.arpa sunucusu ile 1-65535 arasında port girin; URL ve kimlik bilgisi kullanmayın.",
   "kioskRemoteBrokerSaved": "Broker ayarı kaydedildi. Uygulanmadan önce önceki bağlantı sonlandırıldı.",
   "kioskRemoteBrokerLoadFailed": "Kayıtlı broker ayarı okunamadı. MQTT kapalı kalır.",
   "kioskRemoteBrokerSaveFailed": "Broker ayarı kaydedilmedi. Mevcut bağlantı değişmedi.",

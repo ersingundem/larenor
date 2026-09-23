@@ -3878,7 +3878,7 @@
   "kioskRemoteBrokerEnabled": "Connect this tablet",
   "kioskRemoteBrokerHost": "Broker host",
   "kioskRemoteBrokerPort": "TLS port",
-  "kioskRemoteBrokerInvalid": "Enter a host without a URL, path, credentials or spaces and a port from 1 to 65535.",
+  "kioskRemoteBrokerInvalid": "Enter a private/loopback IP, .local or .home.arpa host without a URL or credentials, and a port from 1 to 65535.",
   "kioskRemoteBrokerSaved": "Broker setting saved. The previous connection was retired before applying it.",
   "kioskRemoteBrokerLoadFailed": "The saved broker setting could not be read. MQTT remains disabled.",
   "kioskRemoteBrokerSaveFailed": "The broker setting was not saved. The current connection remains unchanged.",

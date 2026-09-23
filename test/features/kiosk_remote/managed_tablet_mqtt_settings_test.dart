@@ -112,6 +112,20 @@ void main() {
         {
           'schemaVersion': 1,
           'enabled': true,
+          'host': 'mqtt.example.com',
+          'port': 8883,
+          'tls': true,
+        },
+        {
+          'schemaVersion': 1,
+          'enabled': true,
+          'host': '8.8.8.8',
+          'port': 8883,
+          'tls': true,
+        },
+        {
+          'schemaVersion': 1,
+          'enabled': true,
           'host': 'https://evil.invalid',
           'port': 8883,
           'tls': true,
@@ -135,6 +149,47 @@ void main() {
       }
     },
   );
+
+  test('broker host is limited to loopback and private local namespaces', () {
+    for (final host in const [
+      'localhost',
+      'mqtt.local',
+      'mqtt.home.arpa',
+      '10.20.30.40',
+      '172.16.1.2',
+      '192.168.1.150',
+      '127.0.0.1',
+      '::1',
+      'fd00::1',
+      'fe80::1',
+    ]) {
+      expect(
+        LocalMqttBrokerSettings(
+          enabled: true,
+          host: host,
+          port: 8883,
+          tls: true,
+        ).host,
+        host,
+      );
+    }
+    for (final host in const [
+      'mqtt.example.com',
+      'example.com',
+      '8.8.8.8',
+      '2001:4860:4860::8888',
+    ]) {
+      expect(
+        () => LocalMqttBrokerSettings(
+          enabled: true,
+          host: host,
+          port: 8883,
+          tls: true,
+        ),
+        throwsArgumentError,
+      );
+    }
+  });
 
   test(
     'late save after route retirement restores exact previous value',
