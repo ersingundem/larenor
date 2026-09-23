@@ -9,6 +9,7 @@ accepted Docker create specification and never accepts caller Docker options.
 from dataclasses import dataclass, field, fields
 import json
 import re
+import sqlite3
 import threading
 
 from .docker_probe import DockerEndpoint
@@ -27,12 +28,13 @@ from .volume_resources import VolumeObservation, volume_expected_labels
 from .volume_transport import UnixVolumeReader
 from .worker import (
     _FORBIDDEN_OBSERVED, _LABELS, _REFERENCE, DockerWorkerError,
-    JournaledContainerOperations, WorkerJournal, _canonical, _decode,
+    JournaledContainerOperations, WorkerJournal, _canonical, _decode, _require,
 )
 
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _HASH = re.compile(r'[0-9a-f]{64}\Z')
+_CONTAINER_ID = re.compile(r'[0-9a-f]{64}\Z')
 _IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 _NETWORK = re.compile(r'larenor-control-[0-9a-f]{32}\Z')
 _VOLUME = re.compile(r'larenor-(?:appdata|library)-v1-[0-9a-f]{32}\Z')
@@ -421,6 +423,37 @@ class ManagedContainerBinding:
         }
 
 
+@dataclass(frozen=True, repr=False)
+class ManagedInstalledContainer:
+    """Exact terminal create/start pair retained by the private journal."""
+
+    journal_id: str
+    job_id: str
+    installation_id: str
+    container_id: str
+    create_dispatch_id: str
+    start_dispatch_id: str
+    binding: ManagedContainerBinding = field(repr=False)
+
+    def __post_init__(self):
+        try:
+            if (not all(_identity(value) for value in (
+                    self.journal_id, self.job_id, self.installation_id,
+                    self.create_dispatch_id, self.start_dispatch_id))
+                    or type(self.container_id) is not str
+                    or _CONTAINER_ID.fullmatch(self.container_id) is None
+                    or not _exact(self.binding, ManagedContainerBinding)
+                    or self.binding.name != 'larenor-' + self.installation_id):
+                raise ValueError()
+            _binding_parts(self.binding)
+        except (ValueError, TypeError, AttributeError, DockerWorkerError,
+                RecursionError):
+            raise DockerWorkerError('journal_unavailable') from None
+
+    def __repr__(self):
+        return 'ManagedInstalledContainer(<private>)'
+
+
 def _binding_parts(value):
     targets = ({item.target for item in value.mounts}
                if _exact(value, ManagedContainerBinding)
@@ -637,6 +670,39 @@ class ManagedWorkerJournal(WorkerJournal):
             _binding_parts(binding)
             return binding
         except (ValueError, TypeError, AttributeError, KeyError, DockerWorkerError, RecursionError):
+            raise DockerWorkerError('journal_unavailable') from None
+
+    def installed(self):
+        """Return exact completed pairs while the caller retains the journal lock."""
+        self._locked()
+        try:
+            selected = self._database.execute(
+                'SELECT job,step FROM operations ORDER BY job,step LIMIT 10001'
+            ).fetchall()
+            _require(len(selected) <= 10000, 'journal_unavailable')
+            rows = {(job, step): self._read(job, step) for job, step in selected}
+            result = []
+            for (job, step), started in rows.items():
+                if step != 'start_container' or started['state'] != 'succeeded':
+                    continue
+                created = rows.get((job, 'create_container'))
+                _require(created is not None
+                         and created['state'] == 'succeeded'
+                         and created['installation'] == started['installation']
+                         and created['container'] == started['container'],
+                         'journal_unavailable')
+                create_binding = self._stored_binding(created)
+                start_binding = self._stored_binding(started)
+                _require(create_binding == start_binding, 'journal_unavailable')
+                result.append(ManagedInstalledContainer(
+                    self.identity, job, started['installation'],
+                    started['container'], created['dispatch'],
+                    started['dispatch'], start_binding,
+                ))
+            return tuple(sorted(result, key=lambda item: item.installation_id))
+        except DockerWorkerError:
+            raise
+        except (sqlite3.Error, ValueError, TypeError, KeyError, RecursionError):
             raise DockerWorkerError('journal_unavailable') from None
 
 

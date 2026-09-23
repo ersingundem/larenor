@@ -46,7 +46,7 @@ _CODES = frozenset({"invalid_binding", "invalid_command", "unsafe_worker_path", 
                     "engine_unavailable", "engine_protocol", "engine_conflict", "engine_image_missing",
                     "journal_unavailable", "worker_busy", "idempotency_conflict", "dispatch_expired",
                     "step_order", "record_missing", "worker_unverified", "worker_resources_unprepared",
-                    "catalog_rejected"})
+                    "catalog_rejected", "lock_required"})
 _SPEC_KEYS = {"Image", "User", "Labels", "Env", "HostConfig", "ExposedPorts"}
 _HOST_KEYS = {"Privileged", "CapDrop", "CapAdd", "SecurityOpt", "NetworkMode", "Memory", "NanoCpus",
               "PidsLimit", "ReadonlyRootfs", "Init", "Tmpfs", "PortBindings", "RestartPolicy"}
@@ -327,6 +327,7 @@ class WorkerJournal:
     def __init__(self, directory, *, initialize=False, _version=1):
         self.directory = Path(directory).absolute()
         self._thread_lock = threading.Lock()
+        self._owner = None
         self._closed = False
         _require(type(_version) is int and _version in {1, 2}, "journal_unavailable")
         self.version = _version
@@ -396,11 +397,17 @@ class WorkerJournal:
                 acquired = True
             except OSError:
                 raise DockerWorkerError("worker_busy") from None
+            self._owner = threading.get_ident()
             yield
         finally:
+            self._owner = None
             if acquired:
                 fcntl.flock(self._lock_file, fcntl.LOCK_UN)
             self._thread_lock.release()
+
+    def _locked(self):
+        _require(not self._closed and self._owner == threading.get_ident(),
+                 "lock_required")
 
     def close(self):
         if self._closed:
