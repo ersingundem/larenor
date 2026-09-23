@@ -8,12 +8,14 @@ final class CoreMediaLanguagePreferencesApi {
     this._token,
     this._context,
     this._accountId,
+    this._sessionFamilyId,
   );
 
   final LarenorServerApi _api;
   final String _token;
   final ServerContext _context;
   final String _accountId;
+  final String _sessionFamilyId;
 
   String get _path =>
       '/media/language-preferences/${_context.coreId}/${_context.homeId}';
@@ -23,6 +25,7 @@ final class CoreMediaLanguagePreferencesApi {
         await _api.request('GET', _path, token: _token),
         context: _context,
         accountId: _accountId,
+        sessionFamilyId: _sessionFamilyId,
       );
 
   Future<CoreMediaLanguageSnapshot> save({
@@ -36,6 +39,7 @@ final class CoreMediaLanguagePreferencesApi {
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
         base.authority.context != _context ||
         base.authority.accountId != _accountId ||
+        base.authority.sessionFamilyId != _sessionFamilyId ||
         audio == null && subtitle == null) {
       throw const LarenorServerException('invalid_request');
     }
@@ -55,6 +59,7 @@ final class CoreMediaLanguagePreferencesApi {
       ),
       context: _context,
       accountId: _accountId,
+      sessionFamilyId: _sessionFamilyId,
     );
     final before = base.authority;
     final after = result.authority;

@@ -236,6 +236,10 @@ class MediaLanguagePreferenceService:
                     ):
                         raise ApiError("operation_replay", 409)
                     return replay.model_dump()
+                if current is None and connection.execute(
+                    "SELECT COUNT(*) FROM media_language_preferences"
+                ).fetchone()[0] >= schema.MAX_RECORDS:
+                    raise ApiError("media_language_preference_limit_reached", 409)
                 if revision != body.expectedRevision or revision >= 2**63 - 1:
                     raise ApiError("revision_conflict", 409)
                 if current is not None:

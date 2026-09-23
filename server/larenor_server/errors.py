@@ -197,6 +197,7 @@ MESSAGES = {
     'media_flow_effect_uncertain': 'The managed media flow effect could not be verified.',
     'media_flow_storage_unavailable': 'The managed media flow state is unavailable.',
     'media_preference_storage_unavailable': 'The saved media preference is unavailable.',
+    'media_language_preference_limit_reached': 'The media language preference registry is full.',
     'seerr_installation_changed': 'The managed Seerr installation changed. Read it again.',
     'seerr_bootstrap_source_changed': 'The verified Jellyfin bootstrap changed. Read it again.',
     'seerr_bootstrap_conflict': 'This request conflicts with a saved Seerr bootstrap.',

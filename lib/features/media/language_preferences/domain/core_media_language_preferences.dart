@@ -38,6 +38,7 @@ final class CoreMediaLanguageSnapshot {
     Object? raw, {
     required ServerContext context,
     required String accountId,
+    required String sessionFamilyId,
   }) {
     final root = _object(raw, const {
       'schemaVersion',
@@ -61,14 +62,16 @@ final class CoreMediaLanguageSnapshot {
       'coreId': authority['coreId'],
       'homeId': authority['homeId'],
     });
+    final expectedFamily = _identity(sessionFamilyId);
     if (parsedContext != context ||
-        _identity(authority['accountId']) != accountId) {
+        _identity(authority['accountId']) != accountId ||
+        _identity(authority['sessionFamilyId']) != expectedFamily) {
       throw _invalid;
     }
     final parsedAuthority = CoreMediaLanguageAuthority(
       context: parsedContext,
       accountId: accountId,
-      sessionFamilyId: _identity(authority['sessionFamilyId']),
+      sessionFamilyId: expectedFamily,
       accountRevision: _revision(authority['accountRevision']),
       preferenceRevision: _revision(
         authority['preferenceRevision'],
