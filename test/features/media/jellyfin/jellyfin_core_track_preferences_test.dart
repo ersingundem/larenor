@@ -132,6 +132,63 @@ void main() {
     );
   });
 
+  test(
+    'audio edit preserves a same-account subtitle changed after stale read',
+    () async {
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      var revision = 1;
+      var audio = 'en';
+      var subtitle = 'off';
+      fixture.respond = (request) async {
+        if (request.url.path.contains('/media/jellyfin/preferences/')) {
+          if (request.method == 'GET') {
+            return fixture.json(
+              _response(
+                fixture,
+                revision: revision,
+                audio: audio,
+                subtitle: subtitle,
+              ),
+            );
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['expectedRevision'], 2);
+          expect(body['audioLanguage'], 'fr');
+          expect(body['subtitleLanguage'], 'tr');
+          revision = 3;
+          audio = body['audioLanguage'] as String;
+          subtitle = body['subtitleLanguage'] as String;
+          return fixture.json(
+            _response(
+              fixture,
+              revision: revision,
+              audio: audio,
+              subtitle: subtitle,
+            ),
+          );
+        }
+        return fixture.defaultResponse(request);
+      };
+      final store = JellyfinTrackPreferencesStore(account: fixture.account);
+
+      final stale = await store.read(_direct, isCurrent: () => true);
+      expect(stale?.subtitleLanguage, 'off');
+      revision = 2;
+      subtitle = 'tr';
+
+      final saved = await store.saveAudio(
+        _direct,
+        language: 'fr',
+        isCurrent: () => true,
+      );
+
+      expect(saved.audioLanguage, 'fr');
+      expect(saved.subtitleLanguage, 'tr');
+    },
+  );
+
   test('retired player route cannot read or mutate Core preferences', () async {
     final fixture = AdminFixture();
     await fixture.account.initialize();
