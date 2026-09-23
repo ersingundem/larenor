@@ -270,6 +270,7 @@ void main() {
         ..validationResponse = {
           'compatible': false,
           'reasons': [
+            'unsupported_contract_version',
             'core_version_mismatch',
             'database_schema_mismatch',
             'component_schema_mismatch',
@@ -287,6 +288,7 @@ void main() {
 
       expect(controller.compatibility!.compatible, isFalse);
       expect(controller.compatibility!.reasons, {
+        CoreBackupCompatibilityReason.unsupportedContract,
         CoreBackupCompatibilityReason.coreVersion,
         CoreBackupCompatibilityReason.databaseSchema,
         CoreBackupCompatibilityReason.componentSchema,
@@ -349,6 +351,20 @@ void main() {
     expect(controller.actionFailure, isNull);
   });
 
+  test('invalid passphrase is rejected before any admin request', () async {
+    final fixture = BackupFixture();
+    await fixture.account.initialize();
+    final controller = ServerCoreBackupsController(fixture.account);
+    addTearDown(() {
+      controller.dispose();
+      fixture.account.dispose();
+    });
+
+    expect(await controller.export('too short', current: () => true), isNull);
+    expect(controller.actionFailure, 'invalid_request');
+    expect(fixture.adminCalls, isEmpty);
+  });
+
   test('binary envelope headers and compatibility shape fail closed', () async {
     final fixture = BackupFixture();
     await fixture.account.initialize();
@@ -378,6 +394,55 @@ void main() {
       isNull,
     );
     expect(controller.actionFailure, 'invalid_response');
+
+    fixture.respond = (request) async {
+      if (request.url.path.endsWith('/admin/backups/export')) {
+        return http.Response.bytes(
+          Uint8List(80),
+          200,
+          headers: {
+            'content-type': 'application/vnd.larenor.core-backup',
+            'content-disposition':
+                'attachment; filename="larenor-core-backup.larenor-core"',
+            'cache-control': 'no-store',
+            'x-content-type-options': 'nosniff',
+          },
+        );
+      }
+      return fixture.json({
+        'compatible': false,
+        'reasons': ['unknown_mismatch'],
+      });
+    };
+    expect(
+      await controller.export(
+        'Synthetic export passphrase 2026',
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(controller.actionFailure, 'invalid_response');
+
+    fixture.respond = (request) async {
+      if (request.url.path.endsWith('/admin/backups/export')) {
+        return fixture.json({
+          'error': {'code': 'invalid_request'},
+        }, 400);
+      }
+      return fixture.json({
+        'compatible': false,
+        'reasons': ['unknown_mismatch'],
+      });
+    };
+    expect(
+      await controller.export(
+        'Synthetic export passphrase 2026',
+        current: () => true,
+      ),
+      isNull,
+    );
+    expect(controller.actionFailure, 'invalid_request');
+
     await controller.preflight(
       CoreBackupManifest.fromJson(backupManifest()),
       current: () => true,

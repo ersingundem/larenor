@@ -16,8 +16,11 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   int _generation = 0;
   bool _disposed = false;
   bool busy = false;
+  bool actionBusy = false;
   String? failure;
+  String? actionFailure;
   CoreBackupPlan? plan;
+  CoreBackupCompatibility? compatibility;
 
   bool get _authorized =>
       account.initialized &&
@@ -34,8 +37,11 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   void invalidate() {
     _generation++;
     busy = false;
+    actionBusy = false;
     failure = null;
+    actionFailure = null;
     plan = null;
+    compatibility = null;
     _emit();
   }
 
@@ -47,11 +53,13 @@ final class ServerCoreBackupsController extends ChangeNotifier {
       current();
 
   Future<void> load({required bool Function() current}) async {
-    if (_disposed || busy || !_authorized || !current()) return;
+    if (_disposed || busy || actionBusy || !_authorized || !current()) return;
     final epoch = _generation, accountEpoch = account.generation;
     busy = true;
     failure = null;
+    actionFailure = null;
     plan = null;
+    compatibility = null;
     _emit();
     try {
       await account.withSession((api, session) async {
@@ -73,6 +81,80 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     } finally {
       if (!_disposed && epoch == _generation) {
         busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<CoreBackupExport?> export(
+    String passphrase, {
+    required bool Function() current,
+  }) async {
+    if (_disposed || busy || actionBusy || !_authorized || !current()) {
+      return null;
+    }
+    final epoch = _generation, accountEpoch = account.generation;
+    CoreBackupExport? exported;
+    actionBusy = true;
+    actionFailure = null;
+    compatibility = null;
+    _emit();
+    try {
+      await account.withSession((api, session) async {
+        if (!_current(epoch, accountEpoch, current)) {
+          throw const LarenorServerException('cancelled');
+        }
+        final value = await ServerCoreBackupsApi(
+          api,
+          session.accessToken,
+        ).export(passphrase);
+        if (_current(epoch, accountEpoch, current)) exported = value;
+      });
+    } catch (error) {
+      if (_current(epoch, accountEpoch, current)) {
+        actionFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _generation) {
+        actionBusy = false;
+        _emit();
+      }
+    }
+    return exported;
+  }
+
+  Future<void> preflight(
+    CoreBackupManifest manifest, {
+    required bool Function() current,
+  }) async {
+    if (_disposed || busy || actionBusy || !_authorized || !current()) return;
+    final epoch = _generation, accountEpoch = account.generation;
+    actionBusy = true;
+    actionFailure = null;
+    compatibility = null;
+    _emit();
+    try {
+      await account.withSession((api, session) async {
+        if (!_current(epoch, accountEpoch, current)) {
+          throw const LarenorServerException('cancelled');
+        }
+        final value = await ServerCoreBackupsApi(
+          api,
+          session.accessToken,
+        ).preflight(manifest);
+        if (_current(epoch, accountEpoch, current)) compatibility = value;
+      });
+    } catch (error) {
+      if (_current(epoch, accountEpoch, current)) {
+        actionFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _generation) {
+        actionBusy = false;
         _emit();
       }
     }

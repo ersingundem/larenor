@@ -28,6 +28,15 @@ final class FixtureCoreBackupFiles extends ServerCoreBackupFileAccess {
   }
 }
 
+Future<void> reveal(WidgetTester tester, Finder target) async {
+  await tester.scrollUntilVisible(
+    target,
+    320,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   Future<BackupFixture> mount(
     WidgetTester tester, {
@@ -96,6 +105,14 @@ void main() {
             find.text(language == 'tr' ? 'Aile panosu' : 'Family board'),
             findsOneWidget,
           );
+          await reveal(
+            tester,
+            find.text(
+              language == 'tr'
+                  ? 'Boş Core kurtarma sınırı'
+                  : 'Empty-Core recovery boundary',
+            ),
+          );
           expect(
             find.text(
               language == 'tr'
@@ -141,8 +158,10 @@ void main() {
         width: 600,
         files: files,
       );
-      await tester.drag(find.byType(ListView), const Offset(0, -900));
-      await tester.pumpAndSettle();
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('server-backups-passphrase')),
+      );
       const secret = 'Synthetic export passphrase 2026';
       await tester.enterText(
         find.byKey(const ValueKey('server-backups-passphrase')),
@@ -153,6 +172,7 @@ void main() {
         secret,
       );
 
+      await reveal(tester, find.byKey(const ValueKey('server-backups-export')));
       await tester.tap(find.byKey(const ValueKey('server-backups-export')));
       await tester.pumpAndSettle();
 
@@ -176,17 +196,24 @@ void main() {
       fixture.validationResponse = {
         'compatible': false,
         'reasons': [
+          'unsupported_contract_version',
           'core_version_mismatch',
           'database_schema_mismatch',
           'component_schema_mismatch',
         ],
       };
-      await tester.drag(find.byType(ListView), const Offset(0, -1200));
-      await tester.pumpAndSettle();
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('server-backups-preflight')),
+      );
 
       await tester.tap(find.byKey(const ValueKey('server-backups-preflight')));
       await tester.pumpAndSettle();
 
+      expect(
+        find.text('Yedek sözleşmesi sürümü desteklenmiyor'),
+        findsOneWidget,
+      );
       expect(find.text('Core sürümü uyumsuz'), findsOneWidget);
       expect(find.text('Veritabanı şeması uyumsuz'), findsOneWidget);
       expect(find.text('Bileşen şeması uyumsuz'), findsOneWidget);
@@ -212,8 +239,10 @@ void main() {
       files: files,
     );
     fixture.exportPending = Completer<http.Response>();
-    await tester.drag(find.byType(ListView), const Offset(0, -900));
-    await tester.pumpAndSettle();
+    await reveal(
+      tester,
+      find.byKey(const ValueKey('server-backups-passphrase')),
+    );
     await tester.enterText(
       find.byKey(const ValueKey('server-backups-passphrase')),
       'Synthetic export passphrase 2026',
@@ -222,6 +251,7 @@ void main() {
       find.byKey(const ValueKey('server-backups-confirm-passphrase')),
       'Synthetic export passphrase 2026',
     );
+    await reveal(tester, find.byKey(const ValueKey('server-backups-export')));
     await tester.tap(find.byKey(const ValueKey('server-backups-export')));
     await tester.pump();
     await tester.pumpWidget(const SizedBox.shrink());

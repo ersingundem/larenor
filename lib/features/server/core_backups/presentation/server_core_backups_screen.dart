@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -15,9 +16,11 @@ import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_core_backups_controller.dart';
 import '../domain/server_core_backup_models.dart';
+import 'server_core_backup_file_access.dart';
 
-/// A read-only readiness surface. Restoring a running Core is intentionally not
-/// exposed; encrypted bundles are restored into an empty Core by the Server.
+/// A bounded encrypted-export and manifest-preflight surface. Restoring a
+/// running Core is intentionally not exposed; empty-Core recovery stays a
+/// server-owned operation.
 class ServerCoreBackupsScreen extends ConsumerStatefulWidget {
   const ServerCoreBackupsScreen({super.key});
 
@@ -31,9 +34,13 @@ class _ServerCoreBackupsScreenState
   late final ServerAccountController _account;
   late final ServerCoreBackupsController _backups;
   late final int _accountEpoch;
+  final _passphrase = TextEditingController();
+  final _confirmation = TextEditingController();
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true, _expired = false, _loaded = false, _pinReady = false;
   bool _wasCurrent = true;
+  bool _invalidPassphrase = false;
+  _BackupNotice? _notice;
 
   bool get _active =>
       !_expired &&
@@ -88,17 +95,27 @@ class _ServerCoreBackupsScreenState
 
   void _expire() {
     if (!mounted || _expired) return;
-    final wasBusy = _backups.busy;
+    final wasBusy = _backups.busy || _backups.actionBusy;
     _expired = true;
     sessionGeneration++;
+    _clearPassphrase();
     _backups.invalidate();
     if (wasBusy && !_account.working) unawaited(_account.cancelPending());
+  }
+
+  void _clearPassphrase() {
+    _passphrase.clear();
+    _confirmation.clear();
+    _invalidPassphrase = false;
   }
 
   @override
   void dispose() {
     _account.removeListener(_accountChanged);
     _ticker?.removeListener(_visibilityChanged);
+    _clearPassphrase();
+    _passphrase.dispose();
+    _confirmation.dispose();
     _backups.dispose();
     super.dispose();
   }
@@ -109,8 +126,54 @@ class _ServerCoreBackupsScreenState
   }
 
   Future<void> _load() async {
-    if (!_active || _backups.busy) return;
+    if (!_active || _backups.busy || _backups.actionBusy) return;
     await _backups.load(current: _capture());
+  }
+
+  bool _validPassphrase(String value) =>
+      value.length >= 16 &&
+      value.length <= 128 &&
+      utf8.encode(value).length <= 512 &&
+      !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
+
+  Future<void> _export() async {
+    if (!_active || _backups.busy || _backups.actionBusy) return;
+    final passphrase = _passphrase.text;
+    if (!_validPassphrase(passphrase) || passphrase != _confirmation.text) {
+      setState(() {
+        _invalidPassphrase = true;
+        _notice = null;
+      });
+      return;
+    }
+    final current = _capture();
+    setState(() {
+      _invalidPassphrase = false;
+      _notice = null;
+    });
+    final exported = await _backups.export(passphrase, current: current);
+    _clearPassphrase();
+    if (exported == null || !current()) return;
+    try {
+      final destination = await ref
+          .read(serverCoreBackupFileAccessProvider)
+          .save(exported.bytes, exported.filename);
+      if (!current()) return;
+      setState(() {
+        _notice = destination == null
+            ? _BackupNotice.cancelled
+            : _BackupNotice.saved;
+      });
+    } catch (_) {
+      if (!current()) return;
+      setState(() => _notice = _BackupNotice.failed);
+    }
+  }
+
+  Future<void> _preflight(CoreBackupManifest manifest) async {
+    if (!_active || _backups.busy || _backups.actionBusy) return;
+    setState(() => _notice = null);
+    await _backups.preflight(manifest, current: _capture());
   }
 
   @override
@@ -172,7 +235,9 @@ class _ServerCoreBackupsScreenState
                         alignment: AlignmentDirectional.centerStart,
                         child: CupertinoButton(
                           key: const ValueKey('server-backups-refresh'),
-                          onPressed: !_backups.busy ? _load : null,
+                          onPressed: !_backups.busy && !_backups.actionBusy
+                              ? _load
+                              : null,
                           child: Text(l10n.commonRefresh),
                         ),
                       ),
@@ -204,6 +269,10 @@ class _ServerCoreBackupsScreenState
                         ),
                       ],
                     ),
+                    if (_backups.plan?.manifest case final manifest?) ...[
+                      _exportSection(l10n),
+                      _preflightSection(l10n, manifest),
+                    ],
                   ],
                 ),
               ),
@@ -213,6 +282,169 @@ class _ServerCoreBackupsScreenState
       ),
     );
   }
+
+  Widget _exportSection(AppLocalizations l10n) => SettingsSection(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    header: Text(l10n.serverBackupsExportTitle),
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Text(l10n.serverBackupsPassphraseHint),
+      ),
+      _secretField(
+        label: l10n.serverBackupsPassphrase,
+        key: 'server-backups-passphrase',
+        controller: _passphrase,
+      ),
+      _secretField(
+        label: l10n.serverBackupsConfirmPassphrase,
+        key: 'server-backups-confirm-passphrase',
+        controller: _confirmation,
+        done: true,
+      ),
+      if (_invalidPassphrase)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Semantics(
+            liveRegion: true,
+            child: Text(l10n.serverBackupsPassphraseInvalid),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: CupertinoButton(
+            key: const ValueKey('server-backups-export'),
+            onPressed: !_backups.busy && !_backups.actionBusy ? _export : null,
+            child: Text(l10n.serverBackupsExport),
+          ),
+        ),
+      ),
+      if (_backups.actionBusy)
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: CupertinoActivityIndicator(),
+        ),
+      if (_backups.actionFailure != null || _notice != null)
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              _backups.actionFailure != null
+                  ? l10n.serverBackupsActionFailed
+                  : switch (_notice!) {
+                      _BackupNotice.saved => l10n.serverBackupsExportSaved,
+                      _BackupNotice.cancelled =>
+                        l10n.serverBackupsExportCancelled,
+                      _BackupNotice.failed => l10n.serverBackupsActionFailed,
+                    },
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _secretField({
+    required String label,
+    required String key,
+    required TextEditingController controller,
+    bool done = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: AppText.subhead),
+        const SizedBox(height: 8),
+        Semantics(
+          label: label,
+          textField: true,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: CupertinoTextField(
+              key: ValueKey(key),
+              controller: controller,
+              obscureText: true,
+              maxLength: 128,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: done
+                  ? TextInputAction.done
+                  : TextInputAction.next,
+              padding: const EdgeInsets.all(12),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _preflightSection(AppLocalizations l10n, CoreBackupManifest manifest) {
+    final result = _backups.compatibility;
+    return SettingsSection(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      header: Text(l10n.serverBackupsPreflightTitle),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.serverBackupsPreflightHint),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: CupertinoButton(
+              key: const ValueKey('server-backups-preflight'),
+              onPressed: !_backups.busy && !_backups.actionBusy
+                  ? () => _preflight(manifest)
+                  : null,
+              child: Text(l10n.serverBackupsPreflight),
+            ),
+          ),
+        ),
+        if (result != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Semantics(
+              liveRegion: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    result.compatible
+                        ? l10n.serverBackupsPreflightCompatible
+                        : l10n.serverBackupsPreflightIncompatible,
+                  ),
+                  if (!result.compatible) ...[
+                    const SizedBox(height: 12),
+                    for (final reason in result.reasons)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(_reasonLabel(l10n, reason)),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _reasonLabel(
+    AppLocalizations l10n,
+    CoreBackupCompatibilityReason reason,
+  ) => switch (reason) {
+    CoreBackupCompatibilityReason.unsupportedContract =>
+      l10n.serverBackupsMismatchContract,
+    CoreBackupCompatibilityReason.databaseSchema =>
+      l10n.serverBackupsMismatchDatabase,
+    CoreBackupCompatibilityReason.coreVersion => l10n.serverBackupsMismatchCore,
+    CoreBackupCompatibilityReason.componentSchema =>
+      l10n.serverBackupsMismatchComponent,
+  };
 
   Widget _plan(AppLocalizations l10n, CoreBackupPlan plan) {
     final manifest = plan.manifest;
@@ -278,3 +510,5 @@ class _ServerCoreBackupsScreenState
       ? '${(bytes / 1024).toStringAsFixed(1)} KiB'
       : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
 }
+
+enum _BackupNotice { saved, cancelled, failed }

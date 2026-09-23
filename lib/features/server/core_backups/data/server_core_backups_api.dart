@@ -10,6 +10,21 @@ final class ServerCoreBackupsApi {
     await api.request('GET', '/admin/backups/plan', token: token),
   );
 
+  Future<CoreBackupExport> export(String passphrase) async => CoreBackupExport(
+    await api.exportCoreBackup(token: token, passphrase: passphrase),
+  );
+
+  Future<CoreBackupCompatibility> preflight(
+    CoreBackupManifest manifest,
+  ) async => CoreBackupCompatibility.fromJson(
+    await api.request(
+      'POST',
+      '/admin/backups/restore/validate',
+      token: token,
+      body: {'manifest': manifest.toJson()},
+    ),
+  );
+
   @override
   String toString() => 'ServerCoreBackupsApi';
 }

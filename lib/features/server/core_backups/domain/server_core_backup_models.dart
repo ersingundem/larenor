@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../domain/server_models.dart';
 
 enum CoreBackupResourceKind {
@@ -63,12 +65,27 @@ final class CoreBackupResource {
   final int byteLength;
   final String sha256;
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'kind': switch (kind) {
+      CoreBackupResourceKind.database => 'database',
+      CoreBackupResourceKind.vaultKey => 'vaultKey',
+      CoreBackupResourceKind.configuration => 'configuration',
+      CoreBackupResourceKind.componentData => 'componentData',
+      CoreBackupResourceKind.familyBoard => 'familyBoard',
+    },
+    'version': version,
+    'byteLength': byteLength,
+    'sha256': sha256,
+  };
+
   @override
   String toString() => 'CoreBackupResource($id, ${kind.name})';
 }
 
 final class CoreBackupManifest {
   const CoreBackupManifest({
+    required this.contractVersion,
     required this.snapshotId,
     required this.createdAt,
     required this.coreVersion,
@@ -160,6 +177,7 @@ final class CoreBackupManifest {
       throw const LarenorServerException('invalid_response');
     }
     return CoreBackupManifest(
+      contractVersion: contractVersion,
       snapshotId: snapshot,
       createdAt: timestamp,
       coreVersion: coreVersion,
@@ -169,6 +187,7 @@ final class CoreBackupManifest {
     );
   }
 
+  final int contractVersion;
   final String snapshotId;
   final DateTime createdAt;
   final String coreVersion;
@@ -178,8 +197,88 @@ final class CoreBackupManifest {
   int get totalBytes =>
       resources.fold(0, (total, item) => total + item.byteLength);
 
+  Map<String, dynamic> toJson() => {
+    'contractVersion': contractVersion,
+    'snapshotId': snapshotId,
+    'createdAt': createdAt.millisecondsSinceEpoch ~/ 1000,
+    'coreVersion': coreVersion,
+    'databaseSchemaVersion': databaseSchemaVersion,
+    'componentSchemaVersions': Map<String, int>.of(componentSchemaVersions),
+    'resources': resources.map((item) => item.toJson()).toList(),
+  };
+
   @override
   String toString() => 'CoreBackupManifest';
+}
+
+enum CoreBackupCompatibilityReason {
+  unsupportedContract,
+  databaseSchema,
+  coreVersion,
+  componentSchema,
+}
+
+final class CoreBackupCompatibility {
+  const CoreBackupCompatibility._({
+    required this.compatible,
+    required this.reasons,
+  });
+
+  factory CoreBackupCompatibility.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {'compatible', 'reasons'};
+    final compatible = json['compatible'];
+    final rawReasons = json['reasons'];
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        compatible is! bool ||
+        rawReasons is! List ||
+        rawReasons.length > 4) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final reasons = <CoreBackupCompatibilityReason>{};
+    for (final rawReason in rawReasons) {
+      final reason = switch (rawReason) {
+        'unsupported_contract_version' =>
+          CoreBackupCompatibilityReason.unsupportedContract,
+        'database_schema_mismatch' =>
+          CoreBackupCompatibilityReason.databaseSchema,
+        'core_version_mismatch' => CoreBackupCompatibilityReason.coreVersion,
+        'component_schema_mismatch' =>
+          CoreBackupCompatibilityReason.componentSchema,
+        _ => throw const LarenorServerException('invalid_response'),
+      };
+      if (!reasons.add(reason)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    if (compatible == reasons.isNotEmpty) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return CoreBackupCompatibility._(
+      compatible: compatible,
+      reasons: Set.unmodifiable(reasons),
+    );
+  }
+
+  final bool compatible;
+  final Set<CoreBackupCompatibilityReason> reasons;
+
+  @override
+  String toString() => 'CoreBackupCompatibility($compatible)';
+}
+
+final class CoreBackupExport {
+  CoreBackupExport(Uint8List bytes)
+    : bytes = Uint8List.fromList(bytes),
+      filename = 'larenor-core-backup.larenor-core';
+
+  static const maxBytes = 168 * 1024 * 1024;
+  final Uint8List bytes;
+  final String filename;
+
+  @override
+  String toString() => 'CoreBackupExport(${bytes.length} bytes)';
 }
 
 final class CoreBackupPlan {

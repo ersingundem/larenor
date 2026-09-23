@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -124,6 +125,124 @@ class LarenorServerApi {
 
   ServerSession _pair(Map<String, dynamic>? json) =>
       ServerSession.fromResponse(endpoint, serverObject(json), now: _clock());
+
+  /// Downloads one encrypted Core backup from a fixed, authenticated endpoint.
+  /// The passphrase exists only in the POST body and the response is bounded
+  /// before it can be handed to the platform file picker.
+  Future<Uint8List> exportCoreBackup({
+    required String token,
+    required String passphrase,
+  }) async {
+    const maxBytes = 168 * 1024 * 1024;
+    const mediaType = 'application/vnd.larenor.core-backup';
+    const disposition =
+        'attachment; filename="larenor-core-backup.larenor-core"';
+    const magic = [
+      76,
+      65,
+      82,
+      69,
+      78,
+      79,
+      82,
+      45,
+      67,
+      79,
+      82,
+      69,
+      45,
+      66,
+      65,
+      67,
+      75,
+      85,
+      80,
+      0,
+      1,
+    ];
+    final passphraseBytes = utf8.encode(passphrase);
+    if (_closed) throw const LarenorServerException('cancelled');
+    if (passphrase.length < 16 ||
+        passphrase.length > 128 ||
+        passphraseBytes.length > 512 ||
+        passphrase.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final abort = Completer<void>();
+    _pending.add(abort);
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    try {
+      final request =
+          http.AbortableRequest(
+              'POST',
+              endpoint.api('/admin/backups/export'),
+              abortTrigger: abort.future,
+            )
+            ..headers['accept'] = mediaType
+            ..headers['authorization'] = 'Bearer $token'
+            ..headers['content-type'] = 'application/json'
+            ..bodyBytes = utf8.encode(jsonEncode({'passphrase': passphrase}));
+      final response = await _client.send(request).timeout(timeout);
+      final success = response.statusCode >= 200 && response.statusCode < 300;
+      final limit = success ? maxBytes : 8192;
+      if ((response.contentLength ?? 0) > limit) {
+        unawaited(
+          response.stream.listen((_) {}).cancel().catchError((Object _) {}),
+        );
+        throw const LarenorServerException('invalid_response');
+      }
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in response.stream) {
+        if (builder.length + chunk.length > limit) {
+          throw const LarenorServerException('invalid_response');
+        }
+        builder.add(chunk);
+      }
+      final bytes = builder.takeBytes();
+      if (!success) {
+        throw LarenorServerException(_errorCode(response.statusCode, bytes));
+      }
+      if (response.statusCode != 200 ||
+          response.headers['content-type']?.split(';').first.trim() !=
+              mediaType ||
+          response.headers['content-disposition'] != disposition ||
+          response.headers['cache-control'] != 'no-store' ||
+          response.headers['x-content-type-options'] != 'nosniff' ||
+          bytes.length < magic.length + 16 + 12 + 16 ||
+          bytes.length > maxBytes) {
+        throw const LarenorServerException('invalid_response');
+      }
+      for (var index = 0; index < magic.length; index++) {
+        if (bytes[index] != magic[index]) {
+          throw const LarenorServerException('invalid_response');
+        }
+      }
+      if (_closed || abort.isCompleted) {
+        throw const LarenorServerException('cancelled');
+      }
+      return bytes;
+    } on LarenorServerException {
+      rethrow;
+    } on TimeoutException {
+      throw const LarenorServerException('timeout');
+    } on http.RequestAbortedException {
+      throw LarenorServerException(_closed ? 'cancelled' : 'timeout');
+    } catch (_) {
+      throw LarenorServerException(
+        _closed
+            ? 'cancelled'
+            : abort.isCompleted
+            ? 'timeout'
+            : 'connection_failed',
+      );
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      _pending.remove(abort);
+    }
+  }
 
   /// No automatic retries: even a timed-out write may have reached the server.
   Future<Map<String, dynamic>?> request(
