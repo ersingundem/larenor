@@ -236,7 +236,9 @@ class KioskRemoteService:
             "ackTopic": prefix + "/ack",
             "sensors": [
                 {"kind": kind, "stateTopic": prefix + "/sensor/" + kind + "/state", "retained": True}
-                for kind in ("battery", "network", "app_version", "kiosk_state")
+                for kind in (
+                    "battery", "network", "app_version", "app_foreground", "kiosk_state"
+                )
             ],
         }
 

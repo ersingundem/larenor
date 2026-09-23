@@ -19,6 +19,7 @@ import com.ersingundem.larenor.notifications.LocalNotificationBridge
 import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
+import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -36,6 +37,7 @@ class MainActivity : FlutterActivity() {
     private var dualDisplay: DualDisplayBridge? = null
     private var gameStreamNative: GameStreamNativeBridge? = null
     private var webPanelRenderer: WebPanelRendererBridge? = null
+    private var managedTabletSource: ManagedTabletSourceBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -55,6 +57,7 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             flutterEngine,
         )
+        managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -70,6 +73,7 @@ class MainActivity : FlutterActivity() {
         localNotifications?.setResumed(true)
         dualDisplay?.setResumed(true)
         gameStreamNative?.setResumed(true)
+        managedTabletSource?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -84,6 +88,7 @@ class MainActivity : FlutterActivity() {
         localNotifications?.setResumed(false)
         dualDisplay?.setResumed(false)
         gameStreamNative?.setResumed(false)
+        managedTabletSource?.setResumed(false)
         super.onPause()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -124,6 +129,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         webPanelRenderer?.dispose()
         webPanelRenderer = null
+        managedTabletSource?.dispose()
+        managedTabletSource = null
         dualDisplay?.dispose()
         dualDisplay = null
         inventoryShare?.dispose()

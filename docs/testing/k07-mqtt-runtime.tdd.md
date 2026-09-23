@@ -23,7 +23,7 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 
 | Guarantee | RED evidence | GREEN evidence |
 | --- | --- | --- |
-| Managed-tablet runtime and broker port exist | `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart` at `9417b0ae` failed to compile because both runtime modules were absent | The same target passes 10 tests |
+| Managed-tablet runtime and broker port exist | `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart` at `9417b0ae` failed to compile because both runtime modules were absent | The same target passes 16 tests |
 | Discovery names command and ACK topics | `uv run pytest -q tests/test_k07_paired_remote_mqtt.py` at `9417b0ae` failed with `KeyError: 'commandTopic'` | The focused Server matrix passes 11 tests |
 | Restart/replay/rate-limit/revoke behavior is durable | New runtime tests fail before the runtime types exist | Runtime test recreates the owner with the same state store, rejects changed/old/rate-limited commands, and proves one device effect |
 | Token stays out of URL/log/export surfaces | New default-disabled and broker-settings tests fail before the credential/settings types exist | Public metadata and diagnostic strings are token-free, broker logging is disabled, and credential-bearing host strings are rejected |
@@ -36,16 +36,23 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 - Every connect/reconnect calls the required egress authorizer before opening a
   socket. The runtime starts disabled unless configuration explicitly enables
   it.
-- Telemetry uses retained state on four bounded topics. Commands and ACKs are
+- Telemetry uses retained state on five bounded topics. Commands and ACKs are
   non-retained. Read pairings never subscribe; `lockKiosk` requires admin.
 - SharedPreferences persists only command sequence, digest, result and bounded
   rate timestamps. It never stores broker credentials. The pairing secret must
   be supplied by the existing secure credential boundary.
+- Start, reconnect, disconnect, command and telemetry callbacks carry a runtime
+  generation. Retirement wins over delayed authority, egress, connect and
+  telemetry work. A late connect is disconnected again, and any subscribe or
+  initial telemetry failure closes the partial broker connection.
+- Connect and reconnect attempts share one serialized Future chain. A newer
+  generation waits until the stale attempt has completed cleanup before it can
+  reuse the broker, so stale disconnect cannot close the replacement socket.
 
 ## Verification
 
 - `flutter test --coverage test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart`
-  — 10 passed; runtime line coverage **271/293 (92.5%)**. The external package
+  — 16 passed; runtime line coverage **297/312 (95.2%)**. The external package
   socket glue is excluded from unit coverage and remains a live-broker gate.
 - `flutter test test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart test/features/kiosk_remote/kiosk_remote_client_test.dart test/features/kiosk_remote/kiosk_remote_http_test.dart`
   — 11 passed.
@@ -57,8 +64,9 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 ## Remaining K07 gates
 
 - Wire the runtime into the app/session lifecycle with secure pairing-token
-  retrieval, a current Core authority reader, and the real Android telemetry
-  and kiosk command ports.
+  retrieval and a current Core authority reader. The real Android telemetry
+  source is implemented in `k07-native-tablet-source.tdd.md`; native command
+  execution intentionally remains disabled.
 - Run a real local Mosquitto TLS/ACL fixture and physical broker restart test;
   the adapter is concrete, but this slice tests the broker boundary through a
   deterministic port.
