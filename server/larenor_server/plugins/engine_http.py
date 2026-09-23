@@ -5,8 +5,9 @@ that same stream before one operation. This proves no daemon namespace, actor,
 journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
-Only pinned-image inspect/pull, exact network list/inspect/create and generated
-local-volume inspect/create shapes are accepted. Catalog
+Only pinned-image inspect/pull, exact network list/inspect/create, generated
+local-volume inspect/create, and full-ID container inspect/pause/unpause shapes
+are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
@@ -36,6 +37,8 @@ _HEADERS = (('Accept', 'application/json'),)
 _CREATE_HEADERS = (*_HEADERS, ('Content-Type', 'application/json'))
 _NETWORK_CREATE = '/v1.47/networks/create'
 _PLATFORMS = ('linux/amd64', 'linux/arm64')
+_CONTAINER_INSPECT = re.compile(r'/v1\.47/containers/[0-9a-f]{64}/json\Z')
+_CONTAINER_EFFECT = re.compile(r'/v1\.47/containers/[0-9a-f]{64}/(?:pause|unpause)\Z')
 
 
 class EngineHttpError(Exception):
@@ -163,6 +166,11 @@ class EngineHttpRequest:
     def __post_init__(self):
         creating_network = self.method == 'POST' and self.target == _NETWORK_CREATE
         creating_volume = self.method == 'POST' and self.target == '/v1.47/volumes/create'
+        container_effect = (
+            self.method == 'POST'
+            and type(self.target) is str
+            and _CONTAINER_EFFECT.fullmatch(self.target) is not None
+        )
         creating = creating_network or creating_volume
         _require(type(self.method) is str and self.method in ('GET', 'POST')
                  and type(self.target) is str and len(self.target) <= 512
@@ -184,16 +192,19 @@ class EngineHttpRequest:
             valid = ((self.target.startswith(prefix) and self.target.endswith(suffix)
                       and _reference(reference) and quote(reference, safe='') == encoded)
                      or _network_read_target(self.target)
+                     or _CONTAINER_INSPECT.fullmatch(self.target) is not None
                      or re.fullmatch(
                          r'/v1\.47/volumes/larenor-(?:appdata|library)-v1-[0-9a-f]{32}',
                          self.target) is not None)
         else:
             prefix = '/v1.47/images/create?'
             pairs = parse_qsl(self.target[len(prefix):], keep_blank_values=True)
-            valid = (self.target.startswith(prefix) and len(pairs) == 2
-                     and pairs[0][0] == 'fromImage' and _reference(pairs[0][1])
-                     and pairs[1][0] == 'platform' and pairs[1][1] in _PLATFORMS
-                     and prefix + urlencode(pairs) == self.target)
+            valid = (container_effect or (
+                self.target.startswith(prefix) and len(pairs) == 2
+                and pairs[0][0] == 'fromImage' and _reference(pairs[0][1])
+                and pairs[1][0] == 'platform' and pairs[1][1] in _PLATFORMS
+                and prefix + urlencode(pairs) == self.target
+            ))
         _require(valid, 'invalid_engine_request')
 
     def __repr__(self):
@@ -286,6 +297,25 @@ def _body(reader, headers, max_bytes, max_chunks, *, allow_eof=False):
             yield piece
 
 
+def _empty_effect_response(status, headers):
+    """Accept only an unambiguous bodyless Docker action acknowledgement."""
+    framing = {}
+    for key, value in headers:
+        if key in {
+            'content-length', 'transfer-encoding', 'content-encoding',
+            'content-type', 'location',
+        }:
+            _require(key not in framing)
+            framing[key] = value.lower()
+    _require(
+        status == 204
+        and framing.get('content-length') in (None, '0')
+        and not set(framing).intersection({
+            'transfer-encoding', 'content-encoding', 'content-type', 'location',
+        })
+    )
+
+
 class _ScopedChunks:
     """No suspended body reader survives the synchronous consumer scope."""
 
@@ -329,7 +359,12 @@ class VerifiedEngineHttp:
         except TypeError:
             raise EngineHttpError('invalid_engine_limits') from None
         creating = request.method == 'POST' and request.target in (_NETWORK_CREATE, '/v1.47/volumes/create')
-        _require(callable(before_dispatch) if creating else before_dispatch is None,
+        container_effect = (
+            request.method == 'POST'
+            and _CONTAINER_EFFECT.fullmatch(request.target) is not None
+        )
+        guarded_effect = creating or container_effect
+        _require(callable(before_dispatch) if guarded_effect else before_dispatch is None,
                  'engine_dispatch_denied')
         image_pull = request.method == 'POST' and request.target.startswith('/v1.47/images/create?')
         if image_pull:
@@ -364,7 +399,7 @@ class VerifiedEngineHttp:
                      'engine_api_unsupported')
             _require(_identity(endpoint) == before, 'engine_unavailable')
             _require(not cancelled.is_set(), 'engine_cancelled')
-            if creating:
+            if guarded_effect:
                 try:
                     permitted = before_dispatch() is True
                 except Exception:
@@ -379,8 +414,17 @@ class VerifiedEngineHttp:
             connection.settimeout(min(_remaining(deadline), limits.idle_seconds))
             connection.sendall(wire)
             status, headers = _headers(reader)
-            chunks = _ScopedChunks(_body(reader, headers, limits.max_total_bytes, limits.max_chunks,
-                                         allow_eof=image_pull))
+            if container_effect:
+                _empty_effect_response(status, headers)
+                chunks = _ScopedChunks((item for item in ()))
+            else:
+                chunks = _ScopedChunks(_body(
+                    reader,
+                    headers,
+                    limits.max_total_bytes,
+                    limits.max_chunks,
+                    allow_eof=image_pull,
+                ))
             result = consume(status, headers, chunks)
             _require(_identity(endpoint) == before, 'engine_unavailable')
             _require(not cancelled.is_set(), 'engine_cancelled')
