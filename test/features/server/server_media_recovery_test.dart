@@ -355,6 +355,54 @@ void main() {
     );
   }
 
+  testWidgets('started process stays distinct from unverified integration', (
+    tester,
+  ) async {
+    final fixture = RecoveryFixture();
+    final snapshot = recoveryJson();
+    final qbittorrent = (snapshot['services'] as List).firstWhere(
+      (entry) => entry['serviceId'] == 'qbittorrent',
+    ) as Map<String, dynamic>;
+    qbittorrent.addAll({
+      'sourceId': 'b' * 32,
+      'sourceKind': 'configuration',
+      'revision': 2,
+      'resultState': 'partial',
+      'containerState': 'started',
+      'serviceState': 'unverified',
+      'storedState': 'stored',
+      'reachableState': 'unknown',
+      'verifiedState': 'unverified',
+      'recoveryAction': 'review',
+      'updatedAt': '2026-09-20T12:00:00.000Z',
+    });
+    fixture.respond = (request) async =>
+        request.url.path.endsWith('/admin/media/recovery-status')
+        ? fixture.json(snapshot)
+        : fixture.defaultResponse(request);
+    FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaRecoveryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final finder = find.byKey(const ValueKey('server-recovery-qbittorrent'));
+    await tester.scrollUntilVisible(finder, 220);
+    final semantics = tester.getSemantics(finder).label;
+    expect(semantics, contains('Process started'));
+    expect(semantics, contains('Integration unverified'));
+  });
+
   testWidgets('operator action is keyboard reachable and opens settings', (
     tester,
   ) async {

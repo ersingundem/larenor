@@ -4,9 +4,10 @@ Bu dilim, mevcut kalıcı S06.6 kanıtını tablet Ayarları'na taşıyan ve Lar
 Core ile altı yönetilen medya servisini tek, salt okunur görünümde birleştiren
 PR-ready yazılım kabulüdür. S07.1 `4e6236e8`, S07.2 ve S07.3 ise
 `bf470d95` ile main üzerinde tamamlanmıştır; bu dal güncel main tabanında
-yalnız S07.4 farkını taşır. S07.4, exact head inceleme ve tam CI kanıtı
-birleşene kadar kuyrukta kapanmış sayılmaz; kuyruk **22/125 (%17,6)** ve seçili
-özellik sayacı **0/63** kalır.
+yalnız S07.4 farkını taşır. PR #328 bu farkı main'e taşıdı; sonraki exact-tree
+incelemesinde bulunan Client kanıt ayrımı `1fcea99a` üzerinde düzeltildi.
+S07.4 bu exact commitin tam CI kanıtı birleşene kadar kuyrukta kapanmış
+sayılmaz; kuyruk **23/125 (%18,4)** ve seçili özellik sayacı **0/63** kalır.
 
 Tam üç kabul ölçütü vardır:
 
@@ -38,7 +39,7 @@ S07.1'in canonical bileşen kümesi aynı altı servis kimliğini, S07.2 aynı S
 kurmaz; yalnız mevcut kalıcı receipt'lerin salt okunur izdüşümünü sunar. S07.1
 paketinin internal URL/token üretimi bu public sözleşmeye taşınmaz.
 
-## Güncel birleşim kanıtı
+## Güncel birleşim ve inceleme kanıtı
 
 S07.2 ve S07.3 artık aynı main ağacındadır. S07.4 salt okunur durum yüzeyini
 bu kalıcı sözleşmelerden üretir; ayrı bir servis adresi, token veya ikinci state
@@ -63,10 +64,17 @@ servis probe'u değildir. Tablet artık `reachable` bilgisini son gözlem olarak
 adlandırır ve mevcutsa receipt zamanını gösterir; geçmiş doğrulamayı şu anki
 bağlantı erişilebilirliği gibi sunmaz.
 
+PR #328 sonrası bağımsız inceleme, `containerState` ve `serviceState`
+değerlerinin Client parser'ında doğrulanıp modelden atıldığını buldu. Böylece
+başlamış süreç ile doğrulanmamış entegrasyon tablet satırında açıkça ayrı
+görünmüyordu. RED/GREEN kanıtı ve tam yerel matris
+[exact-tree kapanış incelemesinde](testing/s07-4-exact-tree-closure-2026-09-23.md)
+kayıtlıdır. S07.4 bu nedenle `awaiting_ci` durumundadır.
+
 ## Açık kapılar
 
-- **Exact head kapanışı:** Bu dalın inceleme ve tam CI kanıtı birleşmeden S07.4
-  sayaç değiştirmez.
+- **Exact head kapanışı:** `1fcea99a` test ve inceleme kanıtını taşır. Aynı
+  commitin zorunlu GitHub CI'ı geçmeden S07.4 sayaç değiştirmez.
 - Gerçek apply/rollback yürütmesi S09'un kurulum/güncelleme/yedek kabulüdür.
   S07.4 yalnız desteklenen upgrade preview'ı sunar; yürütücü olmayan rollback
   veya cancel eylemini başarı saymaz.
