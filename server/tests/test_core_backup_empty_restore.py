@@ -1,5 +1,7 @@
 """S09.2 empty-target restore and crash recovery contract."""
 
+import hashlib
+import json
 import os
 import secrets
 from dataclasses import replace
@@ -36,6 +38,14 @@ def _bundle(server):
     )
     assert response.status_code == 200
     return response.content, settings.key_file.read_bytes(), app.state.core.context
+
+
+def _encrypted_bundle(capture):
+    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+    aad = MAGIC + salt + nonce
+    return aad + AESGCM(
+        CoreBackupContract._derive_key(PASSPHRASE, salt)
+    ).encrypt(nonce, CoreBackupContract._archive(capture), aad)
 
 
 def _target(tmp_path, clock):
@@ -240,11 +250,50 @@ def test_incompatible_bundle_is_rejected_before_staging(server, tmp_path, monkey
         capture,
         manifest=capture.manifest.model_copy(update={"coreVersion": "99.0.0"}),
     )
-    monkeypatch.setattr(restore_module, "open_backup_bundle", lambda *_: incompatible)
+    monkeypatch.setattr(
+        restore_module, "_open_authenticated_bundle", lambda *_: incompatible
+    )
 
     with pytest.raises(ApiError, match="backup_incompatible"):
         restore_empty(target, bundle, PASSPHRASE)
 
+    assert not target.database_file.exists()
+    assert not target.key_file.exists()
+    assert not list(target.data_dir.glob(".restore-*"))
+
+
+def test_digest_valid_metadata_drift_is_restore_incompatible_before_staging(
+    server, tmp_path
+):
+    bundle, _key, _context = _bundle(server)
+    target = _target(tmp_path, server[3])
+    capture = server[0].state.core.core_backups.open_bundle(bundle, PASSPHRASE)
+    configuration = json.loads(capture.payloads["core-configuration"])
+    configuration["privatePath"] = "/synthetic/private"
+    payload = json.dumps(
+        configuration, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("ascii")
+    resources = [
+        resource.model_copy(
+            update={
+                "byteLength": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+        if resource.id == "core-configuration"
+        else resource
+        for resource in capture.manifest.resources
+    ]
+    changed = replace(
+        capture,
+        manifest=capture.manifest.model_copy(update={"resources": resources}),
+        payloads={**capture.payloads, "core-configuration": payload},
+    )
+
+    with pytest.raises(ApiError) as raised:
+        restore_empty(target, _encrypted_bundle(changed), PASSPHRASE)
+
+    assert raised.value.code == "backup_incompatible"
     assert not target.database_file.exists()
     assert not target.key_file.exists()
     assert not list(target.data_dir.glob(".restore-*"))

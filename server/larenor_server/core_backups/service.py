@@ -105,8 +105,8 @@ def _resource(identifier, kind, version, payload):
     )
 
 
-def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
-    """Authenticate and decode one bounded bundle without touching storage."""
+def _open_authenticated_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
+    """Authenticate and decode one bounded bundle without semantic acceptance."""
     try:
         header = len(MAGIC) + 16 + 12
         if (
@@ -166,12 +166,61 @@ def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
         raise ApiError("backup_decryption_failed") from None
 
 
+def open_backup_bundle(bundle: bytes, passphrase: str) -> "BackupCapture":
+    """Open one bundle and hide every decode or semantic failure alike."""
+    capture = _open_authenticated_bundle(bundle, passphrase)
+    try:
+        _validate_payload_contract(capture)
+    except ValueError:
+        raise ApiError("backup_decryption_failed") from None
+    return capture
+
+
 @dataclass(frozen=True)
 class BackupCapture:
     """Private bytes and their public manifest; never returned by the API."""
 
     manifest: BackupManifest
     payloads: dict[str, bytes]
+
+
+def _validate_payload_contract(capture: BackupCapture) -> None:
+    """Bind authenticated metadata payloads to the public manifest exactly."""
+    try:
+        configuration_bytes = capture.payloads["core-configuration"]
+        component_index_bytes = capture.payloads["component-index"]
+        configuration = json.loads(configuration_bytes)
+        component_index = json.loads(component_index_bytes)
+        expected_components = [
+            component.model_dump(mode="json")
+            for component in capture.manifest.components
+        ]
+        expected_index = {
+            "contractVersion": (
+                2 if capture.manifest.consistencyBoundary is not None else 1
+            ),
+            "schemas": capture.manifest.componentSchemaVersions,
+        }
+        if expected_index["contractVersion"] == 2:
+            expected_index["components"] = expected_components
+        if (
+            type(configuration) is not dict
+            or set(configuration) != {"contractVersion", "workers"}
+            or configuration["contractVersion"] != 1
+            or type(configuration["workers"]) is not dict
+            or set(configuration["workers"])
+            != {"installation", "keenetic", "plugin", "proxmox"}
+            or any(
+                type(value) is not bool
+                for value in configuration["workers"].values()
+            )
+            or configuration_bytes != _canonical(configuration)
+            or component_index != expected_index
+            or component_index_bytes != _canonical(component_index)
+        ):
+            raise ValueError("invalid_backup_payload_contract")
+    except (KeyError, TypeError, UnicodeError, ValueError):
+        raise ValueError("invalid_backup_payload_contract") from None
 
 
 @dataclass(frozen=True)

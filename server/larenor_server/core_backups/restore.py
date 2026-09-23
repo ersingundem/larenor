@@ -20,7 +20,12 @@ from ..files import (
     sync_directory,
 )
 from ..legal import server_version
-from .service import MAX_BUNDLE_BYTES, MAX_FAMILY_BOARD_BYTES, open_backup_bundle
+from .service import (
+    MAX_BUNDLE_BYTES,
+    MAX_FAMILY_BOARD_BYTES,
+    _open_authenticated_bundle,
+    _validate_payload_contract,
+)
 
 _JOURNAL = ".restore-state.json"
 _SNAPSHOT = re.compile(r"^[0-9a-f]{32}$")
@@ -141,34 +146,12 @@ def _validate_capture(capture) -> None:
     ):
         raise ApiError("backup_incompatible", 409)
     try:
-        configuration = json.loads(capture.payloads["core-configuration"])
-        components = json.loads(capture.payloads["component-index"])
-    except (KeyError, UnicodeError, ValueError):
+        _validate_payload_contract(capture)
+    except ValueError:
         raise ApiError("backup_incompatible", 409) from None
-    expected_components = [
-        component.model_dump(mode="json") for component in manifest.components
-    ]
-    if (
-        type(configuration) is not dict
-        or configuration.get("contractVersion") != 1
-        or set(configuration) != {"contractVersion", "workers"}
-        or type(configuration["workers"]) is not dict
-        or set(configuration["workers"])
-        != {"installation", "keenetic", "plugin", "proxmox"}
-        or any(type(value) is not bool for value in configuration["workers"].values())
-        or components
-        not in (
-            {"contractVersion": 1, "schemas": manifest.componentSchemaVersions},
-            {
-                "contractVersion": 2,
-                "schemas": manifest.componentSchemaVersions,
-                "components": expected_components,
-            },
-        )
-        # Component payloads can be authenticated and compatibility-checked,
-        # but this slice deliberately has no host-volume publication authority.
-        or bool(manifest.components)
-    ):
+    # Component payloads can be authenticated and compatibility-checked, but
+    # this slice deliberately has no host-volume publication authority.
+    if manifest.components:
         raise ApiError("backup_incompatible", 409)
 
 
@@ -202,7 +185,7 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
         ):
             raise StartupError("restore_target_not_empty")
 
-        capture = open_backup_bundle(bundle, passphrase)
+        capture = _open_authenticated_bundle(bundle, passphrase)
         _validate_capture(capture)
         snapshot_id = capture.manifest.snapshotId
         stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)

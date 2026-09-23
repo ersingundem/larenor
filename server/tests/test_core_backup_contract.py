@@ -1,11 +1,15 @@
 import copy
 import hashlib
 import hmac
+import json
+import secrets
 import sqlite3
 
 import pytest
 from conftest import auth, ready
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from larenor_server.core_backups.service import BackupCapture, MAGIC
 from larenor_server.errors import ApiError
 
 
@@ -13,6 +17,32 @@ def plan(client, pair):
     response = client.get("/api/v1/admin/backups/plan", headers=auth(pair))
     assert response.status_code == 200
     return response.json()
+
+
+def _bundle_with_payload(contract, capture, identifier, value, passphrase):
+    payload = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("ascii")
+    resources = [
+        item.model_copy(
+            update={
+                "byteLength": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+        if item.id == identifier
+        else item
+        for item in capture.manifest.resources
+    ]
+    changed = BackupCapture(
+        manifest=capture.manifest.model_copy(update={"resources": resources}),
+        payloads={**capture.payloads, identifier: payload},
+    )
+    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+    aad = MAGIC + salt + nonce
+    return aad + AESGCM(contract._derive_key(passphrase, salt)).encrypt(
+        nonce, contract._archive(changed), aad
+    )
 
 
 def test_admin_plan_binds_one_consistent_db_key_config_and_component_set(
@@ -280,6 +310,48 @@ def test_encrypted_export_rejects_wrong_passphrase_tamper_and_weak_input(server)
     )
     assert weak.status_code == 400
     assert weak.json()["error"]["code"] == "invalid_request"
+
+
+@pytest.mark.parametrize(
+    "identifier,value",
+    [
+        (
+            "core-configuration",
+            {
+                "contractVersion": 1,
+                "workers": {
+                    "installation": False,
+                    "keenetic": False,
+                    "plugin": False,
+                    "proxmox": False,
+                },
+                "privatePath": "/synthetic/private",
+            },
+        ),
+        (
+            "component-index",
+            {"contractVersion": 2, "schemas": {}, "components": []},
+        ),
+    ],
+)
+def test_open_rejects_digest_valid_payload_metadata_drift(
+    server, identifier, value
+):
+    app, _client, _settings, _clock = server
+    pair = ready(server)
+    actor = app.state.core.auth.authenticate(pair["accessToken"])
+    contract = app.state.core.core_backups
+    capture = contract.capture(actor)
+    passphrase = "Correct horse battery staple 2026"
+    bundle = _bundle_with_payload(
+        contract, capture, identifier, value, passphrase
+    )
+
+    with pytest.raises(ApiError) as raised:
+        contract.open_bundle(bundle, passphrase)
+
+    assert raised.value.code == "backup_decryption_failed"
+    assert str(raised.value) == "backup_decryption_failed"
 
 
 def test_export_never_runs_through_an_active_effect(server):
