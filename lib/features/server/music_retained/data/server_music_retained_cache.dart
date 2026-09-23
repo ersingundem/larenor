@@ -170,10 +170,12 @@ final class ServerMusicRetainedCache {
         'schemaVersion',
         'recordId',
         'scope',
+        'resource',
         'savedAt',
         'overview',
       });
-      if (record['schemaVersion'] != 1 ||
+      if (record['schemaVersion'] is! int ||
+          record['schemaVersion'] != 1 ||
           record['recordId'] is! String ||
           !RegExp(r'^[a-f0-9]{32}$').hasMatch(record['recordId'] as String)) {
         throw const FormatException();
@@ -200,6 +202,9 @@ final class ServerMusicRetainedCache {
         throw const FormatException();
       }
       final overview = ServerMusicRetainedOverview.fromJson(record['overview']);
+      if (!_resourceMatches(record['resource'], overview)) {
+        throw const FormatException();
+      }
       if (!isCurrent()) return null;
       return overview;
     } catch (_) {
@@ -233,6 +238,7 @@ final class ServerMusicRetainedCache {
       'schemaVersion': 1,
       'recordId': recordId,
       'scope': scope.toJson(),
+      'resource': _resourceJson(overview),
       'savedAt': _now().toUtc().toIso8601String(),
       'overview': overview.toJson(),
     });
@@ -260,6 +266,100 @@ final class ServerMusicRetainedCache {
     } catch (_) {}
   }
 }
+
+Map<String, Object?> _resourceJson(ServerMusicRetainedOverview overview) => {
+  'kind': 'music_retained_overview',
+  'contractVersion': 1,
+  'installations': [
+    for (final installation in overview.installations)
+      {
+        'installationId': installation.installationId,
+        'installationRevision': installation.installationRevision,
+        'bootstrap': switch (installation.bootstrap) {
+          null => null,
+          final bootstrap => {
+            'revision': bootstrap.revision,
+            'schemaVersion': bootstrap.schemaVersion,
+            'homeAssistant': bootstrap.homeAssistant.toJson(),
+            'jellyfin': bootstrap.jellyfin.toJson(),
+          },
+        },
+        'providers': [
+          for (final provider in installation.providers)
+            {'id': provider.id, 'revision': provider.revision},
+        ],
+      },
+  ],
+};
+
+bool _resourceMatches(Object? value, ServerMusicRetainedOverview overview) {
+  final resource = _object(value, {'kind', 'contractVersion', 'installations'});
+  if (resource['kind'] != 'music_retained_overview' ||
+      resource['contractVersion'] is! int ||
+      resource['contractVersion'] != 1 ||
+      resource['installations'] is! List) {
+    return false;
+  }
+  final installations = resource['installations'] as List;
+  if (installations.length != overview.installations.length) return false;
+  for (var index = 0; index < installations.length; index++) {
+    final stored = _object(installations[index], {
+      'installationId',
+      'installationRevision',
+      'bootstrap',
+      'providers',
+    });
+    final current = overview.installations[index];
+    if (stored['installationId'] != current.installationId ||
+        !_sameRevision(
+          stored['installationRevision'],
+          current.installationRevision,
+        ) ||
+        !_bootstrapMatches(stored['bootstrap'], current.bootstrap) ||
+        !_providersMatch(stored['providers'], current.providers)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _bootstrapMatches(Object? value, ServerMusicBootstrapReceipt? current) {
+  if (current == null) return value == null;
+  final stored = _object(value, {
+    'revision',
+    'schemaVersion',
+    'homeAssistant',
+    'jellyfin',
+  });
+  return _sameRevision(stored['revision'], current.revision) &&
+      _sameRevision(stored['schemaVersion'], current.schemaVersion) &&
+      _serviceMatches(stored['homeAssistant'], current.homeAssistant) &&
+      _serviceMatches(stored['jellyfin'], current.jellyfin);
+}
+
+bool _serviceMatches(Object? value, ServerMusicServiceRevision current) {
+  final stored = _object(value, {'serviceId', 'serviceRevision'});
+  return stored['serviceId'] == current.serviceId &&
+      _sameRevision(stored['serviceRevision'], current.serviceRevision);
+}
+
+bool _providersMatch(Object? value, List<ServerMusicProviderStatus> current) {
+  if (value is! List || value.length != current.length) return false;
+  for (var index = 0; index < value.length; index++) {
+    final stored = _object(value[index], {'id', 'revision'});
+    if (stored['id'] != current[index].id ||
+        !_sameRevision(stored['revision'], current[index].revision)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameRevision(Object? value, int current) =>
+    value is int &&
+    value >= 1 &&
+    value <= 0x7fffffffffffffff &&
+    value == current;
 
 Map<String, dynamic> _object(Object? value, Set<String> keys) {
   if (value is! Map<String, dynamic> ||

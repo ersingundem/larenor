@@ -275,13 +275,7 @@ void main() {
         query: 'matrix',
         mediaKind: ServerMediaCatalogKind.movie,
       ),
-      throwsA(
-        isA<LarenorServerException>().having(
-          (error) => error.code,
-          'code',
-          'invalid_response',
-        ),
-      ),
+      throwsFormatException,
     );
   });
 

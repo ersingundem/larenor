@@ -152,7 +152,9 @@ final class ServerMusicSelectionCache {
         'provider',
         'receiver',
       });
-      if (record['schemaVersion'] != 1) throw const FormatException();
+      if (record['schemaVersion'] is! int || record['schemaVersion'] != 1) {
+        throw const FormatException();
+      }
       final storedScope = _object(record['scope'], {
         'coreId',
         'homeId',
@@ -169,10 +171,12 @@ final class ServerMusicSelectionCache {
         'installationRevision',
         'coreRevision',
       });
+      final installationRevision = _revision(resource['installationRevision']);
+      final coreRevision = _revision(resource['coreRevision']);
       if (resource['kind'] != 'music_selection' ||
           resource['installationId'] != manager.installationId ||
-          resource['installationRevision'] != manager.installationRevision ||
-          resource['coreRevision'] != manager.coreRevision) {
+          installationRevision != manager.installationRevision ||
+          coreRevision != manager.coreRevision) {
         return null;
       }
       final savedAt = record['savedAt'] is String
