@@ -192,6 +192,23 @@ final class _CatalogFixture extends AdminFixture {
               },
         );
       }
+      if (request.url.path.endsWith('/catalog/browse')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        browseCalls++;
+        return this.json({
+          'requestId': _requestId,
+          'catalog': _catalog(
+            body['offset'] as int,
+            installationRevision: targetRevision,
+            snapshotRevision: snapshotRevision,
+            mediaKind: switch (body['mediaKind']) {
+              'movie' => ServerMediaCatalogKind.movie,
+              'episode' => ServerMediaCatalogKind.episode,
+              _ => null,
+            },
+          ),
+        });
+      }
       if (request.url.path.endsWith('/catalog/search')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         final response = this.json({
@@ -226,6 +243,7 @@ final class _CatalogFixture extends AdminFixture {
   int targetRevision = 7;
   int snapshotRevision = 9;
   int catalogCalls = 0;
+  int browseCalls = 0;
   Completer<http.Response>? firstCatalogGate;
   http.Response? firstCatalogResponse;
   Completer<http.Response>? flowGate;
@@ -397,6 +415,42 @@ void main() {
       fixture.calls.every((call) => !call.url.path.contains('/admin/')),
       isTrue,
     );
+  });
+
+  testWidgets('Core catalog browses a bounded first page before search', (
+    tester,
+  ) async {
+    final fixture = _CatalogFixture(role: ServerRole.member);
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('The Matrix'), findsOneWidget);
+    expect(fixture.browseCalls, 1);
+    expect(fixture.catalogCalls, 0);
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/catalog/search'),
+      ),
+      isEmpty,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('server-media-catalog-next')));
+    await tester.pumpAndSettle();
+    expect(find.text('The Matrix Reloaded'), findsOneWidget);
+    expect(fixture.browseCalls, 2);
   });
 
   testWidgets('filter change retires a delayed previous catalog result', (
