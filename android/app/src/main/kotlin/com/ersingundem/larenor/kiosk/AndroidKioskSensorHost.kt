@@ -14,17 +14,19 @@ import android.os.SystemClock
 import java.util.UUID
 import kotlin.math.sqrt
 
-/** Reads only ambient light and device acceleration; it never opens a camera or microphone. */
+/** Reads ambient light, acceleration and anonymous proximity; it never opens a camera or microphone. */
 class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventListener {
     private val context = context.applicationContext
     private val manager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val cameras = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val light = manager.getDefaultSensor(Sensor.TYPE_LIGHT)
     private val motion = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val approach = manager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
     private var listener: ((KioskSensorSample) -> Unit)? = null
     private var lastVector: DoubleArray? = null
     private var lightStarted = false
     private var motionStarted = false
+    private var approachStarted = false
     private val unavailableCameras = mutableSetOf<String>()
     private var watchingCameras = false
     private var cameraAvailabilityObserved = false
@@ -55,7 +57,15 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
             ids.all(unavailableCameras::contains) -> "busy"
             else -> "available"
         }
-        return KioskSensorAvailability(lightStarted, motionStarted, camera)
+        return KioskSensorAvailability(
+            light = lightStarted,
+            motion = motionStarted,
+            approach = approachStarted,
+            approachMaxRangeCm = approach?.maximumRange?.toDouble()?.takeIf {
+                approachStarted && it.isFinite() && it in 0.1..100.0
+            },
+            camera = camera,
+        )
     }
 
     override fun start(listener: (KioskSensorSample) -> Unit) {
@@ -66,6 +76,11 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
         } == true
         motionStarted = motion?.let {
             manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        } == true
+        approachStarted = approach?.let { sensor ->
+            val maxRange = sensor.maximumRange.toDouble()
+            maxRange.isFinite() && maxRange in 0.1..100.0 &&
+                manager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
         } == true
         if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             cameras.registerAvailabilityCallback(cameraCallback, Handler(Looper.getMainLooper()))
@@ -82,6 +97,7 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
         cameraAvailabilityObserved = false
         lightStarted = false
         motionStarted = false
+        approachStarted = false
         unavailableCameras.clear()
         listener = null
         lastVector = null
@@ -109,6 +125,12 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
                         (next[2] - previous[2]) * (next[2] - previous[2]),
                 )
                 current(KioskSensorSample.Motion(delta, at))
+            }
+            Sensor.TYPE_PROXIMITY -> value.values.firstOrNull()?.toDouble()?.let { distance ->
+                val maxRange = approach?.maximumRange?.toDouble() ?: return
+                if (distance.isFinite() && distance >= 0 && maxRange.isFinite()) {
+                    current(KioskSensorSample.Approach(distance.coerceAtMost(maxRange), at))
+                }
             }
         }
     }

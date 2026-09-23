@@ -6,10 +6,17 @@ import kotlin.math.min
 data class KioskSensorAvailability(
     val light: Boolean,
     val motion: Boolean,
+    val approach: Boolean = false,
+    val approachMaxRangeCm: Double? = null,
     val camera: String = "unavailable",
 ) {
     init {
         require(camera in setOf("available", "busy", "permissionDenied", "unavailable"))
+        require(
+            if (approach) approachMaxRangeCm != null && approachMaxRangeCm.isFinite() &&
+                approachMaxRangeCm in 0.1..100.0
+            else approachMaxRangeCm == null,
+        )
     }
 }
 
@@ -18,6 +25,7 @@ sealed interface KioskSensorSample {
 
     data class Light(val lux: Double, override val observedAtElapsedMillis: Long) : KioskSensorSample
     data class Motion(val delta: Double, override val observedAtElapsedMillis: Long) : KioskSensorSample
+    data class Approach(val distanceCm: Double, override val observedAtElapsedMillis: Long) : KioskSensorSample
 }
 
 interface KioskSensorHost {
@@ -37,8 +45,10 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
         var observedAt: Long,
         var lux: Double?,
         var motionDelta: Double?,
+        var approachDistanceCm: Double?,
         var lastLightAt: Long?,
         var lastMotionAt: Long?,
+        var lastApproachAt: Long?,
     )
 
     private var interactive = false
@@ -77,8 +87,10 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
             observedAt = max(0, host.nowMillis()),
             lux = null,
             motionDelta = null,
+            approachDistanceCm = null,
             lastLightAt = null,
             lastMotionAt = null,
+            lastApproachAt = null,
         )
         return snapshot(session!!)
     }
@@ -118,6 +130,13 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
                 active.motionDelta = min(sample.delta, 100.0)
                 active.lastMotionAt = sample.observedAtElapsedMillis
             }
+            is KioskSensorSample.Approach -> {
+                val last = active.lastApproachAt
+                if (last != null && sample.observedAtElapsedMillis - last < active.intervalMillis) return
+                if (!sample.distanceCm.isFinite() || sample.distanceCm < 0) return
+                active.approachDistanceCm = min(sample.distanceCm, 100.0)
+                active.lastApproachAt = sample.observedAtElapsedMillis
+            }
         }
         active.sequence++
         active.observedAt = max(active.observedAt, sample.observedAtElapsedMillis)
@@ -135,17 +154,24 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
             throw KioskFailure("unavailable")
         }
         return mapOf(
-        "version" to 1,
-        "sessionId" to active.id,
-        "sequence" to active.sequence,
-        "sampling" to true,
-        "lightAvailable" to availability.light,
-        "motionAvailable" to availability.motion,
-        "observedAtElapsedMillis" to active.observedAt,
-        "lux" to if (availability.light) active.lux else null,
-        "motionDelta" to if (availability.motion) active.motionDelta else null,
-        "cameraStatus" to availability.camera,
-    )
+            "version" to 2,
+            "sessionId" to active.id,
+            "sequence" to active.sequence,
+            "sampling" to true,
+            "lightAvailable" to availability.light,
+            "motionAvailable" to availability.motion,
+            "approachAvailable" to availability.approach,
+            "observedAtElapsedMillis" to active.observedAt,
+            "lux" to if (availability.light) active.lux else null,
+            "motionDelta" to if (availability.motion) active.motionDelta else null,
+            "approachDistanceCm" to if (availability.approach) {
+                active.approachDistanceCm?.let { distance ->
+                    min(distance, availability.approachMaxRangeCm!!)
+                }
+            } else null,
+            "approachMaxRangeCm" to availability.approachMaxRangeCm,
+            "cameraStatus" to availability.camera,
+        )
     }
 
     @Synchronized

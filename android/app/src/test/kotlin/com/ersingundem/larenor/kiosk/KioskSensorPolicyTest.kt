@@ -60,6 +60,8 @@ class KioskSensorPolicyTest {
         assertEquals(2.0, approached["approachDistanceCm"])
         assertEquals(5.0, approached["approachMaxRangeCm"])
         assertFalse(approached.containsKey("faceId"))
+        host.emit(KioskSensorSample.Approach(120.0, 3000))
+        assertEquals(5.0, policy.read(mapOf("sessionId" to id))["approachDistanceCm"])
         host.emit(KioskSensorSample.Light(300000.0, 3000))
         assertEquals(200000.0, policy.read(mapOf("sessionId" to id))["lux"])
     }

@@ -55,6 +55,8 @@ final class KioskSensorController {
             value.motionDelta != current.motionDelta ||
             value.lightAvailable != current.lightAvailable ||
             value.motionAvailable != current.motionAvailable ||
+            value.approachAvailable != current.approachAvailable ||
+            value.approachMaxRangeCm != current.approachMaxRangeCm ||
             value.cameraStatus != current.cameraStatus)) {
       throw const KioskSensorException(KioskSensorFailure.unavailable);
     }

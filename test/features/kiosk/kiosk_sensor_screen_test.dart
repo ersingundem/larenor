@@ -85,6 +85,11 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+Future<void> _reveal(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1280.0]) {
@@ -95,6 +100,7 @@ void main() {
         await _pump(tester, locale: locale, width: width, api: api);
         final start = find.byKey(const ValueKey('kiosk-sensor-start'));
         expect(start, findsOneWidget);
+        await _reveal(tester, start);
         expect(tester.getSize(start).height, greaterThanOrEqualTo(48));
         expect(
           tester
@@ -113,6 +119,8 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
         expect(api.starts, 1);
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pump();
         expect(find.byKey(const ValueKey('kiosk-sensor-stop')), findsOneWidget);
         expect(
           find.textContaining(
@@ -125,7 +133,11 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.textContaining(locale.languageCode == 'tr' ? 'yakın' : 'nearby'),
+          find.text(
+            locale.languageCode == 'tr'
+                ? 'Bir kişi veya nesne yakın'
+                : 'Someone or something is nearby',
+          ),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
@@ -138,7 +150,9 @@ void main() {
   ) async {
     final api = _Api();
     await _pump(tester, locale: const Locale('en'), width: 600, api: api);
-    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    final start = find.byKey(const ValueKey('kiosk-sensor-start'));
+    await _reveal(tester, start);
+    await tester.tap(start);
     await tester.pump();
     api.pending = Completer<KioskSensorSnapshot>();
     await tester.pump(const Duration(seconds: 2));
@@ -155,7 +169,9 @@ void main() {
   ) async {
     final api = _Api();
     await _pump(tester, locale: const Locale('en'), width: 600, api: api);
-    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    final start = find.byKey(const ValueKey('kiosk-sensor-start'));
+    await _reveal(tester, start);
+    await tester.tap(start);
     await tester.pumpAndSettle();
     expect(api.starts, 1);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
@@ -172,7 +188,9 @@ void main() {
   ) async {
     final api = _Api();
     await _pump(tester, locale: const Locale('en'), width: 600, api: api);
-    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    final start = find.byKey(const ValueKey('kiosk-sensor-start'));
+    await _reveal(tester, start);
+    await tester.tap(start);
     await tester.pump(const Duration(seconds: 2));
     expect(api.reads, 1);
     expect(find.textContaining('8.0 lx'), findsOneWidget);
