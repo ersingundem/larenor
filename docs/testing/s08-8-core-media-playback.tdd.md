@@ -84,6 +84,14 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   POST. GREEN `34a7bd5b` revalidates both at the effect boundary, writes no
   request after either failure, closes all opened streams and reports the
   authority change without marking an unstarted effect uncertain.
+- No-effect RED `c01dc51c` proves that a mismatched opened endpoint leaked its
+  stream, that a definitive pre-POST authority rejection lost its certainty at
+  the worker IPC boundary, and that Core retained a false `needs_attention`
+  replay. Post-effect RED `04155074` proves final endpoint drift was incorrectly
+  classified as definite after the POST. GREEN `fa2aeea3` closes a mismatched
+  stream, transports a strict typed failure envelope over the UID-authenticated
+  socket, atomically retires the exact no-effect intent/receipt, prevents worker
+  replay, and preserves uncertainty for every post-effect failure.
 
 The production-worker package adds **20/20** protocol/container tests and the
 private IPC/credential/provider groups bring the focused Server batch to
@@ -91,8 +99,10 @@ private IPC/credential/provider groups bring the focused Server batch to
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
-The final runtime/executor/IPC/provider regression batch passes **25/25**,
+The final runtime/executor/IPC/provider regression batch passes **28/28**,
 including both pre-effect authority/deadline boundaries.
+The grouped runtime, executor, Core playback, IPC, provider and encrypted
+bootstrap batch passes **63/63** after the no-effect boundary fix.
 
 ## Remaining S08.8 acceptance
 
