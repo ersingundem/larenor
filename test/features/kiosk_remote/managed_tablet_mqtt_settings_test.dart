@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/kiosk_remote/presentation/kiosk_remote_screen.dart';
 import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_mqtt_settings.dart';
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_runtime_scope.dart';
 import 'package:larenor/features/kiosk_remote/runtime/mqtt_local_broker.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +25,27 @@ final class _DelayedStore implements ManagedTabletMqttSettingsStore {
   Future<void> write(LocalMqttBrokerSettings settings) async {
     if (!writeStarted.isCompleted) writeStarted.complete();
     await writeGate.future;
+    value = settings;
+  }
+
+  @override
+  Future<void> replaceIfExact(
+    LocalMqttBrokerSettings expected,
+    LocalMqttBrokerSettings replacement,
+  ) async {
+    if (value == expected) value = replacement;
+  }
+}
+
+final class _MemoryStore implements ManagedTabletMqttSettingsStore {
+  _MemoryStore(this.value);
+  LocalMqttBrokerSettings value;
+
+  @override
+  Future<LocalMqttBrokerSettings> read() async => value;
+
+  @override
+  Future<void> write(LocalMqttBrokerSettings settings) async {
     value = settings;
   }
 
@@ -134,6 +157,39 @@ void main() {
 
       await expectLater(pending, throwsStateError);
       expect(store.value, previous);
+    },
+  );
+
+  test(
+    'controller publication retirement rolls back the persisted write',
+    () async {
+      final previous = LocalMqttBrokerSettings.disabled();
+      final next = LocalMqttBrokerSettings(
+        enabled: true,
+        host: 'mqtt.home.arpa',
+        port: 8883,
+        tls: true,
+      );
+      final store = _MemoryStore(previous);
+      final container = ProviderContainer(
+        overrides: [
+          managedTabletMqttSettingsStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(managedTabletMqttSettingsProvider.future);
+      var guardCalls = 0;
+
+      await expectLater(
+        container
+            .read(managedTabletMqttSettingsProvider.notifier)
+            .save(next, isCurrent: () => ++guardCalls <= 3),
+        throwsStateError,
+      );
+
+      expect(guardCalls, 4);
+      expect(store.value, previous);
+      expect(container.read(managedTabletMqttSettingsProvider).value, previous);
     },
   );
 

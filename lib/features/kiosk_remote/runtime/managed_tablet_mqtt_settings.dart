@@ -84,6 +84,7 @@ final class ManagedTabletMqttSettingsRepository {
   Future<LocalMqttBrokerSettings> save(
     LocalMqttBrokerSettings settings, {
     required bool Function() isCurrent,
+    void Function(LocalMqttBrokerSettings settings)? publish,
   }) {
     final operation = _operations.then((_) async {
       if (!_current(isCurrent)) {
@@ -97,6 +98,12 @@ final class ManagedTabletMqttSettingsRepository {
       if (!_current(isCurrent)) {
         await store.replaceIfExact(settings, previous);
         throw StateError('mqtt_settings_write_retired');
+      }
+      try {
+        publish?.call(settings);
+      } catch (_) {
+        await store.replaceIfExact(settings, previous);
+        rethrow;
       }
       return settings;
     });

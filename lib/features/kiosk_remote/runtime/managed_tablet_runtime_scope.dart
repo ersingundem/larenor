@@ -40,13 +40,18 @@ final class ManagedTabletMqttSettingsController
     LocalMqttBrokerSettings settings, {
     required bool Function() isCurrent,
   }) async {
-    final saved = await ref
+    await ref
         .read(managedTabletMqttSettingsRepositoryProvider)
-        .save(settings, isCurrent: isCurrent);
-    if (!isCurrent()) {
-      throw StateError('mqtt_settings_write_retired');
-    }
-    state = AsyncData(saved);
+        .save(
+          settings,
+          isCurrent: isCurrent,
+          publish: (saved) {
+            if (!isCurrent()) {
+              throw StateError('mqtt_settings_write_retired');
+            }
+            state = AsyncData(saved);
+          },
+        );
   }
 }
 
