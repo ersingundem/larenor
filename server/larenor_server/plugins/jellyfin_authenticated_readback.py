@@ -86,6 +86,7 @@ class JellyfinAuthenticatedReadbackResult:
     server_id: str
     server_name: str
     version: str
+    user_id: str = field(repr=False)
     api_key: str = field(repr=False)
     libraries: tuple[tuple[str, str | None, str, tuple[str, ...]], ...] = field(
         repr=False)
@@ -131,7 +132,7 @@ def _authentication(value, username):
             or type(value['ServerId']) is not str
             or _ID.fullmatch(value['ServerId']) is None):
         raise ValueError()
-    return value['AccessToken'], value['ServerId']
+    return value['AccessToken'], value['ServerId'], user['Id']
 
 
 def _keys(value):
@@ -252,7 +253,8 @@ class JellyfinAuthenticatedReadback:
             if status != 200:
                 raise JellyfinAuthenticatedReadbackError(
                     'jellyfin_authenticated_readback_protocol')
-            session, server_id = _authentication(_json(raw), bootstrap.username)
+            session, server_id, user_id = _authentication(
+                _json(raw), bootstrap.username)
             completed.append('authenticated')
             session_auth = base + ', Token=' + session
 
@@ -314,8 +316,8 @@ class JellyfinAuthenticatedReadback:
                 )
             completed.append('session_closed')
             return JellyfinAuthenticatedReadbackResult(
-                'verified', server_id, server_name, version, api_key, libraries,
-                tuple(completed),
+                'verified', server_id, server_name, version, user_id, api_key,
+                libraries, tuple(completed),
             )
         except JellyfinAuthenticatedReadbackError as error:
             if error.completed_steps or error.uncertain_effect:

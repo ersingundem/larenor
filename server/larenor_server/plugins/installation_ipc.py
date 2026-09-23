@@ -188,6 +188,7 @@ def _wire_bootstrap(value=None, error=None):
         'readback': {
             'state': value.readback.state,
             'serverId': value.readback.server_id,
+            'userId': value.readback.user_id,
             'serverName': value.readback.server_name,
             'version': value.readback.version,
             'apiKey': value.readback.api_key,
@@ -220,7 +221,7 @@ def _bootstrap_result(value):
                 and value['uncertainEffect'] is False):
             readback = value['readback']
             if (type(readback) is not dict or set(readback) != {
-                    'state', 'serverId', 'serverName', 'version', 'apiKey',
+                    'state', 'serverId', 'userId', 'serverName', 'version', 'apiKey',
                     'libraries', 'completedSteps'}
                     or readback['state'] != 'verified'
                     or type(readback['libraries']) is not list
@@ -238,7 +239,7 @@ def _bootstrap_result(value):
                 ))
             verified = JellyfinAuthenticatedReadbackResult(
                 readback['state'], readback['serverId'], readback['serverName'],
-                readback['version'], readback['apiKey'], tuple(libraries),
+                readback['version'], readback['userId'], readback['apiKey'], tuple(libraries),
                 tuple(readback['completedSteps']),
             )
             # Re-validate every private value through the same strict encrypted
@@ -250,6 +251,7 @@ def _bootstrap_result(value):
             PrivateJellyfinReadback(
                 apiKey=verified.api_key,
                 serverId=verified.server_id,
+                userId=verified.user_id,
                 serverName=verified.server_name,
                 version=verified.version,
                 libraries=tuple(

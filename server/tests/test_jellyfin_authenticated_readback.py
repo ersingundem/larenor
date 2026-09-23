@@ -115,6 +115,7 @@ def test_creates_one_dedicated_key_then_reads_closed_identity_and_libraries():
     assert result.state == 'verified'
     assert result.api_key == API_KEY
     assert result.server_id == '3' * 32
+    assert result.user_id == '1' * 32
     assert result.server_name == 'Larenor Jellyfin'
     assert result.version == '10.11.0'
     assert result.libraries == (('Filmler', 'movies', '4' * 32, ('/media/movies',)),)

@@ -190,7 +190,8 @@ class BootstrapBackend:
             ('observed_unconfigured', 'configuration_updated', 'user_updated',
              'remote_access_updated', 'wizard_completed'),
             JellyfinAuthenticatedReadbackResult(
-                'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', 'c' * 32,
+                'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', '1' * 32,
+                'c' * 32,
                 (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
                 ('authenticated', 'keys_observed', 'key_verified',
                  'system_verified', 'libraries_verified', 'session_closed'),
@@ -217,6 +218,7 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
     assert stored.api_key == 'c' * 32
     assert stored.server_id == '3' * 32
+    assert stored.user_id == '1' * 32
     assert stored.libraries == (
         ('Filmler', 'movies', '4' * 32, ('/media/movies',)),
     )

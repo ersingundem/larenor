@@ -45,6 +45,7 @@ class _PrivateView:
     automatic_port_mapping: bool
     api_key: str | None
     server_id: str | None
+    user_id: str | None
     server_name: str | None
     version: str | None
     libraries: tuple[tuple[str, str | None, str, tuple[str, ...]], ...]
@@ -269,6 +270,7 @@ class MediaServiceBootstrapManagement:
                 automatic_port_mapping=private.automatic_port_mapping,
                 api_key=None if private.readback is None else private.readback.apiKey,
                 server_id=None if private.readback is None else private.readback.serverId,
+                user_id=None if private.readback is None else private.readback.userId,
                 server_name=None if private.readback is None else private.readback.serverName,
                 version=None if private.readback is None else private.readback.version,
                 libraries=(() if private.readback is None else tuple(
@@ -476,6 +478,7 @@ class MediaServiceBootstrapManagement:
                     stored = PrivateJellyfinReadback(
                         apiKey=verified.api_key,
                         serverId=verified.server_id,
+                        userId=verified.user_id,
                         serverName=verified.server_name,
                         version=verified.version,
                         libraries=tuple(

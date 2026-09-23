@@ -107,6 +107,7 @@ class PrivateJellyfinReadback(StrictModel):
     apiKey: str = Field(min_length=32, max_length=128, repr=False,
                         pattern=r'^[A-Za-z0-9_-]+$')
     serverId: str = Field(pattern=r'^[0-9a-f]{32}$')
+    userId: str = Field(pattern=r'^[0-9a-f]{32}$', repr=False)
     serverName: str = Field(min_length=1, max_length=128)
     version: str = Field(
         pattern=r'^[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}(?:[-+][0-9A-Za-z.-]{1,64})?$')

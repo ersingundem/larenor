@@ -313,7 +313,7 @@ class JellyfinBootstrapExecutor:
                 )
             verified = JellyfinAuthenticatedReadbackResult(
                 verified.state, verified.server_id, verified.server_name,
-                verified.version, verified.api_key, wired.libraries,
+                verified.version, verified.user_id, verified.api_key, wired.libraries,
                 verified.completed_steps,
             )
             observed = self.operations.engine.inspect_container(binding.name)
