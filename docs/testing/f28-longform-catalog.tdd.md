@@ -49,3 +49,9 @@ F28 remains pending at **26/125 (20.8%)** and selected-feature progress remains
 **0/63 (0.0%)**. Client rendering, chapter selection, bookmarks, sleep timer,
 MediaSession/background behavior, provider capability disclosure, a real
 isolated Music Assistant fixture and full exact-head CI are still required.
+
+A final current-main audit added RED `4d04119257ddc7469bd49838c7169a084e4d161c`: a typed private-worker result
+could escape the captured provider bindings or repeat one media URI and still
+be published by Core. GREEN `e34f3468c962e597b0bce22a0ebf0aea89756371` revalidates provider ownership and URI
+cardinality before the final authority gate. The expanded manager/runtime/F28
+batch passes **29/29**.
