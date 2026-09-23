@@ -92,6 +92,10 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   stream, transports a strict typed failure envelope over the UID-authenticated
   socket, atomically retires the exact no-effect intent/receipt, prevents worker
   replay, and preserves uncertainty for every post-effect failure.
+- Cross-stream RED `5aba624e` proved that a second stream whose fresh endpoint
+  proof differed from the first could escape cleanup because comparison ran
+  before ownership was recorded. GREEN `15523599` tracks each opened stream
+  before comparing proofs, so the mismatch closes every connection.
 
 The production-worker package adds **20/20** protocol/container tests and the
 private IPC/credential/provider groups bring the focused Server batch to
@@ -99,10 +103,10 @@ private IPC/credential/provider groups bring the focused Server batch to
 The earlier Core playback suite passes **14/14**; the grouped playback,
 catalog-read and flow package passes **45/45**. The Flutter playback, catalog
 tablet and real-loopback package passes **20/20**.
-The final runtime/executor/IPC/provider regression batch passes **28/28**,
+The final runtime/executor/IPC/provider regression batch passes **29/29**,
 including both pre-effect authority/deadline boundaries.
 The grouped runtime, executor, Core playback, IPC, provider and encrypted
-bootstrap batch passes **63/63** after the no-effect boundary fix.
+bootstrap batch passes **64/64** after the connection cleanup fix.
 
 ## Remaining S08.8 acceptance
 
