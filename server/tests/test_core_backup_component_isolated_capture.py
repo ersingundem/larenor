@@ -92,7 +92,7 @@ def test_capture_owns_exact_read_only_descriptor_set_and_releases_once(tmp_path)
             "jellyfin-cache",
             "jellyfin-config",
         ]
-        assert [os.readlink(f"/proc/self/fd/{item.descriptor}") for item in captured]
+        assert all(os.fstat(item.descriptor).st_ino > 0 for item in captured)
         assert all(
             fcntl.fcntl(item.descriptor, fcntl.F_GETFL) & os.O_ACCMODE
             == os.O_RDONLY
@@ -106,9 +106,9 @@ def test_capture_owns_exact_read_only_descriptor_set_and_releases_once(tmp_path)
         "revalidate",
         "release",
     ]
-    assert all(
-        not os.path.exists(f"/proc/self/fd/{item.descriptor}") for item in captured
-    )
+    for item in captured:
+        with pytest.raises(OSError):
+            os.fstat(item.descriptor)
 
 
 def test_capture_failure_or_consumer_interruption_still_releases(tmp_path):
@@ -167,9 +167,9 @@ def test_capture_rejects_drift_and_malformed_leases_without_yield(tmp_path, dama
             )
         elif damage == "descriptor_mode":
             os.close(first.descriptor)
-            descriptor = os.open(
-                engine.roots[first.volume_id], os.O_RDWR | os.O_DIRECTORY
-            )
+            invalid = engine.roots[first.volume_id] / "writable"
+            invalid.write_text("not a directory")
+            descriptor = os.open(invalid, os.O_RDWR)
             first = replace(first, descriptor=descriptor)
         values[0] = first
         return tuple(values)
