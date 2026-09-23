@@ -500,6 +500,7 @@ class ManagedComponentSnapshotProvider:
             except Exception:
                 raise ComponentSnapshotProviderError() from None
             yield snapshots
+            self._revalidate(deadline)
         except BaseException:
             active_error = True
             raise
