@@ -373,6 +373,7 @@ class ManagedComponentSnapshotProvider:
         controller,
         installed_authority,
         *,
+        isolated_capture=None,
         monotonic=time.monotonic,
     ):
         try:
@@ -385,6 +386,11 @@ class ManagedComponentSnapshotProvider:
                 or not callable(controller.unpause)
                 or not hasattr(installed_authority, "revalidate")
                 or not callable(installed_authority.revalidate)
+                or isolated_capture is not None
+                and (
+                    not hasattr(isolated_capture, "acquire")
+                    or not callable(isolated_capture.acquire)
+                )
                 or not callable(monotonic)
             ):
                 raise ValueError()
@@ -488,6 +494,7 @@ class ManagedComponentSnapshotProvider:
             )
             self.controller = controller
             self.installed_authority = installed_authority
+            self.isolated_capture = isolated_capture
             self.monotonic = monotonic
         except (
             OSError,
@@ -501,13 +508,25 @@ class ManagedComponentSnapshotProvider:
                 "invalid_snapshot_configuration"
             ) from None
 
+    @staticmethod
+    def _snapshot(source, descriptor, deadline):
+        payload = archive_component_directory(descriptor, deadline)
+        return ComponentVolumeSnapshot(
+            serviceId=source.service_id,
+            serviceVersion=source.service_version,
+            configSchemaVersion=source.config_schema_version,
+            dataSchemaVersion=source.data_schema_version,
+            volumeId=source.volume_id,
+            payload=payload,
+        )
+
     def _capture(self, source, deadline):
         descriptor = _open_absolute_directory(source.path)
         try:
             before = os.fstat(descriptor)
             if (before.st_dev, before.st_ino) != (source.device, source.inode):
                 raise ComponentSnapshotProviderError()
-            payload = archive_component_directory(descriptor, deadline)
+            snapshot = self._snapshot(source, descriptor, deadline)
             replacement = _open_absolute_directory(source.path)
             try:
                 after = os.fstat(replacement)
@@ -522,14 +541,28 @@ class ManagedComponentSnapshotProvider:
                 os.close(replacement)
         finally:
             os.close(descriptor)
-        return ComponentVolumeSnapshot(
-            serviceId=source.service_id,
-            serviceVersion=source.service_version,
-            configSchemaVersion=source.config_schema_version,
-            dataSchemaVersion=source.data_schema_version,
-            volumeId=source.volume_id,
-            payload=payload,
-        )
+        return snapshot
+
+    def _capture_isolated(self, deadline):
+        captured = []
+        total = 0
+        with self.isolated_capture.acquire(self.sources, deadline) as leases:
+            selected = {
+                (item.service_id, item.volume_id): item for item in leases
+            }
+            if len(selected) != len(leases):
+                raise ComponentSnapshotProviderError()
+            for source in self.sources:
+                lease = selected.get((source.service_id, source.volume_id))
+                if lease is None:
+                    raise ComponentSnapshotProviderError()
+                snapshot = self._snapshot(source, lease.descriptor, deadline)
+                total += len(snapshot.payload)
+                if total > MAX_COMPONENT_BYTES:
+                    raise ComponentSnapshotProviderError("snapshot_too_large")
+                captured.append(snapshot)
+            self._revalidate(deadline)
+        return tuple(captured)
 
     def _revalidate(self, deadline):
         try:
@@ -567,16 +600,19 @@ class ManagedComponentSnapshotProvider:
                     paused.append(container_id)
                     if self.controller.pause(container_id, deadline) is not True:
                         raise ComponentSnapshotProviderError()
-                captured = []
-                total = 0
-                for source in self.sources:
-                    snapshot = self._capture(source, deadline)
-                    total += len(snapshot.payload)
-                    if total > MAX_COMPONENT_BYTES:
-                        raise ComponentSnapshotProviderError("snapshot_too_large")
-                    captured.append(snapshot)
-                snapshots = tuple(captured)
-                self._revalidate(deadline)
+                if self.isolated_capture is not None:
+                    snapshots = self._capture_isolated(deadline)
+                else:
+                    captured = []
+                    total = 0
+                    for source in self.sources:
+                        snapshot = self._capture(source, deadline)
+                        total += len(snapshot.payload)
+                        if total > MAX_COMPONENT_BYTES:
+                            raise ComponentSnapshotProviderError("snapshot_too_large")
+                        captured.append(snapshot)
+                    snapshots = tuple(captured)
+                    self._revalidate(deadline)
             except ComponentSnapshotProviderError:
                 raise
             except Exception:

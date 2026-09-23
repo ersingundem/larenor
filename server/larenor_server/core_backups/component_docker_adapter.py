@@ -17,7 +17,11 @@ from ..plugins.volume_transport import UnixVolumeReader, VolumeReadLimits
 from .component_installation_authority import (
     DurableComponentInstallationAuthority,
 )
-from .component_snapshot_provider import ComponentVolumeSource
+from .component_isolated_capture import AuthorityBoundIsolatedCapture
+from .component_snapshot_provider import (
+    ComponentVolumeSource,
+    ManagedComponentSnapshotProvider,
+)
 
 
 class ComponentDockerAdapterError(RuntimeError):
@@ -72,7 +76,13 @@ class UnixDockerComponentSnapshotAdapter:
     """Join installed journals to exact live Docker and filesystem identities."""
 
     def __init__(
-        self, endpoint, authority, *, peer_uid=None, effect_seconds=2.0
+        self,
+        endpoint,
+        authority,
+        *,
+        peer_uid=None,
+        effect_seconds=2.0,
+        capture_engine=None,
     ):
         if (
             type(authority) is not DurableComponentInstallationAuthority
@@ -90,11 +100,35 @@ class UnixDockerComponentSnapshotAdapter:
         self._authority = authority
         self._peer_uid = peer_uid
         self._effect_seconds = effect_seconds
+        try:
+            self._isolated_capture = (
+                None
+                if capture_engine is None
+                else AuthorityBoundIsolatedCapture(capture_engine)
+            )
+        except Exception:
+            raise ComponentDockerAdapterError() from None
         self._receipts = None
         self._sources = None
         self._pause_attempted = set()
         self._unpause_attempted = set()
         self._paused_owned = set()
+
+    def provider(self, deadline):
+        """Construct the production boundary only with an isolated engine."""
+        if self._isolated_capture is None:
+            raise ComponentDockerAdapterError()
+        try:
+            return ManagedComponentSnapshotProvider(
+                self.sources(deadline),
+                self,
+                self._authority,
+                isolated_capture=self._isolated_capture,
+            )
+        except ComponentDockerAdapterError:
+            raise
+        except Exception:
+            raise ComponentDockerAdapterError() from None
 
     def _container(self, receipt, deadline):
         remaining = _remaining(deadline)

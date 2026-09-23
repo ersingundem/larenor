@@ -68,12 +68,11 @@ Result: **49 passed**. Python compilation and `git diff --check` also pass.
 
 ## Remaining S09.1 gates
 
-The installation journal must still construct the authority from exact durable
-receipts, and a packaged Linux Docker Engine adapter must prove pause state,
-uncertain-effect reconciliation, restart recovery and volume identities on
-amd64 and arm64. This portable reader assumes the paused managed container is
-the sole writer. A shared or hostile host writer cannot be made atomic by any
-finite sequential rescan; closing that stronger boundary requires the Linux
-adapter to provide an authority-held read-only/COW filesystem snapshot. Restore/
-rollback and interruption recovery remain S09.2/S09.3 work. Queue progress
-stays **26/125** and selected-feature progress stays **0/63**.
+The durable journal authority and Docker pause adapter are now merged. The
+follow-up isolated-capture boundary requires one exact native read-only/COW
+descriptor generation and refuses production composition without its engine.
+This portable reader still assumes the paused managed container is the sole
+writer and cannot be selected by that production adapter entry point. The
+privileged Linux engine, its restart journal and amd64/arm64 acceptance remain
+open. Restore/rollback and interruption recovery remain S09.2/S09.3 work.
+Queue progress stays **26/125** and selected-feature progress stays **0/63**.

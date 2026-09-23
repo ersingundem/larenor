@@ -39,6 +39,15 @@ sayaç **26/125 (%20,8)** ve seçili özellikler **0/63** kaldı.
 ikisi de main ancestry'sine alındı ve eski headlere ait yeşil sonuçlar kabul
 edilmedi.
 
+S09.1'in sonraki izole capture dilimi, durable journal kaynağını tek native
+capture generation içindeki ayrı `O_RDONLY` descriptor setine bağlıyor.
+Shared-writer iddiası, path/inode veya revision, service/schema version ve
+generation drift'i payload yayımlanmadan reddediliyor; bütün interrupt ve hata
+yolları lease'i bir kez kapatıyor. Docker adapter'ın production provider
+oluşturması native capture engine yokken fail-closed. Linux engine ve iki
+mimari native kabul hâlâ açık olduğundan S09.1 `pending`, sayaçlar **26/125
+(%20,8)** ve **0/63** kalır. [TDD kanıtı](testing/s09-1-isolated-component-capture.tdd.md).
+
 ### 23 Eylül birleşik teslim kanıtı — PR #439, #443–#447
 
 Stable main `36e05f9a`, altı bağımsız dilimin exact kaynaklarını ve birleşme
