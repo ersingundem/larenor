@@ -42,6 +42,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   final ServerMusicCommandReceiptCache _receiptCache;
   int _epoch = 0;
   int _selectionEpoch = 0;
+  int _longformEpoch = 0;
   bool _disposed = false;
 
   bool busy = false;
@@ -52,6 +53,9 @@ class ServerMusicManagerController extends ChangeNotifier {
   ServerMusicRetainedInstallation? installation;
   ServerMusicManager? manager;
   ServerMusicCatalog? catalog;
+  ServerMusicLongformCatalog? longform;
+  bool longformBusy = false;
+  String? longformFailure;
   String? selectedProviderId;
   String? selectedReceiverId;
   String? selectedMediaUri;
@@ -108,6 +112,7 @@ class ServerMusicManagerController extends ChangeNotifier {
   void invalidate() {
     _epoch++;
     _selectionEpoch++;
+    _longformEpoch++;
     busy = false;
     stored = false;
     reachable = false;
@@ -116,6 +121,9 @@ class ServerMusicManagerController extends ChangeNotifier {
     installation = null;
     manager = null;
     catalog = null;
+    longform = null;
+    longformBusy = false;
+    longformFailure = null;
     selectedProviderId = null;
     selectedReceiverId = null;
     selectedMediaUri = null;
@@ -160,6 +168,12 @@ class ServerMusicManagerController extends ChangeNotifier {
       catalog = null;
       selectedMediaUri = null;
     }
+    if (longform?.managerRevision != value.revision) {
+      _longformEpoch++;
+      longform = null;
+      longformBusy = false;
+      longformFailure = null;
+    }
   }
 
   Future<void> load({required bool Function() current}) async {
@@ -174,6 +188,10 @@ class ServerMusicManagerController extends ChangeNotifier {
     installation = null;
     manager = null;
     catalog = null;
+    _longformEpoch++;
+    longform = null;
+    longformBusy = false;
+    longformFailure = null;
     lastReceipt = null;
     _emit();
     try {
@@ -264,6 +282,10 @@ class ServerMusicManagerController extends ChangeNotifier {
         current() &&
         identical(installation, retained);
     busy = true;
+    _longformEpoch++;
+    longform = null;
+    longformBusy = false;
+    longformFailure = null;
     failure = null;
     verified = false;
     _emit();
@@ -491,6 +513,58 @@ class ServerMusicManagerController extends ChangeNotifier {
     }
   }
 
+  Future<void> loadInProgress({required bool Function() current}) async {
+    final value = manager;
+    if (_disposed ||
+        longformBusy ||
+        !_authorized ||
+        !_safeCurrent(current) ||
+        !verified ||
+        value == null) {
+      return;
+    }
+    final epoch = _epoch;
+    final longformEpoch = ++_longformEpoch;
+    bool valid() =>
+        !_disposed &&
+        epoch == _epoch &&
+        longformEpoch == _longformEpoch &&
+        _authorized &&
+        _safeCurrent(current) &&
+        verified &&
+        identical(manager, value);
+    longformBusy = true;
+    longformFailure = null;
+    longform = null;
+    _emit();
+    try {
+      await account.withSession((api, session) async {
+        final requestId = _requestId();
+        final result = await ServerMusicManagerApi(api, session.accessToken)
+            .inProgress(
+              requestId: requestId,
+              manager: value,
+              limit: 25,
+              current: valid,
+            );
+        if (valid() && identical(account.session, session)) {
+          longform = result;
+        }
+      });
+    } catch (error) {
+      if (valid()) {
+        longformFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _epoch && longformEpoch == _longformEpoch) {
+        longformBusy = false;
+        _emit();
+      }
+    }
+  }
+
   Future<void> command(
     ServerMusicOperation operation, {
     double? positionSeconds,
@@ -648,5 +722,13 @@ class ServerMusicManagerController extends ChangeNotifier {
     _epoch++;
     account.removeListener(_accountChanged);
     super.dispose();
+  }
+}
+
+bool _safeCurrent(bool Function() current) {
+  try {
+    return current();
+  } catch (_) {
+    return false;
   }
 }

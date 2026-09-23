@@ -116,6 +116,46 @@ class ServerMusicManagerApi {
     return value;
   }
 
+  Future<ServerMusicLongformCatalog> inProgress({
+    required String requestId,
+    required ServerMusicManager manager,
+    required int limit,
+    required bool Function() current,
+  }) async {
+    _id(requestId);
+    if (limit < 1 || limit > 25) _invalidRequest();
+    _requireCurrent(current);
+    final value = ServerMusicLongformCatalog.fromJson(
+      _only(
+        await api.request(
+          'POST',
+          '$root/catalog/in-progress',
+          token: token,
+          body: {
+            'requestId': requestId,
+            'installationId': manager.installationId,
+            'expectedInstallationRevision': manager.installationRevision,
+            'expectedCoreRevision': manager.coreRevision,
+            'expectedManagerRevision': manager.revision,
+            'limit': limit,
+          },
+        ),
+        'longform',
+      )['longform'],
+    );
+    _requireCurrent(current);
+    if (value.requestId != requestId ||
+        value.managerRevision != manager.revision ||
+        value.items.any(
+          (item) => !manager.providers.any(
+            (provider) => provider.instanceId == item.providerInstanceId,
+          ),
+        )) {
+      _invalidResponse();
+    }
+    return value;
+  }
+
   Future<ServerMusicReceipt> command({
     required String requestId,
     required ServerMusicManager manager,
@@ -213,6 +253,13 @@ bool _validMediaUri(String value) =>
     value.length <= 2048 &&
     RegExp(r'^(?:spotify|apple_music|ytmusic|library)://[^\s]+$')
         .hasMatch(value);
+
+void _requireCurrent(bool Function() current) {
+  try {
+    if (current()) return;
+  } catch (_) {}
+  throw const LarenorServerException('cancelled');
+}
 
 bool _sameProvider(
   ServerMusicProviderBinding left,
