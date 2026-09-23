@@ -373,6 +373,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
     var hasExtendedHeader = false;
     var animationEnabled = false;
     var hasAnimationHeader = false;
+    var hasTopLevelAlpha = false;
     while (offset + 8 <= bytes.length) {
       final type = ascii.decode(bytes.sublist(offset, offset + 4));
       final length = _uint32LittleEndian(bytes, offset + 4);
@@ -381,21 +382,37 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       final paddedEnd = dataEnd + (length.isOdd ? 1 : 0);
       if (length < 0 || paddedEnd > bytes.length) return false;
       if (type == 'VP8X') {
-        if (hasExtendedHeader || length != 10) return false;
+        if (hasExtendedHeader || offset != 12 || length != 10) return false;
         hasExtendedHeader = true;
         animationEnabled = bytes[dataStart] & 0x02 != 0;
       } else if (type == 'ANIM') {
-        if (!hasExtendedHeader || !animationEnabled || length != 6) {
+        if (!hasExtendedHeader ||
+            !animationEnabled ||
+            hasAnimationHeader ||
+            length != 6) {
           return false;
         }
         hasAnimationHeader = true;
+      } else if (type == 'ALPH') {
+        if (!hasExtendedHeader ||
+            animationEnabled ||
+            hasTopLevelAlpha ||
+            staticImages > 0 ||
+            length < 1) {
+          return false;
+        }
+        hasTopLevelAlpha = true;
       } else if (type == 'VP8 ') {
-        if (!_validVp8(bytes, dataStart, length)) {
+        if (staticImages > 0 || !_validVp8(bytes, dataStart, length)) {
           return false;
         }
         staticImages++;
       } else if (type == 'VP8L') {
-        if (!_validVp8l(bytes, dataStart, length)) return false;
+        if (hasTopLevelAlpha ||
+            staticImages > 0 ||
+            !_validVp8l(bytes, dataStart, length)) {
+          return false;
+        }
         staticImages++;
       } else if (type == 'ANMF') {
         if (!hasExtendedHeader ||
@@ -444,6 +461,7 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
   static bool _validWebpFrame(Uint8List bytes, int start, int end) {
     var offset = start;
     var imageChunks = 0;
+    var hasAlpha = false;
     while (offset + 8 <= end) {
       final type = ascii.decode(bytes.sublist(offset, offset + 4));
       final length = _uint32LittleEndian(bytes, offset + 4);
@@ -452,12 +470,21 @@ final class LocalWebPanelTransferAccess implements WebPanelTransferAccess {
       final paddedEnd = dataEnd + (length.isOdd ? 1 : 0);
       if (paddedEnd > end) return false;
       if (type == 'VP8 ') {
-        if (!_validVp8(bytes, dataStart, length)) return false;
+        if (imageChunks > 0 || !_validVp8(bytes, dataStart, length)) {
+          return false;
+        }
         imageChunks++;
       } else if (type == 'VP8L') {
-        if (!_validVp8l(bytes, dataStart, length)) return false;
+        if (hasAlpha ||
+            imageChunks > 0 ||
+            !_validVp8l(bytes, dataStart, length)) {
+          return false;
+        }
         imageChunks++;
-      } else if (type != 'ALPH') {
+      } else if (type == 'ALPH') {
+        if (hasAlpha || imageChunks > 0 || length < 1) return false;
+        hasAlpha = true;
+      } else {
         return false;
       }
       offset = paddedEnd;

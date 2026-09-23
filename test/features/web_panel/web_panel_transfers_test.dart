@@ -118,6 +118,49 @@ Uint8List duplicateWebpImageChunk() {
   return bytes;
 }
 
+List<int> webpChunk(String type, List<int> payload) => [
+  ...type.codeUnits,
+  payload.length & 0xff,
+  (payload.length >> 8) & 0xff,
+  (payload.length >> 16) & 0xff,
+  (payload.length >> 24) & 0xff,
+  ...payload,
+  if (payload.length.isOdd) 0,
+];
+
+Uint8List webpContainer(List<List<int>> chunks) {
+  final payload = chunks.expand((chunk) => chunk).toList(growable: false);
+  final riffLength = payload.length + 4;
+  return Uint8List.fromList([
+    ...'RIFF'.codeUnits,
+    riffLength & 0xff,
+    (riffLength >> 8) & 0xff,
+    (riffLength >> 16) & 0xff,
+    (riffLength >> 24) & 0xff,
+    ...'WEBP'.codeUnits,
+    ...payload,
+  ]);
+}
+
+List<int> get validVp8Chunk => validWebp.sublist(12);
+final validVp8lChunk = webpChunk('VP8L', const [0x2f, 0, 0, 0, 0]);
+
+Uint8List malformedAnimatedWebp(
+  List<List<int>> frameChunks, {
+  bool duplicateAnim = false,
+}) {
+  final frame = webpChunk('ANMF', [
+    ...List<int>.filled(16, 0),
+    ...frameChunks.expand((chunk) => chunk),
+  ]);
+  return webpContainer([
+    webpChunk('VP8X', [0x02, ...List<int>.filled(9, 0)]),
+    webpChunk('ANIM', List<int>.filled(6, 0)),
+    if (duplicateAnim) webpChunk('ANIM', List<int>.filled(6, 0)),
+    frame,
+  ]);
+}
+
 final animationHeaderOnlyWebp = Uint8List.fromList(const [
   0x52,
   0x49,
@@ -414,6 +457,32 @@ void main() {
       ('image/webp', 'RIFF0000WEBP'.codeUnits),
       ('image/webp', animationHeaderOnlyWebp),
       ('image/webp', duplicateWebpImageChunk()),
+      (
+        'image/webp',
+        malformedAnimatedWebp([validVp8Chunk], duplicateAnim: true),
+      ),
+      (
+        'image/webp',
+        malformedAnimatedWebp([
+          validVp8Chunk,
+          webpChunk('ALPH', const [0]),
+        ]),
+      ),
+      (
+        'image/webp',
+        malformedAnimatedWebp([
+          webpChunk('ALPH', const [0]),
+          webpChunk('ALPH', const [0]),
+          validVp8Chunk,
+        ]),
+      ),
+      (
+        'image/webp',
+        malformedAnimatedWebp([
+          webpChunk('ALPH', const [0]),
+          validVp8lChunk,
+        ]),
+      ),
       ('text/plain', [0x66, 0x6f, 0x00, 0x6f]),
       ('text/csv', [0xc3, 0x28]),
       ('application/json', '{"unfinished":'.codeUnits),
