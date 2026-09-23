@@ -104,25 +104,33 @@ def recover_empty_restore(settings: Settings) -> bool:
         return False
     snapshot_id = journal["snapshotId"]
     stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)
-    _publish_one(
-        stage_key,
-        settings.key_file,
-        32,
-        journal["keySha256"],
-    )
+    artifacts = [
+        (stage_key, settings.key_file, 32, journal["keySha256"]),
+    ]
     if journal["version"] == 2:
-        _publish_one(
-            stage_dir / "family-board.sqlite3",
-            settings.data_dir / "family-board.sqlite3",
-            MAX_FAMILY_BOARD_BYTES,
-            journal["familyBoardSha256"],
+        artifacts.append(
+            (
+                stage_dir / "family-board.sqlite3",
+                settings.data_dir / "family-board.sqlite3",
+                MAX_FAMILY_BOARD_BYTES,
+                journal["familyBoardSha256"],
+            )
         )
-    _publish_one(
-        stage_dir / "larenor.sqlite3",
-        settings.database_file,
-        MAX_BUNDLE_BYTES,
-        journal["databaseSha256"],
+    artifacts.append(
+        (
+            stage_dir / "larenor.sqlite3",
+            settings.database_file,
+            MAX_BUNDLE_BYTES,
+            journal["databaseSha256"],
+        )
     )
+    # Verify every late artifact before publishing the first one. Recovery
+    # keeps the journal authoritative on failure, but must not create a new
+    # partial target when a later staged file is already corrupt or missing.
+    for stage, target, maximum, digest in artifacts:
+        _verify_file(target if target.exists() else stage, maximum, digest)
+    for stage, target, maximum, digest in artifacts:
+        _publish_one(stage, target, maximum, digest)
     marker = settings.data_dir / ".initialized"
     if not marker.exists():
         private_create(marker, b"larenor-schema-1\n")
