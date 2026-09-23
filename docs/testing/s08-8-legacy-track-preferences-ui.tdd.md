@@ -37,6 +37,14 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
   controller and card existed.
 - GREEN `09ef79304b984df92e330d03ca015410e6e140fd` implements the lifecycle
   controller, player card, localization and exact confirmation retirement.
+- Audit RED `e5d7332a7bd81dd6c0e5ae324326a94376a6bed7` proves that a JSON
+  floating-point `1.0` version was accepted and that retained confirm callbacks
+  could still write Core and remove the local record after route coverage or
+  interaction-epoch replacement.
+- Audit GREEN `793a446aa4d83c5247bad67e4f732aeba54ea5b6` requires an exact integer
+  schema version and binds migration confirmation to the player's route,
+  foreground and interaction generation. Retirement keeps the legacy source
+  and prevents a stale Core write.
 
 ```text
 flutter test \
@@ -50,8 +58,10 @@ flutter test \
   test/features/media/jellyfin/jellyfin_player_lifecycle_test.dart
 ```
 
-Result: **63/63 passed**. Focused analysis over the seven changed
-production/test surfaces reported **no issues**.
+Result: **65/65 passed**. Focused analysis over the four audit-changed
+production/test surfaces reported **no issues**. Full `lib` and `test` Dart
+formatting checked **1,634 files with zero changes**. Security policy,
+execution-queue validation, progress trailers and the exact diff check passed.
 
 ## Remaining S08.8 boundary
 
