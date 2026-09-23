@@ -6,6 +6,7 @@ void main() {
     'retained overview binds exact installation service and provider revisions',
     () {
       final overview = ServerMusicRetainedOverview.fromJson(retainedJson());
+      expect(overview.toJson(), retainedJson());
       expect(overview.state, 'ready');
       final record = overview.installations.single;
       expect(record.installationId, 'a' * 32);
