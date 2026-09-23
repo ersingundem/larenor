@@ -32,7 +32,13 @@ class WebPanelDataCoordinator extends ChangeNotifier {
   bool get blocked => _blocked;
   bool get running => _running;
 
-  void register(Future<void> Function() retire) => _panels.add(retire);
+  void register(Future<void> Function() retirePanel) {
+    if (!_panels.add(retirePanel) || !_running) return;
+    // A panel mounted while a clear is awaiting native work joins the same
+    // barrier instead of escaping the already-taken panel snapshot.
+    retire(retirePanel);
+  }
+
   void unregister(Future<void> Function() retire) => _panels.remove(retire);
 
   /// Also tracks renderers detached before a clear request (route changes,
@@ -47,8 +53,24 @@ class WebPanelDataCoordinator extends ChangeNotifier {
     );
   }
 
+  Future<void> _settleRetirements() async {
+    while (_retirements.isNotEmpty) {
+      final tasks = _retirements.toList();
+      await Future.wait([for (final task in tasks) task.finish()]);
+      _retirements.removeWhere((task) => task.complete);
+    }
+  }
+
   Future<bool> clear({required bool Function() isCurrent}) async {
-    if (_running || !isCurrent()) return false;
+    bool current() {
+      try {
+        return isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (_running || !current()) return false;
     _running = true;
     _blocked = true;
     // Retire synchronously before any native clearing. Keep futures to await
@@ -58,20 +80,21 @@ class WebPanelDataCoordinator extends ChangeNotifier {
     ];
     notifyListeners();
     var deadlineExpired = false;
-    bool current() => !deadlineExpired && isCurrent();
+    bool active() => !deadlineExpired && current();
     Future<bool> operation() async {
       try {
         await Future.wait(retired);
-        final tasks = _retirements.toList();
-        await Future.wait([for (final task in tasks) task.finish()]);
-        _retirements.removeWhere((task) => task.complete);
-        if (!current()) return false;
+        await _settleRetirements();
+        if (!active()) return false;
         await _api.clearCookies();
-        if (!current()) return false;
+        await _settleRetirements();
+        if (!active()) return false;
         await _api.clearLocalStorage();
-        if (!current()) return false;
+        await _settleRetirements();
+        if (!active()) return false;
         await _api.clearCache();
-        if (!current()) return false;
+        await _settleRetirements();
+        if (!active()) return false;
         _blocked = false;
         return true;
       } catch (_) {
