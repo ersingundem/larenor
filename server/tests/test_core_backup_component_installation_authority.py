@@ -179,17 +179,18 @@ def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
                 ready_volume(volumes, data, resource)
         authority = DurableComponentInstallationAuthority(containers, volumes)
         sources = snapshot_sources(authority.snapshot(), tmp_path / 'payloads')
-        deadline = time.monotonic() + 2
-        assert authority.revalidate(sources, deadline) is True
-        assert authority.revalidate(sources, deadline) is True
+        deadline = lambda: time.monotonic() + 2
+        assert authority.revalidate(sources, deadline()) is True
+        assert authority.revalidate(sources, deadline()) is True
 
         malformed = (
             replace(sources[0], installation_revision=4),
             *sources[1:],
         )
-        assert authority.revalidate(malformed, deadline) is False
-        assert authority.revalidate((sources[0], sources[0]), deadline) is False
-        assert authority.revalidate(sources[:1], deadline) is False
+        assert authority.revalidate(malformed, deadline()) is False
+        assert authority.revalidate(
+            (sources[0], sources[0]), deadline()) is False
+        assert authority.revalidate(sources[:1], deadline()) is False
         shared_identity = (
             sources[0],
             replace(
@@ -197,19 +198,19 @@ def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
                 device=sources[0].device, inode=sources[0].inode,
             ),
         )
-        assert authority.revalidate(shared_identity, deadline) is False
+        assert authority.revalidate(shared_identity, deadline()) is False
         assert authority.revalidate(sources, time.monotonic() - 1) is False
 
         monkeypatch.setattr(authority_module, 'load_catalog',
                             lambda: (_ for _ in ()).throw(RuntimeError('private drift')))
-        assert authority.revalidate(sources, deadline) is False
+        assert authority.revalidate(sources, deadline()) is False
         monkeypatch.undo()
 
         volumes._db.execute(
             'UPDATE resources SET revision=revision+1 WHERE resource_id='
             '(SELECT resource_id FROM resources ORDER BY resource_id LIMIT 1)'
         )
-        assert authority.revalidate(sources, deadline) is False
+        assert authority.revalidate(sources, deadline()) is False
 
 
 def test_snapshot_rejects_two_installed_services_sharing_one_container_identity(
