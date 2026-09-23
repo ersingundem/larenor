@@ -19,7 +19,7 @@ effect, contact Music Assistant directly, close S08.8 or change progress.
 
 ## RED
 
-Commit `b51e4e84fa380744e9264ee9d2d95d630be68833` added exact lifetime,
+Commit `3be9b42246cfa1d60500f11c120a9364b0f0ea65` added exact lifetime,
 expired/future response and expiry-during-confirm coverage. The model accepted
 off-by-one lifetimes and the controller lacked both a clock seam and expiry
 checks.
