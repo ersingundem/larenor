@@ -21,12 +21,21 @@ final class _MemoryBackend implements ServerMediaCatalogCacheBackend {
   }
 
   @override
-  Future<bool> compareAndWrite(String? expected, String next) async {
+  Future<bool> compareAndWrite(
+    String? expected,
+    String next, {
+    required bool Function() current,
+  }) async {
+    if (!current()) return false;
     if (value != expected) return false;
     value = next;
     writes++;
     final gate = writeGate;
     if (gate != null) await gate.future;
+    if (!current()) {
+      await compareAndClear(next);
+      return false;
+    }
     return true;
   }
 
@@ -108,7 +117,10 @@ void main() {
   test('SharedPreferences backend survives a fresh cache instance', () async {
     SharedPreferences.setMockInitialValues({});
     final writer = SharedPreferencesServerMediaCatalogCacheBackend();
-    expect(await writer.compareAndWrite(null, 'snapshot'), isTrue);
+    expect(
+      await writer.compareAndWrite(null, 'snapshot', current: () => true),
+      isTrue,
+    );
 
     final reader = SharedPreferencesServerMediaCatalogCacheBackend();
     expect(await reader.read(), 'snapshot');
@@ -135,6 +147,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          current: () => true,
         ),
         isNotNull,
       );
@@ -162,6 +175,7 @@ void main() {
             _resource(),
             query: 'matrix',
             mediaKind: ServerMediaCatalogKind.movie,
+            current: () => true,
           ),
           isNull,
         );
@@ -172,6 +186,7 @@ void main() {
           _resource(snapshotRevision: 10),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          current: () => true,
         ),
         isNull,
       );
@@ -181,6 +196,7 @@ void main() {
           _resource(),
           query: 'alien',
           mediaKind: ServerMediaCatalogKind.movie,
+          current: () => true,
         ),
         isNull,
       );
@@ -192,6 +208,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          current: () => true,
         ),
         isNull,
       );
@@ -239,6 +256,7 @@ void main() {
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
+          current: () => true,
         ),
         isNull,
       );
