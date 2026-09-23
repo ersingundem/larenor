@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import larenor_server.core_backups.component_snapshot_provider as provider_module
 from larenor_server.core_backups.component_snapshot_provider import (
     ComponentSnapshotProviderError,
     ComponentVolumeSource,
@@ -209,6 +210,43 @@ def test_archive_is_bounded_and_rejects_expired_deadline(tmp_path):
             archive_component_directory(descriptor, "private-deadline")
     finally:
         os.close(descriptor)
+
+
+def test_archive_bounds_directory_enumeration_before_sorting(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    root.mkdir()
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    consumed = 0
+
+    class Entry:
+        def __init__(self, name):
+            self.name = name
+
+    class Entries:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __iter__(self):
+            nonlocal consumed
+            for index in range(provider_module._MAX_ENTRIES * 5):
+                consumed += 1
+                yield Entry(f"entry-{index:05d}")
+
+    def list_names(_descriptor):
+        return (entry.name for entry in Entries())
+
+    monkeypatch.setattr(os, "listdir", list_names)
+    monkeypatch.setattr(os, "scandir", lambda _descriptor: Entries())
+    try:
+        with pytest.raises(ComponentSnapshotProviderError, match="snapshot_too_large"):
+            archive_component_directory(descriptor, time.monotonic() + 1)
+    finally:
+        os.close(descriptor)
+
+    assert consumed == provider_module._MAX_ENTRIES + 1
 
 
 def test_archive_rejects_same_name_replacement_before_final_directory_check(
