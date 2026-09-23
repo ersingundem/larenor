@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/core_backups/presentation/server_core_backup_file_access.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,53 @@ void main() {
       });
     },
   );
+
+  test('destination commit uses the exact Client bundle cap', () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return switch (call.method) {
+            'open' => {'handle': 'b' * 32},
+            'commit' => 'content://larenor/backups/component-export',
+            'cancel' => null,
+            _ => throw PlatformException(code: 'missing'),
+          };
+        });
+    var operation = 0;
+    final access = ServerCoreBackupFileAccess(
+      channel: channel,
+      isAndroid: true,
+      operationIdFactory: () => (++operation).toString().padLeft(32, '0'),
+    );
+
+    expect(
+      ServerCoreBackupFileAccess.maxBytes,
+      LarenorServerApi.maxCoreBackupBytes,
+    );
+    final exact = await access.open('larenor-core-backup.larenor-core');
+    expect(
+      await exact!.commit(
+        byteLength: LarenorServerApi.maxCoreBackupBytes,
+        sha256: 'c' * 64,
+      ),
+      Uri.parse('content://larenor/backups/component-export'),
+    );
+    final overflow = await access.open('larenor-core-backup.larenor-core');
+    await expectLater(
+      overflow!.commit(
+        byteLength: LarenorServerApi.maxCoreBackupBytes + 1,
+        sha256: 'd' * 64,
+      ),
+      throwsArgumentError,
+    );
+    await overflow.cancel();
+
+    expect(
+      calls.where((call) => call.method == 'commit').single.arguments,
+      containsPair('byteLength', LarenorServerApi.maxCoreBackupBytes),
+    );
+  });
 
   test('cancelling a pending picker retires its stale callback', () async {
     final calls = <MethodCall>[];

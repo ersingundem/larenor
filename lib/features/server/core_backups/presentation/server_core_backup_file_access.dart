@@ -20,6 +20,7 @@ class ServerCoreBackupFileAccess {
 
   static const channelName = 'com.ersingundem.larenor/core_backup_destination';
   static const maxChunkBytes = 64 * 1024;
+  static const maxBytes = LarenorServerApi.maxCoreBackupBytes;
   final MethodChannel _channel;
   final bool _isAndroid;
   final String Function() _operationIdFactory;
@@ -149,7 +150,7 @@ final class _AndroidBackupDestination implements LarenorBinaryDestination {
   Future<Uri> commit({required int byteLength, required String sha256}) async {
     if (_closed ||
         byteLength < 1 ||
-        byteLength > 168 * 1024 * 1024 ||
+        byteLength > ServerCoreBackupFileAccess.maxBytes ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256)) {
       throw ArgumentError('Invalid backup commit proof');
     }
