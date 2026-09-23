@@ -17,11 +17,23 @@ from larenor_server.core_backups.component_isolated_capture import (
 from larenor_server.core_backups.component_snapshot_provider import (
     ManagedComponentSnapshotProvider,
 )
+from larenor_server.core_backups.component_docker_adapter import (
+    UnixDockerComponentSnapshotAdapter,
+)
+from test_core_backup_component_docker_adapter import (
+    effect_operations,
+    effect_reply,
+    installed_authority,
+    make_roots,
+    operation_reply,
+    running_inspect,
+)
 from test_core_backup_component_snapshot_provider import (
     InstalledAuthority,
     PauseController,
     source,
 )
+from test_volume_effects import engine_server
 
 
 class CaptureEngine:
@@ -257,3 +269,66 @@ def test_managed_provider_releases_capture_and_container_on_authority_drift(tmp_
 
     assert controller.paused == set()
     assert [call[0] for call in engine.calls].count("release") == 1
+
+
+def test_docker_adapter_builds_real_isolated_provider_and_owns_effects(tmp_path):
+    journal = tmp_path / "journal"
+    journal.mkdir(mode=0o700)
+    with installed_authority(journal) as (
+        authority,
+        receipt,
+        binding,
+        _volumes,
+    ):
+        live_roots = make_roots(tmp_path / "live", binding)
+        isolated_roots = {}
+        for volume in receipt.volumes:
+            path = tmp_path / "isolated" / volume.volume_id
+            path.mkdir(parents=True)
+            (path / "state.txt").write_text(f"stable-{volume.volume_id}")
+            isolated_roots[volume.volume_id] = path
+        engine = CaptureEngine(isolated_roots)
+        state = {"paused": False}
+        container = running_inspect(binding, live_roots)
+        reply = effect_reply(container, receipt.volumes, state)
+        with engine_server(reply) as (endpoint, calls):
+            adapter = UnixDockerComponentSnapshotAdapter(
+                endpoint,
+                authority,
+                peer_uid=lambda _: endpoint.owner_uid,
+                capture_engine=engine,
+            )
+            provider = adapter.provider(time.monotonic() + 5)
+            with provider.quiesce(time.monotonic() + 8) as snapshots:
+                assert state["paused"] is True
+                assert all(
+                    zipfile.ZipFile(io.BytesIO(item.payload)).read("state.txt")
+                    == f"stable-{item.volumeId}".encode()
+                    for item in snapshots
+                )
+            assert state["paused"] is False
+
+        assert len(effect_operations(calls)) == 2
+        assert [call[0] for call in engine.calls].count("release") == 1
+
+
+def test_docker_adapter_refuses_provider_without_isolated_engine(tmp_path):
+    journal = tmp_path / "journal"
+    journal.mkdir(mode=0o700)
+    with installed_authority(journal) as (
+        authority,
+        receipt,
+        binding,
+        _volumes,
+    ):
+        live_roots = make_roots(tmp_path / "live", binding)
+        container = running_inspect(binding, live_roots)
+        with engine_server(operation_reply(container, receipt.volumes)) as (
+            endpoint,
+            _calls,
+        ):
+            adapter = UnixDockerComponentSnapshotAdapter(
+                endpoint, authority, peer_uid=lambda _: endpoint.owner_uid
+            )
+            with pytest.raises(Exception, match="component_engine_unavailable"):
+                adapter.provider(time.monotonic() + 3)
