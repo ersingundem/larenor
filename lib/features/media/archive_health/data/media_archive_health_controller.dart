@@ -2,6 +2,17 @@ import 'package:flutter/foundation.dart';
 
 import '../domain/media_archive_health.dart';
 
+final Object _unavailableAuthorityRevision = Object();
+
+Object? _captureAuthorityRevision(Object Function()? read) {
+  if (read == null) return null;
+  try {
+    return read();
+  } catch (_) {
+    return _unavailableAuthorityRevision;
+  }
+}
+
 enum MediaArchiveCardState {
   idle,
   loading,
@@ -23,7 +34,7 @@ final class MediaArchiveHealthController extends ChangeNotifier {
     Object Function()? authorityRevision,
   }) : _authority = authority,
        _authorityRevision = authorityRevision,
-       _knownAuthorityRevision = authorityRevision?.call() {
+       _knownAuthorityRevision = _captureAuthorityRevision(authorityRevision) {
     authority?.addListener(_authorityChanged);
   }
 
@@ -39,15 +50,49 @@ final class MediaArchiveHealthController extends ChangeNotifier {
 
   bool get canRefresh => !_disposed && state != MediaArchiveCardState.loading;
 
+  bool _authorized() {
+    try {
+      return authorized();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Object? _revision() => _captureAuthorityRevision(_authorityRevision);
+
+  bool _sameAuthority(Object? revision) {
+    final current = _revision();
+    return !identical(revision, _unavailableAuthorityRevision) &&
+        !identical(current, _unavailableAuthorityRevision) &&
+        current == revision &&
+        _authorized();
+  }
+
+  bool _operationCurrent(int operation, Object? revision) =>
+      !_disposed && operation == _epoch && _sameAuthority(revision);
+
+  void _retireOperation(int operation) {
+    if (_disposed || operation != _epoch) return;
+    _epoch++;
+    _knownAuthorityRevision = _revision();
+    snapshot = null;
+    state = MediaArchiveCardState.idle;
+    notifyListeners();
+  }
+
   void _authorityChanged() {
-    final revision = _authorityRevision?.call();
-    if (!authorized() || revision != _knownAuthorityRevision) retire();
+    final revision = _revision();
+    if (!_authorized() ||
+        identical(revision, _unavailableAuthorityRevision) ||
+        revision != _knownAuthorityRevision) {
+      retire();
+    }
   }
 
   void retire() {
     if (_disposed) return;
     _epoch++;
-    _knownAuthorityRevision = _authorityRevision?.call();
+    _knownAuthorityRevision = _revision();
     snapshot = null;
     state = MediaArchiveCardState.idle;
     notifyListeners();
@@ -55,19 +100,24 @@ final class MediaArchiveHealthController extends ChangeNotifier {
 
   Future<void> refresh() async {
     if (!canRefresh) return;
-    if (!authorized()) {
+    final revision = _revision();
+    if (!_authorized() || identical(revision, _unavailableAuthorityRevision)) {
       snapshot = null;
       state = MediaArchiveCardState.denied;
       notifyListeners();
       return;
     }
+    _knownAuthorityRevision = revision;
     final operation = ++_epoch;
     snapshot = null;
     state = MediaArchiveCardState.loading;
     notifyListeners();
     try {
       final value = await read();
-      if (_disposed || operation != _epoch || !authorized()) return;
+      if (!_operationCurrent(operation, revision)) {
+        _retireOperation(operation);
+        return;
+      }
       snapshot = value;
       state = switch (value.state) {
         MediaArchiveSnapshotState.healthy => MediaArchiveCardState.healthy,
@@ -75,7 +125,10 @@ final class MediaArchiveHealthController extends ChangeNotifier {
         MediaArchiveSnapshotState.incomplete => MediaArchiveCardState.partial,
       };
     } on MediaArchiveReadException catch (error) {
-      if (_disposed || operation != _epoch || !authorized()) return;
+      if (!_operationCurrent(operation, revision)) {
+        _retireOperation(operation);
+        return;
+      }
       state = switch (error.kind) {
         'media_archive_snapshot_stale' => MediaArchiveCardState.stale,
         'connection_failed' => MediaArchiveCardState.offline,
@@ -83,7 +136,10 @@ final class MediaArchiveHealthController extends ChangeNotifier {
         _ => MediaArchiveCardState.unsupported,
       };
     } catch (_) {
-      if (_disposed || operation != _epoch || !authorized()) return;
+      if (!_operationCurrent(operation, revision)) {
+        _retireOperation(operation);
+        return;
+      }
       state = MediaArchiveCardState.offline;
     }
     if (!_disposed && operation == _epoch) notifyListeners();
