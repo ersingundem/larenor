@@ -1,3 +1,4 @@
+import json
 import time
 from dataclasses import replace
 
@@ -209,6 +210,37 @@ def test_post_dispatch_protocol_failure_is_always_uncertain(
 
     assert raised.value.uncertain_effect is True
     assert TOKEN not in str(raised.value) + repr(raised.value)
+
+
+@pytest.mark.parametrize('damage', [
+    'unchanged', 'wrong_target', 'wrong_position',
+])
+def test_post_dispatch_semantic_mismatch_is_always_uncertain(
+        prepared, monkeypatch, damage):
+    stack, binding, engine, operations = prepared
+    after_body = sessions(item=ITEM, position=12)
+    if damage == 'unchanged':
+        after_body = sessions()
+    elif damage == 'wrong_target':
+        parsed = json.loads(after_body)
+        parsed[0]['Id'] = 'f' * 32
+        after_body = json.dumps(parsed).encode()
+    elif damage == 'wrong_position':
+        after_body = sessions(item=ITEM, position=99)
+    connections = [
+        Connection(response('200 OK', sessions())),
+        Connection(response('204 No Content', content_type=False)),
+        Connection(response('200 OK', after_body)),
+    ]
+    opened(monkeypatch, stack, binding, engine, connections)
+
+    with pytest.raises(JellyfinPlaybackExecutionError) as raised:
+        executor(binding, operations).execute(
+            action(stack), deadline=time.monotonic() + 1, gate=lambda: True)
+
+    assert raised.value.uncertain_effect is True
+    assert bytes(connections[1].sent).count(b'POST ') == 1
+    assert all(connection.closed for connection in connections)
 
 
 @pytest.mark.parametrize('before_raw', [
