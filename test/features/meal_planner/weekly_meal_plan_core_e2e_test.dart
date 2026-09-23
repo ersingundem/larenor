@@ -146,8 +146,22 @@ final class IsolatedMealCore {
             response = receipt['response']!;
           }
         } else {
-          final revision =
-              (current['authority']! as Map)['planRevision'] as int;
+          final authority = current['authority']! as Map;
+          final revision = authority['planRevision'] as int;
+          if (body['expectedRevision'] != revision ||
+              body['expectedAccountRevision'] != authority['accountRevision']) {
+            status = 409;
+            response = {
+              'error': {'code': 'revision_conflict'},
+            };
+            final encoded = utf8.encode(jsonEncode(response));
+            request.response.statusCode = status;
+            request.response.headers.contentType = ContentType.json;
+            request.response.contentLength = encoded.length;
+            request.response.add(encoded);
+            await request.response.close();
+            continue;
+          }
           response = planFrom(body, revision + 1);
           current = response as Map<String, Object?>;
           receipts[id] = {'request': encoded, 'response': response};
@@ -283,6 +297,22 @@ void main() {
       expect(
         (coreHost.requests.last['body']! as Map)['expectedAccountRevision'],
         4,
+      );
+      await expectLater(
+        api.save(
+          base: first,
+          requestId: 'a' * 32,
+          weekStart: first.plan!.weekStart,
+          recipes: first.plan!.recipes,
+          entries: [entryValue],
+        ),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'revision_conflict',
+          ),
+        ),
       );
     },
   );
