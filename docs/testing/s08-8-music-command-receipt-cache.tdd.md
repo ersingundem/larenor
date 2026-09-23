@@ -21,7 +21,7 @@ progress counters.
 
 ## RED
 
-Commit `0dfbeb906be7f2c8b25da52700c2599d89ea961b` added persistence,
+Commit `b923abbae2e126c026076174bf16fd7aac3efe9c` added persistence,
 strictness, restart/no-replay and delayed lifecycle regressions before the
 cache contract and controller seam existed. The focused test failed to compile
 on the missing types and constructor argument.
