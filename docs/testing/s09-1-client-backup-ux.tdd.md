@@ -50,7 +50,7 @@ the exact 168 MiB boundary, declared overflow, length mismatch, error cleanup,
 abort before headers, late platform completion, stale owner cancellation,
 gated native open/write disposal, off-main SAF I/O, and English/Turkish 2×
 layouts. `flutter analyze` covers the changed Dart surface. Queue validation
-still reports **23/125** tasks and **0/63** selected features.
+still reports **24/125** tasks and **0/63** selected features.
 
 ## Remaining S09.1 gates
 
