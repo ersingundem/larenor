@@ -85,9 +85,81 @@ Map<String, Object?> _catalog(
   ],
 };
 
+List<Map<String, Object>> _flowSources() => [
+  for (final provider in const [
+    'seerr',
+    'qbittorrent',
+    'sonarr',
+    'radarr',
+    'jellyfin',
+  ])
+    {
+      'provider': provider,
+      'serviceRevision': 7,
+      'snapshotRevision': 9,
+      'observedAt': 1790132400,
+    },
+];
+
+Map<String, Object?> _flow(String mediaKey) => {
+  'mediaKey': mediaKey,
+  'flowRevision': 9,
+  'state': 'playable',
+  'stages': [
+    {
+      'name': 'request',
+      'state': 'complete',
+      'provider': 'seerr',
+      'sourceRevision': 7,
+    },
+    {
+      'name': 'download',
+      'state': 'complete',
+      'provider': 'qbittorrent',
+      'sourceRevision': 7,
+    },
+    {
+      'name': 'import',
+      'state': 'complete',
+      'provider': mediaKey.startsWith('movie:') ? 'radarr' : 'sonarr',
+      'sourceRevision': 7,
+    },
+    {
+      'name': 'playable',
+      'state': 'complete',
+      'provider': 'jellyfin',
+      'sourceRevision': 7,
+    },
+  ],
+  'sources': _flowSources(),
+  'seasons': const [],
+  'delivery': const {
+    'state': 'hardlink_verified',
+    'retryAttempt': 1,
+    'fileCount': 1,
+  },
+};
+
 final class _CatalogFixture extends AdminFixture {
   _CatalogFixture({super.role}) {
     respond = (request) async {
+      if (request.url.path.endsWith('/media/flows/authority')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return this.json({
+          'requestId': _requestId,
+          'mediaKey': body['mediaKey'],
+          'flowRevision': 9,
+          'sources': _flowSources(),
+        });
+      }
+      if (request.url.path.endsWith('/media/flows/read')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final response = this.json({
+          'requestId': _requestId,
+          'flow': _flow(body['mediaKey'] as String),
+        });
+        return flowGate?.future ?? response;
+      }
       if (request.url.path.endsWith('/admin/media/installations')) {
         if (targetGate case final gate?) await gate.future;
         return this.json({
@@ -140,6 +212,7 @@ final class _CatalogFixture extends AdminFixture {
   int catalogCalls = 0;
   Completer<http.Response>? firstCatalogGate;
   http.Response? firstCatalogResponse;
+  Completer<http.Response>? flowGate;
 }
 
 void main() {
@@ -391,6 +464,184 @@ void main() {
     expect(find.text('The Matrix'), findsNothing);
   });
 
+  testWidgets(
+    'catalog result opens one read-only central flow with ordered source evidence',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final fixture = _CatalogFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+          ],
+          child: const CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server-media-catalog-search-field')),
+        'matrix',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      final item = find.byKey(
+        const ValueKey(
+          'server-media-catalog-item-99999999999999999999999999999999',
+        ),
+      );
+      expect(tester.getSemantics(item).flagsCollection.isButton, isTrue);
+      expect(tester.getRect(item).height, greaterThanOrEqualTo(48));
+      await tester.tap(item);
+      await tester.pumpAndSettle();
+
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/media/flows/authority'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/media/flows/read'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        find.byKey(const ValueKey('server-media-flow-stage-request')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('server-media-flow-stage-download')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('server-media-flow-stage-import')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('server-media-flow-stage-playable')),
+        findsOneWidget,
+      );
+      expect(find.text('seerr'), findsOneWidget);
+      expect(find.text('qbittorrent'), findsOneWidget);
+      expect(find.text('radarr'), findsOneWidget);
+      expect(find.text('jellyfin'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('server-media-flow-refresh')),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('episode result uses its canonical series flow authority', (
+    tester,
+  ) async {
+    final fixture = _CatalogFixture();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+        ),
+      ),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('server-media-catalog-filter-tv')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'pilot',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey(
+          'server-media-catalog-item-99999999999999999999999999999999',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final authority = fixture.calls.singleWhere(
+      (call) => call.url.path.endsWith('/media/flows/authority'),
+    );
+    expect(jsonDecode(authority.body), {
+      'requestId': _requestId,
+      'mediaKey': 'series:tvdb:121361',
+    });
+    expect(find.text('sonarr'), findsOneWidget);
+  });
+
+  testWidgets('popping a delayed flow read publishes no retired route state', (
+    tester,
+  ) async {
+    final fixture = _CatalogFixture()..flowGate = Completer<http.Response>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMediaCatalogScreen(requestId: _fixedRequestId),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server-media-catalog-search-field')),
+      'matrix',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey(
+          'server-media-catalog-item-99999999999999999999999999999999',
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/flows/read'),
+      ),
+      hasLength(1),
+    );
+
+    Navigator.of(
+      tester.element(find.byKey(const ValueKey('server-media-flow-loading'))),
+    ).pop();
+    await tester.pumpAndSettle();
+    fixture.flowGate!.complete(
+      fixture.json({'requestId': _requestId, 'flow': _flow('movie:tmdb:603')}),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('server-media-flow-stage-request')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('$locale Core catalog fits $width tablet/DeX at 2x', (
@@ -472,7 +723,6 @@ void main() {
         );
         expect(tester.getRect(next).height, greaterThanOrEqualTo(48));
         expect(tester.getSemantics(next).flagsCollection.isButton, isTrue);
-        semantics.dispose();
         await tester.tap(next);
         await tester.pumpAndSettle();
         expect(find.text('Second Episode'), findsOneWidget);
@@ -483,6 +733,31 @@ void main() {
         ) as Map<String, dynamic>;
         expect(pagedBody['mediaKind'], 'episode');
         expect(pagedBody['offset'], 1);
+        final item = find.byKey(
+          const ValueKey(
+            'server-media-catalog-item-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          ),
+        );
+        await tester.scrollUntilVisible(
+          item,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(item);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('server-media-flow-stage-request')),
+          findsOneWidget,
+        );
+        final refresh = find.byKey(const ValueKey('server-media-flow-refresh'));
+        await tester.scrollUntilVisible(
+          refresh,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.getRect(refresh).height, greaterThanOrEqualTo(48));
+        expect(tester.getSemantics(refresh).flagsCollection.isButton, isTrue);
+        semantics.dispose();
         expect(tester.takeException(), isNull);
       });
     }
