@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import io
 import json
+import re
 import secrets
 import sqlite3
 import threading
@@ -90,6 +91,8 @@ MAX_BUNDLE_BYTES = (
 _MANIFEST_NAME = "manifest.json"
 _DATABASE_VALIDATION_VM_STEP_INTERVAL = 1_000
 _DATABASE_VALIDATION_VM_STEP_BUDGET = 100_000
+_SCHEMA_MARKER_KEY = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+_SCHEMA_MARKER_VALUE = re.compile(r"^[1-9][0-9]{0,9}$")
 
 
 def _canonical(value) -> bytes:
@@ -450,12 +453,18 @@ class CoreBackupContract:
         for row in connection.execute(
             "SELECT key,value FROM metadata WHERE key LIKE '%_schema' ORDER BY key"
         ):
-            try:
-                version = int(row["value"])
-            except (TypeError, ValueError):
-                continue
-            if version > 0:
-                values[row["key"]] = version
+            key, raw = row["key"], row["value"]
+            if (
+                type(key) is not str
+                or _SCHEMA_MARKER_KEY.fullmatch(key) is None
+                or type(raw) is not str
+                or _SCHEMA_MARKER_VALUE.fullmatch(raw) is None
+            ):
+                raise ValueError("invalid_schema_marker")
+            version = int(raw)
+            if version > 2**31 - 1:
+                raise ValueError("invalid_schema_marker")
+            values[key] = version
         return values
 
     def _capture_vault_key(self, connection) -> bytes:
@@ -516,7 +525,11 @@ class CoreBackupContract:
                     "SELECT value FROM metadata WHERE key='schema_version'"
                 ).fetchone()["value"]
             )
-            component_versions = self._schema_versions(connection)
+            try:
+                component_versions = self._schema_versions(connection)
+            except (TypeError, ValueError):
+                connection.rollback()
+                raise ApiError("server_unavailable", 503) from None
             page_bytes = connection.execute("PRAGMA page_size").fetchone()[0]
             page_count = connection.execute("PRAGMA page_count").fetchone()[0]
             if page_bytes * page_count > MAX_DATABASE_BYTES:
@@ -624,12 +637,15 @@ class CoreBackupContract:
         if manifest.contractVersion not in (1, 2):
             reasons.append("unsupported_contract_version")
         with self.db.connection() as connection:
-            current_schema = int(
-                connection.execute(
-                    "SELECT value FROM metadata WHERE key='schema_version'"
-                ).fetchone()["value"]
-            )
-            component_versions = self._schema_versions(connection)
+            try:
+                current_schema = int(
+                    connection.execute(
+                        "SELECT value FROM metadata WHERE key='schema_version'"
+                    ).fetchone()["value"]
+                )
+                component_versions = self._schema_versions(connection)
+            except (sqlite3.Error, TypeError, ValueError):
+                raise ApiError("server_unavailable", 503) from None
         if manifest.databaseSchemaVersion != current_schema:
             reasons.append("database_schema_mismatch")
         if manifest.coreVersion != server_version():
