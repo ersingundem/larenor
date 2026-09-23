@@ -18,6 +18,20 @@ void main() {
         expect(() => normalizeSftpPath(value), throwsA(isA<SftpFailure>()));
       }
     });
+
+    test('rejects malformed UTF-16 before path normalization', () {
+      final highSurrogate = String.fromCharCode(0xd800);
+      final lowSurrogate = String.fromCharCode(0xdc00);
+
+      expect(
+        () => normalizeSftpPath('/tmp/$highSurrogate'),
+        throwsA(isA<SftpFailure>()),
+      );
+      expect(
+        () => joinSftpPath('/srv', 'bad$lowSurrogate.txt'),
+        throwsA(isA<SftpFailure>()),
+      );
+    });
   });
 
   test('joinSftpPath accepts one safe UTF-8 filename only', () {

@@ -46,4 +46,67 @@ void main() {
     expect(await access.pickUpload(), isNull);
     expect(await access.saveDownload('result.bin', Uint8List(1)), isFalse);
   });
+
+  test('save clears its owned export buffer after success', () async {
+    Uint8List? exported;
+    final source = Uint8List.fromList([1, 2, 3]);
+    final access = SftpFileAccess(
+      saveFile: (_, bytes) async {
+        exported = bytes;
+        expect(bytes, [1, 2, 3]);
+        return Uri.file('/tmp/result.bin');
+      },
+    );
+
+    expect(await access.saveDownload('result.bin', source), isTrue);
+    expect(source, [1, 2, 3]);
+    expect(exported, [0, 0, 0]);
+  });
+
+  test('save clears its owned export buffer after failure', () async {
+    Uint8List? exported;
+    final source = Uint8List.fromList([7, 8]);
+    final access = SftpFileAccess(
+      saveFile: (_, bytes) async {
+        exported = bytes;
+        throw StateError('storage failed');
+      },
+    );
+
+    await expectLater(
+      access.saveDownload('result.bin', source),
+      throwsA(
+        isA<SftpFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'file_access_failed',
+        ),
+      ),
+    );
+    expect(source, [7, 8]);
+    expect(exported, [0, 0]);
+  });
+
+  test('upload reader maps stream failures without leaking details', () async {
+    final controller = StreamController<Uint8List>();
+    final future = SftpFileAccess.collectUpload(
+      name: 'partial.bin',
+      declaredLength: 2,
+      chunks: controller.stream,
+    );
+    final expectation = expectLater(
+      future,
+      throwsA(
+        isA<SftpFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'file_access_failed',
+        ),
+      ),
+    );
+    controller.add(Uint8List.fromList([1]));
+    controller.addError(StateError('provider detail'));
+    await controller.close();
+    await expectation;
+  });
 }
