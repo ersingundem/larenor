@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/cupertino.dart';
@@ -32,11 +31,7 @@ Future<LegacyJellyfinTrackPreferencesMigrationController> _mount(
   required double width,
 }) async {
   SharedPreferences.setMockInitialValues({
-    _legacyKey(): jsonEncode({
-      'version': 1,
-      'audio': 'tur',
-      'subtitle': 'off',
-    }),
+    _legacyKey(): jsonEncode({'version': 1, 'audio': 'tur', 'subtitle': 'off'}),
   });
   final controller = LegacyJellyfinTrackPreferencesMigrationController(
     migration: LegacyJellyfinTrackPreferencesMigration(
@@ -57,9 +52,8 @@ Future<LegacyJellyfinTrackPreferencesMigrationController> _mount(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: MediaQuery(
-        data: MediaQueryData.fromView(
-          tester.view,
-        ).copyWith(textScaler: const TextScaler.linear(2)),
+        data: MediaQueryData.fromView(tester.view)
+            .copyWith(textScaler: const TextScaler.linear(2)),
         child: CupertinoPageScaffold(
           child: SafeArea(
             child: LegacyJellyfinTrackPreferencesMigrationCard(
@@ -83,7 +77,6 @@ void main() {
         'explicit migration is accessible at ${width.toInt()} $language 2x',
         (tester) async {
           final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
           final controller = await _mount(
             tester,
             language: language,
@@ -109,10 +102,7 @@ void main() {
           expect(cancel, findsOneWidget);
           expect(tester.getSize(confirm).height, greaterThanOrEqualTo(48));
           expect(tester.getSize(cancel).height, greaterThanOrEqualTo(48));
-          expect(
-            tester.getSemantics(confirm).flagsCollection.isButton,
-            isTrue,
-          );
+          expect(tester.getSemantics(confirm).flagsCollection.isButton, isTrue);
           expect(tester.getSemantics(cancel).flagsCollection.isButton, isTrue);
           expect(find.textContaining(_config.accessToken), findsNothing);
           expect(find.textContaining(_config.baseUrl), findsNothing);
@@ -128,6 +118,7 @@ void main() {
             isTrue,
           );
           expect(tester.takeException(), isNull);
+          semantics.dispose();
         },
       );
     }

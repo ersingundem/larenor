@@ -3678,6 +3678,17 @@
       }
     }
   },
+  "jellyfinLegacyTrackPreferencesTitle": "Eski dil tercihleri bulundu",
+  "jellyfinLegacyTrackPreferencesBody": "Bu Larenor hesabına kaydetmeden önce tutulan seçimleri inceleyin. Eski Jellyfin adresi ve kimlik bilgileri bu cihazda kalır.",
+  "jellyfinLegacyTrackPreferencesAudio": "Ses: {language}",
+  "@jellyfinLegacyTrackPreferencesAudio": {"placeholders": {"language": {"type": "String"}}},
+  "jellyfinLegacyTrackPreferencesSubtitle": "Altyazı: {language}",
+  "@jellyfinLegacyTrackPreferencesSubtitle": {"placeholders": {"language": {"type": "String"}}},
+  "jellyfinLegacyTrackPreferencesOff": "Kapalı",
+  "jellyfinLegacyTrackPreferencesConfirm": "Bu tercihleri kullan",
+  "jellyfinLegacyTrackPreferencesCancel": "Şimdi değil",
+  "jellyfinLegacyTrackPreferencesApplying": "Tercihler kaydediliyor",
+  "jellyfinLegacyTrackPreferencesFailed": "Tercihler kaydedilemedi. Core oturumunu denetleyip yeniden deneyin.",
   "kioskEvidenceTrace": "Commit {commit}; test {test}; revizyon {revision}",
   "@kioskEvidenceTrace": {
     "placeholders": {

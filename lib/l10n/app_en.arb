@@ -4031,6 +4031,17 @@
       }
     }
   },
+  "jellyfinLegacyTrackPreferencesTitle": "Previous language preferences found",
+  "jellyfinLegacyTrackPreferencesBody": "Review the retained choices before saving them to this Larenor account. The previous Jellyfin address and credentials stay on this device.",
+  "jellyfinLegacyTrackPreferencesAudio": "Audio: {language}",
+  "@jellyfinLegacyTrackPreferencesAudio": {"placeholders": {"language": {"type": "String"}}},
+  "jellyfinLegacyTrackPreferencesSubtitle": "Subtitles: {language}",
+  "@jellyfinLegacyTrackPreferencesSubtitle": {"placeholders": {"language": {"type": "String"}}},
+  "jellyfinLegacyTrackPreferencesOff": "Off",
+  "jellyfinLegacyTrackPreferencesConfirm": "Use these preferences",
+  "jellyfinLegacyTrackPreferencesCancel": "Not now",
+  "jellyfinLegacyTrackPreferencesApplying": "Saving preferences",
+  "jellyfinLegacyTrackPreferencesFailed": "The preferences could not be saved. Check the Core session and try again.",
   "kioskEvidenceTrace": "Commit {commit}; test {test}; revision {revision}",
   "@kioskEvidenceTrace": {
     "placeholders": {

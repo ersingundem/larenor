@@ -69,76 +69,82 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('publishes only normalized retained choices and cancel keeps storage', () async {
-    final raw = jsonEncode({'version': 1, 'audio': 'tur', 'subtitle': 'off'});
-    SharedPreferences.setMockInitialValues({_legacyKey(_config): raw});
-    final lifecycle = _Lifecycle();
-    final controller = LegacyJellyfinTrackPreferencesMigrationController(
-      migration: LegacyJellyfinTrackPreferencesMigration(
-        core: JellyfinTrackPreferencesStore(),
-      ),
-      config: _config,
-      isCurrent: () => lifecycle.current,
-      lifecycle: lifecycle,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'publishes only normalized retained choices and cancel keeps storage',
+    () async {
+      final raw = jsonEncode({'version': 1, 'audio': 'tur', 'subtitle': 'off'});
+      SharedPreferences.setMockInitialValues({_legacyKey(_config): raw});
+      final lifecycle = _Lifecycle();
+      final controller = LegacyJellyfinTrackPreferencesMigrationController(
+        migration: LegacyJellyfinTrackPreferencesMigration(
+          core: JellyfinTrackPreferencesStore(),
+        ),
+        config: _config,
+        isCurrent: () => lifecycle.current,
+        lifecycle: lifecycle,
+      );
+      addTearDown(controller.dispose);
 
-    await controller.start();
+      await controller.start();
 
-    expect(
-      controller.state.phase,
-      LegacyJellyfinTrackPreferencesMigrationPhase.ready,
-    );
-    expect(controller.state.audioLanguage, 'tr');
-    expect(controller.state.subtitleLanguage, 'off');
-    final public = '${controller.state} $controller';
-    expect(public, isNot(contains(_config.baseUrl)));
-    expect(public, isNot(contains(_config.userId)));
-    expect(public, isNot(contains(_config.accessToken)));
+      expect(
+        controller.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.ready,
+      );
+      expect(controller.state.audioLanguage, 'tr');
+      expect(controller.state.subtitleLanguage, 'off');
+      final public = '${controller.state} $controller';
+      expect(public, isNot(contains(_config.baseUrl)));
+      expect(public, isNot(contains(_config.userId)));
+      expect(public, isNot(contains(_config.accessToken)));
 
-    controller.cancel();
+      controller.cancel();
 
-    expect(
-      controller.state.phase,
-      LegacyJellyfinTrackPreferencesMigrationPhase.dismissed,
-    );
-    expect(
-      (await SharedPreferences.getInstance()).getString(_legacyKey(_config)),
-      raw,
-    );
-  });
+      expect(
+        controller.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.dismissed,
+      );
+      expect(
+        (await SharedPreferences.getInstance()).getString(_legacyKey(_config)),
+        raw,
+      );
+    },
+  );
 
-  test('replacement during confirm retires stale result and keeps legacy source', () async {
-    final raw = jsonEncode({'version': 1, 'audio': 'en', 'subtitle': null});
-    SharedPreferences.setMockInitialValues({_legacyKey(_config): raw});
-    final lifecycle = _Lifecycle();
-    final gateway = _DelayedGateway(
-      LegacyJellyfinTrackPreferencesMigration(
-        core: JellyfinTrackPreferencesStore(),
-      ),
-    );
-    final controller = LegacyJellyfinTrackPreferencesMigrationController(
-      migration: gateway,
-      config: _config,
-      isCurrent: () => lifecycle.current,
-      lifecycle: lifecycle,
-    );
-    addTearDown(controller.dispose);
-    await controller.start();
+  test(
+    'replacement during confirm retires stale result and keeps legacy source',
+    () async {
+      final raw = jsonEncode({'version': 1, 'audio': 'en', 'subtitle': null});
+      SharedPreferences.setMockInitialValues({_legacyKey(_config): raw});
+      final lifecycle = _Lifecycle();
+      final gateway = _DelayedGateway(
+        LegacyJellyfinTrackPreferencesMigration(
+          core: JellyfinTrackPreferencesStore(),
+        ),
+      );
+      final controller = LegacyJellyfinTrackPreferencesMigrationController(
+        migration: gateway,
+        config: _config,
+        isCurrent: () => lifecycle.current,
+        lifecycle: lifecycle,
+      );
+      addTearDown(controller.dispose);
+      await controller.start();
 
-    final confirming = controller.confirm();
-    await gateway.started.future;
-    lifecycle.replace();
-    gateway.release.complete();
-    await confirming;
+      final confirming = controller.confirm();
+      await gateway.started.future;
+      lifecycle.replace();
+      gateway.release.complete();
+      await confirming;
 
-    expect(
-      controller.state.phase,
-      LegacyJellyfinTrackPreferencesMigrationPhase.retired,
-    );
-    expect(
-      (await SharedPreferences.getInstance()).getString(_legacyKey(_config)),
-      raw,
-    );
-  });
+      expect(
+        controller.state.phase,
+        LegacyJellyfinTrackPreferencesMigrationPhase.retired,
+      );
+      expect(
+        (await SharedPreferences.getInstance()).getString(_legacyKey(_config)),
+        raw,
+      );
+    },
+  );
 }
