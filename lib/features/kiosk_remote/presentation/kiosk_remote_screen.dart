@@ -7,10 +7,22 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/kiosk_remote_controller.dart';
 import '../domain/kiosk_remote_models.dart';
+import '../runtime/mqtt_local_broker.dart';
 
 class KioskRemoteScreen extends StatefulWidget {
-  const KioskRemoteScreen({super.key, required this.controller});
+  const KioskRemoteScreen({
+    super.key,
+    required this.controller,
+    this.brokerSettings,
+    this.brokerSettingsLoading = false,
+    this.brokerSettingsFailed = false,
+    this.onSaveBrokerSettings,
+  });
   final KioskRemoteController controller;
+  final LocalMqttBrokerSettings? brokerSettings;
+  final bool brokerSettingsLoading, brokerSettingsFailed;
+  final Future<void> Function(LocalMqttBrokerSettings settings)?
+  onSaveBrokerSettings;
   @override
   State<KioskRemoteScreen> createState() => _KioskRemoteScreenState();
 }
@@ -48,6 +60,16 @@ class _KioskRemoteScreenState extends State<KioskRemoteScreen> {
     return ServiceRootScaffold(
       title: l10n.kioskRemoteTitle,
       slivers: [
+        if (widget.brokerSettings != null &&
+            widget.onSaveBrokerSettings != null)
+          SliverToBoxAdapter(
+            child: MqttBrokerSettingsEditor(
+              settings: widget.brokerSettings!,
+              loading: widget.brokerSettingsLoading,
+              loadFailed: widget.brokerSettingsFailed,
+              onSave: widget.onSaveBrokerSettings!,
+            ),
+          ),
         SliverToBoxAdapter(
           child: SettingsSection(
             header: Text(l10n.kioskRemoteStatus),
@@ -194,6 +216,184 @@ class _KioskRemoteScreenState extends State<KioskRemoteScreen> {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class MqttBrokerSettingsEditor extends StatefulWidget {
+  const MqttBrokerSettingsEditor({
+    super.key,
+    required this.settings,
+    required this.onSave,
+    this.loading = false,
+    this.loadFailed = false,
+  });
+
+  final LocalMqttBrokerSettings settings;
+  final Future<void> Function(LocalMqttBrokerSettings settings) onSave;
+  final bool loading, loadFailed;
+
+  @override
+  State<MqttBrokerSettingsEditor> createState() =>
+      _MqttBrokerSettingsEditorState();
+}
+
+class _MqttBrokerSettingsEditorState extends State<MqttBrokerSettingsEditor> {
+  late final TextEditingController _host;
+  late final TextEditingController _port;
+  late bool _enabled;
+  bool _saving = false, _saved = false, _invalid = false, _saveFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _host = TextEditingController(text: widget.settings.host);
+    _port = TextEditingController(text: '${widget.settings.port}');
+    _enabled = widget.settings.enabled;
+  }
+
+  @override
+  void didUpdateWidget(covariant MqttBrokerSettingsEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings == widget.settings || _saving) return;
+    _host.text = widget.settings.host;
+    _port.text = '${widget.settings.port}';
+    _enabled = widget.settings.enabled;
+  }
+
+  @override
+  void dispose() {
+    _host.dispose();
+    _port.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    LocalMqttBrokerSettings next;
+    try {
+      next = LocalMqttBrokerSettings(
+        enabled: _enabled,
+        host: _host.text,
+        port: int.parse(_port.text),
+        tls: true,
+      );
+    } catch (_) {
+      setState(() {
+        _invalid = true;
+        _saved = _saveFailed = false;
+      });
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _invalid = _saved = _saveFailed = false;
+    });
+    try {
+      await widget.onSave(next);
+      if (!mounted) return;
+      setState(() => _saved = true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saveFailed = true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final status = widget.loadFailed
+        ? l10n.kioskRemoteBrokerLoadFailed
+        : _invalid
+        ? l10n.kioskRemoteBrokerInvalid
+        : _saveFailed
+        ? l10n.kioskRemoteBrokerSaveFailed
+        : _saved
+        ? l10n.kioskRemoteBrokerSaved
+        : null;
+    return SettingsSection(
+      header: Text(l10n.kioskRemoteBrokerTitle),
+      footer: Text(l10n.kioskRemoteBrokerHint),
+      children: [
+        CupertinoListTile(
+          title: Text(l10n.kioskRemoteBrokerEnabled),
+          trailing: Semantics(
+            label: l10n.kioskRemoteBrokerEnabled,
+            toggled: _enabled,
+            child: CupertinoSwitch(
+              key: const ValueKey('mqtt-broker-enabled'),
+              value: _enabled,
+              onChanged: _saving || widget.loading
+                  ? null
+                  : (value) => setState(() {
+                      _enabled = value;
+                      _saved = _invalid = _saveFailed = false;
+                    }),
+            ),
+          ),
+        ),
+        CupertinoListTile(
+          title: Text(l10n.kioskRemoteBrokerHost),
+          subtitle: Semantics(
+            label: l10n.kioskRemoteBrokerHost,
+            textField: true,
+            child: CupertinoTextField(
+              key: const ValueKey('mqtt-broker-host'),
+              controller: _host,
+              enabled: !_saving && !widget.loading,
+              placeholder: 'mqtt.home.arpa',
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
+              enableSuggestions: false,
+              onChanged: (_) => setState(() {
+                _saved = _invalid = _saveFailed = false;
+              }),
+            ),
+          ),
+        ),
+        CupertinoListTile(
+          title: Text(l10n.kioskRemoteBrokerPort),
+          subtitle: Semantics(
+            label: l10n.kioskRemoteBrokerPort,
+            textField: true,
+            child: CupertinoTextField(
+              key: const ValueKey('mqtt-broker-port'),
+              controller: _port,
+              enabled: !_saving && !widget.loading,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) {
+                if (!_saving && !widget.loading) _save();
+              },
+              onChanged: (_) => setState(() {
+                _saved = _invalid = _saveFailed = false;
+              }),
+            ),
+          ),
+        ),
+        const CupertinoListTile(
+          title: Text('TLS'),
+          trailing: Icon(CupertinoIcons.lock_shield_fill),
+        ),
+        if (status != null)
+          Semantics(
+            liveRegion: true,
+            label: status,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(status),
+            ),
+          ),
+        CupertinoButton(
+          key: const ValueKey('mqtt-broker-save'),
+          minimumSize: const Size(double.infinity, 48),
+          onPressed: _saving || widget.loading ? null : _save,
+          child: _saving
+              ? const CupertinoActivityIndicator()
+              : Text(l10n.commonSave),
+        ),
       ],
     );
   }

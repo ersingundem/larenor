@@ -10,6 +10,7 @@ import '../data/kiosk_remote_api.dart';
 import '../data/kiosk_remote_controller.dart';
 import '../runtime/managed_tablet_credential_store.dart';
 import '../runtime/managed_tablet_runtime_scope.dart';
+import '../runtime/mqtt_local_broker.dart';
 import 'kiosk_remote_screen.dart';
 
 class KioskRemoteRoute extends ConsumerStatefulWidget {
@@ -133,6 +134,29 @@ class _KioskRemoteRouteState extends ConsumerState<KioskRemoteRoute> {
     });
   }
 
+  Future<void> _saveBrokerSettings(LocalMqttBrokerSettings settings) async {
+    final generation = _generation;
+    final api = _api;
+    final session = api?.boundSession;
+    if (api == null ||
+        session == null ||
+        !session.user.canAdminister ||
+        !_current(generation) ||
+        !identical(_account?.session, session)) {
+      throw StateError('mqtt_settings_write_denied');
+    }
+    await ref
+        .read(managedTabletMqttSettingsProvider.notifier)
+        .save(
+          settings,
+          isCurrent: () =>
+              _current(generation) &&
+              identical(_api, api) &&
+              identical(_account?.session, session) &&
+              session.user.canAdminister,
+        );
+  }
+
   @override
   void dispose() {
     _generation++;
@@ -146,7 +170,14 @@ class _KioskRemoteRouteState extends ConsumerState<KioskRemoteRoute> {
   @override
   Widget build(BuildContext context) {
     if (_controller case final controller?) {
-      return KioskRemoteScreen(controller: controller);
+      final settings = ref.watch(managedTabletMqttSettingsProvider);
+      return KioskRemoteScreen(
+        controller: controller,
+        brokerSettings: settings.value ?? LocalMqttBrokerSettings.disabled(),
+        brokerSettingsLoading: settings.isLoading,
+        brokerSettingsFailed: settings.hasError,
+        onSaveBrokerSettings: _saveBrokerSettings,
+      );
     }
     return ServiceRootScaffold(
       title: AppLocalizations.of(context).kioskRemoteTitle,

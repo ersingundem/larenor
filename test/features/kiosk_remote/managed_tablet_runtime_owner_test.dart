@@ -396,6 +396,25 @@ void main() {
     expect(broker.connects, 2);
   });
 
+  test('disabling saved broker retires without reconnecting', () async {
+    final enrollment = _enrollment();
+    final store = _Store(enrollment);
+    final broker = _Broker();
+    final owner = _owner(
+      store: store,
+      authority: _Authority(),
+      source: _Source(),
+      broker: broker,
+    );
+    addTearDown(owner.dispose);
+    await owner.updateBinding(enrollment.binding);
+
+    await owner.updateSettings(LocalMqttBrokerSettings.disabled());
+
+    expect(broker.disconnects, 1);
+    expect(broker.connects, 1);
+  });
+
   test(
     'logout during delayed Core verification cannot connect later',
     () async {

@@ -47,6 +47,13 @@ final class LocalMqttBrokerSettings {
   final int port;
   final bool tls;
 
+  factory LocalMqttBrokerSettings.disabled() => LocalMqttBrokerSettings(
+    enabled: false,
+    host: 'localhost',
+    port: 8883,
+    tls: true,
+  );
+
   Map<String, Object> get publicMetadata => {
     'enabled': enabled,
     'host': host,
@@ -56,6 +63,17 @@ final class LocalMqttBrokerSettings {
 
   @override
   String toString() => 'LocalMqttBrokerSettings($publicMetadata)';
+
+  @override
+  bool operator ==(Object other) =>
+      other is LocalMqttBrokerSettings &&
+      other.enabled == enabled &&
+      other.host == host &&
+      other.port == port &&
+      other.tls == tls;
+
+  @override
+  int get hashCode => Object.hash(enabled, host, port, tls);
 }
 
 abstract interface class LocalMqttBroker {

@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/kiosk_remote/presentation/kiosk_remote_screen.dart';
 import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_mqtt_settings.dart';
 import 'package:larenor/features/kiosk_remote/runtime/mqtt_local_broker.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final class _DelayedStore implements ManagedTabletMqttSettingsStore {
@@ -133,4 +136,59 @@ void main() {
       expect(store.value, previous);
     },
   );
+
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    for (final width in const [600.0, 1280.0]) {
+      testWidgets(
+        'broker editor ${locale.languageCode} $width 2x saves explicitly',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = Size(width, 1200);
+          addTearDown(tester.view.reset);
+          final saved = <LocalMqttBrokerSettings>[];
+          await tester.pumpWidget(
+            CupertinoApp(
+              locale: locale,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!,
+              ),
+              home: CupertinoPageScaffold(
+                child: ListView(
+                  children: [
+                    MqttBrokerSettingsEditor(
+                      settings: LocalMqttBrokerSettings.disabled(),
+                      onSave: (value) async => saved.add(value),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          await tester.enterText(
+            find.byKey(const ValueKey('mqtt-broker-host')),
+            'mqtt.home.arpa',
+          );
+          await tester.tap(find.byKey(const ValueKey('mqtt-broker-enabled')));
+          expect(saved, isEmpty);
+
+          final save = find.byKey(const ValueKey('mqtt-broker-save'));
+          await tester.ensureVisible(save);
+          await tester.pumpAndSettle();
+          expect(tester.getSize(save).height, greaterThanOrEqualTo(48));
+          await tester.tap(save);
+          await tester.pumpAndSettle();
+
+          expect(saved, hasLength(1));
+          expect(saved.single.enabled, isTrue);
+          expect(saved.single.host, 'mqtt.home.arpa');
+          expect(saved.single.port, 8883);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 }
