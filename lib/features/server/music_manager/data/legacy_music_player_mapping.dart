@@ -95,6 +95,10 @@ final class LegacyMusicPlayerMapping {
   final Expando<_MappingState> _states = Expando();
   bool _retired = false;
 
+  static const maximumPreviewTargets = 256;
+
+  static bool canPreview(MusicQueueTarget target) => _safeTargetShape(target);
+
   static String _randomId() {
     final random = Random.secure();
     return List.generate(
@@ -359,14 +363,7 @@ _LegacyPlayerSnapshot? _snapshotForTarget(
       !discovery.entries.any(
         (entry) => entry.id == target.configEntryId && entry.isLoaded,
       ) ||
-      !target.available ||
-      !target.enabled ||
-      target.registryId == null ||
-      !_entity(target.entityId) ||
-      !_binding(target.configEntryId, 128) ||
-      !_binding(target.registryId!, 128) ||
-      (target.deviceId != null && !_binding(target.deviceId!, 128)) ||
-      !_name(target.name)) {
+      !_safeTargetShape(target)) {
     return null;
   }
   return _LegacyPlayerSnapshot(
@@ -378,6 +375,16 @@ _LegacyPlayerSnapshot? _snapshotForTarget(
     deviceId: target.deviceId,
   );
 }
+
+bool _safeTargetShape(MusicQueueTarget target) =>
+    target.available &&
+    target.enabled &&
+    target.registryId != null &&
+    _entity(target.entityId) &&
+    _binding(target.configEntryId, 128) &&
+    _binding(target.registryId!, 128) &&
+    (target.deviceId == null || _binding(target.deviceId!, 128)) &&
+    _name(target.name);
 
 bool _entity(String value) =>
     value.length <= 128 &&

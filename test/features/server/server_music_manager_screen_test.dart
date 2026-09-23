@@ -495,7 +495,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('token.example'), findsNothing);
-    expect(find.text('Safe living room'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('music-manager-migrate-failure')),
+      findsNothing,
+    );
+    expect(find.textContaining('Safe living room'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('music-manager-migrate-confirm')),
       findsOneWidget,

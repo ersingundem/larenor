@@ -195,9 +195,13 @@ class _ServerMusicManagerScreenState
       final discovery = await _loadLegacyDiscovery();
       if (!current()) return;
       final targets = discovery.queueTargets
-          .where((target) => target.available && target.enabled)
+          .where(LegacyMusicPlayerMapping.canPreview)
+          .take(LegacyMusicPlayerMapping.maximumPreviewTargets + 1)
           .toList(growable: false);
-      if (targets.isEmpty) throw StateError('legacy_music_player_unavailable');
+      if (targets.isEmpty ||
+          targets.length > LegacyMusicPlayerMapping.maximumPreviewTargets) {
+        throw StateError('legacy_music_player_unavailable');
+      }
       final target = await _chooseLegacyTarget(l, targets);
       if (!current() || target == null) return;
       final receipt = await _legacyMapping.prepare(target, current: current);
