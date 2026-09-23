@@ -159,4 +159,93 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await expectLater(access.cancelPending(), completes);
   });
+
+  test(
+    'local cancellation retires a hung inspection before native cleanup ends',
+    () async {
+      final inspectReply = Completer<Object?>();
+      final cancelReply = Completer<Object?>();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) {
+            if (call.method == 'inspect') return inspectReply.future;
+            return cancelReply.future;
+          });
+      final access = ServerCoreBackupSourceAccess(
+        channel: channel,
+        isAndroid: true,
+        operationIdFactory: () => 'd' * 32,
+      );
+
+      final inspection = access.inspect();
+      await Future<void>.delayed(Duration.zero);
+      final cleanup = access.cancelPending();
+      try {
+        expect(
+          await inspection.timeout(const Duration(milliseconds: 100)),
+          isNull,
+        );
+      } finally {
+        if (!cancelReply.isCompleted) cancelReply.complete(null);
+        if (!inspectReply.isCompleted) inspectReply.complete(null);
+        await cleanup;
+      }
+    },
+  );
+
+  test(
+    'late native failure cannot escape or retire the next source owner',
+    () async {
+      final firstReply = Completer<Object?>();
+      final calls = <MethodCall>[];
+      var inspections = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'cancel') return null;
+            inspections++;
+            if (inspections == 1) return firstReply.future;
+            return {'byteLength': 65, 'sha256': 'e' * 64};
+          });
+      var sequence = 0;
+      final access = ServerCoreBackupSourceAccess(
+        channel: channel,
+        isAndroid: true,
+        operationIdFactory: () => String.fromCharCode(96 + ++sequence) * 32,
+      );
+
+      final stale = access.inspect();
+      await Future<void>.delayed(Duration.zero);
+      await access.cancelPending();
+      final current = await access.inspect();
+      firstReply.completeError(PlatformException(code: 'unavailable'));
+
+      expect(await stale, isNull);
+      expect(current?.sha256, 'e' * 64);
+      expect(
+        calls.where((call) => call.method == 'cancel').map((call) {
+          return (call.arguments as Map)['sessionId'];
+        }),
+        ['a' * 32],
+      );
+    },
+  );
+
+  test('scoped owner preserves the operation identity source', () async {
+    MethodCall? captured;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          captured = call;
+          return {'byteLength': 65, 'sha256': 'f' * 64};
+        });
+    final access = ServerCoreBackupSourceAccess(
+      channel: channel,
+      isAndroid: true,
+      operationIdFactory: () => 'f' * 32,
+    ).scoped();
+
+    final proof = await access.inspect();
+
+    expect(proof?.sha256, 'f' * 64);
+    expect((captured?.arguments as Map)['sessionId'], 'f' * 32);
+  });
 }

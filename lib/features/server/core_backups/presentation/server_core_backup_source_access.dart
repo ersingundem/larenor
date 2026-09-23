@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,20 @@ final class ServerCoreBackupSourceInspection {
 
   final int byteLength;
   final String sha256;
+}
+
+final class _SourceOperation {
+  _SourceOperation(this.id);
+
+  final String id;
+  final Completer<void> _cancelled = Completer<void>();
+
+  Future<void> get cancelled => _cancelled.future;
+  bool get isCancelled => _cancelled.isCompleted;
+
+  void cancel() {
+    if (!_cancelled.isCompleted) _cancelled.complete();
+  }
 }
 
 /// Asks Android's document picker to inspect an encrypted Core backup.
@@ -40,33 +55,39 @@ class ServerCoreBackupSourceAccess {
   final String Function() _operationIdFactory;
   final Duration platformTimeout;
   final Duration inspectTimeout;
-  String? _activeOperation;
+  _SourceOperation? _activeOperation;
 
   bool get hasPendingOperation => _activeOperation != null;
 
   ServerCoreBackupSourceAccess scoped() => ServerCoreBackupSourceAccess(
     channel: _channel,
     isAndroid: _isAndroid,
+    operationIdFactory: _operationIdFactory,
     platformTimeout: platformTimeout,
     inspectTimeout: inspectTimeout,
   );
 
   Future<ServerCoreBackupSourceInspection?> inspect() async {
     if (!_isAndroid) return null;
-    final operation = _operationIdFactory();
-    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(operation) ||
-        _activeOperation != null) {
+    if (_activeOperation != null) {
+      throw StateError('Backup source is busy');
+    }
+    final operation = _SourceOperation(_operationIdFactory());
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(operation.id)) {
       throw StateError('Backup source is busy');
     }
     _activeOperation = operation;
     try {
-      final raw = await _channel
-          .invokeMapMethod<String, dynamic>('inspect', {
-            'sessionId': operation,
-            'mimeType': 'application/vnd.larenor.core-backup',
-          })
-          .timeout(inspectTimeout);
-      if (_activeOperation != operation) return null;
+      final raw = await Future.any<Map<String, dynamic>?>([
+        _channel.invokeMapMethod<String, dynamic>('inspect', {
+          'sessionId': operation.id,
+          'mimeType': 'application/vnd.larenor.core-backup',
+        }),
+        operation.cancelled.then((_) => null),
+      ]).timeout(inspectTimeout);
+      if (!identical(_activeOperation, operation) || operation.isCancelled) {
+        return null;
+      }
       _activeOperation = null;
       if (raw == null) return null;
       if (raw.keys.toSet().difference({'byteLength', 'sha256'}).isNotEmpty ||
@@ -87,13 +108,15 @@ class ServerCoreBackupSourceAccess {
         sha256: sha256,
       );
     } on PlatformException catch (error) {
-      if (_activeOperation == operation) _activeOperation = null;
-      await _cancelOperation(operation);
+      if (identical(_activeOperation, operation)) _activeOperation = null;
+      if (operation.isCancelled) return null;
+      await _cancelOperation(operation.id);
       if (error.code == 'cancelled' || error.code == 'expired') return null;
       rethrow;
     } catch (_) {
-      if (_activeOperation == operation) _activeOperation = null;
-      await _cancelOperation(operation);
+      if (identical(_activeOperation, operation)) _activeOperation = null;
+      if (operation.isCancelled) return null;
+      await _cancelOperation(operation.id);
       rethrow;
     }
   }
@@ -102,7 +125,8 @@ class ServerCoreBackupSourceAccess {
     final operation = _activeOperation;
     if (operation == null) return;
     _activeOperation = null;
-    await _cancelOperation(operation);
+    operation.cancel();
+    await _cancelOperation(operation.id);
   }
 
   Future<void> _cancelOperation(String operation) async {
