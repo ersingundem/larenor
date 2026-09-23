@@ -35,6 +35,7 @@ import '../features/power_budget/presentation/power_budget_route.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
+import '../features/media/archive_health/presentation/core_media_archive_health_route.dart';
 import '../features/server/music_manager/presentation/server_music_manager_screen.dart';
 import '../features/wellbeing/presentation/wellbeing_gate.dart';
 import '../features/camera_search/presentation/camera_search_route.dart';
@@ -95,6 +96,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/media/music',
           builder: (_, _) => const ServerMusicManagerScreen(),
+        ),
+        GoRoute(
+          path: '/media/archive-health',
+          builder: (_, _) => const CoreMediaArchiveHealthRoute(),
         ),
         GoRoute(
           path: '/settings',
