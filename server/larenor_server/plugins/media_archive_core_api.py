@@ -10,6 +10,8 @@ from .media_archive_core_models import (
     MediaArchiveAuthorityResponse,
     MediaArchiveReadRequest,
     MediaArchiveReadResponse,
+    MediaCatalogSearchRequest,
+    MediaCatalogSearchResponse,
 )
 
 
@@ -31,3 +33,8 @@ def authority(body: MediaArchiveAuthorityRequest, core: Core, actor: Admin):
 @router.post('/read', response_model=MediaArchiveReadResponse)
 def read(body: MediaArchiveReadRequest, core: Core, actor: Admin):
     return core.media_archive_health.read(actor, body)
+
+
+@router.post('/catalog/search', response_model=MediaCatalogSearchResponse)
+def search(body: MediaCatalogSearchRequest, core: Core, actor: Admin):
+    return core.media_archive_health.search(actor, body)

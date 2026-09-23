@@ -78,7 +78,9 @@ class JellyfinArchiveItem(StrictModel):
 
     @model_validator(mode='after')
     def quality_has_runtime(self):
-        if self.quality is not None and self.runtimeSeconds is None:
+        if (self.quality is not None and self.runtimeSeconds is None
+                or (self.mediaKind == 'movie')
+                != self.mediaKey.startswith('movie:')):
             raise ValueError('invalid_media_archive_observation')
         return self
 
