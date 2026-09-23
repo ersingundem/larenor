@@ -40,6 +40,8 @@ against it, preserves strict container types and rejects overlapping chapter
 ranges. RED `017471e1` then exercised matching summary/detail HTTP identities,
 which the general URI regex had allowed; GREEN `7152b874` rejects external,
 local and executable URI schemes plus control characters before publication.
+RED `9ab7aed2` and GREEN `d3ca9143` additionally close custom-scheme query,
+fragment and user-info metadata channels, including token-shaped values.
 The expanded manager/runtime/authority batch passes **28/28**; Ruff F,
 security policy, execution-queue validation and diff checks are clean.
 
