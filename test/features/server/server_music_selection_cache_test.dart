@@ -269,6 +269,35 @@ void main() {
     expect(backend.writes, writes);
   });
 
+  test(
+    'delayed invalid read cannot clear a replacement owner record',
+    () async {
+      final backend = _MemoryBackend();
+      final cache = ServerMusicSelectionCache(backend: backend);
+      final manager = _manager();
+      await cache.write(
+        _scope,
+        manager,
+        provider: _provider(manager),
+        receiver: _receiver(manager),
+      );
+      final replacement = backend.value!;
+      const invalid = '{"schemaVersion":2}';
+      backend.value = invalid;
+      backend.pendingRead = Completer<String?>();
+
+      final delayed = cache.read(_scope, manager);
+      await Future<void>.delayed(Duration.zero);
+      backend.value = replacement;
+      backend.pendingRead!.complete(invalid);
+
+      expect(await delayed, isNull);
+      backend.pendingRead = null;
+      expect(backend.value, replacement);
+      expect(await cache.read(_scope, manager), isNotNull);
+    },
+  );
+
   test('explicit provider and receiver choices restore only after live verification', () async {
     final backend = _MemoryBackend();
     final cache = ServerMusicSelectionCache(
