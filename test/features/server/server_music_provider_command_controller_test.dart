@@ -8,8 +8,9 @@ import 'package:larenor/features/server/music_provider_commands/data/server_musi
 import 'server_music_provider_command_test_support.dart';
 
 ServerMusicProviderCommandsController createController(
-  ProviderCommandFixture fixture,
-) => ServerMusicProviderCommandsController(
+  ProviderCommandFixture fixture, {
+  DateTime Function()? now,
+}) => ServerMusicProviderCommandsController(
   fixture.account,
   installationId: 'b' * 32,
   installationRevision: 4,
@@ -17,6 +18,7 @@ ServerMusicProviderCommandsController createController(
   providerRevision: 3,
   providerDomain: 'spotify',
   requestId: () => 'f' * 32,
+  now: now ?? () => DateTime.utc(2026, 9, 10, 10, 5),
 );
 
 Future<void> flush() => Future<void>.delayed(Duration.zero);
@@ -121,6 +123,71 @@ void main() {
     expect(controller.failure, isNot(contains('synthetic')));
     expect(fixture.providerPosts, hasLength(1));
   });
+
+  for (final timing in ['expired', 'future']) {
+    test('$timing preview response never becomes confirm authority', () async {
+      final fixture = ProviderCommandFixture();
+      await fixture.account.initialize();
+      final controller = createController(fixture);
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      fixture.previewResponse = Completer();
+
+      final pending = controller.review('disable', current: () => true);
+      await flush();
+      final preview = providerCommandPreviewJson();
+      if (timing == 'expired') {
+        preview['createdAt'] = '2026-09-10T09:50:00.000Z';
+        preview['expiresAt'] = '2026-09-10T10:00:00.000Z';
+      } else {
+        preview['createdAt'] = '2026-09-10T10:06:00.000Z';
+        preview['expiresAt'] = '2026-09-10T10:16:00.000Z';
+      }
+      fixture.previewResponse!.complete(
+        fixture.json({'preview': preview}, 201),
+      );
+      await pending;
+
+      expect(controller.preview, isNull);
+      expect(controller.command, isNull);
+      expect(controller.failure, 'music_provider_preview_invalid');
+      expect(fixture.providerPosts, hasLength(1));
+    });
+  }
+
+  test(
+    'confirm rechecks expiry after session acquisition before POST',
+    () async {
+      final fixture = ProviderCommandFixture();
+      await fixture.account.initialize();
+      final instant = DateTime.utc(2026, 9, 10, 10, 5);
+      var expireDuringConfirm = false;
+      var confirmClockReads = 0;
+      final controller = createController(
+        fixture,
+        now: () {
+          if (!expireDuringConfirm) return instant;
+          confirmClockReads++;
+          return confirmClockReads == 1
+              ? DateTime.utc(2026, 9, 10, 10, 9, 59)
+              : DateTime.utc(2026, 9, 10, 10, 10);
+        },
+      );
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      await controller.review('disable', current: () => true);
+      expect(controller.preview, isNotNull);
+
+      expireDuringConfirm = true;
+      await controller.confirm(current: () => true);
+
+      expect(confirmClockReads, greaterThanOrEqualTo(2));
+      expect(controller.preview, isNull);
+      expect(controller.command, isNull);
+      expect(controller.failure, 'music_provider_preview_invalid');
+      expect(fixture.providerPosts, hasLength(1));
+    },
+  );
 
   for (final boundary in ['pin', 'background', 'route', 'account']) {
     test('$boundary change discards a late preview without retry', () async {
