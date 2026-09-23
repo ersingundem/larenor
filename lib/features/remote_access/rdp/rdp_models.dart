@@ -9,6 +9,31 @@ class RdpFailure implements Exception {
 
 Never _invalid([String code = 'invalid_response']) => throw RdpFailure(code);
 
+bool validRdpImeText(String value) {
+  if (value.isEmpty) return false;
+  var bytes = 0;
+  for (var index = 0; index < value.length; index++) {
+    final unit = value.codeUnitAt(index);
+    if (unit == 0) return false;
+    if (unit <= 0x7f) {
+      bytes++;
+    } else if (unit <= 0x7ff) {
+      bytes += 2;
+    } else if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (++index >= value.length) return false;
+      final low = value.codeUnitAt(index);
+      if (low < 0xdc00 || low > 0xdfff) return false;
+      bytes += 4;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return false;
+    } else {
+      bytes += 3;
+    }
+    if (bytes > 4096) return false;
+  }
+  return true;
+}
+
 Map<Object?, Object?> _object(Object? value, Set<String> keys) {
   if (value is! Map ||
       value.length != keys.length ||

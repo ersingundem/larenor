@@ -349,6 +349,7 @@ void main() {
     c.text('');
     c.text('bad\u0000text');
     c.text('😀' * 1025);
+    c.text('\ud800');
     expect(engine.channel.texts, ['İstanbul']);
     c.retire();
     c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));

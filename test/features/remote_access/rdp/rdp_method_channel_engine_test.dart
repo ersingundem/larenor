@@ -116,6 +116,7 @@ void main() {
       });
       channel.text('');
       channel.text('x' * 4097);
+      channel.text('\ud800');
       await Future<void>.delayed(Duration.zero);
       expect(
         calls.where(

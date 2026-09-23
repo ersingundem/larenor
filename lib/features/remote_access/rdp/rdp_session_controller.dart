@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -378,9 +377,7 @@ class RdpSessionController extends ChangeNotifier {
   void text(String value) {
     if (phase != RdpSessionPhase.connected ||
         capabilities?.supportsIme != true ||
-        value.isEmpty ||
-        value.contains('\u0000') ||
-        utf8.encode(value).length > 4096 ||
+        !validRdpImeText(value) ||
         !_current(_generation)) {
       return;
     }
