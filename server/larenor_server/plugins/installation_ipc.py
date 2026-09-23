@@ -2,7 +2,6 @@
 
 import json
 import math
-from pathlib import Path
 import platform as host_platform
 import re
 import socket
@@ -10,26 +9,25 @@ import stat
 import threading
 import time
 import uuid
+from pathlib import Path
 
+from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
+from .arr_config_models import (
+    ARR_CONFIG_EXECUTION_CODES,
+    ArrConfigurationExecutionError,
+    ArrConfiguredInstallReceipt,
+    PrivateArrConfiguration,
+)
+from .arr_config_runtime import ArrConfigRuntimeError
+from .catalog import load_catalog
 from .installation_execution import service_for_step
-from .jellyfin_bootstrap_executor import (
-    JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
-)
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
-from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
-from .music_assistant_bootstrap_models import PrivateMusicAssistantBootstrap
-from .music_assistant_bootstrap_runtime import (
-    MusicAssistantBootstrapRuntimeError,
+from .jellyfin_bootstrap_executor import (
+    JellyfinBootstrapExecutionError,
+    JellyfinBootstrapExecutionResult,
 )
-from .music_assistant_core_models import AuthenticatedMusicAssistantReadback
-from .music_provider_setup_models import (
-    PrivateMusicProviderSetupAction, ProviderSetupWorkerResult,
-)
-from .music_playback_models import (
-    MusicCatalogWorkerResult, MusicLongformWorkerResult, MusicPlaybackReadback,
-    MusicPlaybackWorkerResult, PrivateMusicCatalogAction,
-    PrivateMusicLongformAction,
-    PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
+from .jellyfin_playback_executor import (
+    JellyfinPlaybackExecutionError,
 )
 from .media_flow_models import MediaFlowObservation, validate_media_key
 from .media_playback_models import (
@@ -38,30 +36,50 @@ from .media_playback_models import (
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
 )
-from .seerr_bootstrap_models import PrivateSeerrBootstrap
-from .seerr_bootstrap_executor import (
-    SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
+from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .music_assistant_bootstrap_models import PrivateMusicAssistantBootstrap
+from .music_assistant_bootstrap_runtime import (
+    MusicAssistantBootstrapRuntimeError,
 )
-from .seerr_arr_wiring import SeerrArrWiringResult
-from .seerr_initialization import SeerrInitializationResult
-from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
-from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
-from .arr_config_models import (
-    ARR_CONFIG_EXECUTION_CODES, ArrConfiguredInstallReceipt,
-    ArrConfigurationExecutionError,
-    PrivateArrConfiguration,
+from .music_assistant_core_models import AuthenticatedMusicAssistantReadback
+from .music_playback_models import (
+    MusicCatalogWorkerResult,
+    MusicLongformWorkerResult,
+    MusicPlaybackReadback,
+    MusicPlaybackWorkerResult,
+    PrivateMusicCatalogAction,
+    PrivateMusicLongformAction,
+    PrivateMusicPlaybackAction,
+    PrivateMusicPlaybackAuthority,
 )
-from .arr_config_runtime import ArrConfigRuntimeError
+from .music_provider_setup_models import (
+    PrivateMusicProviderSetupAction,
+    ProviderSetupWorkerResult,
+)
+from .preflight_ipc import (
+    PreflightIPCError,
+    PreflightWorkerServer,
+    read_packet,
+    write_packet,
+)
 from .qbittorrent_config_effect import (
-    QbittorrentConfigEffectError, QbittorrentConfigInstallReceipt,
+    QbittorrentConfigEffectError,
+    QbittorrentConfigInstallReceipt,
 )
 from .qbittorrent_config_models import (
-    PrivateQbittorrentConfiguration, QB_CONFIG_EXECUTION_CODES,
-    QbittorrentConfiguredInstallReceipt,
+    QB_CONFIG_EXECUTION_CODES,
+    PrivateQbittorrentConfiguration,
     QbittorrentConfigurationExecutionError,
+    QbittorrentConfiguredInstallReceipt,
 )
 from .qbittorrent_config_runtime import QbittorrentConfigRuntimeError
-from .catalog import load_catalog
+from .seerr_arr_wiring import SeerrArrWiringResult
+from .seerr_bootstrap_executor import (
+    SeerrBootstrapExecutionError,
+    SeerrBootstrapExecutionResult,
+)
+from .seerr_bootstrap_models import PrivateSeerrBootstrap
+from .seerr_initialization import SeerrInitializationResult
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import DockerWorkerError, StepReceipt, WorkerStep, _safe_path
 
@@ -70,6 +88,59 @@ class InstallationIPCError(Exception):
     def __init__(self, code='worker_unavailable'):
         self.code = code if code in {'worker_unavailable', 'invalid_request', 'invalid_worker_result'} else 'worker_unavailable'
         super().__init__(self.code)
+
+
+def _wire_jellyfin_playback(value=None, error=None):
+    if error is not None:
+        if type(error) is not JellyfinPlaybackExecutionError:
+            raise InstallationIPCError('invalid_worker_result')
+        return {
+            'state': 'failed',
+            'errorCode': error.code,
+            'uncertainEffect': error.uncertain_effect,
+            'value': None,
+        }
+    if type(value) not in (MediaPlaybackReadback, MediaPlaybackWorkerResult):
+        raise InstallationIPCError('invalid_worker_result')
+    return {
+        'state': 'succeeded',
+        'errorCode': None,
+        'uncertainEffect': False,
+        'value': value.model_dump(mode='json', warnings=False),
+    }
+
+
+def _jellyfin_playback_result(value, model):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'errorCode', 'uncertainEffect', 'value'}
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        if value['state'] == 'failed':
+            no_effect = {
+                'invalid_jellyfin_playback_execution',
+                'jellyfin_playback_resources_unavailable',
+                'jellyfin_playback_authority_changed',
+                'jellyfin_playback_endpoint_changed',
+            }
+            uncertain = {'jellyfin_playback_effect_unknown'}
+            if (value['value'] is not None
+                    or (value['uncertainEffect'] is False
+                        and value['errorCode'] not in no_effect)
+                    or (value['uncertainEffect'] is True
+                        and value['errorCode'] not in uncertain)):
+                raise ValueError()
+            raise JellyfinPlaybackExecutionError(
+                value['errorCode'],
+                uncertain_effect=value['uncertainEffect'])
+        if (value['state'] != 'succeeded' or value['errorCode'] is not None
+                or value['uncertainEffect'] is not False):
+            raise ValueError()
+        return model.model_validate(value['value'])
+    except JellyfinPlaybackExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
 
 
 def _receipt(value, step):
@@ -173,7 +244,8 @@ def _bootstrap_result(value):
             # Re-validate every private value through the same strict encrypted
             # storage model before the Core can persist it.
             from .media_service_bootstrap_models import (
-                PrivateJellyfinReadback, PrivateMediaLibrary,
+                PrivateJellyfinReadback,
+                PrivateMediaLibrary,
             )
             PrivateJellyfinReadback(
                 apiKey=verified.api_key,
@@ -879,11 +951,13 @@ class InstallationWorkerClient:
         try:
             if gate() is not True:
                 raise ValueError()
-            result = model.model_validate(self._exchange(
-                operation, jellyfin_playback=private))
+            result = _jellyfin_playback_result(
+                self._exchange(operation, jellyfin_playback=private), model)
             if gate() is not True:
                 raise ValueError()
             return result
+        except JellyfinPlaybackExecutionError:
+            raise
         except InstallationIPCError:
             raise
         except Exception:
@@ -1372,15 +1446,18 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 method = ('read_media_playback' if reading
                           else 'execute_media_playback')
                 timed = getattr(self.backend, method + '_with_deadline', None)
-                result = (timed(private, deadline) if callable(timed)
-                          else getattr(self.backend, method)(
-                              private, deadline=deadline,
-                              gate=lambda: time.monotonic() < deadline))
+                try:
+                    result = (timed(private, deadline) if callable(timed)
+                              else getattr(self.backend, method)(
+                                  private, deadline=deadline,
+                                  gate=lambda: time.monotonic() < deadline))
+                except JellyfinPlaybackExecutionError as error:
+                    return _wire_jellyfin_playback(error=error)
                 expected = (MediaPlaybackReadback if reading
                             else MediaPlaybackWorkerResult)
                 if time.monotonic() >= deadline or type(result) is not expected:
                     raise ValueError()
-                return result.model_dump(mode='json', warnings=False)
+                return _wire_jellyfin_playback(value=result)
             except Exception:
                 raise PreflightIPCError('invalid_request') from None
         if operation in {'configure_arr', 'install_configured_arr'}:

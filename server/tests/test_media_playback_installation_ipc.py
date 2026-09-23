@@ -1,11 +1,10 @@
-from contextlib import contextmanager
 import os
-from pathlib import Path
 import tempfile
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
-
 from larenor_server.plugins.installation_ipc import (
     InstallationWorkerClient,
     InstallationWorkerServer,
@@ -23,7 +22,6 @@ from larenor_server.plugins.media_playback_models import (
     PrivateMediaPlaybackAuthority,
 )
 from test_media_host_preflight import stack
-
 
 TOKEN = 'k' * 32
 INSTALLATION = 'a' * 32

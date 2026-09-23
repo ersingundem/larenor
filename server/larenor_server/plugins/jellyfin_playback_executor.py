@@ -15,8 +15,8 @@ from .jellyfin_playback_runtime import (
     JellyfinPlaybackRuntimeError,
 )
 from .managed_container import (
-    ManagedContainerBinding,
     JournaledManagedContainerOperations,
+    ManagedContainerBinding,
 )
 from .media_playback_models import (
     MediaPlaybackReadback,
@@ -103,6 +103,7 @@ class JellyfinPlaybackExecutor:
             raise JellyfinPlaybackExecutionError() from None
 
     def _open(self, plan, binding, container_id, deadline):
+        opened = None
         try:
             observed = self.operations.engine.inspect_container(binding.name)
             proof = prove_jellyfin_endpoint(
@@ -114,6 +115,11 @@ class JellyfinPlaybackExecutor:
                 raise ValueError()
             return opened.connection, proof
         except Exception:
+            if opened is not None:
+                try:
+                    opened.connection.close()
+                except Exception:
+                    pass
             raise JellyfinPlaybackExecutionError() from None
 
     def _final(self, plan, binding, container_id, proof, gate):
@@ -185,7 +191,12 @@ class JellyfinPlaybackExecutor:
             raise JellyfinPlaybackExecutionError(
                 'jellyfin_playback_effect_unknown',
                 uncertain_effect=True) from None
-        self._final(plan, binding, container_id, opened[0][1], gate)
+        try:
+            self._final(plan, binding, container_id, opened[0][1], gate)
+        except JellyfinPlaybackExecutionError:
+            raise JellyfinPlaybackExecutionError(
+                'jellyfin_playback_effect_unknown',
+                uncertain_effect=True) from None
         if type(result) is not MediaPlaybackWorkerResult:
             raise JellyfinPlaybackExecutionError(
                 'jellyfin_playback_effect_unknown', uncertain_effect=True)

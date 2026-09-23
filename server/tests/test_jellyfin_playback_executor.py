@@ -1,8 +1,7 @@
-from dataclasses import replace
 import time
+from dataclasses import replace
 
 import pytest
-
 from larenor_server.plugins.jellyfin_endpoint import (
     OpenJellyfinEndpoint,
     prove_jellyfin_endpoint,
@@ -22,13 +21,12 @@ from larenor_server.plugins.media_playback_models import (
 )
 from test_jellyfin_bootstrap_executor import prepared  # noqa: F401
 from test_jellyfin_playback_runtime import (
-    Connection,
     ITEM,
     TOKEN,
+    Connection,
     response,
     sessions,
 )
-
 
 JOB = '7' * 32
 

@@ -7,6 +7,7 @@ import time
 from pydantic import ValidationError
 
 from ..errors import ApiError, StartupError
+from .jellyfin_playback_executor import JellyfinPlaybackExecutionError
 from .media_playback_models import (
     MediaPlaybackCommandRequest,
     MediaPlaybackIntent,
@@ -14,10 +15,10 @@ from .media_playback_models import (
     MediaPlaybackReceipt,
     MediaPlaybackWorkerResult,
     PrepareMediaPlaybackIntentRequest,
-    PrivateMediaPlaybackAction,
-    PrivateMediaPlaybackAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
+    PrivateMediaPlaybackAction,
+    PrivateMediaPlaybackAuthority,
 )
 
 _MAX_RECORDS = 256
@@ -326,6 +327,37 @@ class MediaPlaybackManagement:
             code='effect_unknown' if uncertain else 'authenticated_readback',
         )
 
+    def _retire_no_effect(self, actor, body, encoded):
+        try:
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    _RECEIPT_QUERY + ' WHERE r.request_id=?',
+                    (body.requestId,),
+                ).fetchone()
+                stored_request, stored_receipt = self._validated_receipt_row(row)
+                if (stored_receipt is not None or stored_request != body
+                        or row['receipt_actor_id'] != actor.id
+                        or row['receipt_request_json'] != encoded):
+                    raise ValueError()
+                deleted_receipt = connection.execute(
+                    "DELETE FROM media_playback_receipts "
+                    "WHERE request_id=? AND intent_id=? AND actor_id=? "
+                    "AND request_json=? AND state='pending' "
+                    "AND receipt_json IS NULL",
+                    (body.requestId, body.intentId, actor.id, encoded),
+                ).rowcount
+                deleted_intent = connection.execute(
+                    'DELETE FROM media_playback_intents '
+                    'WHERE id=? AND actor_id=? AND consumed_by=?',
+                    (body.intentId, actor.id, body.requestId),
+                ).rowcount
+                if deleted_receipt != 1 or deleted_intent != 1:
+                    raise ValueError()
+        except ApiError:
+            raise
+        except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
+            raise ApiError('media_playback_storage_unavailable', 503) from None
+
     def command(self, actor, body):
         if type(body) is not MediaPlaybackCommandRequest:
             raise ApiError('invalid_request')
@@ -429,6 +461,20 @@ class MediaPlaybackManagement:
                     or result.target.currentItemId != row['item_id']
                     or abs(result.target.positionSeconds-body.startSeconds) > 2):
                 raise ValueError()
+        except JellyfinPlaybackExecutionError as error:
+            if error.uncertain_effect:
+                if not self._gate(actor, authority):
+                    with self.db.connection() as connection:
+                        self.auth.assert_current(connection, actor)
+                raise ApiError(
+                    'media_playback_worker_unavailable', 503) from None
+            self._retire_no_effect(actor, body, encoded)
+            if error.code == 'jellyfin_playback_authority_changed':
+                if not self._gate(actor, authority):
+                    with self.db.connection() as connection:
+                        self.auth.assert_current(connection, actor)
+                raise ApiError('media_playback_authority_changed', 409) from None
+            raise ApiError('media_playback_worker_unavailable', 503) from None
         except Exception:  # noqa: BLE001 - dispatched effect is now uncertain
             if not self._gate(actor, authority):
                 with self.db.connection() as connection:
