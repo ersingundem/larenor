@@ -199,6 +199,25 @@ def _fill_receipts(connection, *, actor_id, body, count=256,
     for index in range(count):
         intent_id = f'{index:032x}'
         request_id = f'{index + 1024:032x}'
+        command = {
+            'requestId': request_id,
+            'intentId': intent_id,
+            'expectedPlaybackRevision': 7,
+            'targetId': 'living-room',
+            'expectedTargetRevision': 3,
+            'startSeconds': 0,
+        }
+        receipt = {
+            'requestId': request_id,
+            'intentId': intent_id,
+            'installationId': body['installationId'],
+            'itemId': body['itemId'],
+            'targetId': 'living-room',
+            'playbackRevision': 8,
+            'state': 'succeeded',
+            'code': 'authenticated_readback',
+            'installAvailable': False,
+        }
         connection.execute(
             'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
             (intent_id, actor_id, body['installationId'],
@@ -208,8 +227,10 @@ def _fill_receipts(connection, *, actor_id, body, count=256,
              body['mediaKey'], 7, targets, 1788613200, request_id))
         connection.execute(
             'INSERT INTO media_playback_receipts VALUES(?,?,?,?,?,?,?)',
-            (request_id, intent_id, actor_id, '{}', state,
-             '{}' if state == 'succeeded' else None, 1788609600 + index))
+            (request_id, intent_id, actor_id,
+             json.dumps(command, separators=(',', ':'), sort_keys=True), state,
+             (json.dumps(receipt, separators=(',', ':'), sort_keys=True)
+              if state == 'succeeded' else None), 1788609600 + index))
 
 
 def test_expired_intents_are_pruned_before_capacity_is_enforced(server):
@@ -451,3 +472,57 @@ def test_receipt_binding_drift_after_effect_never_publishes_success(server):
     assert response.json()['error']['code'] == 'media_playback_worker_unavailable'
     assert len(worker.calls) == 1
     assert 'authenticated_readback' not in response.text
+
+
+def test_capacity_pruning_never_launders_a_corrupt_succeeded_receipt(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    body = _request(installation, current)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    candidate_id = 'f' * 32
+    targets = json.dumps([{
+        'targetId': 'living-room', 'targetRevision': 3,
+        'name': 'Living room', 'available': True,
+        'currentItemId': None, 'positionSeconds': 0,
+    }], separators=(',', ':'), sort_keys=True)
+    with app.state.core.db.transaction() as connection:
+        _fill_receipts(
+            connection, actor_id=pair['user']['id'], body=body,
+            state='succeeded')
+        oldest_id = f'{1024:032x}'
+        receipt = json.loads(connection.execute(
+            'SELECT receipt_json FROM media_playback_receipts '
+            'WHERE request_id=?', (oldest_id,)).fetchone()['receipt_json'])
+        receipt['itemId'] = 'd' * 32
+        connection.execute(
+            'UPDATE media_playback_receipts SET receipt_json=? '
+            'WHERE request_id=?',
+            (json.dumps(receipt, separators=(',', ':'), sort_keys=True),
+             oldest_id))
+        connection.execute(
+            'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)',
+            (candidate_id, pair['user']['id'], body['installationId'],
+             body['expectedInstallationRevision'],
+             body['expectedSnapshotRevision'],
+             body['expectedJellyfinServiceRevision'], body['itemId'],
+             body['mediaKey'], 7, targets, 1788613200))
+
+    response = client.post(BASE + '/commands', headers=auth(pair), json={
+        'requestId': 'e' * 32, 'intentId': candidate_id,
+        'expectedPlaybackRevision': 7, 'targetId': 'living-room',
+        'expectedTargetRevision': 3, 'startSeconds': 0,
+    })
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_playback_storage_unavailable'
+    with app.state.core.db.connection() as connection:
+        candidate = connection.execute(
+            'SELECT consumed_by FROM media_playback_intents WHERE id=?',
+            (candidate_id,)).fetchone()
+        oldest = connection.execute(
+            'SELECT 1 FROM media_playback_receipts WHERE request_id=?',
+            (oldest_id,)).fetchone()
+    assert candidate['consumed_by'] is None
+    assert oldest is not None
+    assert worker.calls == []
