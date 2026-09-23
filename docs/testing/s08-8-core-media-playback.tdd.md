@@ -66,17 +66,27 @@ progress remains **26/125** and selected-feature progress remains **0/63**.
   `01f97601821287b9bd84260265bd75d5bf9116da` revalidates every prune
   candidate before deletion and performs exact transactional revalidation and
   compare-and-set finalization after the external effect.
+- Production-worker RED `ce613152` specified the exact authenticated Jellyfin
+  session read, one `PlayNow` POST and post-effect readback. GREEN
+  `095c5fd3` added bounded HTTP parsing, process-generation revisions and
+  ambiguous-effect rejection. Container-authority GREEN `ad45db1a` binds every
+  stream to the exact journaled container and private control-network endpoint.
+- Credential/IPC GREEN `699be352` and `2816091f` resolve the verified API key
+  only from AES-GCM bootstrap storage, transport it over the same UID-checked
+  worker socket and connect Core to the packaged Linux runtime. Capability
+  discovery compatibility was retained by `d2d2ad24`; a worker implementation
+  that does not advertise both playback methods remains unavailable.
 
-The current focused Server playback suite passes **14/14**; the grouped playback,
-catalog-read and flow package passes **45/45**. The current Flutter playback,
-catalog tablet and real-loopback package passes **20/20**. Earlier accepted
-broader groups remain recorded by their exact commits above.
+The production-worker package adds **19/19** protocol/container tests and the
+private IPC/credential groups bring the focused Server batch to **54/54**.
+The earlier Core playback suite passes **14/14**; the grouped playback,
+catalog-read and flow package passes **45/45**. The Flutter playback, catalog
+tablet and real-loopback package passes **20/20**.
 
 ## Remaining S08.8 acceptance
 
-The production playback backend still needs a configured provider adapter and
-real-device verification; this slice only defines and tests its fail-closed
-Core seam. Accessible migration of retained Jellyfin preferences, integration
-of the completed cache primitives into user-facing media flows, broader
-same-URL replacement/logout E2E, independent review and exact-head CI remain
-open. Neither progress counter advances.
+Physical TV/receiver verification remains separate from the now packaged
+production worker. Accessible migration of retained Jellyfin preferences,
+integration of the completed cache primitives into user-facing media flows,
+broader same-URL replacement/logout E2E, independent review and exact-head CI
+remain open. Neither progress counter advances.

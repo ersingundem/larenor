@@ -8,7 +8,13 @@
 
 ## Mevcut Larenor kodu
 
-- `lib/features/media/jellyfin/data/jellyfin_client.dart`: authenticated GET katalog, current-account getItem, POST PlaybackInfo ve yerel oynatım raporları var; uzaktaki `/Sessions/{id}/Playing` komutu yok. `/Sessions/Playing` raporu başka cihazı oynatmaz.
+- Eski `lib/features/media/jellyfin/data/jellyfin_client.dart` doğrudan katalog,
+  PlaybackInfo ve yerel raporlama kodu geçiş kaynağı olarak kalıyor. Ürün yolu
+  artık Core intent/receipt sözleşmesinden UID doğrulamalı installation worker'a,
+  oradan journal ile kanıtlanmış Jellyfin container'ına gider. Worker
+  `/Sessions/{id}/Playing` komutundan önce ve sonra doğrulanmış session readback
+  alır; Client API anahtarını, sunucu adresini veya doğrudan provider fallback'i
+  görmez.
 - `getPlaybackInfo()` direct-play URL'sine kullanıcının uzun ömürlü `api_key` değerini ekliyor. Bu URL yerel player sınırında kalmalı; generic HA play_media, kopyalama, log, backup veya receiver payload'una geçirilmemeli. `ServerBoundClient` istek origin/prefix sınırı başka cihaza paylaşılan URL için yetki sınırı sağlamaz.
 - `jellyfin_device_profile.dart` libmpv için geniş container/codec listesi bildiriyor. Cast/Apple TV için bu profil doğru değildir. Mevcut `JellyfinItem.playbackEligibility` Movie/Episode için location/access/eksik içerik kanıtını ayrıştırıyor; uzak receiver codec onayı olarak kullanılmamalı.
 - `features/health/providers/ha_actions.dart` mevcut media_play/media_pause sonuçlarını state ile karşılaştırıyor. Yeni play_media için yalnız `state == playing` yeterli değildir: hedef önceden başka içerik oynatıyor olabilir. Mevcut action receipt altyapısı tekrar kullanılabilir; özgül içerik eşleşmesi ayrı olmalı.

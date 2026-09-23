@@ -346,10 +346,14 @@ records the remaining acceptance gates.
 
 The product target remains [one integrated media/music installation](../docs/integrated-media-stack.md),
 with users managing settings in Larenor Client and internal credentials and
-connections managed by Larenor. Complete-stack provisioning, service bootstrap,
-private control networking and actual media runtime deployment are still future
-work. The read-only job API still rejects installation operations; the bounded
-installation collection above is the only separate mutation contract.
+connections managed by Larenor. The packaged playback path now resolves the
+encrypted verified Jellyfin API key only inside Core, sends a closed contract
+over the UID-authenticated installation-worker socket, proves the exact
+journaled container and private endpoint, and accepts success only after fresh
+authenticated session readback. Complete-stack acceptance and physical receiver
+validation remain open. The read-only job API still rejects installation
+operations; the bounded installation collection above is the only separate
+mutation contract.
 
 The first S06.5 bootstrap surface is available at
 `/api/v1/admin/media/bootstraps`. It accepts only an idempotency ID and the exact
