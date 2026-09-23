@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 23 Eylül 2026, exact kabul kaynağı `63a1a33d` — 26/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. REMOTE.COMMON ortak profil, güven ve oturum kapanış temeli exact-head CI ve bağımsız incelemeyi geçti; gerçek uzak host, Huawei tablet ve DeX kabulü protokol ve manuel kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 23 Eylül 2026, birleşmiş yazılım kaynağı `a9bf847b` — 26/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8'in Core oynatma sözleşmesi, yönetilen Jellyfin worker'ı, erişilebilir eski tercih geçişi ve doğrulanmış Client önbellekleri; S09.1'in kalıcı kurulum otoritesi ve Docker Engine inspect/pause/unpause adaptörü main'e girdi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  26/125 iş (%20,8; eşit ağırlıklı sayaç)
@@ -16,6 +16,28 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 23 Eylül aktif teslim kanıtı — PR #448–#455
+
+PR #448 ve #449 ilerleme metnini kanıtlı sayaçlarla birleştirdi. Sonraki altı
+ürün dilimi S08.8 ve S09.1'in kalan yazılım sınırlarını daralttı; hiçbir dilim
+tek başına ilgili kuyruk düğümünün bütün acceptance ölçütlerini kapatmadığı için
+sayaç **26/125 (%20,8)** ve seçili özellikler **0/63** kaldı.
+
+| PR / alan | Exact head → merge | Kanıt ve kalan sınır |
+| --- | --- | --- |
+| #448 / Docs | `45deec1e` → `d5212b3c` | Sayaçlar ve #439/#443–#447 exact kanıtı tek güncel teslim metninde birleştirildi. |
+| #449 / Docs | `98ca3b34` → `7c2e9613` | Hareketli main adı yerine stable ancestry kaynağı kullanıldı. |
+| #450 / S09.1 | `5a9b413b` → `fefdf410` | 232 odaklı test; snapshot kaynakları kalıcı kurulum otoritesine bağlandı. İzole ve tutarlı yedek alma açık. |
+| #451 / S08.8 | `180dcc04` → `36c5395f` | 45 Server + 20 Flutter; tek kullanımlık Core playback intent/receipt ve tablet hedef onayı. Üretim worker'ı ve önbellek açık; fiziksel alıcı ayrı `MANUAL.MEDIA` kapısı. |
+| #453 / S08.8 | `f12c37b4` → `cc93b18a` | 65 Flutter; eski Jellyfin dil tercihleri yalnız açık EN/TR onayı ve güncel route/session ile taşınıyor. |
+| #452 / S09.1 | `aaf2991e` → `8cfe43ef` | 415 geçti, 2 platform skip / 417 toplandı; Docker inspect/pause/unpause ve belirsiz-etki uzlaştırması. İzole salt okunur/COW yedek alma açık. |
+| #454 / S08.8 | `73272091` → `a9bf847b` | 35 odaklı + 72 gruplanmış; worker, şifreli Jellyfin yetkisi, işlem öncesi/sonrası kesinlik, türlenmiş IPC ve stream temizliği. Exact CI 41/41 geçti. |
+| #455 / S08.8 | `a13f93fc` → `c8088367` | 51 Flutter; güncel yetki doğrulamalı Client önbellekleri, yaşam döngüsü temizliği ve sorgu/tür/limit kanıtı. |
+
+#454 ve #455 kaynak/squash farklarının stable patch-id eşitliği doğrulandı;
+ikisi de main ancestry'sine alındı ve eski headlere ait yeşil sonuçlar kabul
+edilmedi.
 
 ### 23 Eylül birleşik teslim kanıtı — PR #439, #443–#447
 
@@ -33,22 +55,26 @@ medya native kabul işleri ilgili exact headlerde geçti.
 | #446 / S09.1 | `12c6ddf0` → `c9e7cc08` | 31/31; cross-UID socket, provider hatası ve release-ACK denetimi | Android `35884049752`, Security `35884049756` |
 | #447 / S09.1 | `11139268` → `36e05f9a` | 49/49; bounded enumeration P2 RED/GREEN ve exact-head yeniden inceleme | Android `35887465363`, Security `35887464912` |
 
-Bu birleşmeler sayaç artırmaz. S08.8 eski ayar geçişi ve typed cache/provider/
-player/queue kapsamını; F28 chapter eylemleri, bookmark, sleep timer,
+Bu birleşmeler sayaç artırmaz. S08.8 doğrudan medya istemcilerini devreden
+çıkarma; eksiksiz katalog→arama→sağlayıcı→oynatıcı→kuyruk;
+kalıcı kayıt/önbellek tuple-kaynak-sürüm-TTL-kota ve yetki kaybı/başka Core
+E2E kapsamını; F28 chapter eylemleri, bookmark, sleep timer,
 MediaSession ve gerçek Music Assistant fixture'ını; F24 altyazı sağlayıcısı
 consent/kota ile gerçek renderer/subtitle-engine kanıtını bekliyor. F31'in kendi
 ürün, test, inceleme ve CI kanıtı tamamlandı; ancak `B3` bağımlılığı içindeki
 S08.8 ve S08.11 `pending` olduğundan validator F31 kapanışını reddediyor. S09.1
-ise ayrıcalıklı gerçek provider, journal-bound capture, restore/rollback,
-kesinti ve büyük hacim iki mimari kabulünü bekliyor.
+ise DB/anahtar/yapılandırma/bileşen veri ve sürümleriyle izole, tutarlı yedek
+alma; çalışan işlemlerin kesilme sınırı, şema ve sürüm kanıtını bekliyor.
+Geri yükleme/kurtarma S09.2, iki mimarili
+temiz kurulum/yükseltme ve Client geri yükleme sınırı S09.3 kapsamındadır.
 
 [PR #447](https://github.com/ersingundem/larenor/pull/447) exact
 `11139268` ile bounded managed-volume provider dilimini tamamlayıp `36e05f9a`
 olarak birleşti. Bağımsız P2
 incelemesindeki RED `3f5fba8e`, dizin girdilerinin sınır uygulanmadan önce
 toplanıp sıralandığını gösterdi; GREEN `28ac68d4` enumeration'ı sıralama öncesi
-sınırladı ve odaklı paket **49/49** geçti. Bu dilim S09.1'in Engine/journal,
-restore ve native kabul kapılarını tek başına kapatmadığından kuyruk
+sınırladı ve odaklı paket **49/49** geçti. Bu dilim S09.1'in tutarlı ve izole
+yedek alma kapılarını tek başına kapatmadığından kuyruk
 **26/125 (%20,8)**, seçili özellik kabulü **0/63** kalır.
 
 ### K07 açık tablet eşleştirmesi — inceleme dilimi
