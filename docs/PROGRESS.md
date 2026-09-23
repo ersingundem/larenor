@@ -42,9 +42,9 @@ ise ayrıcalıklı gerçek provider, journal-bound capture, restore/rollback,
 kesinti ve büyük hacim iki mimari kabulünü bekliyor.
 
 [PR #447](https://github.com/ersingundem/larenor/pull/447) exact
-`7ca5d9bb` ile açık bounded managed-volume provider dilimidir. Bağımsız P2
-incelemesindeki RED `12a1ec7a`, dizin girdilerinin sınır uygulanmadan önce
-toplanıp sıralandığını gösterdi; GREEN `7de039f3` enumeration'ı sıralama öncesi
+`11139268` ile açık bounded managed-volume provider dilimidir. Bağımsız P2
+incelemesindeki RED `3f5fba8e`, dizin girdilerinin sınır uygulanmadan önce
+toplanıp sıralandığını gösterdi; GREEN `28ac68d4` enumeration'ı sıralama öncesi
 sınırladı ve odaklı paket **49/49** geçti. PR henüz birleşmedi ve kabul/sayaç
 kanıtı sayılmaz. Kuyruk bu nedenle **26/125 (%20,8)**, seçili özellik kabulü
 **0/63** kalır.
