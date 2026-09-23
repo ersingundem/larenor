@@ -214,7 +214,7 @@ def test_btrfs_backend_uses_only_fixed_read_only_operations(monkeypatch):
         return subprocess.CompletedProcess(arguments, 0, output)
 
     monkeypatch.setattr(subprocess, "run", run)
-    backend = BtrfsReadOnlySnapshotBackend(Path("/bin/echo"))
+    backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"))
     deadline = time.monotonic() + 2
     backend.create_read_only(Path("/source"), Path("/capture"), deadline)
     backend.delete(Path("/capture"), deadline)
