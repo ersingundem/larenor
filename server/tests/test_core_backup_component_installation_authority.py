@@ -1,6 +1,7 @@
 """S09.1 durable installed-component authority from private journals."""
 
 from dataclasses import replace
+import json
 import time
 
 import pytest
@@ -36,12 +37,37 @@ def volume_inputs():
     }
 
 
-def install_container(journal):
-    _builder, _stack, binding = build(container_journal_id=journal.identity)
+def install_container(journal, binding=None):
+    if binding is None:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
     worker = JournaledManagedContainerOperations(journal, Engine(binding))
     worker.apply(command(binding), binding)
     worker.apply(command(binding, 'start_container', '8' * 32), binding)
     return binding
+
+
+def drifted_binding(journal, damage):
+    _builder, _stack, binding = build(container_journal_id=journal.identity)
+    specification = json.loads(binding.specification)
+    if damage in {'plan', 'catalog', 'manifest'}:
+        specification['Labels']['org.larenor.' + damage] = '9' * 64
+    elif damage == 'image':
+        binding = replace(binding, image_id='sha256:' + '9' * 64)
+        specification['Image'] = specification['Image'].rsplit('@', 1)[0] + (
+            '@sha256:' + '9' * 64
+        )
+    elif damage == 'config':
+        specification['HostConfig']['Memory'] += 1048576
+    else:
+        raise AssertionError('unknown damage')
+    return replace(
+        binding,
+        specification=json.dumps(
+            specification,
+            sort_keys=True,
+            separators=(',', ':'),
+        ).encode(),
+    )
 
 
 def ready_volume(journal, data, resource):
@@ -215,3 +241,29 @@ def test_snapshot_rejects_two_installed_services_sharing_one_container_identity(
             match='^installation_authority_unavailable$',
         ):
             authority.snapshot()
+
+
+@pytest.mark.parametrize(
+    'damage',
+    ['plan', 'catalog', 'manifest', 'image', 'config'],
+)
+def test_snapshot_rejects_stale_or_foreign_installed_binding_against_current_receipts(
+        tmp_path, damage):
+    data = volume_inputs()
+    selected = tuple(
+        item for item in data['plan'].resources if item.serviceId == 'jellyfin'
+    )
+    with (
+        ManagedWorkerJournal(tmp_path / 'containers', initialize=True) as containers,
+        VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volumes,
+    ):
+        install_container(containers, drifted_binding(containers, damage))
+        with volumes.locked():
+            for resource in selected:
+                ready_volume(volumes, data, resource)
+
+        with pytest.raises(
+            ComponentInstallationAuthorityError,
+            match='^installation_authority_unavailable$',
+        ):
+            DurableComponentInstallationAuthority(containers, volumes).snapshot()
