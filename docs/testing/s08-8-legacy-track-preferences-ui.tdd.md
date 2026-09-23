@@ -4,7 +4,8 @@ Date: 23 September 2026
 
 This slice turns the existing retained Jellyfin language preference reader and
 confirmed Core merge into an accessible, user-controlled player journey. It is
-stacked on the exact receipt-finalizing playback head
+rebased on main `36c5395f28ef07bfa15afd875a6dd3eadc4f46b0`, which contains the
+receipt-finalizing playback source head
 `180dcc04b870b7c5bd1c94533c494d946d9eebef`. S08.8 remains pending, so queue
 progress stays **26/125** and selected-feature progress stays **0/63**.
 
@@ -32,16 +33,16 @@ progress stays **26/125** and selected-feature progress stays **0/63**.
 
 ## RED/GREEN and verification
 
-- RED `c2510d10d9698313eddb1ed04cc3297a9af1d986` added the controller,
+- RED `4f18c29a312ff62d13be78ee3dcd36bd22c3a070` added the controller,
   EN/TR 600/1200 at 2x, real-loopback and logout/replacement tests before the
   controller and card existed.
-- GREEN `09ef79304b984df92e330d03ca015410e6e140fd` implements the lifecycle
+- GREEN `8f8af0e3620d5efe5287fdc0c7917c6ac5c796f7` implements the lifecycle
   controller, player card, localization and exact confirmation retirement.
-- Audit RED `e5d7332a7bd81dd6c0e5ae324326a94376a6bed7` proves that a JSON
+- Audit RED `e99a643dd70c195fe114a3c155236e40ddac86b6` proves that a JSON
   floating-point `1.0` version was accepted and that retained confirm callbacks
   could still write Core and remove the local record after route coverage or
   interaction-epoch replacement.
-- Audit GREEN `793a446aa4d83c5247bad67e4f732aeba54ea5b6` requires an exact integer
+- Audit GREEN `6d13c9f4bf298315e9ecc9714fc61cbde01c6163` requires an exact integer
   schema version and binds migration confirmation to the player's route,
   foreground and interaction generation. Retirement keeps the legacy source
   and prevents a stale Core write.
