@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
   String? _error;
   bool _pending = false;
   bool _foreground = true;
+  bool _nativeFocused = true;
   bool _routeVisible = true;
   AppInteractionController? _interaction;
   int _epoch = 0;
@@ -52,6 +54,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
       mounted &&
       epoch == _epoch &&
       _foreground &&
+      _nativeFocused &&
       (_interaction?.active ?? true) &&
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
@@ -86,6 +89,19 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
     if (!foreground) {
       unawaited(_retire());
     } else if (mounted) {
+      setState(() => _error = null);
+    }
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (!mounted || event.viewId != View.of(context).viewId) return;
+    final focused = event.state == ViewFocusState.focused;
+    if (_nativeFocused == focused) return;
+    _nativeFocused = focused;
+    if (!focused) {
+      unawaited(_retire());
+    } else {
       setState(() => _error = null);
     }
   }
@@ -159,10 +175,16 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
     _epoch++;
     _poller?.cancel();
     _poller = null;
-    _snapshot = null;
-    _pending = false;
+    if (mounted) {
+      setState(() {
+        _snapshot = null;
+        _pending = false;
+      });
+    } else {
+      _snapshot = null;
+      _pending = false;
+    }
     await _controller.retire();
-    if (mounted) setState(() {});
   }
 
   String _failure(Object error) {
@@ -190,7 +212,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
     ref.watch(kioskSensorControllerProvider);
     final l = AppLocalizations.of(context);
     final snapshot = _snapshot;
-    final action = !_foreground || _pending
+    final action = !_foreground || !_nativeFocused || _pending
         ? null
         : snapshot == null
         ? _start
@@ -257,7 +279,7 @@ final class _KioskSensorScreenState extends ConsumerState<KioskSensorScreen>
                       _status(l.kioskSensorsCamera, _camera(l, snapshot)),
                     ],
                   ),
-                  if (!_foreground)
+                  if (!_foreground || !_nativeFocused)
                     Padding(
                       padding: const EdgeInsets.all(20),
                       child: Text(l.kioskSensorsBackground),

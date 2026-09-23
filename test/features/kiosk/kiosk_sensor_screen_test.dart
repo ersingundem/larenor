@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,7 @@ KioskSensorSnapshot _snapshot({int sequence = 0}) => KioskSensorSnapshot(
 final class _Api implements KioskSensorApi {
   int starts = 0, stops = 0, reads = 0;
   Completer<KioskSensorSnapshot>? pending;
+  Completer<KioskSensorStopReceipt>? pendingStop;
   @override
   Future<KioskSensorSnapshot> start({required int intervalMillis}) async {
     starts++;
@@ -43,7 +45,8 @@ final class _Api implements KioskSensorApi {
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
     stops++;
-    return const KioskSensorStopReceipt(sessionId: _session, stopped: true);
+    return pendingStop?.future ??
+        const KioskSensorStopReceipt(sessionId: _session, stopped: true);
   }
 }
 
@@ -155,5 +158,44 @@ void main() {
     navigator.pop();
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('kiosk-sensor-start')), findsOneWidget);
+  });
+
+  testWidgets('native view focus loss retires sampling and clears readings', (
+    tester,
+  ) async {
+    final api = _Api();
+    await _pump(tester, locale: const Locale('en'), width: 600, api: api);
+    await tester.tap(find.byKey(const ValueKey('kiosk-sensor-start')));
+    await tester.pump(const Duration(seconds: 2));
+    expect(api.reads, 1);
+    expect(find.textContaining('8.0 lx'), findsOneWidget);
+    api.pendingStop = Completer<KioskSensorStopReceipt>();
+
+    tester.binding.handleViewFocusChanged(
+      ViewFocusEvent(
+        viewId: tester.view.viewId,
+        state: ViewFocusState.unfocused,
+        direction: ViewFocusDirection.undefined,
+      ),
+    );
+    await tester.pump();
+
+    expect(api.stops, 1);
+    expect(find.textContaining('8.0 lx'), findsNothing);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('kiosk-sensor-start')),
+              matching: find.byType(CupertinoButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+    api.pendingStop!.complete(
+      const KioskSensorStopReceipt(sessionId: _session, stopped: true),
+    );
+    await tester.pump();
   });
 }
