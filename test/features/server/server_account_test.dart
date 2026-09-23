@@ -13,6 +13,7 @@ final now = DateTime.utc(2026, 9, 5);
 const access = 'synthetic_access_token_00000000001';
 const refresh = 'synthetic_refresh_token_0000000001';
 const family = 'cccccccccccccccccccccccccccccccc';
+const replacementFamily = 'dddddddddddddddddddddddddddddddd';
 Map<String, Object?> pair({
   String token = access,
   String refreshToken = refresh,
@@ -335,17 +336,40 @@ void main() {
         handler = (request) async {
           expect(request.url.path, '/api/v1/auth/password');
           expect(request.headers['authorization'], 'Bearer $access');
-          return jsonResponse(pair(change: false));
+          return jsonResponse(
+            pair(change: false, sessionFamilyId: replacementFamily),
+          );
         };
         await account.changePassword(
           currentPassword: 'synthetic-password',
           newPassword: 'synthetic-password-new',
         );
         expect(account.session!.user.canAdminister, isTrue);
+        expect(account.session!.sessionFamilyId, replacementFamily);
         await account.withSession((api, session) async {
           writes++;
         });
         expect(writes, 1);
+      },
+    );
+
+    test(
+      'password replacement must rotate to a different session family',
+      () async {
+        await login();
+        handler = (request) async {
+          expect(request.url.path, '/api/v1/auth/password');
+          return jsonResponse(pair(change: false, sessionFamilyId: family));
+        };
+
+        await account.changePassword(
+          currentPassword: 'synthetic-password',
+          newPassword: 'synthetic-password-new',
+        );
+
+        expect(account.session, isNull);
+        expect(account.failure, 'invalid_response');
+        expect(store.value?.authMutationPending, isTrue);
       },
     );
 

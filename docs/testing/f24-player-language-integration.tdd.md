@@ -1,7 +1,7 @@
 # F24 Core language preference player integration
 
-This stacked slice consumes the provider-neutral language preference contract
-from PR #440 at exact base `c9527d15fc3a388f174f29148bfc5b71b3f48c7a`.
+This slice consumes the merged provider-neutral language preference contract
+from PR #440.
 It leaves F24 pending: queue progress remains **26/125** and selected-feature
 progress remains **0/63**.
 
@@ -13,8 +13,10 @@ progress remains **0/63**.
    language, so an audio update cannot erase a concurrent subtitle choice.
    Provider URL, provider user ID, provider token and device ID never cross the
    Core request boundary. Login/refresh now carries the exact 32-hex session
-   family through v3 secure-session persistence, and a rotation cannot replace
-   that family. A possibly committed timeout, connection failure or server
+   family through v3 secure-session persistence. Refresh must retain that
+   family, while the password-replacement response must carry a different
+   non-null family after the old families are revoked. A possibly committed
+   timeout, connection failure or server
    error gets one retry with the exact same 32-hex request ID and body.
 2. **Explicit selection with honest fallback.** The existing audio/subtitle
    action sheet explains account persistence before the user confirms a track.

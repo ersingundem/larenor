@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
 import hashlib
 import hmac
 import secrets
 import sqlite3
 import threading
 import uuid
+from dataclasses import dataclass, field
 
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError

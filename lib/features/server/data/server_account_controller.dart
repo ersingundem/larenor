@@ -567,11 +567,14 @@ class ServerAccountController extends ChangeNotifier {
     ServerSession next, {
     bool allowNewFamily = false,
   }) {
+    final oldFamily = old.sessionFamilyId;
+    final nextFamily = next.sessionFamilyId;
+    final invalidFamily = allowNewFamily
+        ? oldFamily != null && (nextFamily == null || nextFamily == oldFamily)
+        : oldFamily != null && oldFamily != nextFamily;
     if (old.endpoint.baseUrl != next.endpoint.baseUrl ||
         old.user.id != next.user.id ||
-        (!allowNewFamily &&
-            old.sessionFamilyId != null &&
-            old.sessionFamilyId != next.sessionFamilyId)) {
+        invalidFamily) {
       throw const LarenorServerException('invalid_response');
     }
   }

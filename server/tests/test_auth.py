@@ -1,18 +1,17 @@
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from conftest import auth, bootstrap_password, login, ready
 
 from larenor_server.errors import ApiError
 
-from conftest import auth, bootstrap_password, login, ready
-
 
 def test_initial_login_forces_password_change_before_other_capabilities(server):
-    app, client, settings, _ = server
+    _app, client, settings, _ = server
     password = bootstrap_password(settings)
     response = login(client, "admin", password)
     assert response.status_code == 200
@@ -44,6 +43,9 @@ def test_password_change_revokes_every_old_device_and_removes_bootstrap(server):
     assert response.status_code == 200
     pair = response.json()
     assert pair["user"]["mustChangePassword"] is False
+    assert pair["sessionFamilyId"] not in {
+        first["sessionFamilyId"], second["sessionFamilyId"]
+    }
     assert not settings.effective_bootstrap_file.exists()
     for old in (first, second):
         assert client.get("/api/v1/auth/me", headers=auth(old)).status_code == 401
@@ -133,7 +135,7 @@ def test_password_hash_and_login_session_creation_are_guarded_against_concurrent
 
 
 def test_opaque_tokens_exist_only_as_sha256_digests_in_database(server):
-    app, _client, settings, _ = server
+    app, _client, _settings, _ = server
     pair = ready(server)
     with app.state.core.db.connection() as connection:
         rows = connection.execute("SELECT access_hash,refresh_hash FROM session_tokens").fetchall()
