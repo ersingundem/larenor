@@ -24,11 +24,11 @@ queue baseline remains **26/125** and selected-feature progress remains
 
 ## TDD evidence
 
-RED commit `6aacc7088ba1c8c49f70aedb70c0b1812938c2d9` introduced the
+RED commit `d516fc8a728aec4c34a52369e32bf3f774268d9b` introduced the
 authority/read and fail-closed expectations and failed because the Client
 adapter did not exist. GREEN commits
-`1da7efb8e58d230c37d5ab1548912aa905e2334c` and
-`4de88dbdac02543899326f65083d5b60445c1e3b` added the strict model/API and
+`da94dafed3100ce135551412b0b2c1c866695069` and
+`ba47d6fa4d05f90a4576afd0afadfa42dea2db22` added the strict model/API and
 account-bound controller.
 
 The focused Flutter package passed **8/8** tests. The unchanged Core media-flow
