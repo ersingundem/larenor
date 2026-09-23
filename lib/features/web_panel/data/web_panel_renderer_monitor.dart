@@ -42,6 +42,7 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   final String Function() _attachmentIds;
   final Duration operationTimeout;
   final Map<String, VoidCallback> _callbacks = {};
+  final Set<String> _pendingLateAcknowledgements = {};
 
   @override
   Future<WebPanelRendererHandle?> attach(
@@ -74,7 +75,8 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
         allowedOrigins.length > 16) {
       throw StateError('renderer_monitor_invalid');
     }
-    if (_callbacks.containsKey(attachmentId)) {
+    if (_callbacks.containsKey(attachmentId) ||
+        _pendingLateAcknowledgements.contains(attachmentId)) {
       throw StateError('renderer_monitor_duplicate');
     }
     _callbacks[attachmentId] = onRendererGone;
@@ -110,7 +112,12 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
         attached = await invocation.timeout(operationTimeout);
       } on TimeoutException {
         _callbacks.remove(attachmentId);
-        unawaited(_detachLateAcknowledgement(invocation, attachmentId));
+        _pendingLateAcknowledgements.add(attachmentId);
+        unawaited(
+          _detachLateAcknowledgement(invocation, attachmentId).whenComplete(
+            () => _pendingLateAcknowledgements.remove(attachmentId),
+          ),
+        );
         throw StateError('renderer_monitor_timeout');
       }
       if (attached != true) throw StateError('renderer_monitor_unavailable');
