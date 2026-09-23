@@ -36,7 +36,7 @@ API_KEY = 'c' * 32
 
 def verified_readback():
     return JellyfinAuthenticatedReadbackResult(
-        'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', API_KEY,
+        'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', '1' * 32, API_KEY,
         (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
         ('authenticated', 'keys_observed', 'key_verified',
          'system_verified', 'libraries_verified', 'session_closed'),

@@ -45,6 +45,7 @@ class _PrivateView:
     automatic_port_mapping: bool
     api_key: str | None
     server_id: str | None
+    user_id: str | None
     server_name: str | None
     version: str | None
     libraries: tuple[tuple[str, str | None, str, tuple[str, ...]], ...]
@@ -83,6 +84,7 @@ class MediaServiceBootstrapManagement:
         self.db, self.auth, self.settings = db, auth, settings
         self.installations = installations
         self.backend = backend
+        self.account_bindings = None
         self._cipher = AESGCM(key)
 
     @staticmethod
@@ -269,6 +271,7 @@ class MediaServiceBootstrapManagement:
                 automatic_port_mapping=private.automatic_port_mapping,
                 api_key=None if private.readback is None else private.readback.apiKey,
                 server_id=None if private.readback is None else private.readback.serverId,
+                user_id=None if private.readback is None else private.readback.userId,
                 server_name=None if private.readback is None else private.readback.serverName,
                 version=None if private.readback is None else private.readback.version,
                 libraries=(() if private.readback is None else tuple(
@@ -471,11 +474,17 @@ class MediaServiceBootstrapManagement:
                         error='bootstrap_worker_unavailable')
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)
+                if not self._gate_locked(connection, row):
+                    return self._transition(
+                        connection, row, self._decode(row),
+                        state='needs_attention',
+                        error='bootstrap_authority_changed')
                 try:
                     verified = result.readback
                     stored = PrivateJellyfinReadback(
                         apiKey=verified.api_key,
                         serverId=verified.server_id,
+                        userId=verified.user_id,
                         serverName=verified.server_name,
                         version=verified.version,
                         libraries=tuple(
@@ -497,6 +506,11 @@ class MediaServiceBootstrapManagement:
                     return self._transition(
                         connection, row, self._decode(row), state='failed',
                         error='invalid_bootstrap_result')
-                return self._transition(
+                result = self._transition(
                     connection, row, private,
                     state='wiring_partial')
+                stored_row = self._find(connection, identifier)
+                if self.account_bindings is not None:
+                    self.account_bindings.bind_verified_bootstrap(
+                        connection, stored_row, private)
+                return result

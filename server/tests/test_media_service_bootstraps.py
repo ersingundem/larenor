@@ -190,7 +190,8 @@ class BootstrapBackend:
             ('observed_unconfigured', 'configuration_updated', 'user_updated',
              'remote_access_updated', 'wizard_completed'),
             JellyfinAuthenticatedReadbackResult(
-                'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', 'c' * 32,
+                'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', '1' * 32,
+                'c' * 32,
                 (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
                 ('authenticated', 'keys_observed', 'key_verified',
                  'system_verified', 'libraries_verified', 'session_closed'),
@@ -217,6 +218,7 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
     assert stored.api_key == 'c' * 32
     assert stored.server_id == '3' * 32
+    assert stored.user_id == '1' * 32
     assert stored.libraries == (
         ('Filmler', 'movies', '4' * 32, ('/media/movies',)),
     )
@@ -229,6 +231,58 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
         ).fetchone()['ciphertext']
     assert stored.api_key.encode() not in encrypted
     assert app.state.core.media_service_bootstraps.tick() is None
+
+
+def test_verified_bootstrap_creates_private_owner_binding_only(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    client.post(BASE, headers=auth(pair), json=request(installation))
+    app.state.core.media_service_bootstraps.backend = BootstrapBackend()
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+
+    binding = app.state.core.media_account_bindings.resolve(
+        actor, installation['id'], installation['revision'])
+
+    assert binding.account_id == actor.id
+    assert binding.installation_id == installation['id']
+    assert binding.binding_revision == 1
+    assert binding.bootstrap_revision == terminal['revision']
+    assert binding.jellyfin_user_id == '1' * 32
+    assert '1' * 32 not in repr(binding)
+    with app.state.core.db.connection() as connection:
+        row = connection.execute(
+            'SELECT nonce,ciphertext FROM media_account_bindings'
+        ).fetchone()
+        assert len(row['nonce']) == 12
+        assert ('1' * 32).encode() not in row['ciphertext']
+
+    create_user(client, pair)
+    member_pair = activate(client, 'member')
+    member = app.state.core.auth.authenticate(member_pair['accessToken'])
+    with pytest.raises(Exception, match='media_account_binding_changed'):
+        app.state.core.media_account_bindings.resolve(
+            member, installation['id'], installation['revision'])
+
+    with TestClient(create_app(settings)) as reopened:
+        recovered = reopened.app.state.core.media_account_bindings.resolve(
+            actor, installation['id'], installation['revision'])
+        assert recovered.binding_revision == 1
+        assert recovered.jellyfin_user_id == '1' * 32
+
+
+def test_media_account_binding_damage_fails_closed_on_restart(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    client.post(BASE, headers=auth(pair), json=request(installation))
+    app.state.core.media_service_bootstraps.backend = BootstrapBackend()
+    app.state.core.media_service_bootstraps.tick()
+    with app.state.core.db.connection() as connection:
+        connection.execute(
+            "UPDATE media_account_bindings SET ciphertext=x'00'"
+        )
+    with pytest.raises(Exception, match='media_account_binding_storage_invalid'):
+        create_app(settings)
 
 
 def test_playback_private_requires_exact_verified_installation_revision(server):
@@ -349,6 +403,38 @@ def test_authority_loss_before_dispatch_is_persisted_without_backend_call(server
     assert terminal['state'] == 'needs_attention'
     assert terminal['errorCode'] == 'bootstrap_authority_changed'
     assert backend.calls == []
+
+
+def test_authority_loss_after_worker_receipt_discards_readback_and_binding(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    record = client.post(
+        BASE, headers=auth(pair), json=request(installation),
+    ).json()['bootstrap']
+
+    class RevokingBackend(BootstrapBackend):
+        def execute(self, *args, **kwargs):
+            result = super().execute(*args, **kwargs)
+            with app.state.core.db.connection() as connection:
+                connection.execute(
+                    'UPDATE session_families SET revoked_at=?',
+                    (int(settings.clock()),),
+                )
+            return result
+
+    app.state.core.media_service_bootstraps.backend = RevokingBackend()
+
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+
+    assert terminal['state'] == 'needs_attention'
+    assert terminal['errorCode'] == 'bootstrap_authority_changed'
+    assert terminal['credentialsConfigured'] is False
+    stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
+    assert stored.api_key is None and stored.user_id is None
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            'SELECT COUNT(*) FROM media_account_bindings',
+        ).fetchone()[0] == 0
 
 
 @pytest.mark.parametrize('failure,state', [

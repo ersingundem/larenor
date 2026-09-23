@@ -21,7 +21,7 @@ DEVICE = 'a' * 32
 
 def readback(libraries=()):
     return JellyfinAuthenticatedReadbackResult(
-        'verified', '3' * 32, 'Larenor Jellyfin', '10.11.11', KEY,
+        'verified', '3' * 32, 'Larenor Jellyfin', '10.11.11', '1' * 32, KEY,
         tuple(libraries),
         ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
          'libraries_verified', 'session_closed'),

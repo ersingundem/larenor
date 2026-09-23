@@ -71,6 +71,8 @@ from .plugins.media_archive_core import MediaArchiveHealthManagement
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
 )
+from .plugins.media_account_binding_schema import migrate_media_account_bindings
+from .plugins.media_account_bindings import MediaAccountBindingManagement
 from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
 from .plugins.media_flow_schema import migrate_media_flow
 from .plugins.media_playback import (
@@ -378,6 +380,7 @@ class CoreServices:
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
                 migrate_media_service_bootstraps(connection)
+                migrate_media_account_bindings(connection)
                 migrate_seerr_bootstraps(connection)
                 migrate_qbittorrent_configurations(connection)
                 migrate_arr_configurations(connection)
@@ -678,6 +681,13 @@ class CoreServices:
                 installation_backend,
             )
             self.media_service_bootstraps.validate_storage()
+            self.media_account_bindings = MediaAccountBindingManagement(
+                self.db, self.auth, key, self.media_service_bootstraps
+            )
+            self.media_account_bindings.validate_storage()
+            self.media_service_bootstraps.account_bindings = (
+                self.media_account_bindings
+            )
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db,
                 self.auth,

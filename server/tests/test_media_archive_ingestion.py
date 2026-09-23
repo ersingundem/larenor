@@ -43,7 +43,7 @@ def binding(service, *, observed=NOW - 10, snapshot=4):
 def jellyfin(secret='jellyfin-private-api-key'):
     return JellyfinAuthenticatedReadbackResult(
         state='verified', server_id=SERVER_ID, server_name='Larenor Jellyfin',
-        version='10.11.11', api_key=secret,
+        version='10.11.11', user_id='1' * 32, api_key=secret,
         libraries=(('Movies', 'movies', 'a' * 32, ('/media/movies',)),),
         completed_steps=('authenticated', 'keys_observed', 'key_verified',
                          'system_verified', 'libraries_verified',
