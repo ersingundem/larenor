@@ -42,8 +42,9 @@ Status: **software slice ready; K03.remaining stays open**
   a dedicated anonymous OkHttp client instead of WebView networking. It accepts
   no WebView headers, cookies, credentials or request body, follows at most
   three redirects and rechecks every target before opening the next socket.
-  Non-GET requests, user-info URLs, cross-origin redirects, responses over 16 MB
-  and calls beyond the 15-second deadline fail closed. Detach, replacement,
+  Each attachment accepts at most eight concurrent requests. Non-GET requests,
+  user-info URLs, cross-origin redirects, responses over 16 MB, over-capacity
+  work and calls beyond the 15-second deadline fail closed. Detach, replacement,
   disposal and renderer death cancel the exact attachment's in-flight calls.
 - Service Worker network, content and file access is disabled process-wide
   before a panel loads. Attachment fails closed when any required AndroidX
@@ -99,7 +100,9 @@ transport, document-start policy and lifecycle retirement did not exist. The
 WebSocket RED `7ad30fad` then rejected the temporary same-origin exception:
 redirect-aware WebSocket enforcement is unsupported, so allowing it was not an
 honest boundary. GREEN `dcc6ecd8` and `bfb2e7d1` supply the owned transport and
-fail-closed dynamic-context policy. The grouped milestone passes **17/17**
+fail-closed dynamic-context policy. Concurrency RED `0e010a8c` failed to compile
+because the transport had no concurrent-request bound; GREEN `9f89bf16` adds
+the fail-fast permit cap. The grouped milestone passes **17/17**
 Android WebPanel Robolectric tests and **113/113** Flutter WebPanel tests;
 focused Flutter analysis reports no issues. K03.remaining and progress stay at
 **26/125** and **0/63** until review and exact-head CI are recorded. Physical
