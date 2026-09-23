@@ -261,6 +261,48 @@ void main() {
     await first;
   });
 
+  test('late read completion cannot release an in-flight stop', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    final readGate = Completer<KioskSensorSnapshot>();
+    api.pendingReads.add(readGate);
+    final pendingRead = controller.refresh();
+    api.pendingStop = Completer<KioskSensorStopReceipt>();
+    final pendingStop = controller.stop();
+
+    readGate.complete(KioskSensorSnapshot.fromChannel(_sample()));
+    await expectLater(
+      pendingRead,
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.expired,
+        ),
+      ),
+    );
+    await expectLater(
+      controller.start(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.busy,
+        ),
+      ),
+    );
+
+    api.pendingStop!.complete(
+      const KioskSensorStopReceipt(sessionId: _session, stopped: true),
+    );
+    await pendingStop;
+    expect(api.stops, 1);
+    api.pendingStop = null;
+    await controller.start();
+    expect(controller.active, isTrue);
+  });
+
   for (final unsafe in [
     _sample(sequence: 0, batteryPercent: 3),
     _sample(sequence: 0, thermalStatus: 'critical'),
