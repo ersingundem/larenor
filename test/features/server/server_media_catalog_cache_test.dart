@@ -116,98 +116,98 @@ void main() {
     expect(await writer.read(), isNull);
   });
 
-  test('binds exact tuple, query, kind, resource, schema, TTL and UTF-8 quota', () async {
-    final backend = _MemoryBackend();
-    var now = DateTime.utc(2026, 9, 23, 12);
-    final cache = ServerMediaCatalogCache(backend: backend, now: () => now);
-    final page = _page();
+  test(
+    'binds exact tuple, query, kind, resource, schema, TTL and UTF-8 quota',
+    () async {
+      final backend = _MemoryBackend();
+      var now = DateTime.utc(2026, 9, 23, 12);
+      final cache = ServerMediaCatalogCache(backend: backend, now: () => now);
+      final page = _page();
 
-    expect(
-      await cache.write(_scope, page, current: () => true),
-      isTrue,
-    );
-    final record = jsonDecode(backend.value!) as Map<String, dynamic>;
-    expect(record['schemaVersion'], 1);
-    expect(backend.value, isNot(contains('accessToken')));
-    expect(backend.value, isNot(contains('https://')));
-    expect(
-      await cache.read(
-        _scope,
-        _resource(),
-        query: 'matrix',
-        mediaKind: ServerMediaCatalogKind.movie,
-      ),
-      isNotNull,
-    );
-
-    for (final otherScope in const [
-      ServerMediaCatalogCacheScope(
-        coreId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        homeId: '22222222222222222222222222222222',
-        accountId: 'operator@example.test',
-      ),
-      ServerMediaCatalogCacheScope(
-        coreId: '11111111111111111111111111111111',
-        homeId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        accountId: 'operator@example.test',
-      ),
-      ServerMediaCatalogCacheScope(
-        coreId: '11111111111111111111111111111111',
-        homeId: '22222222222222222222222222222222',
-        accountId: 'other@example.test',
-      ),
-    ]) {
+      expect(await cache.write(_scope, page, current: () => true), isTrue);
+      final record = jsonDecode(backend.value!) as Map<String, dynamic>;
+      expect(record['schemaVersion'], 1);
+      expect(backend.value, isNot(contains('accessToken')));
+      expect(backend.value, isNot(contains('https://')));
       expect(
         await cache.read(
-          otherScope,
+          _scope,
+          _resource(),
+          query: 'matrix',
+          mediaKind: ServerMediaCatalogKind.movie,
+        ),
+        isNotNull,
+      );
+
+      for (final otherScope in const [
+        ServerMediaCatalogCacheScope(
+          coreId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          homeId: '22222222222222222222222222222222',
+          accountId: 'operator@example.test',
+        ),
+        ServerMediaCatalogCacheScope(
+          coreId: '11111111111111111111111111111111',
+          homeId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          accountId: 'operator@example.test',
+        ),
+        ServerMediaCatalogCacheScope(
+          coreId: '11111111111111111111111111111111',
+          homeId: '22222222222222222222222222222222',
+          accountId: 'other@example.test',
+        ),
+      ]) {
+        expect(
+          await cache.read(
+            otherScope,
+            _resource(),
+            query: 'matrix',
+            mediaKind: ServerMediaCatalogKind.movie,
+          ),
+          isNull,
+        );
+      }
+      expect(
+        await cache.read(
+          _scope,
+          _resource(snapshotRevision: 10),
+          query: 'matrix',
+          mediaKind: ServerMediaCatalogKind.movie,
+        ),
+        isNull,
+      );
+      expect(
+        await cache.read(
+          _scope,
+          _resource(),
+          query: 'alien',
+          mediaKind: ServerMediaCatalogKind.movie,
+        ),
+        isNull,
+      );
+
+      now = now.add(ServerMediaCatalogCache.timeToLive);
+      expect(
+        await cache.read(
+          _scope,
           _resource(),
           query: 'matrix',
           mediaKind: ServerMediaCatalogKind.movie,
         ),
         isNull,
       );
-    }
-    expect(
-      await cache.read(
-        _scope,
-        _resource(snapshotRevision: 10),
-        query: 'matrix',
-        mediaKind: ServerMediaCatalogKind.movie,
-      ),
-      isNull,
-    );
-    expect(
-      await cache.read(
-        _scope,
-        _resource(),
-        query: 'alien',
-        mediaKind: ServerMediaCatalogKind.movie,
-      ),
-      isNull,
-    );
+      expect(backend.value, isNull);
 
-    now = now.add(ServerMediaCatalogCache.timeToLive);
-    expect(
-      await cache.read(
-        _scope,
-        _resource(),
-        query: 'matrix',
-        mediaKind: ServerMediaCatalogKind.movie,
-      ),
-      isNull,
-    );
-    expect(backend.value, isNull);
-
-    now = DateTime.utc(2026, 9, 23, 12);
-    await expectLater(
-      cache.write(
-        _scope,
-        _page(itemCount: 50, largeTitles: true),
-        current: () => true,
-      ),
-      throwsStateError,
-    );
-  });
+      now = DateTime.utc(2026, 9, 23, 12);
+      await expectLater(
+        cache.write(
+          _scope,
+          _page(itemCount: 50, largeTitles: true),
+          current: () => true,
+        ),
+        throwsStateError,
+      );
+    },
+  );
 
   test('strict parse clears only the exact malformed owner', () async {
     final backend = _MemoryBackend();
@@ -222,7 +222,8 @@ void main() {
       (record) => record['schemaVersion'] = 1.0,
       (record) => record['unexpected'] = true,
       (record) =>
-          (record['resource'] as Map<String, dynamic>)['snapshotRevision'] = 1.0,
+          (record['resource'] as Map<String, dynamic>)['snapshotRevision'] =
+              1.0,
       (record) => (record['page'] as Map<String, dynamic>)['accessToken'] =
           'must-not-cross-cache-boundary',
     ]) {
@@ -269,25 +270,28 @@ void main() {
     expect(await read, isNull);
   });
 
-  test('retirement during a delayed write removes only its exact stale value', () async {
-    for (final replacementWins in [false, true]) {
-      final backend = _MemoryBackend()..writeGate = Completer<void>();
-      final cache = ServerMediaCatalogCache(
-        backend: backend,
-        now: () => DateTime.utc(2026, 9, 23, 12),
-      );
-      var current = true;
-      final write = cache.write(_scope, _page(), current: () => current);
-      while (backend.value == null) {
-        await Future<void>.delayed(Duration.zero);
-      }
-      final stale = backend.value!;
-      current = false;
-      if (replacementWins) backend.replacementBeforeClear = '$stale ';
-      backend.writeGate!.complete();
+  test(
+    'retirement during a delayed write removes only its exact stale value',
+    () async {
+      for (final replacementWins in [false, true]) {
+        final backend = _MemoryBackend()..writeGate = Completer<void>();
+        final cache = ServerMediaCatalogCache(
+          backend: backend,
+          now: () => DateTime.utc(2026, 9, 23, 12),
+        );
+        var current = true;
+        final write = cache.write(_scope, _page(), current: () => current);
+        while (backend.value == null) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        final stale = backend.value!;
+        current = false;
+        if (replacementWins) backend.replacementBeforeClear = '$stale ';
+        backend.writeGate!.complete();
 
-      expect(await write, isFalse);
-      expect(backend.value, replacementWins ? '$stale ' : null);
-    }
-  });
+        expect(await write, isFalse);
+        expect(backend.value, replacementWins ? '$stale ' : null);
+      }
+    },
+  );
 }
