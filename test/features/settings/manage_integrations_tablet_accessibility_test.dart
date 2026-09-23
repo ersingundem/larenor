@@ -98,7 +98,14 @@ void main() {
     );
 
     expect(find.byType(MediaHubScreen), findsOneWidget);
-    expect(find.byType(ManageIntegrationsScreen), findsNothing);
+    expect(
+      find.byKey(const ValueKey('integration-open-jellyfin')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('integration-toggle-jellyfin')),
+      findsNothing,
+    );
     expect(loads, 0);
   });
 
