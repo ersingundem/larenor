@@ -30,19 +30,19 @@ S09.1.
 
 ## RED and GREEN evidence
 
-- `133e1c96` defined archive, rollback and bound requirements before the module
-  existed; `3c0c6d98` implemented the first provider.
+- `54741ac6` defined archive, rollback and bound requirements before the module
+  existed; `17858702` implemented the first provider.
 - Independent review found uncertain pause, unbound installation metadata and
-  pre-capture path-swap gaps. `23549bcf` reproduced them; `93fd2f55` bound the
+  pre-capture path-swap gaps. `737e4d00` reproduced them; `02aa13c8` bound the
   provider to exact installed authority and inode identity.
 - Review then found authority could drift while the consumer held the snapshot.
-  `7d9a4cff` reproduced that exit race; `7e847df2` added the pre-release
-  revalidation. `be1f87aa` and `556bbd43` close drift during unpause with a
-  final post-reconciliation readback. `331e1079` and `603038df` close late
+  `eec28d60` reproduced that exit race; `84b03105` added the pre-release
+  revalidation. `11958183` and `ffdc51a3` close drift during unpause with a
+  final post-reconciliation readback. `7cefe5fe` and `647a8e4c` close late
   same-name archive mutation by rechecking every captured entry fingerprint.
-  `c323ff11` adds a malformed-deadline regression; the following implementation
+  `58d18f15` adds a malformed-deadline regression; the following implementation
   normalizes it before arithmetic or private value exposure. Finally,
-  `2adaa84f` and `20815669` replace per-directory assurance with a root-wide
+  `238e003f` and `b5fdf91c` replace per-directory assurance with a root-wide
   recursive fingerprint rescan, closing mutation of a completed nested subtree
   while later siblings are archived.
   The stacked worker server delays its `released` frame until provider exit and
