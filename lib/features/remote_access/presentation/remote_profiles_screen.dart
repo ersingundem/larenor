@@ -9,6 +9,8 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../health/data/connection_evidence.dart';
+import '../../server/data/server_account_controller.dart';
+import '../../server/providers/server_providers.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/connection_evidence_status.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
@@ -43,6 +45,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   AppInteractionController? _interaction;
   ProviderContainer? _container;
   PersonalRemoteAccount? _account;
+  late final ServerAccountController _serverAccount;
+  late int _serverAccountGeneration;
   RemoteProfilesStore? _store;
   RemoteProfilesSnapshot? _snapshot;
   RemoteProfile? _selected;
@@ -71,7 +75,18 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   @override
   void initState() {
     super.initState();
+    _serverAccount = ref.read(serverAccountControllerProvider);
+    _serverAccountGeneration = _serverAccount.generation;
+    _serverAccount.addListener(_serverAuthorityChanged);
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _serverAuthorityChanged() {
+    final generation = _serverAccount.generation;
+    if (generation == _serverAccountGeneration) return;
+    _serverAccountGeneration = generation;
+    _invalidate();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -380,6 +395,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   @override
   void dispose() {
     _generation++;
+    _serverAccount.removeListener(_serverAuthorityChanged);
     _interaction?.removeListener(_interactionChanged);
     WidgetsBinding.instance.removeObserver(this);
     for (final field in [_name, _host, _port, _user]) {
