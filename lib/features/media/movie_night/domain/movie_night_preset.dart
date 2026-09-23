@@ -32,6 +32,7 @@ class MovieNightPreset {
     if (value is! String || utf8.encode(value).length > 16384) throw invalid;
     final json = jsonDecode(value);
     if (json is! Map<String, dynamic> ||
+        json['version'] is! int ||
         json['version'] != 1 ||
         !const {
           'version',

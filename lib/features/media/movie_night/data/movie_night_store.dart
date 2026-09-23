@@ -82,13 +82,16 @@ class MovieNightStore {
         'savedAt',
         'preset',
       });
-      if (record['schemaVersion'] != 1) throw const FormatException();
+      if (record['schemaVersion'] is! int || record['schemaVersion'] != 1) {
+        throw const FormatException();
+      }
       final scope = _object(record['scope'], {'serverUrl'});
       final scopedUrl = parseServerUrl(_text(scope['serverUrl'], 2048))
           .toString();
       if (expected != null && scopedUrl != expected) return null;
       final resource = _object(record['resource'], {'kind', 'revision'});
       if (resource['kind'] != 'movie_night_preset' ||
+          resource['revision'] is! int ||
           resource['revision'] != 1) {
         throw const FormatException();
       }
@@ -139,13 +142,14 @@ class MovieNightStore {
     MovieNightPreset preset, {
     required bool Function() isCurrent,
   }) {
-    final canonicalUrl = parseServerUrl(preset.serverUrl).toString();
+    final canonical = MovieNightPreset.decodeStored(preset.encodeStored());
+    final canonicalUrl = canonical.serverUrl;
     final encoded = jsonEncode({
       'schemaVersion': 1,
       'scope': {'serverUrl': canonicalUrl},
       'resource': {'kind': 'movie_night_preset', 'revision': 1},
       'savedAt': _now().toUtc().toIso8601String(),
-      'preset': preset.toJson(),
+      'preset': canonical.toJson(),
     });
     if (utf8.encode(encoded).length > maximumBytes) {
       throw StateError('Movie night settings exceed the local quota');
@@ -186,7 +190,9 @@ Map<String, dynamic> _presetObject(Object? value) {
   const allowed = {...required, 'finishEntityId'};
   if (value is! Map<String, dynamic> ||
       !value.keys.every(allowed.contains) ||
-      !value.keys.toSet().containsAll(required)) {
+      !value.keys.toSet().containsAll(required) ||
+      value['version'] is! int ||
+      value['version'] != 1) {
     throw const FormatException('Invalid movie night settings');
   }
   return value;

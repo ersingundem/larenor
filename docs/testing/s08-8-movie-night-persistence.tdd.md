@@ -27,6 +27,11 @@ Commit `5daa9d028f43707bad05ff5685241403fe4981ec` added exact scope/envelope,
 schema/TTL/quota and queued-read retirement tests. They failed because the
 store exposed only the raw v1 preset and had no clock, bounds or read guard.
 
+Audit follow-up commit `1512200d72ccfc966ce24cba2ad738960ab9e52a`
+added invalid-save and numeric-type regressions. The invalid `lock.front`
+preset was persisted, while `1.0` was accepted for the envelope schema,
+resource revision and nested preset version.
+
 ## GREEN
 
 ```text
@@ -37,6 +42,10 @@ flutter analyze lib/features/media/movie_night/data/movie_night_store.dart lib/f
 python3 tool/execution_queue.py validate
 git diff --check
 ```
+
+The follow-up gate passed 58 focused tests. Saves now validate and
+canonicalize through the strict preset codec before preference acquisition,
+and all three version fields require the exact integer value `1`.
 
 S08.8 remains pending. Central catalog detail/playback dispatch, remaining
 direct Jellyfin surfaces, explicit legacy player mapping, integrated

@@ -115,8 +115,8 @@ void main() {
       startEntityId: 'lock.front',
     );
 
-    await expectLater(
-      store.save(invalid, isCurrent: () => true),
+    expect(
+      () => store.save(invalid, isCurrent: () => true),
       throwsFormatException,
     );
 
