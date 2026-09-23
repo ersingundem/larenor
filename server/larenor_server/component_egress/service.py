@@ -1,18 +1,47 @@
-from contextlib import contextmanager
+import ipaddress
+import queue
+import socket
 import sqlite3
+import threading
+import time
 import uuid
+from contextlib import contextmanager
 from urllib.parse import urlsplit
+
 from cryptography.exceptions import InvalidTag
 
 from ..errors import ApiError
-from ..services.transport import ServiceTransport, ProbeTransportError
+from ..services.transport import ProbeTransportError, ServiceTransport
 from . import storage
-from .models import Event, HistoryResponse, Policy, Update
+from .models import (
+    Address,
+    Event,
+    Grant,
+    HistoryResponse,
+    Policy,
+    Resolve,
+    ResolveResponse,
+    Update,
+    address_network,
+)
+
+_RESOLUTION_SLOTS = threading.BoundedSemaphore(2)
 
 
 class ComponentEgress:
-    def __init__(self, services, key, scope):
+    def __init__(self, services, key, scope, resolver=None):
         self.services, self.key, self.scope = services, key, scope
+        self.resolver = resolver or self._system_resolver
+        self.resolve_timeout = 3.0
+
+    @staticmethod
+    def _system_resolver(host, port):
+        return socket.getaddrinfo(
+            host,
+            port,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP,
+        )
 
     @contextmanager
     def _tx(self, actor=None):
@@ -115,6 +144,109 @@ class ComponentEgress:
             state.policies = [p for p in state.policies if p.serviceId in live and p.serviceId != service_id] + [policy]
             self._event(c, state, actor, policy, uuid.uuid4().hex, 'policy_replaced')
             return self._response(state, policy)
+
+    def _resolved_grant(self, connection):
+        parsed = urlsplit(connection.base_url)
+        port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+        host = parsed.hostname
+        try:
+            literal = ipaddress.ip_address(host)
+        except ValueError:
+            addresses = self._resolve_addresses(host, port)
+        else:
+            addresses = [Address(address=str(literal), network=address_network(str(literal)))]
+        return Grant(scheme=parsed.scheme, host=host, port=port, addresses=addresses)
+
+    def _resolve_addresses(self, host, port):
+        timeout = self.resolve_timeout
+        if type(timeout) not in {int, float} or not 0.001 <= timeout <= 5:
+            raise ApiError('server_unavailable', 503)
+        started = time.monotonic()
+        if not _RESOLUTION_SLOTS.acquire(timeout=timeout):
+            raise ApiError('resolution_unavailable', 503)
+        result = queue.Queue(maxsize=1)
+
+        def worker():
+            try:
+                answers = self.resolver(host, port)
+                result.put((True, answers))
+            # Resolver failures are deliberately collapsed so raw host/OS
+            # details cannot escape through thread tracebacks or API errors.
+            except Exception:  # noqa: BLE001
+                result.put((False, None))
+            finally:
+                _RESOLUTION_SLOTS.release()
+
+        thread = threading.Thread(
+            target=worker,
+            name='component-egress-dns-review',
+            daemon=True,
+        )
+        try:
+            thread.start()
+        except RuntimeError:
+            _RESOLUTION_SLOTS.release()
+            raise ApiError('resolution_unavailable', 503) from None
+        remaining = timeout - (time.monotonic() - started)
+        try:
+            ok, answers = result.get(timeout=max(0.001, remaining))
+        except queue.Empty:
+            raise ApiError('resolution_unavailable', 503) from None
+        if not ok:
+            raise ApiError('resolution_unavailable', 503)
+        try:
+            if not isinstance(answers, (list, tuple)):
+                raise TypeError
+            unique = []
+            seen = set()
+            for index, answer in enumerate(answers):
+                if index >= 16 or len(answer) != 5:
+                    raise ValueError
+                family, kind, protocol, _, sockaddr = answer
+                expected = 2 if family == socket.AF_INET else 4
+                if (
+                    family not in {socket.AF_INET, socket.AF_INET6}
+                    or kind != socket.SOCK_STREAM
+                    or protocol not in {0, socket.IPPROTO_TCP}
+                    or len(sockaddr) != expected
+                    or sockaddr[1] != port
+                    or (family == socket.AF_INET6 and sockaddr[2:] != (0, 0))
+                ):
+                    raise ValueError
+                address = ipaddress.ip_address(sockaddr[0])
+                if address.version != (4 if family == socket.AF_INET else 6):
+                    raise ValueError
+                canonical = str(address)
+                if canonical in seen:
+                    continue
+                seen.add(canonical)
+                unique.append(Address(address=canonical, network=address_network(canonical)))
+                if len(unique) > 8:
+                    raise ValueError
+            if not unique:
+                raise ValueError
+            return unique
+        except (TypeError, ValueError, IndexError):
+            raise ApiError('resolution_unavailable', 503) from None
+
+    def resolve(self, actor, service_id, body):
+        body = Resolve.model_validate(body)
+        with self._tx(actor) as (c, _state):
+            connection = self._connection(c, service_id, body.expectedServiceRevision)
+        try:
+            grant = self._resolved_grant(connection)
+        except (TypeError, ValueError):
+            raise ApiError('resolution_unavailable', 503) from None
+        with self._tx(actor) as (c, _state):
+            current = self._connection(c, service_id, body.expectedServiceRevision)
+            if current != connection:
+                raise ApiError('revision_conflict', 409)
+        return ResolveResponse(
+            serviceId=connection.id,
+            serviceRevision=connection.revision,
+            component=self._component(connection),
+            grant=grant,
+        ).model_dump(mode='json')
 
     def check_component(self, actor, service_id, revision, component):
         if component not in {

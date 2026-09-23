@@ -1,11 +1,13 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, Request
+
 from ..admin.models import ObjectId
 from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin
 from ..errors import ApiError
-from .models import HistoryResponse, Response, Update
+from .models import HistoryResponse, Resolve, ResolveResponse, Response, Update
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Admin = Annotated[Principal, Depends(require_admin)]
@@ -27,6 +29,12 @@ def read(service_id: ObjectId, request: Request, actor: Admin, core: Core):
 def history(service_id: ObjectId, request: Request, actor: Admin, core: Core):
     _closed(request)
     return core.component_egress.history(actor, service_id)
+
+
+@router.post('/{service_id}/outbound-policy/resolve', response_model=ResolveResponse)
+def resolve(service_id: ObjectId, body: Resolve, request: Request, actor: Admin, core: Core):
+    _closed(request)
+    return core.component_egress.resolve(actor, service_id, body)
 
 
 @router.put('/{service_id}/outbound-policy', response_model=Response)

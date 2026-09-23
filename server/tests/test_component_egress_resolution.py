@@ -5,9 +5,9 @@ import socket
 import threading
 
 import pytest
-
 from conftest import auth, ready
-from test_admin import activate, create as create_user
+from test_admin import activate
+from test_admin import create as create_user
 from test_services import BASE, create
 
 
@@ -74,19 +74,25 @@ def test_literal_host_never_calls_dns_and_uses_the_exact_address_class(server):
     }
 
 
-@pytest.mark.parametrize('mode', ['blocked', 'too_many', 'malformed'])
+@pytest.mark.parametrize('mode', ['blocked', 'too_many', 'malformed', 'exception'])
 def test_resolution_fails_closed_without_partial_pins(server, mode):
     app, client, pair, record = setup(server)
     answers = {
         'blocked': [answer('169.254.169.254')],
         'too_many': [answer(f'10.20.30.{index}') for index in range(1, 10)],
         'malformed': [(socket.AF_INET, socket.SOCK_DGRAM, 0, '', ('10.20.30.40', 443))],
+        'exception': RuntimeError('synthetic-private-resolver-detail'),
     }[mode]
-    app.state.core.component_egress.resolver = lambda *_: answers
+    def resolver(*_):
+        if isinstance(answers, Exception):
+            raise answers
+        return answers
+    app.state.core.component_egress.resolver = resolver
     response = client.post(url(record), headers=auth(pair), json={'expectedServiceRevision': 1})
     assert response.status_code == 503, response.text
     assert response.json()['error']['code'] == 'resolution_unavailable'
     assert '169.254' not in response.text and '10.20.30' not in response.text
+    assert 'synthetic-private' not in response.text
 
 
 def test_revision_change_during_dns_discards_every_answer(server):
