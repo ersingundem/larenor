@@ -235,8 +235,13 @@ void main() {
   );
 
   test('current lease executes only the bounded dashboard refresh', () async {
+    final nativeCommands = <MethodCall>[];
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'command') {
+        nativeCommands.add(call);
+        return {'result': 'succeeded'};
+      }
       return null;
     });
     final actions = _Actions();
@@ -253,13 +258,67 @@ void main() {
       ManagedTabletCommandResult.succeeded,
     );
     expect(actions.refreshes, 1);
-    for (final unsupported in ['syncProfile', 'lockKiosk', 'unknown']) {
+    expect(
+      await lease.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.succeeded,
+    );
+    expect(nativeCommands, hasLength(1));
+    expect(nativeCommands.single.arguments, {
+      'sessionId': 'd' * 32,
+      'kind': 'lockKiosk',
+    });
+    for (final unsupported in ['syncProfile', 'unknown']) {
       expect(
         await lease.commandExecutor.execute(unsupported),
         ManagedTabletCommandResult.unsupported,
       );
     }
     expect(actions.refreshes, 1);
+  });
+
+  test('native lock result is strict and cannot outlive its lease', () async {
+    final pending = Completer<Object?>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'command') return pending.future;
+      return null;
+    });
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      isAndroid: true,
+      sessionId: () => '1' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    final result = lease!.commandExecutor.execute('lockKiosk');
+    await Future<void>.delayed(Duration.zero);
+    await source.setForeground(false);
+    pending.complete({'result': 'succeeded'});
+
+    expect(await result, ManagedTabletCommandResult.denied);
+    expect(
+      await lease.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.denied,
+    );
+  });
+
+  test('malformed native lock result fails closed', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'command') return {'result': 'unexpected'};
+      return null;
+    });
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      isAndroid: true,
+      sessionId: () => '2' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    expect(
+      await lease!.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.failed,
+    );
   });
 
   test('retirement wins over a delayed dashboard refresh', () async {
