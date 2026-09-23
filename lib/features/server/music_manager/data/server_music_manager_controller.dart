@@ -7,18 +7,24 @@ import '../../domain/server_models.dart';
 import '../../music_retained/data/server_music_retained_api.dart';
 import '../../music_retained/domain/server_music_retained_models.dart';
 import '../domain/server_music_manager_models.dart';
+import 'server_music_manager_cache.dart';
 import 'server_music_manager_api.dart';
 
 class ServerMusicManagerController extends ChangeNotifier {
-  ServerMusicManagerController(this.account, {String Function()? requestId})
-    : _accountEpoch = account.generation,
-      _requestId = requestId ?? _randomId {
+  ServerMusicManagerController(
+    this.account, {
+    String Function()? requestId,
+    ServerMusicManagerCache? cache,
+  }) : _accountEpoch = account.generation,
+       _requestId = requestId ?? _randomId,
+       _cache = cache ?? ServerMusicManagerCache() {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final int _accountEpoch;
   final String Function() _requestId;
+  final ServerMusicManagerCache _cache;
   int _epoch = 0;
   bool _disposed = false;
 
@@ -106,13 +112,17 @@ class ServerMusicManagerController extends ChangeNotifier {
       value.installationRevision == retained.installationRevision &&
       value.coreRevision == retained.bootstrap?.revision;
 
-  void _acceptManager(ServerMusicManager value, {required bool isVerified}) {
+  void _acceptManager(
+    ServerMusicManager value, {
+    required bool isVerified,
+    bool isReachable = true,
+  }) {
     final retained = installation;
     if (retained == null || !_sameAuthority(value, retained)) {
       throw const LarenorServerException('stale');
     }
     manager = value;
-    reachable = true;
+    reachable = isReachable;
     verified = isVerified;
     selectedProviderId = value.providers
         .where((item) => item.setupId == selectedProviderId)
@@ -168,12 +178,27 @@ class ServerMusicManagerController extends ChangeNotifier {
         installation = retained;
         stored = true;
         _emit();
+        final scope = ServerMusicManagerCacheScope.fromSession(session);
+        final cached = await _cache.read(
+          scope,
+          installationId: retained.installationId,
+          installationRevision: retained.installationRevision,
+          coreRevision: retained.bootstrap!.revision,
+        );
+        if (!valid()) return;
+        if (cached != null) {
+          _acceptManager(cached, isVerified: false, isReachable: false);
+          _emit();
+        }
         try {
           final value = await ServerMusicManagerApi(
             api,
             session.accessToken,
           ).read(retained.installationId);
-          if (valid()) _acceptManager(value, isVerified: false);
+          if (valid()) {
+            _acceptManager(value, isVerified: false);
+            await _writeCache(scope, value, valid);
+          }
         } on LarenorServerException catch (error) {
           if (valid()) failure = error.code;
         }
@@ -190,6 +215,17 @@ class ServerMusicManagerController extends ChangeNotifier {
         _emit();
       }
     }
+  }
+
+  Future<void> _writeCache(
+    ServerMusicManagerCacheScope scope,
+    ServerMusicManager value,
+    bool Function() valid,
+  ) async {
+    if (!valid()) return;
+    try {
+      await _cache.write(scope, value);
+    } catch (_) {}
   }
 
   Future<void> verify({required bool Function() current}) async {
