@@ -49,6 +49,26 @@ final class _Api implements KioskRemoteApi {
 }
 
 void main() {
+  test(
+    'successful Core revoke clears the exact local runtime pairing',
+    () async {
+      final api = _Api();
+      final cleared = <String>[];
+      final controller = KioskRemoteController(
+        api: api,
+        isCurrent: () => true,
+        onPairingRevoked: (pairingId) async => cleared.add(pairingId),
+      )..snapshot = snapshot;
+      addTearDown(controller.dispose);
+
+      await controller.revoke(pairing);
+
+      expect(api.revokeCalls, 1);
+      expect(cleared, [pairing.id]);
+      expect(controller.snapshot?.pairings, isEmpty);
+    },
+  );
+
   test('late pairing inventory is cleared after route retirement', () async {
     var current = true;
     final api = _Api();

@@ -6,9 +6,14 @@ import 'kiosk_remote_api.dart';
 enum KioskRemoteViewState { idle, loading, ready, failed, stale }
 
 final class KioskRemoteController extends ChangeNotifier {
-  KioskRemoteController({required this.api, required this.isCurrent});
+  KioskRemoteController({
+    required this.api,
+    required this.isCurrent,
+    this.onPairingRevoked,
+  });
   final KioskRemoteApi api;
   final bool Function() isCurrent;
+  final Future<void> Function(String pairingId)? onPairingRevoked;
   KioskRemoteViewState state = KioskRemoteViewState.idle;
   KioskRemoteSnapshot? snapshot;
   String? oneTimeToken;
@@ -61,6 +66,7 @@ final class KioskRemoteController extends ChangeNotifier {
 
   Future<void> revoke(KioskRemotePairing pairing) => _run(() async {
     await api.revoke(pairing);
+    await onPairingRevoked?.call(pairing.id);
     final current = snapshot;
     if (current != null) {
       snapshot = KioskRemoteSnapshot(
