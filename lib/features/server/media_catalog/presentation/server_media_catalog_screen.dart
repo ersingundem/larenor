@@ -46,7 +46,9 @@ final class _ServerMediaCatalogScreenState
       _account.isCurrent(_accountGeneration) &&
       _account.initialized &&
       !_account.working &&
-      _account.session?.user.canAdminister == true &&
+      _account.session != null &&
+      _account.session?.authMutationPending == false &&
+      _account.session?.user.mustChangePassword == false &&
       (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
@@ -75,8 +77,7 @@ final class _ServerMediaCatalogScreenState
   }
 
   void _accountChanged() {
-    if (!_account.isCurrent(_accountGeneration) ||
-        _account.session?.user.canAdminister != true) {
+    if (!_account.isCurrent(_accountGeneration) || _account.session == null) {
       _expire();
     }
   }

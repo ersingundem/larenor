@@ -38,12 +38,13 @@ Map<String, Object?> _catalog() => {
 final class _CatalogFixture extends AdminFixture {
   _CatalogFixture() {
     respond = (request) async {
-      if (request.url.path.endsWith('/authority')) {
+      if (request.url.path.endsWith('/media/catalog/target')) {
         return this.json({
-          'requestId': _requestId,
+          'schemaVersion': 1,
           'installationId': _installationId,
           'installationRevision': 7,
           'snapshotRevision': 9,
+          'jellyfinServiceRevision': 11,
         });
       }
       if (request.url.path.endsWith('/catalog/search')) {
@@ -58,30 +59,27 @@ final class _CatalogFixture extends AdminFixture {
 }
 
 void main() {
-  test('performs authority handshake and bounded body-only search', () async {
+  test('uses member target handshake and bounded body-only search', () async {
     final calls = <http.Request>[];
     final api = LarenorServerApi(
       endpoint: ServerEndpoint('https://core.test'),
       client: MockClient((request) async {
         calls.add(request);
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (request.url.path.endsWith('/authority')) {
-          expect(body, {
-            'requestId': _requestId,
-            'installationId': _installationId,
-            'expectedInstallationRevision': 7,
-          });
+        if (request.url.path.endsWith('/media/catalog/target')) {
+          expect(request.method, 'GET');
           return http.Response(
             jsonEncode({
-              'requestId': _requestId,
+              'schemaVersion': 1,
               'installationId': _installationId,
               'installationRevision': 7,
               'snapshotRevision': 9,
+              'jellyfinServiceRevision': 11,
             }),
             200,
             headers: {'content-type': 'application/json'},
           );
         }
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(request.url.query, isEmpty);
         expect(body, {
           'requestId': _requestId,
@@ -119,8 +117,8 @@ void main() {
     expect(page.query, 'matrix');
     expect(page.mediaKind, ServerMediaCatalogKind.movie);
     expect(calls.map((call) => call.url.path), [
-      '/api/v1/admin/media/archive-health/authority',
-      '/api/v1/admin/media/archive-health/catalog/search',
+      '/api/v1/media/catalog/target',
+      '/api/v1/media/catalog/search',
     ]);
 
     final callsBeforeMismatch = calls.length;
@@ -152,13 +150,14 @@ void main() {
       endpoint: ServerEndpoint('https://core.test'),
       client: MockClient((request) async {
         calls++;
-        if (request.url.path.endsWith('/authority')) {
+        if (request.url.path.endsWith('/media/catalog/target')) {
           return http.Response(
             jsonEncode({
-              'requestId': _requestId,
+              'schemaVersion': 1,
               'installationId': _installationId,
               'installationRevision': 7,
               'snapshotRevision': 9,
+              'jellyfinServiceRevision': 11,
             }),
             200,
             headers: {'content-type': 'application/json'},
@@ -191,6 +190,11 @@ void main() {
     );
     expect(calls, 0);
     await expectLater(
+      client.searchCurrent(query: ' matrix'),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(calls, 0);
+    await expectLater(
       client.search(
         installationId: _installationId,
         expectedInstallationRevision: 7,
@@ -213,6 +217,50 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('target schema version is an exact integer', () async {
+    var calls = 0;
+    final api = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.test'),
+      client: MockClient((request) async {
+        calls++;
+        return request.method == 'GET'
+            ? http.Response(
+                jsonEncode({
+                  'schemaVersion': 1.0,
+                  'installationId': _installationId,
+                  'installationRevision': 7,
+                  'snapshotRevision': 9,
+                  'jellyfinServiceRevision': 11,
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              )
+            : http.Response(
+                jsonEncode({'requestId': _requestId, 'catalog': _catalog()}),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+      }),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      ServerMediaCatalogApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).searchCurrent(query: 'matrix'),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+    expect(calls, 1);
   });
 
   test('account loss retires a delayed catalog result', () async {

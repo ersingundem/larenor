@@ -20,36 +20,35 @@ final class ServerMediaCatalogApi {
     ).join();
   }
 
-  Future<({String installationId, int installationRevision})>
+  Future<
+    ({
+      String installationId,
+      int installationRevision,
+      int snapshotRevision,
+      int jellyfinServiceRevision,
+    })
+  >
   _discoverTarget() async {
     try {
       final response = _object(
-        await api.request(
-          'GET',
-          '/admin/media/installations',
-          token: token,
-          queryParameters: const {'limit': '10'},
-        ),
-        {'installations', 'nextBefore'},
+        await api.request('GET', '/media/catalog/target', token: token),
+        {
+          'schemaVersion',
+          'installationId',
+          'installationRevision',
+          'snapshotRevision',
+          'jellyfinServiceRevision',
+        },
       );
-      final raw = response['installations'];
-      if (raw is! List || raw.length > 10 || response['nextBefore'] != null) {
+      if (response['schemaVersion'] is! int || response['schemaVersion'] != 1) {
         throw const FormatException();
       }
-      final ids = <String>{};
-      final matches = <({String installationId, int installationRevision})>[];
-      for (final value in raw) {
-        final target = _installation(value);
-        if (!ids.add(target.installationId)) throw const FormatException();
-        if (target.isReadyJellyfin) {
-          matches.add((
-            installationId: target.installationId,
-            installationRevision: target.installationRevision,
-          ));
-        }
-      }
-      if (matches.length != 1) throw const FormatException();
-      return matches.single;
+      return (
+        installationId: _id(response['installationId']),
+        installationRevision: _revision(response['installationRevision']),
+        snapshotRevision: _revision(response['snapshotRevision']),
+        jellyfinServiceRevision: _revision(response['jellyfinServiceRevision']),
+      );
     } on FormatException {
       throw const LarenorServerException('invalid_response');
     }
@@ -61,7 +60,9 @@ final class ServerMediaCatalogApi {
     int offset = 0,
     int limit = 24,
     ServerMediaCatalogPage? previousPage,
+    bool Function()? current,
   }) async {
+    _validateSearch(query: query, offset: offset, limit: limit);
     if ((offset == 0) != (previousPage == null) ||
         previousPage != null &&
             (previousPage.nextOffset != offset ||
@@ -69,20 +70,25 @@ final class ServerMediaCatalogApi {
                 previousPage.mediaKind != mediaKind)) {
       throw const LarenorServerException('invalid_request');
     }
+    _requireCurrent(current);
     final target = await _discoverTarget();
+    _requireCurrent(current);
     if (previousPage != null &&
         (target.installationId != previousPage.installationId ||
             target.installationRevision != previousPage.installationRevision)) {
       throw const LarenorServerException('invalid_response');
     }
-    final page = await search(
+    final page = await _search(
       installationId: target.installationId,
       expectedInstallationRevision: target.installationRevision,
+      expectedSnapshotRevision: target.snapshotRevision,
+      expectedJellyfinServiceRevision: target.jellyfinServiceRevision,
       query: query,
       mediaKind: mediaKind,
       offset: offset,
       limit: limit,
     );
+    _requireCurrent(current);
     if (previousPage != null &&
         (page.snapshotRevision != previousPage.snapshotRevision ||
             page.jellyfinServiceRevision !=
@@ -99,11 +105,51 @@ final class ServerMediaCatalogApi {
     ServerMediaCatalogKind? mediaKind,
     int offset = 0,
     int limit = 24,
+    bool Function()? current,
   }) async {
+    _validateSearch(query: query, offset: offset, limit: limit);
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(installationId) ||
         expectedInstallationRevision < 1 ||
-        expectedInstallationRevision > 0x7ffffffffffffffe ||
-        query.isEmpty ||
+        expectedInstallationRevision > 0x7ffffffffffffffe) {
+      throw const LarenorServerException('invalid_request');
+    }
+    _requireCurrent(current);
+    final target = await _discoverTarget();
+    _requireCurrent(current);
+    if (target.installationId != installationId ||
+        target.installationRevision != expectedInstallationRevision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final page = await _search(
+      installationId: installationId,
+      expectedInstallationRevision: expectedInstallationRevision,
+      expectedSnapshotRevision: target.snapshotRevision,
+      expectedJellyfinServiceRevision: target.jellyfinServiceRevision,
+      query: query,
+      mediaKind: mediaKind,
+      offset: offset,
+      limit: limit,
+    );
+    _requireCurrent(current);
+    return page;
+  }
+
+  static void _requireCurrent(bool Function()? current) {
+    if (current == null) return;
+    try {
+      if (current()) return;
+    } catch (_) {
+      // A retired owner is indistinguishable from a false owner callback.
+    }
+    throw const LarenorServerException('retired');
+  }
+
+  static void _validateSearch({
+    required String query,
+    required int offset,
+    required int limit,
+  }) {
+    if (query.isEmpty ||
         query.length > 80 ||
         query != query.trim() ||
         RegExp(
@@ -115,45 +161,33 @@ final class ServerMediaCatalogApi {
         limit > 50) {
       throw const LarenorServerException('invalid_request');
     }
+  }
+
+  Future<ServerMediaCatalogPage> _search({
+    required String installationId,
+    required int expectedInstallationRevision,
+    required int expectedSnapshotRevision,
+    required int expectedJellyfinServiceRevision,
+    required String query,
+    ServerMediaCatalogKind? mediaKind,
+    required int offset,
+    required int limit,
+  }) async {
     final requestId = _requestId();
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
       throw const LarenorServerException('invalid_request');
     }
     try {
-      final authority = _object(
-        await api.request(
-          'POST',
-          '/admin/media/archive-health/authority',
-          token: token,
-          body: {
-            'requestId': requestId,
-            'installationId': installationId,
-            'expectedInstallationRevision': expectedInstallationRevision,
-          },
-        ),
-        {
-          'requestId',
-          'installationId',
-          'installationRevision',
-          'snapshotRevision',
-        },
-      );
-      if (authority['requestId'] != requestId ||
-          authority['installationId'] != installationId ||
-          authority['installationRevision'] != expectedInstallationRevision ||
-          authority['snapshotRevision'] is! int) {
-        throw const FormatException();
-      }
       final response = _object(
         await api.request(
           'POST',
-          '/admin/media/archive-health/catalog/search',
+          '/media/catalog/search',
           token: token,
           body: {
             'requestId': requestId,
             'installationId': installationId,
             'expectedInstallationRevision': expectedInstallationRevision,
-            'expectedSnapshotRevision': authority['snapshotRevision'],
+            'expectedSnapshotRevision': expectedSnapshotRevision,
             'query': query,
             'mediaKind': mediaKind?.wire,
             'offset': offset,
@@ -170,7 +204,8 @@ final class ServerMediaCatalogApi {
       );
       if (page.installationId != installationId ||
           page.installationRevision != expectedInstallationRevision ||
-          page.snapshotRevision != authority['snapshotRevision'] ||
+          page.snapshotRevision != expectedSnapshotRevision ||
+          page.jellyfinServiceRevision != expectedJellyfinServiceRevision ||
           page.offset != offset ||
           page.items.length > limit ||
           mediaKind != null &&
@@ -192,114 +227,6 @@ final class ServerMediaCatalogApi {
     return value;
   }
 
-  static ({
-    String installationId,
-    int installationRevision,
-    bool isReadyJellyfin,
-  })
-  _installation(Object? value) {
-    final item = _object(value, {
-      'id',
-      'requestId',
-      'preparationId',
-      'inspectionId',
-      'serviceId',
-      'operationId',
-      'revision',
-      'state',
-      'phase',
-      'cancelRequested',
-      'installAvailable',
-      'steps',
-      'errorCode',
-      'createdAt',
-      'updatedAt',
-    });
-    final id = _id(item['id']);
-    for (final field in [
-      'requestId',
-      'preparationId',
-      'inspectionId',
-      'operationId',
-    ]) {
-      _id(item[field]);
-    }
-    final revision = item['revision'];
-    final service = item['serviceId'];
-    final state = item['state'];
-    final phase = item['phase'];
-    final cancelled = item['cancelRequested'];
-    final error = item['errorCode'];
-    final steps = item['steps'];
-    if (revision is! int ||
-        revision < 1 ||
-        revision > 0x7ffffffffffffffe ||
-        !{'jellyfin', 'seerr', 'music_assistant'}.contains(service) ||
-        !{
-          'queued',
-          'running',
-          'container_started',
-          'needs_attention',
-          'failed',
-          'cancelled',
-        }.contains(state) ||
-        !{'queued', 'executing', 'complete'}.contains(phase) ||
-        cancelled is! bool ||
-        item['installAvailable'] != false ||
-        !(error == null ||
-            {
-              'authority_changed',
-              'context_changed',
-              'preparation_changed',
-              'inspection_changed',
-              'catalog_changed',
-              'worker_unavailable',
-              'invalid_worker_result',
-              'resource_conflict',
-              'dispatch_expired',
-              'container_not_running',
-            }.contains(error)) ||
-        steps is! List ||
-        steps.length != 2 ||
-        !_timestamp(item['createdAt']) ||
-        !_timestamp(item['updatedAt'])) {
-      throw const FormatException();
-    }
-    for (var index = 0; index < steps.length; index++) {
-      final step = _object(steps[index], {'stepId', 'kind'});
-      _id(step['stepId']);
-      if (step['kind'] != ['create_container', 'start_container'][index]) {
-        throw const FormatException();
-      }
-    }
-    final coherent = switch (state) {
-      'queued' => phase == 'queued' && revision == 1 && !cancelled,
-      'running' => phase == 'executing' && revision >= 2,
-      _ => phase == 'complete' && revision >= 2,
-    };
-    final errorCoherent = switch (state) {
-      'queued' ||
-      'running' ||
-      'container_started' ||
-      'cancelled' => error == null,
-      'needs_attention' || 'failed' => error != null,
-      _ => false,
-    };
-    if (!coherent || !errorCoherent || state == 'cancelled' && !cancelled) {
-      throw const FormatException();
-    }
-    return (
-      installationId: id,
-      installationRevision: revision,
-      isReadyJellyfin:
-          service == 'jellyfin' &&
-          state == 'container_started' &&
-          phase == 'complete' &&
-          !cancelled &&
-          error == null,
-    );
-  }
-
   static String _id(Object? value) {
     if (value is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(value)) {
       throw const FormatException();
@@ -307,11 +234,10 @@ final class ServerMediaCatalogApi {
     return value;
   }
 
-  static bool _timestamp(Object? value) {
-    if (value is! String || value.length > 40 || value != value.trim()) {
-      return false;
+  static int _revision(Object? value) {
+    if (value is! int || value < 1 || value > 0x7ffffffffffffffe) {
+      throw const FormatException();
     }
-    final parsed = DateTime.tryParse(value);
-    return parsed != null && parsed.isUtc;
+    return value;
   }
 }

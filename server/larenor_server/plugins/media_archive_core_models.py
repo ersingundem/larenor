@@ -114,3 +114,11 @@ class MediaCatalogPage(StrictModel):
 class MediaCatalogSearchResponse(StrictModel):
     requestId: ObjectId
     catalog: MediaCatalogPage
+
+
+class MediaCatalogTargetResponse(StrictModel):
+    schemaVersion: Literal[1]
+    installationId: ObjectId
+    installationRevision: Revision
+    snapshotRevision: Revision
+    jellyfinServiceRevision: Revision

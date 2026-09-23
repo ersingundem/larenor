@@ -1,16 +1,18 @@
 import json
 
 import pytest
-
 from conftest import auth
 from larenor_server.plugins.media_archive_health_models import (
     JellyfinArchiveItem,
 )
-from test_admin import activate, create as create_user
+from larenor_server.plugins.media_installations import BINDING
+from test_admin import activate
+from test_admin import create as create_user
 from test_media_archive_core_read import configured
 
-
 BASE = '/api/v1/admin/media/archive-health/catalog/search'
+MEMBER_TARGET = '/api/v1/media/catalog/target'
+MEMBER_SEARCH = '/api/v1/media/catalog/search'
 
 
 def _items(worker):
@@ -176,3 +178,98 @@ def test_search_rechecks_binding_session_and_admin_policy(server):
     response = server[1].post(BASE, headers=auth(pair), json=request)
     assert response.status_code == 401
     assert len(worker.calls) == 1
+
+
+def test_member_discovers_and_searches_catalog_without_admin_surface(server):
+    pair, installation, _current, reader, worker, body = configured(server)
+    _items(worker)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    target = server[1].get(MEMBER_TARGET, headers=auth(member))
+    assert target.status_code == 200, target.text
+    assert target.json() == {
+        'schemaVersion': 1,
+        'installationId': installation['id'],
+        'installationRevision': installation['revision'],
+        'snapshotRevision': 4,
+        'jellyfinServiceRevision': 8,
+    }
+    response = server[1].post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': 'movie',
+        'offset': 0,
+        'limit': 1,
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()['catalog']['items'][0]['title'] == 'Matrix Reloaded'
+    assert reader.calls == 3 and len(worker.calls) == 1
+    wire = json.dumps(target.json() | response.json()).lower()
+    assert all(secret not in wire for secret in (
+        'token', 'password', 'cookie', 'endpoint', '/media/', '/data/'))
+
+
+def test_member_search_rechecks_session_after_private_worker(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+    worker.change = lambda: server[1].post(
+        '/api/v1/auth/logout', headers=auth(member))
+
+    response = server[1].post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
+    assert response.status_code == 401
+    assert len(worker.calls) == 1
+
+
+def test_member_search_rejects_a_non_unique_ready_target(server):
+    app, client, _settings, _clock = server
+    pair, installation, _current, _reader, worker, body = configured(server)
+    create_user(client, pair)
+    member = activate(client, 'member')
+    manager = app.state.core.media_installations
+    with app.state.core.db.transaction() as connection:
+        source = dict(connection.execute(
+            'SELECT * FROM media_installations WHERE id=?',
+            (installation['id'],),
+        ).fetchone())
+        payload = manager._decode(source)
+        clone = source | {
+            'id': 'f' * 32,
+            'sequence': source['sequence'] + 1,
+            'request_id': 'f' * 32,
+        }
+        cloned_payload = payload.model_copy(update={
+            'request': payload.request.model_copy(update={
+                'requestId': clone['request_id'],
+            }),
+        })
+        connection.execute(
+            'INSERT INTO media_installations('
+            + ','.join(BINDING)
+            + ',nonce,ciphertext) VALUES('
+            + ','.join('?' for _ in range(len(BINDING) + 2))
+            + ')',
+            (*[clone[key] for key in BINDING], source['nonce'],
+             source['ciphertext']),
+        )
+        manager._save(connection, clone, cloned_payload)
+
+    target = client.get(MEMBER_TARGET, headers=auth(member))
+    assert target.status_code == 409
+    response = client.post(MEMBER_SEARCH, headers=auth(member), json={
+        **body,
+        'query': 'matrix',
+        'mediaKind': None,
+        'offset': 0,
+        'limit': 24,
+    })
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == target.json()['error']['code']
+    assert worker.calls == []

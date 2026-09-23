@@ -17,33 +17,6 @@ import 'server_admin_test_support.dart';
 const _requestId = '11111111111111111111111111111111';
 const _installationId = '22222222222222222222222222222222';
 
-Map<String, Object?> _installation({int revision = 7}) => {
-  'id': _installationId,
-  'requestId': '33333333333333333333333333333333',
-  'preparationId': '44444444444444444444444444444444',
-  'inspectionId': '55555555555555555555555555555555',
-  'serviceId': 'jellyfin',
-  'operationId': '66666666666666666666666666666666',
-  'revision': revision,
-  'state': 'container_started',
-  'phase': 'complete',
-  'cancelRequested': false,
-  'installAvailable': false,
-  'steps': const [
-    {'stepId': '77777777777777777777777777777777', 'kind': 'create_container'},
-    {'stepId': '88888888888888888888888888888888', 'kind': 'start_container'},
-  ],
-  'errorCode': null,
-  'createdAt': '2026-09-23T09:00:00.000Z',
-  'updatedAt': '2026-09-23T09:01:00.000Z',
-};
-
-Map<String, Object?> _installationWith(Map<String, Object?> changes) => {
-  ..._installation(),
-  ...changes,
-  'id': changes['id'] ?? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-};
-
 Map<String, Object?> _catalog(
   int offset, {
   int installationRevision = 7,
@@ -160,21 +133,18 @@ final class _CatalogFixture extends AdminFixture {
         });
         return flowGate?.future ?? response;
       }
-      if (request.url.path.endsWith('/admin/media/installations')) {
+      if (request.url.path.endsWith('/media/catalog/target')) {
         if (targetGate case final gate?) await gate.future;
-        return this.json({
-          'installations':
-              targetResponse ?? [_installation(revision: targetRevision)],
-          'nextBefore': null,
-        });
-      }
-      if (request.url.path.endsWith('/archive-health/authority')) {
-        return this.json({
-          'requestId': _requestId,
-          'installationId': _installationId,
-          'installationRevision': targetRevision,
-          'snapshotRevision': snapshotRevision,
-        });
+        return this.json(
+          targetResponse ??
+              {
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': targetRevision,
+                'snapshotRevision': snapshotRevision,
+                'jellyfinServiceRevision': 11,
+              },
+        );
       }
       if (request.url.path.endsWith('/catalog/search')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -206,7 +176,7 @@ final class _CatalogFixture extends AdminFixture {
   }
 
   Completer<void>? targetGate;
-  List<Object?>? targetResponse;
+  Object? targetResponse;
   int targetRevision = 7;
   int snapshotRevision = 9;
   int catalogCalls = 0;
@@ -240,12 +210,10 @@ void main() {
       expect(
         fixture.calls.map((request) => request.url.path),
         containsAllInOrder([
-          '/prefix/api/v1/admin/media/installations',
-          '/prefix/api/v1/admin/media/archive-health/authority',
-          '/prefix/api/v1/admin/media/archive-health/catalog/search',
-          '/prefix/api/v1/admin/media/installations',
-          '/prefix/api/v1/admin/media/archive-health/authority',
-          '/prefix/api/v1/admin/media/archive-health/catalog/search',
+          '/prefix/api/v1/media/catalog/target',
+          '/prefix/api/v1/media/catalog/search',
+          '/prefix/api/v1/media/catalog/target',
+          '/prefix/api/v1/media/catalog/search',
         ]),
       );
       expect(
@@ -257,7 +225,14 @@ void main() {
 
   test('ambiguous target and delayed logout publish no catalog', () async {
     final ambiguous = _CatalogFixture()
-      ..targetResponse = [_installation(), _installation()];
+      ..targetResponse = {
+        'schemaVersion': 1,
+        'installationId': _installationId,
+        'installationRevision': 7,
+        'snapshotRevision': 9,
+        'jellyfinServiceRevision': 11,
+        'adminOnly': true,
+      };
     await ambiguous.account.initialize();
     addTearDown(ambiguous.account.dispose);
     final rejected = ServerMediaCatalogController(
@@ -269,7 +244,9 @@ void main() {
     expect(rejected.page, isNull);
     expect(rejected.failure, 'invalid_response');
     expect(
-      ambiguous.calls.where((call) => call.url.path.endsWith('/authority')),
+      ambiguous.calls.where(
+        (call) => call.url.path.endsWith('/catalog/search'),
+      ),
       isEmpty,
     );
 
@@ -288,117 +265,71 @@ void main() {
     await search;
     expect(retired.page, isNull);
     expect(retired.failure, isNull);
+    expect(
+      delayed.calls.where((call) => call.url.path.endsWith('/catalog/search')),
+      isEmpty,
+    );
   });
 
-  test(
-    'one ready target plus any incoherent sibling fails before authority',
-    () async {
-      final malformed = <Map<String, Object?>>[
-        _installationWith({
-          'state': 'queued',
-          'phase': 'executing',
-          'revision': 1,
-        }),
-        _installationWith({
-          'state': 'queued',
-          'phase': 'queued',
-          'revision': 2,
-        }),
-        _installationWith({
-          'state': 'queued',
-          'phase': 'queued',
-          'revision': 1,
-          'cancelRequested': true,
-        }),
-        _installationWith({
-          'state': 'running',
-          'phase': 'queued',
-          'revision': 2,
-        }),
-        _installationWith({
-          'state': 'running',
-          'phase': 'executing',
-          'revision': 1,
-        }),
-        _installationWith({'state': 'container_started', 'phase': 'executing'}),
-        _installationWith({
-          'state': 'container_started',
-          'phase': 'complete',
-          'revision': 1,
-        }),
-        _installationWith({
-          'state': 'container_started',
-          'errorCode': 'worker_unavailable',
-        }),
-        _installationWith({'state': 'cancelled', 'cancelRequested': false}),
-        _installationWith({'state': 'needs_attention', 'errorCode': null}),
-        _installationWith({'state': 'failed', 'errorCode': null}),
-      ];
+  test('next page rejects a replacement installation before search', () async {
+    final fixture = _CatalogFixture();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+    await controller.searchCurrent(query: 'matrix', current: () => true);
+    final next = controller.page!.nextOffset!;
+    fixture.targetRevision = 8;
+    final searchesBefore = fixture.calls
+        .where((call) => call.url.path.endsWith('/catalog/search'))
+        .length;
 
-      for (final sibling in malformed) {
-        final fixture = _CatalogFixture()
-          ..targetResponse = [_installation(), sibling];
-        await fixture.account.initialize();
-        final controller = ServerMediaCatalogController(
-          fixture.account,
-          requestId: () => _requestId,
-        );
+    await controller.searchCurrent(
+      query: 'matrix',
+      offset: next,
+      current: () => true,
+    );
 
-        await controller.searchCurrent(query: 'matrix', current: () => true);
+    expect(controller.page, isNull);
+    expect(controller.failure, 'invalid_response');
+    expect(
+      fixture.calls
+          .where((call) => call.url.path.endsWith('/catalog/search'))
+          .length,
+      searchesBefore,
+    );
+  });
 
-        expect(controller.page, isNull, reason: '$sibling');
-        expect(controller.failure, 'invalid_response', reason: '$sibling');
-        expect(
-          fixture.calls.where(
-            (call) =>
-                call.url.path.endsWith('/authority') ||
-                call.url.path.endsWith('/catalog/search'),
-          ),
-          isEmpty,
-          reason: '$sibling',
-        );
-        controller.dispose();
-        fixture.account.dispose();
-      }
-    },
-  );
+  test('route retirement after target starts no catalog search', () async {
+    final fixture = _CatalogFixture()..targetGate = Completer<void>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final controller = ServerMediaCatalogController(
+      fixture.account,
+      requestId: () => _requestId,
+    );
+    addTearDown(controller.dispose);
+    var current = true;
 
-  test(
-    'next page rejects a replacement installation before authority',
-    () async {
-      final fixture = _CatalogFixture();
-      await fixture.account.initialize();
-      addTearDown(fixture.account.dispose);
-      final controller = ServerMediaCatalogController(
-        fixture.account,
-        requestId: () => _requestId,
-      );
-      addTearDown(controller.dispose);
-      await controller.searchCurrent(query: 'matrix', current: () => true);
-      final next = controller.page!.nextOffset!;
-      fixture.targetRevision = 8;
-      final authorityBefore = fixture.calls
-          .where((call) => call.url.path.endsWith('/authority'))
-          .length;
+    final pending = controller.searchCurrent(
+      query: 'matrix',
+      current: () => current,
+    );
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    fixture.targetGate!.complete();
+    await pending;
 
-      await controller.searchCurrent(
-        query: 'matrix',
-        offset: next,
-        current: () => true,
-      );
+    expect(
+      fixture.calls.where((call) => call.url.path.endsWith('/catalog/search')),
+      isEmpty,
+    );
+  });
 
-      expect(controller.page, isNull);
-      expect(controller.failure, 'invalid_response');
-      expect(
-        fixture.calls
-            .where((call) => call.url.path.endsWith('/authority'))
-            .length,
-        authorityBefore,
-      );
-    },
-  );
-
-  test('member policy issues no installation or catalog request', () async {
+  test('member uses the Core catalog without admin endpoints', () async {
     final fixture = _CatalogFixture(role: ServerRole.member);
     await fixture.account.initialize();
     addTearDown(fixture.account.dispose);
@@ -410,9 +341,13 @@ void main() {
 
     await controller.searchCurrent(query: 'matrix', current: () => true);
 
-    expect(controller.page, isNull);
+    expect(controller.page?.items.single.title, 'The Matrix');
     expect(controller.failure, isNull);
-    expect(fixture.adminCalls, isEmpty);
+    expect(fixture.calls, isNotEmpty);
+    expect(
+      fixture.calls.every((call) => !call.url.path.contains('/admin/')),
+      isTrue,
+    );
   });
 
   testWidgets('filter change retires a delayed previous catalog result', (
@@ -703,7 +638,12 @@ void main() {
         await tester.testTextInput.receiveAction(TextInputAction.search);
         await tester.pumpAndSettle();
         expect(find.text('The Matrix'), findsOneWidget);
-        expect(fixture.mutations, hasLength(2));
+        expect(
+          fixture.calls.where(
+            (call) => call.url.path.endsWith('/media/catalog/search'),
+          ),
+          hasLength(1),
+        );
         await tester.tap(
           find.byKey(const ValueKey('server-media-catalog-filter-tv')),
         );
