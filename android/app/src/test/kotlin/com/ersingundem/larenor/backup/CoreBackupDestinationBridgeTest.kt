@@ -70,13 +70,14 @@ class CoreBackupDestinationBridgeTest {
         val output = Output()
         val deleted = Collections.synchronizedList(mutableListOf<Uri>())
         @Volatile var launches = 0
+        @Volatile var requestCode = -1
         @Volatile var openCalls = 0
         @Volatile var openThread = -1L
         var openStarted: CountDownLatch? = null
         var openGate: CountDownLatch? = null
         override fun launch(intent: Intent, requestCode: Int) {
             assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
-            assertEquals(CoreBackupDestinationBridge.REQUEST_CODE, requestCode)
+            this.requestCode = requestCode
             launches++
         }
         override fun open(uri: Uri): CoreBackupOutput {
@@ -92,7 +93,12 @@ class CoreBackupDestinationBridgeTest {
     private fun args(session: String, handle: String, extra: Map<String, Any>) =
         mapOf("sessionId" to session, "handle" to handle) + extra
 
-    private fun open(bridge: CoreBackupDestinationBridge, session: String, uri: Uri): Result {
+    private fun open(
+        bridge: CoreBackupDestinationBridge,
+        host: Host,
+        session: String,
+        uri: Uri,
+    ): Result {
         val result = Result()
         bridge.onMethodCall(MethodCall("open", mapOf(
             "sessionId" to session,
@@ -100,7 +106,7 @@ class CoreBackupDestinationBridgeTest {
             "mimeType" to CoreBackupDestinationBridge.MIME,
         )), result)
         assertTrue(bridge.onActivityResult(
-            CoreBackupDestinationBridge.REQUEST_CODE,
+            host.requestCode,
             Activity.RESULT_OK,
             Intent().setData(uri),
         ))
@@ -126,7 +132,7 @@ class CoreBackupDestinationBridgeTest {
         try {
             val session = "a".repeat(32)
             val uri = Uri.parse("content://documents/backup")
-            val opened = open(bridge, session, uri)
+            val opened = open(bridge, host, session, uri)
             val handle = (opened.value as Map<*, *>)["handle"] as String
             val payload = ByteArray(64 * 1024) { (it % 251).toByte() }
             val append = Result()
@@ -160,7 +166,7 @@ class CoreBackupDestinationBridgeTest {
         try {
             val session = "f".repeat(32)
             val uri = Uri.parse("content://documents/exact-cap")
-            val opened = open(exact, session, uri)
+            val opened = open(exact, exactHost, session, uri)
             val handle = (opened.value as Map<*, *>)["handle"] as String
             val payload = byteArrayOf(1, 2, 3)
             val append = Result()
@@ -187,7 +193,7 @@ class CoreBackupDestinationBridgeTest {
         try {
             val session = "1".repeat(32)
             val uri = Uri.parse("content://documents/overflow")
-            val opened = open(overflow, session, uri)
+            val opened = open(overflow, overflowHost, session, uri)
             val handle = (opened.value as Map<*, *>)["handle"] as String
             val append = Result()
             overflow.onMethodCall(MethodCall("append", args(
@@ -208,7 +214,7 @@ class CoreBackupDestinationBridgeTest {
         try {
             val session = "2".repeat(32)
             val uri = Uri.parse("content://documents/declared-overflow")
-            val opened = open(bridge, session, uri)
+            val opened = open(bridge, host, session, uri)
             val handle = (opened.value as Map<*, *>)["handle"] as String
             val commit = Result()
             bridge.onMethodCall(MethodCall("commit", args(session, handle, mapOf(
@@ -222,7 +228,7 @@ class CoreBackupDestinationBridgeTest {
         } finally { bridge.dispose() }
     }
 
-    @Test fun exactSessionCancelDeletesPartialAndLatePickerCannotClaimNewSession() {
+    @Test fun cancelledPickerImmediatelyReleasesANewSessionWithANewRequestCode() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val host = Host()
         val bridge = CoreBackupDestinationBridge(activity, Messenger(), host)
@@ -234,34 +240,116 @@ class CoreBackupDestinationBridgeTest {
                 "fileName" to "larenor-core-backup.larenor-core",
                 "mimeType" to CoreBackupDestinationBridge.MIME,
             )), old)
+            val oldRequestCode = host.requestCode
             bridge.onMethodCall(MethodCall("cancel", mapOf("sessionId" to oldSession)), Result())
             assertEquals("expired", old.code)
-            val stale = Uri.parse("content://documents/stale")
-            bridge.onActivityResult(
-                CoreBackupDestinationBridge.REQUEST_CODE,
-                Activity.RESULT_OK,
-                Intent().setData(stale),
-            )
-            awaitCondition { host.deleted.contains(stale) }
-            assertEquals(0, host.openCalls)
 
             val freshSession = "b".repeat(32)
-            val current = Uri.parse("content://documents/current")
-            val fresh = open(bridge, freshSession, current)
-            val handle = (fresh.value as Map<*, *>)["handle"] as String
-            bridge.onMethodCall(MethodCall("cancel", mapOf("sessionId" to oldSession)), Result())
-            val append = Result()
-            bridge.onMethodCall(MethodCall("append", args(
-                freshSession, handle, mapOf("bytes" to byteArrayOf(1, 2, 3)),
-            )), append)
-            await(append)
-            assertArrayEquals(byteArrayOf(1, 2, 3), host.output.bytes.toByteArray())
-            bridge.onMethodCall(MethodCall(
-                "cancel", args(freshSession, handle, emptyMap()),
-            ), Result())
-            awaitCondition { host.output.closed && host.deleted.contains(current) }
-            assertEquals(listOf(stale, current), host.deleted)
+            val fresh = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to freshSession,
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), fresh)
+
+            assertEquals(2, host.launches)
+            assertNotEquals(oldRequestCode, host.requestCode)
+            assertFalse(fresh.done)
         } finally { bridge.dispose() }
+    }
+
+    @Test fun staleCancelledPickerResultCannotOpenOrCompleteTheCurrentSession() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val bridge = CoreBackupDestinationBridge(activity, Messenger(), host)
+        try {
+            val oldSession = "3".repeat(32)
+            val old = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to oldSession,
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), old)
+            val oldRequestCode = host.requestCode
+            bridge.onMethodCall(MethodCall("cancel", mapOf("sessionId" to oldSession)), Result())
+
+            val currentSession = "4".repeat(32)
+            val current = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to currentSession,
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), current)
+            val currentRequestCode = host.requestCode
+            val staleUri = Uri.parse("content://documents/stale-cancelled")
+            assertTrue(bridge.onActivityResult(
+                oldRequestCode,
+                Activity.RESULT_OK,
+                Intent().setData(staleUri),
+            ))
+
+            awaitCondition { host.deleted.contains(staleUri) }
+            assertEquals(0, host.openCalls)
+            assertFalse(current.done)
+
+            val currentUri = Uri.parse("content://documents/current")
+            assertTrue(bridge.onActivityResult(
+                currentRequestCode,
+                Activity.RESULT_OK,
+                Intent().setData(currentUri),
+            ))
+            await(current)
+            assertNotNull(current.value)
+            assertEquals(1, host.openCalls)
+        } finally { bridge.dispose() }
+    }
+
+    @Test fun disposedBridgeResultCannotBeConsumedByNewBridgePicker() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val oldHost = Host()
+        val oldBridge = CoreBackupDestinationBridge(activity, Messenger(), oldHost)
+        val old = Result()
+        oldBridge.onMethodCall(MethodCall("open", mapOf(
+            "sessionId" to "5".repeat(32),
+            "fileName" to "larenor-core-backup.larenor-core",
+            "mimeType" to CoreBackupDestinationBridge.MIME,
+        )), old)
+        val oldRequestCode = oldHost.requestCode
+        oldBridge.dispose()
+        assertEquals("expired", old.code)
+
+        val currentHost = Host()
+        val currentBridge = CoreBackupDestinationBridge(activity, Messenger(), currentHost)
+        try {
+            val current = Result()
+            currentBridge.onMethodCall(MethodCall("open", mapOf(
+                "sessionId" to "6".repeat(32),
+                "fileName" to "larenor-core-backup.larenor-core",
+                "mimeType" to CoreBackupDestinationBridge.MIME,
+            )), current)
+            val currentRequestCode = currentHost.requestCode
+            assertNotEquals(oldRequestCode, currentRequestCode)
+
+            val staleUri = Uri.parse("content://documents/disposed-stale")
+            assertTrue(currentBridge.onActivityResult(
+                oldRequestCode,
+                Activity.RESULT_OK,
+                Intent().setData(staleUri),
+            ))
+            awaitCondition { currentHost.deleted.contains(staleUri) }
+            assertEquals(0, currentHost.openCalls)
+            assertFalse(current.done)
+
+            val currentUri = Uri.parse("content://documents/replacement-current")
+            assertTrue(currentBridge.onActivityResult(
+                currentRequestCode,
+                Activity.RESULT_OK,
+                Intent().setData(currentUri),
+            ))
+            await(current)
+            assertNotNull(current.value)
+            assertEquals(1, currentHost.openCalls)
+        } finally { currentBridge.dispose() }
     }
 
     @Test fun cancelDuringGatedWriteInvalidatesLateAppendAndCommit() {
@@ -271,7 +359,7 @@ class CoreBackupDestinationBridgeTest {
         try {
             val session = "c".repeat(32)
             val uri = Uri.parse("content://documents/cancelled-write")
-            val opened = open(bridge, session, uri)
+            val opened = open(bridge, host, session, uri)
             val handle = (opened.value as Map<*, *>)["handle"] as String
             host.output.writeStarted = CountDownLatch(1)
             host.output.writeGate = CountDownLatch(1)
@@ -314,7 +402,7 @@ class CoreBackupDestinationBridgeTest {
         host.openGate = CountDownLatch(1)
         val uri = Uri.parse("content://documents/gated-open")
         bridge.onActivityResult(
-            CoreBackupDestinationBridge.REQUEST_CODE,
+            host.requestCode,
             Activity.RESULT_OK,
             Intent().setData(uri),
         )
@@ -336,7 +424,7 @@ class CoreBackupDestinationBridgeTest {
         lateBridge.dispose()
         val lateUri = Uri.parse("content://documents/late-after-dispose")
         lateBridge.onActivityResult(
-            CoreBackupDestinationBridge.REQUEST_CODE,
+            lateHost.requestCode,
             Activity.RESULT_OK,
             Intent().setData(lateUri),
         )
