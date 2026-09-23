@@ -115,6 +115,17 @@ void main() {
             tester.getSemantics(receiver).flagsCollection.isSelected,
             Tristate.isTrue,
           );
+          final migration = find.byKey(
+            const ValueKey('music-manager-migrate-legacy'),
+          );
+          await tester.scrollUntilVisible(
+            migration,
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          expect(tester.getRect(migration).height, greaterThanOrEqualTo(48));
+          expect(tester.getSemantics(migration).flagsCollection.isButton, true);
           final heading = find.byKey(
             const ValueKey('music-manager-playback-heading'),
           );
@@ -156,6 +167,8 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
     expect(find.byType(CupertinoTextField), findsOneWidget);
     await tester.tap(field);
     await tester.enterText(field, 'Result');
@@ -319,10 +332,15 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(tester.widget<CupertinoButton>(migration).onPressed, isNotNull);
     await tester.tap(migration);
     await tester.pumpAndSettle();
 
-    expect(find.text('Legacy living room'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('music-manager-migrate-failure')),
+      findsNothing,
+    );
+    expect(find.textContaining('Legacy living room'), findsOneWidget);
     expect(find.textContaining('Spotify'), findsWidgets);
     expect(find.textContaining('Living room HomePod'), findsWidgets);
     expect(find.textContaining('media_player.legacy'), findsNothing);
