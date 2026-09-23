@@ -781,7 +781,11 @@ class CoreServices:
                 self.media_archive_health,
                 (MediaPlaybackWorkerProvider(
                     installation_backend, self.media_service_bootstraps)
-                 if installation_backend is not None else None),
+                 if callable(getattr(
+                     installation_backend, 'read_media_playback', None))
+                 and callable(getattr(
+                     installation_backend, 'execute_media_playback', None))
+                 else None),
             )
             self.media_playback.validate_storage()
             media_flow_provider = (
