@@ -146,6 +146,34 @@ def test_play_now_is_one_post_between_matching_before_and_authenticated_after_re
     assert all(connection.closed for connection in (before, effect, after))
 
 
+def test_pre_effect_gate_and_deadline_expiry_never_write_playback(
+        monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(
+        'larenor_server.plugins.jellyfin_playback_runtime.time.monotonic',
+        lambda: now[0])
+    runtime = JellyfinPlaybackProtocol(revision_seed=100)
+    runtime.read(
+        Connection(response('200 OK', sessions())), api_key=TOKEN,
+        installation_id=INSTALLATION, deadline=101.0)
+    before = Connection(response('200 OK', sessions()))
+    effect = Connection(response('204 No Content', content_type=False))
+    after = Connection(response('200 OK', sessions(item=ITEM, position=12)))
+
+    def gate():
+        now[0] = 101.0
+        return True
+
+    with pytest.raises(JellyfinPlaybackRuntimeError,
+                       match='^jellyfin_playback_authority_changed$'):
+        runtime.execute(
+            (before, effect, after), action(), api_key=TOKEN,
+            deadline=101.0, gate=gate)
+
+    assert effect.sent == b''
+    assert all(connection.closed for connection in (before, effect, after))
+
+
 @pytest.mark.parametrize('damage', [
     'float_ticks', 'negative_ticks', 'duplicate_session', 'wrong_target',
     'no_state_change', 'trailing_204', 'wrong_status', 'bad_json',

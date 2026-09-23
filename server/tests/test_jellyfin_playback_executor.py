@@ -115,6 +115,28 @@ def test_execute_opens_three_fresh_proved_streams_and_verifies_final_endpoint(
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 4
 
 
+def test_execute_revalidates_retained_authority_immediately_before_post(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    connections = [
+        Connection(response('200 OK', sessions())),
+        Connection(response('204 No Content', content_type=False)),
+        Connection(response('200 OK', sessions(item=ITEM, position=12))),
+    ]
+    opened(monkeypatch, stack, binding, engine, connections)
+    gates = iter((True, False))
+
+    with pytest.raises(JellyfinPlaybackExecutionError,
+                       match='^jellyfin_playback_authority_changed$') as raised:
+        executor(binding, operations).execute(
+            action(stack), deadline=time.monotonic() + 1,
+            gate=lambda: next(gates))
+
+    assert raised.value.uncertain_effect is False
+    assert connections[1].sent == b''
+    assert all(connection.closed for connection in connections)
+
+
 def test_gate_loss_or_missing_journal_opens_no_playback_stream(
         prepared, monkeypatch):
     stack, binding, _engine, operations = prepared
