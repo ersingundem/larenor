@@ -6,9 +6,15 @@ final class ServerCoreBackupsApi {
   final LarenorServerApi api;
   final String token;
 
-  Future<CoreBackupPlan> plan() async => CoreBackupPlan.fromJson(
-    await api.request('GET', '/admin/backups/plan', token: token),
-  );
+  Future<CoreBackupPlan> plan(LarenorTransferCancellation cancellation) async =>
+      CoreBackupPlan.fromJson(
+        await api.request(
+          'GET',
+          '/admin/backups/plan',
+          token: token,
+          cancellation: cancellation,
+        ),
+      );
 
   Future<CoreBackupExport> export(
     LarenorRequestSecret passphrase,
@@ -30,12 +36,14 @@ final class ServerCoreBackupsApi {
 
   Future<CoreBackupCompatibility> preflight(
     CoreBackupManifest manifest,
+    LarenorTransferCancellation cancellation,
   ) async => CoreBackupCompatibility.fromJson(
     await api.request(
       'POST',
       '/admin/backups/restore/validate',
       token: token,
       body: {'manifest': manifest.toJson()},
+      cancellation: cancellation,
     ),
   );
 

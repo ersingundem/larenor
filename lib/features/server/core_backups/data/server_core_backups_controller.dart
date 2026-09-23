@@ -22,6 +22,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   String? actionFailure;
   CoreBackupPlan? plan;
   CoreBackupCompatibility? compatibility;
+  LarenorTransferCancellation? _requestCancellation;
   LarenorTransferCancellation? _exportCancellation;
 
   bool get _authorized =>
@@ -37,6 +38,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   }
 
   void invalidate() {
+    _requestCancellation?.cancel();
+    _requestCancellation = null;
     _exportCancellation?.cancel();
     _exportCancellation = null;
     _generation++;
@@ -59,6 +62,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   Future<void> load({required bool Function() current}) async {
     if (_disposed || busy || actionBusy || !_authorized || !current()) return;
     final epoch = _generation, accountEpoch = account.generation;
+    final cancellation = LarenorTransferCancellation();
+    _requestCancellation = cancellation;
     busy = true;
     failure = null;
     actionFailure = null;
@@ -73,7 +78,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
         final value = await ServerCoreBackupsApi(
           api,
           session.accessToken,
-        ).plan();
+        ).plan(cancellation);
         if (_current(epoch, accountEpoch, current)) plan = value;
       });
     } catch (error) {
@@ -83,6 +88,9 @@ final class ServerCoreBackupsController extends ChangeNotifier {
             : 'connection_failed';
       }
     } finally {
+      if (identical(_requestCancellation, cancellation)) {
+        _requestCancellation = null;
+      }
       if (!_disposed && epoch == _generation) {
         busy = false;
         _emit();
@@ -145,6 +153,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   }) async {
     if (_disposed || busy || actionBusy || !_authorized || !current()) return;
     final epoch = _generation, accountEpoch = account.generation;
+    final cancellation = LarenorTransferCancellation();
+    _requestCancellation = cancellation;
     actionBusy = true;
     actionFailure = null;
     compatibility = null;
@@ -157,7 +167,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
         final value = await ServerCoreBackupsApi(
           api,
           session.accessToken,
-        ).preflight(manifest);
+        ).preflight(manifest, cancellation);
         if (_current(epoch, accountEpoch, current)) compatibility = value;
       });
     } catch (error) {
@@ -167,6 +177,9 @@ final class ServerCoreBackupsController extends ChangeNotifier {
             : 'connection_failed';
       }
     } finally {
+      if (identical(_requestCancellation, cancellation)) {
+        _requestCancellation = null;
+      }
       if (!_disposed && epoch == _generation) {
         actionBusy = false;
         _emit();
@@ -180,6 +193,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestCancellation?.cancel();
+    _requestCancellation = null;
     _exportCancellation?.cancel();
     _exportCancellation = null;
     _disposed = true;

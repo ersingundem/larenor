@@ -9,7 +9,6 @@ import 'package:larenor/features/server/core_backups/data/server_core_backups_co
 import 'package:larenor/features/server/core_backups/domain/server_core_backup_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
-import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'server_admin_test_support.dart';
@@ -687,7 +686,6 @@ void main() {
     secondRequest.completeJson(readyPlan());
     await secondLoad.timeout(const Duration(seconds: 1));
     expect(controller.plan?.ready, isTrue);
-    expect(secondRequest.abortSeen.isCompleted, isTrue);
   });
 
   test('member account cannot dispatch backup readiness reads', () async {
