@@ -28,6 +28,72 @@ class Api extends WebPanelDataApi {
 
 void main() {
   test(
+    'throwing authority fails closed before any retirement or clear',
+    () async {
+      final api = Api();
+      final coordinator = WebPanelDataCoordinator(api: api);
+      var retirements = 0;
+      coordinator.register(() async => retirements++);
+
+      expect(
+        await coordinator.clear(
+          isCurrent: () => throw StateError('stale authority'),
+        ),
+        false,
+      );
+      expect(retirements, 0);
+      expect(api.calls, isEmpty);
+      expect(coordinator.blocked, false);
+      coordinator.dispose();
+    },
+  );
+
+  test(
+    'retirement added during native clear joins the active barrier',
+    () async {
+      final api = Api()..cookies = Completer<void>();
+      final coordinator = WebPanelDataCoordinator(api: api);
+      final lateRetirement = Completer<void>();
+      final result = coordinator.clear(isCurrent: () => true);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['cookies']);
+
+      coordinator.retire(() => lateRetirement.future);
+      api.cookies!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['cookies']);
+      expect(coordinator.blocked, true);
+
+      lateRetirement.complete();
+      expect(await result, true);
+      expect(api.calls, ['cookies', 'storage', 'cache']);
+      coordinator.dispose();
+    },
+  );
+
+  test(
+    'panel registered during native clear is retired before completion',
+    () async {
+      final api = Api()..cookies = Completer<void>();
+      final coordinator = WebPanelDataCoordinator(api: api);
+      final registeredRetirement = Completer<void>();
+      final result = coordinator.clear(isCurrent: () => true);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['cookies']);
+
+      coordinator.register(() => registeredRetirement.future);
+      api.cookies!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, ['cookies']);
+
+      registeredRetirement.complete();
+      expect(await result, true);
+      expect(api.calls, ['cookies', 'storage', 'cache']);
+      coordinator.dispose();
+    },
+  );
+
+  test(
     'retirements from already-disposed views must settle before cookies clear',
     () async {
       final api = Api();
