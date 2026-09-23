@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/direct_home_access.dart';
@@ -74,8 +76,10 @@ final class _Storage extends FlutterSecureStorage {
 Map<String, dynamic> _service({
   required int revision,
   required String checkedAt,
+  String id = serviceId,
 }) => {
   ...serviceJson(revision: revision, state: 'authenticated'),
+  'id': id,
   'verification': {
     'state': 'authenticated',
     'checkedAt': checkedAt,
@@ -228,6 +232,70 @@ void main() {
     expect(
       fixture.calls.where((call) => call.url.path.endsWith('/admin/services')),
       hasLength(3),
+    );
+  });
+
+  test('one receipt cannot confirm two concurrent Core targets', () async {
+    final storage = _Storage(_legacy);
+    final fixture = ServicesFixture();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final migration = LegacyJellyfinProviderMigration(
+      account: fixture.account,
+      storage: storage,
+    );
+    addTearDown(migration.dispose);
+    final receipt = await migration.prepare(isCurrent: () => true);
+    fixture.records.addAll([
+      _service(
+        id: '11111111111111111111111111111111',
+        revision: 1,
+        checkedAt: '2026-09-23T09:31:00.000Z',
+      ),
+      _service(
+        id: '22222222222222222222222222222222',
+        revision: 1,
+        checkedAt: '2026-09-23T09:32:00.000Z',
+      ),
+    ]);
+    final firstTarget = ServerService.fromJson(fixture.records[0]);
+    final secondTarget = ServerService.fromJson(fixture.records[1]);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final original = fixture.respond!;
+    fixture.respond = (request) async {
+      if (request.method == 'GET' &&
+          request.url.path.endsWith('/admin/services')) {
+        if (!entered.isCompleted) entered.complete();
+        await release.future;
+      }
+      return original(request);
+    };
+
+    final first = migration.confirm(
+      receipt!,
+      firstTarget,
+      isCurrent: () => true,
+    );
+    await entered.future;
+    final second = migration.confirm(
+      receipt,
+      secondTarget,
+      isCurrent: () => true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    release.complete();
+
+    await first;
+    await expectLater(second, throwsStateError);
+    expect(
+      fixture.calls.where((call) => call.url.path.endsWith('/admin/services')),
+      hasLength(2),
+      reason: 'prepare and the owning confirmation are the only Core reads',
+    );
+    expect(
+      storage.values.keys.where((key) => key.startsWith('jellyfin_')),
+      isEmpty,
     );
   });
 }
