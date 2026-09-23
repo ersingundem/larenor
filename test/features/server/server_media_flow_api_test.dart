@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/media_flow/data/server_media_flow_api.dart';
+import 'package:larenor/features/server/media_flow/domain/server_media_flow_models.dart';
 
 const requestId = '11111111111111111111111111111111';
 const mediaKey = 'movie:tmdb:603';
@@ -66,57 +67,60 @@ Map<String, Object?> flowJson() => {
 };
 
 void main() {
-  test('authority handshake precedes one strict secret-free flow read', () async {
-    final calls = <http.Request>[];
-    final api = LarenorServerApi(
-      endpoint: ServerEndpoint('https://core.test'),
-      client: MockClient((request) async {
-        calls.add(request);
-        expect(request.headers['authorization'], 'Bearer synthetic-access');
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (request.url.path.endsWith('/authority')) {
-          expect(body, {'requestId': requestId, 'mediaKey': mediaKey});
+  test(
+    'authority handshake precedes one strict secret-free flow read',
+    () async {
+      final calls = <http.Request>[];
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.test'),
+        client: MockClient((request) async {
+          calls.add(request);
+          expect(request.headers['authorization'], 'Bearer synthetic-access');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path.endsWith('/authority')) {
+            expect(body, {'requestId': requestId, 'mediaKey': mediaKey});
+            return http.Response(
+              jsonEncode({
+                'requestId': requestId,
+                'mediaKey': mediaKey,
+                'flowRevision': 9,
+                'sources': sources(),
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          expect(body, {
+            'requestId': requestId,
+            'mediaKey': mediaKey,
+            'expectedFlowRevision': 9,
+            'expectedSources': sources(),
+          });
           return http.Response(
-            jsonEncode({
-              'requestId': requestId,
-              'mediaKey': mediaKey,
-              'flowRevision': 9,
-              'sources': sources(),
-            }),
+            jsonEncode({'requestId': requestId, 'flow': flowJson()}),
             200,
             headers: {'content-type': 'application/json'},
           );
-        }
-        expect(body, {
-          'requestId': requestId,
-          'mediaKey': mediaKey,
-          'expectedFlowRevision': 9,
-          'expectedSources': sources(),
-        });
-        return http.Response(
-          jsonEncode({'requestId': requestId, 'flow': flowJson()}),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      }),
-    );
-    addTearDown(api.close);
+        }),
+      );
+      addTearDown(api.close);
 
-    final value = await ServerMediaFlowApi(
-      api,
-      'synthetic-access',
-      requestId: () => requestId,
-    ).read(mediaKey);
+      final value = await ServerMediaFlowApi(
+        api,
+        'synthetic-access',
+        requestId: () => requestId,
+      ).read(mediaKey);
 
-    expect(value.mediaKey, mediaKey);
-    expect(value.state, 'playable');
-    expect(value.flowRevision, 9);
-    expect(value.delivery?.fileCount, 1);
-    expect(calls.map((call) => call.url.path), [
-      '/api/v1/admin/media/flows/authority',
-      '/api/v1/admin/media/flows/read',
-    ]);
-  });
+      expect(value.mediaKey, mediaKey);
+      expect(value.state, 'playable');
+      expect(value.flowRevision, 9);
+      expect(value.delivery?.fileCount, 1);
+      expect(calls.map((call) => call.url.path), [
+        '/api/v1/admin/media/flows/authority',
+        '/api/v1/admin/media/flows/read',
+      ]);
+    },
+  );
 
   test('extra secret-bearing response fields fail closed', () async {
     var calls = 0;
@@ -165,6 +169,80 @@ void main() {
     expect(calls, 2);
   });
 
+  test(
+    'flow model rejects reordered, mismatched and contradictory evidence',
+    () {
+      final secret = {...flowJson(), 'accessToken': 'must-not-cross-boundary'};
+      final reordered = flowJson();
+      (reordered['sources'] as List).setAll(
+        0,
+        (reordered['sources'] as List).reversed,
+      );
+      final wrongStage = flowJson();
+      (wrongStage['stages'] as List)[2] = {
+        ...(wrongStage['stages'] as List)[2] as Map<String, Object>,
+        'provider': 'sonarr',
+      };
+      final contradictory = {...flowJson(), 'state': 'downloading'};
+      for (final value in [secret, reordered, wrongStage, contradictory]) {
+        expect(
+          () => ServerMediaFlowStatus.fromJson(value),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+
+  test('series coverage remains bounded and internally coherent', () {
+    final flow = flowJson();
+    flow
+      ..['mediaKey'] = 'series:tvdb:81189'
+      ..['state'] = 'partial'
+      ..['stages'] = [
+        (flow['stages'] as List)[0],
+        (flow['stages'] as List)[1],
+        {
+          ...(flow['stages'] as List)[2] as Map<String, Object>,
+          'provider': 'sonarr',
+        },
+        {
+          ...(flow['stages'] as List)[3] as Map<String, Object>,
+          'state': 'partial',
+        },
+      ]
+      ..['seasons'] = const [
+        {
+          'seasonNumber': 1,
+          'knownEpisodes': [1, 2],
+          'downloadedEpisodes': [1, 2],
+          'importedEpisodes': [1],
+          'playableEpisodes': [1],
+          'missingEpisodes': [2],
+          'requested': true,
+          'requestable': false,
+          'incomplete': true,
+          'missingSeason': false,
+          'partialImport': true,
+        },
+      ];
+
+    final value = ServerMediaFlowStatus.fromJson(flow);
+    expect(value.state, 'partial');
+    expect(value.seasons.single.missingEpisodes, [2]);
+
+    final forged = flowJson()
+      ..['mediaKey'] = 'series:tvdb:81189'
+      ..['state'] = 'partial'
+      ..['stages'] = flow['stages']
+      ..['seasons'] = [
+        {
+          ...(flow['seasons'] as List).single as Map<String, Object>,
+          'missingEpisodes': <int>[],
+        },
+      ];
+    expect(() => ServerMediaFlowStatus.fromJson(forged), throwsFormatException);
+  });
+
   test('authority identity drift prevents the flow read', () async {
     var calls = 0;
     final api = LarenorServerApi(
@@ -208,9 +286,10 @@ void main() {
     addTearDown(api.close);
 
     await expectLater(
-      ServerMediaFlowApi(api, 'synthetic-access').read(
-        'https://jellyfin.invalid/item?token=secret',
-      ),
+      ServerMediaFlowApi(
+        api,
+        'synthetic-access',
+      ).read('https://jellyfin.invalid/item?token=secret'),
       throwsA(isA<LarenorServerException>()),
     );
     expect(calls, 0);
