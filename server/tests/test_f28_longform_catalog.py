@@ -285,3 +285,25 @@ def test_invalid_longform_result_is_never_published(server):
     assert response.status_code == 503
     assert response.json()['error']['code'] == 'music_longform_worker_unavailable'
     assert 'private.example' not in response.text
+
+
+def test_core_rejects_unbound_or_duplicate_typed_worker_items(server):
+    pair, setup, readiness, worker, manager = ready_manager(server)
+    provider = manager['providers'][0]['providerInstanceId']
+    valid = result(provider).items[0]
+    invalid_results = (
+        result('unbound-provider'),
+        MusicLongformWorkerResult(items=[valid, valid]),
+    )
+
+    for invalid in invalid_results:
+        worker.read_music_longform = (
+            lambda _action, *, deadline, gate, value=invalid: value)
+        response = server[1].post(
+            MANAGER + '/catalog/in-progress', headers=auth(pair),
+            json=longform_body(setup, readiness, manager))
+
+        assert response.status_code == 503
+        assert response.json()['error']['code'] == (
+            'music_longform_worker_unavailable')
+        assert 'Book One' not in response.text
