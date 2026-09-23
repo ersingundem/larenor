@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
+import '../../dashboard/providers/dashboard_providers.dart';
 import 'managed_tablet_credential_store.dart';
 import 'managed_tablet_mqtt_settings.dart';
 import 'managed_tablet_mqtt_runtime.dart';
@@ -69,6 +70,21 @@ final managedTabletCoreAuthorityProvider = Provider<ManagedTabletCoreAuthority>(
   (_) => CoreManagedTabletAuthority(),
 );
 
+final managedTabletLocalActionsProvider = Provider<ManagedTabletLocalActions>(
+  (ref) => CallbackManagedTabletLocalActions(
+    onRefreshDashboard: (isCurrent) async {
+      if (!ref.mounted || !isCurrent()) {
+        throw StateError('managed_tablet_action_retired');
+      }
+      ref.invalidate(dashboardLayoutProvider);
+      await ref.read(dashboardLayoutProvider.future);
+      if (!ref.mounted || !isCurrent()) {
+        throw StateError('managed_tablet_action_retired');
+      }
+    },
+  ),
+);
+
 final managedTabletRuntimeOwnerProvider =
     Provider.autoDispose<ManagedTabletRuntimeOwner>((ref) {
       final owner = ManagedTabletRuntimeOwner(
@@ -78,6 +94,7 @@ final managedTabletRuntimeOwnerProvider =
           // The source is still gated by verified enrollment, foreground and
           // enabled TLS settings in the owner before a native lease is asked.
           config: const NativeManagedTabletSourceConfig(enabled: true),
+          actions: ref.watch(managedTabletLocalActionsProvider),
         ),
         broker: MqttClientLocalBroker(),
         settings: ref.watch(managedTabletDefaultMqttSettingsProvider),
