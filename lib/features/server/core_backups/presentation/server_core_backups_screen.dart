@@ -13,6 +13,7 @@ import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/hub/presentation/media_session_state.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
+import '../../data/larenor_server_api.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_core_backups_controller.dart';
 import '../domain/server_core_backup_models.dart';
@@ -33,6 +34,7 @@ class _ServerCoreBackupsScreenState
     extends MediaSessionState<ServerCoreBackupsScreen> {
   late final ServerAccountController _account;
   late final ServerCoreBackupsController _backups;
+  late final ServerCoreBackupFileAccess _files;
   late final int _accountEpoch;
   final _passphrase = TextEditingController();
   final _confirmation = TextEditingController();
@@ -40,6 +42,8 @@ class _ServerCoreBackupsScreenState
   bool _visible = true, _expired = false, _loaded = false, _pinReady = false;
   bool _wasCurrent = true;
   bool _invalidPassphrase = false;
+  bool _choosingDestination = false;
+  LarenorRequestSecret? _pendingPassphrase;
   _BackupNotice? _notice;
 
   bool get _active =>
@@ -59,6 +63,7 @@ class _ServerCoreBackupsScreenState
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
     _backups = ServerCoreBackupsController(_account);
+    _files = ref.read(serverCoreBackupFileAccessProvider).scoped();
     _account.addListener(_accountChanged);
   }
 
@@ -91,16 +96,27 @@ class _ServerCoreBackupsScreenState
   }
 
   @override
-  void clearPendingInteraction() => _expire();
+  void clearPendingInteraction() {
+    if (_choosingDestination &&
+        !foreground &&
+        interactionActive &&
+        !sessionExpired &&
+        _account.isCurrent(_accountEpoch)) {
+      _clearPassphrase();
+      return;
+    }
+    _expire();
+  }
 
   void _expire() {
     if (!mounted || _expired) return;
-    final wasBusy = _backups.busy || _backups.actionBusy;
     _expired = true;
     sessionGeneration++;
     _clearPassphrase();
+    _pendingPassphrase?.dispose();
+    _pendingPassphrase = null;
+    if (_files.hasPendingOperation) unawaited(_files.cancelPending());
     _backups.invalidate();
-    if (wasBusy && !_account.working) unawaited(_account.cancelPending());
   }
 
   void _clearPassphrase() {
@@ -114,6 +130,9 @@ class _ServerCoreBackupsScreenState
     _account.removeListener(_accountChanged);
     _ticker?.removeListener(_visibilityChanged);
     _clearPassphrase();
+    _pendingPassphrase?.dispose();
+    _pendingPassphrase = null;
+    if (_files.hasPendingOperation) unawaited(_files.cancelPending());
     _passphrase.dispose();
     _confirmation.dispose();
     _backups.dispose();
@@ -136,36 +155,58 @@ class _ServerCoreBackupsScreenState
       utf8.encode(value).length <= 512 &&
       !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
 
+  LarenorRequestSecret? _takePassphrase() {
+    final value = _passphrase.text;
+    if (!_validPassphrase(value) || value != _confirmation.text) return null;
+    return LarenorRequestSecret.coreBackup(value);
+  }
+
   Future<void> _export() async {
     if (!_active || _backups.busy || _backups.actionBusy) return;
-    final passphrase = _passphrase.text;
-    if (!_validPassphrase(passphrase) || passphrase != _confirmation.text) {
+    final passphrase = _takePassphrase();
+    if (passphrase == null) {
       setState(() {
         _invalidPassphrase = true;
         _notice = null;
       });
       return;
     }
-    final current = _capture();
     setState(() {
       _invalidPassphrase = false;
       _notice = null;
     });
-    final exported = await _backups.export(passphrase, current: current);
     _clearPassphrase();
-    if (exported == null || !current()) return;
+    _pendingPassphrase = passphrase;
+    _choosingDestination = true;
     try {
-      final destination = await ref
-          .read(serverCoreBackupFileAccessProvider)
-          .save(exported.bytes, exported.filename);
-      if (!current()) return;
+      final destination = await _files.open(CoreBackupExport.filename);
+      _choosingDestination = false;
+      if (!identical(_pendingPassphrase, passphrase) ||
+          destination == null ||
+          !_active) {
+        passphrase.dispose();
+        await destination?.cancel();
+        if (mounted && _active && destination == null) {
+          setState(() => _notice = _BackupNotice.cancelled);
+        }
+        return;
+      }
+      _pendingPassphrase = null;
+      final current = _capture();
+      final exported = await _backups.export(
+        passphrase,
+        destination,
+        current: current,
+      );
+      if (exported == null || !current()) return;
       setState(() {
-        _notice = destination == null
-            ? _BackupNotice.cancelled
-            : _BackupNotice.saved;
+        _notice = _BackupNotice.saved;
       });
     } catch (_) {
-      if (!current()) return;
+      passphrase.dispose();
+      _pendingPassphrase = null;
+      _choosingDestination = false;
+      if (!mounted || !_active) return;
       setState(() => _notice = _BackupNotice.failed);
     }
   }

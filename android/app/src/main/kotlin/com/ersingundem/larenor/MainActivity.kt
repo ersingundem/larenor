@@ -20,6 +20,7 @@ import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
 import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
+import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -38,6 +39,7 @@ class MainActivity : FlutterActivity() {
     private var gameStreamNative: GameStreamNativeBridge? = null
     private var webPanelRenderer: WebPanelRendererBridge? = null
     private var managedTabletSource: ManagedTabletSourceBridge? = null
+    private var coreBackupDestination: CoreBackupDestinationBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -58,6 +60,7 @@ class MainActivity : FlutterActivity() {
             flutterEngine,
         )
         managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        coreBackupDestination = CoreBackupDestinationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -116,6 +119,11 @@ class MainActivity : FlutterActivity() {
         launcherShortcuts?.handleIntent(intent)
         localNotifications?.handleIntent(intent)
     }
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (coreBackupDestination?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
+    }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -127,6 +135,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        coreBackupDestination?.dispose()
+        coreBackupDestination = null
         webPanelRenderer?.dispose()
         webPanelRenderer = null
         managedTabletSource?.dispose()

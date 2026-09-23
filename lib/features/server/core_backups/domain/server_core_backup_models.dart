@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import '../../domain/server_models.dart';
 
 enum CoreBackupResourceKind {
@@ -419,16 +417,20 @@ final class CoreBackupCompatibility {
 }
 
 final class CoreBackupExport {
-  CoreBackupExport(Uint8List bytes)
-    : bytes = Uint8List.fromList(bytes),
-      filename = 'larenor-core-backup.larenor-core';
+  const CoreBackupExport({
+    required this.destination,
+    required this.byteLength,
+    required this.sha256,
+  });
 
   static const maxBytes = 168 * 1024 * 1024;
-  final Uint8List bytes;
-  final String filename;
+  static const filename = 'larenor-core-backup.larenor-core';
+  final Uri destination;
+  final int byteLength;
+  final String sha256;
 
   @override
-  String toString() => 'CoreBackupExport(${bytes.length} bytes)';
+  String toString() => 'CoreBackupExport($byteLength bytes)';
 }
 
 final class CoreBackupPlan {

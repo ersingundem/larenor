@@ -2,11 +2,82 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../shared/network/server_bound_client.dart';
 import '../../backup/data/backup_snapshot.dart';
 import '../domain/server_models.dart';
+
+abstract interface class LarenorBinaryDestination {
+  Future<void> add(Uint8List bytes);
+  Future<Uri> commit({required int byteLength, required String sha256});
+  Future<void> cancel();
+}
+
+final class LarenorRequestSecret {
+  LarenorRequestSecret._(this._bytes);
+
+  factory LarenorRequestSecret.coreBackup(String value) {
+    final bytes = utf8.encode(value);
+    if (value.length < 16 ||
+        value.length > 128 ||
+        bytes.length > 512 ||
+        value.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const LarenorServerException('invalid_request');
+    }
+    return LarenorRequestSecret._(Uint8List.fromList(bytes));
+  }
+
+  Uint8List _bytes;
+  bool get disposed => _bytes.isEmpty;
+
+  Uint8List takeJsonBody(String key) {
+    if (_bytes.isEmpty) throw const LarenorServerException('cancelled');
+    final value = utf8.decode(_bytes, allowMalformed: false);
+    final body = Uint8List.fromList(utf8.encode(jsonEncode({key: value})));
+    dispose();
+    return body;
+  }
+
+  void dispose() {
+    _bytes.fillRange(0, _bytes.length, 0);
+    _bytes = Uint8List(0);
+  }
+
+  @override
+  String toString() => 'LarenorRequestSecret';
+}
+
+final class LarenorTransferCancellation {
+  final Completer<void> _cancelled = Completer<void>();
+  Future<void> get future => _cancelled.future;
+  bool get isCancelled => _cancelled.isCompleted;
+  void cancel() {
+    if (!_cancelled.isCompleted) _cancelled.complete();
+  }
+}
+
+final class LarenorBinaryReceipt {
+  const LarenorBinaryReceipt({
+    required this.destination,
+    required this.byteLength,
+    required this.sha256,
+  });
+  final Uri destination;
+  final int byteLength;
+  final String sha256;
+  @override
+  String toString() => 'LarenorBinaryReceipt($byteLength)';
+}
+
+final class _DigestCapture implements Sink<Digest> {
+  Digest? value;
+  @override
+  void add(Digest data) => value = data;
+  @override
+  void close() {}
+}
 
 class LarenorServerApi {
   LarenorServerApi({
@@ -126,12 +197,13 @@ class LarenorServerApi {
   ServerSession _pair(Map<String, dynamic>? json) =>
       ServerSession.fromResponse(endpoint, serverObject(json), now: _clock());
 
-  /// Downloads one encrypted Core backup from a fixed, authenticated endpoint.
-  /// The passphrase exists only in the POST body and the response is bounded
-  /// before it can be handed to the platform file picker.
-  Future<Uint8List> exportCoreBackup({
+  /// Streams one encrypted Core backup to an OS-owned destination without a
+  /// complete ciphertext buffer in Dart or the platform channel.
+  Future<LarenorBinaryReceipt> exportCoreBackup({
     required String token,
-    required String passphrase,
+    required LarenorRequestSecret passphrase,
+    required LarenorBinaryDestination destination,
+    required LarenorTransferCancellation cancellation,
   }) async {
     const maxBytes = 168 * 1024 * 1024;
     const mediaType = 'application/vnd.larenor.core-backup';
@@ -160,20 +232,43 @@ class LarenorServerApi {
       0,
       1,
     ];
-    final passphraseBytes = utf8.encode(passphrase);
-    if (_closed) throw const LarenorServerException('cancelled');
-    if (passphrase.length < 16 ||
-        passphrase.length > 128 ||
-        passphraseBytes.length > 512 ||
-        passphrase.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
-      throw const LarenorServerException('invalid_request');
+    if (_closed || cancellation.isCancelled) {
+      passphrase.dispose();
+      await destination.cancel();
+      throw const LarenorServerException('cancelled');
     }
     final abort = Completer<void>();
-    _pending.add(abort);
-    final timer = Timer(timeout, () {
+    var overallTimedOut = false;
+    void abortRequest() {
       if (!abort.isCompleted) abort.complete();
+    }
+
+    Future<T> boundedPlatform<T>(Future<T> operation) => Future.any<T>([
+      operation,
+      cancellation.future.then<T>(
+        (_) => throw const LarenorServerException('cancelled'),
+      ),
+    ]).timeout(timeout);
+    Future<bool> moveNext(StreamIterator<List<int>> stream) =>
+        Future.any<bool>([
+          stream.moveNext(),
+          abort.future.then(
+            (_) => throw LarenorServerException(
+              _closed || cancellation.isCancelled ? 'cancelled' : 'timeout',
+            ),
+          ),
+        ]).timeout(timeout);
+    unawaited(cancellation.future.then((_) => abortRequest()));
+    _pending.add(abort);
+    final timer = Timer(const Duration(minutes: 5), () {
+      overallTimedOut = true;
+      abortRequest();
     });
+    StreamIterator<List<int>>? iterator;
+    var streamDone = false;
+    var committed = false;
     try {
+      final body = passphrase.takeJsonBody('passphrase');
       final request =
           http.AbortableRequest(
               'POST',
@@ -183,63 +278,140 @@ class LarenorServerApi {
             ..headers['accept'] = mediaType
             ..headers['authorization'] = 'Bearer $token'
             ..headers['content-type'] = 'application/json'
-            ..bodyBytes = utf8.encode(jsonEncode({'passphrase': passphrase}));
-      final response = await _client.send(request).timeout(timeout);
+            ..bodyBytes = body;
+      late http.StreamedResponse response;
+      try {
+        response = await Future.any<http.StreamedResponse>([
+          _client.send(request),
+          abort.future.then(
+            (_) => throw LarenorServerException(
+              _closed || cancellation.isCancelled ? 'cancelled' : 'timeout',
+            ),
+          ),
+        ]).timeout(timeout);
+      } finally {
+        // Request.bodyBytes may be a distinct copy. Clear both mutable buffers
+        // as soon as request headers arrive or send terminates.
+        body.fillRange(0, body.length, 0);
+        final requestBody = request.bodyBytes;
+        requestBody.fillRange(0, requestBody.length, 0);
+      }
+      iterator = StreamIterator(response.stream);
       final success = response.statusCode >= 200 && response.statusCode < 300;
       final limit = success ? maxBytes : 8192;
       if ((response.contentLength ?? 0) > limit) {
-        unawaited(
-          response.stream.listen((_) {}).cancel().catchError((Object _) {}),
-        );
         throw const LarenorServerException('invalid_response');
       }
-      final builder = BytesBuilder(copy: false);
-      await for (final chunk in response.stream) {
-        if (builder.length + chunk.length > limit) {
-          throw const LarenorServerException('invalid_response');
-        }
-        builder.add(chunk);
-      }
-      final bytes = builder.takeBytes();
       if (!success) {
-        throw LarenorServerException(_errorCode(response.statusCode, bytes));
+        final builder = BytesBuilder(copy: false);
+        while (await moveNext(iterator)) {
+          final chunk = iterator.current;
+          if (builder.length + chunk.length > limit) {
+            throw const LarenorServerException('invalid_response');
+          }
+          builder.add(chunk);
+        }
+        streamDone = true;
+        throw LarenorServerException(
+          _errorCode(response.statusCode, builder.takeBytes()),
+        );
       }
       if (response.statusCode != 200 ||
           response.headers['content-type']?.split(';').first.trim() !=
               mediaType ||
           response.headers['content-disposition'] != disposition ||
           response.headers['cache-control'] != 'no-store' ||
-          response.headers['x-content-type-options'] != 'nosniff' ||
-          bytes.length < magic.length + 16 + 12 + 16 ||
-          bytes.length > maxBytes) {
+          response.headers['x-content-type-options'] != 'nosniff') {
         throw const LarenorServerException('invalid_response');
       }
-      for (var index = 0; index < magic.length; index++) {
-        if (bytes[index] != magic[index]) {
+      final digestOutput = _DigestCapture();
+      final digestInput = sha256.startChunkedConversion(digestOutput);
+      var received = 0;
+      while (await moveNext(iterator)) {
+        if (_closed || abort.isCompleted || cancellation.isCancelled) {
+          throw const LarenorServerException('cancelled');
+        }
+        final chunk = iterator.current;
+        if (received + chunk.length > maxBytes) {
           throw const LarenorServerException('invalid_response');
         }
+        for (
+          var offset = 0;
+          offset < chunk.length && received + offset < magic.length;
+          offset++
+        ) {
+          if (chunk[offset] != magic[received + offset]) {
+            throw const LarenorServerException('invalid_response');
+          }
+        }
+        digestInput.add(chunk);
+        for (var offset = 0; offset < chunk.length; offset += 64 * 1024) {
+          final end = (offset + 64 * 1024).clamp(0, chunk.length);
+          final part = chunk is Uint8List
+              ? Uint8List.sublistView(chunk, offset, end)
+              : Uint8List.fromList(chunk.sublist(offset, end));
+          await boundedPlatform(destination.add(part));
+          if (_closed || abort.isCompleted || cancellation.isCancelled) {
+            throw const LarenorServerException('cancelled');
+          }
+        }
+        received += chunk.length;
       }
-      if (_closed || abort.isCompleted) {
+      streamDone = true;
+      digestInput.close();
+      if (received < magic.length + 16 + 12 + 16 ||
+          received > maxBytes ||
+          (response.contentLength != null &&
+              response.contentLength != received)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      if (_closed || abort.isCompleted || cancellation.isCancelled) {
         throw const LarenorServerException('cancelled');
       }
-      return bytes;
+      final digest = digestOutput.value!.toString();
+      final uri = await boundedPlatform(
+        destination.commit(byteLength: received, sha256: digest),
+      );
+      committed = true;
+      return LarenorBinaryReceipt(
+        destination: uri,
+        byteLength: received,
+        sha256: digest,
+      );
     } on LarenorServerException {
       rethrow;
     } on TimeoutException {
-      throw const LarenorServerException('timeout');
+      throw LarenorServerException(
+        _closed || cancellation.isCancelled ? 'cancelled' : 'timeout',
+      );
     } on http.RequestAbortedException {
-      throw LarenorServerException(_closed ? 'cancelled' : 'timeout');
+      throw LarenorServerException(
+        _closed || cancellation.isCancelled ? 'cancelled' : 'timeout',
+      );
     } catch (_) {
       throw LarenorServerException(
-        _closed
+        _closed || cancellation.isCancelled
             ? 'cancelled'
-            : abort.isCompleted
+            : overallTimedOut || abort.isCompleted
             ? 'timeout'
             : 'connection_failed',
       );
     } finally {
+      passphrase.dispose();
+      Future<void> terminal(Future<void> operation) async {
+        try {
+          await operation.timeout(timeout);
+        } catch (_) {
+          // Terminal cleanup cannot replace the bounded transport result.
+        }
+      }
+
+      await Future.wait([
+        if (!streamDone && iterator != null) terminal(iterator.cancel()),
+        if (!committed) terminal(destination.cancel()),
+      ]);
       timer.cancel();
-      if (!abort.isCompleted) abort.complete();
+      abortRequest();
       _pending.remove(abort);
     }
   }

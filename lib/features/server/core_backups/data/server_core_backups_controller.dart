@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
+import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_core_backup_models.dart';
 import 'server_core_backups_api.dart';
@@ -21,6 +22,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   String? actionFailure;
   CoreBackupPlan? plan;
   CoreBackupCompatibility? compatibility;
+  LarenorTransferCancellation? _exportCancellation;
 
   bool get _authorized =>
       account.initialized &&
@@ -35,6 +37,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   }
 
   void invalidate() {
+    _exportCancellation?.cancel();
+    _exportCancellation = null;
     _generation++;
     busy = false;
     actionBusy = false;
@@ -87,13 +91,18 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   }
 
   Future<CoreBackupExport?> export(
-    String passphrase, {
+    LarenorRequestSecret passphrase,
+    LarenorBinaryDestination destination, {
     required bool Function() current,
   }) async {
     if (_disposed || busy || actionBusy || !_authorized || !current()) {
+      passphrase.dispose();
+      await destination.cancel();
       return null;
     }
     final epoch = _generation, accountEpoch = account.generation;
+    final cancellation = LarenorTransferCancellation();
+    _exportCancellation = cancellation;
     CoreBackupExport? exported;
     actionBusy = true;
     actionFailure = null;
@@ -107,7 +116,7 @@ final class ServerCoreBackupsController extends ChangeNotifier {
         final value = await ServerCoreBackupsApi(
           api,
           session.accessToken,
-        ).export(passphrase);
+        ).export(passphrase, destination, cancellation);
         if (_current(epoch, accountEpoch, current)) exported = value;
       });
     } catch (error) {
@@ -117,6 +126,11 @@ final class ServerCoreBackupsController extends ChangeNotifier {
             : 'connection_failed';
       }
     } finally {
+      passphrase.dispose();
+      if (exported == null) await destination.cancel();
+      if (identical(_exportCancellation, cancellation)) {
+        _exportCancellation = null;
+      }
       if (!_disposed && epoch == _generation) {
         actionBusy = false;
         _emit();
@@ -166,6 +180,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _exportCancellation?.cancel();
+    _exportCancellation = null;
     _disposed = true;
     _generation++;
     account.removeListener(_accountChanged);

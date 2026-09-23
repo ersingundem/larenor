@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/core_backups/presentation/server_core_backups_screen.dart';
 import 'package:larenor/features/server/core_backups/presentation/server_core_backup_file_access.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,13 +19,40 @@ final class FixtureCoreBackupFiles extends ServerCoreBackupFileAccess {
   int saves = 0;
   Uint8List? bytes;
   String? filename;
+  int cancels = 0;
+  bool active = false;
 
   @override
-  Future<Uri?> save(Uint8List bytes, String filename) async {
-    saves++;
-    this.bytes = Uint8List.fromList(bytes);
+  ServerCoreBackupFileAccess scoped() => this;
+
+  @override
+  bool get hasPendingOperation => active;
+
+  @override
+  Future<LarenorBinaryDestination?> open(String filename) async {
+    active = true;
     this.filename = filename;
-    return Uri.parse('content://larenor-test/$filename');
+    return _FixtureDestination(this);
+  }
+
+  @override
+  Future<void> cancelPending() async {
+    active = false;
+    cancels++;
+  }
+}
+
+final class _FixtureDestination extends BackupDestinationFixture {
+  _FixtureDestination(this.owner);
+  final FixtureCoreBackupFiles owner;
+
+  @override
+  Future<Uri> commit({required int byteLength, required String sha256}) async {
+    final uri = await super.commit(byteLength: byteLength, sha256: sha256);
+    owner.saves++;
+    owner.bytes = bytes;
+    owner.active = false;
+    return uri;
   }
 }
 
@@ -174,8 +202,17 @@ void main() {
 
       await reveal(tester, find.byKey(const ValueKey('server-backups-export')));
       await tester.tap(find.byKey(const ValueKey('server-backups-export')));
-      await tester.pumpAndSettle();
-
+      for (var attempt = 0; attempt < 20 && files.saves == 0; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      for (
+        var attempt = 0;
+        attempt < 20 &&
+            find.text('Encrypted Core backup saved').evaluate().isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
       expect(files.saves, 1);
       expect(files.bytes, fixture.bundle);
       expect(files.filename, 'larenor-core-backup.larenor-core');
@@ -272,7 +309,9 @@ void main() {
         },
       ),
     );
-    await tester.pumpAndSettle();
+    for (var attempt = 0; attempt < 20; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
     expect(files.saves, 0);
   });
 }
