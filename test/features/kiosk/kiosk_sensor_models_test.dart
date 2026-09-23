@@ -44,6 +44,7 @@ final class _Api implements KioskSensorApi {
   Object? stopValue = {'version': 1, 'sessionId': _session, 'stopped': true};
   Completer<KioskSensorStopReceipt>? pendingStop;
   final pendingReads = <Completer<KioskSensorSnapshot>>[];
+  int reads = 0;
   int stops = 0;
 
   @override
@@ -51,13 +52,15 @@ final class _Api implements KioskSensorApi {
       KioskSensorSnapshot.fromChannel(startValue);
 
   @override
-  Future<KioskSensorSnapshot> read(String sessionId) async =>
-      pendingReads.isNotEmpty
-      ? pendingReads.removeAt(0).future
-      : KioskSensorSnapshot.fromChannel(
-          readValue,
-          expectedSessionId: sessionId,
-        );
+  Future<KioskSensorSnapshot> read(String sessionId) async {
+    reads++;
+    return pendingReads.isNotEmpty
+        ? pendingReads.removeAt(0).future
+        : KioskSensorSnapshot.fromChannel(
+            readValue,
+            expectedSessionId: sessionId,
+          );
+  }
 
   @override
   Future<KioskSensorStopReceipt> stop(String sessionId) async {
@@ -237,6 +240,74 @@ void main() {
     expect(controller.snapshot?.sequence, 2);
   });
 
+  test('one sensor session permits only one native read at a time', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    final gate = Completer<KioskSensorSnapshot>();
+    api.pendingReads.add(gate);
+
+    final first = controller.refresh();
+    await expectLater(
+      controller.refresh(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.busy,
+        ),
+      ),
+    );
+    expect(api.reads, 1);
+    gate.complete(KioskSensorSnapshot.fromChannel(_sample()));
+    await first;
+  });
+
+  for (final unsafe in [
+    _sample(sequence: 0, batteryPercent: 3),
+    _sample(sequence: 0, thermalStatus: 'critical'),
+  ]) {
+    test('critical power state retires a new native sensor session', () async {
+      final api = _Api()..startValue = unsafe;
+      final controller = KioskSensorController(api);
+
+      await expectLater(
+        controller.start(),
+        throwsA(
+          isA<KioskSensorException>().having(
+            (error) => error.failure,
+            'failure',
+            KioskSensorFailure.powerLimited,
+          ),
+        ),
+      );
+      expect(controller.active, isFalse);
+      expect(api.stops, 1);
+    });
+  }
+
+  test('critical power drift stops the exact active session once', () async {
+    final api = _Api();
+    final controller = KioskSensorController(api);
+    await controller.start();
+    api.readValue = _sample(sequence: 1, thermalStatus: 'emergency');
+
+    await expectLater(
+      controller.refresh(),
+      throwsA(
+        isA<KioskSensorException>().having(
+          (error) => error.failure,
+          'failure',
+          KioskSensorFailure.powerLimited,
+        ),
+      ),
+    );
+    expect(controller.active, isFalse);
+    expect(api.stops, 1);
+    await controller.retire();
+    expect(api.stops, 1);
+  });
+
   test('approach reading cannot drift without a newer sequence', () async {
     final api = _Api()
       ..startValue = _sample(
@@ -322,6 +393,50 @@ void main() {
       expect(calls.first.arguments, {'intervalMillis': 1000});
       expect(calls[1].arguments, {'sessionId': _session});
       expect(calls[2].arguments, {'sessionId': _session});
+    },
+  );
+
+  test(
+    'Android channel rejects unbounded arguments before native I/O',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('com.ersingundem.larenor/kiosk'),
+            (call) async {
+              calls.add(call);
+              return null;
+            },
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('com.ersingundem.larenor/kiosk'),
+              null,
+            ),
+      );
+      final api = AndroidKioskSensorApi(isAndroid: true);
+
+      for (final interval in [999, 10001]) {
+        await expectLater(
+          api.start(intervalMillis: interval),
+          throwsA(isA<KioskSensorException>()),
+        );
+      }
+      for (final sessionId in [
+        'foreign',
+        '00000000-0000-0000-0000-00000000000g',
+      ]) {
+        await expectLater(
+          api.read(sessionId),
+          throwsA(isA<KioskSensorException>()),
+        );
+        await expectLater(
+          api.stop(sessionId),
+          throwsA(isA<KioskSensorException>()),
+        );
+      }
+      expect(calls, isEmpty);
     },
   );
 }
