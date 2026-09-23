@@ -1,7 +1,7 @@
-# Larenor — güncel teslim sırası (23 Eylül 2026)
+# Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod kanıtı `origin/main` **`a9bf847b`** kaynağına kadar
-S08.8 ve S09.1 teslimlerini kapsar. Canlı kabul sayacı
+Bu sayfanın birleşmiş kod kanıtı `origin/main` **`8f2ce21b`** kaynağına kadar
+S08.8, S09.1 ve K03 teslimlerini kapsar. Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
 üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **26/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
@@ -41,30 +41,34 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   güncel yetki doğrulamalı Client önbelleklerini `c8088367` ile birleştirdi.
   #454 yönetilen Jellyfin worker'ını, işlem öncesi/sonrası kesinliği ve stream
   temizliğini 41 exact CI kontrolünden sonra `a9bf847b` ile main'e aldı.
+- PR #456 güncel teslim kanıtını `7d9bee7c` ile sabitledi. PR #457–#462
+  current-head CI ve API 35 emülatör kapısından sonra main'e girdi: K03 native
+  SAF/renderer yaşam döngüsü `8fdfc36e`, exact sürümlü medya cache sözleşmesi
+  `31b78659`, merkezi medya ve müzik ürün E2E'leri `ff8ebf10`/`9286cebf`,
+  izole capture lease'i `9ccd6fe4`, açık Jellyfin bağlantı geçişi `8f2ce21b`.
+  Altı kaynak/squash stable patch-id eşitliği, main ancestry'si ve branch
+  temizliği ayrı doğrulandı; açık PR kalmadı.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S08.8:** Core playback, eski tercih geçişi ve katalog/akış önbelleği yaşam
-   döngüsü ile yönetilen Jellyfin worker'ı main'de. Yazılım kapanışı için
-   doğrudan Jellyfin/Music Assistant adres-token
-   onboarding gereksiniminin ve doğrudan medya istemcilerinin devreden
-   çıkarılması; eksiksiz
-   katalog→arama→sağlayıcı→oynatıcı→kuyruk; kalıcı kayıt/önbellek
-   tuple-kaynak-sürüm-TTL-kota, açık eski eşleme onayı ve yetki kaybı/başka Core
-   E2E kanıtı kalır. Gerçek HomePod/Cast/Apple TV ayrı `MANUAL.MEDIA` kapısıdır.
-   S08.11 ve B3 kapanışı S08.8'e bağlıdır.
-2. **S09.1:** Kalıcı kurulum otoritesi ve Docker pause/adaptör main'de. DB,
-   ayrı anahtar, yapılandırma, bileşen veri/sürümleri, tutarlı yedek,
-   çalışan işlemlerin kesilme sınırı/şema/sürüm ve ortak yazara dayanıklı izole
-   salt okunur veya COW yedek alma aynı sözleşmede tamamlanmalı.
+1. **S08.8:** Core playback/worker, exact cache sözleşmesi, açık eski Jellyfin
+   geçişi ve merkezi medya ile Music Assistant ürün E2E'leri main'de. Yazılım
+   kapanışı için aktif direct medya UI/runtime tüketicileri kaldırılmalı ve
+   merkezi browse/recent/resume eşliği tamamlanmalı. Gerçek HomePod/Cast/Apple
+   TV ayrı `MANUAL.MEDIA` kapısıdır. S08.11 ve B3 kapanışı S08.8'e bağlıdır.
+2. **S09.1:** Kalıcı kurulum otoritesi, Docker pause/adaptör ve generation-bound
+   read-only/COW capture lease main'de. Privileged Linux capture engine,
+   amd64/arm64 native kabulü ve DB/ayrı anahtar/yapılandırma/bileşen
+   veri+sürümlerinin aynı tutarlı generation içinde arşiv kanıtı kalır.
 3. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
    yedeklerde sıfır kısmi kabul ile boş izole ortamda anahtar/veri/bağlantı geri
    okuma, yeniden başlatma ve kurtarma zincirini; S09.3 amd64/arm64 temiz
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
-4. **Kiosk:** WebPanel ileri işlemleri, ortam içerik listeleri, eşleştirilmiş
-   remote/MQTT, sensör ve çevre birimi yaşam döngüsü kendi kabul matrislerine
-   göre kapanmalı. DPC/OEM, force-stop ve gerçek çevre birimi kanıtları manuel.
+4. **Kiosk:** K03 native SAF indirmesi, external action ve renderer ölüm
+   yaşam döngüleri main'de. Allowed subresource cross-origin redirect ve
+   WebSocket/worker egress'i için owned, bounded network transport açık;
+   fiziksel Android/DeX/OEM, DPC, force-stop ve çevre birimi kanıtları manuel.
 5. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
@@ -77,9 +81,9 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S08.8 | Doğrudan adres-token onboarding gereksinimini/istemcileri kaldırma, katalog→arama→sağlayıcı→oynatıcı→kuyruk ve kalıcı kayıt/önbellek kanıtını kapat. | Tuple-kaynak-sürüm-TTL-kota ve yetki kaybı/başka Core/yeniden başlatma E2E; gerçek alıcılar ayrı MANUAL.MEDIA |
-| B — S09.1 | Kalıcı otorite + Docker pause temelinden izole salt okunur/COW yedek alma zincirini sürdür. | DB/anahtar/yapılandırma/bileşen veri+sürümü, işlem kesilme sınırı/şema/sürüm ve yedek izolasyonu |
-| C — K03.remaining | WebPanel upload/download, pop-up/intent ve renderer kurtarma sınırlarını tamamla. | Origin/redirect/iframe, auth/sertifika, sır sızıntısı ve Android CI |
+| A — S08.8 | Merkezi browse/recent/resume eşliğini tamamla; dashboard, hub, arama, casting, hedef ve ayar yüzeylerindeki aktif direct Jellyfin/MA runtime tüketicilerini devreden çıkar. | Client ayrı adres-token istemez; Core route değişimi/logout/restart E2E eski veriyi göstermez; gerçek alıcılar ayrı MANUAL.MEDIA |
+| B — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
+| C — K03.remaining | WebPanel için same-origin redirect takipli owned/bounded transport kur; WebSocket ve worker egress'ini fail-closed sınırla. | Subresource redirect/iframe adversarial Android testleri, mevcut origin ve sır sızıntısı kapıları; fiziksel Android/DeX/OEM ayrı manuel kapıda kalır |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük

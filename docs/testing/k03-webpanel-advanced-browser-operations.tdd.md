@@ -95,5 +95,5 @@ types. The popup and credential hardening follow-up first failed because the
 plugin defaults remained permissive and security callbacks still reached its
 delegate. GREEN requires the 92-test WebPanel suite, the focused Android bridge
 Robolectric suite, Flutter analysis, formatting and `git diff --check`.
-K03.remaining and progress stay at **25/125** and **0/63** until the two
+K03.remaining and progress stay at **26/125** and **0/63** until the two
 software platform gaps and remaining manual gates are accepted.
