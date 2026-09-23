@@ -50,6 +50,29 @@ final class ManagedTabletRuntimeOwner {
     return _schedule(generation);
   }
 
+  Future<void> enroll(
+    ManagedTabletBinding binding,
+    ManagedTabletEnrollment enrollment,
+  ) async {
+    if (_disposed ||
+        !_foreground ||
+        _binding != binding ||
+        enrollment.binding != binding) {
+      throw StateError('managed_tablet_enrollment_denied');
+    }
+    final generation = ++_generation;
+    await _schedule(generation, start: false);
+    if (!_current(generation) || !_foreground || _binding != binding) {
+      throw StateError('managed_tablet_enrollment_denied');
+    }
+    await store.write(enrollment);
+    if (!_current(generation) || !_foreground || _binding != binding) {
+      await store.clearIfCurrent(binding, enrollment.pairingId);
+      throw StateError('managed_tablet_enrollment_retired');
+    }
+    await _schedule(++_generation);
+  }
+
   Future<void> revoke(String pairingId) async {
     final binding = _binding;
     if (_disposed || binding == null) return;

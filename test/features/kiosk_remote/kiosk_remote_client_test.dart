@@ -90,6 +90,65 @@ void main() {
     expect(controller.enrolledPairingId, pairing.id);
   });
 
+  testWidgets('tablet enrollment is a separate 48dp confirmation action', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var enrollCalls = 0;
+    final controller =
+        KioskRemoteController(
+            api: _Api(),
+            isCurrent: () => true,
+            onPairingEnrolled: (_) async => enrollCalls++,
+          )
+          ..snapshot = const KioskRemoteSnapshot(
+            devices: [device],
+            pairings: [],
+          )
+          ..state = KioskRemoteViewState.ready;
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: KioskRemoteScreen(controller: controller),
+      ),
+    );
+
+    final pair = find.byKey(
+      const ValueKey('kiosk-remote-pair-11111111111111111111111111111111'),
+    );
+    await tester.scrollUntilVisible(
+      pair,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(pair);
+    await tester.pumpAndSettle();
+    expect(enrollCalls, 0);
+
+    final enroll = find.byKey(const ValueKey('kiosk-remote-enroll'));
+    await tester.scrollUntilVisible(
+      enroll,
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(tester.getSize(enroll).height, greaterThanOrEqualTo(48));
+    await tester.tap(enroll);
+    await tester.pumpAndSettle();
+
+    expect(enrollCalls, 1);
+    expect(find.byKey(const ValueKey('kiosk-remote-copy')), findsNothing);
+    expect(
+      find.text(
+        'This tablet is securely enrolled for the current Core and account.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   test('late pairing inventory is cleared after route retirement', () async {
     var current = true;
     final api = _Api();

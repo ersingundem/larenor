@@ -8,6 +8,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/kiosk_remote_api.dart';
 import '../data/kiosk_remote_controller.dart';
+import '../runtime/managed_tablet_credential_store.dart';
 import '../runtime/managed_tablet_runtime_scope.dart';
 import 'kiosk_remote_screen.dart';
 
@@ -81,11 +82,52 @@ class _KioskRemoteRouteState extends ConsumerState<KioskRemoteRoute> {
       isCurrent: () => _current(generation),
     );
     _api = api;
+    final owner = ref.read(managedTabletRuntimeOwnerProvider);
     setState(() {
       _controller = KioskRemoteController(
         api: api,
         isCurrent: () => _current(generation) && identical(_api, api),
-        onPairingRevoked: ref.read(managedTabletRuntimeOwnerProvider).revoke,
+        onPairingRevoked: owner.revoke,
+        onPairingEnrolled: (created) async {
+          if (!_current(generation) || !identical(_api, api)) {
+            throw StateError('managed_tablet_enrollment_retired');
+          }
+          final session = api.boundSession;
+          final context = session?.context;
+          if (session == null ||
+              context == null ||
+              !identical(_account?.session, session) ||
+              !session.user.canAdminister) {
+            throw StateError('managed_tablet_enrollment_denied');
+          }
+          final binding = ManagedTabletBinding(
+            serverBaseUrl: session.endpoint.baseUrl,
+            coreId: context.coreId,
+            homeId: context.homeId,
+            accountId: session.user.id,
+          );
+          final pairing = created.pairing;
+          await owner.enroll(
+            binding,
+            ManagedTabletEnrollment(
+              serverBaseUrl: binding.serverBaseUrl,
+              coreId: binding.coreId,
+              homeId: binding.homeId,
+              accountId: binding.accountId,
+              pairingId: pairing.id,
+              deviceId: pairing.deviceId,
+              revision: pairing.revision,
+              scopes: pairing.scopes.toSet(),
+              expiresAt: DateTime.fromMillisecondsSinceEpoch(
+                pairing.expiresAtMs,
+                isUtc: true,
+              ),
+              token: created.token,
+              clientId: pairing.mqttClientId,
+              topicPrefix: pairing.mqttTopicPrefix,
+            ),
+          );
+        },
       );
     });
   }

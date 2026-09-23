@@ -17,6 +17,22 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### K07 açık tablet eşleştirmesi — inceleme dilimi
+
+Yönetici artık Core'un ürettiği tek kullanımlık eşleştirme sırrını yalnız ayrı
+bir **Bu tablette kullan** eylemiyle Android güvenli deposuna alabiliyor. Kayıt;
+exact sunucu, Core, ev, hesap, cihaz, pairing revision ve MQTT kimliklerine
+bağlı. Hesap, route, lifecycle veya Core değişimi geç sonucu reddediyor ve
+yazılmış eski kaydı exact kimlikle temizliyor. Oluşturma tek başına yerel MQTT
+çalışma zamanını başlatmıyor; 48 dp EN/TR onay eylemi ve canlı başarı kanıtı
+tablet arayüzünde ayrı kalıyor.
+
+Odaklı Client, secure-store ve runtime-owner paketi **24/24** geçti; hedefli
+analiz temiz. K07 hâlâ `pending`: açık TLS broker ayarı, canlı Mosquitto ACL/TLS,
+native cihaz kimliği/komut yetkisi ve Huawei/DeX fiziksel kabulü tamamlanmadan
+sayaç **26/125 (%20,8)** ve seçili özellikler **0/63** kalır.
+[TDD kanıtı](testing/k07-explicit-secure-enrollment.tdd.md).
+
 ### REMOTE.COMMON ortak uzak erişim temeli — yazılım kabul edildi
 
 Exact `63a1a33d` kaynağında yerel ve Core profilleri, IP/domain/IPv6/port
