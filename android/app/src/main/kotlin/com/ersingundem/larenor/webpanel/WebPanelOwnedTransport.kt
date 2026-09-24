@@ -150,7 +150,8 @@ internal class WebPanelOwnedHttpTransport(
         lease: WebPanelRequestLimiter.Lease,
     ): WebResourceResponse {
         val body = body
-        if (body.contentLength() > maxResponseBytes) {
+        val contentLength = body.contentLength()
+        if (contentLength > maxResponseBytes) {
             close()
             calls.remove(call)
             lease.close()
@@ -159,14 +160,27 @@ internal class WebPanelOwnedHttpTransport(
         val contentType = body.contentType()
         val mimeType = contentType?.let { "${it.type}/${it.subtype}" } ?: "application/octet-stream"
         val encoding = contentType?.charset()?.name() ?: "UTF-8"
+        val finish = {
+            close()
+            calls.remove(call)
+            lease.close()
+        }
+        if (contentLength == 0L) {
+            finish()
+            return WebResourceResponse(
+                mimeType,
+                encoding,
+                code,
+                message.ifBlank { "HTTP $code" },
+                responseHeaders(),
+                ByteArrayInputStream(ByteArray(0)),
+            )
+        }
         val data = BoundedResponseInputStream(
             body.byteStream(),
             maxResponseBytes,
-            finished = {
-                close()
-                calls.remove(call)
-                lease.close()
-            },
+            expectedLength = contentLength.takeIf { it >= 0L },
+            finished = finish,
         )
         return try {
             WebResourceResponse(
@@ -238,12 +252,14 @@ internal class WebPanelOwnedHttpTransport(
 private class BoundedResponseInputStream(
     source: InputStream,
     private val maximum: Long,
+    private val expectedLength: Long?,
     private val finished: () -> Unit,
 ) : FilterInputStream(source) {
     private val closed = AtomicBoolean(false)
     private var consumed = 0L
 
     override fun read(): Int {
+        if (closed.get()) return -1
         val value = try {
             super.read()
         } catch (error: IOException) {
@@ -255,6 +271,7 @@ private class BoundedResponseInputStream(
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (closed.get()) return -1
         val read = try {
             super.read(buffer, offset, length)
         } catch (error: IOException) {
@@ -266,6 +283,7 @@ private class BoundedResponseInputStream(
     }
 
     override fun skip(byteCount: Long): Long {
+        if (closed.get()) return 0L
         val skipped = try {
             super.skip(byteCount)
         } catch (error: IOException) {
@@ -282,6 +300,7 @@ private class BoundedResponseInputStream(
             finish()
             throw IOException("WebPanel response exceeded its bound")
         }
+        if (expectedLength != null && consumed >= expectedLength) finish()
     }
 
     private fun finish() {
