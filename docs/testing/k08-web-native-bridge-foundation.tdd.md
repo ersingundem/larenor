@@ -75,7 +75,7 @@ required before the queue item can close.
 
 ## Production effect ports
 
-This follow-up keeps K08 **pending** and queue progress at **30/125 (24.0%)**.
+This follow-up keeps K08 **pending** and queue progress at **31/125 (24.8%)**.
 It replaces the unsupported production default for verified-Core dashboard
 panels with three bounded device effects while preserving the v1 website
 contract and one-shot consent:
@@ -103,13 +103,13 @@ contract and one-shot consent:
 
 | Job | RED | GREEN | Permanent evidence |
 | --- | --- | --- | --- |
-| Android speech | `e18b6412` | `6ba55034` | Exact scope/resumed owner, bounded text/locale, replacement and retirement; MethodChannel envelopes contain no Core secret or API URL. |
-| Confirmed print | `2d5563e4` | `45cd3769` | Opaque handle, visible SAF picker, exact PDF MIME/magic, 25 MiB cap, bounded streaming, cancellation and no raw URI in website messages. |
-| Visible QR | `e22a06df` | `44d85a1b` | Single CameraX flight, permission/error UI, EN/TR 600/1280 at 200%, authority/background retirement and no replay. |
+| Android speech | `f0b513e6` | `7b484e0a` | Exact scope/resumed owner, bounded text/locale, replacement and retirement; MethodChannel envelopes contain no Core secret or API URL. |
+| Confirmed print | `bc41920b` | `811fabec` | Opaque handle, visible SAF picker, exact PDF MIME/magic, 25 MiB cap, bounded streaming, cancellation and no raw URI in website messages. |
+| Visible QR | `8a3077f9` | `7070512d` | Single CameraX flight, permission/error UI, EN/TR 600/1280 at 200%, authority/background retirement and no replay. |
 
 The production-port grouped milestone passes:
 
-- **160/160 Flutter tests** across the complete WebPanel feature, dashboard
+- **161/161 Flutter tests** across the complete WebPanel feature, dashboard
   WebView tile, Core home/session scope and Core logout runtime;
 - **30/30 Robolectric tests** across every WebPanel native suite, including
   the five speech, print, scope-replacement and stale-picker regressions;
