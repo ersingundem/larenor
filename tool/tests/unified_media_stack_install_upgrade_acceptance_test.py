@@ -512,6 +512,51 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertIs(raised.exception.preserve_resources, True)
         self.assertEqual(str(raised.exception), "unified_manifest_invalid")
 
+        not_pending = FailingDriver(known)
+        not_pending.recovery_pending = lambda: False
+        not_pending.reconcile_upgrade = lambda _revision, _operation: None
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                not_pending,
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(raised.exception.code, "unified_manifest_invalid")
+        self.assertIs(raised.exception.preserve_resources, False)
+
+        unknown_returning = FailingDriver(RuntimeError("private apply detail"))
+        unknown_returning.reconcile_upgrade = lambda _revision, _operation: None
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                unknown_returning,
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(
+            raised.exception.code,
+            "unified_install_reconcile_failed",
+        )
+        self.assertIs(raised.exception.preserve_resources, True)
+
+        malformed_returning = FailingDriver(known)
+        malformed_returning.reconcile_upgrade = (
+            lambda _revision, _operation: {"unexpected": "receipt"}
+        )
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                malformed_returning,
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(
+            raised.exception.code,
+            "unified_install_reconcile_failed",
+        )
+        self.assertIs(raised.exception.preserve_resources, True)
+
         with self.assertRaises(target.ManagedStackCIError) as raised:
             target._apply_or_reconcile(
                 FailingDriver(RuntimeError("private apply detail")),

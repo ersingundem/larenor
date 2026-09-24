@@ -670,6 +670,11 @@ def _apply_or_reconcile(driver, operation, revision, selected_platform):
         if (operation == "upgrade" and isinstance(value, dict)
                 and set(value) == {"baseEffect", "currentEffect", "privateState"}):
             value = value["currentEffect"]
+        if value is None and isinstance(apply_error, ManagedStackCIError):
+            raise ManagedStackCIError(
+                apply_error.code,
+                preserve_resources=recovery_pending,
+            ) from None
         try:
             return _effect_receipt(value, revision, selected_platform)
         except ManagedStackCIError:
