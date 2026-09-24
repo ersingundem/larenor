@@ -146,6 +146,36 @@ void main() {
     },
   );
 
+  test('native command timeout retires its platform session', () async {
+    final command = Completer<Object?>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'command') return command.future;
+      return null;
+    });
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(
+        enabled: true,
+        nativeCallTimeout: Duration(milliseconds: 30),
+      ),
+      channel: channel,
+      isAndroid: true,
+      sessionId: () => '5' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    expect(
+      await lease!.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.failed,
+    );
+    expect(source.status, NativeManagedTabletSourceStatus.retired);
+    expect(
+      await lease.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.denied,
+    );
+    command.complete({'result': 'succeeded'});
+  });
+
   test(
     'retirement wins immediately and late command cannot affect replacement',
     () async {

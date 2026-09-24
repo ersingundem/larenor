@@ -293,7 +293,12 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
       return error.code == 'denied'
           ? ManagedTabletCommandResult.denied
           : ManagedTabletCommandResult.failed;
-    } on StateError {
+    } on StateError catch (error) {
+      if (error.message == 'native_tablet_source_timeout' &&
+          _isCurrent(lease)) {
+        await _retireLease(lease);
+        return ManagedTabletCommandResult.failed;
+      }
       return _isCurrent(lease)
           ? ManagedTabletCommandResult.failed
           : ManagedTabletCommandResult.denied;
