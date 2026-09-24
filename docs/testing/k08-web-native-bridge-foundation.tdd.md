@@ -1,13 +1,13 @@
 # K08 authority-bound WebPanel native bridge
 
-Status: **production wiring slice ready; K08 remains pending**
+Status: **software acceptance complete; physical device evidence remains MANUAL**
 
 Source: `K08 — Sınırlı web→native köprü` in `docs/execution-queue.json`.
 The accepted `K03.remaining` and `K07` foundations are present at base
-`a20c546526486ce1d7c860a0b39c53b5e5623760`. This slice wires the existing
-strict command contract to an AndroidX WebMessage transport and the Flutter
-WebPanel lifecycle without claiming the unavailable physical-device evidence
-or concrete TTS, print, and QR effect adapters.
+`a20c546526486ce1d7c860a0b39c53b5e5623760`. The two K08 production slices wire
+the strict command contract to AndroidX WebMessage, the Flutter WebPanel
+lifecycle and bounded TTS, print and QR effect adapters. Physical Huawei, DeX,
+TalkBack and OEM evidence remains outside this software acceptance.
 
 ## Production boundaries
 
@@ -64,19 +64,17 @@ renderer-monitor, and WebPanel view tests after the monotonic-clock GREEN. The
 RED failed to compile because the old controller exposed only a `DateTime`
 wall-clock callback; it could not express or enforce monotonic elapsed time.
 
-## Remaining K08 acceptance
+## Foundation acceptance boundary
 
-K08 remains `pending`; queue progress stays **30/125 (24.0%)** and feature
-progress stays **0/63 (0.0%)**. A later slice must supply and independently
-review the authorized production TTS, print, and QR ports, then collect API 35
-emulator plus physical Huawei/DeX/WebView permission-revoke and accessibility
-journeys. Exact-head required CI and independent security review are also still
-required before the queue item can close.
+The foundation slice remained `pending` at **30/125 (24.0%)** because it did
+not yet provide production effect adapters. The follow-up below supplies those
+adapters and closes the software acceptance with independent review and exact
+CI. Physical Huawei/DeX/WebView permission and accessibility journeys remain a
+separate MANUAL gate.
 
 ## Production effect ports
 
-This follow-up keeps K08 **pending** and queue progress at **31/125 (24.8%)**.
-It replaces the unsupported production default for verified-Core dashboard
+This follow-up replaces the unsupported production default for verified-Core dashboard
 panels with three bounded device effects while preserving the v1 website
 contract and one-shot consent:
 
@@ -107,16 +105,25 @@ contract and one-shot consent:
 | Confirmed print | `bc41920b` | `811fabec` | Opaque handle, visible SAF picker, exact PDF MIME/magic, 25 MiB cap, bounded streaming, cancellation and no raw URI in website messages. |
 | Visible QR | `8a3077f9` | `7070512d` | Single CameraX flight, permission/error UI, EN/TR 600/1280 at 200%, authority/background retirement and no replay. |
 | Terminal lifecycle review | `ff48b5f2` | `f940bc61` | Retirement wins a delayed native bind, and a bounded 25-second QR flight cancels its visible camera before the 30-second controller deadline. |
+| Owner replacement review | `2618977b` | `7c45df15` | Every WebPanel render receives a fresh effect owner, so a retired owner cannot be reused after rebuild or replacement. |
+| Exact bind completion | `b96bda24` | `2a39ca2b` | A delayed native bind must finish for the exact current owner before the request can proceed; replacement and retirement remain terminal. |
 
 The production-port grouped milestone passes:
 
-- **163/163 Flutter tests** across the complete WebPanel feature, dashboard
-  WebView tile, Core home/session scope and Core logout runtime;
+- **185/185 Flutter tests** across the complete WebPanel feature, dashboard
+  WebView tile, Core home/session and logout, managed-tablet and Server store
+  scope;
 - **30/30 Robolectric tests** across every WebPanel native suite, including
   the five speech, print, scope-replacement and stale-picker regressions;
 - focused Flutter analysis with **0 issues**, Dart formatting, Android backup
   and CI trust security policy, execution-queue validation and `git diff
   --check`.
 
-Physical Huawei/DeX permission-revoke evidence and independent exact-head
-security review remain required before K08 can move from `pending`.
+PR #487 exact source `2a39ca2be54a51e64a1c6517dc8c37ffe370045b`
+passed Android Build `35988043289`, including API 35 emulator journeys, and
+Security `35988042981`. Independent final review found no remaining P1/P2
+blocker. Squash `a87d1bb3a2868f4f43d30733207c84cdb0129901` has the same
+aggregate stable patch-id
+`49dd58e007084eeff56f383b3d4f3e46b6b6f860` and is in main ancestry. K08 is
+`done`; queue progress is **33/125 (26.4%)** and feature progress remains
+**0/63 (0.0%)**. Physical Huawei/DeX/TalkBack/OEM evidence remains MANUAL.

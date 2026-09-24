@@ -2734,7 +2734,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Sınırlı web→native köprü",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "K03.remaining",
         "K07"
@@ -2742,7 +2742,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k08-web-native-bridge-foundation.tdd.md"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2753,9 +2754,42 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": "Sürümlü exact-origin/method politikası, frame-aware Android transportu ve monotonic 30 saniyelik onay/lifecycle sınırı mevcut; normal production çağrısı hâlâ authority/effect port sağlamıyor. Yetkili TTS, print ve QR effect portlarının gerçek üretim bağlanması ile izin iptali sonrası uçtan uca effect/receipt kanıtı ve bağımsız kapanış incelemesi eksik olduğundan sayaç artmaz; fiziksel Huawei/DeX kabulü ayrıca MANUAL kalır."
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k08-web-native-bridge-foundation.tdd.md",
+          "commit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Grouped K08 acceptance passed 185 Flutter tests and 30 Robolectric WebPanel tests; focused analyze, format, queue, security, progress and diff gates were clean."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/k08-web-native-bridge-foundation.tdd.md",
+          "commit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent final P1/P2 review verified fresh per-render effect ownership, exact delayed-bind completion, terminal retirement, bounded QR cancellation, and no stale effect replay."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35988043289",
+          "commit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR #487 Android Build passed static analysis, four Flutter and four Server shards with aggregates, debug APK, and API 35 emulator journeys."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35988042981",
+          "commit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security secret-scan, platform-policy, and dependency-scan passed on the exact source."
+        }
+      ],
+      "completionCommit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
+      "reason": "Versioned exact-origin/method policy, main-frame Android transport, monotonic one-shot confirmation, and production TTS, user-confirmed bounded PDF print, and visible QR effects are bound to the current Core/home/account/session/policy/route/lifecycle owner. Replacement, logout, background, timeout, renderer loss, capability drift, permission denial, and delayed bind retirement fail closed without stale effect or receipt replay. Independent final review and exact PR #487 Android Build plus Security passed; source/squash stable patch-id matched. Physical Huawei, DeX, TalkBack, OEM and DPC evidence remains MANUAL."
     },
     {
       "id": "K09",
