@@ -432,9 +432,12 @@ class UpgradeDriver(FakeDriver):
         if set(receipt) == {"installationReceipt", "runtimeReceipt"}:
             receipt = receipt["installationReceipt"]
         self._call("persist:" + receipt["sourceRevision"])
+        changed = self.state.stored != receipt
         self.state.stored = copy.deepcopy(receipt)
-        self.state.persisted.append(copy.deepcopy(receipt))
-        self.state.journal = None
+        if changed:
+            self.state.persisted.append(copy.deepcopy(receipt))
+        if receipt["sourceRevision"] == CURRENT_REVISION:
+            self.state.journal = None
         if (
             self.interrupt_at == "base_receipt_power_loss"
             and receipt["sourceRevision"] == BASE_REVISION
@@ -905,7 +908,11 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             ),
             1,
         )
-        self.assertIsNone(state.journal)
+        self.assertEqual(state.journal["operation"], "install")
+        self.assertEqual(
+            state.journal["currentEffect"]["installationReceipt"],
+            state.stored,
+        )
         self.assertEqual(restarted.calls[-1], "cleanup")
 
     def test_install_power_loss_restarts_from_durable_journal_without_replay(self):
@@ -999,7 +1006,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             1,
         )
         self.assertEqual(result["sourceCommit"], CURRENT_REVISION)
-        self.assertEqual(result["recoveryState"], "not_required")
+        self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
         self.assertEqual(restarted.calls[-1], "cleanup")
 
