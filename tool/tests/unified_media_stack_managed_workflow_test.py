@@ -152,6 +152,8 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
 
         self.assertIn("--fault-after-upgrade-journal", script)
         self.assertIn('test "$status" -eq 75', script)
+        self.assertIn("unified_upgrade_recovery_pending", script)
+        self.assertIn("fault_injected", script)
         self.assertEqual(script.count("--run-native"), 2)
         self.assertLess(
             script.index("--fault-after-upgrade-journal"),
