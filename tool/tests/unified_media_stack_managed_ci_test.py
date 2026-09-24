@@ -581,13 +581,14 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             root = Path(temporary) / "owned-root"
             receipt = Path(temporary) / "ownership.json"
             operation_id = "d" * 32
+            root.mkdir()
+            identity = root.stat()
             receipt.write_text(json.dumps({
                 "schemaVersion": 1, "operationId": operation_id,
                 "sourceCommit": REVISION, "root": str(root),
+                "rootDevice": identity.st_dev, "rootInode": identity.st_ino,
                 "projectName": "larenor-native-" + operation_id,
             }))
-            root.mkdir()
-            (root / target.MARKER).write_text(operation_id + "\n")
             (root / "data").mkdir()
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
@@ -603,13 +604,14 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             command.assert_not_called()
 
             root.mkdir()
-            (root / target.MARKER).write_text("e" * 32 + "\n")
+            (root / "replacement-private-state").write_text("retain\n")
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(target.ManagedStackCIError,
                                             "unified_cleanup_not_owned"):
                     target.cleanup_owned(receipt, REVISION)
             self.assertTrue(root.exists())
+            self.assertTrue((root / "replacement-private-state").exists())
             command.assert_not_called()
 
     def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):

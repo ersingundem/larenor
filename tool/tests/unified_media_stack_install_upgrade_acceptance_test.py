@@ -1097,22 +1097,92 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
     def test_cleanup_refuses_a_pending_durable_recovery_journal(self):
         with tempfile.TemporaryDirectory(prefix="larenor-s093-pending-cleanup-") as raw:
             root = Path(raw)
-            driver = target.DockerDriver(
-                CURRENT_REVISION,
-                "linux/amd64",
-                root / "ownership.json",
-                operation_id="1" * 32,
+            owned = root / "owned"
+            owned.mkdir()
+            identity = owned.stat()
+            receipt = root / "ownership.json"
+            operation_id = "1" * 32
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "operationId": operation_id,
+                        "sourceCommit": CURRENT_REVISION,
+                        "root": str(owned),
+                        "rootDevice": identity.st_dev,
+                        "rootInode": identity.st_ino,
+                        "projectName": "larenor-native-" + operation_id,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="ascii",
             )
-            driver._journal_path = root / "pending.json"
-            driver._journal_path.write_text("{}\n", encoding="ascii")
-            with patch.object(target, "cleanup_owned") as cleanup:
+            (owned / ".native-upgrade-journal.json").write_text(
+                "{}\n", encoding="ascii"
+            )
+            with patch.object(target, "ROOT", owned), patch.object(
+                target,
+                "_command",
+                return_value=(0, b""),
+            ) as command:
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
-                    "unified_upgrade_recovery_pending",
+                    "unified_cleanup_not_owned",
                 ):
-                    driver.cleanup()
-            cleanup.assert_not_called()
-            self.assertTrue(driver._journal_path.exists())
+                    target.cleanup_owned(receipt, CURRENT_REVISION)
+            command.assert_not_called()
+            self.assertTrue((owned / ".native-upgrade-journal.json").exists())
+            self.assertTrue(owned.exists())
+
+    def test_cleanup_binds_external_receipt_to_exact_root_inode(self):
+        with tempfile.TemporaryDirectory(prefix="larenor-s093-owned-cleanup-") as raw:
+            parent = Path(raw)
+            root = parent / "owned"
+            root.mkdir()
+            identity = root.stat()
+            operation_id = "1" * 32
+            receipt = parent / "ownership.json"
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "operationId": operation_id,
+                        "sourceCommit": CURRENT_REVISION,
+                        "root": str(root),
+                        "rootDevice": identity.st_dev,
+                        "rootInode": identity.st_ino,
+                        "projectName": "larenor-native-" + operation_id,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="ascii",
+            )
+
+            displaced = parent / "displaced"
+            root.rename(displaced)
+            root.mkdir()
+            (root / "replacement-private-state").write_text(
+                "retain\n", encoding="ascii"
+            )
+            with patch.object(target, "ROOT", root), patch.object(
+                target,
+                "_command",
+                return_value=(0, b""),
+            ) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, CURRENT_REVISION)
+
+            command.assert_not_called()
+            self.assertTrue(root.exists())
+            self.assertTrue((root / "replacement-private-state").exists())
+            self.assertTrue(displaced.exists())
 
     def test_atomic_receipt_publication_orders_owner_before_rename(self):
         with tempfile.TemporaryDirectory(prefix="larenor-s093-atomic-receipt-") as raw:
