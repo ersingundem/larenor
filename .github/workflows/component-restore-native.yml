@@ -102,7 +102,7 @@
         {
           "name": "Run native restore authority and power-loss acceptance",
           "timeout-minutes": 15,
-          "run": "set -euo pipefail\nactual=\"$(uname -m)\"\ncase \"$EXPECTED_PLATFORM:$actual\" in\n  linux/amd64:x86_64|linux/arm64:aarch64) ;;\n  *) exit 1;;\nesac\nPYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE/server/tests\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m pytest -q \\\n  server/tests/test_core_backup_component_linux_restore.py \\\n  server/tests/test_core_backup_component_docker_adapter.py \\\n  server/tests/test_core_backup_component_installation_authority.py \\\n  server/tests/test_core_backup_component_restore.py \\\n  server/tests/test_core_backup_component_restore_recovery.py"
+          "run": "set -euo pipefail\nactual=\"$(uname -m)\"\ncase \"$EXPECTED_PLATFORM:$actual\" in\n  linux/amd64:x86_64|linux/arm64:aarch64) ;;\n  *) exit 1;;\nesac\nexport PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE/server/tests\"\n\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m pytest -q \\\n  server/tests/test_core_backup_component_linux_restore.py \\\n  server/tests/test_core_backup_component_docker_adapter.py \\\n  server/tests/test_core_backup_component_installation_authority.py \\\n  server/tests/test_core_backup_component_restore.py \\\n  server/tests/test_core_backup_component_restore_recovery.py \\\n  server/tests/test_core_backup_component_restore_runtime.py \\\n  server/tests/test_core_backup_component_restore_product.py \\\n  server/tests/test_core_backup_restore_cli_components.py\nsudo --preserve-env=PYTHONPATH,EXPECTED_PLATFORM \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m pytest -q \\\n  server/tests/test_core_backup_component_restore_native_cli.py"
         }
       ]
     },

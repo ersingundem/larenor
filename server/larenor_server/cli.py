@@ -1,10 +1,18 @@
 import argparse
 import sys
+import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import uvicorn
 
 from .config import Settings
+from .core_backups.component_restore import ComponentRestorePlanError
+from .core_backups.component_restore_runtime import (
+    ComponentRestoreRuntimeConfig,
+    ComponentRestoreRuntimeError,
+    build_component_restore_runtime,
+)
 from .core_backups.models import validate_backup_passphrase
 from .core_backups.restore import restore_empty
 from .core_backups.service import MAX_BUNDLE_BYTES
@@ -42,28 +50,72 @@ def main(argv=None) -> int:
     parser.add_argument("--initialize-only", action="store_true")
     parser.add_argument("--restore", type=Path, metavar="BUNDLE")
     parser.add_argument("--restore-passphrase-file", type=Path, metavar="FILE")
+    parser.add_argument("--component-restore-container-journal", type=Path)
+    parser.add_argument("--component-restore-volume-journal", type=Path)
+    parser.add_argument("--component-restore-engine-socket", type=Path)
+    parser.add_argument("--component-restore-recovery-journal", type=Path)
+    parser.add_argument("--component-restore-recovery-key-file", type=Path)
+    parser.add_argument("--component-restore-engine-uid", type=int)
     args = parser.parse_args(argv)
     if (args.restore is None) != (args.restore_passphrase_file is None):
         parser.error("--restore and --restore-passphrase-file must be used together")
+    component_values = (
+        args.component_restore_container_journal,
+        args.component_restore_volume_journal,
+        args.component_restore_engine_socket,
+        args.component_restore_recovery_journal,
+        args.component_restore_recovery_key_file,
+        args.component_restore_engine_uid,
+    )
+    if any(value is not None for value in component_values) and (
+        args.restore is None or any(value is None for value in component_values)
+    ):
+        parser.error("component restore authority must be complete")
     try:
         settings = Settings.from_environment()
         if args.restore is not None:
-            try:
-                bundle, passphrase = _read_restore_inputs(
-                    args.restore,
-                    args.restore_passphrase_file,
+            runtime_context = nullcontext(None)
+            if all(value is not None for value in component_values):
+                config = ComponentRestoreRuntimeConfig(
+                    container_journal=args.component_restore_container_journal,
+                    volume_journal=args.component_restore_volume_journal,
+                    engine_socket=args.component_restore_engine_socket,
+                    recovery_journal=args.component_restore_recovery_journal,
+                    recovery_key_file=args.component_restore_recovery_key_file,
+                    engine_uid=args.component_restore_engine_uid,
                 )
-            except OSError:
-                raise StartupError("restore_input_unavailable") from None
-            try:
-                restore_empty(settings, bundle, passphrase)
-                create_configured_app(settings)
-            except OSError:
-                raise StartupError("restore_storage_unavailable") from None
+                runtime_context = build_component_restore_runtime(config)
+            with runtime_context as runtime:
+                try:
+                    bundle, passphrase = _read_restore_inputs(
+                        args.restore,
+                        args.restore_passphrase_file,
+                    )
+                except OSError:
+                    raise StartupError("restore_input_unavailable") from None
+                try:
+                    if runtime is not None:
+                        restore_empty(
+                            settings,
+                            bundle,
+                            passphrase,
+                            component_runtime=runtime,
+                            deadline=time.monotonic() + 300,
+                        )
+                    else:
+                        restore_empty(settings, bundle, passphrase)
+                    create_configured_app(settings)
+                except OSError:
+                    raise StartupError("restore_storage_unavailable") from None
             print("Larenor Core restore completed.")
             return 0
         app = create_configured_app(settings)
-    except (ApiError, StartupError) as error:
+    except (
+        ApiError,
+        ComponentRestorePlanError,
+        ComponentRestoreRuntimeError,
+        StartupError,
+    ) as error:
         print(f"Larenor Server initialization failed: {error}", file=sys.stderr)
         return 1
     if app.state.core.bootstrap_created:
