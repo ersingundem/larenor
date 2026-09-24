@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `21272df4` ve S09.1 kabul kaynağı `e8425320` — 30/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07 ve S09.1 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `5ea97117` ve S09.2 kabul kaynağı `34870d70` — 31/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1 ve S09.2 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  30/125 iş (%24,0; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  31/125 iş (%24,8; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -54,6 +54,29 @@ production/test guard markerlarını ve bu exact CI setini current tree üzerind
 yeniden doğrular. K03.remaining `done`; kuyruk **27/125 (%21,6)**. Fiziksel
 Android, DeX, Huawei WebView, OEM renderer, DPC, force-stop, çevre birimi ve
 gerçek-site davranışı MANUAL kalır.
+
+### 24 Eylül S09.2 yazılım kabulü
+
+PR #483 exact `34870d703178ba5ca4629e3d887d74aca4475d5a`
+kaynağında root-only offline restore runtime'ı, Core ile managed component için
+tek durable `pending`→`released` kararı ve authenticated restart uzlaştırması
+tamamlandı. Yanlış parola, kesik/bozuk imza, sürüm/şema uyumsuzluğu, authority
+ve deadline driftinde hedef yayımlanmıyor. External released checkpoint
+başarısızlığı journal'ı koruyor; başarılı restart replay journal'ı temizliyor ve
+retained authority tam bir kez bırakılıyor.
+
+Yerel paket **159 test topladı: 157 geçti ve 2 beklenen Darwin native-fixture
+skip**; son recovery/product paketi **24/24**, bağımsız adversarial replay
+regresyonu **1/1** geçti. Bağımsız final P1/P2 incelemesi blocker bulmadı.
+Android Build `35961861609` statik analiz, dört Flutter ve dört Server shardı,
+aggregate kapılar, debug APK ve API 35 emulator yolculuğunu; Security
+`35961861319` secret/platform/dependency kapılarını; native kabul
+`35961861335` gerçek root CLI/runtime zincirini `linux/amd64` ve
+`linux/arm64` üzerinde geçti. Kaynak `5ea97117` olarak squash birleşti ve
+aggregate stable patch-id `553bc783d78b8bfcf0c68a7f7900ef87491b8d7a`
+eşleşti. S09.2 `done`; kuyruk **31/125 (%24,8)**. Temiz kurulum/yükseltme,
+Client restore ve component health S09.3'te ayrı kalır.
+[Kapanış kanıtı](testing/s09-2-empty-component-restore.tdd.md).
 
 ### 24 Eylül S09.1 yazılım kabulü
 
@@ -154,8 +177,9 @@ F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; `B3`
 bağımlılığındaki S08.8 artık `done`, S08.11 ise `pending` olduğundan validator
 kapanışı reddediyor. #460 S09.1 izolasyon lease'ini ekledi; privileged Linux engine,
 iki mimarili native kabul ve birleşik generation arşivi daha sonra #482 ile
-üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2, temiz kurulum/yükseltme ve Client
-geri yükleme sınırı S09.3 kapsamındadır.
+üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2 de PR #483 ile
+kapandı; temiz kurulum/yükseltme, Client geri yükleme ve component health
+S09.3 kapsamındadır.
 
 [PR #447](https://github.com/ersingundem/larenor/pull/447) exact
 `11139268` ile bounded managed-volume provider dilimini tamamlayıp `36e05f9a`
