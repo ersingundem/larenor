@@ -896,7 +896,12 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         )
         self.assertEqual(
             result["installationPhases"][0]["runtimeReceiptDigest"],
-            _digest(state.runtime_receipts[0]),
+            _digest(
+                {
+                    "phase": "clean-install",
+                    "runtimeReceipt": state.runtime_receipts[0],
+                }
+            ),
         )
         self.assertEqual(
             len(
@@ -908,11 +913,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             ),
             1,
         )
-        self.assertEqual(state.journal["operation"], "install")
-        self.assertEqual(
-            state.journal["currentEffect"]["installationReceipt"],
-            state.stored,
-        )
+        self.assertIsNone(state.journal)
         self.assertEqual(restarted.calls[-1], "cleanup")
 
     def test_install_power_loss_restarts_from_durable_journal_without_replay(self):
@@ -966,7 +967,12 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         )
         self.assertEqual(
             result["installationPhases"][0]["runtimeReceiptDigest"],
-            _digest(state.runtime_receipts[0]),
+            _digest(
+                {
+                    "phase": "clean-install",
+                    "runtimeReceipt": state.runtime_receipts[0],
+                }
+            ),
         )
         self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
@@ -988,7 +994,10 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             [item["sourceRevision"] for item in state.persisted],
             [BASE_REVISION],
         )
-        self.assertIsNone(state.journal)
+        self.assertEqual(
+            state.journal,
+            crashed._journal("install", BASE_REVISION),
+        )
         durable_private = copy.deepcopy(crashed.private_receipts)
 
         restarted = UpgradeDriver(state=state)
@@ -1008,6 +1017,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(result["sourceCommit"], CURRENT_REVISION)
         self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
+        self.assertIsNone(state.journal)
         self.assertEqual(restarted.calls[-1], "cleanup")
 
     def test_malformed_install_journal_preserves_state_without_cleanup(self):
