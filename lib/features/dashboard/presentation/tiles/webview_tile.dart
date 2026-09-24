@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +10,8 @@ import '../../../web_panel/data/web_panel_native_effect_port.dart';
 import '../../../web_panel/data/web_panel_native_runtime.dart';
 import '../../../web_panel/domain/web_panel_policy.dart';
 import '../../../web_panel/presentation/web_panel_view.dart';
+import '../../../web_panel/presentation/web_panel_qr_scanner.dart';
+import '../../../inventory/data/inventory_scanner.dart';
 import '../../domain/tile_config.dart';
 
 /// A Direct-home website reference. Browser login remains separate from HA
@@ -27,6 +31,7 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
   bool _retired = false;
   Object? _coreBinding;
   AndroidWebPanelNativeEffectPort? _nativePort;
+  Completer<bool>? _qrDecision;
 
   bool get _sourceCurrent {
     if (!mounted || _retired) return false;
@@ -40,6 +45,7 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(directHomeAccessProvider);
     final home = ref.watch(homeSessionControllerProvider);
     final session = home?.account.session;
     final nativePolicy = widget.tile.webPanel?.nativeBridge;
@@ -80,7 +86,10 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
 
       if (_coreBinding != binding) {
         _coreBinding = binding;
-        _nativePort = AndroidWebPanelNativeEffectPort();
+        _nativePort = AndroidWebPanelNativeEffectPort(
+          scanQr: _scanQr,
+          cancelQr: _cancelQr,
+        );
       }
       current = coreCurrent;
       port = _nativePort;
@@ -99,15 +108,55 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
     }
     if (!current()) return const SizedBox.shrink();
     final tile = widget.tile;
-    return WebPanelView(
-      policy:
-          tile.webPanel?.policyFor(tile.url ?? '') ??
-          WebPanelPolicy.fromUrl(tile.url ?? ''),
-      sourceIdentity: (_access, tile.id),
-      sourceCurrent: current,
-      options: tile.webPanel,
-      nativeAuthority: authority,
-      nativePort: port,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        WebPanelView(
+          policy:
+              tile.webPanel?.policyFor(tile.url ?? '') ??
+              WebPanelPolicy.fromUrl(tile.url ?? ''),
+          sourceIdentity: (home?.runtimeIdentity ?? _access, tile.id),
+          sourceCurrent: current,
+          options: tile.webPanel,
+          nativeAuthority: authority,
+          nativePort: port,
+        ),
+        if (_qrDecision != null)
+          WebPanelQrScanner(
+            platform: const MobileInventoryScannerPlatform(),
+            isCurrent: current,
+            onAccepted: (_) => _finishQr(true),
+            onCancel: () => _finishQr(false),
+          ),
+      ],
     );
+  }
+
+  Future<bool> _scanQr(Set<String> formats) async {
+    if (!mounted ||
+        _qrDecision != null ||
+        formats.length != 1 ||
+        !formats.contains('qr')) {
+      return false;
+    }
+    final decision = Completer<bool>();
+    setState(() => _qrDecision = decision);
+    return decision.future;
+  }
+
+  void _finishQr(bool accepted) {
+    final decision = _qrDecision;
+    if (decision == null) return;
+    _qrDecision = null;
+    if (!decision.isCompleted) decision.complete(accepted);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _cancelQr() async => _finishQr(false);
+
+  @override
+  void dispose() {
+    _finishQr(false);
+    super.dispose();
   }
 }

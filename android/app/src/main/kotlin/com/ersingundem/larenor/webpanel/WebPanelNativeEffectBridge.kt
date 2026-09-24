@@ -78,6 +78,7 @@ internal interface WebPanelPrintHost : AutoCloseable {
     fun print(handle: String, title: String?, receipt: String): Boolean
     fun cancel()
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean = false
+    fun ownsUserSurface(): Boolean = false
 }
 
 internal interface WebPanelQrHost : AutoCloseable {
@@ -97,7 +98,16 @@ internal class WebPanelNativeEffectRuntime(
 
     fun setResumed(value: Boolean) {
         resumed = value
-        if (!value) cancelEffects()
+        if (!value) {
+            speech.stop()
+            qr.cancel()
+            if (!printer.ownsUserSurface()) printer.cancel()
+        }
+    }
+
+    fun setStopped() {
+        resumed = false
+        cancelEffects()
     }
 
     fun bind(ownerId: String, scope: WebPanelEffectScope): Boolean {
@@ -298,6 +308,8 @@ internal class AndroidWebPanelPrintHost(private val activity: Activity) : WebPan
         return true
     }
 
+    override fun ownsUserSurface(): Boolean = pending != null
+
     private fun copyBounded(uri: Uri, destination: File): Boolean {
         if (!WebPanelPrintSelection.valid(uri, "application/pdf", 5, "%PDF-".toByteArray())) return false
         val mime = runCatching { activity.contentResolver.getType(uri) }.getOrNull()
@@ -414,6 +426,7 @@ internal class WebPanelNativeEffectBridge(
 
     init { channel.setMethodCallHandler(this) }
     fun setResumed(value: Boolean) { if (!disposed) runtime.setResumed(value) }
+    fun setStopped() { if (!disposed) runtime.setStopped() }
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
         printer.onActivityResult(requestCode, resultCode, data)
 

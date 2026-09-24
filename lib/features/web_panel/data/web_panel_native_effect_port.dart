@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import '../domain/web_panel_native_bridge.dart';
 import 'web_panel_native_runtime.dart';
 
+typedef WebPanelQrScan = Future<bool> Function(Set<String> formats);
+typedef WebPanelQrCancel = Future<void> Function();
+
 /// Android production adapter. It carries bounded command data and non-secret
 /// authority revisions only; Core tokens, URLs, cookies and headers never
 /// cross this channel.
@@ -16,18 +19,26 @@ final class AndroidWebPanelNativeEffectPort
     Set<WebPanelNativeMethod> capabilities = const {
       WebPanelNativeMethod.speak,
       WebPanelNativeMethod.printDocument,
+      WebPanelNativeMethod.scanQr,
     },
-    int capabilityRevision = 2,
+    int capabilityRevision = 3,
+    WebPanelQrScan? scanQr,
+    WebPanelQrCancel? cancelQr,
   }) : _channel = channel,
        _ownerId = ownerId ?? secureWebPanelNativeId(),
        _capabilities = Set.unmodifiable(capabilities),
-       _capabilityRevision = capabilityRevision;
+       _capabilityRevision = capabilityRevision,
+       _scanQr = scanQr,
+       _cancelQr = cancelQr;
 
   static const channelName = 'com.ersingundem.larenor/web_panel_native_effects';
   final MethodChannel _channel;
   final String _ownerId;
   final Set<WebPanelNativeMethod> _capabilities;
   final int _capabilityRevision;
+  final WebPanelQrScan? _scanQr;
+  final WebPanelQrCancel? _cancelQr;
+  final Set<String> _localReceipts = {};
   WebPanelBridgeScope? _bound;
   bool _retired = false;
 
@@ -66,6 +77,9 @@ final class AndroidWebPanelNativeEffectPort
         outcome: WebPanelNativePortOutcome.rejected,
       );
     }
+    if (value.method == WebPanelNativeMethod.scanQr) {
+      return _executeQr(value);
+    }
     try {
       final raw = await _channel
           .invokeMapMethod<String, Object?>('execute', {
@@ -102,6 +116,44 @@ final class AndroidWebPanelNativeEffectPort
     }
   }
 
+  Future<WebPanelNativePortResult> _executeQr(
+    WebPanelNativeCommand value,
+  ) async {
+    final scanner = _scanQr;
+    final rawFormats = value.payload['formats'];
+    final formats = rawFormats is List<Object?>
+        ? rawFormats.whereType<String>().toSet()
+        : const {'qr'};
+    if (scanner == null || formats.length != 1 || !formats.contains('qr')) {
+      return const WebPanelNativePortResult(
+        outcome: WebPanelNativePortOutcome.unsupported,
+      );
+    }
+    try {
+      final accepted = await scanner(formats)
+          .timeout(const Duration(seconds: 30));
+      if (_retired) {
+        return const WebPanelNativePortResult(
+          outcome: WebPanelNativePortOutcome.uncertain,
+        );
+      }
+      if (!accepted) {
+        return const WebPanelNativePortResult(
+          outcome: WebPanelNativePortOutcome.rejected,
+        );
+      }
+      _localReceipts.add(value.requestId);
+      return WebPanelNativePortResult(
+        outcome: WebPanelNativePortOutcome.accepted,
+        receiptHandle: value.requestId,
+      );
+    } catch (_) {
+      return const WebPanelNativePortResult(
+        outcome: WebPanelNativePortOutcome.uncertain,
+      );
+    }
+  }
+
   @override
   Future<bool> readback(
     String receiptHandle,
@@ -109,6 +161,10 @@ final class AndroidWebPanelNativeEffectPort
     WebPanelBridgeTrustedFrame trusted,
   ) async {
     if (_retired || trusted.binding != _bound) return false;
+    if (value.method == WebPanelNativeMethod.scanQr) {
+      return receiptHandle == value.requestId &&
+          _localReceipts.remove(receiptHandle);
+    }
     try {
       return await _channel
               .invokeMethod<bool>('readback', {
@@ -127,6 +183,10 @@ final class AndroidWebPanelNativeEffectPort
     if (_retired || _bound != scope) return;
     _retired = true;
     _bound = null;
+    _localReceipts.clear();
+    try {
+      await _cancelQr?.call().timeout(const Duration(seconds: 2));
+    } catch (_) {}
     try {
       await _channel
           .invokeMethod<void>('retire', {'ownerId': _ownerId})

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/web_panel/data/web_panel_native_effect_port.dart';
@@ -114,38 +116,41 @@ void main() {
     expect(calls.where((value) => value.method == 'execute'), isEmpty);
   });
 
-  test('QR uses one visible scanner flight and retirement cancels it', () async {
-    final binding = scope();
-    var launches = 0;
-    var cancels = 0;
-    final gate = Completer<bool>();
-    final port = AndroidWebPanelNativeEffectPort(
-      channel: channel,
-      ownerId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      capabilities: const {WebPanelNativeMethod.scanQr},
-      scanQr: (_) {
-        launches++;
-        return gate.future;
-      },
-      cancelQr: () async {
-        cancels++;
-        if (!gate.isCompleted) gate.complete(false);
-      },
-    );
-    await port.bind(binding);
-    final qr = WebPanelNativeCommand.parse('''{
+  test(
+    'QR uses one visible scanner flight and retirement cancels it',
+    () async {
+      final binding = scope();
+      var launches = 0;
+      var cancels = 0;
+      final gate = Completer<bool>();
+      final port = AndroidWebPanelNativeEffectPort(
+        channel: channel,
+        ownerId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        capabilities: const {WebPanelNativeMethod.scanQr},
+        scanQr: (_) {
+          launches++;
+          return gate.future;
+        },
+        cancelQr: () async {
+          cancels++;
+          if (!gate.isCompleted) gate.complete(false);
+        },
+      );
+      await port.bind(binding);
+      final qr = WebPanelNativeCommand.parse('''{
       "schemaVersion":1,"sequence":1,
       "requestId":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "grantId":"ffffffffffffffffffffffffffffffff",
       "method":"scanQr","payload":{"formats":["qr"]}
     }''');
-    final executing = port.execute(qr, frame(binding));
-    await Future<void>.delayed(Duration.zero);
-    await port.retire(binding);
-    final result = await executing;
-    expect(result.outcome, WebPanelNativePortOutcome.uncertain);
-    expect(launches, 1);
-    expect(cancels, 1);
-    expect(calls.where((value) => value.method == 'execute'), isEmpty);
-  });
+      final executing = port.execute(qr, frame(binding));
+      await Future<void>.delayed(Duration.zero);
+      await port.retire(binding);
+      final result = await executing;
+      expect(result.outcome, WebPanelNativePortOutcome.uncertain);
+      expect(launches, 1);
+      expect(cancels, 1);
+      expect(calls.where((value) => value.method == 'execute'), isEmpty);
+    },
+  );
 }

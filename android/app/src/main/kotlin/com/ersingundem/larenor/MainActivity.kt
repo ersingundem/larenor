@@ -105,6 +105,10 @@ class MainActivity : FlutterActivity() {
         webPanelNativeEffects?.setResumed(false)
         super.onPause()
     }
+    override fun onStop() {
+        webPanelNativeEffects?.setStopped()
+        super.onStop()
+    }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         wellbeing?.windowFocusChanged()
