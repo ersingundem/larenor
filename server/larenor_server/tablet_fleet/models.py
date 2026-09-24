@@ -1,5 +1,5 @@
 import math
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -9,6 +9,7 @@ from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
 ManagementMode = Literal["standard", "deviceOwner"]
 CommandKind = Literal["syncProfile", "refreshDashboard", "restartClient", "lockKiosk"]
 CommandResult = Literal["succeeded", "denied", "failed", "unsupported"]
+ProfileRevision = Annotated[int, Field(ge=0, le=2**63 - 1)]
 
 
 def safe_text(value: str) -> str:
@@ -51,6 +52,38 @@ class TabletHeartbeat(Versioned):
 class UpdateTabletProfile(Versioned):
     expectedRevision: Revision
     desiredProfileRevision: Revision
+
+
+class TabletProfileDocument(Versioned):
+    fullscreen: bool
+    idleTimeoutSeconds: int = Field(ge=30, le=86_400)
+
+
+class PublishTabletProfile(Versioned):
+    expectedDeviceRevision: Revision
+    expectedProfileRevision: ProfileRevision
+    documentDigest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    document: TabletProfileDocument
+
+
+class TabletProfilePublication(Versioned):
+    deviceId: Identity
+    deviceRevision: Revision
+    revision: Revision
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    document: TabletProfileDocument
+    updatedAt: float
+
+    @field_validator("updatedAt", mode="before")
+    @classmethod
+    def finite_update(cls, value):
+        if type(value) is not float or not math.isfinite(value):
+            raise ValueError("invalid_update")
+        return value
+
+
+class TabletProfilePublicationResponse(FrozenModel):
+    publication: TabletProfilePublication
 
 
 class TabletRef(HomeScope):
