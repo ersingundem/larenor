@@ -2068,7 +2068,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi arama/widget/oda görünümü kabulü",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S08.8",
         "S08.9",
@@ -2079,7 +2079,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/testing/s08-11-authority-crossflow-closure.tdd.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -2090,9 +2091,42 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": "Mevcut yüzey testleri yetkili Core kaynaklarını arama, oda ve kartlara bağlıyor; same-runtime eski veriyi inert tutup logoutta temizliyor ve binding zarfını yedek doğrulamasından geçiriyor. Aynı URL’de Core değişimi, process restart, gerçek restore rebind ve hesap değişimini bu üç yüzeyde birlikte kanıtlayan çapraz akış E2E henüz yok; exact kapanış incelemesi ve CI tamamlanmadan sayaç artmaz."
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/s08-11-authority-crossflow-closure.tdd.md",
+          "commit": "5e440235b6f7cc39cb638ea5ac9fd2f033a667f1",
+          "state": "completed",
+          "result": "passed",
+          "label": "378-test Flutter backup/vault package, 49 focused Core replacement/restore, 39 Python vault storage, and final 92 controller/account/UI plus 8 cross-flow tests passed."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s08-11-authority-crossflow-closure.tdd.md",
+          "commit": "5e440235b6f7cc39cb638ea5ac9fd2f033a667f1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent final authority, privacy, lifecycle, upload and cross-flow review found no remaining P1/P2 blocker."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35966881025",
+          "commit": "5e440235b6f7cc39cb638ea5ac9fd2f033a667f1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR #488 Android Build attempt 2 passed static analysis, four Flutter shards and aggregate, four Server shards and aggregate, debug APK, and API 35 emulator journey."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35966880542",
+          "commit": "5e440235b6f7cc39cb638ea5ac9fd2f033a667f1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security secret-scan, platform-policy, and dependency-scan passed on the exact source."
+        }
+      ],
+      "completionCommit": "5e440235b6f7cc39cb638ea5ac9fd2f033a667f1",
+      "reason": "Exact scoped dashboard backup/preview/restore/recovery ownership, same-URL Core replacement, process restart/remount, foreign-scope rejection, fresh-revision activation and logout retirement are covered across search, room and card surfaces. Independent review found no P1/P2 blocker and exact PR #488 Android Build plus Security passed. Physical media receivers and device-specific journeys remain MANUAL."
     },
     {
       "id": "B4",
