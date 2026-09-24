@@ -30,6 +30,25 @@ for both `linux/amd64` and `linux/arm64`. Local non-Linux execution reports the
 single native fixture skip; the three static workflow contracts and the eight
 non-native runtime tests pass.
 
+## Exact-head review follow-up
+
+The first published exact head failed the real fixture on both architectures
+in run `35943603923`. A permanent diagnostic RED at `b9b2a1c8` narrowed run
+`35943852806` to the generic mount observer's device-number check: Linux had
+already proved root authority, `CAP_SYS_ADMIN`, the initial user namespace,
+the exact directory descriptor and its unique mount ID, but a Btrfs mount can
+report a backing-device number in `mountinfo` that differs from the directory
+descriptor's anonymous Btrfs `st_dev` value.
+
+The deterministic RED at `b5cfbcdd` requires the generic observer to remain
+strict for every filesystem and rejects invalid opt-in values. GREEN
+`9569150f` adds one explicit Btrfs-only option used by the privileged capture
+preflight. Exact mount ID, two identical mount snapshots, retained descriptor
+identity, process root, mount namespace, calling thread and deadline checks
+remain mandatory; even with the option enabled, a mismatched non-Btrfs device
+still fails closed. The focused mount-observation and capture-preflight suites
+pass locally. Real amd64/arm64 execution remains the exact-head merge gate.
+
 S09.1 remains pending. Queue progress stays at **26/125** and selected-feature
 progress stays at **0/63**; complete generation and platform acceptance remain
 milestone gates.
