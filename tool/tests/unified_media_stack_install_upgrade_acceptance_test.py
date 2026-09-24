@@ -5,6 +5,7 @@ import functools
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -601,6 +602,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 self.assertEqual(result["reviewedHeadCommit"], CURRENT_REVISION)
                 self.assertEqual(result["recoveryState"], "not_required")
                 self.assertIs(result["effectReapplied"], False)
+                self.assertEqual(result["cleanupState"], "deferred_until_verified")
+                self.assertNotIn("cleanup", driver.calls)
                 self.assertEqual(
                     result["upgradeSourceHashes"],
                     driver.base_materialization["sourceHashes"],
@@ -931,7 +934,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             1,
         )
         self.assertIsNone(state.journal)
-        self.assertEqual(restarted.calls[-1], "cleanup")
+        self.assertEqual(result["cleanupState"], "deferred_until_verified")
+        self.assertNotIn("cleanup", restarted.calls)
 
     def test_install_power_loss_restarts_from_durable_journal_without_replay(self):
         state = DurableUpgradeState()
@@ -994,7 +998,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
         self.assertEqual(restarted.private_receipts, durable_private)
-        self.assertEqual(restarted.calls[-1], "cleanup")
+        self.assertEqual(result["cleanupState"], "deferred_until_verified")
+        self.assertNotIn("cleanup", restarted.calls)
 
     def test_base_receipt_commit_power_loss_resumes_upgrade_without_reinstall(self):
         state = DurableUpgradeState()
@@ -1035,7 +1040,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
         self.assertIsNone(state.journal)
-        self.assertEqual(restarted.calls[-1], "cleanup")
+        self.assertEqual(result["cleanupState"], "deferred_until_verified")
+        self.assertNotIn("cleanup", restarted.calls)
 
     def test_malformed_install_journal_preserves_state_without_cleanup(self):
         crashed_state = DurableUpgradeState()
@@ -1165,6 +1171,11 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             )
             with patch.object(target, "ROOT", owned), patch.object(
                 target,
+                "OWNED_UID",
+                os.geteuid(),
+                create=True,
+            ), patch.object(
+                target,
                 "_command",
                 return_value=(0, b""),
             ) as command:
@@ -1224,6 +1235,11 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 "retain\n", encoding="ascii"
             )
             with patch.object(target, "ROOT", root), patch.object(
+                target,
+                "OWNED_UID",
+                os.geteuid(),
+                create=True,
+            ), patch.object(
                 target,
                 "_command",
                 return_value=(0, b""),

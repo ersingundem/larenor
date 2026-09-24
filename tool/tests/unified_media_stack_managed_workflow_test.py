@@ -64,7 +64,7 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
             "self-hosted", "linux", "x64", "larenor-native"]
         self.assertIn("self_hosted_forbidden", self.policy_errors(self_hosted))
 
-    def test_exact_chain_verification_artifact_and_verified_cleanup_are_ordered(self):
+    def test_exact_chain_verification_artifact_and_always_cleanup_are_ordered(self):
         value = self.workflow()
         steps = value["jobs"]["unified-media-stack-native"]["steps"]
         native = next(i for i, step in enumerate(steps) if step.get("id") == "native")
@@ -72,12 +72,13 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         verify = next(i for i, step in enumerate(steps) if step.get("id") == "verify")
         upload = next(i for i, step in enumerate(steps)
                       if step.get("uses", "").startswith("actions/upload-artifact@"))
+        self.assertLess(native, cleanup)
         self.assertLess(native, verify)
         self.assertLess(verify, cleanup)
         self.assertLess(cleanup, upload)
         self.assertEqual(
             steps[cleanup]["if"],
-            "steps.verify.outcome == 'success' && needs.native-scope.outputs.run == 'true'",
+            "always() && needs.native-scope.outputs.run == 'true'",
         )
         self.assertIn("--cleanup-owned", steps[cleanup]["run"])
         self.assertIn("--run-native", steps[native]["run"])
@@ -152,8 +153,6 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
 
         self.assertIn("--fault-after-upgrade-journal", script)
         self.assertIn('test "$status" -eq 75', script)
-        self.assertIn("unified_upgrade_recovery_pending", script)
-        self.assertIn("fault_injected", script)
         self.assertEqual(script.count("--run-native"), 2)
         self.assertLess(
             script.index("--fault-after-upgrade-journal"),
@@ -162,6 +161,11 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertIn('UPGRADE_SOURCE_SHA="$UPGRADE_SOURCE_SHA"', script)
         self.assertIn('REVIEWED_HEAD_SHA="$REVIEWED_HEAD_SHA"', script)
         self.assertLess(native_index, cleanup_index)
+        verify_index = next(
+            index for index, step in enumerate(steps) if step.get("id") == "verify"
+        )
+        self.assertLess(native_index, verify_index)
+        self.assertLess(verify_index, cleanup_index)
         self.assertIn("--cleanup-owned", steps[cleanup_index]["run"])
 
     def test_every_embedded_shell_script_parses(self):

@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -605,6 +606,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             (backups / "backup-private-state").write_text("retain-until-cleanup\n")
             (rollback / "rollback-private-state").write_text("retain-until-cleanup\n")
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)
             self.assertFalse(root.exists())
@@ -615,6 +617,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             self.assertEqual(arguments[arguments.index("--project-name") + 1],
                              "larenor-native-" + operation_id)
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)
             command.assert_not_called()
@@ -626,6 +629,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 path.chmod(0o700)
             (root / "replacement-private-state").write_text("retain\n")
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(target.ManagedStackCIError,
                                             "unified_cleanup_not_owned"):
@@ -664,6 +668,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             receipt.chmod(0o666)
 
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
@@ -708,6 +713,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             (backups / "foreign").write_text("preserve\n")
 
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
@@ -754,6 +760,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             (backups / "foreign").write_text("preserve\n")
 
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
