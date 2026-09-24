@@ -142,6 +142,13 @@ Service Worker, lifecycle and secret-free requirements. The deterministic
 acceptance manifest at `docs/testing/k03-webpanel-acceptance.json` binds those
 production and adversarial test files to this review source.
 
+The seven production and adversarial test references are byte-for-byte
+unchanged from that exact source on the closure tree: `git diff --quiet
+ac8e1af6..HEAD -- <manifest production/test references>` exits 0. The
+validator additionally requires the critical redirect, owned-transport,
+WebSocket, Worker, Service Worker and API 35 test markers in the current tree,
+so the accepted CI and the live guard implementation are checked together.
+
 [Android Build run 35941771379](https://github.com/ersingundem/larenor/actions/runs/35941771379)
 passed on that exact source: API 35 `emulator-journeys`, all four Flutter
 shards, static analysis, all four Server shards plus their aggregate gate and

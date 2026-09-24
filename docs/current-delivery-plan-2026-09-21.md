@@ -1,9 +1,9 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod kanıtı `origin/main` **`8f2ce21b`** kaynağına kadar
+Bu sayfanın birleşmiş kod kanıtı `origin/main` **`b4272e38`** kaynağına kadar
 S08.8, S09.1 ve K03 teslimlerini kapsar. Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **26/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **27/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -48,6 +48,11 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   izole capture lease'i `9ccd6fe4`, açık Jellyfin bağlantı geçişi `8f2ce21b`.
   Altı kaynak/squash stable patch-id eşitliği, main ancestry'si ve branch
   temizliği ayrı doğrulandı; açık PR kalmadı.
+- PR #474 exact `ac8e1af6` kaynağında anonymous owned alt-kaynak transportu,
+  her redirectte exact-origin doğrulamasını ve document-start dynamic-egress
+  kapısını API 35 matrisiyle tamamladı. Android Build `35941771379` ve Security
+  `35941771192` aynı exact kaynakta geçti; kaynak `7211a6ff` olarak birleşti.
+  K03.remaining yazılım kabulü kapandı ve sayaç 27/125 oldu.
 
 ## Kanıtı açık kalan sınırlar
 
@@ -65,11 +70,9 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
    okuma, yeniden başlatma ve kurtarma zincirini; S09.3 amd64/arm64 temiz
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
-4. **Kiosk:** K03 native SAF indirmesi, external action ve renderer ölüm
-   yaşam döngüleri main'de. Hat C, alt kaynak GET'lerini her redirectte exact
-   origin doğrulayan anonymous, bounded transporta taşır; desteklenmeyen
-   WebSocket/worker egress'ini document-start kapısında kapatır. K03 review/CI
-   kanıtı tamamlanana kadar pending kalır; fiziksel Android/DeX/OEM, DPC,
+4. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
+   döngüsü, anonymous owned alt-kaynak transportu ve document-start dynamic
+   egress kapısı yazılım kabulünü tamamladı. Fiziksel Android/DeX/OEM, DPC,
    force-stop ve çevre birimi kanıtları ayrı manuel kapıdır.
 5. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
@@ -85,7 +88,7 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 | --- | --- | --- |
 | A — S08.8 | Merkezi browse/recent/resume eşliğini tamamla; dashboard, hub, arama, casting, hedef ve ayar yüzeylerindeki aktif direct Jellyfin/MA runtime tüketicilerini devreden çıkar. | Client ayrı adres-token istemez; Core route değişimi/logout/restart E2E eski veriyi göstermez; gerçek alıcılar ayrı MANUAL.MEDIA |
 | B — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
-| C — K03.remaining | Anonymous owned transportu ve WebSocket/worker fail-closed sınırını exact review/CI kanıtına taşı. | Subresource redirect/iframe adversarial Android testleri, mevcut origin ve sır sızıntısı kapıları; fiziksel Android/DeX/OEM ayrı manuel kapıda kalır |
+| C — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük
