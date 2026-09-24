@@ -120,6 +120,10 @@ def core_media_architecture_errors(root: Path) -> list[str]:
             errors.append("music_route_authority_missing")
         elif not provider.index(core_guard) < provider.index(core_music) < provider.index(direct_music):
             errors.append("music_route_authority_order")
+        search_route = "path: '/search'"
+        search_selector = "onOpenRemoteMedia: () => context.push('/media')"
+        if search_route not in provider or search_selector not in provider:
+            errors.append("search_route_bypasses_media_authority_selector")
     return errors
 
 
