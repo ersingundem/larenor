@@ -932,6 +932,8 @@ def run_native(commit, selected_platform, driver, *, base_commit=None,
                 "recoveryState": ("post_effect_reconciled"
                                   if upgrade_evidence[4] else "not_required"),
                 "effectReapplied": False,
+                "storageCapacityState": "contract_fixture",
+                "capacityVerified": False,
             })
     except ManagedStackCIError as error:
         primary = error
@@ -980,6 +982,7 @@ def _validate_receipt(value, commit, selected_platform, *, upgrade_source=None,
         "upgradeSourceCommit", "reviewedHeadCommit", "upgradeSourceTree",
         "reviewedHeadTree", "upgradeSourceHashes", "installationPhases",
         "privateStateProofs", "recoveryState", "effectReapplied",
+        "storageCapacityState", "capacityVerified",
     }
     expanded = isinstance(value, dict) and "upgradeSourceCommit" in value
     wanted_keys = base_keys | upgrade_keys if expanded else base_keys
@@ -1020,6 +1023,8 @@ def _validate_receipt(value, commit, selected_platform, *, upgrade_source=None,
                     "not_required", "post_effect_reconciled"}
                 or value.get("recoveryState") != expected_recovery
                 or value.get("effectReapplied") is not False
+                or value.get("storageCapacityState") != "contract_fixture"
+                or value.get("capacityVerified") is not False
                 or value.get("upgradeSourceTree") != _source_tree(expected_base)
                 or value.get("reviewedHeadTree") != _source_tree(expected_head)
                 or base_hashes != _source_evidence(expected_base)["sourceHashes"]
@@ -1307,9 +1312,81 @@ def validate_rendered_config(rendered, expected, project_name, *, source_root=RE
         raise ManagedStackCIError("unified_manifest_invalid")
 
 
+class _NativeAcceptanceHostFacts:
+    """Delegate real host checks and fixture only available capacity."""
+
+    def __init__(self, delegate, *, requirements):
+        if (type(requirements) is not list or not requirements
+                or len(requirements) > 64):
+            raise ManagedStackCIError("unified_preflight_failed")
+        self._delegate = delegate
+        self._requirements = {}
+        for item in requirements:
+            if (type(item) is not dict
+                    or not isinstance(item.get("path"), str)
+                    or not item["path"].startswith("/")
+                    or type(item.get("requiredMiB")) is not int
+                    or not 0 <= item["requiredMiB"] <= 1024 * 1024
+                    or item["path"] in self._requirements):
+                raise ManagedStackCIError("unified_preflight_failed")
+            self._requirements[item["path"]] = item["requiredMiB"]
+        self._facts = None
+
+    def architecture(self):
+        return self._delegate.architecture()
+
+    def installation(self):
+        return self._delegate.installation()
+
+    def clean(self, paths):
+        return self._delegate.clean(paths)
+
+    def _load(self):
+        if self._facts is not None:
+            return
+        facts = {
+            path: self._delegate.inspect(path)
+            for path in self._requirements
+        }
+        required_by_device = {}
+        for path, observed in facts.items():
+            if (type(observed) is dict
+                    and type(observed.get("device")) is int
+                    and observed["device"] >= 0
+                    and type(observed.get("availableMiB")) is int
+                    and observed["availableMiB"] >= 0):
+                required_by_device[observed["device"]] = (
+                    required_by_device.get(observed["device"], 0)
+                    + self._requirements[path]
+                )
+        self._facts = {}
+        for path, observed in facts.items():
+            if (type(observed) is dict
+                    and type(observed.get("device")) is int
+                    and observed["device"] in required_by_device
+                    and type(observed.get("availableMiB")) is int
+                    and observed["availableMiB"] >= 0):
+                observed = {
+                    **observed,
+                    "availableMiB": max(
+                        observed["availableMiB"],
+                        required_by_device[observed["device"]],
+                    ),
+                }
+            self._facts[path] = observed
+
+    def inspect(self, path):
+        if path not in self._requirements:
+            raise ManagedStackCIError("unified_preflight_failed")
+        self._load()
+        observed = self._facts[path]
+        return dict(observed) if type(observed) is dict else observed
+
+
 class DockerDriver:
     def __init__(self, commit, selected_platform, ownership_receipt, *, operation_id=None,
-                 fault_after_upgrade_journal=False):
+                 fault_after_upgrade_journal=False,
+                 acceptance_capacity_fixture=False):
         self.commit = commit
         self.platform = selected_platform
         self.ownership_receipt = Path(ownership_receipt)
@@ -1329,6 +1406,7 @@ class DockerDriver:
         self._journal_path = ROOT / ".native-upgrade-journal.json"
         self._installation_path = ROOT / ".larenor-installation.json"
         self._fault_after_upgrade_journal = fault_after_upgrade_journal
+        self._acceptance_capacity_fixture = acceptance_capacity_fixture
         self._environment = {
             "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp",
             "LARENOR_SOURCE_REVISION": commit,
@@ -1619,8 +1697,14 @@ class DockerDriver:
             host = module.LocalHostFacts(
                 ROOT, expected_uid=OWNED_UID,
                 architecture=self.platform.removeprefix("linux/"))
+            bundle = _revision_contract(revision)
+            if self._acceptance_capacity_fixture:
+                host = _NativeAcceptanceHostFacts(
+                    host,
+                    requirements=bundle["deploymentManifest"]["ownedPaths"],
+                )
             result = self._deployment_planner().preflight(
-                _revision_contract(revision), operation, host)
+                bundle, operation, host)
         except Exception:
             raise ManagedStackCIError("unified_preflight_failed") from None
         if not isinstance(result, dict):
@@ -2475,7 +2559,8 @@ def main(arguments=None):
             base, reviewed = validate_upgrade_chain(commit)
             value = run_native(commit, selected, DockerDriver(
                 commit, selected, args.ownership_receipt,
-                fault_after_upgrade_journal=args.fault_after_upgrade_journal),
+                fault_after_upgrade_journal=args.fault_after_upgrade_journal,
+                acceptance_capacity_fixture=True),
                 base_commit=base, reviewed_head_commit=reviewed)
             print(_canonical(value))
         elif args.verify_receipt:
