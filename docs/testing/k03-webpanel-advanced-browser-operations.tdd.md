@@ -1,6 +1,6 @@
 # K03 WebPanel advanced browser operations
 
-Status: **platform acceptance ready; exact-head API 35 CI pending; K03.remaining stays open**
+Status: **software acceptance complete at PR #474; queue closure update pending**
 
 ## Three acceptance criteria
 
@@ -118,11 +118,8 @@ the fail-fast permit cap. Adversarial RED `ff3f3d46` then exposes cross-attachme
 capacity, opaque-frame injection, system-proxy and failed-stream cleanup gaps;
 GREEN `5fdab42f` closes them. The grouped milestone passes **20/20** Android
 WebPanel Robolectric tests and **113/113** Flutter WebPanel tests; focused
-Flutter analysis reports no issues. The new API 35 matrix and real-WebView
-transport journeys remain pending exact-head emulator CI, so K03.remaining and
-progress stay at **26/125** and **0/63** until that evidence and review are
-recorded. Physical
-tablet/DeX/OEM evidence stays in the separate manual gate described above.
+Flutter analysis reports no issues. Physical tablet/DeX/OEM evidence stays in
+the separate manual gate described above.
 
 Exact-head emulator CI at `d7b71fd9` then exposed a real lifetime gap: WebView
 can consume exactly the declared `Content-Length` without requesting EOF or
@@ -133,4 +130,32 @@ reload evidence. RED `183bddc0` reproduces the starvation with two attachments
 and one shared permit. GREEN `03216bd0` treats exact declared-length completion
 as terminal while preserving the streaming byte cap and exactly-once close.
 The rebased Android WebPanel group now passes **21/21** tests. Exact-head API 35
-CI remains the final automated gate, and the progress counters remain unchanged.
+CI was the final automated gate.
+
+## Exact review and CI acceptance
+
+The final independent exact-tree review at
+`ac8e1af6c5564fbc41eb5ea50d15241d01da2a87` found no remaining P1/P2 software
+blocker after the exact-length lease fix. It rechecked the production WebView
+boundary against the owned-transport, redirect, iframe, document-start,
+Service Worker, lifecycle and secret-free requirements. The deterministic
+acceptance manifest at `docs/testing/k03-webpanel-acceptance.json` binds those
+production and adversarial test files to this review source.
+
+The seven production and adversarial test references are byte-for-byte
+unchanged from that exact source on the closure tree: `git diff --quiet
+ac8e1af6..HEAD -- <manifest production/test references>` exits 0. The
+validator additionally requires the critical redirect, owned-transport,
+WebSocket, Worker, Service Worker and API 35 test markers in the current tree,
+so the accepted CI and the live guard implementation are checked together.
+
+[Android Build run 35941771379](https://github.com/ersingundem/larenor/actions/runs/35941771379)
+passed on that exact source: API 35 `emulator-journeys`, all four Flutter
+shards, static analysis, all four Server shards plus their aggregate gate and
+the debug APK. [Security run 35941771192](https://github.com/ersingundem/larenor/actions/runs/35941771192)
+passed dependency, platform-policy and secret scans on the same SHA. PR #474
+then squash-merged as `7211a6ffca6008bcb30d9ec4d6849e222fc81092`.
+
+This closes the K03.remaining software acceptance. It does not convert the
+physical Android, DeX, Huawei WebView, OEM renderer, DPC, force-stop, peripheral
+or real-site checks into automated evidence; those remain in the manual gates.

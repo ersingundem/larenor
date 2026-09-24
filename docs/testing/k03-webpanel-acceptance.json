@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "task": "K03.remaining",
+  "sourceCommit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+  "mergeCommit": "7211a6ffca6008bcb30d9ec4d6849e222fc81092",
+  "references": {
+    "production": [
+      "android/app/src/main/kotlin/com/ersingundem/larenor/webpanel/WebPanelOwnedTransport.kt",
+      "android/app/src/main/kotlin/com/ersingundem/larenor/webpanel/WebPanelRendererBridge.kt"
+    ],
+    "test": [
+      "android/app/src/test/kotlin/com/ersingundem/larenor/webpanel/WebPanelOwnedTransportTest.kt",
+      "android/app/src/test/kotlin/com/ersingundem/larenor/webpanel/WebPanelRendererBridgeTest.kt",
+      "integration_test/web_panel_owned_transport_test.dart",
+      "integration_test/web_panel_dynamic_context_matrix_test.dart",
+      "integration_test/web_panel_dynamic_egress_test.dart"
+    ],
+    "review": [
+      "docs/testing/k03-webpanel-advanced-browser-operations.tdd.md"
+    ]
+  },
+  "ci": {
+    "android": {
+      "url": "https://github.com/ersingundem/larenor/actions/runs/35941771379",
+      "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+      "result": "passed",
+      "requiredJobs": [
+        "build-debug-apk",
+        "analyze-test / static-analysis",
+        "analyze-test / flutter-test (0)",
+        "analyze-test / flutter-test (1)",
+        "analyze-test / flutter-test (2)",
+        "analyze-test / flutter-test (3)",
+        "server-test / server-test-shard-0",
+        "server-test / server-test-shard-1",
+        "server-test / server-test-shard-2",
+        "server-test / server-test-shard-3",
+        "server-test / server-test",
+        "end-to-end / emulator-journeys"
+      ]
+    },
+    "security": {
+      "url": "https://github.com/ersingundem/larenor/actions/runs/35941771192",
+      "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+      "result": "passed",
+      "requiredJobs": [
+        "dependency-scan",
+        "platform-policy",
+        "secret-scan"
+      ]
+    }
+  },
+  "manualBoundary": "Physical Android, DeX and OEM behavior remains a separate manual gate."
+}

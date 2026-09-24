@@ -2422,14 +2422,16 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "WebPanel ileri tarayıcı işlemleri",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B5"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k03-webpanel-advanced-browser-operations.tdd.md",
+        "docs/testing/k03-webpanel-acceptance.json"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2440,8 +2442,41 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k03-webpanel-acceptance.json",
+          "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+          "state": "completed",
+          "result": "passed",
+          "label": "21 Android WebPanel tests and API 35 redirect, iframe, dynamic-realm acceptance"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/k03-webpanel-advanced-browser-operations.tdd.md",
+          "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent exact-tree security and lifecycle review; no remaining P1 or P2 blocker"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35941771379",
+          "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android Build: API 35, four Flutter shards, static, Server shards and debug APK"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35941771192",
+          "commit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security: dependency, platform-policy and secret scans"
+        }
+      ],
+      "completionCommit": "ac8e1af6c5564fbc41eb5ea50d15241d01da2a87",
       "reason": null
     },
     {

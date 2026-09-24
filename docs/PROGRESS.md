@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım kaynağı `8f2ce21b` — 26/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8'in exact sürümlü önbellekleri, Core medya ve Music Assistant ürün yolculukları ile açık Jellyfin geçişi; S09.1'in izole capture lease'i; K03'ün native SAF indirmesi ve renderer yaşam döngüsü main'e girdi.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım kaynağı `b4272e38` — 27/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. K03.remaining'in anonymous owned transport, exact-origin redirect ve document-start WebSocket/worker sınırı exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel Android/DeX/OEM kapısı ayrı kaldı. S08.8 ve S09.1 teslimleri ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  26/125 iş (%20,8; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  27/125 iş (%21,6; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,25 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 24 Eylül K03.remaining yazılım kabulü
+
+PR #474 exact `ac8e1af6c5564fbc41eb5ea50d15241d01da2a87` kaynağında
+anonymous, bounded alt-kaynak GET transportunu, her redirectte exact-origin
+kontrolünü ve document-start WebSocket/EventSource/WebTransport/Worker/
+SharedWorker kapısını birlikte doğruladı. Owned transport cancellation,
+streaming/declared-length kota ve attachment retirement testleri; top,
+same-origin iframe, opaque/delayed frame ve reload API 35 matrisiyle birlikte
+geçti. Bağımsız exact-tree review kalan P1/P2 yazılım blockerı bulmadı.
+
+Android Build `35941771379` emulator yolculukları, dört Flutter shardı, statik
+analiz, dört Server shardı ve aggregate kapısı ile debug APK'yı; Security
+`35941771192` dependency/platform/secret kapılarını aynı exact kaynakta geçti.
+Exact kaynak squash `7211a6ff` olarak main'e birleşti. Deterministic kabul manifesti kritik
+production/test guard markerlarını ve bu exact CI setini current tree üzerinde
+yeniden doğrular. K03.remaining `done`; kuyruk **27/125 (%21,6)**. Fiziksel
+Android, DeX, Huawei WebView, OEM renderer, DPC, force-stop, çevre birimi ve
+gerçek-site davranışı MANUAL kalır.
 
 ### 24 Eylül S09.1 packaged capture worker adayı
 
@@ -31,7 +50,7 @@ zincirini GitHub-hosted `linux/amd64` ve `linux/arm64` üzerinde çalıştırıy
 
 Bu dilim restore veya clean-install recovery sağlamaz ve database, vault key,
 yapılandırma ile component payloadlarının tek exact generation kanıtını tek
-başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **26/125 (%20,8)** ve seçili
+başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **27/125 (%21,6)** ve seçili
 özellik kabulü **0/63** kalır.
 
 ### 24 Eylül birleşik teslim kanıtı — PR #456–#462
@@ -41,9 +60,9 @@ current-head CI ve API 35 emülatör kapısından sonra squash merge ile main'e
 girdi; her exact rollup 29 başarılı ve 6 beklenen skip ile kapandı. Kaynak ve
 squash stable patch-id eşitliği ile main ancestry'si
 ayrı ayrı doğrulandı. Birleşen branch ve worktree'ler temizlendi. Bu dilimler
-S08.8, S09.1 ve K03'ün kalan sınırlarını daralttı; hiçbir kuyruk düğümünün
-bütün kabul ölçütlerini tek başına kapatmadığı için sayaç **26/125 (%20,8)** ve
-seçili özellikler **0/63** kaldı.
+S08.8, S09.1 ve K03'ün kalan sınırlarını daralttı; bu birleşme anında hiçbir
+kuyruk düğümünün bütün kabul ölçütleri kapanmadığı için sayaç **26/125 (%20,8)**
+kaldı. Sonraki PR #474 exact kabulü K03.remaining'i yukarıdaki kanıtla kapattı.
 
 | PR / alan | Exact head → merge | Kanıt ve kalan sınır |
 | --- | --- | --- |
@@ -60,9 +79,10 @@ sözleşmesini kanıtlıyor; ancak aktif direct medya UI/runtime tüketicileri v
 merkezi browse/recent/resume eşliği tamamlanmadan kapanmıyor. S09.1'in lease
 sözleşmesi production provider'a kadar bağlı; privileged Linux capture engine,
 amd64/arm64 native kabulü ve bütün DB/anahtar/yapılandırma/bileşen veri
-sınırlarının aynı generation içinde kanıtı kalıyor. K03'ün SAF, external action
-ve renderer yaşam döngüleri kapandı; subresource redirect ve WebSocket/worker
-egress'i için owned, bounded transport ile fiziksel tablet/DeX/OEM kabulü açık.
+sınırlarının aynı generation içinde kanıtı kalıyor. K03'ün SAF, external action,
+renderer yaşam döngüsü, owned subresource transportu ve document-start dynamic
+egress sınırı yazılım kabulünü tamamladı; fiziksel tablet/DeX/OEM kabulü ayrı
+MANUAL kapıda açık.
 
 ### 23 Eylül aktif teslim kanıtı — PR #448–#455
 
