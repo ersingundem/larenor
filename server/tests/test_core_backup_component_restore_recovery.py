@@ -234,6 +234,29 @@ def test_successful_durable_batch_clears_journal_after_exact_release(server, tmp
     assert coordinator.recover(plan, deadline=10.0) is False
 
 
+def test_released_journal_failure_never_rolls_back_or_releases_again(server, tmp_path):
+    opened, plan, state, journal, coordinator = durable_inputs(server, tmp_path)
+    write = journal.write
+
+    def fail_released(value):
+        if value["phase"] == "released":
+            raise ComponentRestorePlanError()
+        write(value)
+
+    journal.write = fail_released
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        coordinator.restore(opened, plan, deadline=10.0)
+
+    assert journal.read()["phase"] == "committed"
+    assert state.target != state.initial
+    assert not state.rollback_operations
+    assert sum(event[0] == "release" for event in state.events) == 1
+
+
 @pytest.mark.parametrize("recovery_phase", ["rolled_back", "released"])
 def test_recovery_restart_skips_completed_rollback_or_release_exactly_once(
     server, tmp_path, recovery_phase

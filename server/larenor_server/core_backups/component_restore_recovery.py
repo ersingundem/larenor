@@ -455,6 +455,7 @@ class DurableComponentRestoreCoordinator:
         rollbacks = []
         stages = []
         operation_id = secrets.token_hex(16)
+        release_attempted = False
         try:
             volumes = _plan_matches_capture(capture, plan)
             self._active(deadline)
@@ -518,6 +519,7 @@ class DurableComponentRestoreCoordinator:
             self._persist(
                 self._state(plan, operation_id, "committed", rollbacks, stages)
             )
+            release_attempted = True
             if session.release() is not True:
                 raise ComponentRestorePlanError()
             self._persist(
@@ -531,9 +533,10 @@ class DurableComponentRestoreCoordinator:
             )
         except Exception:
             if session is not None:
-                self._cleanup(
-                    session, plan, operation_id, rollbacks, stages
-                )
+                if not release_attempted:
+                    self._cleanup(
+                        session, plan, operation_id, rollbacks, stages
+                    )
             elif self._journal.exists():
                 self._journal.clear()
             raise ComponentRestorePlanError() from None
