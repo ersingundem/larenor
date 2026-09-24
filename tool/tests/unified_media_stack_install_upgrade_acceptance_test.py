@@ -929,6 +929,32 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         expected_recovery="not_required",
                     )
 
+            with self.subTest(phase=phase, mutation="runtime"):
+                changed = copy.deepcopy(result)
+                changed["installationPhases"][index]["runtimeReceipt"]["core"][
+                    "containerIdentityDigest"
+                ] = "f" * 64
+                changed["installationPhases"][index][
+                    "runtimeReceiptDigest"
+                ] = _digest({
+                    "phase": phase,
+                    "runtimeReceipt": changed["installationPhases"][index][
+                        "runtimeReceipt"
+                    ],
+                })
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid",
+                ):
+                    target.validate_receipt(
+                        changed,
+                        CURRENT_REVISION,
+                        "linux/amd64",
+                        upgrade_source=BASE_REVISION,
+                        reviewed_head=CURRENT_REVISION,
+                        expected_recovery="not_required",
+                    )
+
         foreign_identity = hashlib.sha256(
             b"foreign-current-container",
         ).hexdigest()
@@ -951,32 +977,6 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     changed["installationPhases"][index][
                         "runtimeReceiptDigest"
                     ] = _digest({"phase": phase, "runtimeReceipt": runtime})
-                with self.assertRaisesRegex(
-                    target.ManagedStackCIError,
-                    "unified_characterization_evidence_invalid",
-                ):
-                    target.validate_receipt(
-                        changed,
-                        CURRENT_REVISION,
-                        "linux/amd64",
-                        upgrade_source=BASE_REVISION,
-                        reviewed_head=CURRENT_REVISION,
-                        expected_recovery="not_required",
-                    )
-
-            with self.subTest(phase=phase, mutation="runtime"):
-                changed = copy.deepcopy(result)
-                changed["installationPhases"][index]["runtimeReceipt"]["core"][
-                    "containerIdentityDigest"
-                ] = "f" * 64
-                changed["installationPhases"][index][
-                    "runtimeReceiptDigest"
-                ] = _digest({
-                    "phase": phase,
-                    "runtimeReceipt": changed["installationPhases"][index][
-                        "runtimeReceipt"
-                    ],
-                })
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
                     "unified_characterization_evidence_invalid",
