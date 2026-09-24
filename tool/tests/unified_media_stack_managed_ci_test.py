@@ -209,15 +209,20 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         project = "larenor-native-" + "f" * 32
         resolved["name"] = project
         resolved["services"]["larenor-core"]["build"]["context"] = str(ROOT)
-        resolved["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            ROOT / "server/Dockerfile")
+        resolved["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         for service in resolved["services"].values():
             service["command"] = None
             service["entrypoint"] = None
         target.validate_rendered_config(resolved, expected, project)
         with tempfile.TemporaryDirectory() as temporary:
             archived_root = Path(temporary) / "archived-source"
-            archived_root.mkdir()
+            (archived_root / "server").mkdir(parents=True)
+            (archived_root / "server/Dockerfile").write_text(
+                "FROM scratch\n",
+                encoding="ascii",
+            )
             archived = json.loads(json.dumps(resolved))
             archived["services"]["larenor-core"]["build"]["context"] = str(
                 archived_root
@@ -234,6 +239,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
 
             for foreign in (
                 "../foreign/Dockerfile",
+                str(archived_root / "server/Dockerfile"),
                 str(archived_root.parent / "foreign/Dockerfile"),
             ):
                 with self.subTest(foreign=foreign):
@@ -251,6 +257,44 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                             project,
                             source_root=archived_root,
                         )
+
+            foreign_target = archived_root.parent / "foreign-Dockerfile"
+            foreign_target.write_text("FROM scratch\n", encoding="ascii")
+            (archived_root / "server/Dockerfile").unlink()
+            (archived_root / "server/Dockerfile").symlink_to(foreign_target)
+            with self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_manifest_invalid",
+            ):
+                target.validate_rendered_config(
+                    archived,
+                    expected,
+                    project,
+                    source_root=archived_root,
+                )
+
+            (archived_root / "server/Dockerfile").unlink()
+            (archived_root / "server").rmdir()
+            foreign_server = archived_root.parent / "foreign-server"
+            foreign_server.mkdir()
+            (foreign_server / "Dockerfile").write_text(
+                "FROM scratch\n",
+                encoding="ascii",
+            )
+            (archived_root / "server").symlink_to(
+                foreign_server,
+                target_is_directory=True,
+            )
+            with self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_manifest_invalid",
+            ):
+                target.validate_rendered_config(
+                    archived,
+                    expected,
+                    project,
+                    source_root=archived_root,
+                )
         drifts = []
         changed = json.loads(json.dumps(resolved))
         changed["services"]["larenor-seerr"]["user"] = "0:0"
@@ -385,9 +429,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         rendered = json.loads(json.dumps(expected))
         rendered["name"] = "larenor-native-" + "f" * 32
         rendered["services"]["larenor-core"]["build"]["context"] = str(target.REPOSITORY)
-        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            target.REPOSITORY / "server/Dockerfile"
-        )
+        rendered["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         target.validate_rendered_config(rendered, expected, rendered["name"])
         rendered["services"]["larenor-jellyfin"]["networks"]["control"][
             "aliases"
@@ -399,8 +443,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         rendered["name"] = "larenor-native-" + "f" * 32
         rendered["services"]["larenor-core"]["build"]["context"] = str(
             target.REPOSITORY)
-        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            target.REPOSITORY / "server/Dockerfile")
+        rendered["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         rendered["services"]["larenor-core"]["dns"] = ["8.8.8.8"]
         with self.assertRaisesRegex(target.ManagedStackCIError,
                                     "unified_manifest_invalid"):
