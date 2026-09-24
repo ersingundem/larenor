@@ -1086,6 +1086,47 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             self.assertEqual(receipt.read_text(encoding="ascii"), '{"old":true}\n')
             self.assertEqual(list(root.glob("*.tmp")), [])
 
+    def test_native_preflight_delegates_to_descriptor_safe_local_host_facts(self):
+        class PlannerProbe:
+            def __init__(self):
+                self.host = None
+
+            def preflight(self, bundle, operation, host):
+                self.host = host
+                return {
+                    "schemaVersion": 1,
+                    "operation": operation,
+                    "ready": True,
+                    "installedRevision": None,
+                    "targetRevision": BASE_REVISION,
+                }
+
+        with tempfile.TemporaryDirectory(prefix="larenor-s093-host-facts-") as raw:
+            root = Path(raw)
+            driver = target.DockerDriver(
+                CURRENT_REVISION,
+                "linux/amd64",
+                root / "ownership.json",
+                operation_id="1" * 32,
+            )
+            probe = PlannerProbe()
+            with patch.object(driver, "_activate"), patch.object(
+                driver,
+                "_deployment_planner",
+                return_value=probe,
+            ), patch.object(
+                target,
+                "_revision_contract",
+                return_value={"deploymentManifest": {"sourceRevision": BASE_REVISION}},
+            ):
+                result = driver.deployment_preflight(BASE_REVISION, "install")
+
+        self.assertTrue(result["ready"])
+        self.assertIsNotNone(probe.host)
+        self.assertEqual(probe.host.__class__.__name__, "LocalHostFacts")
+        self.assertEqual(Path(probe.host.root), target.ROOT)
+        self.assertEqual(probe.host.expected_uid, 10001)
+
 
 if __name__ == "__main__":
     unittest.main()
