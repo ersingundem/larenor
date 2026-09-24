@@ -536,6 +536,11 @@ class DurableComponentRestoreCoordinator:
             self._persist(
                 self._state(plan, operation_id, "released", rollbacks, stages)
             )
+            finalize = getattr(session, "finalize", None)
+            if callable(finalize) and finalize(
+                tuple(rollbacks), tuple(stages)
+            ) is not True:
+                raise ComponentRestorePlanError()
             self._journal.clear()
             return ComponentRestoreBatchReceipt(
                 snapshot_id=plan.snapshot_id,
@@ -612,15 +617,20 @@ class DurableComponentRestoreCoordinator:
             ):
                 raise ComponentRestorePlanError()
             rollbacks, stages = self._receipts_for_plan(state, plan)
-            if state["phase"] == "released":
-                self._journal.clear()
-                return True
             recover = getattr(self._boundary, "recover_durable", None)
             if not callable(recover):
                 raise ComponentRestorePlanError()
             session = recover(plan, state["operationId"], deadline)
             session = self._session(session)
             self._active(deadline)
+            if state["phase"] == "released":
+                finalize = getattr(session, "finalize", None)
+                if callable(finalize) and finalize(
+                    rollbacks, stages, deadline
+                ) is not True:
+                    raise ComponentRestorePlanError()
+                self._journal.clear()
+                return True
             if state["phase"] != "rolled_back":
                 if session.revalidate(plan, deadline) is not True:
                     raise ComponentRestorePlanError()

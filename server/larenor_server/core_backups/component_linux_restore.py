@@ -15,10 +15,14 @@ import ctypes
 from .component_installation_authority import (
     DurableComponentInstallationAuthority,
 )
+from .component_docker_adapter import UnixDockerComponentSnapshotAdapter
 from .component_restore import (
     ComponentRestoreAuthorityTarget,
     ComponentRestoreAuthorityVolume,
+    ComponentRestorePlan,
     ComponentRestorePlanError,
+    ComponentRestoreRollbackReceipt,
+    ComponentRestoreStageReceipt,
     ComponentRestoreVolumeTarget,
 )
 from .component_snapshot_provider import (
@@ -297,10 +301,10 @@ def _extract_archive(payload, descriptor, deadline):
 
 
 class LinuxRestoreSystem:
-    """Minimal Linux syscall boundary; tests inject only atomic exchange."""
+    """Minimal Linux rename boundary used only on retained directory FDs."""
 
     @staticmethod
-    def exchange(parent, first, second):
+    def exchange_between(first_parent, first, second_parent, second):
         if sys.platform != "linux":
             raise ComponentRestorePlanError()
         libc = ctypes.CDLL(None, use_errno=True)
@@ -315,12 +319,46 @@ class LinuxRestoreSystem:
             ctypes.c_uint,
         ]
         renameat2.restype = ctypes.c_int
-        if renameat2(parent, first.encode(), parent, second.encode(), 2) != 0:
+        if (
+            renameat2(
+                first_parent,
+                first.encode(),
+                second_parent,
+                second.encode(),
+                2,
+            )
+            != 0
+        ):
+            raise ComponentRestorePlanError()
+
+    @staticmethod
+    def move(first_parent, first, second_parent, second):
+        if sys.platform != "linux":
+            raise ComponentRestorePlanError()
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = getattr(libc, "renameat2", None)
+        if renameat2 is None:
+            raise ComponentRestorePlanError()
+        renameat2.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        renameat2.restype = ctypes.c_int
+        if renameat2(
+            first_parent,
+            first.encode(),
+            second_parent,
+            second.encode(),
+            1,
+        ) != 0:
             raise ComponentRestorePlanError()
 
 
 class LinuxRestoreFileLease:
-    """Private retained root and same-filesystem stage identity."""
+    """Private retained root and same-filesystem recovery artifacts."""
 
     def __init__(
         self,
@@ -330,6 +368,8 @@ class LinuxRestoreFileLease:
         root,
         target_name,
         stage_name,
+        rollback_name,
+        trash_name,
         root_identity,
     ):
         self.source = source
@@ -338,8 +378,11 @@ class LinuxRestoreFileLease:
         self.root = root
         self.target_name = target_name
         self.stage_name = stage_name
+        self.rollback_name = rollback_name
+        self.trash_name = trash_name
         self.root_identity = root_identity
         self.stage_identity = None
+        self.trash_identity = None
         self.rollback = None
         self.stage = None
 
@@ -347,14 +390,108 @@ class LinuxRestoreFileLease:
         return "LinuxRestoreFileLease(<private>)"
 
 
+def _write_private(parent, name, payload):
+    descriptor = -1
+    created = False
+    try:
+        descriptor = os.open(
+            name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_NOFOLLOW
+            | os.O_CLOEXEC,
+            0o600,
+            dir_fd=parent,
+        )
+        created = True
+        offset = 0
+        while offset < len(payload):
+            written = os.write(descriptor, payload[offset : offset + 64 * 1024])
+            if written <= 0:
+                raise ComponentRestorePlanError()
+            offset += written
+        os.fchmod(descriptor, 0o600)
+        os.fsync(descriptor)
+    except Exception:
+        if descriptor >= 0:
+            _close(descriptor)
+            descriptor = -1
+        if created:
+            try:
+                os.unlink(name, dir_fd=parent)
+                os.fsync(parent)
+            except OSError:
+                pass
+        raise ComponentRestorePlanError() from None
+    finally:
+        if descriptor >= 0:
+            _close(descriptor)
+    os.fsync(parent)
+
+
+def _read_private(parent, name):
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        dir_fd=parent,
+    )
+    try:
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or stat.S_IMODE(info.st_mode) != 0o600
+            or not 1 <= info.st_size <= MAX_COMPONENT_VOLUME_BYTES
+        ):
+            raise ComponentRestorePlanError()
+        chunks = []
+        remaining = info.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                raise ComponentRestorePlanError()
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise ComponentRestorePlanError()
+        return b"".join(chunks)
+    finally:
+        _close(descriptor)
+
+
+def _clear_directory(descriptor, deadline):
+    names = os.listdir(descriptor)
+    if len(names) > 4096:
+        raise ComponentRestorePlanError()
+    for name in names:
+        _active(deadline)
+        info = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            _remove_tree(descriptor, name, deadline)
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+            os.unlink(name, dir_fd=descriptor)
+        else:
+            raise ComponentRestorePlanError()
+    os.fsync(descriptor)
+
+
 class LinuxDirectoryRestoreEngine:
-    """Stage and exchange component trees through retained directory FDs."""
+    """Publish child entries atomically while retaining the volume-root inode."""
 
     def __init__(self, *, system=None):
         selected = system or LinuxRestoreSystem()
-        if not callable(getattr(selected, "exchange", None)):
+        if any(
+            not callable(getattr(selected, name, None))
+            for name in ("exchange_between", "move")
+        ):
             raise ComponentRestorePlanError()
         self._system = selected
+
+    @staticmethod
+    def _names(operation_id, index):
+        prefix = f".larenor-restore-{operation_id}-{index:03d}"
+        return prefix, f"{prefix}.rollback", f"{prefix}.trash"
 
     def acquire(self, pairs, operation_id, deadline):
         leases = []
@@ -364,6 +501,7 @@ class LinuxDirectoryRestoreEngine:
                 or not 1 <= len(pairs) <= 128
                 or type(operation_id) is not str
                 or len(operation_id) != 32
+                or any(char not in "0123456789abcdef" for char in operation_id)
             ):
                 raise ComponentRestorePlanError()
             for index, pair in enumerate(pairs):
@@ -381,44 +519,61 @@ class LinuxDirectoryRestoreEngine:
                     or source.installation_revision != target.binding_revision
                 ):
                     raise ComponentRestorePlanError()
-                before = source.path.lstat()
-                parent = os.open(
-                    source.path.parent,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                )
+                parent = -1
+                root = -1
                 try:
+                    before = source.path.lstat()
+                    parent = os.open(
+                        source.path.parent,
+                        os.O_RDONLY
+                        | os.O_DIRECTORY
+                        | os.O_NOFOLLOW
+                        | os.O_CLOEXEC,
+                    )
                     root = os.open(
                         source.path.name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        os.O_RDONLY
+                        | os.O_DIRECTORY
+                        | os.O_NOFOLLOW
+                        | os.O_CLOEXEC,
                         dir_fd=parent,
                     )
-                except Exception:
-                    _close(parent)
-                    raise
-                current = os.fstat(root)
-                after = source.path.lstat()
-                if (
-                    not stat.S_ISDIR(current.st_mode)
-                    or (before.st_dev, before.st_ino) != (source.device, source.inode)
-                    or (current.st_dev, current.st_ino) != (source.device, source.inode)
-                    or (after.st_dev, after.st_ino) != (source.device, source.inode)
-                    or os.fstat(parent).st_dev != current.st_dev
-                ):
-                    _close(root)
-                    _close(parent)
-                    raise ComponentRestorePlanError()
-                stage_name = f".larenor-restore-{operation_id}-{index:03d}"
-                leases.append(
-                    LinuxRestoreFileLease(
-                        source,
-                        target,
-                        parent,
-                        root,
-                        source.path.name,
-                        stage_name,
-                        (current.st_dev, current.st_ino),
+                    current = os.fstat(root)
+                    after = source.path.lstat()
+                    if (
+                        not stat.S_ISDIR(current.st_mode)
+                        or (before.st_dev, before.st_ino)
+                        != (source.device, source.inode)
+                        or (current.st_dev, current.st_ino)
+                        != (source.device, source.inode)
+                        or (after.st_dev, after.st_ino)
+                        != (source.device, source.inode)
+                        or os.fstat(parent).st_dev != current.st_dev
+                    ):
+                        raise ComponentRestorePlanError()
+                    stage_name, rollback_name, trash_name = self._names(
+                        operation_id, index
                     )
-                )
+                    leases.append(
+                        LinuxRestoreFileLease(
+                            source,
+                            target,
+                            parent,
+                            root,
+                            source.path.name,
+                            stage_name,
+                            rollback_name,
+                            trash_name,
+                            (current.st_dev, current.st_ino),
+                        )
+                    )
+                    parent = -1
+                    root = -1
+                finally:
+                    if root >= 0:
+                        _close(root)
+                    if parent >= 0:
+                        _close(parent)
             return tuple(leases)
         except ComponentRestorePlanError:
             self.close(leases)
@@ -431,7 +586,9 @@ class LinuxDirectoryRestoreEngine:
     def capture_rollback(lease, deadline):
         if type(lease) is not LinuxRestoreFileLease:
             raise ComponentRestorePlanError()
-        lease.rollback = _directory_digest(lease.root, deadline)
+        payload = archive_component_directory(lease.root, deadline)
+        _write_private(lease.parent, lease.rollback_name, payload)
+        lease.rollback = (len(payload), hashlib.sha256(payload).hexdigest())
         return lease.rollback
 
     @staticmethod
@@ -453,33 +610,16 @@ class LinuxDirectoryRestoreEngine:
             )
             try:
                 _extract_archive(payload, stage, deadline)
+                lease.stage = _directory_digest(stage, deadline)
+                info = os.fstat(stage)
+                lease.stage_identity = (info.st_dev, info.st_ino)
             finally:
                 _close(stage)
             os.fsync(lease.parent)
-            opened = os.open(
-                lease.stage_name,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                dir_fd=lease.parent,
-            )
-            try:
-                lease.stage = _directory_digest(opened, deadline)
-                info = os.fstat(opened)
-                lease.stage_identity = (info.st_dev, info.st_ino)
-            finally:
-                _close(opened)
             expected = (len(payload), hashlib.sha256(payload).hexdigest())
             if lease.stage != expected:
                 raise ComponentRestorePlanError()
             return lease.stage
-        except ComponentRestorePlanError:
-            if created:
-                try:
-                    _remove_tree(lease.parent, lease.stage_name, deadline)
-                except Exception:
-                    pass
-            lease.stage = None
-            lease.stage_identity = None
-            raise
         except Exception:
             if created:
                 try:
@@ -491,9 +631,56 @@ class LinuxDirectoryRestoreEngine:
             raise ComponentRestorePlanError() from None
 
     @staticmethod
-    def _current(lease, deadline):
-        target = os.open(
-            lease.target_name,
+    def _root_current(lease, deadline):
+        info = os.fstat(lease.root)
+        current = os.stat(lease.target_name, dir_fd=lease.parent, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or (info.st_dev, info.st_ino) != lease.root_identity
+            or (current.st_dev, current.st_ino) != lease.root_identity
+        ):
+            raise ComponentRestorePlanError()
+        return _directory_digest(lease.root, deadline)
+
+    @staticmethod
+    def _stage_current(lease, deadline):
+        descriptor = os.open(
+            lease.stage_name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=lease.parent,
+        )
+        try:
+            info = os.fstat(descriptor)
+            if (info.st_dev, info.st_ino) != lease.stage_identity:
+                raise ComponentRestorePlanError()
+            return _directory_digest(descriptor, deadline)
+        finally:
+            _close(descriptor)
+
+    def revalidate(self, leases, deadline):
+        try:
+            for lease in leases:
+                root = self._root_current(lease, deadline)
+                if root == lease.rollback:
+                    if self._stage_current(lease, deadline) != lease.stage:
+                        return False
+                elif root != lease.stage:
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def commit(self, lease, deadline):
+        if self._root_current(lease, deadline) == lease.stage:
+            return True
+        if (
+            self._root_current(lease, deadline) != lease.rollback
+            or self._stage_current(lease, deadline) != lease.stage
+        ):
+            raise ComponentRestorePlanError()
+        os.mkdir(lease.trash_name, 0o700, dir_fd=lease.parent)
+        trash = os.open(
+            lease.trash_name,
             os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
             dir_fd=lease.parent,
         )
@@ -503,79 +690,73 @@ class LinuxDirectoryRestoreEngine:
             dir_fd=lease.parent,
         )
         try:
-            target_info = os.fstat(target)
-            stage_info = os.fstat(stage)
-            return (
-                (
-                    _directory_digest(target, deadline),
-                    (target_info.st_dev, target_info.st_ino),
-                ),
-                (
-                    _directory_digest(stage, deadline),
-                    (stage_info.st_dev, stage_info.st_ino),
-                ),
-            )
+            old_names = set(os.listdir(lease.root))
+            new_names = set(os.listdir(stage))
+            if len(old_names | new_names) > 4096:
+                raise ComponentRestorePlanError()
+            for name in sorted(old_names | new_names):
+                _active(deadline)
+                if name in old_names and name in new_names:
+                    self._system.exchange_between(lease.root, name, stage, name)
+                elif name in new_names:
+                    self._system.move(stage, name, lease.root, name)
+                else:
+                    self._system.move(lease.root, name, trash, name)
+                os.fsync(lease.root)
+                os.fsync(stage)
+                os.fsync(trash)
+            os.fsync(lease.parent)
         finally:
-            _close(target)
             _close(stage)
-
-    def revalidate(self, leases, deadline):
-        try:
-            return all(
-                self._current(lease, deadline)
-                in {
-                    self._pending(lease),
-                    self._committed(lease),
-                }
-                for lease in leases
-            )
-        except Exception:
-            return False
-
-    @staticmethod
-    def _pending(lease):
-        return (
-            (lease.rollback, lease.root_identity),
-            (lease.stage, lease.stage_identity),
-        )
-
-    @staticmethod
-    def _committed(lease):
-        return (
-            (lease.stage, lease.stage_identity),
-            (lease.rollback, lease.root_identity),
-        )
-
-    def commit(self, lease, deadline):
-        if self._current(lease, deadline) == self._committed(lease):
-            return True
-        if self._current(lease, deadline) != self._pending(lease):
-            raise ComponentRestorePlanError()
-        self._system.exchange(lease.parent, lease.target_name, lease.stage_name)
-        os.fsync(lease.parent)
-        if self._current(lease, deadline) != self._committed(lease):
+            _close(trash)
+        if self._root_current(lease, deadline) != lease.stage:
             raise ComponentRestorePlanError()
         return True
+
+    def _restore_rollback(self, lease, deadline):
+        payload = _read_private(lease.parent, lease.rollback_name)
+        if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
+            raise ComponentRestorePlanError()
+        _clear_directory(lease.root, deadline)
+        _extract_archive(payload, lease.root, deadline)
+        if self._root_current(lease, deadline) != lease.rollback:
+            raise ComponentRestorePlanError()
 
     def rollback(self, lease, deadline):
-        current = self._current(lease, deadline)
-        if current == self._committed(lease):
-            self._system.exchange(lease.parent, lease.target_name, lease.stage_name)
+        if lease.stage is None:
+            if self._root_current(lease, deadline) != lease.rollback:
+                raise ComponentRestorePlanError()
+            payload = _read_private(lease.parent, lease.rollback_name)
+            if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
+                raise ComponentRestorePlanError()
+            for name in (lease.stage_name, lease.trash_name):
+                try:
+                    _remove_tree(lease.parent, name, deadline)
+                except FileNotFoundError:
+                    pass
+            os.unlink(lease.rollback_name, dir_fd=lease.parent)
             os.fsync(lease.parent)
-        elif current != self._pending(lease):
-            raise ComponentRestorePlanError()
-        if self._current(lease, deadline) != self._pending(lease):
-            raise ComponentRestorePlanError()
-        _remove_tree(lease.parent, lease.stage_name, deadline)
+            return True
+        self._restore_rollback(lease, deadline)
+        for name in (lease.stage_name, lease.trash_name):
+            try:
+                _remove_tree(lease.parent, name, deadline)
+            except FileNotFoundError:
+                pass
+        os.unlink(lease.rollback_name, dir_fd=lease.parent)
+        os.fsync(lease.parent)
         return True
 
-    @staticmethod
-    def finalize(lease, deadline):
-        if LinuxDirectoryRestoreEngine._current(
-            lease, deadline
-        ) != LinuxDirectoryRestoreEngine._committed(lease):
+    def finalize(self, lease, deadline):
+        if self._root_current(lease, deadline) != lease.stage:
             raise ComponentRestorePlanError()
-        _remove_tree(lease.parent, lease.stage_name, deadline)
+        for name in (lease.stage_name, lease.trash_name):
+            try:
+                _remove_tree(lease.parent, name, deadline)
+            except FileNotFoundError:
+                pass
+        os.unlink(lease.rollback_name, dir_fd=lease.parent)
+        os.fsync(lease.parent)
         return True
 
     @staticmethod
@@ -583,3 +764,299 @@ class LinuxDirectoryRestoreEngine:
         for lease in leases:
             _close(lease.root)
             _close(lease.parent)
+
+    def recover(self, pairs, operation_id, rollbacks, stages, deadline):
+        leases = self.acquire(pairs, operation_id, deadline)
+        try:
+            staged_by_resource = {item.resource_id: item for item in stages}
+            if len(leases) != len(rollbacks) or len(staged_by_resource) != len(stages):
+                raise ComponentRestorePlanError()
+            for lease, rollback in zip(leases, rollbacks, strict=True):
+                staged = staged_by_resource.get(lease.target.resource_id)
+                if (
+                    type(rollback) is not ComponentRestoreRollbackReceipt
+                    or rollback.resource_id != lease.target.resource_id
+                ):
+                    raise ComponentRestorePlanError()
+                lease.rollback = (rollback.byte_length, rollback.sha256)
+                payload = _read_private(lease.parent, lease.rollback_name)
+                if (
+                    len(payload),
+                    hashlib.sha256(payload).hexdigest(),
+                ) != lease.rollback:
+                    raise ComponentRestorePlanError()
+                if staged is not None:
+                    if type(staged) is not ComponentRestoreStageReceipt:
+                        raise ComponentRestorePlanError()
+                    lease.stage = (staged.byte_length, staged.sha256)
+                    stage = os.open(
+                        lease.stage_name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        dir_fd=lease.parent,
+                    )
+                    try:
+                        info = os.fstat(stage)
+                        lease.stage_identity = (info.st_dev, info.st_ino)
+                    finally:
+                        _close(stage)
+            return leases
+        except Exception:
+            self.close(leases)
+            raise ComponentRestorePlanError() from None
+
+
+class LinuxComponentRestoreSession:
+    """One authority-bound quiesce/stage/exchange session."""
+
+    def __init__(
+        self,
+        plan,
+        operation_id,
+        sources,
+        controller,
+        engine,
+        *,
+        leases=None,
+        adopted_pauses=(),
+        deadline=None,
+    ):
+        self._plan = plan
+        self._operation_id = operation_id
+        self._sources = sources
+        self._controller = controller
+        self._engine = engine
+        self._leases = leases
+        self._adopted_pauses = list(adopted_pauses)
+        self._rolled_back = False
+        self._released = False
+        self._deadline = deadline
+
+    def _volume_pairs(self, volumes):
+        by_resource = {
+            lease.target.resource_id: lease for lease in (self._leases or ())
+        }
+        try:
+            result = tuple(by_resource[item.resource_id] for item in volumes)
+        except Exception:
+            raise ComponentRestorePlanError() from None
+        if len(result) != len(volumes):
+            raise ComponentRestorePlanError()
+        return result
+
+    def quiesce(self, targets, deadline):
+        if targets != self._plan.targets or self._adopted_pauses:
+            raise ComponentRestorePlanError()
+        container_ids = tuple(sorted({item.container_id for item in self._sources}))
+        for container_id in container_ids:
+            if self._controller.pause(container_id, deadline) is not True:
+                raise ComponentRestorePlanError()
+            self._adopted_pauses.append(container_id)
+        return True
+
+    def capture_rollback(self, volume, deadline):
+        lease = self._volume_pairs((volume,))[0]
+        byte_length, sha256 = self._engine.capture_rollback(lease, deadline)
+        return ComponentRestoreRollbackReceipt(
+            resource_id=volume.resource_id,
+            binding_id=volume.binding_id,
+            binding_revision=volume.binding_revision,
+            receipt_id=_digest(
+                {
+                    "operationId": self._operation_id,
+                    "resourceId": volume.resource_id,
+                    "bindingId": volume.binding_id,
+                    "bindingRevision": volume.binding_revision,
+                    "byteLength": byte_length,
+                    "sha256": sha256,
+                }
+            ),
+            byte_length=byte_length,
+            sha256=sha256,
+        )
+
+    def stage(self, volume, payload, rollback, deadline):
+        lease = self._volume_pairs((volume,))[0]
+        byte_length, sha256 = self._engine.stage(lease, payload, deadline)
+        return ComponentRestoreStageReceipt(
+            resource_id=volume.resource_id,
+            binding_id=volume.binding_id,
+            binding_revision=volume.binding_revision,
+            rollback_receipt_id=rollback.receipt_id,
+            stage_id=_digest(
+                {
+                    "operationId": self._operation_id,
+                    "resourceId": volume.resource_id,
+                    "rollbackReceiptId": rollback.receipt_id,
+                    "byteLength": byte_length,
+                    "sha256": sha256,
+                }
+            ),
+            byte_length=byte_length,
+            sha256=sha256,
+        )
+
+    def revalidate(self, plan, deadline):
+        if plan != self._plan or not self._controller.revalidate_restore_sources(
+            self._sources, deadline
+        ):
+            return False
+        return self._leases is None or self._engine.revalidate(self._leases, deadline)
+
+    def commit(self, stages, rollbacks, deadline):
+        if self._leases is None or len(stages) != len(rollbacks):
+            raise ComponentRestorePlanError()
+        for lease in self._volume_pairs(stages):
+            self._engine.commit(lease, deadline)
+        return True
+
+    def _recover_leases(self, rollbacks, stages, deadline):
+        if self._leases is not None or not rollbacks:
+            return
+        targets = {
+            item.resource_id: item
+            for target in self._plan.targets
+            for item in target.volumes
+        }
+        sources = {f"component-{item.volume_id}": item for item in self._sources}
+        pairs = tuple(
+            (sources[item.resource_id], targets[item.resource_id]) for item in rollbacks
+        )
+        self._leases = self._engine.recover(
+            pairs,
+            self._operation_id,
+            tuple(rollbacks),
+            tuple(stages),
+            deadline,
+        )
+
+    def rollback(self, rollbacks, stages, deadline=None):
+        if deadline is None:
+            deadline = self._deadline
+        container_ids = tuple(sorted({item.container_id for item in self._sources}))
+        for container_id in container_ids:
+            if container_id in self._adopted_pauses:
+                continue
+            if self._controller.pause(container_id, deadline) is not True:
+                raise ComponentRestorePlanError()
+            self._adopted_pauses.append(container_id)
+        self._recover_leases(rollbacks, stages, deadline)
+        for lease in reversed(self._leases or ()):
+            if lease.rollback is not None:
+                self._engine.rollback(lease, deadline)
+        self._rolled_back = True
+        return True
+
+    def release(self):
+        if self._released:
+            return True
+        deadline = self._deadline
+        for container_id in reversed(self._adopted_pauses):
+            if self._controller.unpause(container_id, deadline) is not True:
+                raise ComponentRestorePlanError()
+        self._adopted_pauses.clear()
+        self._released = True
+        if self._rolled_back:
+            self._engine.close(self._leases or ())
+        return True
+
+    def finalize(self, rollbacks, stages, deadline=None):
+        if not self._released:
+            raise ComponentRestorePlanError()
+        if deadline is None:
+            deadline = self._deadline
+        self._recover_leases(rollbacks, stages, deadline)
+        for lease in self._leases or ():
+            self._engine.finalize(lease, deadline)
+        self._engine.close(self._leases or ())
+        return True
+
+
+class LinuxComponentRestoreBoundary:
+    """Explicitly enabled production bridge from Docker authority to host FDs."""
+
+    def __init__(self, authority, controller, engine, *, enabled=False):
+        if (
+            enabled is not True
+            or type(authority) is not DurableComponentRestoreAuthority
+            or type(controller) is not UnixDockerComponentSnapshotAdapter
+            or type(engine) is not LinuxDirectoryRestoreEngine
+        ):
+            raise ComponentRestorePlanError()
+        self._authority = authority
+        self._controller = controller
+        self._engine = engine
+
+    def _pairs(self, plan, sources):
+        if type(plan) is not ComponentRestorePlan:
+            raise ComponentRestorePlanError()
+        authority = {item.service_id: item for item in self._authority.snapshot()}
+        planned = {item.service_id: item for item in plan.targets}
+        source_map = {(item.service_id, item.volume_id): item for item in sources}
+        if set(authority) != set(planned):
+            raise ComponentRestorePlanError()
+        pairs = []
+        for service_id in sorted(planned):
+            expected = authority[service_id]
+            target = planned[service_id]
+            if (
+                target.installation_id != expected.installation_id
+                or target.installation_revision != expected.installation_revision
+                or target.service_version != expected.service_version
+                or target.config_schema_version != expected.config_schema_version
+                or target.data_schema_version != expected.data_schema_version
+            ):
+                raise ComponentRestorePlanError()
+            authority_volumes = {item.volume_id: item for item in expected.volumes}
+            for volume in target.volumes:
+                authority_volume = authority_volumes.get(volume.volume_id)
+                source = source_map.get((service_id, volume.volume_id))
+                if (
+                    authority_volume is None
+                    or source is None
+                    or volume.binding_id != authority_volume.binding_id
+                    or volume.binding_revision != authority_volume.binding_revision
+                ):
+                    raise ComponentRestorePlanError()
+                pairs.append((source, volume))
+        if len(pairs) != len(sources):
+            raise ComponentRestorePlanError()
+        return tuple(pairs)
+
+    def acquire_durable(self, plan, operation_id, deadline):
+        try:
+            sources = self._controller.sources(deadline)
+            pairs = self._pairs(plan, sources)
+            leases = self._engine.acquire(pairs, operation_id, deadline)
+            return LinuxComponentRestoreSession(
+                plan,
+                operation_id,
+                sources,
+                self._controller,
+                self._engine,
+                leases=leases,
+                deadline=deadline,
+            )
+        except ComponentRestorePlanError:
+            raise
+        except Exception:
+            raise ComponentRestorePlanError() from None
+
+    def recover_durable(self, plan, operation_id, deadline):
+        try:
+            sources, paused = self._controller.restore_sources(deadline)
+            self._pairs(plan, sources)
+            if self._controller.adopt_restore_pauses(paused, deadline) is not True:
+                raise ComponentRestorePlanError()
+            return LinuxComponentRestoreSession(
+                plan,
+                operation_id,
+                sources,
+                self._controller,
+                self._engine,
+                adopted_pauses=paused,
+                deadline=deadline,
+            )
+        except ComponentRestorePlanError:
+            raise
+        except Exception:
+            raise ComponentRestorePlanError() from None

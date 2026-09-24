@@ -4,14 +4,19 @@ import importlib
 import importlib.util
 import io
 import os
+import signal
 import stat
+import sys
 import time
 import zipfile
+from contextlib import contextmanager
 
 import pytest
+from conftest import ready
 
 from larenor_server.core_backups.component_restore import (
     ComponentRestorePlanError,
+    ComponentRestoreRollbackReceipt,
     ComponentRestoreVolumeTarget,
     plan_component_restore,
 )
@@ -19,8 +24,22 @@ from larenor_server.core_backups.component_snapshot_provider import (
     ComponentVolumeSource,
     archive_component_directory,
 )
+from larenor_server.core_backups.component_restore_recovery import (
+    ComponentRestoreRecoveryJournal,
+    DurableComponentRestoreCoordinator,
+)
+from larenor_server.core_backups.service import (
+    ComponentVolumeSnapshot,
+    CoreBackupContract,
+)
 from test_core_backup_component_docker_adapter import installed_authority
+from test_core_backup_component_docker_adapter import (
+    effect_reply,
+    make_roots,
+    running_inspect,
+)
 from test_core_backup_component_restore import capture
+from test_volume_effects import engine_server
 
 
 def api():
@@ -76,11 +95,35 @@ class PortableExchange:
     """Test-only exchange seam; production uses Linux renameat2."""
 
     @staticmethod
-    def exchange(parent, first, second):
+    def exchange_between(first_parent, first, second_parent, second):
         temporary = ".larenor-test-exchange"
-        os.rename(first, temporary, src_dir_fd=parent, dst_dir_fd=parent)
-        os.rename(second, first, src_dir_fd=parent, dst_dir_fd=parent)
-        os.rename(temporary, second, src_dir_fd=parent, dst_dir_fd=parent)
+        os.rename(
+            first,
+            temporary,
+            src_dir_fd=first_parent,
+            dst_dir_fd=first_parent,
+        )
+        os.rename(
+            second,
+            first,
+            src_dir_fd=second_parent,
+            dst_dir_fd=first_parent,
+        )
+        os.rename(
+            temporary,
+            second,
+            src_dir_fd=first_parent,
+            dst_dir_fd=second_parent,
+        )
+
+    @staticmethod
+    def move(first_parent, first, second_parent, second):
+        os.rename(
+            first,
+            second,
+            src_dir_fd=first_parent,
+            dst_dir_fd=second_parent,
+        )
 
 
 def _payload(path):
@@ -197,3 +240,359 @@ def test_linux_engine_rejects_traversal_and_removes_partial_stage(tmp_path):
         assert not (tmp_path / lease.stage_name).exists()
     finally:
         engine.close(leases)
+
+
+def test_linux_engine_rejects_operation_id_path_content(tmp_path):
+    source, target, _payload_bytes, _target_path = _engine_pair(tmp_path)
+    engine = api().LinuxDirectoryRestoreEngine(system=PortableExchange())
+
+    with pytest.raises(ComponentRestorePlanError):
+        engine.acquire(
+            ((source, target),),
+            "../outside".ljust(32, "a"),
+            time.monotonic() + 2,
+        )
+
+    assert not tuple(tmp_path.glob(".larenor-restore-*"))
+
+
+def test_linux_engine_removes_unjournaled_stage_during_recovery(tmp_path):
+    source, target, payload, target_path = _engine_pair(tmp_path)
+    engine = api().LinuxDirectoryRestoreEngine(system=PortableExchange())
+    deadline = time.monotonic() + 3
+    leases = engine.acquire(((source, target),), "2" * 32, deadline)
+    lease = leases[0]
+    rollback = engine.capture_rollback(lease, deadline)
+    engine.stage(lease, payload, deadline)
+    receipt = ComponentRestoreRollbackReceipt(
+        resource_id=target.resource_id,
+        binding_id=target.binding_id,
+        binding_revision=target.binding_revision,
+        receipt_id="3" * 64,
+        byte_length=rollback[0],
+        sha256=rollback[1],
+    )
+    engine.close(leases)
+
+    recovered = engine.recover(
+        ((source, target),), "2" * 32, (receipt,), (), deadline
+    )
+    try:
+        assert engine.rollback(recovered[0], deadline) is True
+        assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+        assert not tuple(tmp_path.glob(".larenor-restore-*"))
+    finally:
+        engine.close(recovered)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+def test_linux_engine_reconciles_real_sigkill_during_publication(tmp_path):
+    class KillAfterExchange(PortableExchange):
+        @staticmethod
+        def exchange_between(first_parent, first, second_parent, second):
+            PortableExchange.exchange_between(
+                first_parent, first, second_parent, second
+            )
+            os.kill(os.getpid(), signal.SIGKILL)
+
+    source, target, payload, target_path = _engine_pair(tmp_path)
+    engine = api().LinuxDirectoryRestoreEngine(system=KillAfterExchange())
+    deadline = time.monotonic() + 5
+    leases = engine.acquire(((source, target),), "f" * 32, deadline)
+    lease = leases[0]
+    try:
+        engine.capture_rollback(lease, deadline)
+        engine.stage(lease, payload, deadline)
+        child = os.fork()
+        if child == 0:
+            engine.commit(lease, deadline)
+            os._exit(0)
+        _pid, status = os.waitpid(child, 0)
+        assert os.WIFSIGNALED(status)
+        assert os.WTERMSIG(status) == signal.SIGKILL
+
+        assert engine.rollback(lease, time.monotonic() + 5) is True
+        assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+        assert not tuple(tmp_path.glob(".larenor-restore-*"))
+    finally:
+        engine.close(leases)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="requires Linux renameat2")
+def test_linux_native_rename_system_publishes_and_rolls_back(tmp_path):
+    source, target, payload, target_path = _engine_pair(tmp_path)
+    engine = api().LinuxDirectoryRestoreEngine()
+    deadline = time.monotonic() + 5
+    leases = engine.acquire(((source, target),), "1" * 32, deadline)
+    lease = leases[0]
+    try:
+        engine.capture_rollback(lease, deadline)
+        engine.stage(lease, payload, deadline)
+        assert engine.commit(lease, deadline) is True
+        assert (target_path / "current.txt").read_text(encoding="utf-8") == "new"
+        assert engine.rollback(lease, deadline) is True
+        assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+    finally:
+        engine.close(leases)
+
+
+class PowerLoss(BaseException):
+    pass
+
+
+def _archived_capture(server, receipt, replacements):
+    class Boundary:
+        @contextmanager
+        def quiesce(self, _deadline):
+            yield tuple(
+                ComponentVolumeSnapshot(
+                    serviceId=receipt.service_id,
+                    serviceVersion=receipt.service_version,
+                    configSchemaVersion=receipt.config_schema_version,
+                    dataSchemaVersion=receipt.data_schema_version,
+                    volumeId=volume.volume_id,
+                    payload=_payload(replacements[volume.volume_id]),
+                )
+                for volume in receipt.volumes
+            )
+
+    app, _client, settings, _clock = server
+    pair = ready(server)
+    actor = app.state.core.auth.authenticate(pair["accessToken"])
+    contract = CoreBackupContract(
+        app.state.core.db,
+        app.state.core.auth,
+        settings,
+        component_boundary=Boundary(),
+    )
+    passphrase = "native component restore acceptance"
+    return contract.open_bundle(contract.export(actor, passphrase), passphrase)
+
+
+def _production_inputs(server, tmp_path, *, checkpoint=None, system=None):
+    authority_root = tmp_path / "authority"
+    authority_root.mkdir(mode=0o700)
+    context = installed_authority(authority_root)
+    authority, receipt, binding, _volumes = context.__enter__()
+    roots = make_roots(tmp_path / "payloads", binding)
+    replacements = {}
+    for volume in receipt.volumes:
+        root = roots[volume.intent.binding.resource.name]
+        (root / "current.txt").write_text("old", encoding="utf-8")
+        os.chmod(root / "current.txt", 0o600)
+        replacement = tmp_path / "replacement" / volume.volume_id
+        replacement.mkdir(parents=True, mode=0o700)
+        (replacement / "current.txt").write_text("new", encoding="utf-8")
+        os.chmod(replacement / "current.txt", 0o600)
+        replacements[volume.volume_id] = replacement
+    opened = _archived_capture(server, receipt, replacements)
+    restore_authority = api().DurableComponentRestoreAuthority(authority)
+    plan = plan_component_restore(opened, restore_authority)
+    state = {"paused": False}
+    engine_context = engine_server(
+        effect_reply(running_inspect(binding, roots), receipt.volumes, state)
+    )
+    endpoint, calls = engine_context.__enter__()
+    controller = importlib.import_module(
+        "larenor_server.core_backups.component_docker_adapter"
+    ).UnixDockerComponentSnapshotAdapter(
+        endpoint,
+        authority,
+        peer_uid=lambda _: endpoint.owner_uid,
+    )
+    file_engine = api().LinuxDirectoryRestoreEngine(system=system or PortableExchange())
+    boundary = api().LinuxComponentRestoreBoundary(
+        restore_authority,
+        controller,
+        file_engine,
+        enabled=True,
+    )
+    journal = ComponentRestoreRecoveryJournal(
+        (tmp_path / "recovery" / "restore.json").absolute(), b"r" * 32
+    )
+    coordinator = DurableComponentRestoreCoordinator(
+        journal, boundary, checkpoint=checkpoint
+    )
+    return {
+        "contexts": (context, engine_context),
+        "authority": authority,
+        "receipt": receipt,
+        "roots": roots,
+        "opened": opened,
+        "plan": plan,
+        "state": state,
+        "calls": calls,
+        "boundary": boundary,
+        "journal": journal,
+        "coordinator": coordinator,
+        "endpoint": endpoint,
+    }
+
+
+def _close_production_inputs(inputs):
+    context, engine_context = inputs["contexts"]
+    engine_context.__exit__(None, None, None)
+    context.__exit__(None, None, None)
+
+
+def test_linux_boundary_restores_and_finalizes_exact_volume_trees(server, tmp_path):
+    inputs = _production_inputs(server, tmp_path)
+    try:
+        receipt = inputs["coordinator"].restore(
+            inputs["opened"], inputs["plan"], deadline=time.monotonic() + 8
+        )
+
+        assert receipt.snapshot_id == inputs["plan"].snapshot_id
+        assert inputs["state"]["paused"] is False
+        assert inputs["journal"].exists() is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "new"
+            assert not tuple(root.parent.glob(".larenor-restore-*"))
+    finally:
+        _close_production_inputs(inputs)
+
+
+@pytest.mark.parametrize(
+    "lost_phase", ("quiesced", "staging", "pre_commit", "committed")
+)
+def test_linux_boundary_restarts_after_power_loss(server, tmp_path, lost_phase):
+    def checkpoint(state):
+        if state["phase"] == lost_phase:
+            raise PowerLoss()
+
+    inputs = _production_inputs(server, tmp_path, checkpoint=checkpoint)
+    try:
+        with pytest.raises(PowerLoss):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+        assert inputs["state"]["paused"] is True
+
+        controller = importlib.import_module(
+            "larenor_server.core_backups.component_docker_adapter"
+        ).UnixDockerComponentSnapshotAdapter(
+            inputs["endpoint"],
+            inputs["authority"],
+            peer_uid=lambda _: inputs["endpoint"].owner_uid,
+        )
+        boundary = api().LinuxComponentRestoreBoundary(
+            api().DurableComponentRestoreAuthority(inputs["authority"]),
+            controller,
+            api().LinuxDirectoryRestoreEngine(system=PortableExchange()),
+            enabled=True,
+        )
+        restarted = DurableComponentRestoreCoordinator(inputs["journal"], boundary)
+        assert restarted.recover(inputs["plan"], deadline=time.monotonic() + 8) is True
+
+        assert inputs["state"]["paused"] is False
+        assert inputs["journal"].exists() is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+            assert not tuple(root.parent.glob(".larenor-restore-*"))
+    finally:
+        _close_production_inputs(inputs)
+
+
+class PartialCommitPowerLoss(PortableExchange):
+    def __init__(self):
+        self.operations = 0
+
+    def exchange_between(self, first_parent, first, second_parent, second):
+        if self.operations == 1:
+            raise PowerLoss()
+        super().exchange_between(first_parent, first, second_parent, second)
+        self.operations += 1
+
+
+def test_linux_boundary_recovers_partial_multi_volume_commit(server, tmp_path):
+    inputs = _production_inputs(server, tmp_path, system=PartialCommitPowerLoss())
+    try:
+        with pytest.raises(PowerLoss):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+        assert inputs["state"]["paused"] is True
+
+        controller = importlib.import_module(
+            "larenor_server.core_backups.component_docker_adapter"
+        ).UnixDockerComponentSnapshotAdapter(
+            inputs["endpoint"],
+            inputs["authority"],
+            peer_uid=lambda _: inputs["endpoint"].owner_uid,
+        )
+        boundary = api().LinuxComponentRestoreBoundary(
+            api().DurableComponentRestoreAuthority(inputs["authority"]),
+            controller,
+            api().LinuxDirectoryRestoreEngine(system=PortableExchange()),
+            enabled=True,
+        )
+        assert (
+            DurableComponentRestoreCoordinator(inputs["journal"], boundary).recover(
+                inputs["plan"], deadline=time.monotonic() + 8
+            )
+            is True
+        )
+
+        assert inputs["state"]["paused"] is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+            assert not tuple(root.parent.glob(".larenor-restore-*"))
+    finally:
+        _close_production_inputs(inputs)
+
+
+def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_path):
+    def checkpoint(state):
+        if state["phase"] == "committed":
+            raise PowerLoss()
+
+    inputs = _production_inputs(server, tmp_path, checkpoint=checkpoint)
+    try:
+        with pytest.raises(PowerLoss):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+        inputs["state"]["paused"] = False
+
+        controller = importlib.import_module(
+            "larenor_server.core_backups.component_docker_adapter"
+        ).UnixDockerComponentSnapshotAdapter(
+            inputs["endpoint"],
+            inputs["authority"],
+            peer_uid=lambda _: inputs["endpoint"].owner_uid,
+        )
+        file_engine = api().LinuxDirectoryRestoreEngine(
+            system=PortableExchange()
+        )
+        restore_rollback = file_engine._restore_rollback
+
+        def guarded_restore(lease, deadline):
+            assert inputs["state"]["paused"] is True
+            return restore_rollback(lease, deadline)
+
+        file_engine._restore_rollback = guarded_restore
+        boundary = api().LinuxComponentRestoreBoundary(
+            api().DurableComponentRestoreAuthority(inputs["authority"]),
+            controller,
+            file_engine,
+            enabled=True,
+        )
+        assert DurableComponentRestoreCoordinator(
+            inputs["journal"], boundary
+        ).recover(inputs["plan"], deadline=time.monotonic() + 8) is True
+
+        assert inputs["state"]["paused"] is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+    finally:
+        _close_production_inputs(inputs)
