@@ -16,6 +16,8 @@ import 'package:larenor/features/server/media_flow/domain/server_media_flow_mode
 import 'package:larenor/features/server/media_playback/data/server_media_playback_controller.dart';
 import 'package:larenor/features/server/media_playback/domain/server_media_playback_models.dart';
 import 'package:larenor/features/server/media_result_origin.dart';
+import 'package:larenor/features/server/media_rows/data/server_media_rows_cache.dart';
+import 'package:larenor/features/server/media_rows/data/server_media_rows_controller.dart';
 
 const _requestId = '11111111111111111111111111111111';
 const _installationId = '22222222222222222222222222222222';
@@ -155,13 +157,42 @@ final class _FlowBackend implements ServerMediaFlowCacheBackend {
   Future<void> write(String value) async => this.value = value;
 }
 
+final class _RowsBackend implements ServerMediaRowsCacheBackend {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<bool> compareAndClear(String expected) async {
+    if (value != expected) return false;
+    value = null;
+    return true;
+  }
+
+  @override
+  Future<bool> compareAndWrite(
+    String? expected,
+    String next, {
+    required bool Function() current,
+  }) async {
+    if (!current() || value != expected) return false;
+    value = next;
+    if (!current()) {
+      await compareAndClear(next);
+      return false;
+    }
+    return true;
+  }
+}
+
 final class _LoopbackCore {
   _LoopbackCore._(this.server);
 
   final HttpServer server;
   String coreId = 'a' * 32;
   String homeId = 'b' * 32;
-  int catalogSearches = 0, flowReads = 0, playbackEffects = 0;
+  int catalogSearches = 0, flowReads = 0, playbackEffects = 0, rowReads = 0;
   final bodies = <Map<String, dynamic>>[];
   final paths = <String>[];
 
@@ -208,6 +239,15 @@ final class _LoopbackCore {
             'mustChangePassword': false,
           },
         };
+      } else if (request.uri.path.endsWith('/auth/me')) {
+        result = const {
+          'user': {
+            'id': _accountId,
+            'username': 'operator',
+            'role': 'admin',
+            'mustChangePassword': false,
+          },
+        };
       } else if (request.uri.path.endsWith('/auth/logout')) {
         status = 204;
       } else if (request.uri.path.endsWith('/context')) {
@@ -220,7 +260,47 @@ final class _LoopbackCore {
           'snapshotRevision': 9,
           'jellyfinServiceRevision': 11,
         };
-      } else if (request.uri.path.endsWith('/media/catalog/search')) {
+      } else if (request.uri.path.endsWith('/media/rows/target')) {
+        result = {
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 12,
+        };
+      } else if (request.uri.path.endsWith('/media/rows/read')) {
+        rowReads++;
+        result = {
+          'requestId': body['requestId'],
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 12,
+          'rows': {
+            'schemaVersion': 1,
+            'revision': 13,
+            'recent': const [
+              {
+                'itemId': '55555555555555555555555555555555',
+                'title': 'The Matrix',
+                'mediaKind': 'movie',
+                'addedAt': 1999999900,
+                'runtimeSeconds': 8160,
+                'positionSeconds': 0,
+              },
+            ],
+            'resume': const [
+              {
+                'itemId': '88888888888888888888888888888888',
+                'title': 'Severance — S02E01',
+                'mediaKind': 'episode',
+                'addedAt': 1999999800,
+                'runtimeSeconds': 3600,
+                'positionSeconds': 900,
+              },
+            ],
+          },
+        };
+      } else if (request.uri.path.endsWith('/media/catalog/search') ||
+          request.uri.path.endsWith('/media/catalog/browse')) {
         catalogSearches++;
         result = {
           'requestId': body['requestId'],
@@ -365,7 +445,7 @@ final class _LoopbackCore {
 }
 
 void main() {
-  test('real loopback product path searches, verifies, plays and retires on Core replacement', () async {
+  test('real loopback product path browses rows, restarts and retires on Core replacement', () async {
     final core = await _LoopbackCore.start();
     addTearDown(core.close);
     final sessions = _MemorySessions();
@@ -387,6 +467,10 @@ void main() {
       backend: _FlowBackend(),
       now: () => _now,
     );
+    final rowsCache = ServerMediaRowsCache(
+      backend: _RowsBackend(),
+      now: () => _now,
+    );
 
     await account.signIn(
       baseUrl: core.baseUrl,
@@ -404,12 +488,22 @@ void main() {
       cache: flowCache,
       requestId: () => _requestId,
     );
+    final oldRows = ServerMediaRowsController(
+      account,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
     addTearDown(oldCatalog.dispose);
     addTearDown(oldFlow.dispose);
+    addTearDown(oldRows.dispose);
     await oldCatalog.searchCurrent(query: 'matrix', current: () => true);
     await oldFlow.load(_mediaKey, current: () => true);
+    await oldRows.refresh(current: () => true);
     expect(oldCatalog.origin, ServerMediaResultOrigin.live);
     expect(oldFlow.origin, ServerMediaResultOrigin.live);
+    expect(oldRows.origin, ServerMediaResultOrigin.live);
+    expect(oldRows.value?.rows.recent.single.title, 'The Matrix');
+    expect(oldRows.value?.rows.resume.single.positionSeconds, 900);
 
     final playbackIds = [_intentId, _commandId].iterator;
     final playback = ServerMediaPlaybackController(
@@ -438,20 +532,32 @@ void main() {
       cache: flowCache,
       requestId: () => _requestId,
     );
+    final cachedRows = ServerMediaRowsController(
+      account,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
     addTearDown(cachedCatalog.dispose);
     addTearDown(cachedFlow.dispose);
+    addTearDown(cachedRows.dispose);
     await cachedCatalog.searchCurrent(query: 'matrix', current: () => true);
     await cachedFlow.load(_mediaKey, current: () => true);
+    await cachedRows.refresh(current: () => true);
     expect(cachedCatalog.origin, ServerMediaResultOrigin.verifiedCache);
     expect(cachedFlow.origin, ServerMediaResultOrigin.verifiedCache);
+    expect(cachedRows.value?.rows.recent.single.title, 'The Matrix');
+    expect(cachedRows.value?.rows.resume.single.positionSeconds, 900);
     expect(core.catalogSearches, 1);
     expect(core.flowReads, 1);
+    expect(core.rowReads, 2);
 
     await account.signOut();
     expect(oldCatalog.page, isNull);
     expect(oldFlow.status, isNull);
     expect(playback.intent, isNull);
     expect(playback.receipt, isNull);
+    expect(oldRows.value, isNull);
+    expect(cachedRows.value, isNull);
     core
       ..coreId = 'c' * 32
       ..homeId = 'd' * 32;
@@ -471,18 +577,29 @@ void main() {
       cache: flowCache,
       requestId: () => _requestId,
     );
+    final replacementRows = ServerMediaRowsController(
+      account,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
     addTearDown(replacementCatalog.dispose);
     addTearDown(replacementFlow.dispose);
+    addTearDown(replacementRows.dispose);
     await replacementCatalog.searchCurrent(
       query: 'matrix',
       current: () => true,
     );
     await replacementFlow.load(_mediaKey, current: () => true);
+    await replacementRows.refresh(current: () => true);
 
     expect(replacementCatalog.origin, ServerMediaResultOrigin.live);
     expect(replacementFlow.origin, ServerMediaResultOrigin.live);
+    expect(replacementRows.origin, ServerMediaResultOrigin.live);
+    expect(replacementRows.value?.rows.recent.single.title, 'The Matrix');
+    expect(replacementRows.value?.rows.resume.single.positionSeconds, 900);
     expect(core.catalogSearches, 2);
     expect(core.flowReads, 2);
+    expect(core.rowReads, 3);
     expect(core.playbackEffects, 1);
     expect(
       core.paths.where((path) => path.contains('jellyfin')).toList(),
@@ -494,6 +611,119 @@ void main() {
         core.bodies.where((body) => body.containsKey('requestId')).toList(),
       ),
       isNot(contains('synthetic password')),
+    );
+  });
+
+  test('browse recent and resume survive restart then retire on logout and Core switch', () async {
+    final core = await _LoopbackCore.start();
+    addTearDown(core.close);
+    final sessions = _MemorySessions();
+    final catalogCache = ServerMediaCatalogCache(
+      backend: _CatalogBackend(),
+      now: () => _now,
+    );
+    final rowsCache = ServerMediaRowsCache(
+      backend: _RowsBackend(),
+      now: () => _now,
+    );
+
+    ServerAccountController account() => ServerAccountController(
+      store: sessions,
+      clock: () => _now,
+      apiFactory: (endpoint) => LarenorServerApi(
+        endpoint: endpoint,
+        client: _SocketHttpClient(),
+        clock: () => _now,
+      ),
+    );
+
+    var currentAccount = account();
+    await currentAccount.signIn(
+      baseUrl: core.baseUrl,
+      username: 'operator',
+      password: 'synthetic password',
+      deviceName: 'tablet',
+    );
+    var catalog = ServerMediaCatalogController(
+      currentAccount,
+      cache: catalogCache,
+      requestId: () => _requestId,
+    );
+    var rows = ServerMediaRowsController(
+      currentAccount,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
+    await catalog.browseCurrent(current: () => true);
+    await rows.refresh(current: () => true);
+    expect(catalog.page?.items.single.title, 'The Matrix');
+    expect(rows.value?.rows.recent.single.title, 'The Matrix');
+    expect(rows.value?.rows.resume.single.positionSeconds, 900);
+
+    catalog.dispose();
+    rows.dispose();
+    currentAccount.dispose();
+
+    currentAccount = account();
+    await currentAccount.initialize();
+    expect(currentAccount.session?.context?.coreId, 'a' * 32);
+    catalog = ServerMediaCatalogController(
+      currentAccount,
+      cache: catalogCache,
+      requestId: () => _requestId,
+    );
+    rows = ServerMediaRowsController(
+      currentAccount,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
+    await catalog.browseCurrent(current: () => true);
+    await rows.refresh(current: () => true);
+    expect(catalog.origin, ServerMediaResultOrigin.verifiedCache);
+    expect(rows.value?.rows.recent.single.title, 'The Matrix');
+    expect(rows.value?.rows.resume.single.positionSeconds, 900);
+
+    await currentAccount.signOut();
+    expect(catalog.page, isNull);
+    expect(rows.value, isNull);
+    catalog.dispose();
+    rows.dispose();
+
+    core
+      ..coreId = 'c' * 32
+      ..homeId = 'd' * 32;
+    await currentAccount.signIn(
+      baseUrl: core.baseUrl,
+      username: 'operator',
+      password: 'synthetic password',
+      deviceName: 'tablet',
+    );
+    catalog = ServerMediaCatalogController(
+      currentAccount,
+      cache: catalogCache,
+      requestId: () => _requestId,
+    );
+    rows = ServerMediaRowsController(
+      currentAccount,
+      cache: rowsCache,
+      requestId: () => _requestId,
+    );
+    addTearDown(() {
+      catalog.dispose();
+      rows.dispose();
+      currentAccount.dispose();
+    });
+    await catalog.browseCurrent(current: () => true);
+    await rows.refresh(current: () => true);
+    expect(catalog.origin, ServerMediaResultOrigin.live);
+    expect(rows.origin, ServerMediaResultOrigin.live);
+    expect(rows.value?.rows.recent.single.title, 'The Matrix');
+    expect(rows.value?.rows.resume.single.positionSeconds, 900);
+    expect(
+      core.paths.where(
+        (path) => path.contains('jellyfin') || path.contains('music_assistant'),
+      ),
+      isEmpty,
     );
   });
 }
