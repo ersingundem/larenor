@@ -1,10 +1,11 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`21272df4`**, S09.1 kabul
-kaynağı **`e8425320`** commitidir. S08.8, K07, S09.1 ve K03 teslimlerini kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`8032e5a0`**, S09.2 kabul
+kaynağı **`34870d70`** commitidir. S08.8, K07, S09.1, S09.2 ve K03 teslimlerini
+kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **30/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **31/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -71,12 +72,33 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   destination'ı yayımlamıyor. Native CI `35952609533` amd64/arm64 geçti,
   bağımsız P1/P2 review blocker bulmadı ve stable patch-id'ler main
   `21272df4` üzerine restack sırasında değişmedi. S09.1 kapandı; sayaç 30/125.
+- PR #483 exact `34870d70` kaynağında root-only offline restore runtime'ını,
+  Core ve managed component için tek durable recovery kararını ve gerçek
+  CLI/startup yolculuğunu tamamladı. Android Build `35961861609`, Security
+  `35961861319`, iki mimarili native kabul `35961861335` ve bağımsız final
+  P1/P2 review geçti; kaynak `5ea97117` olarak squash birleşti. Aggregate stable
+  patch-id `553bc783d78b8bfcf0c68a7f7900ef87491b8d7a` eşleşti. S09.2 kapandı;
+  sayaç 31/125 oldu.
+- PR #484 exact `b7f957d5` kaynağında sürümlü exact-origin/method politikasını,
+  frame-aware Android transportunu ve monotonik kullanıcı onayını tamamladı.
+  Android Build `35962472970`, Security `35962472693` ve API 35 emülatör geçti;
+  kaynak `e03022e8` olarak birleşti ve aggregate stable patch-id
+  `bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Üretim TTS/print/QR
+  effect portları ve permission-revoke effect/receipt E2E açık olduğundan K08
+  `pending` kaldı.
+- PR #485 exact `6af3dfb8` kaynağında yetkili Core kaynaklarını arama, oda ve
+  kart yüzeylerine bağladı; logout temizliği ve strict backup binding
+  doğrulamasını ekledi. Android Build `35962916222`, Security `35962916059` ve
+  API 35 emülatör geçti; kaynak `8032e5a0` olarak birleşti ve aggregate stable
+  patch-id `ceed5f6b195a17d80741f0974b797b87fe355713` eşleşti. Same-URL Core
+  switch, restart, gerçek restore rebind ve account replacement çapraz E2E
+  eksik olduğundan S08.11 `pending` kaldı. #484 ve #485 sayaç artırmadı;
+  toplam **31/125**, seçili özellikler **0/63** olarak kaldı.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
-   yedeklerde sıfır kısmi kabul ile boş izole ortamda anahtar/veri/bağlantı geri
-   okuma, yeniden başlatma ve kurtarma zincirini; S09.3 amd64/arm64 temiz
+1. **S09.3:** S09.2 yanlış parola, kesik/bozuk imza, uyumsuz girdi, boş izole
+   ortam ve restart recovery kapılarını tamamladı. S09.3 amd64/arm64 temiz
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
 2. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
@@ -97,8 +119,8 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
-| B — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme ve Client preflight aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
+| A — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme, Client preflight ve component health aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
+| B — S08.11 / K08 | Arama/oda/kart same-URL Core-switch, restart ve restore E2E'sini; yetkili TTS/print/QR üretim portlarını ayrı sahiplikte tamamla. | Logout/account replacement eski sonucu temizler; permission revoke sonrası native effect/receipt yayımlanmaz; exact review/CI olmadan sayaç değişmez |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük
