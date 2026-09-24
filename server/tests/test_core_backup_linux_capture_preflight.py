@@ -11,8 +11,10 @@ from larenor_server.core_backups.component_linux_capture_preflight import (
     CAP_SYS_ADMIN,
     LinuxBtrfsCaptureCapability,
     LinuxBtrfsCapturePreflight,
+    LinuxCaptureSystem,
     LinuxCapturePreflightError,
     parse_effective_capabilities,
+    parse_host_uid_map,
 )
 from larenor_server.plugins.linux_mount_observation import (
     MountObservation,
@@ -30,6 +32,9 @@ class System:
         self.read_only = False
         self.idmapped = False
         self.namespace = (31, 32)
+        self.mount_id = 17
+        self.user_namespace = (51, 52)
+        self.uid_map = (0, 0, 4294967295)
         self.path_reads = 0
         self.drift_path = False
         self.opened = []
@@ -44,6 +49,14 @@ class System:
     def effective_capabilities(self, deadline):
         assert time.monotonic() < deadline
         return self.capabilities
+
+    def effective_uid_map(self, deadline):
+        assert time.monotonic() < deadline
+        return self.uid_map
+
+    def user_namespace_identity(self, deadline):
+        assert time.monotonic() < deadline
+        return self.user_namespace
 
     def open_directory(self, path):
         descriptor = os.open(
@@ -91,7 +104,7 @@ class System:
         )
         optional = ()
         mount = MountRecord(
-            17,
+            self.mount_id,
             1,
             os.major(value.st_dev),
             os.minor(value.st_dev),
@@ -125,9 +138,8 @@ def test_preflight_returns_exact_secret_free_btrfs_capability(tmp_path):
     root.mkdir(mode=0o700)
     system = System(root)
 
-    capability = LinuxBtrfsCapturePreflight(root, system=system).verify(
-        time.monotonic() + 2
-    )
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
 
     info = root.stat()
     assert capability == LinuxBtrfsCaptureCapability(
@@ -137,18 +149,25 @@ def test_preflight_returns_exact_secret_free_btrfs_capability(tmp_path):
         mount_id=17,
         namespace_device=31,
         namespace_inode=32,
+        user_namespace_device=51,
+        user_namespace_inode=52,
     )
     assert repr(capability) == "LinuxBtrfsCaptureCapability(<private>)"
     assert str(root) not in repr(capability)
-    assert system.closed == system.opened
+    assert system.closed == []
+    assert len(system.opened) == 1
+    assert preflight.revalidate(capability, time.monotonic() + 2)
+    preflight.close()
+    assert sorted(system.closed) == sorted(system.opened)
 
 
 def test_capability_receipt_rejects_non_exact_fields():
     for values in (
-        (True, 11, 12, 13, 14, 15),
-        (1, -1, 12, 13, 14, 15),
-        (1, 11, 0, 13, 14, 15),
-        (1, 11, 12, 0, 14, 15),
+        (True, 11, 12, 13, 14, 15, 16, 17),
+        (1, -1, 12, 13, 14, 15, 16, 17),
+        (1, 11, 0, 13, 14, 15, 16, 17),
+        (1, 11, 12, 0, 14, 15, 16, 17),
+        (1, 11, 12, 13, 14, 15, -1, 17),
     ):
         with pytest.raises(
             LinuxCapturePreflightError, match="^linux_capture_unavailable$"
@@ -165,6 +184,7 @@ def test_capability_receipt_rejects_non_exact_fields():
         ("filesystem", "ext4"),
         ("read_only", True),
         ("idmapped", True),
+        ("uid_map", (0, 1000, 1)),
         ("drift_path", True),
     ],
 )
@@ -201,6 +221,22 @@ def test_preflight_revalidation_fails_closed_on_identity_drift(tmp_path):
     system.path_reads = 1
     assert preflight.revalidate(capability, time.monotonic() + 2) is False
     assert preflight.revalidate(object(), time.monotonic() + 2) is False
+    preflight.close()
+
+
+def test_preflight_revalidation_rejects_user_namespace_drift(tmp_path):
+    root = tmp_path / "capture-root"
+    root.mkdir(mode=0o700)
+    system = System(root)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+
+    system.user_namespace = (61, 62)
+    assert preflight.revalidate(capability, time.monotonic() + 2) is False
+    system.user_namespace = (51, 52)
+    system.mount_id = 18
+    assert preflight.revalidate(capability, time.monotonic() + 2) is False
+    preflight.close()
 
 
 def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
@@ -236,6 +272,18 @@ def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
         capability,
         time.monotonic() + 2,
     )
+    preflight.close()
+
+
+def test_open_directory_rejects_symlinked_ancestor(tmp_path):
+    actual = tmp_path / "actual"
+    child = actual / "capture"
+    child.mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+
+    with pytest.raises(OSError):
+        LinuxCaptureSystem.open_directory(alias / "capture")
 
 
 @pytest.mark.parametrize(
@@ -260,3 +308,28 @@ def test_effective_capability_parser_accepts_exact_kernel_field():
     assert parse_effective_capabilities(
         b"Name:\tworker\nCapEff:\t0000000000200000\nNoNewPrivs:\t0\n"
     ) == 1 << CAP_SYS_ADMIN
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        b"         0       1000          1\n",
+        b"         0          0 4294967294\n",
+        b"         0          0 4294967295\n         1          1          1\n",
+        b"0 0 4294967295",
+        b"0 0 true\n",
+    ],
+)
+def test_host_uid_map_parser_rejects_remapped_or_malformed_authority(value):
+    with pytest.raises(
+        LinuxCapturePreflightError, match="^linux_capture_unavailable$"
+    ):
+        parse_host_uid_map(value)
+
+
+def test_host_uid_map_parser_accepts_initial_user_namespace():
+    assert parse_host_uid_map(b"         0          0 4294967295\n") == (
+        0,
+        0,
+        4294967295,
+    )

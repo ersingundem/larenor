@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import time
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
@@ -97,16 +98,32 @@ class CapturePreflight:
         self.retained = True
         self.sources_retained = True
         self.calls = []
+        self.held_sources = 0
+        self.capability_calls = 0
+        self.fail_on_capability_call = None
 
     def revalidate(self, capability, deadline):
         assert time.monotonic() < deadline
+        self.capability_calls += 1
         self.calls.append(("capability", capability))
-        return self.retained
+        return self.retained and (
+            self.fail_on_capability_call is None
+            or self.capability_calls < self.fail_on_capability_call
+        )
 
     def source_retained(self, path, device, inode, capability, deadline):
         assert time.monotonic() < deadline
         self.calls.append(("source", path, device, inode, capability))
         return self.retained and self.sources_retained
+
+    @contextmanager
+    def retain_source(self, path, device, inode, capability, deadline):
+        assert self.source_retained(path, device, inode, capability, deadline)
+        self.held_sources += 1
+        try:
+            yield
+        finally:
+            self.held_sources -= 1
 
 
 def engine(tmp_path, backend, *, preflight=None, identifiers=None):
@@ -115,7 +132,7 @@ def engine(tmp_path, backend, *, preflight=None, identifiers=None):
     capability = (
         None
         if preflight is None
-        else LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+        else LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15, 16, 17)
     )
     return LinuxCowCaptureEngine(
         root,
@@ -173,7 +190,7 @@ def test_capability_is_retained_and_release_is_exactly_once(tmp_path):
 def test_engine_requires_exact_preflight_and_capability_pair(tmp_path):
     root = tmp_path / "captures"
     root.mkdir(mode=0o700)
-    capability = LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+    capability = LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15, 16, 17)
     with pytest.raises(IsolatedComponentCaptureError):
         LinuxCowCaptureEngine(
             root,
@@ -199,6 +216,20 @@ def test_source_mount_drift_rolls_back_partial_capture(tmp_path):
     assert list((tmp_path / "captures").iterdir()) == []
 
 
+def test_source_descriptor_lease_spans_snapshot_mutation(tmp_path):
+    preflight = CapturePreflight()
+
+    def assert_source_held():
+        assert preflight.held_sources == 1
+
+    backend = FakeCowBackend(after_create=assert_source_held)
+    capture = engine(tmp_path, backend, preflight=preflight)
+
+    values = capture.capture(sources(tmp_path), time.monotonic() + 2)
+    assert preflight.held_sources == 0
+    assert capture.release(values, time.monotonic() + 2)
+
+
 def test_capability_drift_retains_journal_until_safe_restart_cleanup(tmp_path):
     preflight = CapturePreflight()
     backend = FakeCowBackend()
@@ -220,11 +251,30 @@ def test_capability_drift_retains_journal_until_safe_restart_cleanup(tmp_path):
         tmp_path / "capture-journal.json",
         backend=backend,
         capability_preflight=preflight,
-        capture_capability=LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15),
+        capture_capability=LinuxBtrfsCaptureCapability(
+            1, 11, 12, 13, 14, 15, 16, 17
+        ),
     )
     assert restarted.recover(time.monotonic() + 2) is True
     assert restarted.recover(time.monotonic() + 2) is True
     assert len(backend.deleted) == 2
+
+
+def test_capability_is_rechecked_before_generation_mutation(tmp_path):
+    preflight = CapturePreflight()
+    preflight.fail_on_capability_call = 4
+    backend = FakeCowBackend()
+    capture = engine(tmp_path, backend, preflight=preflight)
+
+    with pytest.raises(IsolatedComponentCaptureError):
+        capture.capture(sources(tmp_path), time.monotonic() + 2)
+
+    assert backend.created == []
+    assert (tmp_path / "capture-journal.json").is_file()
+    assert list((tmp_path / "captures").iterdir()) == []
+    preflight.fail_on_capability_call = None
+    assert capture.recover(time.monotonic() + 2)
+    assert not (tmp_path / "capture-journal.json").exists()
 
 
 @pytest.mark.parametrize(

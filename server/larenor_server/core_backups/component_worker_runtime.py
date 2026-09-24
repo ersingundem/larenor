@@ -177,6 +177,9 @@ def build_runtime(
             capability = preflight.verify(time.monotonic() + 5)
             if type(capability) is not LinuxBtrfsCaptureCapability:
                 raise ComponentWorkerRuntimeError()
+            close_preflight = getattr(preflight, "close", None)
+            if callable(close_preflight):
+                resources.callback(close_preflight)
         containers = resources.enter_context(
             ManagedWorkerJournal(config.container_journal)
         )

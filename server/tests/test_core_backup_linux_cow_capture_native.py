@@ -148,6 +148,7 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     else:
         raise AssertionError("native capture interruption was not exercised")
     assert journal.is_file()
+    preflight.close()
     _recover_with_packaged_worker(root, captures, journal)
     assert not journal.exists()
     assert list(captures.iterdir()) == []

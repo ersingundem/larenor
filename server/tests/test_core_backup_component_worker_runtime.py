@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import time
+from contextlib import contextmanager
 
 import pytest
 
@@ -36,7 +37,10 @@ class Backend:
 class CapturePreflight:
     def __init__(self):
         self.calls = []
-        self.capability = LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+        self.closed = False
+        self.capability = LinuxBtrfsCaptureCapability(
+            1, 11, 12, 13, 14, 15, 16, 17
+        )
 
     def verify(self, deadline):
         assert time.monotonic() < deadline
@@ -49,6 +53,13 @@ class CapturePreflight:
 
     def source_retained(self, *_args):
         return True
+
+    @contextmanager
+    def retain_source(self, *_args):
+        yield
+
+    def close(self):
+        self.closed = True
 
 
 def initialized_journals(tmp_path):
@@ -107,7 +118,9 @@ def test_runtime_composes_durable_authority_docker_adapter_and_capture(selected_
         assert runtime.server.client_uid == os.getuid()
         assert runtime.server.path == selected.socket_path
         assert runtime.capture_capability is preflight.capability
+        assert preflight.closed is False
     assert preflight.calls == ["verify"]
+    assert preflight.closed is True
 
 
 def test_runtime_rejects_non_exact_capture_capability(selected_config):

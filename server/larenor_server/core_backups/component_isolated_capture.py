@@ -188,6 +188,9 @@ class LinuxCowCaptureEngine:
                 or not callable(
                     getattr(capability_preflight, "source_retained", None)
                 )
+                or not callable(
+                    getattr(capability_preflight, "retain_source", None)
+                )
             ):
                 raise ValueError()
         except Exception:
@@ -225,6 +228,25 @@ class LinuxCowCaptureEngine:
     def _require_capability(self, deadline):
         if not self._capability_retained(deadline):
             raise IsolatedComponentCaptureError()
+
+    @contextmanager
+    def _held_source(self, source, deadline):
+        if self._capability_preflight is None:
+            yield
+            return
+        try:
+            with self._capability_preflight.retain_source(
+                source.path,
+                source.device,
+                source.inode,
+                self._capture_capability,
+                deadline,
+            ):
+                yield
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            raise IsolatedComponentCaptureError() from None
 
     def _id(self):
         try:
@@ -456,13 +478,17 @@ class LinuxCowCaptureEngine:
                 for source, capture_id in zip(selected, identifiers, strict=True)
             ],
         }
+        self._require_capability(deadline)
         self._write_journal(journal)
+        self._require_capability(deadline)
         generation = self._generation(journal)
         descriptors = []
         captured = []
         try:
+            self._require_capability(deadline)
             generation.mkdir(mode=0o700)
             sync_directory(self.capture_root)
+            self._require_capability(deadline)
             for source, capture_id in zip(selected, identifiers, strict=True):
                 _remaining(deadline)
                 self._require_capability(deadline)
@@ -475,7 +501,12 @@ class LinuxCowCaptureEngine:
                     before.st_ino,
                 ) != (source.device, source.inode):
                     raise IsolatedComponentCaptureError()
-                self._backend.create_read_only(source.path, destination, deadline)
+                with self._held_source(source, deadline):
+                    self._require_capability(deadline)
+                    self._backend.create_read_only(
+                        source.path, destination, deadline
+                    )
+                    self._require_capability(deadline)
                 self._require_capability(deadline)
                 if not self._source_retained(source, deadline):
                     raise IsolatedComponentCaptureError()
