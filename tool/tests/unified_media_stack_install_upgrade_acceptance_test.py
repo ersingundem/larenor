@@ -104,16 +104,23 @@ class UpgradeDriver(FakeDriver):
         self.selected_platform = "linux/amd64"
         self.base_materialization = _source_materialization(BASE_REVISION)
         manifest = target.expected_manifest(CURRENT_REVISION)
+        persistent_sources = [
+            ("core", manifest["core"]["mounts"]),
+            *[
+                (component["serviceId"], component["mounts"])
+                for component in manifest["components"]
+            ],
+        ]
         self.private_receipts = [
             {
-                "serviceId": component["serviceId"],
+                "serviceId": service_id,
                 "containerTarget": mount["target"],
                 "digest": hashlib.sha256(
-                    (component["serviceId"] + ":" + mount["target"]).encode("ascii")
+                    (service_id + ":" + mount["target"]).encode("ascii")
                 ).hexdigest(),
             }
-            for component in manifest["components"]
-            for mount in component["mounts"]
+            for service_id, mounts in persistent_sources
+            for mount in mounts
             if mount["readOnly"] is False
         ]
 
@@ -435,10 +442,17 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             for item in driver.private_receipts
         }
         manifest = target.expected_manifest(CURRENT_REVISION)
+        persistent_sources = [
+            ("core", manifest["core"]["mounts"]),
+            *[
+                (component["serviceId"], component["mounts"])
+                for component in manifest["components"]
+            ],
+        ]
         expected_mounts = {
-            (component["serviceId"], mount["target"])
-            for component in manifest["components"]
-            for mount in component["mounts"]
+            (service_id, mount["target"])
+            for service_id, mounts in persistent_sources
+            for mount in mounts
             if mount["readOnly"] is False
         }
         self.assertEqual(
