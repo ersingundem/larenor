@@ -135,6 +135,14 @@ void main() {
           'nativeBridge': {
             'schemaVersion': 1,
             'revision': 1,
+            'topOrigin': 'https://PANEL.invalid/',
+            'methods': ['speak'],
+          },
+        },
+        {
+          'nativeBridge': {
+            'schemaVersion': 1,
+            'revision': 1,
             'topOrigin': 'https://panel.invalid',
             'methods': ['shell'],
           },

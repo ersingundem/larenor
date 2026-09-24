@@ -753,12 +753,8 @@ bool _safeScopeAccount(String value) =>
     !RegExp(r'[\u0000-\u001f\u007f]').hasMatch(value);
 
 bool _isSecureOrigin(String value) {
-  final origin = WebOrigin.parse(value);
-  if (origin == null || origin.scheme != 'https') return false;
-  final uri = Uri.tryParse(value);
-  return uri != null &&
-      uri.userInfo.isEmpty &&
-      (uri.path.isEmpty || uri.path == '/') &&
-      !uri.hasQuery &&
-      !uri.hasFragment;
+  final origin = WebOrigin.parseExact(value);
+  return origin != null &&
+      origin.scheme == 'https' &&
+      origin.displayName == value;
 }

@@ -168,10 +168,17 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
     } catch (_) {
       return _staticReply(WebPanelBridgeStatus.denied, 'authority_denied');
     }
+    if (_armedCapabilityRevision != null &&
+        _armedCapabilityRevision != currentCapabilityRevision) {
+      _controller.revoke();
+      _armedCapabilityRevision = null;
+      _status = WebPanelNativeRuntimeStatus.idle;
+      _notify();
+      return _staticReply(WebPanelBridgeStatus.denied, 'authority_denied');
+    }
     if (_retired ||
         _decision != null ||
         _armedCapabilityRevision == null ||
-        _armedCapabilityRevision != currentCapabilityRevision ||
         message.policyRevision != policy.revision ||
         message.topOrigin != policy.topOrigin ||
         !authority.current(_scope, _scope)) {

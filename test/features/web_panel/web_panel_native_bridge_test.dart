@@ -409,6 +409,18 @@ void main() {
       ) as Map<String, Object?>;
       expect(reply['status'], WebPanelBridgeStatus.denied.name);
       expect(port.executes, 0);
+      port.revision--;
+      final replay = jsonDecode(
+        await runtime.handle(
+          WebPanelNativeMessage(
+            message: command(grantId: grant),
+            topOrigin: policy.topOrigin,
+            policyRevision: policy.revision,
+          ),
+        ),
+      ) as Map<String, Object?>;
+      expect(replay['status'], WebPanelBridgeStatus.denied.name);
+      expect(port.executes, 0);
     },
   );
 }

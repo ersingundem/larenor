@@ -179,10 +179,12 @@ class _WebPanelSettingsState
           previous != null &&
           previous.topOrigin == origin.displayName &&
           setEquals(previous.methods, _nativeMethods);
+      if (!unchanged && _nativePolicyRevision >= 0x7fffffff) {
+        setState(() => _error = l10n.webPanelNativeBridgeHttpsRequired);
+        return;
+      }
       nativeBridge = WebPanelNativePolicy(
-        revision: unchanged
-            ? previous.revision
-            : (_nativePolicyRevision + 1).clamp(1, 0x7fffffff),
+        revision: unchanged ? previous.revision : _nativePolicyRevision + 1,
         topOrigin: origin.displayName,
         methods: _nativeMethods,
       );
@@ -539,6 +541,30 @@ class _WebPanelSettingsState
                     ],
                   ),
                 ),
+                if (_error != null)
+                  _bounded(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: CupertinoColors.systemRed.resolveFrom(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('web-settings-save'),
+                        title: Text(l10n.commonSave),
+                        onTap: () => _save(generation),
+                      ),
+                    ],
+                  ),
+                ),
                 _bounded(
                   SettingsSection(
                     margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
@@ -589,30 +615,6 @@ class _WebPanelSettingsState
                               }
                             }),
                           ),
-                    ],
-                  ),
-                ),
-                if (_error != null)
-                  _bounded(
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(
-                          color: CupertinoColors.systemRed.resolveFrom(context),
-                        ),
-                      ),
-                    ),
-                  ),
-                _bounded(
-                  SettingsSection(
-                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
-                    children: [
-                      SettingsActionTile(
-                        buttonKey: const ValueKey('web-settings-save'),
-                        title: Text(l10n.commonSave),
-                        onTap: () => _save(generation),
-                      ),
                     ],
                   ),
                 ),
