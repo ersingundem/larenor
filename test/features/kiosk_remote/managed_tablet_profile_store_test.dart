@@ -111,7 +111,7 @@ void main() {
     expect(applied.fullscreen, isTrue);
     expect(applied.idleTimeoutSeconds, 300);
     expect(reloaded?.digest, applied.digest);
-    expect(persistence.writes, 1);
+    expect(persistence.writes, 2);
     expect(persistence.value, isNot(contains('serverBaseUrl')));
     expect(persistence.value, isNot(contains('account-1')));
     expect(persistence.value, isNot(contains(enrollment().pairingId)));
@@ -220,6 +220,16 @@ void main() {
         ),
       );
       expect(activations, [2, null]);
+      await expectLater(
+        store.read(),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'managed_tablet_profile_unconfirmed',
+          ),
+        ),
+      );
     },
   );
 
@@ -241,7 +251,7 @@ void main() {
         expectedDeviceId: deviceId,
         isCurrent: () => true,
       );
-      expect(persistence.writes, 1);
+      expect(persistence.writes, 2);
       await expectLater(
         store.apply(
           enrollment(),

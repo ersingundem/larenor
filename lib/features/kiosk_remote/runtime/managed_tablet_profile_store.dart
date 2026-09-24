@@ -50,6 +50,7 @@ final class AppliedManagedTabletProfile {
     required this.fullscreen,
     required this.idleTimeoutSeconds,
     required this.updatedAt,
+    required this.confirmed,
   });
 
   factory AppliedManagedTabletProfile.fromPublication(
@@ -70,6 +71,7 @@ final class AppliedManagedTabletProfile {
       fullscreen: publication.document.fullscreen,
       idleTimeoutSeconds: publication.document.idleTimeoutSeconds,
       updatedAt: publication.updatedAt,
+      confirmed: false,
     );
     value._validate();
     return value;
@@ -88,6 +90,7 @@ final class AppliedManagedTabletProfile {
       'fullscreen',
       'idleTimeoutSeconds',
       'updatedAt',
+      'confirmed',
     };
     if (value is! Map<String, dynamic> ||
         value.length != keys.length ||
@@ -102,7 +105,8 @@ final class AppliedManagedTabletProfile {
         value['digest'] is! String ||
         value['fullscreen'] is! bool ||
         value['idleTimeoutSeconds'] is! int ||
-        value['updatedAt'] is! num) {
+        value['updatedAt'] is! num ||
+        value['confirmed'] is! bool) {
       throw const FormatException('invalid_managed_tablet_profile');
     }
     final profile = AppliedManagedTabletProfile._(
@@ -116,6 +120,7 @@ final class AppliedManagedTabletProfile {
       fullscreen: value['fullscreen'] as bool,
       idleTimeoutSeconds: value['idleTimeoutSeconds'] as int,
       updatedAt: (value['updatedAt'] as num).toDouble(),
+      confirmed: value['confirmed'] as bool,
     );
     try {
       profile._validate();
@@ -128,6 +133,7 @@ final class AppliedManagedTabletProfile {
   final String authorityFingerprint, coreId, homeId, deviceId, digest;
   final int deviceRevision, revision, idleTimeoutSeconds;
   final bool fullscreen;
+  final bool confirmed;
   final double updatedAt;
 
   bool belongsTo(ManagedTabletEnrollment enrollment) =>
@@ -148,7 +154,22 @@ final class AppliedManagedTabletProfile {
     'fullscreen': fullscreen,
     'idleTimeoutSeconds': idleTimeoutSeconds,
     'updatedAt': updatedAt,
+    'confirmed': confirmed,
   };
+
+  AppliedManagedTabletProfile _confirm() => AppliedManagedTabletProfile._(
+    authorityFingerprint: authorityFingerprint,
+    coreId: coreId,
+    homeId: homeId,
+    deviceId: deviceId,
+    deviceRevision: deviceRevision,
+    revision: revision,
+    digest: digest,
+    fullscreen: fullscreen,
+    idleTimeoutSeconds: idleTimeoutSeconds,
+    updatedAt: updatedAt,
+    confirmed: true,
+  );
 
   void _validate() {
     final expected = sha256
@@ -241,7 +262,11 @@ final class ManagedTabletProfileStore {
     final raw = await persistence.read();
     if (raw == null) return null;
     try {
-      return AppliedManagedTabletProfile.fromJson(jsonDecode(raw));
+      final profile = AppliedManagedTabletProfile.fromJson(jsonDecode(raw));
+      if (!profile.confirmed) {
+        throw StateError('managed_tablet_profile_unconfirmed');
+      }
+      return profile;
     } on FormatException {
       throw StateError('managed_tablet_profile_invalid');
     }
@@ -274,7 +299,8 @@ final class ManagedTabletProfileStore {
         ? null
         : AppliedManagedTabletProfile.fromJson(jsonDecode(previousRaw));
     if (!isCurrent()) throw StateError('managed_tablet_action_retired');
-    final safePrevious = previous?.belongsTo(enrollment) == true
+    final safePrevious =
+        previous?.confirmed == true && previous?.belongsTo(enrollment) == true
         ? previous
         : null;
     if (safePrevious != null) {
@@ -293,7 +319,10 @@ final class ManagedTabletProfileStore {
       if (!isCurrent()) throw StateError('managed_tablet_action_retired');
       if (activate != null) await activate(next);
       if (!isCurrent()) throw StateError('managed_tablet_action_retired');
-      return next;
+      final committed = next._confirm();
+      await persistence.write(jsonEncode(committed.toJson()));
+      if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+      return committed;
     } catch (error, stackTrace) {
       Object? rollbackFailure;
       try {

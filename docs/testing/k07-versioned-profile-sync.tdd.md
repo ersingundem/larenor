@@ -30,6 +30,8 @@ acceptance.
    clear effective policy without exposing those identifiers in preferences.
    Foreign rollback targets are cleared rather than reactivated, and a command
    deadline retires its native lease before late work can persist or heartbeat.
+   A two-phase local confirmation bit keeps an interrupted rollback inert on
+   restart even if the underlying preference rollback reports a write failure.
 
 ## Verification
 
