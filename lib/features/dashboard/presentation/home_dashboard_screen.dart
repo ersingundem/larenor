@@ -477,10 +477,13 @@ class _HomeDashboardScreenState
     ),
   );
 
-  /// The media hub only makes sense once at least one of the services it
-  /// draws on is switched on — otherwise it would open onto an empty
-  /// screen, so the button stays hidden.
+  /// Core owns its media availability, so a Core home must always retain the
+  /// route to the server-backed hub. Only an explicitly direct-local home (or
+  /// the legacy unscoped dashboard) can use device-local service switches to
+  /// decide whether that route is useful.
   bool _hasMediaServices() {
+    final home = ref.watch(homeSessionControllerProvider);
+    if (home != null && home.source != HomeSource.directLocal) return true;
     final enabled =
         ref.watch(enabledServicesProvider).value ?? const <AppService>{};
     return enabled.contains(AppService.jellyfin) ||
