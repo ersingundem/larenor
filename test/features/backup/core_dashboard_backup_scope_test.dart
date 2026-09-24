@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/home_data_scope.dart';
 import 'package:larenor/core/home_source_store.dart';
@@ -39,6 +40,18 @@ String _record(HomeDataScope scope, String room, {int revision = 1}) =>
         rooms: [DashboardRoom(id: room, name: room)],
       ).toJson(),
     });
+
+String _canonical(Object? value) {
+  Object? sort(Object? input) => input is Map
+      ? {
+          for (final key in (input.keys.cast<String>().toList()..sort()))
+            key: sort(input[key]),
+        }
+      : input is List
+      ? input.map(sort).toList()
+      : input;
+  return jsonEncode(sort(value));
+}
 
 class _Access implements BackupRestoreAccess {
   _Access(this.scope);
@@ -145,6 +158,24 @@ void main() {
         storage.preferences['dashboard_layout'],
         'direct-layout-must-not-be-read',
       );
+
+      for (final image in storage.durableImages.where(
+        (value) => value.secrets.containsKey('backup_restore_journal_v2'),
+      )) {
+        await BackupRepository(storage: image).recoverPendingRestore();
+        final recovered = jsonDecode(
+          image.preferences[_scopeA.storageKey]! as String,
+        ) as Map<String, dynamic>;
+        expect(recovered['scope'], _scopeA.toJson());
+        expect(
+          recovered['layout']['rooms'].single['name'],
+          anyOf('A room', 'Changed A'),
+        );
+        expect(
+          image.preferences[_scopeB.storageKey],
+          _record(_scopeB, 'B room'),
+        );
+      }
     },
   );
 
@@ -215,6 +246,64 @@ void main() {
     expect(storage.reads, isNot(contains('pref:${_scopeB.storageKey}')));
     expect(storage.reads, isNot(contains('pref:dashboard_layout')));
   });
+
+  test(
+    'recovery rejects an owner-valid journal retargeted to another scope',
+    () async {
+      final storage = MemoryBackupStorage(
+        preferences: {
+          SharedPreferencesHomeSourceStore.key: HomeSource.verifiedCore.name,
+          _scopeA.storageKey: _record(_scopeA, 'Before A'),
+          _scopeB.storageKey: _record(_scopeB, 'Before B'),
+        },
+        secrets: {
+          SecureServerSessionStore.key: prepared.coreSession().encodeStorage(),
+        },
+      );
+      final repository = BackupRepository(storage: storage);
+      final snapshot = await repository.capture(
+        _selection,
+        access: _Access(_scopeA),
+      );
+      storage.preferences[_scopeA.storageKey] = _record(
+        _scopeA,
+        'Changed A',
+        revision: 2,
+      );
+      await prepared.apply(
+        await repository.prepareRestore(
+          snapshot,
+          _selection,
+          conflictPolicy: BackupConflictPolicy.replaceSelected,
+          access: _Access(_scopeA),
+        ),
+      );
+      final image = storage.durableImages.firstWhere(
+        (value) => value.secrets.containsKey('backup_restore_journal_v2'),
+      );
+      final data = jsonDecode(
+        image.secrets['backup_restore_journal_v2']!,
+      ) as Map<String, dynamic>;
+      final changes = data['changes'] as List;
+      final dashboard = changes.cast<Map>().singleWhere(
+        (row) => row['key'] == _scopeA.storageKey,
+      );
+      dashboard['key'] = _scopeB.storageKey;
+      data.remove('digest');
+      data['digest'] = sha256.convert(utf8.encode(_canonical(data))).toString();
+      final forged = _canonical(data);
+      image.secrets['backup_restore_journal_v2'] = forged;
+      image.writes.clear();
+      final before = _canonical(image.preferences);
+      await expectLater(
+        BackupRepository(storage: image).recoverPendingRestore(),
+        throwsA(isA<BackupException>()),
+      );
+      expect(_canonical(image.preferences), before);
+      expect(image.secrets['backup_restore_journal_v2'], forged);
+      expect(image.writes, isEmpty);
+    },
+  );
 
   test(
     'Core dashboard owner is exact and cannot be injected into legacy data',
