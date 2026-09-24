@@ -50,6 +50,59 @@ SOURCE_FILES = (
     "tool/tests/unified_media_stack_managed_ci_test.py",
     "tool/tests/unified_media_stack_managed_workflow_test.py",
 )
+
+_PUBLIC_HEALTH_PROBE = r'''import http.client,json,sys
+connection=None
+try:
+ profile,host,port_text,path=sys.argv[1:]
+ assert profile in {'jellyfin_public','seerr_public','sonarr_public','radarr_public','qbittorrent_web','music_assistant_info'}
+ assert host in {'jellyfin','seerr','sonarr','radarr','qbittorrent','host.docker.internal'}
+ assert port_text.isascii() and port_text.isdigit() and 1 <= int(port_text) <= 65535
+ assert path.startswith('/') and len(path) <= 256 and '//' not in path and '?' not in path and '#' not in path
+ caps={'jellyfin_public':256,'sonarr_public':256,'radarr_public':256,'seerr_public':65536,'qbittorrent_web':65536,'music_assistant_info':65536}
+ cap=caps[profile]
+ connection=http.client.HTTPConnection(host,int(port_text),timeout=5)
+ connection.request('GET',path,headers={'Accept':'*/*','Connection':'close'})
+ response=connection.getresponse()
+ length=response.getheader('Content-Length')
+ assert length is None or (length.isascii() and length.isdigit() and int(length) <= cap)
+ assert response.getheader('Location') is None and not 300 <= response.status < 400
+ raw=response.read(cap+1)
+ assert response.status == 200 and 0 < len(raw) <= cap
+ content_type=(response.getheader('Content-Type') or '').split(';',1)[0].strip().lower()
+ if profile == 'jellyfin_public':
+  assert raw.strip() == b'Healthy'
+ elif profile == 'qbittorrent_web':
+  assert content_type == 'text/html' and b'<html' in raw[:4096].lower()
+ else:
+  assert content_type in {'application/json','text/json'}
+  def unique(pairs):
+   value={}
+   for key,item in pairs:
+    assert key not in value
+    value[key]=item
+   return value
+  value=json.loads(raw.decode('utf-8'),object_pairs_hook=unique,parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()))
+  assert type(value) is dict
+  if profile == 'seerr_public':
+   assert type(value.get('initialized')) is bool and type(value.get('applicationTitle')) is str and 1 <= len(value['applicationTitle']) <= 64 and type(value.get('mediaServerType')) is int and 0 <= value['mediaServerType'] <= 16
+  elif profile in {'sonarr_public','radarr_public'}:
+   assert value == {'status':'OK'}
+  elif profile == 'music_assistant_info':
+   assert set(value) <= {'server_id','server_version','schema_version','min_supported_schema_version','name','base_url','internal_url','external_url','has_remote_access','homeassistant_addon','onboard_done','status'} and type(value.get('server_id')) is str and 1 <= len(value['server_id']) <= 128 and type(value.get('server_version')) is str and 1 <= len(value['server_version']) <= 32 and type(value.get('schema_version')) is int and value['schema_version'] > 0
+   assert 'min_supported_schema_version' not in value or (type(value['min_supported_schema_version']) is int and value['min_supported_schema_version'] > 0)
+   assert 'name' not in value or (type(value['name']) is str and 1 <= len(value['name']) <= 128)
+   assert all(key not in value or value[key] is None or (type(value[key]) is str and len(value[key]) <= 512) for key in {'base_url','internal_url','external_url'})
+   assert all(key not in value or type(value[key]) is bool for key in {'has_remote_access','homeassistant_addon','onboard_done'})
+   assert 'status' not in value or (type(value['status']) is str and 1 <= len(value['status']) <= 32)
+ print('healthy')
+except Exception:
+ sys.exit(1)
+finally:
+ if connection is not None:
+  try: connection.close()
+  except Exception: pass
+'''
 _CODES = {
     "unified_characterization_evidence_invalid",
     "unified_launch_invalid",
@@ -60,6 +113,7 @@ _CODES = {
     "unified_pull_receipt_invalid",
     "unified_container_receipt_invalid",
     "unified_readiness_invalid",
+    "unified_health_probe_failed",
     "unified_foreign_resource",
     "unified_cleanup_not_owned",
     "unified_cleanup_failed",
@@ -251,6 +305,34 @@ def _public_container(value):
     }
 
 
+def _public_health_receipts(driver, manifest, phase, commit, selected_platform):
+    if phase not in {"initial", "restart"}:
+        raise ManagedStackCIError("unified_health_probe_failed")
+    result = {}
+    for component in manifest["components"]:
+        try:
+            value = driver.public_health(
+                component, phase, commit, manifest["manifestDigest"], selected_platform)
+        except Exception:
+            raise ManagedStackCIError("unified_health_probe_failed") from None
+        wanted = {
+            "serviceId": component["serviceId"],
+            "profile": component["health"]["profile"],
+            "phase": phase,
+            "sourceRevision": commit,
+            "manifestDigest": manifest["manifestDigest"],
+            "platform": selected_platform,
+            "state": "healthy",
+            "code": "public_probe_verified",
+        }
+        if value != wanted or component["serviceId"] in result:
+            raise ManagedStackCIError("unified_health_probe_failed")
+        result[component["serviceId"]] = value
+    if tuple(result) != COMPONENTS:
+        raise ManagedStackCIError("unified_health_probe_failed")
+    return result
+
+
 def run_native(commit, selected_platform, driver):
     if (not isinstance(commit, str) or not re.fullmatch(r"[a-f0-9]{40}", commit)
             or selected_platform not in {"linux/amd64", "linux/arm64"}):
@@ -274,8 +356,12 @@ def run_native(commit, selected_platform, driver):
         driver.create(manifest)
         driver.start(manifest)
         initial = _container_receipts(driver.receipts(manifest, "initial"), manifest)
+        initial_health = _public_health_receipts(
+            driver, manifest, "initial", commit, selected_platform)
         driver.restart(manifest)
         restarted = _container_receipts(driver.receipts(manifest, "restart"), manifest)
+        restart_health = _public_health_receipts(
+            driver, manifest, "restart", commit, selected_platform)
         services = {}
         for service_id in COMPONENTS:
             if restarted[service_id]["containerId"] != initial[service_id]["containerId"]:
@@ -291,6 +377,8 @@ def run_native(commit, selected_platform, driver):
                 "imageReceipt": pulls[service_id],
                 "initialContainerReceipt": _public_container(initial[service_id]),
                 "restartContainerReceipt": _public_container(restarted[service_id]),
+                "initialPublicHealth": initial_health[service_id],
+                "restartPublicHealth": restart_health[service_id],
                 "authenticatedReadiness": readiness,
             }
         result = {
@@ -304,6 +392,7 @@ def run_native(commit, selected_platform, driver):
             "ownershipReceiptDigest": driver.ownership_digest,
             "lifecycle": ["config", "pull", "create", "start", "restart"],
             "containerState": "verified",
+            "publicHealthState": "verified",
             "serviceState": "not_verified",
             "automaticRetry": False,
             "cleanupState": "completed",
@@ -339,7 +428,7 @@ def validate_receipt(value, commit, selected_platform):
             "schemaVersion", "result", "platform", "sourceCommit",
             "acceptanceSourceHashes", "manifestDigest", "composeConfigDigest",
             "ownershipReceiptDigest", "lifecycle", "containerState", "serviceState",
-            "automaticRetry", "cleanupState", "services"}
+            "publicHealthState", "automaticRetry", "cleanupState", "services"}
             or value.get("schemaVersion") != 1
             or value.get("result") != "unified_media_stack_characterized"
             or value.get("platform") != selected_platform
@@ -350,6 +439,7 @@ def validate_receipt(value, commit, selected_platform):
             or not re.fullmatch(r"[a-f0-9]{64}", value.get("ownershipReceiptDigest", ""))
             or value.get("lifecycle") != ["config", "pull", "create", "start", "restart"]
             or value.get("containerState") != "verified"
+            or value.get("publicHealthState") != "verified"
             or value.get("serviceState") != "not_verified"
             or value.get("automaticRetry") is not False
             or value.get("cleanupState") != "completed"
@@ -361,7 +451,7 @@ def validate_receipt(value, commit, selected_platform):
         service = value["services"].get(service_id)
         if not isinstance(service, dict) or set(service) != {
                 "imageReceipt", "initialContainerReceipt", "restartContainerReceipt",
-                "authenticatedReadiness"}:
+                "initialPublicHealth", "restartPublicHealth", "authenticatedReadiness"}:
             raise ManagedStackCIError("unified_characterization_evidence_invalid")
         if service["imageReceipt"] != {
                 "serviceId": service_id, "image": expected[service_id]["image"],
@@ -386,6 +476,20 @@ def validate_receipt(value, commit, selected_platform):
                 raise ManagedStackCIError("unified_characterization_evidence_invalid")
         if (service["initialContainerReceipt"]["containerIdentityDigest"]
                 != service["restartContainerReceipt"]["containerIdentityDigest"]
+                or service["initialPublicHealth"] != {
+                    "serviceId": service_id,
+                    "profile": expected[service_id]["health"]["profile"],
+                    "phase": "initial", "sourceRevision": commit,
+                    "manifestDigest": manifest["manifestDigest"],
+                    "platform": selected_platform, "state": "healthy",
+                    "code": "public_probe_verified"}
+                or service["restartPublicHealth"] != {
+                    "serviceId": service_id,
+                    "profile": expected[service_id]["health"]["profile"],
+                    "phase": "restart", "sourceRevision": commit,
+                    "manifestDigest": manifest["manifestDigest"],
+                    "platform": selected_platform, "state": "healthy",
+                    "code": "public_probe_verified"}
                 or service["authenticatedReadiness"] != {
                     "serviceId": service_id, "state": "not_verified",
                     "code": "bootstrap_authority_not_available"}):
@@ -873,6 +977,45 @@ class DockerDriver:
                     raise ManagedStackCIError("unified_core_runtime_unready")
             time.sleep(interval)
         raise ManagedStackCIError("unified_core_runtime_unready")
+
+    def public_health(self, component, phase, source_revision, manifest_digest,
+                      selected_platform, *, timeout=90, interval=2):
+        if (not isinstance(component, dict) or phase not in {"initial", "restart"}
+                or component.get("serviceId") not in COMPONENTS
+                or not isinstance(component.get("health"), dict)
+                or source_revision != self.commit or selected_platform != self.platform
+                or not re.fullmatch(r"[a-f0-9]{64}", manifest_digest)):
+            raise ManagedStackCIError("unified_health_probe_failed")
+        service_id = component["serviceId"]
+        health = component["health"]
+        expected = expected_manifest(self.commit)
+        wanted = next((item for item in expected["components"]
+                       if item["serviceId"] == service_id), None)
+        if (wanted is None or health != wanted["health"]
+                or manifest_digest != expected["manifestDigest"]):
+            raise ManagedStackCIError("unified_health_probe_failed")
+        host = "host.docker.internal" if service_id == "music_assistant" else service_id
+        arguments = [
+            "/usr/bin/docker", "exec", package.CORE_NAME,
+            "/opt/larenor/.venv/bin/python", "-B", "-c", _PUBLIC_HEALTH_PROBE,
+            health["profile"], host, str(health["port"]), health["path"],
+        ]
+        deadline = time.monotonic() + timeout
+        while True:
+            status, raw = _command(
+                arguments, environment=self._environment, timeout=10, output=True,
+                allow_failure=True,
+            )
+            if status == 0 and raw == b"healthy\n":
+                return {
+                    "serviceId": service_id, "profile": health["profile"],
+                    "phase": phase, "sourceRevision": source_revision,
+                    "manifestDigest": manifest_digest, "platform": selected_platform,
+                    "state": "healthy", "code": "public_probe_verified",
+                }
+            if time.monotonic() >= deadline:
+                raise ManagedStackCIError("unified_health_probe_failed")
+            time.sleep(interval)
 
     def authenticated_readiness(self, service_id):
         if service_id not in COMPONENTS:

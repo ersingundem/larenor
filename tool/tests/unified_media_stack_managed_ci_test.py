@@ -1,8 +1,11 @@
+import contextlib
 import importlib.util
+import io
 import json
-from pathlib import Path
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import call, patch
 
 
@@ -80,13 +83,17 @@ class FakeDriver:
     def restart(self, manifest):
         self._call("restart")
 
-    def public_health(self, component, phase):
+    def public_health(self, component, phase, source_revision, manifest_digest,
+                      selected_platform):
         service_id = component["serviceId"]
         self._call("health:" + phase + ":" + service_id)
         return {
             "serviceId": service_id,
             "profile": component["health"]["profile"],
             "phase": phase,
+            "sourceRevision": source_revision,
+            "manifestDigest": manifest_digest,
+            "platform": selected_platform,
             "state": "unavailable" if service_id == self.unhealthy else "healthy",
             "code": "public_probe_unavailable" if service_id == self.unhealthy
                     else "public_probe_verified",
@@ -142,8 +149,15 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             target.validate_receipt(value, REVISION, platform_name)
             self.assertEqual(driver.calls[:4], ["config", "prepare_owned", "inspect", "inspect"])
             self.assertEqual(driver.calls.count("inspect"), 10)
-            self.assertEqual(driver.calls[12:18], [
-                "pull", "create", "start", "receipts:initial", "restart", "receipts:restart",
+            self.assertEqual(driver.calls[12:16], [
+                "pull", "create", "start", "receipts:initial",
+            ])
+            self.assertEqual(driver.calls[16:22], [
+                "health:initial:" + item for item in COMPONENTS
+            ])
+            self.assertEqual(driver.calls[22:24], ["restart", "receipts:restart"])
+            self.assertEqual(driver.calls[24:30], [
+                "health:restart:" + item for item in COMPONENTS
             ])
             self.assertEqual(driver.calls[-7:-1], ["readiness:" + item for item in COMPONENTS])
             self.assertEqual(driver.calls[-1], "cleanup")
@@ -162,6 +176,10 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                     "state": "not_verified",
                     "code": "bootstrap_authority_not_available",
                 })
+                self.assertEqual(service["initialPublicHealth"]["platform"], platform_name)
+                self.assertEqual(service["restartPublicHealth"]["sourceRevision"], REVISION)
+                self.assertEqual(service["restartPublicHealth"]["manifestDigest"],
+                                 value["manifestDigest"])
 
     def test_running_container_does_not_count_as_healthy(self):
         driver = FakeDriver(unhealthy="seerr")
@@ -452,16 +470,20 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 operation_id="f" * 32,
             )
             with patch.object(target, "_command", return_value=(0, b"healthy\n")) as command:
-                receipt = driver.public_health(component, "initial", timeout=0)
+                receipt = driver.public_health(
+                    component, "initial", REVISION, manifest["manifestDigest"],
+                    "linux/amd64", timeout=0)
         self.assertEqual(receipt, {
             "serviceId": "jellyfin", "profile": "jellyfin_public",
-            "phase": "initial", "state": "healthy", "code": "public_probe_verified",
+            "phase": "initial", "sourceRevision": REVISION,
+            "manifestDigest": manifest["manifestDigest"], "platform": "linux/amd64",
+            "state": "healthy", "code": "public_probe_verified",
         })
         arguments = command.call_args.args[0]
         self.assertEqual(arguments[:3], ["/usr/bin/docker", "exec", target.package.CORE_NAME])
         script = arguments[6]
         self.assertIn("HTTPConnection", script)
-        self.assertIn("65537", script)
+        self.assertIn("cap+1", script)
         self.assertNotIn("urlopen", script)
         self.assertNotRegex(" ".join(arguments).lower(), r"token|cookie|authorization")
 
@@ -470,7 +492,89 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 with patch.object(target, "_command", return_value=result):
                     with self.assertRaisesRegex(target.ManagedStackCIError,
                                                 "unified_health_probe_failed"):
-                        driver.public_health(component, "restart", timeout=0)
+                        driver.public_health(
+                            component, "restart", REVISION, manifest["manifestDigest"],
+                            "linux/amd64", timeout=0)
+
+    def test_embedded_public_probe_enforces_each_profile_and_response_bound(self):
+        class Response:
+            def __init__(self, status, headers, body):
+                self.status = status
+                self.headers = headers
+                self.body = body
+
+            def getheader(self, name):
+                return self.headers.get(name)
+
+            def read(self, amount):
+                return self.body[:amount]
+
+        class Connection:
+            selected = None
+
+            def __init__(self, host, port, timeout):
+                self.request_value = (host, port, timeout)
+
+            def request(self, method, path, headers):
+                self.request_value += (method, path, headers)
+
+            def getresponse(self):
+                return self.selected
+
+            def close(self):
+                pass
+
+        seerr_body = json.dumps({
+            "initialized": False, "applicationTitle": "Seerr", "mediaServerType": 2,
+            "publicSettings": "x" * 300,
+        }, separators=(",", ":")).encode("ascii")
+        music_body = json.dumps({
+            "server_id": "local", "server_version": "2.10.4", "schema_version": 65,
+            "base_url": "http://music/" + "x" * 300,
+        }, separators=(",", ":")).encode("ascii")
+        self.assertGreater(len(seerr_body), 256)
+        self.assertGreater(len(music_body), 256)
+        accepted = {
+            "jellyfin_public": ("jellyfin", "8096", "/health", "text/plain",
+                                b"Healthy"),
+            "seerr_public": (
+                "seerr", "5055", "/api/v1/settings/public", "application/json",
+                seerr_body),
+            "sonarr_public": (
+                "sonarr", "8989", "/ping", "application/json", b'{"status":"OK"}'),
+            "radarr_public": (
+                "radarr", "7878", "/ping", "application/json", b'{"status":"OK"}'),
+            "qbittorrent_web": (
+                "qbittorrent", "8080", "/", "text/html", b"<html>qBittorrent</html>"),
+            "music_assistant_info": (
+                "host.docker.internal", "8095", "/info", "application/json",
+                music_body),
+        }
+        for profile, (host, port, path, content_type, body) in accepted.items():
+            with self.subTest(profile=profile):
+                Connection.selected = Response(200, {
+                    "Content-Type": content_type, "Content-Length": str(len(body)),
+                }, body)
+                output = io.StringIO()
+                with patch("http.client.HTTPConnection", Connection), patch.object(
+                        sys, "argv", ["probe", profile, host, port, path]), contextlib.redirect_stdout(
+                            output):
+                    exec(target._PUBLIC_HEALTH_PROBE, {})
+                self.assertEqual(output.getvalue(), "healthy\n")
+
+        rejected = (
+            Response(302, {"Location": "/next", "Content-Length": "1"}, b"x"),
+            Response(200, {"Content-Type": "application/json",
+                           "Content-Length": "65537"}, b"{}"),
+            Response(200, {"Content-Type": "application/json"}, b"x" * 65537),
+        )
+        for response in rejected:
+            Connection.selected = response
+            with self.subTest(status=response.status), patch(
+                    "http.client.HTTPConnection", Connection), patch.object(
+                        sys, "argv", ["probe", "sonarr_public", "sonarr", "8989", "/ping"]):
+                with self.assertRaises(SystemExit):
+                    exec(target._PUBLIC_HEALTH_PROBE, {})
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -510,11 +614,19 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
 
     def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):
         value = target.run_native(REVISION, "linux/amd64", FakeDriver())
+        wrong_profile = json.loads(json.dumps(value))
+        wrong_profile["services"]["jellyfin"]["initialPublicHealth"]["profile"] = (
+            "seerr_public")
+        wrong_platform = json.loads(json.dumps(value))
+        wrong_platform["services"]["seerr"]["restartPublicHealth"]["platform"] = (
+            "linux/arm64")
         for changed in (
             value | {"privateToken": "never"},
             value | {"serviceState": "verified"},
             value | {"cleanupState": "planned"},
             value | {"acceptanceSourceHashes": {}},
+            wrong_profile,
+            wrong_platform,
         ):
             with self.assertRaises(target.ManagedStackCIError):
                 target.validate_receipt(changed, REVISION, "linux/amd64")
