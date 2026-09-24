@@ -271,19 +271,39 @@ void main() {
       expect(port.executes, 1);
     },
   );
-  test('confirmation expires with its one-shot user grant', () async {
-    var now = DateTime.utc(2026, 9, 21);
+  test('grant expires at the monotonic arm to preview boundary', () {
+    var elapsed = Duration.zero;
     final port = Port();
     final controller = WebPanelNativeBridgeController(
       port: port,
       isCurrent: (candidate) => candidate == scope,
       grantIds: () => 'abcdef0123456789abcdef0123456789',
       previewIds: () => 'fedcba9876543210fedcba9876543210',
-      now: () => now,
+      elapsed: () => elapsed,
+    );
+    controller.arm(WebPanelNativeMethod.speak, scope);
+    elapsed = const Duration(seconds: 30);
+    expect(
+      controller.preview(command(), frame()).status,
+      WebPanelBridgeStatus.denied,
+    );
+    expect(port.executes, 0);
+  });
+
+  test('confirmation expires at the monotonic preview boundary', () async {
+    var elapsed = Duration.zero;
+    final port = Port();
+    final controller = WebPanelNativeBridgeController(
+      port: port,
+      isCurrent: (candidate) => candidate == scope,
+      grantIds: () => 'abcdef0123456789abcdef0123456789',
+      previewIds: () => 'fedcba9876543210fedcba9876543210',
+      elapsed: () => elapsed,
     );
     controller.arm(WebPanelNativeMethod.speak, scope);
     final preview = controller.preview(command(), frame());
-    now = now.add(const Duration(seconds: 31));
+    expect(preview.status, WebPanelBridgeStatus.needsConfirmation);
+    elapsed = const Duration(seconds: 30);
     expect(
       (await controller.confirm(preview, frame())).status,
       WebPanelBridgeStatus.denied,
