@@ -311,17 +311,25 @@ class UnixDockerComponentSnapshotAdapter:
                 raise ComponentDockerAdapterError() from None
         return dispatched["value"]
 
-    def sources(self, deadline):
+    def _load_sources(self, deadline, *, allow_paused):
         try:
             receipts = self._authority.snapshot()
             selected = []
+            paused = []
             paths = set()
             identities = set()
             for receipt in receipts:
                 _remaining(deadline)
                 observed = self._container(receipt, deadline)
-                if not _state(observed.get("State"), False):
+                state = observed.get("State")
+                if _state(state, False):
+                    is_paused = False
+                elif allow_paused and _state(state, True):
+                    is_paused = True
+                else:
                     raise ComponentDockerAdapterError()
+                if is_paused:
+                    paused.append(receipt.container_id)
                 mounts = self._mounts(observed)
                 for volume in receipt.volumes:
                     _remaining(deadline)
@@ -350,11 +358,56 @@ class UnixDockerComponentSnapshotAdapter:
                 raise ComponentDockerAdapterError()
             self._receipts = receipts
             self._sources = result
-            return result
+            return result, tuple(sorted(paused))
         except ComponentDockerAdapterError:
             raise
         except Exception:
             raise ComponentDockerAdapterError() from None
+
+    def sources(self, deadline):
+        result, paused = self._load_sources(deadline, allow_paused=False)
+        if paused:
+            raise ComponentDockerAdapterError()
+        return result
+
+    def restore_sources(self, deadline):
+        """Read exact running/paused sources for authenticated recovery."""
+        return self._load_sources(deadline, allow_paused=True)
+
+    def adopt_restore_pauses(self, container_ids, deadline):
+        """Adopt only exact paused effects after a durable journal was verified."""
+        try:
+            if (
+                type(container_ids) is not tuple
+                or container_ids != tuple(sorted(set(container_ids)))
+                or self._receipts is None
+                or self._sources is None
+            ):
+                raise ComponentDockerAdapterError()
+            known = {item.container_id for item in self._receipts}
+            if not set(container_ids).issubset(known):
+                raise ComponentDockerAdapterError()
+            for container_id in container_ids:
+                receipt = self._receipt(container_id)
+                self._preflight(receipt, True, deadline)
+            for container_id in container_ids:
+                self._pause_attempted.add(container_id)
+                self._paused_owned.add(container_id)
+            return True
+        except ComponentDockerAdapterError:
+            raise
+        except Exception:
+            raise ComponentDockerAdapterError() from None
+
+    def revalidate_restore_sources(self, sources, deadline):
+        try:
+            return (
+                type(sources) is tuple
+                and sources == self._sources
+                and self._authority_current(deadline)
+            )
+        except Exception:
+            return False
 
     def pause(self, container_id, deadline):
         try:

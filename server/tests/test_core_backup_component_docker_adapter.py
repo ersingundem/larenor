@@ -460,3 +460,33 @@ def test_new_adapter_never_unpauses_an_initially_paused_container(tmp_path):
 
         assert state["paused"] is True
         assert effect_operations(calls) == []
+
+
+def test_authenticated_restore_recovery_adopts_exact_paused_container(tmp_path):
+    with installed_authority(tmp_path) as (
+        authority, receipt, binding, _volumes,
+    ):
+        roots = make_roots(tmp_path / "payloads", binding)
+        container = running_inspect(binding, roots)
+        state = {"paused": True}
+        with engine_server(
+            effect_reply(container, receipt.volumes, state)
+        ) as (endpoint, calls):
+            restarted = api().UnixDockerComponentSnapshotAdapter(
+                endpoint, authority, peer_uid=lambda _: endpoint.owner_uid
+            )
+            sources, paused = restarted.restore_sources(time.monotonic() + 5)
+
+            assert sources
+            assert paused == (receipt.container_id,)
+            assert restarted.adopt_restore_pauses(
+                paused, time.monotonic() + 5
+            ) is True
+            assert restarted.unpause(
+                receipt.container_id, time.monotonic() + 5
+            ) is True
+
+        assert state["paused"] is False
+        assert effect_operations(calls) == [
+            f"POST /v1.47/containers/{receipt.container_id}/unpause HTTP/1.1"
+        ]

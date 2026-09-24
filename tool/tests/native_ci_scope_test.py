@@ -15,6 +15,7 @@ import native_ci_scope as target
 from native_ci_scope import decide_scope, is_relevant, patterns_for_workflow
 
 WORKFLOWS = {
+    "component-restore-native.yml": "component-restore-native",
     "jellyfin-managed-characterization.yml": "characterize",
     "qbittorrent-managed-characterization.yml": "qbittorrent-characterize",
     "arr-managed-characterization.yml": "arr-characterize",
@@ -46,12 +47,20 @@ class NativeCiScopeTest(unittest.TestCase):
         self.assertTrue(all(
             is_relevant(qbittorrent, patterns)
             for name, patterns in refs.items()
-            if name != "jellyfin-managed-characterization.yml"
+            if name not in {
+                "component-restore-native.yml",
+                "jellyfin-managed-characterization.yml",
+            }
         ))
         shared_models = "server/larenor_server/plugins/models.py"
         self.assertTrue(all(
-            is_relevant(shared_models, patterns) for patterns in refs.values()
+            is_relevant(shared_models, patterns)
+            for name, patterns in refs.items()
+            if name != "component-restore-native.yml"
         ))
+        self.assertFalse(
+            is_relevant(shared_models, refs["component-restore-native.yml"])
+        )
 
     def test_unknown_or_malformed_workflow_reference_has_no_skip_authority(self):
         for value in (

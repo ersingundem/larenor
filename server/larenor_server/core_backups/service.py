@@ -9,7 +9,7 @@ import threading
 import time
 import zipfile
 from contextlib import closing, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -122,6 +122,7 @@ _DATABASE_VALIDATION_VM_STEP_INTERVAL = 1_000
 _DATABASE_VALIDATION_VM_STEP_BUDGET = 100_000
 _SCHEMA_MARKER_KEY = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 _SCHEMA_MARKER_VALUE = re.compile(r"^[1-9][0-9]{0,9}$")
+_BUNDLE_AUTHENTICATION = object()
 
 
 def _canonical(value) -> bytes:
@@ -188,7 +189,11 @@ def _open_authenticated_bundle(bundle: bytes, passphrase: str) -> "BackupCapture
                 hashlib.sha256(payload).hexdigest(), resource.sha256
             ):
                 raise ValueError("invalid_digest")
-        return BackupCapture(manifest=manifest, payloads=payloads)
+        return BackupCapture(
+            manifest=manifest,
+            payloads=payloads,
+            _bundle_authentication=_BUNDLE_AUTHENTICATION,
+        )
     except (
         InvalidTag,
         OSError,
@@ -217,6 +222,16 @@ class BackupCapture:
 
     manifest: BackupManifest
     payloads: dict[str, bytes]
+    _bundle_authentication: object = field(default=None, compare=False, repr=False)
+
+
+def _is_authenticated_backup_capture(capture: BackupCapture) -> bool:
+    """Prove this exact capture came from successful bundle authentication."""
+
+    return (
+        type(capture) is BackupCapture
+        and capture._bundle_authentication is _BUNDLE_AUTHENTICATION
+    )
 
 
 def _validate_payload_contract(capture: BackupCapture) -> None:
