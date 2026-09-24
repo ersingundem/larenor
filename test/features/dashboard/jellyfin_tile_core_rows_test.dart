@@ -12,6 +12,7 @@ import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../server/server_admin_test_support.dart';
 
@@ -35,6 +36,8 @@ const _tile = TileConfig(
 );
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets(
     'verified Core tile reads account rows without mounting direct Jellyfin',
     (tester) async {
@@ -73,6 +76,9 @@ void main() {
             }, 409);
           }
           final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['installationId'], _installationId);
+          expect(body['expectedInstallationRevision'], 7);
+          expect(body['expectedBindingRevision'], 4);
           return fixture.json({
             'requestId': body['requestId'],
             'installationId': _installationId,
