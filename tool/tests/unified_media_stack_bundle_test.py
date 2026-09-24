@@ -25,7 +25,7 @@ COMPONENTS = ("jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_ass
 
 class HostFacts:
     def __init__(self, planner, target, *, architecture="amd64", change=None,
-                 installation="default"):
+                 installation="default", clean=True):
         manifest = target["deploymentManifest"]
         self.calls = []
         self.selected_architecture = architecture
@@ -39,9 +39,10 @@ class HostFacts:
             path, values = change
             self.facts[path].update(values)
         prior = planner.plan("b" * 40, target["settings"])
-        normalized_architecture = {
+        normalized_architecture = ({
             "x86_64": "amd64", "aarch64": "arm64",
-        }.get(architecture, architecture)
+        }.get(architecture, architecture) if isinstance(architecture, str)
+            else "unknown")
         receipt_architecture = (
             normalized_architecture
             if normalized_architecture in {"amd64", "arm64"}
@@ -52,6 +53,7 @@ class HostFacts:
             installation_id="e" * 32,
             architecture=receipt_architecture,
         ) if installation == "default" else installation)
+        self.clean_state = clean
 
     def architecture(self):
         self.calls.append("architecture")
@@ -64,6 +66,11 @@ class HostFacts:
     def installation(self):
         self.calls.append("installation")
         return copy.deepcopy(self.installed)
+
+    def clean(self, paths):
+        self.calls.append("clean")
+        self.clean_paths = tuple(paths)
+        return self.clean_state
 
 
 class UnifiedMediaStackBundleTest(unittest.TestCase):
@@ -187,7 +194,16 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             self.assertEqual(preview["backupTarget"], "/DATA/AppData/larenor-server-backups")
             self.assertEqual(preview["rollbackTarget"], "/DATA/AppData/larenor-server-rollback")
             self.assertEqual(host.calls[:2], ["architecture", "installation"])
-            self.assertEqual(set(host.calls[2:]), {item["path"] for item in manifest["ownedPaths"]})
+            offset = 2
+            if operation == "install":
+                self.assertEqual(host.calls[2], "clean")
+                self.assertEqual(
+                    set(host.clean_paths),
+                    {item["path"] for item in manifest["ownedPaths"]},
+                )
+                offset = 3
+            self.assertEqual(set(host.calls[offset:]), {
+                item["path"] for item in manifest["ownedPaths"]})
             self.assertNotRegex(json.dumps(preview).lower(), r"docker|subprocess|daemon|token|password")
 
         first = next(item["path"] for item in manifest["ownedPaths"]
@@ -243,8 +259,22 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         self.assertIn("installation_missing", {
             item["code"] for item in missing["checks"]})
 
-        already_current = copy.deepcopy(installed)
-        already_current["sourceRevision"] = REVISION
+        dirty = self.planner.preflight(
+            value,
+            "install",
+            HostFacts(
+                self.planner,
+                value,
+                installation=None,
+                clean=False,
+            ),
+        )
+        self.assertFalse(dirty["ready"])
+        self.assertIn("installation_not_clean", {
+            item["code"] for item in dirty["checks"]})
+
+        already_current = self.planner.installed_state_receipt(
+            value, installation_id="e" * 32, architecture="amd64")
         current = self.planner.preflight(
             value, "upgrade", HostFacts(
                 self.planner, value, installation=already_current))
@@ -254,8 +284,11 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
 
         for changed, code in (
             ({"schemaVersion": 1}, "installation_receipt_invalid"),
-            (dict(installed, architecture="arm64"),
-             "installation_architecture_mismatch"),
+            (self.planner.installed_state_receipt(
+                self.planner.plan("b" * 40, SETTINGS),
+                installation_id="e" * 32,
+                architecture="arm64",
+            ), "installation_architecture_mismatch"),
             (dict(installed, sourceRevision=1.0), "installation_receipt_invalid"),
             (dict(installed, schemaVersion=True), "installation_receipt_invalid"),
             (dict(installed, schemaVersion=1.0), "installation_receipt_invalid"),
@@ -272,6 +305,19 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                         self.planner, value, installation=changed))
                 self.assertFalse(preview["ready"])
                 self.assertIn(code, {item["code"] for item in preview["checks"]})
+
+        newer = dict(installed, releaseVersion="1.0.0")
+        newer["receiptDigest"] = bundle._digest({
+            key: item for key, item in newer.items() if key != "receiptDigest"
+        })
+        downgrade = self.planner.preflight(
+            value,
+            "upgrade",
+            HostFacts(self.planner, value, installation=newer),
+        )
+        self.assertFalse(downgrade["ready"])
+        self.assertIn("installation_not_upgradeable", {
+            item["code"] for item in downgrade["checks"]})
 
         for host_architecture, receipt_architecture in (
             ("amd64", "amd64"),
@@ -329,12 +375,41 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                 reader.installation()
 
             path.unlink()
+            path.write_bytes(b"x" * (bundle.MAX_INSTALLATION_RECEIPT_BYTES + 1))
+            path.chmod(0o600)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+            path.unlink()
+            path.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n")
+            path.chmod(0o644)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+            path.unlink()
             foreign = root / "foreign"
             foreign.write_text("{}")
             path.symlink_to(foreign)
             with self.assertRaisesRegex(
                 bundle.BundleError, "bundle_host_inspection_invalid"):
                 reader.installation()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "clean"
+            child = root / "child"
+            child.mkdir(parents=True)
+            root.chmod(0o700)
+            child.chmod(0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            self.assertTrue(reader.clean((str(root), str(child))))
+            (child / "foreign-payload").write_text("foreign")
+            self.assertFalse(reader.clean((str(root), str(child))))
 
         class WiredHost:
             def __init__(self, *_args, **_kwargs):
@@ -345,6 +420,9 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
 
             def installation(self):
                 return None
+
+            def clean(self, _paths):
+                return True
 
             def inspect(self, path):
                 requirement = next(

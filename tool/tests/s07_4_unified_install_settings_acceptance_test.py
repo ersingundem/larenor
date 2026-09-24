@@ -56,6 +56,10 @@ class HostFacts:
         self.calls.append("installation")
         return copy.deepcopy(self.receipt)
 
+    def clean(self, _paths):
+        self.calls.append("clean")
+        return True
+
 
 class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
     def setUp(self):
