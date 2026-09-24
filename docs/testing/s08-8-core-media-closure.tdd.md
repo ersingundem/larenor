@@ -1,6 +1,6 @@
 # S08.8 Core media client closure evidence
 
-Status: software acceptance candidate; independent P1/P2 review passed and exact current-head CI remains pending. Physical receiver journeys remain under `MANUAL.MEDIA`.
+Status: software acceptance complete at exact source `ff55f5141ad3f686e73511465ff057f14b18495a`. Independent P1/P2 review and current-head CI passed. Physical receiver journeys remain under `MANUAL.MEDIA`.
 
 ## Journeys
 
@@ -36,4 +36,4 @@ The journey reuses the shipped catalog and account-row caches. Their scope remai
 
 ## Acceptance boundary
 
-Independent diff review found no remaining P1/P2 blocker after the search and resolved-import fixes. Android Build run `35945654493` passed static analysis, four Flutter shards, four Server shards, the aggregate gates, API 35 emulator journey and debug APK on the latest merged Core rows source; Security run `35945654352` passed dependency, platform and secret policy. This closure tree keeps the same merged contracts and adds the local 3/3 architecture, 81/81 primary and 54/54 surface-regression proof. Its own required CI and API 35 emulator run must pass before `S08.8` becomes `done`. Physical HomePod, Cast and Apple TV results remain under `MANUAL.MEDIA` and are not part of this software acceptance.
+Independent diff review found no remaining P1/P2 blocker after the search and resolved-import fixes. On exact source `ff55f5141ad3f686e73511465ff057f14b18495a`, Android Build run `35950583150` passed static analysis, four Flutter shards, four Server shards, both aggregate gates, the API 35 emulator journey and debug APK; Security run `35950582810` passed dependency, platform and secret policy. The same source passed the local 3/3 architecture, 81/81 primary and 54/54 surface-regression proof. This completes the S08.8 software acceptance. Physical HomePod, Cast and Apple TV results remain under `MANUAL.MEDIA` and are not part of this software acceptance.

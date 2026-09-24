@@ -1838,7 +1838,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi medya ve müzik Client geçişi",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.7",
         "B2"
@@ -1864,7 +1864,7 @@
         {
           "kind": "test",
           "ref": "docs/testing/s08-8-core-media-closure.tdd.md",
-          "commit": "962fa8db1b22e11aa53e5f1c8effebf7d657bd39",
+          "commit": "ff55f5141ad3f686e73511465ff057f14b18495a",
           "state": "completed",
           "result": "passed",
           "label": "3/3 resolved-import architecture, 81/81 primary Flutter, 54/54 active-surface regression and 2/2 real-loopback restart/logout/Core-switch journeys passed."
@@ -1872,14 +1872,22 @@
         {
           "kind": "review",
           "ref": "docs/testing/s08-8-core-media-closure.tdd.md",
-          "commit": "962fa8db1b22e11aa53e5f1c8effebf7d657bd39",
+          "commit": "ff55f5141ad3f686e73511465ff057f14b18495a",
           "state": "completed",
           "result": "passed",
           "label": "Independent full-diff authority, lifecycle, cache and direct-client boundary review found no remaining P1/P2 blocker; aggregate patch-id stayed identical after the K03 rebase."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35950583150",
+          "commit": "ff55f5141ad3f686e73511465ff057f14b18495a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR #480 Android Build: static analysis, 4 Flutter shards, 4 Server shards, both aggregate gates, API 35 emulator journey and debug APK passed; Security run 35950582810 passed dependency, platform and secret policy on the same source."
         }
       ],
-      "completionCommit": null,
-      "reason": "Rebased closure tree passed local grouped tests and independent P1/P2 review; exact current-head required CI and API 35 emulator journey are pending on the pull request."
+      "completionCommit": "ff55f5141ad3f686e73511465ff057f14b18495a",
+      "reason": "Core media surfaces route verified and unresolved homes through provider-free catalog/account-row controllers; explicit Direct homes retain local media. Resolved-import architecture guards cover dashboard, hub, search, casting, target and settings entrypoints. Real-loopback restart, logout and same-URL Core replacement journeys prove browse/recent/resume retirement without direct Jellyfin or Music Assistant reads. Independent review found no P1/P2 blocker and exact PR #480 Android Build plus Security passed. Physical HomePod, Cast and Apple TV journeys remain under MANUAL.MEDIA."
     },
     {
       "id": "S08.9",
