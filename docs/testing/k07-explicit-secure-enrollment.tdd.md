@@ -43,11 +43,10 @@ flutter analyze lib/features/kiosk_remote test/features/kiosk_remote
 No issues found!
 ```
 
-## Remaining K07 gates
+## Final K07 status
 
-K07 remains `pending`; this slice does not change either progress counter. The
-production broker setting is still disabled until a trusted Core-managed TLS
-broker configuration exists. Live Mosquitto ACL/TLS acceptance, native Android
-device identity and bounded command authority, broker-loss recovery, Huawei
-background behavior, Samsung DeX resize, physical keyboard and TalkBack remain
-manual or later software gates.
+The production TLS broker setting, live TLS ACL/ACK fixture, native lock and
+retained Dart refresh/profile commands now complete the automated chain. K07
+software acceptance is `done` at **29/125 (23.2%)**. Real broker deployment,
+Huawei background behavior, Samsung DeX, physical keyboard, TalkBack and OEM/DPC
+policy delivery remain MANUAL.

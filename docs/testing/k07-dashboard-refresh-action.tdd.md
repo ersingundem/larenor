@@ -1,6 +1,6 @@
 # K07 managed dashboard refresh action
 
-Status: **bounded software slice ready; K07 stays pending**
+Status: **bounded software slice accepted as part of K07 closure**
 
 ## Three acceptance tasks
 
@@ -26,10 +26,9 @@ Status: **bounded software slice ready; K07 stays pending**
   runtime-owner package passes **42/42** tests.
 - Scoped Flutter analysis, queue validation and `git diff --check` pass.
 
-## Remaining K07 gates
+## Final K07 status
 
-K07 and both progress counters remain unchanged at **26/125 (20.8%)** and
-**0/63 (0.0%)**. Managed profile synchronization needs a real versioned profile
-contract. Kiosk locking needs verified Android managed-device authority. Live
-broker deployment plus Huawei background/process-death and Samsung DeX,
-keyboard and TalkBack hardware acceptance remain open.
+Versioned profile synchronization, verified native kiosk locking and the live
+TLS fixture now complete the automated command chain. K07 is `done` at
+**29/125 (23.2%)** and **0/63 (0.0%)**. Real broker deployment plus Huawei,
+DeX, keyboard and TalkBack hardware acceptance remain MANUAL.

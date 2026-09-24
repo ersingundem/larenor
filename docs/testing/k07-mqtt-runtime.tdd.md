@@ -3,7 +3,8 @@
 Source: the K07 acceptance row in `docs/execution-queue.json` and the remaining
 broker/runtime gates in
 `docs/testing/k07-paired-remote-mqtt-acceptance-2026-09-21.md`. This is a
-narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
+narrow historical software slice from `origin/main` `54abbf34`; later K07
+closure evidence supersedes its pending status.
 
 ## User journeys
 
@@ -64,15 +65,11 @@ narrow software slice from `origin/main` `54abbf34`; K07 remains pending.
 - `flutter analyze lib/features/kiosk_remote/runtime test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart`
   — no issues.
 
-## Remaining K07 gates
+## Final K07 status
 
-- Wire the runtime into the app/session lifecycle with secure pairing-token
-  retrieval and a current Core authority reader. The real Android telemetry
-  source is implemented in `k07-native-tablet-source.tdd.md`; native command
-  execution intentionally remains disabled.
-- Run a real local Mosquitto TLS/ACL fixture and physical broker restart test;
-  the adapter is concrete, but this slice tests the broker boundary through a
-  deterministic port.
-- Verify Huawei background/process-death behavior and Samsung DeX/keyboard/
-  TalkBack behavior on physical tablets. K07 must not move to `done` until
-  these gates and exact-head CI pass.
+Secure credential retrieval, exact Core/egress authority and production runtime
+ownership are now wired. The native lock plus retained Dart refresh/profile
+commands and the live TLS ACL/ACK fixture are automated. K07 software
+acceptance is `done` at **29/125 (23.2%)**; real broker deployment and physical
+Huawei/DeX/keyboard/TalkBack validation remain MANUAL. See
+[`k07-software-acceptance.tdd.md`](k07-software-acceptance.tdd.md).

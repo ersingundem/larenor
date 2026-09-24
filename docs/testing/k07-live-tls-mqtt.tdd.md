@@ -35,6 +35,6 @@ flutter test test/features/kiosk_remote/mqtt_local_broker_live_test.dart \
 23/23 passed
 ```
 
-K07 remains pending until its exact-head review and required CI evidence are
-complete. This slice does not claim a physical broker, OEM background policy,
-or tablet acceptance result.
+Exact-head review and required CI are complete, so this automated TLS slice is
+part of accepted K07 software evidence. It does not claim a physical broker,
+OEM background policy or tablet acceptance result; those remain MANUAL.

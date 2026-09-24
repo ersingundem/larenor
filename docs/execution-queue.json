@@ -2571,7 +2571,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Eşleştirilmiş uzaktan API ve MQTT",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S08.6",
         "S08.10"
@@ -2579,7 +2579,9 @@
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k07-software-acceptance.tdd.md",
+        "docs/testing/k07-software-acceptance.json"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2590,9 +2592,42 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k07-software-acceptance.tdd.md",
+          "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "67 odaklı Flutter ve 10 Core testi; TLS SUBACK/PUBACK, replay/rate/scope, secure owner, native lock/refresh/profile ve malformed deadline ACK sınırları geçti."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/k07-software-acceptance.tdd.md",
+          "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız exact-tree P1/P2 incelemesi authority, TLS/ACL, lifecycle, replay, native/profile ve MANUAL ayrımını blocker olmadan doğruladı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35953409201",
+          "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android Build; statik analiz, dört Flutter shardı, dört Server shardı ve aggregate, API 35 emülatör ile debug APK geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35953408908",
+          "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security; secret scan, platform policy ve dependency scan geçti."
+        }
+      ],
+      "completionCommit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+      "reason": "Eşleştirme authority/runtime owner, TLS MQTT SUBACK/PUBACK ve ACL sınırı, replay/rate/scope kalıcılığı ile native lock/refresh/profile komutları test, bağımsız review ve exact CI ile tamamlandı. Fiziksel Huawei/DeX/TalkBack/OEM/DPC, gerçek broker kurulumu ve cihaz ölçümleri MANUAL kalır."
     },
     {
       "id": "K08",

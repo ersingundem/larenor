@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `3f990a1f` ve S08.8 kabul kaynağı `ff55f514` — 28/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8'in Core medya/müzik geçişi exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel HomePod/Cast/Apple TV kapısı ayrı kaldı. S09.1 teslimi ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `db05532b` ve K07 kabul kaynağı `0a6c2b29` — 29/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8 ve K07 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı. S09.1 teslimi ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  28/125 iş (%22,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  29/125 iş (%23,2; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -162,21 +162,23 @@ sınırladı ve odaklı paket **49/49** geçti. Bu dilim S09.1'in tutarlı ve iz
 yedek alma kapılarını tek başına kapatmadığından kuyruk
 **26/125 (%20,8)**, seçili özellik kabulü **0/63** kalır.
 
-### K07 açık tablet eşleştirmesi — inceleme dilimi
+### 24 Eylül K07 eşleştirilmiş tablet yazılım kabulü
 
-Yönetici artık Core'un ürettiği tek kullanımlık eşleştirme sırrını yalnız ayrı
-bir **Bu tablette kullan** eylemiyle Android güvenli deposuna alabiliyor. Kayıt;
-exact sunucu, Core, ev, hesap, cihaz, pairing revision ve MQTT kimliklerine
-bağlı. Hesap, route, lifecycle veya Core değişimi geç sonucu reddediyor ve
-yazılmış eski kaydı exact kimlikle temizliyor. Oluşturma tek başına yerel MQTT
-çalışma zamanını başlatmıyor; 48 dp EN/TR onay eylemi ve canlı başarı kanıtı
-tablet arayüzünde ayrı kalıyor.
+Exact `0a6c2b296714eda0896dba3b277e331f129e38a6` kaynağında açık secure enrollment, current Core/egress ve
+foreground runtime owner zinciri; TLS-only MQTT ile SUBACK ve matching QoS 1
+PUBACK; replay/rate/scope kalıcılığı; native `lockKiosk` ile retained Dart
+`refreshDashboard`/`syncProfile` komutları birlikte doğrulandı. Malformed fakat
+finite DateTime-aralığı dışındaki deadline artık parserdan kaçmadan exact
+`invalid_mqtt_command` ACK üretiyor.
 
-Odaklı Client, secure-store ve runtime-owner paketi **26/26** geçti; hedefli
-analiz temiz. K07 hâlâ `pending`: açık TLS broker ayarı, canlı Mosquitto ACL/TLS,
-native cihaz kimliği/komut yetkisi ve Huawei/DeX fiziksel kabulü tamamlanmadan
-sayaç **26/125 (%20,8)** ve seçili özellikler **0/63** kalır.
-[TDD kanıtı](testing/k07-explicit-secure-enrollment.tdd.md).
+Bağımsız P1/P2 review blocker bulmadı. 67 odaklı Flutter, 10 Core ve 4 validator
+testi geçti. Android Build `35953409201` statik analiz, dört Flutter shardı,
+dört Server shardı ve aggregate, API 35 emülatör ve debug APK'yı; Security
+`35953408908` secret/platform/dependency kapılarını aynı exact kaynakta
+geçti. Deterministic manifest production/test markerlarını, review ve CI SHA'sını
+fail-closed doğrular. K07 `done`; kuyruk **29/125 (%23,2)**. Fiziksel Huawei,
+DeX, TalkBack, OEM/DPC, gerçek broker kurulumu ve cihaz ölçümleri MANUAL kalır.
+[Kapanış kanıtı](testing/k07-software-acceptance.tdd.md).
 
 ### REMOTE.COMMON ortak uzak erişim temeli — yazılım kabul edildi
 

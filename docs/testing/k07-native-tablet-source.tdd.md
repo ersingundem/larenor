@@ -2,8 +2,8 @@
 
 Source: the Android telemetry and lifecycle gap recorded in
 `k07-mqtt-runtime.tdd.md`. This dependent slice starts from
-`origin/codex/k07-mqtt-runtime` at `8ec15621`; K07 remains `pending` and queue
-counts do not change.
+`origin/codex/k07-mqtt-runtime` at `8ec15621`; that historical slice did not
+change queue counts. Later K07 closure evidence is recorded separately.
 
 ## User journeys
 
@@ -52,11 +52,10 @@ counts do not change.
 - `uv run pytest -q tests/test_k07_paired_remote_mqtt.py`
   — validates the exact five-topic discovery contract.
 
-## Remaining K07 gates
+## Final K07 status
 
-- Supply pairing credentials from secure storage, bind current Core/component
-  egress authority, and own the MQTT runtime from the real app session.
-- Implement separately authorized native device commands; this telemetry slice
-  deliberately executes none.
-- Run a local Mosquitto TLS/ACL/restart fixture, physical Huawei process-death
-  validation, Samsung DeX/keyboard/TalkBack acceptance, and exact-head CI.
+Secure pairing credentials, current Core/component-egress authority, runtime
+ownership and native lock plus retained Dart refresh/profile commands are now
+production-bound and automated. K07 software acceptance is `done` at 29/125.
+Real broker deployment, Huawei process death, DeX, keyboard and TalkBack remain
+MANUAL. See [`k07-software-acceptance.tdd.md`](k07-software-acceptance.tdd.md).

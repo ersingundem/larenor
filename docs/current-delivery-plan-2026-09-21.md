@@ -1,10 +1,10 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`3f990a1f`**, S08.8 kabul
-kaynağı **`ff55f514`** commitidir. S08.8, S09.1 ve K03 teslimlerini kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`db05532b`**, K07 kabul
+kaynağı **`0a6c2b29`** commitidir. S08.8, K07, S09.1 ve K03 teslimlerini kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **28/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **29/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -59,6 +59,12 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   yolculuklarını gerçek loopback ile doğruladı. Android Build `35950583150`,
   Security `35950582810` ve bağımsız P1/P2 incelemesi geçti; S08.8 yazılım
   kabulü kapandı ve sayaç 28/125 oldu. Fiziksel alıcılar `MANUAL.MEDIA`'dır.
+- PR #481 exact `0a6c2b29` kaynağında secure enrollment/runtime owner,
+  TLS MQTT SUBACK/PUBACK ve replay/rate/scope sınırlarını native lock ile Dart
+  refresh/profile komutlarına bağladı. Android Build `35953409201`, Security
+  `35953408908` ve bağımsız P1/P2 review geçti; K07 yazılım kabulü kapandı ve
+  sayaç 29/125 oldu. Huawei/DeX/TalkBack/OEM/DPC, gerçek broker kurulumu ve cihaz
+  ölçümleri MANUAL kalır.
 
 ## Kanıtı açık kalan sınırlar
 
@@ -73,8 +79,10 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
 3. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
    döngüsü, anonymous owned alt-kaynak transportu ve document-start dynamic
-   egress kapısı yazılım kabulünü tamamladı. Fiziksel Android/DeX/OEM, DPC,
-   force-stop ve çevre birimi kanıtları ayrı manuel kapıdır.
+   egress; K07 secure enrollment, TLS MQTT ve bounded native/profile komutları
+   yazılım kabulünü tamamladı. Fiziksel Android/Huawei/DeX/TalkBack/OEM, DPC,
+   gerçek broker kurulumu, force-stop ve çevre birimi kanıtları ayrı manuel
+   kapıdır.
 4. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
