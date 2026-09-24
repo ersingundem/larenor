@@ -445,6 +445,150 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             ]), 0)
             self.assertTrue(stdout.write.called)
 
+    def test_local_host_facts_rejects_ancestor_symlinks_and_path_replacement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            real = base / "real"
+            root = real / "root"
+            child = root / "mid" / "leaf"
+            child.mkdir(parents=True)
+            for path in (real, root, root / "mid", child):
+                path.chmod(0o700)
+            alias = base / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            selected = alias / "root"
+            reader = bundle.LocalHostFacts(
+                selected,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            for operation in (
+                lambda: reader.inspect(str(selected)),
+                reader.installation,
+                lambda: reader.clean((
+                    str(selected),
+                    str(selected / "mid"),
+                    str(selected / "mid" / "leaf"),
+                )),
+            ):
+                with self.subTest(operation=operation):
+                    with self.assertRaisesRegex(
+                        bundle.BundleError, "bundle_host_inspection_invalid"
+                    ):
+                        operation()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "root"
+            middle = root / "mid"
+            leaf = middle / "leaf"
+            leaf.mkdir(parents=True)
+            outside = base / "outside"
+            (outside / "leaf").mkdir(parents=True)
+            for path in (root, middle, leaf, outside, outside / "leaf"):
+                path.chmod(0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_open = os.open
+            switched = False
+
+            def racing_open(path, flags, *args, **kwargs):
+                nonlocal switched
+                descriptor = real_open(path, flags, *args, **kwargs)
+                if not switched and (str(path) == str(middle) or path == "mid"):
+                    switched = True
+                    middle.rename(base / "parked")
+                    middle.symlink_to(outside, target_is_directory=True)
+                return descriptor
+
+            with patch.object(bundle.os, "open", racing_open):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.clean((str(root), str(middle), str(leaf)))
+
+    def test_local_receipt_reader_rejects_rewrite_and_fifo_without_blocking(self):
+        first = self.planner.installed_state_receipt(
+            self.planner.plan("b" * 40, SETTINGS),
+            installation_id="e" * 32,
+            architecture="amd64",
+        )
+        second = self.planner.installed_state_receipt(
+            self.planner.plan("b" * 40, SETTINGS),
+            installation_id="f" * 32,
+            architecture="amd64",
+        )
+        first_raw = (json.dumps(
+            first, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        second_raw = (json.dumps(
+            second, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        self.assertEqual(len(first_raw), len(second_raw))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "installation"
+            root.mkdir(mode=0o700)
+            receipt = root / bundle.INSTALLATION_RECEIPT_NAME
+            receipt.write_bytes(first_raw)
+            receipt.chmod(0o600)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_read = os.read
+            changed = False
+
+            def racing_read(descriptor, size):
+                nonlocal changed
+                chunk = real_read(descriptor, size)
+                if chunk and not changed:
+                    changed = True
+                    receipt.write_bytes(second_raw)
+                    receipt.chmod(0o600)
+                return chunk
+
+            with patch.object(bundle.os, "read", racing_read):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.installation()
+
+            receipt.unlink()
+            os.mkfifo(receipt, mode=0o600)
+            real_open = os.open
+
+            def require_nonblocking(path, flags, *args, **kwargs):
+                if path == bundle.INSTALLATION_RECEIPT_NAME:
+                    self.assertTrue(flags & os.O_NONBLOCK)
+                return real_open(path, flags, *args, **kwargs)
+
+            with patch.object(bundle.os, "open", require_nonblocking):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.installation()
+
+    def test_local_clean_inventory_stops_at_the_bounded_limit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "installation"
+            root.mkdir(mode=0o700)
+            for index in range(257):
+                (root / f"foreign-{index:03d}").touch()
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            with patch.object(
+                bundle.os,
+                "listdir",
+                side_effect=AssertionError("unbounded listdir is forbidden"),
+            ):
+                self.assertFalse(reader.clean((str(root),)))
+
 
 if __name__ == "__main__":
     unittest.main()
