@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "task": "K07",
+  "status": "pending",
+  "sourceCommit": "d37ebb1ba4d778f5866016ebb8d5e9d827a5b7bb",
+  "review": null,
+  "references": {
+    "production": [
+      "android/app/src/main/kotlin/com/ersingundem/larenor/kioskremote/ManagedTabletSourceBridge.kt",
+      "lib/features/kiosk_remote/runtime/managed_tablet_credential_store.dart",
+      "lib/features/kiosk_remote/runtime/managed_tablet_mqtt_runtime.dart",
+      "lib/features/kiosk_remote/runtime/managed_tablet_profile_sync.dart",
+      "lib/features/kiosk_remote/runtime/managed_tablet_runtime_owner.dart",
+      "lib/features/kiosk_remote/runtime/managed_tablet_runtime_scope.dart",
+      "lib/features/kiosk_remote/runtime/mqtt_local_broker.dart",
+      "lib/features/kiosk_remote/runtime/native_managed_tablet_source.dart",
+      "server/larenor_server/kiosk_remote/api.py"
+    ],
+    "test": [
+      "android/app/src/test/kotlin/com/ersingundem/larenor/kioskremote/ManagedTabletSourceBridgeTest.kt",
+      "server/tests/test_k07_paired_remote_mqtt.py",
+      "server/tests/test_k07_tablet_profile_publication.py",
+      "test/features/kiosk_remote/kiosk_remote_mqtt_runtime_test.dart",
+      "test/features/kiosk_remote/managed_tablet_runtime_owner_test.dart",
+      "test/features/kiosk_remote/mqtt_local_broker_live_test.dart",
+      "test/features/kiosk_remote/native_managed_tablet_source_deadline_test.dart",
+      "test/features/kiosk_remote/native_managed_tablet_source_test.dart"
+    ],
+    "review": [
+      "docs/testing/k07-software-acceptance.tdd.md",
+      "docs/testing/k07-versioned-profile-sync.tdd.md"
+    ]
+  },
+  "ci": null,
+  "manualBoundary": "Physical Huawei, DeX, TalkBack, OEM, DPC, broker deployment and device measurements remain separate manual gates."
+}
