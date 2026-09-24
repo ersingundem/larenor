@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import re
 import unittest
 
 
@@ -25,6 +26,17 @@ FORBIDDEN_DIRECT_MARKERS = (
     "MusicCenterScreen(",
     "RemotePlaybackButton(",
 )
+DIRECT_ONLY_IMPORT_PREFIXES = (
+    "lib/features/media/arr/",
+    "lib/features/media/casting/",
+    "lib/features/media/ha_playback/",
+    "lib/features/media/hub/providers/",
+    "lib/features/media/hub/presentation/media_search_screen.dart",
+    "lib/features/media/hub/presentation/media_title_detail_screen.dart",
+    "lib/features/media/jellyfin/",
+    "lib/features/media/jellyseerr/",
+    "lib/features/media/music/",
+)
 
 
 def _text(root: Path, relative: str) -> str:
@@ -32,6 +44,23 @@ def _text(root: Path, relative: str) -> str:
     if not path.is_file():
         raise FileNotFoundError(relative)
     return path.read_text(encoding="utf-8")
+
+
+def _imports(root: Path, relative: str, text: str) -> list[str]:
+    source = root / relative
+    imports: list[str] = []
+    for value in re.findall(r"^import\s+['\"]([^'\"]+)['\"]", text, re.MULTILINE):
+        if value.startswith("package:larenor/"):
+            imports.append(f"lib/{value.removeprefix('package:larenor/')}")
+        elif value.startswith("dart:") or value.startswith("package:"):
+            continue
+        else:
+            resolved = (source.parent / value).resolve()
+            try:
+                imports.append(resolved.relative_to(root.resolve()).as_posix())
+            except ValueError:
+                imports.append(f"outside:{value}")
+    return imports
 
 
 def core_media_architecture_errors(root: Path) -> list[str]:
@@ -45,6 +74,9 @@ def core_media_architecture_errors(root: Path) -> list[str]:
         for marker in FORBIDDEN_DIRECT_MARKERS:
             if marker in text:
                 errors.append(f"direct_provider:{relative}:{marker}")
+        for imported in _imports(root, relative, text):
+            if imported.startswith(DIRECT_ONLY_IMPORT_PREFIXES):
+                errors.append(f"direct_import:{relative}:{imported}")
 
     selector_path = "lib/features/media/hub/presentation/media_hub_screen.dart"
     direct_path = "lib/features/media/hub/presentation/direct_media_hub_screen.dart"
