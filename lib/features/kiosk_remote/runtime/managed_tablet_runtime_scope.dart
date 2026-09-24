@@ -80,10 +80,13 @@ final managedTabletProfileSynchronizerProvider =
         account: ref.watch(serverAccountControllerProvider),
         credentials: ref.watch(managedTabletCredentialStoreProvider),
         profiles: ref.watch(managedTabletProfileStoreProvider),
-        activate: (_) async {
+        activate: (profile) async {
           if (!ref.mounted) {
             throw StateError('managed_tablet_action_retired');
           }
+          ref
+              .read(managedTabletActiveProfileProvider.notifier)
+              .activate(profile);
           ref.invalidate(windowProfileProvider);
           ref.invalidate(idleModeProvider);
           await Future.wait([
@@ -130,6 +133,12 @@ final managedTabletRuntimeOwnerProvider =
         settings: ref.watch(managedTabletDefaultMqttSettingsProvider),
         stateStore: SharedPreferencesManagedMqttStateStore(),
         now: DateTime.now,
+        onAuthorityRetired: () async {
+          if (!ref.mounted) return;
+          ref.read(managedTabletActiveProfileProvider.notifier).activate(null);
+          ref.invalidate(windowProfileProvider);
+          ref.invalidate(idleModeProvider);
+        },
       );
       ref.onDispose(() => unawaited(owner.dispose()));
       return owner;
@@ -153,6 +162,7 @@ final class _ManagedTabletRuntimeScopeState
   late final ServerAccountController _account;
   LocalMqttBrokerSettings? _appliedSettings;
   ManagedTabletRuntimeOwner? _appliedOwner;
+  int _profileAuthorityGeneration = 0;
 
   @override
   void initState() {
@@ -194,15 +204,55 @@ final class _ManagedTabletRuntimeScopeState
 
   void _synchronize() {
     if (!mounted) return;
-    unawaited(
-      ref
-          .read(managedTabletRuntimeOwnerProvider)
-          .updateBinding(_currentBinding()),
-    );
+    final generation = ++_profileAuthorityGeneration;
+    final binding = _currentBinding();
+    _publishProfile(null);
+    unawaited(_synchronizeAuthority(generation, binding));
+  }
+
+  Future<void> _synchronizeAuthority(
+    int generation,
+    ManagedTabletBinding? binding,
+  ) async {
+    await ref.read(managedTabletRuntimeOwnerProvider).updateBinding(binding);
+    if (!_authorityCurrent(generation, binding) || binding == null) return;
+    try {
+      final enrollment = await ref
+          .read(managedTabletCredentialStoreProvider)
+          .read();
+      if (!_authorityCurrent(generation, binding) ||
+          enrollment?.binding != binding ||
+          !enrollment!.expiresAt.isAfter(DateTime.now().toUtc())) {
+        return;
+      }
+      final profile = await ref
+          .read(managedTabletProfileStoreProvider)
+          .readFor(enrollment);
+      if (!_authorityCurrent(generation, binding) || profile == null) {
+        return;
+      }
+      _publishProfile(profile);
+    } catch (_) {
+      if (_authorityCurrent(generation, binding)) _publishProfile(null);
+    }
+  }
+
+  bool _authorityCurrent(int generation, ManagedTabletBinding? binding) =>
+      mounted &&
+      generation == _profileAuthorityGeneration &&
+      _currentBinding() == binding;
+
+  void _publishProfile(AppliedManagedTabletProfile? profile) {
+    if (!mounted) return;
+    ref.read(managedTabletActiveProfileProvider.notifier).activate(profile);
+    ref.invalidate(windowProfileProvider);
+    ref.invalidate(idleModeProvider);
   }
 
   @override
   void dispose() {
+    _profileAuthorityGeneration++;
+    ref.read(managedTabletActiveProfileProvider.notifier).activate(null);
     WidgetsBinding.instance.removeObserver(this);
     _account.removeListener(_synchronize);
     super.dispose();

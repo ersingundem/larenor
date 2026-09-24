@@ -17,6 +17,7 @@ final class ManagedTabletRuntimeOwner {
     required this.settings,
     required this.stateStore,
     required this.now,
+    this.onAuthorityRetired,
     this.logger,
   });
 
@@ -27,6 +28,7 @@ final class ManagedTabletRuntimeOwner {
   LocalMqttBrokerSettings settings;
   final ManagedMqttStateStore stateStore;
   final DateTime Function() now;
+  final Future<void> Function()? onAuthorityRetired;
   final void Function(String event)? logger;
 
   ManagedTabletBinding? _binding;
@@ -72,6 +74,7 @@ final class ManagedTabletRuntimeOwner {
     }
     final generation = ++_generation;
     await _schedule(generation, start: false);
+    await onAuthorityRetired?.call();
     if (!_enrollmentCurrent(generation, binding, routeCurrent)) {
       throw StateError('managed_tablet_enrollment_denied');
     }
@@ -122,6 +125,7 @@ final class ManagedTabletRuntimeOwner {
     final generation = ++_generation;
     await _schedule(generation, start: false);
     await store.clearIfCurrent(binding, pairingId);
+    await onAuthorityRetired?.call();
   }
 
   Future<void> _schedule(
@@ -177,6 +181,10 @@ final class ManagedTabletRuntimeOwner {
           enrollmentGuard,
         ),
         now: now,
+        onRevoked: () async {
+          await store.clearIfCurrent(binding, enrollment!.pairingId);
+          await onAuthorityRetired?.call();
+        },
         logger: logger,
       );
       _runtime = runtime;
@@ -189,6 +197,7 @@ final class ManagedTabletRuntimeOwner {
       if (enrollment != null) {
         await store.clearIfCurrent(binding, enrollment.pairingId);
       }
+      await onAuthorityRetired?.call();
       if (_current(generation)) await _retireCurrent();
     } catch (_) {
       if (_current(generation)) await _retireCurrent();

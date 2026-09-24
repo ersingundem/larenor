@@ -201,7 +201,7 @@ class IdleMode extends _$IdleMode {
 
   @override
   Future<IdleModeSettings> build() async {
-    final managed = await ref.watch(managedTabletProfileStoreProvider).read();
+    final managed = ref.watch(managedTabletActiveProfileProvider);
     if (managed != null) {
       _managed = true;
       return IdleModeSettings(

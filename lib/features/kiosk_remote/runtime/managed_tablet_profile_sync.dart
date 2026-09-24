@@ -53,7 +53,7 @@ final class ManagedTabletProfileSynchronizer {
         throw const LarenorServerException('cancelled');
       }
       final applied = await profiles.apply(
-        binding,
+        enrollment,
         publication,
         expectedDeviceId: enrollment.deviceId,
         isCurrent: () => _current(generation, binding, enrollment, isCurrent),

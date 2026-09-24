@@ -150,6 +150,7 @@ ManagedTabletRuntimeOwner _owner({
   required _Authority authority,
   required _Source source,
   required _Broker broker,
+  Future<void> Function()? onAuthorityRetired,
 }) => ManagedTabletRuntimeOwner(
   store: store,
   authority: authority,
@@ -163,6 +164,7 @@ ManagedTabletRuntimeOwner _owner({
   ),
   stateStore: MemoryManagedMqttStateStore(),
   now: () => DateTime.utc(2029),
+  onAuthorityRetired: onAuthorityRetired,
 );
 
 void main() {
@@ -450,11 +452,13 @@ void main() {
       final authority = _Authority()..failure = const ManagedTabletRevoked();
       final source = _Source();
       final broker = _Broker();
+      var retiredAuthorities = 0;
       final owner = _owner(
         store: store,
         authority: authority,
         source: source,
         broker: broker,
+        onAuthorityRetired: () async => retiredAuthorities++,
       );
       addTearDown(owner.dispose);
 
@@ -463,6 +467,7 @@ void main() {
       expect(store.value, isNull);
       expect(store.clears, 1);
       expect(broker.connects, 0);
+      expect(retiredAuthorities, 1);
     },
   );
 

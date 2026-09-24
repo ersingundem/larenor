@@ -219,6 +219,10 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     if (previous != null) await _stopSession(previous._sessionId);
   }
 
+  Future<void> _retireLease(_NativeManagedTabletSourceLease lease) async {
+    if (identical(_current, lease)) await _retireCurrent();
+  }
+
   Future<void> _stopSession(String sessionId) async {
     try {
       await _channel
@@ -434,10 +438,16 @@ final class _NativeManagedTabletCommandExecutor
   final _NativeManagedTabletSourceLease _lease;
   final ManagedTabletLocalActions _actions;
   bool _working = false;
+  int _operationGeneration = 0;
 
   @override
   Future<ManagedTabletCommandResult> execute(String kind) async {
-    bool current() => _owner._isCurrent(_lease);
+    final operationGeneration = ++_operationGeneration;
+    var timedOut = false;
+    bool current() =>
+        !timedOut &&
+        operationGeneration == _operationGeneration &&
+        _owner._isCurrent(_lease);
     if (!current()) return ManagedTabletCommandResult.denied;
     if (kind != 'refreshDashboard' &&
         kind != 'syncProfile' &&
@@ -462,12 +472,22 @@ final class _NativeManagedTabletCommandExecutor
       _ => _owner._executeNativeCommand(_lease, kind),
     };
     operation.then<void>(
-      (_) => _working = false,
-      onError: (_, _) => _working = false,
+      (_) {
+        if (operationGeneration == _operationGeneration) _working = false;
+      },
+      onError: (_, _) {
+        if (operationGeneration == _operationGeneration) _working = false;
+      },
     );
     try {
       final result = await operation.timeout(configuredTimeout);
       return current() ? result : ManagedTabletCommandResult.denied;
+    } on TimeoutException {
+      timedOut = true;
+      _operationGeneration += 1;
+      _working = false;
+      await _owner._retireLease(_lease);
+      return ManagedTabletCommandResult.failed;
     } on UnsupportedError {
       return current()
           ? ManagedTabletCommandResult.unsupported

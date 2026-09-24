@@ -44,7 +44,7 @@ class WindowProfileNotifier extends AsyncNotifier<WindowProfile> {
 
   @override
   Future<WindowProfile> build() async {
-    final managed = await ref.watch(managedTabletProfileStoreProvider).read();
+    final managed = ref.watch(managedTabletActiveProfileProvider);
     if (managed != null) {
       _managed = true;
       return managed.fullscreen ? WindowProfile.panel : WindowProfile.adaptive;

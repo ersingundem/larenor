@@ -24,13 +24,19 @@ acceptance.
    the profile through the existing heartbeat, and rolls storage and providers
    back if lifecycle or account authority retires during activation. While a
    managed document is active, local display controls cannot silently override
-   it. Restart reloads the same digest-bound document.
+   it. The durable envelope contains only a SHA-256 authority fingerprint and
+   becomes effective after the current endpoint, account, device, pairing and
+   enrollment revision match secure storage. Logout, replacement and revoke
+   clear effective policy without exposing those identifiers in preferences.
+   Foreign rollback targets are cleared rather than reactivated, and a command
+   deadline retires its native lease before late work can persist or heartbeat.
 
 ## Verification
 
 - Core profile publication, tablet fleet and rollout packages: **19 passed**.
-- Managed profile store, native source, tablet API, window profile and idle
-  gate packages: **66 passed**.
+- Managed profile store, native source/runtime, tablet API, window profile and
+  idle gate packages: **109 passed**. The widget acceptance checks the exact
+  29.999-second/30.000-second ambient boundary.
 - Focused Dart analysis, Ruff 0.14.10 and diff checks passed.
 
 K07 remains `pending`, so queue and selected-feature counters stay at

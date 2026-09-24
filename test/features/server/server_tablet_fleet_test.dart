@@ -456,6 +456,12 @@ void main() {
           activated = true;
         },
       );
+      fixture.respond = (request) async {
+        if (request.url.path.endsWith('/heartbeat')) {
+          expect(activated, isTrue);
+        }
+        return fixture.response(request);
+      };
 
       await synchronizer.synchronize(
         clientVersion: '1.2.3',

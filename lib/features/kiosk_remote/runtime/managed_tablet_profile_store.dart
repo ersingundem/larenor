@@ -9,7 +9,7 @@ import '../../server/domain/server_models.dart';
 import '../../server/tablet_fleet/domain/server_tablet_fleet_models.dart';
 import 'managed_tablet_credential_store.dart';
 
-const managedTabletProfilePreferenceKey = 'managed_tablet_profile_v1';
+const managedTabletProfilePreferenceKey = 'managed_tablet_profile_v2';
 
 final managedTabletProfileStoreProvider = Provider<ManagedTabletProfileStore>(
   (_) => ManagedTabletProfileStore(
@@ -17,11 +17,30 @@ final managedTabletProfileStoreProvider = Provider<ManagedTabletProfileStore>(
   ),
 );
 
+final managedTabletActiveProfileProvider =
+    NotifierProvider<
+      ManagedTabletActiveProfileController,
+      AppliedManagedTabletProfile?
+    >(ManagedTabletActiveProfileController.new);
+
+/// The profile that is allowed to affect this process right now.
+///
+/// Durable profile bytes are intentionally insufficient: the runtime must
+/// first prove that the current account and secure enrollment own them.
+final class ManagedTabletActiveProfileController
+    extends Notifier<AppliedManagedTabletProfile?> {
+  @override
+  AppliedManagedTabletProfile? build() => null;
+
+  void activate(AppliedManagedTabletProfile? value) => state = value;
+}
+
 final _identity = RegExp(r'^[0-9a-f]{32}$');
 final _digest = RegExp(r'^[0-9a-f]{64}$');
 
 final class AppliedManagedTabletProfile {
   const AppliedManagedTabletProfile._({
+    required this.authorityFingerprint,
     required this.coreId,
     required this.homeId,
     required this.deviceId,
@@ -34,15 +53,16 @@ final class AppliedManagedTabletProfile {
   });
 
   factory AppliedManagedTabletProfile.fromPublication(
-    ManagedTabletBinding binding,
+    ManagedTabletEnrollment enrollment,
     ManagedTabletProfilePublication publication,
   ) {
     if (publication.deviceId.isEmpty) {
       throw const LarenorServerException('invalid_response');
     }
     final value = AppliedManagedTabletProfile._(
-      coreId: binding.coreId,
-      homeId: binding.homeId,
+      authorityFingerprint: _authorityFingerprint(enrollment),
+      coreId: enrollment.coreId,
+      homeId: enrollment.homeId,
       deviceId: publication.deviceId,
       deviceRevision: publication.deviceRevision,
       revision: publication.revision,
@@ -58,6 +78,7 @@ final class AppliedManagedTabletProfile {
   factory AppliedManagedTabletProfile.fromJson(Object? value) {
     const keys = {
       'schemaVersion',
+      'authorityFingerprint',
       'coreId',
       'homeId',
       'deviceId',
@@ -71,7 +92,8 @@ final class AppliedManagedTabletProfile {
     if (value is! Map<String, dynamic> ||
         value.length != keys.length ||
         !value.keys.every(keys.contains) ||
-        value['schemaVersion'] != 1 ||
+        value['schemaVersion'] != 2 ||
+        value['authorityFingerprint'] is! String ||
         value['coreId'] is! String ||
         value['homeId'] is! String ||
         value['deviceId'] is! String ||
@@ -84,6 +106,7 @@ final class AppliedManagedTabletProfile {
       throw const FormatException('invalid_managed_tablet_profile');
     }
     final profile = AppliedManagedTabletProfile._(
+      authorityFingerprint: value['authorityFingerprint'] as String,
       coreId: value['coreId'] as String,
       homeId: value['homeId'] as String,
       deviceId: value['deviceId'] as String,
@@ -102,18 +125,20 @@ final class AppliedManagedTabletProfile {
     return profile;
   }
 
-  final String coreId, homeId, deviceId, digest;
+  final String authorityFingerprint, coreId, homeId, deviceId, digest;
   final int deviceRevision, revision, idleTimeoutSeconds;
   final bool fullscreen;
   final double updatedAt;
 
-  bool belongsTo(ManagedTabletBinding binding, String expectedDeviceId) =>
-      coreId == binding.coreId &&
-      homeId == binding.homeId &&
-      deviceId == expectedDeviceId;
+  bool belongsTo(ManagedTabletEnrollment enrollment) =>
+      authorityFingerprint == _authorityFingerprint(enrollment) &&
+      coreId == enrollment.coreId &&
+      homeId == enrollment.homeId &&
+      deviceId == enrollment.deviceId;
 
   Map<String, Object> toJson() => {
-    'schemaVersion': 1,
+    'schemaVersion': 2,
+    'authorityFingerprint': authorityFingerprint,
     'coreId': coreId,
     'homeId': homeId,
     'deviceId': deviceId,
@@ -143,6 +168,7 @@ final class AppliedManagedTabletProfile {
     if (!_identity.hasMatch(coreId) ||
         !_identity.hasMatch(homeId) ||
         !_identity.hasMatch(deviceId) ||
+        !_digest.hasMatch(authorityFingerprint) ||
         deviceRevision < 1 ||
         revision < 1 ||
         revision > deviceRevision ||
@@ -155,6 +181,24 @@ final class AppliedManagedTabletProfile {
       throw const LarenorServerException('invalid_response');
     }
   }
+
+  static String _authorityFingerprint(ManagedTabletEnrollment enrollment) =>
+      sha256
+          .convert(
+            utf8.encode(
+              jsonEncode([
+                1,
+                enrollment.serverBaseUrl,
+                enrollment.coreId,
+                enrollment.homeId,
+                enrollment.accountId,
+                enrollment.deviceId,
+                enrollment.pairingId,
+                enrollment.revision,
+              ]),
+            ),
+          )
+          .toString();
 
   @override
   String toString() =>
@@ -203,8 +247,15 @@ final class ManagedTabletProfileStore {
     }
   }
 
+  Future<AppliedManagedTabletProfile?> readFor(
+    ManagedTabletEnrollment enrollment,
+  ) async {
+    final profile = await read();
+    return profile?.belongsTo(enrollment) == true ? profile : null;
+  }
+
   Future<AppliedManagedTabletProfile> apply(
-    ManagedTabletBinding binding,
+    ManagedTabletEnrollment enrollment,
     ManagedTabletProfilePublication publication, {
     required String expectedDeviceId,
     required bool Function() isCurrent,
@@ -215,7 +266,7 @@ final class ManagedTabletProfileStore {
       throw StateError('managed_tablet_profile_changed');
     }
     final next = AppliedManagedTabletProfile.fromPublication(
-      binding,
+      enrollment,
       publication,
     );
     final previousRaw = await persistence.read();
@@ -223,15 +274,18 @@ final class ManagedTabletProfileStore {
         ? null
         : AppliedManagedTabletProfile.fromJson(jsonDecode(previousRaw));
     if (!isCurrent()) throw StateError('managed_tablet_action_retired');
-    if (previous != null && previous.belongsTo(binding, publication.deviceId)) {
-      if (previous.revision > next.revision ||
-          (previous.revision == next.revision &&
-              previous.digest != next.digest)) {
+    final safePrevious = previous?.belongsTo(enrollment) == true
+        ? previous
+        : null;
+    if (safePrevious != null) {
+      if (safePrevious.revision > next.revision ||
+          (safePrevious.revision == next.revision &&
+              safePrevious.digest != next.digest)) {
         throw StateError('managed_tablet_profile_changed');
       }
-      if (previous.revision == next.revision) {
-        if (activate != null) await activate(previous);
-        return previous;
+      if (safePrevious.revision == next.revision) {
+        if (activate != null) await activate(safePrevious);
+        return safePrevious;
       }
     }
     await persistence.write(jsonEncode(next.toJson()));
@@ -240,10 +294,25 @@ final class ManagedTabletProfileStore {
       if (activate != null) await activate(next);
       if (!isCurrent()) throw StateError('managed_tablet_action_retired');
       return next;
-    } catch (_) {
-      await persistence.write(previousRaw);
-      if (activate != null) await activate(previous);
-      rethrow;
+    } catch (error, stackTrace) {
+      Object? rollbackFailure;
+      try {
+        await persistence.write(safePrevious == null ? null : previousRaw);
+      } catch (rollbackError) {
+        rollbackFailure = rollbackError;
+      }
+      try {
+        if (activate != null) await activate(safePrevious);
+      } catch (rollbackError) {
+        rollbackFailure ??= rollbackError;
+      }
+      if (rollbackFailure != null) {
+        Error.throwWithStackTrace(
+          StateError('managed_tablet_profile_rollback_failed'),
+          stackTrace,
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   });
 }

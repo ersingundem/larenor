@@ -16,11 +16,24 @@ const coreId = 'a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0';
 const homeId = 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0';
 const deviceId = 'c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0';
 
-ManagedTabletBinding binding() => ManagedTabletBinding(
-  serverBaseUrl: 'https://core.example.test',
+ManagedTabletEnrollment enrollment({
+  String serverBaseUrl = 'https://core.example.test',
+  String accountId = 'account-1',
+  String pairingId = 'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0',
+  int revision = 1,
+}) => ManagedTabletEnrollment(
+  serverBaseUrl: serverBaseUrl,
   coreId: coreId,
   homeId: homeId,
-  accountId: 'account-1',
+  accountId: accountId,
+  pairingId: pairingId,
+  deviceId: deviceId,
+  revision: revision,
+  scopes: const {'read', 'control'},
+  expiresAt: DateTime.utc(2030),
+  token: 'A' * 43,
+  clientId: 'larenor-$pairingId',
+  topicPrefix: 'larenor/$pairingId',
 );
 
 ManagedTabletProfilePublication publication({
@@ -64,6 +77,7 @@ ManagedTabletProfilePublication publication({
 final class _Persistence implements ManagedTabletProfilePersistence {
   String? value;
   Completer<void>? nextWrite;
+  int? failAtWrite;
   int writes = 0;
 
   @override
@@ -72,6 +86,7 @@ final class _Persistence implements ManagedTabletProfilePersistence {
   @override
   Future<void> write(String? value) async {
     writes++;
+    if (writes == failAtWrite) throw StateError('scheduled_write_failure');
     final gate = nextWrite;
     nextWrite = null;
     await gate?.future;
@@ -85,7 +100,7 @@ void main() {
     final store = ManagedTabletProfileStore(persistence);
 
     final applied = await store.apply(
-      binding(),
+      enrollment(),
       publication(),
       expectedDeviceId: deviceId,
       isCurrent: () => true,
@@ -99,7 +114,114 @@ void main() {
     expect(persistence.writes, 1);
     expect(persistence.value, isNot(contains('serverBaseUrl')));
     expect(persistence.value, isNot(contains('account-1')));
+    expect(persistence.value, isNot(contains(enrollment().pairingId)));
   });
+
+  test('profile authority includes endpoint account pairing and revision', () {
+    final exact = enrollment();
+    final applied = AppliedManagedTabletProfile.fromPublication(
+      exact,
+      publication(),
+    );
+
+    expect(applied.belongsTo(exact), isTrue);
+    expect(
+      applied.belongsTo(
+        enrollment(serverBaseUrl: 'https://other-core.example.test'),
+      ),
+      isFalse,
+    );
+    expect(applied.belongsTo(enrollment(accountId: 'account-2')), isFalse);
+    expect(applied.belongsTo(enrollment(pairingId: 'e0' * 16)), isFalse);
+    expect(applied.belongsTo(enrollment(revision: 2)), isFalse);
+  });
+
+  test(
+    'restart restore returns only an exact secure authority match',
+    () async {
+      final persistence = _Persistence();
+      final store = ManagedTabletProfileStore(persistence);
+      final exact = enrollment();
+      await store.apply(
+        exact,
+        publication(),
+        expectedDeviceId: deviceId,
+        isCurrent: () => true,
+      );
+
+      expect((await store.readFor(exact))?.revision, 2);
+      expect(await store.readFor(enrollment(accountId: 'account-2')), isNull);
+      expect(await store.readFor(enrollment(pairingId: 'e0' * 16)), isNull);
+    },
+  );
+
+  test(
+    'foreign authority is cleared and never activated by rollback',
+    () async {
+      final persistence = _Persistence();
+      final store = ManagedTabletProfileStore(persistence);
+      await store.apply(
+        enrollment(),
+        publication(),
+        expectedDeviceId: deviceId,
+        isCurrent: () => true,
+      );
+      final foreign = enrollment(
+        serverBaseUrl: 'https://other-core.example.test',
+        accountId: 'account-2',
+        pairingId: 'e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0',
+      );
+      final activations = <int?>[];
+
+      await expectLater(
+        store.apply(
+          foreign,
+          publication(deviceRevision: 3, revision: 3, fullscreen: false),
+          expectedDeviceId: deviceId,
+          isCurrent: () => true,
+          activate: (profile) async {
+            activations.add(profile?.revision);
+            if (profile != null) throw StateError('activation_failed');
+          },
+        ),
+        throwsStateError,
+      );
+
+      expect(activations, [3, null]);
+      expect(persistence.value, isNull);
+    },
+  );
+
+  test(
+    'rollback still clears effective authority when persistence rollback fails',
+    () async {
+      final persistence = _Persistence();
+      final store = ManagedTabletProfileStore(persistence);
+      final activations = <int?>[];
+      persistence.failAtWrite = 2;
+
+      await expectLater(
+        store.apply(
+          enrollment(),
+          publication(),
+          expectedDeviceId: deviceId,
+          isCurrent: () => true,
+          activate: (profile) async {
+            activations.add(profile?.revision);
+            if (profile != null) throw StateError('activation_failed');
+          },
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'managed_tablet_profile_rollback_failed',
+          ),
+        ),
+      );
+      expect(activations, [2, null]);
+    },
+  );
 
   test(
     'same publication is idempotent; rollback and conflict fail closed',
@@ -107,14 +229,14 @@ void main() {
       final persistence = _Persistence();
       final store = ManagedTabletProfileStore(persistence);
       await store.apply(
-        binding(),
+        enrollment(),
         publication(),
         expectedDeviceId: deviceId,
         isCurrent: () => true,
       );
 
       await store.apply(
-        binding(),
+        enrollment(),
         publication(),
         expectedDeviceId: deviceId,
         isCurrent: () => true,
@@ -122,7 +244,7 @@ void main() {
       expect(persistence.writes, 1);
       await expectLater(
         store.apply(
-          binding(),
+          enrollment(),
           publication(deviceRevision: 3, revision: 1),
           expectedDeviceId: deviceId,
           isCurrent: () => true,
@@ -131,7 +253,7 @@ void main() {
       );
       await expectLater(
         store.apply(
-          binding(),
+          enrollment(),
           publication(deviceRevision: 2, revision: 2, fullscreen: false),
           expectedDeviceId: deviceId,
           isCurrent: () => true,
@@ -148,7 +270,7 @@ void main() {
       final persistence = _Persistence();
       final store = ManagedTabletProfileStore(persistence);
       await store.apply(
-        binding(),
+        enrollment(),
         publication(),
         expectedDeviceId: deviceId,
         isCurrent: () => true,
@@ -159,7 +281,7 @@ void main() {
       var current = true;
 
       final pending = store.apply(
-        binding(),
+        enrollment(),
         publication(deviceRevision: 3, revision: 3, fullscreen: false),
         expectedDeviceId: deviceId,
         isCurrent: () => current,
@@ -175,12 +297,44 @@ void main() {
   );
 
   test(
+    'activation failure restores both durable and effective profile',
+    () async {
+      final persistence = _Persistence();
+      final store = ManagedTabletProfileStore(persistence);
+      await store.apply(
+        enrollment(),
+        publication(),
+        expectedDeviceId: deviceId,
+        isCurrent: () => true,
+      );
+      final activations = <int?>[];
+
+      await expectLater(
+        store.apply(
+          enrollment(),
+          publication(deviceRevision: 3, revision: 3, fullscreen: false),
+          expectedDeviceId: deviceId,
+          isCurrent: () => true,
+          activate: (profile) async {
+            activations.add(profile?.revision);
+            if (profile?.revision == 3) throw StateError('activation_failed');
+          },
+        ),
+        throwsStateError,
+      );
+
+      expect(activations, [3, 2]);
+      expect((await store.read())?.revision, 2);
+    },
+  );
+
+  test(
     'tampered durable digest is rejected before settings can read it',
     () async {
       final persistence = _Persistence();
       final store = ManagedTabletProfileStore(persistence);
       final applied = await store.apply(
-        binding(),
+        enrollment(),
         publication(),
         expectedDeviceId: deviceId,
         isCurrent: () => true,
@@ -200,14 +354,17 @@ void main() {
       final store = ManagedTabletProfileStore(
         SharedPreferencesManagedTabletProfilePersistence(),
       );
-      await store.apply(
-        binding(),
+      final applied = await store.apply(
+        enrollment(),
         publication(idleTimeoutSeconds: 30),
         expectedDeviceId: deviceId,
         isCurrent: () => true,
       );
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      container
+          .read(managedTabletActiveProfileProvider.notifier)
+          .activate(applied);
 
       expect(
         await container.read(windowProfileProvider.future),
@@ -229,4 +386,28 @@ void main() {
       );
     },
   );
+
+  test('durable profile alone cannot lock local settings', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = ManagedTabletProfileStore(
+      SharedPreferencesManagedTabletProfilePersistence(),
+    );
+    await store.apply(
+      enrollment(),
+      publication(idleTimeoutSeconds: 30),
+      expectedDeviceId: deviceId,
+      isCurrent: () => true,
+    );
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    expect(
+      await container.read(windowProfileProvider.future),
+      WindowProfile.adaptive,
+    );
+    expect((await container.read(idleModeProvider.future)).enabled, isFalse);
+    await container
+        .read(windowProfileProvider.notifier)
+        .set(WindowProfile.panel);
+  });
 }

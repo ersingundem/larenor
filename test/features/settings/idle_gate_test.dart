@@ -52,9 +52,14 @@ const _lock = HaEntity(
 );
 
 class _Idle extends IdleMode {
+  _Idle([
+    this.settings = const IdleModeSettings(enabled: true, timeoutMinutes: 1),
+  ]);
+
+  final IdleModeSettings settings;
+
   @override
-  Future<IdleModeSettings> build() async =>
-      const IdleModeSettings(enabled: true, timeoutMinutes: 1);
+  Future<IdleModeSettings> build() async => settings;
   void replace(AsyncValue<IdleModeSettings> next) => state = next;
 }
 
@@ -165,7 +170,9 @@ class _ProbeState extends State<_Probe> with SingleTickerProviderStateMixin {
 }
 
 class _Harness {
-  final idle = _Idle();
+  _Harness({_Idle? idle}) : idle = idle ?? _Idle();
+
+  final _Idle idle;
   final connection = _Connection();
   final entities = _Entities();
   late ProviderContainer container;
@@ -271,6 +278,29 @@ void main() {
           direction: ViewFocusDirection.undefined,
         ),
       );
+
+  testWidgets(
+    'exact managed timeout stays active before 30 seconds and sleeps at 30',
+    (tester) async {
+      final h = _Harness(
+        idle: _Idle(
+          const IdleModeSettings(
+            enabled: true,
+            timeoutMinutes: 1,
+            timeoutSeconds: 30,
+          ),
+        ),
+      );
+      await h.mount(tester, const _Probe());
+
+      await tester.pump(const Duration(seconds: 29, milliseconds: 999));
+      expect(clock, findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
+      await frames(tester);
+      expect(clock, findsOneWidget);
+      await h.close(tester);
+    },
+  );
 
   testWidgets(
     'native focus loss suspends UI and retires its old interaction epoch',

@@ -267,6 +267,7 @@ final class ManagedTabletMqttRuntime {
     required this.stateStore,
     required this.authorizeEgress,
     required this.now,
+    this.onRevoked,
     this.logger,
     this.maxCommandsPerMinute = 30,
   }) {
@@ -283,6 +284,7 @@ final class ManagedTabletMqttRuntime {
   final ManagedMqttStateStore stateStore;
   final MqttEgressAuthorizer authorizeEgress;
   final DateTime Function() now;
+  final Future<void> Function()? onRevoked;
   final void Function(String event)? logger;
   final int maxCommandsPerMinute;
 
@@ -661,6 +663,7 @@ final class ManagedTabletMqttRuntime {
     status = ManagedTabletMqttStatus.revoked;
     _pairing = null;
     await broker.disconnect();
+    await onRevoked?.call();
     _log('mqtt_runtime_revoked');
   }
 
