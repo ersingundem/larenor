@@ -1,9 +1,10 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod kanıtı `origin/main` **`b4272e38`** kaynağına kadar
-S08.8, S09.1 ve K03 teslimlerini kapsar. Canlı kabul sayacı
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`3f990a1f`**, S08.8 kabul
+kaynağı **`ff55f514`** commitidir. S08.8, S09.1 ve K03 teslimlerini kapsar.
+Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **27/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **28/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -53,32 +54,32 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   kapısını API 35 matrisiyle tamamladı. Android Build `35941771379` ve Security
   `35941771192` aynı exact kaynakta geçti; kaynak `7211a6ff` olarak birleşti.
   K03.remaining yazılım kabulü kapandı ve sayaç 27/125 oldu.
+- PR #480 exact `ff55f514` kaynağında Core medya yüzeylerindeki direct provider
+  kurulumunu kapattı ve browse/recent/resume restart, logout ve Core-switch
+  yolculuklarını gerçek loopback ile doğruladı. Android Build `35950583150`,
+  Security `35950582810` ve bağımsız P1/P2 incelemesi geçti; S08.8 yazılım
+  kabulü kapandı ve sayaç 28/125 oldu. Fiziksel alıcılar `MANUAL.MEDIA`'dır.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S08.8:** Core playback/worker, exact cache sözleşmesi, açık eski Jellyfin
-   geçişi ve merkezi medya ile Music Assistant ürün E2E'leri main'de. Yazılım
-   kapanışı için aktif direct medya UI/runtime tüketicileri kaldırılmalı ve
-   merkezi browse/recent/resume eşliği tamamlanmalı. Gerçek HomePod/Cast/Apple
-   TV ayrı `MANUAL.MEDIA` kapısıdır. S08.11 ve B3 kapanışı S08.8'e bağlıdır.
-2. **S09.1:** Kalıcı kurulum otoritesi, Docker pause/adaptör ve generation-bound
+1. **S09.1:** Kalıcı kurulum otoritesi, Docker pause/adaptör ve generation-bound
    read-only/COW capture lease main'de. Privileged Linux capture engine,
    amd64/arm64 native kabulü ve DB/ayrı anahtar/yapılandırma/bileşen
    veri+sürümlerinin aynı tutarlı generation içinde arşiv kanıtı kalır.
-3. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
+2. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
    yedeklerde sıfır kısmi kabul ile boş izole ortamda anahtar/veri/bağlantı geri
    okuma, yeniden başlatma ve kurtarma zincirini; S09.3 amd64/arm64 temiz
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
-4. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
+3. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
    döngüsü, anonymous owned alt-kaynak transportu ve document-start dynamic
    egress kapısı yazılım kabulünü tamamladı. Fiziksel Android/DeX/OEM, DPC,
    force-stop ve çevre birimi kanıtları ayrı manuel kapıdır.
-5. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
+4. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
    F60 paketlenmiş yayın motorunu, F46–F49 üretim adaptörlerini bekliyor.
-6. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
+5. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
    ekran görüntüleri, README, imzalı güncelleme ve CasaOS/Proxmox kurulumu son
    yazılım kapılarından sonra yapılır.
 
@@ -86,9 +87,9 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S08.8 | Merkezi browse/recent/resume eşliğini tamamla; dashboard, hub, arama, casting, hedef ve ayar yüzeylerindeki aktif direct Jellyfin/MA runtime tüketicilerini devreden çıkar. | Client ayrı adres-token istemez; Core route değişimi/logout/restart E2E eski veriyi göstermez; gerçek alıcılar ayrı MANUAL.MEDIA |
-| B — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
-| C — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
+| A — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
+| B — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
+| C — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme ve Client preflight aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük

@@ -260,6 +260,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/search',
         builder: (context, state) => LocalSearchScreen(
           autofocus: state.uri.queryParameters['focus'] == '1',
+          onOpenRemoteMedia: () => context.push('/media'),
           onOpenTarget: (target) {
             if (target is EntityNavigationTarget) {
               context.push(target.location);

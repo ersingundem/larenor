@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım kaynağı `b4272e38` — 27/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. K03.remaining'in anonymous owned transport, exact-origin redirect ve document-start WebSocket/worker sınırı exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel Android/DeX/OEM kapısı ayrı kaldı. S08.8 ve S09.1 teslimleri ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `3f990a1f` ve S08.8 kabul kaynağı `ff55f514` — 28/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8'in Core medya/müzik geçişi exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel HomePod/Cast/Apple TV kapısı ayrı kaldı. S09.1 teslimi ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  27/125 iş (%21,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ████░░░░░░░░░░░░░░░░  28/125 iş (%22,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,25 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 24 Eylül S08.8 yazılım kabulü
+
+PR #480 exact `ff55f5141ad3f686e73511465ff057f14b18495a` kaynağında
+verified veya çözümlenmemiş Core evlerini provider-free katalog ve hesap satırı
+denetleyicilerine yönlendirdi; yalnız exact Direct ev yerel medya ağacını
+kurabiliyor. Resolved-import mimari kapısı dashboard, hub, arama, casting,
+hedef ve ayar girişlerinde doğrudan Jellyfin/Music Assistant/Arr/Seerr client
+kurulumunu reddediyor. Gerçek loopback akışı browse, recent ve resume verisinin
+restart sonrasında güncel hedefle doğrulandığını; logout ve aynı URL'de Core
+değişiminde eski sonuç yayımlanmadığını kanıtlıyor.
+
+Yerel kanıt 3/3 mimari, 81/81 birincil Flutter ve 54/54 aktif yüzey
+regresyonundan oluşuyor. Bağımsız full-diff inceleme P1/P2 blocker bulmadı.
+Exact Android Build `35950583150` statik analiz, dört Flutter shardı, dört
+Server shardı, iki aggregate kapı, API 35 emülatör ve debug APK'yı; Security
+`35950582810` dependency/platform/secret kapılarını geçti. S08.8 `done`;
+kuyruk **28/125 (%22,4)**. Gerçek HomePod, Cast ve Apple TV yolculukları
+`MANUAL.MEDIA` altında ayrı kalır.
 
 ### 24 Eylül K03.remaining yazılım kabulü
 
@@ -50,7 +69,7 @@ zincirini GitHub-hosted `linux/amd64` ve `linux/arm64` üzerinde çalıştırıy
 
 Bu dilim restore veya clean-install recovery sağlamaz ve database, vault key,
 yapılandırma ile component payloadlarının tek exact generation kanıtını tek
-başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **27/125 (%21,6)** ve seçili
+başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **28/125 (%22,4)** ve seçili
 özellik kabulü **0/63** kalır.
 
 ### 24 Eylül birleşik teslim kanıtı — PR #456–#462
@@ -68,15 +87,15 @@ kaldı. Sonraki PR #474 exact kabulü K03.remaining'i yukarıdaki kanıtla kapat
 | --- | --- | --- |
 | #456 / Docs | `a78f10e0` → `7d9bee7c` | #448–#455 exact teslim kanıtı ve değişmeyen sayaçlar birleşik metne taşındı. |
 | #457 / K03 | `c816cfae` → `8fdfc36e` | 113 Flutter + 13 Robolectric; boolean-only native SAF receipt, exact iptal/partial cleanup, otorite hatası sınırı ve renderer retirement. Subresource redirect ile WebSocket/worker egress'i için owned transport ve fiziksel kabul açık. |
-| #458 / S08.8 | `8adc49f8` → `8f2ce21b` | 24 + 69 servis bağlantısı testi ve 5 büyük metin regresyonu; sır göstermeyen, açık onaylı eski Jellyfin bağlantı geçişi. Aktif direct runtime tüketicileri açık. |
+| #458 / S08.8 | `8adc49f8` → `8f2ce21b` | 24 + 69 servis bağlantısı testi ve 5 büyük metin regresyonu; sır göstermeyen, açık onaylı eski Jellyfin bağlantı geçişi. Bu PR anında direct runtime tüketicileri açıktı; #480 kapattı. |
 | #459 / S08.8 | `1d9fa7fc` → `31b78659` | 94 Flutter; exact integer schema/revision, türlenmiş resource envelope, tuple/TTL/kota ve Core değişiminde fail-closed önbellek. |
 | #460 / S09.1 | `bc73b4ab` → `9ccd6fe4` | 88 gruplanmış test; read-only/COW capture lease, tek generation, shared-writer ve drift reddi, bir kez release. Privileged Linux engine ve iki mimarili native kabul açık. |
 | #461 / S08.8 | `9fe0875d` → `ff8ebf10` | Gerçek loopback medya ürün yolu 2/2: katalog araması → sağlayıcı kanıtı → player intent/komut → restart/logout/başka Core retirement; device-local Jellyfin çağrısı yok. |
 | #462 / S08.8 | `0690ee84` → `9286cebf` | 28 odaklı müzik testi; retained Music Assistant → Spotify araması → HomePod hedefi → exact queue/readback/receipt → logout retirement; ayrı MA veya HA WebSocket yolu yok. |
 
-S08.8 artık merkezi medya ve müzik ürün E2E'si ile exact kalıcı cache
-sözleşmesini kanıtlıyor; ancak aktif direct medya UI/runtime tüketicileri ve
-merkezi browse/recent/resume eşliği tamamlanmadan kapanmıyor. S09.1'in lease
+S08.8'in o aşamada açık kalan direct medya UI/runtime ve merkezi
+browse/recent/resume sınırları PR #480 ile yukarıdaki exact kabulde kapandı.
+S09.1'in lease
 sözleşmesi production provider'a kadar bağlı; privileged Linux capture engine,
 amd64/arm64 native kabulü ve bütün DB/anahtar/yapılandırma/bileşen veri
 sınırlarının aynı generation içinde kanıtı kalıyor. K03'ün SAF, external action,
@@ -124,12 +143,12 @@ medya native kabul işleri ilgili exact headlerde geçti.
 
 Bu birleşmeler kendi tarihlerinde sayaç artırmadı. Sonraki #459/#461/#462
 exact cache ve merkezi katalog→sağlayıcı→oynatıcı→kuyruk ürün E2E'sini ekledi;
-güncel S08.8 açığı direct UI/runtime tüketicileri ile browse/recent/resume
-eşliğidir. F28 chapter eylemleri, bookmark, sleep timer ve MediaSession'ı; F24
+S08.8'in o tarihte açık direct UI/runtime ve browse/recent/resume eşliği PR
+#480 ile sonradan kapandı. F28 chapter eylemleri, bookmark, sleep timer ve MediaSession'ı; F24
 sağlayıcı consent/kota ile gerçek renderer/subtitle-engine kanıtını bekliyor.
-F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; ancak `B3`
-bağımlılığındaki S08.8 ve S08.11 `pending` olduğundan validator kapanışı
-reddediyor. #460 S09.1 izolasyon lease'ini ekledi; privileged Linux engine,
+F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; `B3`
+bağımlılığındaki S08.8 artık `done`, S08.11 ise `pending` olduğundan validator
+kapanışı reddediyor. #460 S09.1 izolasyon lease'ini ekledi; privileged Linux engine,
 iki mimarili native kabul ve birleşik generation arşivi güncel açık olarak
 üstte izleniyor. Geri yükleme/kurtarma S09.2, temiz kurulum/yükseltme ve Client
 geri yükleme sınırı S09.3 kapsamındadır.

@@ -15,6 +15,7 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_library_index.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
+import 'package:larenor/features/media/hub/presentation/direct_media_hub_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_search_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_title_detail_screen.dart';
@@ -187,6 +188,43 @@ void main() {
     },
   );
 
+  testWidgets('missing home scope fails closed without direct provider reads', (
+    tester,
+  ) async {
+    final harness = ScopeHarness(HomeSource.verifiedCore);
+    await harness.signIn();
+    addTearDown(harness.account.dispose);
+    var directCatalogReads = 0;
+    var directJellyfinReads = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(harness.account),
+          mediaHubRowsProvider.overrideWith((ref) async {
+            directCatalogReads++;
+            return const [];
+          }),
+          jellyfinClientProvider.overrideWith((ref) {
+            directJellyfinReads++;
+            return null;
+          }),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const MediaHubScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
+    expect(directCatalogReads, 0);
+    expect(directJellyfinReads, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('explicit direct-local authority keeps the local media hub', (
     tester,
   ) async {
@@ -242,11 +280,11 @@ void main() {
             tester.view.devicePixelRatio = 1;
             addTearDown(tester.view.reset);
             await tester.pumpWidget(
-              app(const MediaHubScreen(), scale: 2, language: language),
+              app(const DirectMediaHubScreen(), scale: 2, language: language),
             );
             await tester.pumpAndSettle();
             final l10n = AppLocalizations.of(
-              tester.element(find.byType(MediaHubScreen)),
+              tester.element(find.byType(DirectMediaHubScreen)),
             );
             for (final label in [l10n.musicTitle, l10n.haMediaTitle]) {
               final action = find.widgetWithText(CupertinoButton, label).first;
@@ -279,11 +317,11 @@ void main() {
     final interaction = AppInteractionController();
     addTearDown(interaction.dispose);
     await tester.pumpWidget(
-      app(const MediaHubScreen(), interaction: interaction),
+      app(const DirectMediaHubScreen(), interaction: interaction),
     );
     await tester.pumpAndSettle();
     final l10n = AppLocalizations.of(
-      tester.element(find.byType(MediaHubScreen)),
+      tester.element(find.byType(DirectMediaHubScreen)),
     );
     final action = tester
         .widget<CupertinoButton>(
@@ -308,12 +346,12 @@ void main() {
             tester.view.devicePixelRatio = 1;
             addTearDown(tester.view.reset);
             await tester.pumpWidget(
-              app(const MediaHubScreen(), scale: 2, language: language),
+              app(const DirectMediaHubScreen(), scale: 2, language: language),
             );
             await tester.pumpAndSettle();
 
             final l10n = AppLocalizations.of(
-              tester.element(find.byType(MediaHubScreen)),
+              tester.element(find.byType(DirectMediaHubScreen)),
             );
             final search = find
                 .ancestor(
@@ -346,7 +384,7 @@ void main() {
   testWidgets('film and TV filters change the featured title and rows', (
     tester,
   ) async {
-    await tester.pumpWidget(app(const MediaHubScreen()));
+    await tester.pumpWidget(app(const DirectMediaHubScreen()));
     await tester.pumpAndSettle();
     expect(find.text('A Quiet Orbit'), findsWidgets);
     await tester.tap(find.text('TV series').first);
@@ -363,7 +401,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(app(const MediaHubScreen(), scale: 1.5));
+    await tester.pumpWidget(app(const DirectMediaHubScreen(), scale: 1.5));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
@@ -448,7 +486,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final boundary = GlobalKey();
     await tester.pumpWidget(
-      app(RepaintBoundary(key: boundary, child: const MediaHubScreen())),
+      app(RepaintBoundary(key: boundary, child: const DirectMediaHubScreen())),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

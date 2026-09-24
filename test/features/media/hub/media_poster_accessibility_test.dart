@@ -11,7 +11,7 @@ import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_library_index.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
-import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
+import 'package:larenor/features/media/hub/presentation/direct_media_hub_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_title_detail_screen.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
@@ -140,7 +140,7 @@ void main() {
         await _mount(
           tester,
           hub
-              ? const MediaHubScreen()
+              ? const DirectMediaHubScreen()
               : const JellyfinLibraryScreen(
                   parentId: 'library',
                   title: 'Library',
@@ -212,7 +212,7 @@ void main() {
   testWidgets('Media home poster opens the same detail with Tab and Enter', (
     tester,
   ) async {
-    await _mount(tester, const MediaHubScreen());
+    await _mount(tester, const DirectMediaHubScreen());
     await _tabToPoster(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();

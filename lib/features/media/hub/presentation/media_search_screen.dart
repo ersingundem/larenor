@@ -11,7 +11,7 @@ import '../domain/media_title.dart';
 import '../domain/media_read_result.dart';
 import 'widgets/media_read_issue_banner.dart';
 import '../providers/media_catalog_providers.dart';
-import 'media_hub_screen.dart';
+import 'media_title_navigation.dart';
 import 'widgets/media_poster.dart';
 import 'widgets/media_theme.dart';
 
