@@ -1,6 +1,6 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`5ea97117`**, S09.2 kabul
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`8032e5a0`**, S09.2 kabul
 kaynağı **`34870d70`** commitidir. S08.8, K07, S09.1, S09.2 ve K03 teslimlerini
 kapsar.
 Canlı kabul sayacı
@@ -79,6 +79,21 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   P1/P2 review geçti; kaynak `5ea97117` olarak squash birleşti. Aggregate stable
   patch-id `553bc783d78b8bfcf0c68a7f7900ef87491b8d7a` eşleşti. S09.2 kapandı;
   sayaç 31/125 oldu.
+- PR #484 exact `b7f957d5` kaynağında sürümlü exact-origin/method politikasını,
+  frame-aware Android transportunu ve monotonik kullanıcı onayını tamamladı.
+  Android Build `35962472970`, Security `35962472693` ve API 35 emülatör geçti;
+  kaynak `e03022e8` olarak birleşti ve aggregate stable patch-id
+  `bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Üretim TTS/print/QR
+  effect portları ve permission-revoke effect/receipt E2E açık olduğundan K08
+  `pending` kaldı.
+- PR #485 exact `6af3dfb8` kaynağında yetkili Core kaynaklarını arama, oda ve
+  kart yüzeylerine bağladı; logout temizliği ve strict backup binding
+  doğrulamasını ekledi. Android Build `35962916222`, Security `35962916059` ve
+  API 35 emülatör geçti; kaynak `8032e5a0` olarak birleşti ve aggregate stable
+  patch-id `ceed5f6b195a17d80741f0974b797b87fe355713` eşleşti. Same-URL Core
+  switch, restart, gerçek restore rebind ve account replacement çapraz E2E
+  eksik olduğundan S08.11 `pending` kaldı. #484 ve #485 sayaç artırmadı;
+  toplam **31/125**, seçili özellikler **0/63** olarak kaldı.
 
 ## Kanıtı açık kalan sınırlar
 

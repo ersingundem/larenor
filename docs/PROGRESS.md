@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `5ea97117` ve S09.2 kabul kaynağı `34870d70` — 31/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1 ve S09.2 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `8032e5a0` ve S09.2 kabul kaynağı `34870d70` — 31/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1 ve S09.2 exact review/CI kanıtıyla yazılım kabulünü tamamladı; K08 ve S08.11 üretim dilimleri birleşti fakat kalan kabul sınırları nedeniyle `pending` kaldı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       █████░░░░░░░░░░░░░░░  31/125 iş (%24,8; eşit ağırlıklı sayaç)
@@ -77,6 +77,30 @@ aggregate stable patch-id `553bc783d78b8bfcf0c68a7f7900ef87491b8d7a`
 eşleşti. S09.2 `done`; kuyruk **31/125 (%24,8)**. Temiz kurulum/yükseltme,
 Client restore ve component health S09.3'te ayrı kalır.
 [Kapanış kanıtı](testing/s09-2-empty-component-restore.tdd.md).
+
+### 24 Eylül K08 ve S08.11 birleşik ara teslimi
+
+PR #484 exact `b7f957d52146dae8c357ede6063bc57f70a2baef`
+kaynağında sürümlü exact-origin/method politikasını frame-aware Android
+WebMessage transportuna ve monotonik 30 saniyelik kullanıcı onayına bağladı.
+Android Build `35962472970`, Security `35962472693`, API 35 emülatör ve
+bağımsız P1/P2 incelemesi geçti; kaynak `e03022e8` olarak squash birleşti.
+Kaynak/squash aggregate stable patch-id
+`bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Normal production çağrısı
+yetkili TTS/print/QR effect portu sağlamadığından K08 `pending` kalır; izin
+iptali effect/receipt E2E ve fiziksel Huawei/DeX ayrıca açıktır.
+
+PR #485 exact `6af3dfb8a2ada8c0ddde32991b3b6e2f63d07129`
+kaynağında yetkili Core kaynaklarını arama, oda ve kart yüzeylerine bağladı;
+same-runtime eski veriyi inert tuttu, logout temizliğini ve strict backup
+binding doğrulamasını ekledi. Android Build `35962916222`, Security
+`35962916059`, API 35 emülatör ve bağımsız P1/P2 incelemesi geçti; kaynak
+`8032e5a0` olarak squash birleşti. Kaynak/squash aggregate stable patch-id
+`ceed5f6b195a17d80741f0974b797b87fe355713` eşleşti. Same-URL Core switch,
+process restart, gerçek restore rebind ve hesap değişimini üç yüzeyde birlikte
+kanıtlayan çapraz E2E eksik olduğundan S08.11 `pending` kalır. Bu iki ara teslim
+hiçbir kuyruk kabulünü tek başına kapatmadı; sayaç **31/125 (%24,8)** ve seçili
+özellik kabulü **0/63** olarak değişmedi.
 
 ### 24 Eylül S09.1 yazılım kabulü
 
