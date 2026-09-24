@@ -131,7 +131,7 @@ final class WebPanelBridgeScope {
   bool get valid =>
       _scopeId.hasMatch(coreId) &&
       _scopeId.hasMatch(homeId) &&
-      _scopeId.hasMatch(accountId) &&
+      _safeScopeAccount(accountId) &&
       _scopeId.hasMatch(sessionFamily) &&
       _scopeId.hasMatch(sourceId) &&
       sourceRevision > 0 &&
@@ -334,6 +334,7 @@ final class WebPanelNativePortResult {
 
 abstract interface class WebPanelNativeBridgePort {
   Set<WebPanelNativeMethod> get capabilities;
+  int get capabilityRevision;
 
   Future<WebPanelNativePortResult> execute(
     WebPanelNativeCommand value,
@@ -354,6 +355,9 @@ final class UnsupportedWebPanelNativeBridgePort
 
   @override
   Set<WebPanelNativeMethod> get capabilities => const {};
+
+  @override
+  int get capabilityRevision => 0;
 
   @override
   Future<WebPanelNativePortResult> execute(
@@ -455,7 +459,7 @@ final class WebPanelNativeBridgeController {
   }) {
     if (!binding.valid ||
         ttl <= Duration.zero ||
-        ttl > const Duration(minutes: 2)) {
+        ttl > const Duration(seconds: 30)) {
       throw const FormatException('bridge_grant_invalid');
     }
     final id = _grantIds();
@@ -508,6 +512,7 @@ final class WebPanelNativeBridgeController {
       return const WebPanelBridgePreview.denied();
     }
     final supported = port.capabilities.contains(value.method);
+    final capabilityRevision = port.capabilityRevision;
     final preview = WebPanelBridgePreview._(
       status: supported
           ? WebPanelBridgeStatus.needsConfirmation
@@ -524,6 +529,7 @@ final class WebPanelNativeBridgeController {
       controllerEpoch: _controllerEpoch,
       expiresAt: grant.expiresAt,
       unsupported: !supported,
+      capabilityRevision: capabilityRevision,
     );
     while (_ledger.length > _maxLedgerEntries) {
       _ledger.remove(_ledger.keys.first);
@@ -560,6 +566,14 @@ final class WebPanelNativeBridgeController {
         'capability_unavailable',
       );
     }
+    if (port.capabilityRevision != record.capabilityRevision ||
+        !port.capabilities.contains(record.value.method)) {
+      return record.receipt = _receipt(
+        record.value,
+        WebPanelBridgeStatus.denied,
+        'capability_changed',
+      );
+    }
     if (record.dispatching) {
       return _receipt(
         record.value,
@@ -574,6 +588,7 @@ final class WebPanelNativeBridgeController {
           .timeout(_portTimeout);
       if (record.controllerEpoch != _controllerEpoch ||
           !_trusted(trusted, record.binding) ||
+          port.capabilityRevision != record.capabilityRevision ||
           !result.valid) {
         return record.receipt = _receipt(
           record.value,
@@ -606,6 +621,13 @@ final class WebPanelNativeBridgeController {
               .timeout(_portTimeout);
           if (record.controllerEpoch != _controllerEpoch ||
               !_trusted(trusted, record.binding)) {
+            return record.receipt = _receipt(
+              record.value,
+              WebPanelBridgeStatus.unconfirmed,
+              'effect_unconfirmed',
+            );
+          }
+          if (port.capabilityRevision != record.capabilityRevision) {
             return record.receipt = _receipt(
               record.value,
               WebPanelBridgeStatus.unconfirmed,
@@ -697,6 +719,7 @@ final class _RequestRecord {
     required this.controllerEpoch,
     required this.expiresAt,
     required this.unsupported,
+    required this.capabilityRevision,
   });
 
   final WebPanelNativeCommand value;
@@ -705,6 +728,7 @@ final class _RequestRecord {
   final int controllerEpoch;
   final DateTime expiresAt;
   final bool unsupported;
+  final int capabilityRevision;
   bool dispatching = false;
   WebPanelBridgeReceipt? receipt;
 }
@@ -721,6 +745,11 @@ bool _safeText(Object? value, int maxLength) =>
     value is String &&
     value.isNotEmpty &&
     value.length <= maxLength &&
+    !RegExp(r'[\u0000-\u001f\u007f]').hasMatch(value);
+
+bool _safeScopeAccount(String value) =>
+    value.isNotEmpty &&
+    value.length <= 128 &&
     !RegExp(r'[\u0000-\u001f\u007f]').hasMatch(value);
 
 bool _isSecureOrigin(String value) {

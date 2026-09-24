@@ -289,6 +289,14 @@ void main() {
       WebPanelBridgeStatus.denied,
     );
     expect(port.executes, 0);
+    expect(
+      () => controller.arm(
+        WebPanelNativeMethod.speak,
+        scope,
+        ttl: const Duration(seconds: 31),
+      ),
+      throwsFormatException,
+    );
   });
 
   test('capability revision drift after dispatch is unconfirmed and never replayed', () async {
@@ -357,6 +365,49 @@ void main() {
       final reply = jsonDecode(await pending) as Map<String, Object?>;
       expect(reply['status'], WebPanelBridgeStatus.denied.name);
       runtime.confirm();
+      expect(port.executes, 0);
+    },
+  );
+
+  test(
+    'capability revision drift invalidates armed consent before dispatch',
+    () async {
+      final authority = WebPanelNativeAuthorityLease.verifiedCore(
+        coreId: '0123456789abcdef0123456789abcdef',
+        homeId: 'abcdef0123456789abcdef0123456789',
+        accountId: 'member@example',
+        sessionFamily: '11111111111111111111111111111111',
+        sourceId: 'panel-kitchen',
+        sourceRevision: 3,
+        isCurrent: () => true,
+      );
+      final policy = WebPanelNativePolicy(
+        revision: 5,
+        topOrigin: 'https://panel.example',
+        methods: {WebPanelNativeMethod.speak},
+      );
+      final port = Port();
+      final runtime = WebPanelNativeRuntime(
+        policy: policy,
+        authority: authority,
+        port: port,
+        routeEpoch: 7,
+        lifecycleEpoch: 9,
+        grantIds: () => 'abcdef0123456789abcdef0123456789',
+        previewIds: () => 'fedcba9876543210fedcba9876543210',
+      );
+      final grant = runtime.arm(WebPanelNativeMethod.speak)!;
+      port.revision++;
+      final reply = jsonDecode(
+        await runtime.handle(
+          WebPanelNativeMessage(
+            message: command(grantId: grant),
+            topOrigin: policy.topOrigin,
+            policyRevision: policy.revision,
+          ),
+        ),
+      ) as Map<String, Object?>;
+      expect(reply['status'], WebPanelBridgeStatus.denied.name);
       expect(port.executes, 0);
     },
   );

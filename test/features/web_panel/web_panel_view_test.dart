@@ -2,6 +2,7 @@
 // ignore_for_file: invalid_use_of_internal_member
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,7 @@ import 'package:larenor/features/kiosk/domain/kiosk_watchdog.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
+import 'package:larenor/features/web_panel/data/web_panel_native_runtime.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
 import 'package:larenor/features/web_panel/data/web_panel_external_actions.dart';
 import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
@@ -134,6 +136,8 @@ class Harness {
     WebPanelTransferAccess? transferAccess,
     WebPanelExternalActionPort? externalActionPort,
     WebPanelRendererMonitor? rendererMonitor,
+    WebPanelNativeAuthorityLease? nativeAuthority,
+    WebPanelNativeBridgePort? nativePort,
   }) async {
     final previous = WebViewPlatform.instance;
     WebViewPlatform.instance = platform;
@@ -187,6 +191,8 @@ class Harness {
                             transferAccess: transferAccess,
                             externalActionPort: externalActionPort,
                             rendererMonitor: monitor,
+                            nativeAuthority: nativeAuthority,
+                            nativePort: nativePort,
                             recoveryGate: recoveryGate,
                             policy:
                                 options?.policyFor(
@@ -228,6 +234,8 @@ final class RendererMonitor implements WebPanelRendererMonitor {
   Set<WebOrigin>? allowedOrigins;
   int attachments = 0;
   int disposals = 0;
+  WebPanelNativePolicy? nativePolicy;
+  WebPanelNativeMessageHandler? nativeMessage;
 
   @override
   Future<WebPanelRendererHandle?> attach(
@@ -240,11 +248,39 @@ final class RendererMonitor implements WebPanelRendererMonitor {
     attachments++;
     allowedOrigins = origins;
     gone = onRendererGone;
+    this.nativePolicy = nativePolicy;
+    nativeMessage = onNativeMessage;
     return _RendererHandle(() {
       disposals++;
       if (identical(gone, onRendererGone)) gone = null;
     });
   }
+}
+
+final class NativePort implements WebPanelNativeBridgePort {
+  int executes = 0;
+  @override
+  int get capabilityRevision => 1;
+  @override
+  Set<WebPanelNativeMethod> get capabilities => {WebPanelNativeMethod.speak};
+  @override
+  Future<WebPanelNativePortResult> execute(
+    WebPanelNativeCommand value,
+    WebPanelBridgeTrustedFrame trusted,
+  ) async {
+    executes++;
+    return const WebPanelNativePortResult(
+      outcome: WebPanelNativePortOutcome.accepted,
+      receiptHandle: 'receipt-native-1',
+    );
+  }
+
+  @override
+  Future<bool> readback(
+    String receiptHandle,
+    WebPanelNativeCommand value,
+    WebPanelBridgeTrustedFrame trusted,
+  ) async => true;
 }
 
 final class _RendererHandle implements WebPanelRendererHandle {
@@ -951,6 +987,88 @@ void main() {
       await tester.pump();
       expect(h.platform.controllers, hasLength(2));
       await h.close(tester);
+    },
+  );
+
+  testWidgets(
+    'verified Core native consent retires on route disposal without replay',
+    (tester) async {
+      var authorityCurrent = true;
+      final authority = WebPanelNativeAuthorityLease.verifiedCore(
+        coreId: '0123456789abcdef0123456789abcdef',
+        homeId: 'abcdef0123456789abcdef0123456789',
+        accountId: 'member@example',
+        sessionFamily: '11111111111111111111111111111111',
+        sourceId: 'panel-kitchen',
+        sourceRevision: 1,
+        isCurrent: () => authorityCurrent,
+      );
+      final options = WebPanelOptions(
+        nativeBridge: WebPanelNativePolicy(
+          revision: 1,
+          topOrigin: 'https://fixture.invalid',
+          methods: {WebPanelNativeMethod.speak},
+        ),
+      );
+      final monitor = RendererMonitor();
+      final port = NativePort();
+      final h = Harness();
+      await h.mount(
+        tester,
+        options: options,
+        rendererMonitor: monitor,
+        nativeAuthority: authority,
+        nativePort: port,
+      );
+      expect(monitor.nativePolicy, options.nativeBridge);
+      h.platform.controllers.single.delegate.finished(
+        'https://fixture.invalid/start',
+      );
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const ValueKey('web-panel-arm-native-speak')),
+      );
+      await tester.pump();
+      final script = h.platform.controllers.single.scripts.single;
+      final grant = RegExp(r'[0-9a-f]{32}').firstMatch(script)!.group(0)!;
+      final staleHandler = monitor.nativeMessage!;
+      final pending = staleHandler(
+        WebPanelNativeMessage(
+          message: jsonEncode({
+            'schemaVersion': 1,
+            'sequence': 1,
+            'requestId': '22222222222222222222222222222222',
+            'grantId': grant,
+            'method': 'speak',
+            'payload': {'text': 'Fixture'},
+          }),
+          topOrigin: 'https://fixture.invalid',
+          policyRevision: 1,
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('web-panel-confirm-native')),
+        findsOneWidget,
+      );
+
+      authorityCurrent = false;
+      await h.close(tester);
+      final receipt = jsonDecode(await pending) as Map<String, Object?>;
+      expect(receipt['status'], WebPanelBridgeStatus.denied.name);
+      expect(port.executes, 0);
+      final late = jsonDecode(
+        await staleHandler(
+          const WebPanelNativeMessage(
+            message: '{}',
+            topOrigin: 'https://fixture.invalid',
+            policyRevision: 1,
+          ),
+        ),
+      ) as Map<String, Object?>;
+      expect(late['status'], WebPanelBridgeStatus.denied.name);
+      expect(port.executes, 0);
     },
   );
 }
