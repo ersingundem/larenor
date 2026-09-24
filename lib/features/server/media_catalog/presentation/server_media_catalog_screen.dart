@@ -17,6 +17,7 @@ import '../../media_flow/data/server_media_flow_cache.dart';
 import '../../media_flow/presentation/server_media_flow_screen.dart';
 import '../../media_rows/data/server_media_rows_controller.dart';
 import '../../media_rows/presentation/server_media_rows_section.dart';
+import '../../media_rows/domain/server_media_rows_models.dart';
 
 /// Explicit, read-only Core catalog search. It never mounts or falls back to a
 /// device-local Jellyfin client.
@@ -215,6 +216,31 @@ final class _ServerMediaCatalogScreenState
     );
   }
 
+  Future<void> _openRow(ServerMediaRowItem item) async {
+    final rows = _rowsController;
+    final current = _capture();
+    if (rows == null || !current() || rows.resolvingItemId != null) return;
+    final page = await rows.resolve(item, current: current);
+    if (!current() || page == null || page.items.single.itemId != item.itemId) {
+      return;
+    }
+    final resolved = page.items.single;
+    unawaited(
+      Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => ServerMediaFlowScreen(
+            mediaKey: resolved.flowMediaKey,
+            title: resolved.title,
+            catalogPage: page,
+            catalogItem: resolved,
+            cache: widget.flowCache,
+            requestId: widget.requestId,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -375,6 +401,7 @@ final class _ServerMediaCatalogScreenState
                   controller: rowsController,
                   active: _active,
                   onRetry: _refreshRows,
+                  onOpen: _openRow,
                 ),
               ),
             ),

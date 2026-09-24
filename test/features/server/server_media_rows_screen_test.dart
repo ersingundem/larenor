@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert' show jsonDecode;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -65,9 +67,95 @@ Map<String, Object?> _rows() => {
   },
 };
 
+List<Map<String, Object>> _flowSources() => [
+  for (final provider in const [
+    'seerr',
+    'qbittorrent',
+    'sonarr',
+    'radarr',
+    'jellyfin',
+  ])
+    {
+      'provider': provider,
+      'serviceRevision': 7,
+      'snapshotRevision': 9,
+      'observedAt': 1790132400,
+    },
+];
+
+Map<String, Object?> _flow(String mediaKey) => {
+  'mediaKey': mediaKey,
+  'flowRevision': 9,
+  'state': 'playable',
+  'stages': [
+    for (final stage in const [
+      ('request', 'seerr'),
+      ('download', 'qbittorrent'),
+      ('import', 'radarr'),
+      ('playable', 'jellyfin'),
+    ])
+      {
+        'name': stage.$1,
+        'state': 'complete',
+        'provider': stage.$2,
+        'sourceRevision': 7,
+      },
+  ],
+  'sources': _flowSources(),
+  'seasons': const [],
+  'delivery': const {
+    'state': 'hardlink_verified',
+    'retryAttempt': 1,
+    'fileCount': 1,
+  },
+};
+
+Map<String, Object?> _resolvedRow(String itemId) {
+  final episode = itemId == '44444444444444444444444444444444';
+  return {
+    'requestId': _requestId,
+    'bindingRevision': 4,
+    'catalog': {
+      'schemaVersion': 1,
+      'installationId': _installationId,
+      'installationRevision': 7,
+      'snapshotRevision': 8,
+      'jellyfinServiceRevision': 9,
+      'offset': 0,
+      'nextOffset': null,
+      'total': 1,
+      'items': [
+        {
+          'itemId': itemId,
+          'mediaKey': episode ? 'episode:tvdb:101:2:1' : 'movie:tmdb:603',
+          'title': episode ? 'Severance — S02E01' : 'The Matrix',
+          'mediaKind': episode ? 'episode' : 'movie',
+          'runtimeSeconds': episode ? 3600 : 8160,
+        },
+      ],
+    },
+  };
+}
+
 final class _Fixture extends AdminFixture {
   _Fixture() {
     respond = (request) async {
+      if (request.url.path.endsWith('/media/flows/authority')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return json({
+          'requestId': _requestId,
+          'mediaKey': body['mediaKey'],
+          'flowRevision': 9,
+          'sources': _flowSources(),
+        });
+      }
+      if (request.url.path.endsWith('/media/flows/read')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return json({
+          'requestId': _requestId,
+          'flow': _flow(body['mediaKey'] as String),
+        });
+      }
       if (request.url.path.endsWith('/media/catalog/target')) {
         return json(_target());
       }
@@ -91,12 +179,19 @@ final class _Fixture extends AdminFixture {
         }
         return json(_rows());
       }
+      if (request.url.path.endsWith('/media/rows/resolve')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final gate = resolveGate;
+        if (gate != null) return gate.future;
+        return json(_resolvedRow(body['itemId'] as String));
+      }
       return defaultResponse(request);
     };
   }
 
   bool failRows = false;
   int rowsReads = 0;
+  Completer<http.Response>? resolveGate;
 }
 
 Widget _app(_Fixture fixture, {String locale = 'en', double scale = 1}) =>
@@ -129,7 +224,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(
-    'Core media hub renders account recent and resume rows read-only',
+    'Core media hub resolves account rows before opening central flow',
     (tester) async {
       final semantics = tester.ensureSemantics();
       final fixture = _Fixture();
@@ -156,7 +251,11 @@ void main() {
             .value,
         '25%',
       );
-      expect(find.byType(CupertinoButton), findsNothing);
+      final recentCard = find.byKey(
+        const ValueKey('server-media-row-33333333333333333333333333333333'),
+      );
+      expect(tester.getSemantics(recentCard).flagsCollection.isButton, isTrue);
+      expect(tester.getRect(recentCard).height, greaterThanOrEqualTo(48));
       expect(fixture.rowsReads, 1);
       final request = fixture.calls.singleWhere(
         (call) => call.url.path.endsWith('/media/rows/read'),
@@ -167,9 +266,126 @@ void main() {
         'expectedInstallationRevision': 7,
         'expectedBindingRevision': 4,
       });
+      await tester.tap(recentCard);
+      await tester.pumpAndSettle();
+      final resolve = fixture.calls.singleWhere(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      );
+      expect(jsonDecode(resolve.body), {
+        'requestId': _requestId,
+        'installationId': _installationId,
+        'expectedInstallationRevision': 7,
+        'expectedBindingRevision': 4,
+        'expectedSnapshotRevision': 8,
+        'expectedJellyfinServiceRevision': 9,
+        'itemId': '33333333333333333333333333333333',
+      });
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/media/flows/authority'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/media/flows/read'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        find.byKey(const ValueKey('server-media-flow-stage-playable')),
+        findsOneWidget,
+      );
       semantics.dispose();
     },
   );
+
+  testWidgets('rapid row taps resolve and navigate exactly once', (
+    tester,
+  ) async {
+    final fixture = _Fixture()..resolveGate = Completer<http.Response>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(_app(fixture));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final targetCallsBefore = fixture.calls
+        .where((call) => call.url.path.endsWith('/media/catalog/target'))
+        .length;
+    final card = find.byKey(
+      const ValueKey('server-media-row-33333333333333333333333333333333'),
+    );
+
+    await tester.tap(card);
+    await tester.tap(card);
+    await tester.pump();
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/catalog/target'),
+      ),
+      hasLength(targetCallsBefore + 1),
+    );
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      ),
+      hasLength(1),
+    );
+
+    fixture.resolveGate!.complete(
+      fixture.json(_resolvedRow('33333333333333333333333333333333')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('server-media-flow-stage-playable')),
+      findsOneWidget,
+    );
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      ),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('logout during delayed row resolution opens no stale route', (
+    tester,
+  ) async {
+    final fixture = _Fixture()..resolveGate = Completer<http.Response>();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(_app(fixture));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final card = find.byKey(
+      const ValueKey('server-media-row-33333333333333333333333333333333'),
+    );
+
+    await tester.tap(card);
+    await tester.pump();
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      ),
+      hasLength(1),
+    );
+    await fixture.account.signOut();
+    fixture.resolveGate!.complete(
+      fixture.json(_resolvedRow('33333333333333333333333333333333')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('server-media-flow-stage-playable')),
+      findsNothing,
+    );
+    expect(
+      fixture.calls.where(
+        (call) => call.url.path.endsWith('/media/flows/authority'),
+      ),
+      isEmpty,
+    );
+  });
 
   testWidgets('rows failure offers bounded retry', (tester) async {
     final fixture = _Fixture()..failRows = true;
