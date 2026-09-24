@@ -94,7 +94,7 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
     required int lifecycleEpoch,
     required WebPanelBridgeIdFactory grantIds,
     required WebPanelBridgeIdFactory previewIds,
-    DateTime Function()? now,
+    WebPanelBridgeElapsedClock? elapsed,
   }) : _scope = authority.bind(
          policy,
          routeEpoch: routeEpoch,
@@ -112,7 +112,7 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
          ),
          grantIds: grantIds,
          previewIds: previewIds,
-         now: now,
+         elapsed: elapsed,
        ),
        _port = port;
 

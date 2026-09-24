@@ -426,6 +426,12 @@ final class WebPanelBridgeReceipt {
 }
 
 typedef WebPanelBridgeIdFactory = String Function();
+typedef WebPanelBridgeElapsedClock = Duration Function();
+
+WebPanelBridgeElapsedClock _stopwatchClock() {
+  final stopwatch = Stopwatch()..start();
+  return () => stopwatch.elapsed;
+}
 
 final class WebPanelNativeBridgeController {
   WebPanelNativeBridgeController({
@@ -433,9 +439,9 @@ final class WebPanelNativeBridgeController {
     required this.isCurrent,
     required this._grantIds,
     required this._previewIds,
-    DateTime Function()? now,
+    WebPanelBridgeElapsedClock? elapsed,
     Duration portTimeout = const Duration(seconds: 10),
-  }) : _now = now ?? DateTime.now,
+  }) : _elapsed = elapsed ?? _stopwatchClock(),
        _portTimeout = portTimeout {
     if (portTimeout <= Duration.zero ||
         portTimeout > const Duration(seconds: 30)) {
@@ -446,11 +452,18 @@ final class WebPanelNativeBridgeController {
   final WebPanelNativeBridgePort port;
   final bool Function(WebPanelBridgeScope) isCurrent;
   final WebPanelBridgeIdFactory _grantIds, _previewIds;
-  final DateTime Function() _now;
+  final WebPanelBridgeElapsedClock _elapsed;
   final Duration _portTimeout;
   final Map<String, _RequestRecord> _ledger = {};
   _Grant? _grant;
+  Duration _lastElapsed = Duration.zero;
   int _nextSequence = 1, _controllerEpoch = 0;
+
+  Duration _readElapsed() {
+    final candidate = _elapsed();
+    if (candidate.compareTo(_lastElapsed) < 0) return _lastElapsed;
+    return _lastElapsed = candidate;
+  }
 
   String arm(
     WebPanelNativeMethod method,
@@ -471,7 +484,7 @@ final class WebPanelNativeBridgeController {
       id: id,
       method: method,
       binding: binding,
-      expiresAt: _now().add(ttl),
+      deadline: _readElapsed() + ttl,
       controllerEpoch: _controllerEpoch,
     );
     return id;
@@ -501,7 +514,7 @@ final class WebPanelNativeBridgeController {
         value.sequence != _nextSequence ||
         _ledger.containsKey(value.requestId) ||
         !_trusted(trusted, grant.binding) ||
-        !grant.expiresAt.isAfter(_now())) {
+        _readElapsed().compareTo(grant.deadline) >= 0) {
       return const WebPanelBridgePreview.denied();
     }
     grant.used = true;
@@ -527,7 +540,7 @@ final class WebPanelNativeBridgeController {
       previewId: previewId,
       binding: grant.binding,
       controllerEpoch: _controllerEpoch,
-      expiresAt: grant.expiresAt,
+      deadline: grant.deadline,
       unsupported: !supported,
       capabilityRevision: capabilityRevision,
     );
@@ -552,7 +565,7 @@ final class WebPanelNativeBridgeController {
       return _denied(record?.value);
     }
     if (record.receipt != null) return record.receipt!;
-    if (!record.expiresAt.isAfter(_now())) {
+    if (_readElapsed().compareTo(record.deadline) >= 0) {
       return record.receipt = _receipt(
         record.value,
         WebPanelBridgeStatus.denied,
@@ -699,14 +712,14 @@ final class _Grant {
     required this.id,
     required this.method,
     required this.binding,
-    required this.expiresAt,
+    required this.deadline,
     required this.controllerEpoch,
   });
 
   final String id;
   final WebPanelNativeMethod method;
   final WebPanelBridgeScope binding;
-  final DateTime expiresAt;
+  final Duration deadline;
   final int controllerEpoch;
   bool used = false;
 }
@@ -717,7 +730,7 @@ final class _RequestRecord {
     required this.previewId,
     required this.binding,
     required this.controllerEpoch,
-    required this.expiresAt,
+    required this.deadline,
     required this.unsupported,
     required this.capabilityRevision,
   });
@@ -726,7 +739,7 @@ final class _RequestRecord {
   final String previewId;
   final WebPanelBridgeScope binding;
   final int controllerEpoch;
-  final DateTime expiresAt;
+  final Duration deadline;
   final bool unsupported;
   final int capabilityRevision;
   bool dispatching = false;
