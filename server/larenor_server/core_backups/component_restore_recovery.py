@@ -731,6 +731,10 @@ class DurableComponentRestoreCoordinator:
                 raise ComponentRestorePlanError()
             rollbacks, stages = self._receipts_for_plan(state, plan)
             if state["phase"] == "released":
+                # The component effect and release are durable, but an external
+                # product decision may have crashed after this journal write.
+                # Replay it before clearing the only authoritative evidence.
+                self._checkpoint(state)
                 self._journal.clear()
                 return True
             recover = getattr(self._boundary, "recover_durable", None)
