@@ -22,6 +22,86 @@ enum WebPanelBridgeStatus {
 
 enum WebPanelNativePortOutcome { accepted, rejected, unsupported, uncertain }
 
+/// Portable, explicit user opt-in. Presence enables only this exact HTTPS
+/// top-origin and closed method set; absence keeps the bridge disabled.
+@immutable
+final class WebPanelNativePolicy {
+  WebPanelNativePolicy({
+    required this.revision,
+    required this.topOrigin,
+    required Set<WebPanelNativeMethod> methods,
+  }) : methods = Set.unmodifiable(methods) {
+    if (!valid) throw const FormatException('bridge_policy_invalid');
+  }
+
+  factory WebPanelNativePolicy.fromJson(Object? json) {
+    if (json is! Map<String, Object?> ||
+        !setEquals(json.keys.toSet(), const {
+          'schemaVersion',
+          'revision',
+          'topOrigin',
+          'methods',
+        }) ||
+        json['schemaVersion'] is! int ||
+        json['schemaVersion'] != 1 ||
+        json['revision'] is! int ||
+        json['topOrigin'] is! String ||
+        json['methods'] is! List<Object?>) {
+      throw const FormatException('bridge_policy_invalid');
+    }
+    final rawMethods = json['methods']! as List<Object?>;
+    final methods = <WebPanelNativeMethod>{};
+    for (final value in rawMethods) {
+      final method = switch (value) {
+        'speak' => WebPanelNativeMethod.speak,
+        'printDocument' => WebPanelNativeMethod.printDocument,
+        'scanQr' => WebPanelNativeMethod.scanQr,
+        _ => throw const FormatException('bridge_policy_invalid'),
+      };
+      if (!methods.add(method)) {
+        throw const FormatException('bridge_policy_invalid');
+      }
+    }
+    return WebPanelNativePolicy(
+      revision: json['revision']! as int,
+      topOrigin: json['topOrigin']! as String,
+      methods: methods,
+    );
+  }
+
+  final int revision;
+  final String topOrigin;
+  final Set<WebPanelNativeMethod> methods;
+
+  bool get valid =>
+      revision > 0 &&
+      revision <= 0x7fffffff &&
+      _isSecureOrigin(topOrigin) &&
+      methods.isNotEmpty &&
+      methods.length <= WebPanelNativeMethod.values.length;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'revision': revision,
+    'topOrigin': topOrigin,
+    'methods': [
+      for (final method in WebPanelNativeMethod.values)
+        if (methods.contains(method)) method.name,
+    ],
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is WebPanelNativePolicy &&
+      revision == other.revision &&
+      topOrigin == other.topOrigin &&
+      setEquals(methods, other.methods);
+
+  @override
+  int get hashCode =>
+      Object.hash(revision, topOrigin, Object.hashAllUnordered(methods));
+}
+
 @immutable
 final class WebPanelBridgeScope {
   const WebPanelBridgeScope({
@@ -51,7 +131,7 @@ final class WebPanelBridgeScope {
   bool get valid =>
       _scopeId.hasMatch(coreId) &&
       _scopeId.hasMatch(homeId) &&
-      _scopeId.hasMatch(accountId) &&
+      _safeScopeAccount(accountId) &&
       _scopeId.hasMatch(sessionFamily) &&
       _scopeId.hasMatch(sourceId) &&
       sourceRevision > 0 &&
@@ -254,6 +334,7 @@ final class WebPanelNativePortResult {
 
 abstract interface class WebPanelNativeBridgePort {
   Set<WebPanelNativeMethod> get capabilities;
+  int get capabilityRevision;
 
   Future<WebPanelNativePortResult> execute(
     WebPanelNativeCommand value,
@@ -274,6 +355,9 @@ final class UnsupportedWebPanelNativeBridgePort
 
   @override
   Set<WebPanelNativeMethod> get capabilities => const {};
+
+  @override
+  int get capabilityRevision => 0;
 
   @override
   Future<WebPanelNativePortResult> execute(
@@ -342,6 +426,12 @@ final class WebPanelBridgeReceipt {
 }
 
 typedef WebPanelBridgeIdFactory = String Function();
+typedef WebPanelBridgeElapsedClock = Duration Function();
+
+WebPanelBridgeElapsedClock _stopwatchClock() {
+  final stopwatch = Stopwatch()..start();
+  return () => stopwatch.elapsed;
+}
 
 final class WebPanelNativeBridgeController {
   WebPanelNativeBridgeController({
@@ -349,9 +439,9 @@ final class WebPanelNativeBridgeController {
     required this.isCurrent,
     required this._grantIds,
     required this._previewIds,
-    DateTime Function()? now,
+    WebPanelBridgeElapsedClock? elapsed,
     Duration portTimeout = const Duration(seconds: 10),
-  }) : _now = now ?? DateTime.now,
+  }) : _elapsed = elapsed ?? _stopwatchClock(),
        _portTimeout = portTimeout {
     if (portTimeout <= Duration.zero ||
         portTimeout > const Duration(seconds: 30)) {
@@ -362,11 +452,18 @@ final class WebPanelNativeBridgeController {
   final WebPanelNativeBridgePort port;
   final bool Function(WebPanelBridgeScope) isCurrent;
   final WebPanelBridgeIdFactory _grantIds, _previewIds;
-  final DateTime Function() _now;
+  final WebPanelBridgeElapsedClock _elapsed;
   final Duration _portTimeout;
   final Map<String, _RequestRecord> _ledger = {};
   _Grant? _grant;
+  Duration _lastElapsed = Duration.zero;
   int _nextSequence = 1, _controllerEpoch = 0;
+
+  Duration _readElapsed() {
+    final candidate = _elapsed();
+    if (candidate.compareTo(_lastElapsed) < 0) return _lastElapsed;
+    return _lastElapsed = candidate;
+  }
 
   String arm(
     WebPanelNativeMethod method,
@@ -375,7 +472,7 @@ final class WebPanelNativeBridgeController {
   }) {
     if (!binding.valid ||
         ttl <= Duration.zero ||
-        ttl > const Duration(minutes: 2)) {
+        ttl > const Duration(seconds: 30)) {
       throw const FormatException('bridge_grant_invalid');
     }
     final id = _grantIds();
@@ -387,7 +484,7 @@ final class WebPanelNativeBridgeController {
       id: id,
       method: method,
       binding: binding,
-      expiresAt: _now().add(ttl),
+      deadline: _readElapsed() + ttl,
       controllerEpoch: _controllerEpoch,
     );
     return id;
@@ -417,7 +514,7 @@ final class WebPanelNativeBridgeController {
         value.sequence != _nextSequence ||
         _ledger.containsKey(value.requestId) ||
         !_trusted(trusted, grant.binding) ||
-        !grant.expiresAt.isAfter(_now())) {
+        _readElapsed().compareTo(grant.deadline) >= 0) {
       return const WebPanelBridgePreview.denied();
     }
     grant.used = true;
@@ -428,6 +525,7 @@ final class WebPanelNativeBridgeController {
       return const WebPanelBridgePreview.denied();
     }
     final supported = port.capabilities.contains(value.method);
+    final capabilityRevision = port.capabilityRevision;
     final preview = WebPanelBridgePreview._(
       status: supported
           ? WebPanelBridgeStatus.needsConfirmation
@@ -442,8 +540,9 @@ final class WebPanelNativeBridgeController {
       previewId: previewId,
       binding: grant.binding,
       controllerEpoch: _controllerEpoch,
-      expiresAt: grant.expiresAt,
+      deadline: grant.deadline,
       unsupported: !supported,
+      capabilityRevision: capabilityRevision,
     );
     while (_ledger.length > _maxLedgerEntries) {
       _ledger.remove(_ledger.keys.first);
@@ -466,7 +565,7 @@ final class WebPanelNativeBridgeController {
       return _denied(record?.value);
     }
     if (record.receipt != null) return record.receipt!;
-    if (!record.expiresAt.isAfter(_now())) {
+    if (_readElapsed().compareTo(record.deadline) >= 0) {
       return record.receipt = _receipt(
         record.value,
         WebPanelBridgeStatus.denied,
@@ -478,6 +577,14 @@ final class WebPanelNativeBridgeController {
         record.value,
         WebPanelBridgeStatus.unsupported,
         'capability_unavailable',
+      );
+    }
+    if (port.capabilityRevision != record.capabilityRevision ||
+        !port.capabilities.contains(record.value.method)) {
+      return record.receipt = _receipt(
+        record.value,
+        WebPanelBridgeStatus.denied,
+        'capability_changed',
       );
     }
     if (record.dispatching) {
@@ -494,6 +601,7 @@ final class WebPanelNativeBridgeController {
           .timeout(_portTimeout);
       if (record.controllerEpoch != _controllerEpoch ||
           !_trusted(trusted, record.binding) ||
+          port.capabilityRevision != record.capabilityRevision ||
           !result.valid) {
         return record.receipt = _receipt(
           record.value,
@@ -526,6 +634,13 @@ final class WebPanelNativeBridgeController {
               .timeout(_portTimeout);
           if (record.controllerEpoch != _controllerEpoch ||
               !_trusted(trusted, record.binding)) {
+            return record.receipt = _receipt(
+              record.value,
+              WebPanelBridgeStatus.unconfirmed,
+              'effect_unconfirmed',
+            );
+          }
+          if (port.capabilityRevision != record.capabilityRevision) {
             return record.receipt = _receipt(
               record.value,
               WebPanelBridgeStatus.unconfirmed,
@@ -597,14 +712,14 @@ final class _Grant {
     required this.id,
     required this.method,
     required this.binding,
-    required this.expiresAt,
+    required this.deadline,
     required this.controllerEpoch,
   });
 
   final String id;
   final WebPanelNativeMethod method;
   final WebPanelBridgeScope binding;
-  final DateTime expiresAt;
+  final Duration deadline;
   final int controllerEpoch;
   bool used = false;
 }
@@ -615,16 +730,18 @@ final class _RequestRecord {
     required this.previewId,
     required this.binding,
     required this.controllerEpoch,
-    required this.expiresAt,
+    required this.deadline,
     required this.unsupported,
+    required this.capabilityRevision,
   });
 
   final WebPanelNativeCommand value;
   final String previewId;
   final WebPanelBridgeScope binding;
   final int controllerEpoch;
-  final DateTime expiresAt;
+  final Duration deadline;
   final bool unsupported;
+  final int capabilityRevision;
   bool dispatching = false;
   WebPanelBridgeReceipt? receipt;
 }
@@ -643,13 +760,14 @@ bool _safeText(Object? value, int maxLength) =>
     value.length <= maxLength &&
     !RegExp(r'[\u0000-\u001f\u007f]').hasMatch(value);
 
+bool _safeScopeAccount(String value) =>
+    value.isNotEmpty &&
+    value.length <= 128 &&
+    !RegExp(r'[\u0000-\u001f\u007f]').hasMatch(value);
+
 bool _isSecureOrigin(String value) {
-  final origin = WebOrigin.parse(value);
-  if (origin == null || origin.scheme != 'https') return false;
-  final uri = Uri.tryParse(value);
-  return uri != null &&
-      uri.userInfo.isEmpty &&
-      (uri.path.isEmpty || uri.path == '/') &&
-      !uri.hasQuery &&
-      !uri.hasFragment;
+  final origin = WebOrigin.parseExact(value);
+  return origin != null &&
+      origin.scheme == 'https' &&
+      origin.displayName == value;
 }

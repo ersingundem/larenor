@@ -57,6 +57,7 @@ class _Controller extends PlatformWebViewController {
   final requests = <LoadRequestParams>[];
   final modes = <JavaScriptMode>[];
   final html = <String>[];
+  final scripts = <String>[];
   final htmlBaseUrls = <String?>[];
   final zoomOptions = <bool>[];
   @override
@@ -123,6 +124,11 @@ class _Controller extends PlatformWebViewController {
   Future<void> loadHtmlString(String value, {String? baseUrl}) async {
     html.add(value);
     htmlBaseUrls.add(baseUrl);
+  }
+
+  @override
+  Future<void> runJavaScript(String javaScript) async {
+    scripts.add(javaScript);
   }
 }
 

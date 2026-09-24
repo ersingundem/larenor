@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -7,12 +8,14 @@ import '../../../../core/app_interaction_scope.dart';
 import '../../kiosk/domain/kiosk_watchdog.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
+import '../data/web_panel_native_runtime.dart';
 import '../data/web_panel_platform.dart';
 import '../data/web_panel_data.dart';
 import '../data/web_panel_external_actions.dart';
 import '../data/web_panel_renderer_monitor.dart';
 import '../data/web_panel_transfers.dart';
 import '../domain/web_panel_options.dart';
+import '../domain/web_panel_native_bridge.dart';
 import '../domain/web_panel_policy.dart';
 
 enum _Failure { invalidUrl, blocked, timeout, load }
@@ -32,6 +35,8 @@ class WebPanelView extends StatefulWidget {
     this.externalActionPort,
     this.rendererMonitor,
     this.recoveryGate,
+    this.nativeAuthority,
+    this.nativePort,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
@@ -43,6 +48,8 @@ class WebPanelView extends StatefulWidget {
   final WebPanelExternalActionPort? externalActionPort;
   final WebPanelRendererMonitor? rendererMonitor;
   final KioskRecoveryGate? recoveryGate;
+  final WebPanelNativeAuthorityLease? nativeAuthority;
+  final WebPanelNativeBridgePort? nativePort;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -63,6 +70,7 @@ class WebPanelViewState extends State<WebPanelView> {
   WebPanelTransferController? _transfer;
   WebPanelExternalActionController? _external;
   WebPanelRendererHandle? _rendererHandle;
+  WebPanelNativeRuntime? _native;
 
   @override
   void initState() {
@@ -123,6 +131,8 @@ class WebPanelViewState extends State<WebPanelView> {
         oldWidget.requireActiveInteraction != widget.requireActiveInteraction ||
         oldWidget.transferAccess != widget.transferAccess ||
         oldWidget.externalActionPort != widget.externalActionPort ||
+        !identical(oldWidget.nativeAuthority, widget.nativeAuthority) ||
+        !identical(oldWidget.nativePort, widget.nativePort) ||
         !identical(oldWidget.rendererMonitor, widget.rendererMonitor)) {
       _retire();
       _failure = null;
@@ -149,6 +159,10 @@ class WebPanelViewState extends State<WebPanelView> {
   }
 
   void _externalChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _nativeChanged() {
     if (mounted) setState(() {});
   }
 
@@ -236,6 +250,24 @@ class WebPanelViewState extends State<WebPanelView> {
               const LocalWebPanelExternalActionPort(),
           isCurrent: () => _current(generation),
         )..addListener(_externalChanged);
+      }
+      final nativePolicy = widget.options?.nativeBridge;
+      final nativeAuthority = widget.nativeAuthority;
+      final nativePort = widget.nativePort;
+      final initialOrigin = WebOrigin.parse(policy.initialUri.toString());
+      if (nativePolicy != null &&
+          nativeAuthority != null &&
+          nativePort != null &&
+          initialOrigin?.displayName == nativePolicy.topOrigin) {
+        _native = WebPanelNativeRuntime(
+          policy: nativePolicy,
+          authority: nativeAuthority,
+          port: nativePort,
+          routeEpoch: generation,
+          lifecycleEpoch: generation,
+          grantIds: secureWebPanelNativeId,
+          previewIds: secureWebPanelNativeId,
+        )..addListener(_nativeChanged);
       }
       _ready = false;
       _watchdog?.cancel();
@@ -347,6 +379,8 @@ class WebPanelViewState extends State<WebPanelView> {
                   controller,
                   policy.allowedOrigins,
                   () => _recoverRenderer(generation),
+                  nativePolicy: _native?.policy,
+                  onNativeMessage: _native?.handle,
                 );
         if (!_current(generation)) {
           await handle?.dispose();
@@ -415,6 +449,10 @@ class WebPanelViewState extends State<WebPanelView> {
     final rendererHandle = _rendererHandle;
     _rendererHandle = null;
     if (rendererHandle != null) unawaited(rendererHandle.dispose());
+    final native = _native;
+    _native = null;
+    native?.removeListener(_nativeChanged);
+    native?.dispose();
     _ready = false;
     if (controller != null) _data.retire(() => _blankForClear(controller));
   }
@@ -486,7 +524,8 @@ class WebPanelViewState extends State<WebPanelView> {
         if (_ready &&
             ((widget.options?.allowUploads ?? false) ||
                 (widget.options?.allowDownloads ?? false) ||
-                (widget.options?.allowExternalActions ?? false)))
+                (widget.options?.allowExternalActions ?? false) ||
+                _native != null))
           PositionedDirectional(
             start: 12,
             end: 12,
@@ -500,7 +539,10 @@ class WebPanelViewState extends State<WebPanelView> {
   Widget _transferBar(AppLocalizations l10n) {
     final transfer = _transfer;
     final external = _external;
-    if (transfer == null && external == null) return const SizedBox.shrink();
+    final native = _native;
+    if (transfer == null && external == null && native == null) {
+      return const SizedBox.shrink();
+    }
     final transferStatus = switch (transfer?.status) {
       null => null,
       WebPanelTransferStatus.idle => null,
@@ -596,6 +638,44 @@ class WebPanelViewState extends State<WebPanelView> {
                 child: Text(l10n.commonOk),
               ),
             ],
+            if (native != null)
+              for (final method in native.availableMethods)
+                CupertinoButton(
+                  key: ValueKey('web-panel-arm-native-${method.name}'),
+                  minimumSize: const Size(48, 48),
+                  onPressed:
+                      native.status ==
+                              WebPanelNativeRuntimeStatus
+                                  .awaitingConfirmation ||
+                          native.status == WebPanelNativeRuntimeStatus.working
+                      ? null
+                      : () => unawaited(_armNative(method)),
+                  child: Text(switch (method) {
+                    WebPanelNativeMethod.speak => l10n.webPanelNativeArmSpeak,
+                    WebPanelNativeMethod.printDocument =>
+                      l10n.webPanelNativeArmPrint,
+                    WebPanelNativeMethod.scanQr => l10n.webPanelNativeArmScan,
+                  }),
+                ),
+            if (native?.status ==
+                WebPanelNativeRuntimeStatus.awaitingConfirmation) ...[
+              Semantics(
+                liveRegion: true,
+                child: Text(l10n.webPanelNativeConfirm),
+              ),
+              CupertinoButton(
+                key: const ValueKey('web-panel-cancel-native'),
+                minimumSize: const Size(48, 48),
+                onPressed: native?.cancel,
+                child: Text(l10n.commonCancel),
+              ),
+              CupertinoButton.filled(
+                key: const ValueKey('web-panel-confirm-native'),
+                minimumSize: const Size(48, 48),
+                onPressed: native?.confirm,
+                child: Text(l10n.commonOk),
+              ),
+            ],
             if (transferStatus != null)
               Semantics(
                 liveRegion: true,
@@ -616,6 +696,33 @@ class WebPanelViewState extends State<WebPanelView> {
         ),
       ),
     );
+  }
+
+  Future<void> _armNative(WebPanelNativeMethod method) async {
+    final generation = _generation;
+    final native = _native;
+    final controller = _controller;
+    if (!_current(generation) || native == null || controller == null) return;
+    final grant = native.arm(method);
+    if (grant == null) return;
+    final detail = jsonEncode({
+      'schemaVersion': 1,
+      'grantId': grant,
+      'method': method.name,
+      'expiresInSeconds': 30,
+    });
+    try {
+      await controller
+          .runJavaScript(
+            "window.dispatchEvent(new CustomEvent('larenor-native-grant',{detail:$detail}));",
+          )
+          .timeout(const Duration(seconds: 5));
+      if (!_current(generation) || !identical(native, _native)) {
+        native.revokeConsent();
+      }
+    } catch (_) {
+      native.revokeConsent();
+    }
   }
 }
 
