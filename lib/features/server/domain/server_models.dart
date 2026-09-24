@@ -301,7 +301,7 @@ class ServerVault {
         throw const LarenorServerException('invalid_response');
       }
       final snapshot = serverObject(wrapper['snapshot']);
-      if (snapshot['version'] != 2) {
+      if (!{2, 3}.contains(snapshot['version'])) {
         throw const LarenorServerException('invalid_response');
       }
       return ServerVault(

@@ -248,7 +248,7 @@ void main() {
     expect(calls, 1);
   });
 
-  test('vault requires v2 privacy validation before use', () {
+  test('vault admits only supported snapshot versions before validation', () {
     expect(
       ServerVault.fromJson({'revision': 0, 'document': null}).snapshot,
       isNull,
@@ -261,6 +261,17 @@ void main() {
           'version': 1,
           'snapshot': {
             'version': 1,
+            'createdAt': now.toIso8601String(),
+            'groups': {},
+          },
+        },
+      },
+      {
+        'revision': 1,
+        'document': {
+          'version': 1,
+          'snapshot': {
+            'version': 4,
             'createdAt': now.toIso8601String(),
             'groups': {},
           },
