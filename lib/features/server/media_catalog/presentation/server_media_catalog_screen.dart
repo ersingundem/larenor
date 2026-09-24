@@ -220,13 +220,14 @@ final class _ServerMediaCatalogScreenState
     final rows = _rowsController;
     final current = _capture();
     if (rows == null || !current() || rows.resolvingItemId != null) return;
+    final navigator = Navigator.of(context);
     final page = await rows.resolve(item, current: current);
     if (!current() || page == null || page.items.single.itemId != item.itemId) {
       return;
     }
     final resolved = page.items.single;
     unawaited(
-      Navigator.of(context).push(
+      navigator.push(
         CupertinoPageRoute<void>(
           builder: (_) => ServerMediaFlowScreen(
             mediaKey: resolved.flowMediaKey,
