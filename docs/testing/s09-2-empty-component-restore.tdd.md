@@ -23,6 +23,10 @@ Two fail-closed follow-ups are part of the same delivery. `917e4342` proves
 privileged runtime construction before either restore input is read and maps
 runtime/plan failures to static output. `61ddeb04` makes every new production,
 CLI, and product-recovery input trigger the dual-architecture native gate.
+`b85af698` adds a root Linux journey which invokes the packaged CLI against a
+synthetic Unix Engine, publishes the real descriptor-bound volume trees, opens
+the restored Core, verifies release, and runs independently on both matrix
+architectures.
 
 ## RED to GREEN
 
@@ -37,6 +41,8 @@ CLI, and product-recovery input trigger the dual-architecture native gate.
   reversed that ordering.
 - `20df24bf` proved the native scope classifier could skip all four new product
   inputs; `61ddeb04` closed that false skip.
+- `947c2b35` required a true root CLI-to-Core-and-volume journey rather than a
+  mocked CLI seam; `b85af698` added its dedicated dual-architecture execution.
 
 ## Security boundary
 
