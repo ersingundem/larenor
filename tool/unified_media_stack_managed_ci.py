@@ -1314,11 +1314,26 @@ def validate_rendered_config(rendered, expected, project_name, *, source_root=RE
             raise ManagedStackCIError("unified_manifest_invalid")
     core_build = rendered["services"][package.CORE_NAME].get("build")
     expected_build = expected["services"][package.CORE_NAME]["build"]
-    if (not isinstance(core_build, dict)
-            or core_build.get("args") != expected_build["args"]
-            or Path(core_build.get("context", "")).resolve() != source_root.resolve()
-            or Path(core_build.get("dockerfile", "")).resolve()
-            != (source_root / "server/Dockerfile").resolve()):
+    if not isinstance(core_build, dict):
+        raise ManagedStackCIError("unified_manifest_invalid")
+    context_value = core_build.get("context")
+    dockerfile_value = core_build.get("dockerfile")
+    if type(context_value) is not str or type(dockerfile_value) is not str:
+        raise ManagedStackCIError("unified_manifest_invalid")
+    try:
+        context = Path(context_value)
+        if not context.is_absolute():
+            raise ValueError()
+        context = context.resolve()
+        dockerfile = Path(dockerfile_value)
+        if not dockerfile.is_absolute():
+            dockerfile = context / dockerfile
+        dockerfile = dockerfile.resolve()
+    except (OSError, RuntimeError, ValueError):
+        raise ManagedStackCIError("unified_manifest_invalid") from None
+    if (core_build.get("args") != expected_build["args"]
+            or context != source_root.resolve()
+            or dockerfile != (source_root / "server/Dockerfile").resolve()):
         raise ManagedStackCIError("unified_manifest_invalid")
 
 
