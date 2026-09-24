@@ -251,7 +251,11 @@ void main() {
         tester.element(find.byType(LarenorApp)),
         listen: false,
       );
-      expect(container.read(sharedHomeResourcesProvider), isNull);
+      final retired = container.read(sharedHomeResourcesProvider);
+      expect(retired, isNotNull);
+      expect(retired!.entries, isEmpty);
+      expect(retired.userRevision, isNull);
+      expect(retired.fresh, isFalse);
       expect(harness.haReads, 0);
       expect(tester.takeException(), isNull);
     },
