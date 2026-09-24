@@ -2,7 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
+import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/home_resources/domain/core_resource_binding.dart';
+import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 
 void main() {
   test('DashboardLayout survives a JSON-string round trip', () {
@@ -147,5 +150,51 @@ void main() {
     );
 
     expect(roundTripped, layout);
+  });
+
+  test('Core resource room and card references round-trip without secrets', () {
+    final roomBinding = CoreResourceBinding(
+      coreId: 'a' * 32,
+      homeId: 'b' * 32,
+      resourceId: 'c' * 32,
+      kind: HomeResourceKind.room,
+      resourceRevision: 2,
+      aclRevision: 3,
+      userRevision: 4,
+    );
+    final cardBinding = CoreResourceBinding(
+      coreId: 'a' * 32,
+      homeId: 'b' * 32,
+      resourceId: 'd' * 32,
+      kind: HomeResourceKind.resource,
+      resourceRevision: 5,
+      aclRevision: 6,
+      userRevision: 7,
+    );
+    final layout = DashboardLayout(
+      rooms: [
+        DashboardRoom(
+          id: 'room',
+          name: 'Living room',
+          coreResource: roomBinding,
+        ),
+      ],
+      tiles: [
+        TileConfig(
+          id: 'core',
+          type: TileType.coreResource,
+          x: 0,
+          y: 0,
+          width: 3,
+          height: 2,
+          title: 'Router',
+          coreResource: cardBinding,
+        ),
+      ],
+    );
+    final json =
+        jsonDecode(jsonEncode(layout.toJson())) as Map<String, dynamic>;
+    expect(jsonEncode(json), isNot(contains('token')));
+    expect(DashboardLayout.fromJson(json), layout);
   });
 }

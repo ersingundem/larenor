@@ -105,6 +105,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: '/media', builder: (_, _) => const MediaHubScreen()),
         GoRoute(path: '/media/catalog', redirect: (_, _) => '/media'),
         GoRoute(
+          path: '/dashboard',
+          builder: (_, _) => const HomeDashboardScreen(),
+        ),
+        GoRoute(
           path: '/search',
           builder: (context, state) => LocalSearchScreen(
             autofocus: state.uri.queryParameters['focus'] == '1',

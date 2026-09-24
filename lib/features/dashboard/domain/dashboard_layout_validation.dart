@@ -10,6 +10,8 @@ import 'keenetic_tile_validation.dart';
 import 'core_keenetic_tile_validation.dart';
 import 'today_tile_validation.dart';
 import '../../web_panel/domain/web_panel_options.dart';
+import '../../home_resources/domain/core_resource_binding.dart';
+import '../../home_resources/domain/home_resource_models.dart';
 
 const maxDashboardLayoutBytes = 2 * 1024 * 1024;
 
@@ -39,7 +41,7 @@ void validateDashboardLayoutJson(Object? value) {
   for (final raw in rooms) {
     final room = _object(
       raw,
-      {'id', 'name', 'entityIds', 'areaBinding'},
+      {'id', 'name', 'entityIds', 'areaBinding', 'coreResource'},
       required: {'id', 'name'},
     );
     if (!roomIds.add(_string(room['id'], 256))) throw invalid;
@@ -54,6 +56,10 @@ void validateDashboardLayoutJson(Object? value) {
           ids.intersection(binding.excludedEntityIds.toSet()).isNotEmpty) {
         throw invalid;
       }
+    }
+    if (room['coreResource'] != null) {
+      final binding = CoreResourceBinding.fromJson(room['coreResource']);
+      if (binding.kind != HomeResourceKind.room) throw invalid;
     }
   }
   final tileIds = <String>{};
@@ -82,6 +88,7 @@ void validateDashboardLayoutJson(Object? value) {
         'todaySection',
         'todayQuery',
         'webPanel',
+        'coreResource',
       },
       required: {'id', 'type', 'x', 'y', 'width', 'height'},
     );
@@ -90,7 +97,8 @@ void validateDashboardLayoutJson(Object? value) {
         !hasValidKeeneticTileFields(tile) ||
         !hasValidCoreKeeneticTileFields(tile) ||
         !hasValidTodayTileFields(tile) ||
-        !hasValidWebPanelTileFields(tile)) {
+        !hasValidWebPanelTileFields(tile) ||
+        !_hasValidCoreResourceTile(tile)) {
       throw invalid;
     }
     _integer(tile['x'], 0, 100000);
@@ -115,6 +123,23 @@ void validateDashboardLayoutJson(Object? value) {
     layout['serviceCardSizes'] ?? const <String, dynamic>{},
     services: true,
   );
+}
+
+bool _hasValidCoreResourceTile(Map<String, dynamic> tile) {
+  final raw = tile['coreResource'];
+  if (tile['type'] != 'coreResource') return raw == null;
+  if (raw == null ||
+      tile['entityId'] != null ||
+      tile['url'] != null ||
+      tile['webPanel'] != null) {
+    return false;
+  }
+  try {
+    CoreResourceBinding.fromJson(raw);
+    return true;
+  } on FormatException {
+    return false;
+  }
 }
 
 Map<String, dynamic> _object(

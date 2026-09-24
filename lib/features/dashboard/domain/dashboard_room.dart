@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'ha_area_binding.dart';
+import '../../home_resources/domain/core_resource_binding.dart';
 
 part 'dashboard_room.freezed.dart';
 part 'dashboard_room.g.dart';
@@ -20,6 +21,7 @@ abstract class DashboardRoom with _$DashboardRoom {
     /// Ordered — the user's arrangement, not HA's.
     @Default([]) List<String> entityIds,
     HaAreaBinding? areaBinding,
+    CoreResourceBinding? coreResource,
   }) = _DashboardRoom;
 
   const DashboardRoom._();

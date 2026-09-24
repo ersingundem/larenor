@@ -15,6 +15,10 @@ import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/health_configuration.dart';
 import '../../web_panel/presentation/web_panel_settings_screen.dart';
+import '../../home_resources/domain/core_resource_binding.dart';
+import '../../home_resources/domain/home_resource_models.dart';
+import '../../home_resources/data/home_resources_providers.dart';
+import '../../home_resources/presentation/core_resource_picker_screen.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../keenetic/presentation/keenetic_widget_picker_screen.dart';
 import '../../keenetic/core/presentation/core_keenetic_widget_picker_screen.dart';
@@ -189,6 +193,49 @@ class _DashboardWidgetPickerScreenState
     }
   }
 
+  Future<void> _coreResource() async {
+    if (!_current || _openingKeenetic) return;
+    final generation = interactionGeneration;
+    setState(() => _openingKeenetic = true);
+    try {
+      final target = await pushDashboardPage<HomeResourceRecord>(
+        CupertinoPageRoute(
+          builder: (_) =>
+              const CoreResourcePickerScreen(kind: HomeResourceKind.resource),
+        ),
+      );
+      if (target == null || !interactionCurrent(generation)) return;
+      final catalog = ref.read(sharedHomeResourcesProvider);
+      if (catalog == null ||
+          !catalog.fresh ||
+          catalog.stale ||
+          catalog.userRevision == null ||
+          !catalog.entries.any(
+            (entry) =>
+                entry.context == target.context &&
+                entry.id == target.id &&
+                entry.kind == target.kind &&
+                entry.revision == target.revision &&
+                entry.aclRevision == target.aclRevision,
+          )) {
+        return;
+      }
+      _complete(
+        _draft(TileType.coreResource).copyWith(
+          width: 3,
+          height: 2,
+          title: target.label,
+          coreResource: CoreResourceBinding.fromRecord(
+            target,
+            userRevision: catalog.userRevision!,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _openingKeenetic = false);
+    }
+  }
+
   Future<void> _proxmox() async {
     if (!_current || _openingKeenetic) return;
     final generation = interactionGeneration;
@@ -254,13 +301,16 @@ class _DashboardWidgetPickerScreenState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final core = ref.read(homeSessionControllerProvider);
+    final verifiedCore = core?.source == HomeSource.verifiedCore;
     final haType =
+        !verifiedCore &&
         _type != null &&
         _type != TileType.proxmox &&
         tileKinds.containsKey(_type);
     final config = haType ? ref.watch(connectionConfigProvider) : null;
     watchDashboardAccount();
-    if (ref.exists(keeneticConnectionProvider)) {
+    if (!verifiedCore && ref.exists(keeneticConnectionProvider)) {
       ref.watch(keeneticConnectionProvider);
       ref.listen(keeneticConnectionProvider, (previous, next) {
         if (_openingDirectKeenetic &&
@@ -276,7 +326,7 @@ class _DashboardWidgetPickerScreenState
     }
     if (config != null && !config.isLoading && !config.hasError) {
       _accountSeen = true;
-    } else if (ref.exists(connectionConfigProvider)) {
+    } else if (!verifiedCore && ref.exists(connectionConfigProvider)) {
       final saved = ref.read(connectionConfigProvider);
       if (!saved.isLoading && !saved.hasError) _accountSeen = true;
     }
@@ -305,22 +355,28 @@ class _DashboardWidgetPickerScreenState
           ),
         ),
       );
-      final core = ref.read(homeSessionControllerProvider);
-      final types = [
-        ...tileKinds.keys.where(
-          (type) =>
-              type != TileType.proxmox ||
-              core?.source == HomeSource.verifiedCore,
-        ),
-        TileType.webview,
-        TileType.today,
-        TileType.keenetic,
-        TileType.coreKeenetic,
-        TileType.coreKeeneticDetails,
-        TileType.coreKeeneticMesh,
-        TileType.coreKeeneticClients,
-        TileType.coreKeeneticBandwidth,
-      ];
+      final types = verifiedCore
+          ? const [
+              TileType.proxmox,
+              TileType.coreKeenetic,
+              TileType.coreKeeneticDetails,
+              TileType.coreKeeneticMesh,
+              TileType.coreKeeneticClients,
+              TileType.coreKeeneticBandwidth,
+              TileType.coreResource,
+            ]
+          : [
+              ...tileKinds.keys,
+              TileType.webview,
+              TileType.today,
+              TileType.keenetic,
+              TileType.coreKeenetic,
+              TileType.coreKeeneticDetails,
+              TileType.coreKeeneticMesh,
+              TileType.coreKeeneticClients,
+              TileType.coreKeeneticBandwidth,
+              TileType.coreResource,
+            ];
       slivers.add(
         SliverList.builder(
           itemCount: types.length,
@@ -341,6 +397,8 @@ class _DashboardWidgetPickerScreenState
                         _proxmox();
                       } else if (type == TileType.today) {
                         _complete(_draft(type).copyWith(width: 3, height: 2));
+                      } else if (type == TileType.coreResource) {
+                        _coreResource();
                       } else if (const {
                         TileType.coreKeenetic,
                         TileType.coreKeeneticDetails,

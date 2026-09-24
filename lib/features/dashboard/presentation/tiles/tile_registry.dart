@@ -26,6 +26,7 @@ import 'sonarr_tile.dart';
 import 'today_tile.dart';
 import 'weather_tile.dart';
 import 'webview_tile.dart';
+import 'core_resource_tile.dart';
 
 Widget buildTileContent(TileConfig tile) {
   if (tile.entityId != null) {
@@ -69,5 +70,6 @@ Widget _buildTileContent(TileConfig tile) {
     TileType.coreKeeneticMesh => CoreKeeneticMeshTile(tile: tile),
     TileType.coreKeeneticClients => CoreKeeneticClientsTile(tile: tile),
     TileType.coreKeeneticBandwidth => CoreKeeneticBandwidthTile(tile: tile),
+    TileType.coreResource => CoreResourceTile(tile: tile),
   };
 }

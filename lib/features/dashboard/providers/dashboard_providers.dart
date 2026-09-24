@@ -10,6 +10,8 @@ import '../domain/dashboard_layout.dart';
 import '../domain/dashboard_card_size.dart';
 import '../../settings/data/app_service.dart';
 import '../domain/dashboard_room.dart';
+import '../../home_resources/domain/core_resource_binding.dart';
+import '../../home_resources/domain/home_resource_models.dart';
 import '../domain/ha_area_binding.dart';
 import '../domain/tile_config.dart';
 
@@ -208,6 +210,25 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
     );
   }
 
+  Future<void> addCoreRoom(
+    String name,
+    CoreResourceBinding binding, {
+    required bool Function() isCurrent,
+  }) async {
+    if (name.trim().isEmpty || binding.kind != HomeResourceKind.room) {
+      throw const RoomAreaSyncException('layout_changed');
+    }
+    await _mutate(
+      (current) => current.copyWith(
+        rooms: [
+          ...current.rooms,
+          DashboardRoom(id: _newId(), name: name.trim(), coreResource: binding),
+        ],
+      ),
+      isCurrent: isCurrent,
+    );
+  }
+
   Future<void> renameRoom(String roomId, String name) async {
     if (name.trim().isEmpty) return;
     await _mutate(
@@ -225,6 +246,46 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
       rooms: current.rooms.where((room) => room.id != roomId).toList(),
     ),
   );
+
+  Future<void> bindRoomToCoreResource(
+    DashboardRoom expected,
+    CoreResourceBinding binding, {
+    required bool Function() isCurrent,
+  }) => _mutate((current) {
+    final room = current.rooms
+        .where((row) => row.id == expected.id)
+        .firstOrNull;
+    if (room != expected || binding.kind != HomeResourceKind.room) {
+      throw const RoomAreaSyncException('layout_changed');
+    }
+    return current.copyWith(
+      rooms: [
+        for (final row in current.rooms)
+          if (row.id == expected.id)
+            row.copyWith(coreResource: binding)
+          else
+            row,
+      ],
+    );
+  }, isCurrent: isCurrent);
+
+  Future<void> detachRoomFromCoreResource(
+    DashboardRoom expected, {
+    required bool Function() isCurrent,
+  }) => _mutate((current) {
+    final room = current.rooms
+        .where((row) => row.id == expected.id)
+        .firstOrNull;
+    if (room != expected) {
+      throw const RoomAreaSyncException('layout_changed');
+    }
+    return current.copyWith(
+      rooms: [
+        for (final row in current.rooms)
+          if (row.id == expected.id) row.copyWith(coreResource: null) else row,
+      ],
+    );
+  }, isCurrent: isCurrent);
   Future<void> reorderRooms(int oldIndex, int newIndex) => _mutate((current) {
     final rooms = [...current.rooms];
     if (oldIndex < 0 || oldIndex >= rooms.length) return current;
