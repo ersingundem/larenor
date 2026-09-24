@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `a87d1bb3` ve S08.11 kabul kaynağı `5e440235` — 32/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1, S09.2 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. K08 üretim effect portları ve permission-revoke akışı `a87d1bb3` ile birleşti; yalnız atomik kapanış kanıtı ve queue güncellemesi beklediği için burada `pending` kaldı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `cf4b8059` ve K08 kabul kaynağı `2a39ca2b` — 33/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, K08, S09.1, S09.2 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  32/125 iş (%25,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  33/125 iş (%26,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,30 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 24 Eylül K08 sınırlı web→native köprü yazılım kabulü
+
+PR #487 exact `2a39ca2be54a51e64a1c6517dc8c37ffe370045b`
+kaynağında sürümlü exact HTTPS üst-origin/method politikası, main-frame
+Android WebMessage transportu ve monotonik tek kullanımlık onay zinciri;
+production TTS, açık kullanıcı onaylı bounded PDF print ve görünür QR etkilerine
+bağlandı. Exact Core/home/account/session/policy/route/lifecycle sahibi her etki
+öncesi yeniden doğrulanıyor. Logout, replacement, background, timeout,
+renderer-loss, permission denial, capability drift ve gecikmiş bind eski effect
+veya receipt yayımlamadan terminal kapanıyor.
+
+Yerel grouped paket **185/185 Flutter** ve **30/30 Robolectric** testi geçti;
+focused analyze, format, security, queue, commit-progress ve diff kapıları
+temizdi. Bağımsız final P1/P2 incelemesi fresh per-render owner, delayed-bind,
+QR cancellation ve replay sınırlarında blocker bulmadı. Android Build
+`35988043289` statik analiz, dört Flutter ve dört Server shardı ile aggregate,
+debug APK ve API 35 emulator yolculuğunu; Security `35988042981`
+secret/platform/dependency kapılarını geçti. Kaynak `a87d1bb3` olarak squash
+birleşti; aggregate stable patch-id
+`49dd58e007084eeff56f383b3d4f3e46b6b6f860` eşleşti. K08 `done`; kuyruk
+**33/125 (%26,4)**. Fiziksel Huawei/DeX/TalkBack/OEM/DPC yolculukları ayrı
+MANUAL kapıdır.
+[Kapanış kanıtı](testing/k08-web-native-bridge-foundation.tdd.md).
 
 ### 24 Eylül S08.11 yazılım kabulü
 
@@ -104,7 +128,7 @@ eşleşti. S09.2 `done`; kuyruk **31/125 (%24,8)**. Temiz kurulum/yükseltme,
 Client restore ve component health S09.3'te ayrı kalır.
 [Kapanış kanıtı](testing/s09-2-empty-component-restore.tdd.md).
 
-### 24 Eylül K08 ve S08.11 birleşik ara teslimi
+### 24 Eylül K08 ve S08.11 birleşik ilk ara teslimi
 
 PR #484 exact `b7f957d52146dae8c357ede6063bc57f70a2baef`
 kaynağında sürümlü exact-origin/method politikasını frame-aware Android
@@ -113,8 +137,9 @@ Android Build `35962472970`, Security `35962472693`, API 35 emülatör ve
 bağımsız P1/P2 incelemesi geçti; kaynak `e03022e8` olarak squash birleşti.
 Kaynak/squash aggregate stable patch-id
 `bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Normal production çağrısı
-yetkili TTS/print/QR effect portu sağlamadığından K08 `pending` kalır; izin
-iptali effect/receipt E2E ve fiziksel Huawei/DeX ayrıca açıktır.
+yetkili TTS/print/QR effect portu sağlamadığından K08 bu aşamada `pending`
+kaldı; üretim etkileri ve yazılım kapanışı daha sonra PR #487 ile yukarıdaki
+exact kanıtta tamamlandı. Fiziksel Huawei/DeX ayrıca MANUAL kaldı.
 
 PR #485 exact `6af3dfb8a2ada8c0ddde32991b3b6e2f63d07129`
 kaynağında yetkili Core kaynaklarını arama, oda ve kart yüzeylerine bağladı;

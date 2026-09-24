@@ -1,11 +1,11 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`a87d1bb3`**, S08.11 kabul
-kaynağı **`5e440235`** commitidir. S08.8, K07, S09.1, S09.2, S08.11 ve K03
-teslimlerini kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`cf4b8059`**, K08 kabul
+kaynağı **`2a39ca2b`** commitidir. S08.8, K07, K08, S09.1, S09.2, S08.11 ve
+K03 teslimlerini kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **32/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **33/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -83,9 +83,9 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   frame-aware Android transportunu ve monotonik kullanıcı onayını tamamladı.
   Android Build `35962472970`, Security `35962472693` ve API 35 emülatör geçti;
   kaynak `e03022e8` olarak birleşti ve aggregate stable patch-id
-  `bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Üretim TTS/print/QR
-  effect portları ve permission-revoke effect/receipt E2E açık olduğundan K08
-  `pending` kaldı.
+  `bfa9a096b0312a9f989df31cf355b2adca44eb53` eşleşti. Bu ilk dilimde üretim
+  TTS/print/QR effect portları açık olduğundan K08 `pending` kaldı; PR #487
+  aşağıdaki exact kanıtla bu yazılım sınırını kapattı.
 - PR #485 exact `6af3dfb8` kaynağında yetkili Core kaynaklarını arama, oda ve
   kart yüzeylerine bağladı; logout temizliği ve strict backup binding
   doğrulamasını ekledi. Android Build `35962916222`, Security `35962916059` ve
@@ -102,6 +102,14 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   geçti. Kaynak `1d603365` olarak squash birleşti; aggregate stable patch-id
   `7d9be065b6c8a6bdc6cbb95ab48868511d988fd4` eşleşti. S08.11 kapandı ve sayaç
   **32/125** oldu; fiziksel medya alıcıları MANUAL kaldı.
+- PR #487 exact `2a39ca2b` kaynağında production TTS, açık kullanıcı onaylı
+  bounded PDF print ve görünür QR etkilerini exact Core/home/account/session/
+  policy/route/lifecycle sahibine bağladı. Android Build `35988043289`,
+  Security `35988042981`, API 35 emulator ve bağımsız final P1/P2 incelemesi
+  geçti. Kaynak `a87d1bb3` olarak squash birleşti; aggregate stable patch-id
+  `49dd58e007084eeff56f383b3d4f3e46b6b6f860` eşleşti. K08 yazılım kabulü
+  kapandı ve sayaç **33/125** oldu; fiziksel Huawei/DeX/TalkBack/OEM/DPC MANUAL
+  kaldı.
 
 ## Kanıtı açık kalan sınırlar
 
@@ -123,12 +131,11 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
    ekran görüntüleri, README, imzalı güncelleme ve CasaOS/Proxmox kurulumu son
    yazılım kapılarından sonra yapılır.
 
-## Sıradaki iki bağımsız yazılım hattı
+## Sıradaki bağımsız yazılım hattı
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
 | A — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme, Client preflight ve component health aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
-| B — K08 | `a87d1bb3` ile birleşen yetkili TTS/print/QR effect portu ve permission-revoke akışının atomik kapanış kanıtını kaydet. | Birleşmiş exact ürün/test kanıtı bağımsız review ve CI ile queue'ya bağlanmadan sayaç değişmez |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük
