@@ -135,6 +135,30 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
         self.assertIn("${{ runner.arch }}", upload["with"]["name"])
 
+    def test_post_effect_fault_is_recovered_before_owned_cleanup(self):
+        value = self.workflow()
+        steps = value["jobs"]["unified-media-stack-native"]["steps"]
+        native_index = next(
+            index for index, step in enumerate(steps) if step.get("id") == "native"
+        )
+        cleanup_index = next(
+            index for index, step in enumerate(steps) if step.get("id") == "cleanup"
+        )
+        native = steps[native_index]
+        script = native["run"]
+
+        self.assertIn("--fault-after-upgrade-journal", script)
+        self.assertIn('test "$status" -eq 75', script)
+        self.assertEqual(script.count("--run-native"), 2)
+        self.assertLess(
+            script.index("--fault-after-upgrade-journal"),
+            script.rindex("--run-native"),
+        )
+        self.assertIn('UPGRADE_SOURCE_SHA="$UPGRADE_SOURCE_SHA"', script)
+        self.assertIn('REVIEWED_HEAD_SHA="$REVIEWED_HEAD_SHA"', script)
+        self.assertLess(native_index, cleanup_index)
+        self.assertIn("--cleanup-owned", steps[cleanup_index]["run"])
+
     def test_every_embedded_shell_script_parses(self):
         value = self.workflow()
         for step in value["jobs"]["unified-media-stack-native"]["steps"]:

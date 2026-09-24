@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tool import unified_media_stack_managed_ci as target
 from tool.tests.unified_media_stack_managed_ci_test import FakeDriver
@@ -335,6 +336,22 @@ class UpgradeDriver(FakeDriver):
             journal["targetRevision"] = "f" * 40
         elif self.journal_drift == "foreign_root":
             journal["rootIdentity"] = "root-" + "8" * 59
+        elif self.journal_drift == "install_source_mismatch":
+            journal["upgradeSourceCommit"] = CURRENT_REVISION
+        elif self.journal_drift == "install_base_effect":
+            journal["baseEffect"] = copy.deepcopy(journal["currentEffect"])
+        elif self.journal_drift == "missing_current_effect":
+            journal["currentEffect"] = None
+        elif self.journal_drift == "missing_private_state":
+            journal["privateState"] = None
+        elif self.journal_drift == "extra_private_state":
+            journal["privateState"].append(
+                {
+                    "serviceId": "foreign",
+                    "containerTarget": "/foreign",
+                    "digest": "f" * 64,
+                }
+            )
         return journal
 
     def recovery_operation(self):
@@ -937,7 +954,16 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         with self.assertRaises(PowerLoss):
             self.run_upgrade(crashed)
 
-        for drift in ("bool_schema", "foreign_target", "foreign_root"):
+        for drift in (
+            "bool_schema",
+            "foreign_target",
+            "foreign_root",
+            "install_source_mismatch",
+            "install_base_effect",
+            "missing_current_effect",
+            "missing_private_state",
+            "extra_private_state",
+        ):
             with self.subTest(drift=drift):
                 state = copy.deepcopy(crashed_state)
                 before_journal = copy.deepcopy(state.journal)
@@ -1002,6 +1028,63 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         UpgradeDriver(),
                         base_commit=base,
                     )
+
+    def test_cleanup_refuses_a_pending_durable_recovery_journal(self):
+        with tempfile.TemporaryDirectory(prefix="larenor-s093-pending-cleanup-") as raw:
+            root = Path(raw)
+            driver = target.DockerDriver(
+                CURRENT_REVISION,
+                "linux/amd64",
+                root / "ownership.json",
+                operation_id="1" * 32,
+            )
+            driver._journal_path = root / "pending.json"
+            driver._journal_path.write_text("{}\n", encoding="ascii")
+            with patch.object(target, "cleanup_owned") as cleanup:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_upgrade_recovery_pending",
+                ):
+                    driver.cleanup()
+            cleanup.assert_not_called()
+            self.assertTrue(driver._journal_path.exists())
+
+    def test_atomic_receipt_publication_orders_owner_before_rename(self):
+        with tempfile.TemporaryDirectory(prefix="larenor-s093-atomic-receipt-") as raw:
+            root = Path(raw)
+            receipt = root / "installation.json"
+            receipt.write_text('{"old":true}\n', encoding="ascii")
+            driver = target.DockerDriver(
+                CURRENT_REVISION,
+                "linux/amd64",
+                root / "ownership.json",
+                operation_id="1" * 32,
+            )
+            events = []
+
+            def owned(descriptor, uid, gid):
+                events.append(("fchown", uid, gid))
+
+            def interrupted(source, destination):
+                events.append(("replace", Path(destination)))
+                raise OSError("simulated pre-publication crash")
+
+            with patch.object(target.os, "fchown", side_effect=owned), patch.object(
+                target.os,
+                "replace",
+                side_effect=interrupted,
+            ):
+                with self.assertRaises(OSError):
+                    driver._atomic_json(
+                        receipt,
+                        {"schemaVersion": 1, "state": "installed"},
+                        owner_uid=10001,
+                    )
+
+            self.assertEqual(events[0], ("fchown", 10001, 10001))
+            self.assertEqual(events[1], ("replace", receipt))
+            self.assertEqual(receipt.read_text(encoding="ascii"), '{"old":true}\n')
+            self.assertEqual(list(root.glob("*.tmp")), [])
 
 
 if __name__ == "__main__":
