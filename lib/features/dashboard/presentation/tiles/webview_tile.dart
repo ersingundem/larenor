@@ -8,6 +8,7 @@ import '../../../../core/home_session_controller.dart';
 import '../../../../core/home_source_store.dart';
 import '../../../web_panel/data/web_panel_native_effect_port.dart';
 import '../../../web_panel/data/web_panel_native_runtime.dart';
+import '../../../web_panel/domain/web_panel_native_bridge.dart';
 import '../../../web_panel/domain/web_panel_policy.dart';
 import '../../../web_panel/presentation/web_panel_view.dart';
 import '../../../web_panel/presentation/web_panel_qr_scanner.dart';
@@ -30,8 +31,13 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   bool _retired = false;
   Object? _coreBinding;
-  AndroidWebPanelNativeEffectPort? _nativePort;
+  WebPanelNativeAuthorityLease? _nativeAuthority;
+  late final WebPanelNativeBridgePort Function() _nativePortFactory =
+      _createNativePort;
   Completer<bool>? _qrDecision;
+
+  WebPanelNativeBridgePort _createNativePort() =>
+      AndroidWebPanelNativeEffectPort(scanQr: _scanQr, cancelQr: _cancelQr);
 
   bool get _sourceCurrent {
     if (!mounted || _retired) return false;
@@ -50,7 +56,7 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
     final session = home?.account.session;
     final nativePolicy = widget.tile.webPanel?.nativeBridge;
     WebPanelNativeAuthorityLease? authority;
-    AndroidWebPanelNativeEffectPort? port;
+    WebPanelNativeBridgePort Function()? portFactory;
     bool Function() current = () => _sourceCurrent;
     if (home?.source == HomeSource.verifiedCore &&
         session?.context != null &&
@@ -86,25 +92,22 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
 
       if (_coreBinding != binding) {
         _coreBinding = binding;
-        _nativePort = AndroidWebPanelNativeEffectPort(
-          scanQr: _scanQr,
-          cancelQr: _cancelQr,
+        _nativeAuthority = WebPanelNativeAuthorityLease.verifiedCore(
+          coreId: session.context!.coreId,
+          homeId: session.context!.homeId,
+          accountId: session.user.id,
+          sessionFamily: session.sessionFamilyId!,
+          sourceId: widget.tile.id,
+          sourceRevision: nativePolicy.revision,
+          isCurrent: coreCurrent,
         );
       }
       current = coreCurrent;
-      port = _nativePort;
-      authority = WebPanelNativeAuthorityLease.verifiedCore(
-        coreId: session.context!.coreId,
-        homeId: session.context!.homeId,
-        accountId: session.user.id,
-        sessionFamily: session.sessionFamilyId!,
-        sourceId: widget.tile.id,
-        sourceRevision: nativePolicy.revision,
-        isCurrent: coreCurrent,
-      );
+      portFactory = _nativePortFactory;
+      authority = _nativeAuthority;
     } else {
       _coreBinding = null;
-      _nativePort = null;
+      _nativeAuthority = null;
     }
     if (!current()) return const SizedBox.shrink();
     final tile = widget.tile;
@@ -119,7 +122,7 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
           sourceCurrent: current,
           options: tile.webPanel,
           nativeAuthority: authority,
-          nativePort: port,
+          nativePortFactory: portFactory,
         ),
         if (_qrDecision != null)
           WebPanelQrScanner(

@@ -256,12 +256,13 @@ class WebPanelViewState extends State<WebPanelView> {
       }
       final nativePolicy = widget.options?.nativeBridge;
       final nativeAuthority = widget.nativeAuthority;
-      final nativePort = widget.nativePort;
       final initialOrigin = WebOrigin.parse(policy.initialUri.toString());
       if (nativePolicy != null &&
           nativeAuthority != null &&
-          nativePort != null &&
+          (widget.nativePortFactory != null || widget.nativePort != null) &&
           initialOrigin?.displayName == nativePolicy.topOrigin) {
+        final nativePort =
+            widget.nativePortFactory?.call() ?? widget.nativePort!;
         _native = WebPanelNativeRuntime(
           policy: nativePolicy,
           authority: nativeAuthority,
