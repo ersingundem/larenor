@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/component-capture-native.yml"
+NATIVE_TEST = ROOT / "server/tests/test_core_backup_linux_cow_capture_native.py"
 
 
 class ComponentCaptureNativeWorkflowTest(unittest.TestCase):
@@ -27,6 +28,14 @@ class ComponentCaptureNativeWorkflowTest(unittest.TestCase):
         self.assertNotIn("restore", paths.lower())
         self.assertNotIn("client", paths.lower())
         self.assertNotIn("android", paths.lower())
+
+    def test_native_restart_uses_installed_production_composition(self):
+        value = NATIVE_TEST.read_text()
+        self.assertIn("larenor-component-backup-worker", value)
+        self.assertIn('"--check-config"', value)
+        self.assertIn("ManagedWorkerJournal", value)
+        self.assertIn("VolumeCreateJournal", value)
+        self.assertIn("assert not journal.exists()", value)
 
 
 if __name__ == "__main__":

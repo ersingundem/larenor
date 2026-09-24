@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
 
 import pytest
@@ -17,6 +18,8 @@ from larenor_server.core_backups.component_linux_capture_preflight import (
 from larenor_server.core_backups.component_snapshot_provider import (
     ComponentVolumeSource,
 )
+from larenor_server.plugins.managed_container import ManagedWorkerJournal
+from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 
 pytestmark = pytest.mark.skipif(
     "LARENOR_NATIVE_CAPTURE_ROOT" not in os.environ,
@@ -62,15 +65,51 @@ def _source(root):
     )
 
 
+def _recover_with_packaged_worker(root, captures, journal):
+    runtime = root / "runtime"
+    runtime.mkdir(mode=0o700)
+    containers = root / "containers.sqlite3"
+    volumes = root / "volumes.sqlite3"
+    with (
+        ManagedWorkerJournal(containers, initialize=True),
+        VolumeCreateJournal(volumes, initialize=True),
+    ):
+        pass
+    executable = Path(sys.executable).with_name("larenor-component-backup-worker")
+    assert executable.is_file()
+    _run(
+        str(executable),
+        "--socket",
+        str(runtime / "component.sock"),
+        "--container-journal",
+        str(containers),
+        "--volume-journal",
+        str(volumes),
+        "--engine-socket",
+        str(runtime / "engine.sock"),
+        "--capture-root",
+        str(captures),
+        "--capture-journal",
+        str(journal),
+        "--api-uid",
+        "0",
+        "--engine-uid",
+        "0",
+        "--btrfs",
+        "/usr/bin/btrfs",
+        "--check-config",
+    )
+
+
 def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     root = Path(os.environ["LARENOR_NATIVE_CAPTURE_ROOT"])
     assert os.geteuid() == 0
-    preflight = LinuxBtrfsCapturePreflight(root)
-    capability = preflight.verify(time.monotonic() + 10)
-    assert preflight.revalidate(capability, time.monotonic() + 10)
     source = _source(root)
     captures = root / "captures"
     captures.mkdir(mode=0o700)
+    preflight = LinuxBtrfsCapturePreflight(captures)
+    capability = preflight.verify(time.monotonic() + 10)
+    assert preflight.revalidate(capability, time.monotonic() + 10)
     journal = root / "capture-journal.json"
     backend = BtrfsReadOnlySnapshotBackend()
     identifiers = iter(("1" * 32, "2" * 32)).__next__
@@ -109,11 +148,6 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     else:
         raise AssertionError("native capture interruption was not exercised")
     assert journal.is_file()
-    assert LinuxCowCaptureEngine(
-        captures,
-        journal,
-        backend=backend,
-        capability_preflight=preflight,
-        capture_capability=capability,
-    ).recover(time.monotonic() + 10)
+    _recover_with_packaged_worker(root, captures, journal)
+    assert not journal.exists()
     assert list(captures.iterdir()) == []
