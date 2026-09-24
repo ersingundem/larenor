@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, fields
 
 from .component_snapshot_provider import ComponentVolumeSource
+from .component_linux_capture_preflight import LinuxBtrfsCaptureCapability
 from ..files import checked_path, private_directory, private_read, sync_directory
 
 _CAPTURE_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,127}\Z")
@@ -37,60 +38,107 @@ class IsolatedComponentCaptureError(RuntimeError):
 class BtrfsReadOnlySnapshotBackend:
     """Fixed-operation btrfs adapter; never accepts Client commands."""
 
-    def __init__(self, executable=Path("/usr/bin/btrfs")):
+    def __init__(self, executable=Path("/usr/bin/btrfs"), *, runner=None):
         try:
             executable = checked_path(Path(executable))
             info = executable.lstat()
+            selected_runner = subprocess.run if runner is None else runner
             if (
                 not stat.S_ISREG(info.st_mode)
                 or info.st_uid != 0
                 or stat.S_IMODE(info.st_mode) & 0o022
                 or not os.access(executable, os.X_OK)
+                or not callable(selected_runner)
             ):
                 raise ValueError()
         except Exception:
             raise IsolatedComponentCaptureError() from None
         self._executable = executable
+        self._runner = selected_runner
 
     @staticmethod
     def _timeout(deadline):
         _remaining(deadline)
         return max(0.001, deadline - time.monotonic())
 
-    def _run(self, arguments, deadline, *, output=False):
+    @staticmethod
+    def _directory_descriptor(descriptor):
         try:
-            result = subprocess.run(
+            if type(descriptor) is not int or descriptor < 0:
+                raise ValueError()
+            info = os.fstat(descriptor)
+            if not stat.S_ISDIR(info.st_mode):
+                raise ValueError()
+            return descriptor
+        except Exception:
+            raise IsolatedComponentCaptureError() from None
+
+    @staticmethod
+    def _capture_id(capture_id):
+        if type(capture_id) is not str or _HEX_ID.fullmatch(capture_id) is None:
+            raise IsolatedComponentCaptureError()
+        return capture_id
+
+    def _run(self, arguments, deadline, *, output=False, pass_fds=()):
+        try:
+            if (
+                type(pass_fds) is not tuple
+                or any(type(item) is not int or item < 0 for item in pass_fds)
+                or len(set(pass_fds)) != len(pass_fds)
+            ):
+                raise ValueError()
+            result = self._runner(
                 [str(self._executable), *arguments],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE if output else subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=self._timeout(deadline),
                 check=False,
+                pass_fds=pass_fds,
             )
             if result.returncode != 0:
                 raise ValueError()
             return result.stdout if output else b""
-        except (OSError, subprocess.SubprocessError, ValueError):
+        except Exception:
             raise IsolatedComponentCaptureError() from None
 
-    def create_read_only(self, source, destination, deadline):
+    def create_read_only(
+        self, source_descriptor, generation_descriptor, capture_id, deadline
+    ):
+        source_descriptor = self._directory_descriptor(source_descriptor)
+        generation_descriptor = self._directory_descriptor(generation_descriptor)
+        capture_id = self._capture_id(capture_id)
+        source = f"/proc/self/fd/{source_descriptor}"
+        destination = f"/proc/self/fd/{generation_descriptor}/{capture_id}"
         self._run(
             ["subvolume", "snapshot", "-r", str(source), str(destination)],
             deadline,
+            pass_fds=(source_descriptor, generation_descriptor),
         )
-        if not self.is_read_only(destination, deadline):
+        if not self.is_read_only(generation_descriptor, capture_id, deadline):
             raise IsolatedComponentCaptureError()
 
-    def is_read_only(self, destination, deadline):
+    def is_read_only(self, generation_descriptor, capture_id, deadline):
+        generation_descriptor = self._directory_descriptor(generation_descriptor)
+        capture_id = self._capture_id(capture_id)
+        destination = f"/proc/self/fd/{generation_descriptor}/{capture_id}"
         value = self._run(
             ["property", "get", "-ts", str(destination), "ro"],
             deadline,
             output=True,
+            pass_fds=(generation_descriptor,),
         )
         return value == b"ro=true\n"
 
-    def delete(self, destination, deadline):
-        self._run(["subvolume", "delete", str(destination)], deadline)
+    def delete(self, generation_descriptor, capture_id, deadline):
+        generation_descriptor = self._directory_descriptor(generation_descriptor)
+        capture_id = self._capture_id(capture_id)
+        destination = f"/proc/self/fd/{generation_descriptor}/{capture_id}"
+        self._run(
+            ["subvolume", "delete", str(destination)],
+            deadline,
+            pass_fds=(generation_descriptor,),
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -155,6 +203,8 @@ class LinuxCowCaptureEngine:
         *,
         backend=None,
         id_factory=None,
+        capability_preflight=None,
+        capture_capability=None,
     ):
         try:
             self.capture_root = checked_path(Path(capture_root))
@@ -174,10 +224,167 @@ class LinuxCowCaptureEngine:
                 raise ValueError()
             if id_factory is not None and not callable(id_factory):
                 raise ValueError()
+            if (capability_preflight is None) != (capture_capability is None):
+                raise ValueError()
+            if capability_preflight is not None and (
+                type(capture_capability) is not LinuxBtrfsCaptureCapability
+                or not callable(getattr(capability_preflight, "revalidate", None))
+                or not callable(getattr(capability_preflight, "source_retained", None))
+                or not callable(getattr(capability_preflight, "retain_source", None))
+                or not callable(getattr(capability_preflight, "retain_capture", None))
+            ):
+                raise ValueError()
         except Exception:
             raise IsolatedComponentCaptureError() from None
         self._backend = selected
         self._id_factory = id_factory or (lambda: secrets.token_hex(16))
+        self._capability_preflight = capability_preflight
+        self._capture_capability = capture_capability
+        self._active_sources = None
+
+    def _capability_retained(self, deadline):
+        if self._capability_preflight is None:
+            return True
+        try:
+            return (
+                self._capability_preflight.revalidate(
+                    self._capture_capability, deadline
+                )
+                is True
+            )
+        except Exception:
+            return False
+
+    def _source_retained(self, source, deadline):
+        if self._capability_preflight is None:
+            return True
+        try:
+            return (
+                self._capability_preflight.source_retained(
+                    source.path,
+                    source.device,
+                    source.inode,
+                    self._capture_capability,
+                    deadline,
+                )
+                is True
+            )
+        except Exception:
+            return False
+
+    def _require_capability(self, deadline):
+        if not self._capability_retained(deadline):
+            raise IsolatedComponentCaptureError()
+
+    @contextmanager
+    def _held_source(self, source, deadline):
+        descriptor = -1
+        try:
+            if self._capability_preflight is not None:
+                with self._capability_preflight.retain_source(
+                    source.path,
+                    source.device,
+                    source.inode,
+                    self._capture_capability,
+                    deadline,
+                ) as descriptor:
+                    if type(descriptor) is not int or descriptor < 0:
+                        raise IsolatedComponentCaptureError()
+                    yield descriptor
+                return
+            before = source.path.lstat()
+            descriptor = os.open(
+                source.path,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+            current = os.fstat(descriptor)
+            after = source.path.lstat()
+            expected = (source.device, source.inode)
+            if (
+                not stat.S_ISDIR(current.st_mode)
+                or (before.st_dev, before.st_ino) != expected
+                or (current.st_dev, current.st_ino) != expected
+                or (after.st_dev, after.st_ino) != expected
+            ):
+                raise IsolatedComponentCaptureError()
+            yield descriptor
+            current = os.fstat(descriptor)
+            after = source.path.lstat()
+            if (current.st_dev, current.st_ino) != expected or (
+                after.st_dev,
+                after.st_ino,
+            ) != expected:
+                raise IsolatedComponentCaptureError()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            raise IsolatedComponentCaptureError() from None
+        finally:
+            if self._capability_preflight is None and descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    @contextmanager
+    def _held_capture(self, deadline, *, exit_failure=None):
+        descriptor = -1
+        yielded = False
+        body_failed = False
+        try:
+            if exit_failure is not None and not callable(exit_failure):
+                raise IsolatedComponentCaptureError()
+            if self._capability_preflight is not None:
+                with self._capability_preflight.retain_capture(
+                    self._capture_capability, deadline
+                ) as descriptor:
+                    if type(descriptor) is not int or descriptor < 0:
+                        raise IsolatedComponentCaptureError()
+                    yielded = True
+                    try:
+                        yield descriptor
+                    except BaseException:
+                        body_failed = True
+                        raise
+                return
+            before = self.capture_root.lstat()
+            descriptor = os.open(
+                self.capture_root,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+            current = os.fstat(descriptor)
+            after = self.capture_root.lstat()
+            if (
+                not stat.S_ISDIR(current.st_mode)
+                or (before.st_dev, before.st_ino) != (current.st_dev, current.st_ino)
+                or (after.st_dev, after.st_ino) != (current.st_dev, current.st_ino)
+            ):
+                raise IsolatedComponentCaptureError()
+            yielded = True
+            try:
+                yield descriptor
+            except BaseException:
+                body_failed = True
+                raise
+            current = os.fstat(descriptor)
+            after = self.capture_root.lstat()
+            if (after.st_dev, after.st_ino) != (current.st_dev, current.st_ino):
+                raise IsolatedComponentCaptureError()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            if yielded and not body_failed and exit_failure is not None:
+                try:
+                    exit_failure()
+                except Exception:
+                    pass
+            raise IsolatedComponentCaptureError() from None
+        finally:
+            if self._capability_preflight is None and descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
 
     def _id(self):
         try:
@@ -293,16 +500,15 @@ class LinuxCowCaptureEngine:
         except Exception:
             raise IsolatedComponentCaptureError() from None
 
-    def _generation(self, journal):
-        return self.capture_root / journal["captureGeneration"]
-
-    def _root_children(self, deadline):
+    def _root_children(self, root_descriptor, deadline):
         children = []
         try:
-            with os.scandir(self.capture_root) as entries:
+            with os.scandir(root_descriptor) as entries:
                 for entry in entries:
                     _remaining(deadline)
-                    children.append(self.capture_root / entry.name)
+                    if type(entry.name) is not str:
+                        raise IsolatedComponentCaptureError()
+                    children.append(entry.name)
                     if len(children) > 1:
                         raise IsolatedComponentCaptureError()
         except IsolatedComponentCaptureError:
@@ -311,42 +517,103 @@ class LinuxCowCaptureEngine:
             raise IsolatedComponentCaptureError() from None
         return tuple(children)
 
-    def _cleanup(self, journal, deadline):
-        generation = self._generation(journal)
+    @staticmethod
+    def _open_generation(root_descriptor, generation_id):
+        if type(generation_id) is not str or _HEX_ID.fullmatch(generation_id) is None:
+            raise IsolatedComponentCaptureError()
         try:
-            for item in reversed(journal["volumes"]):
-                _remaining(deadline)
-                destination = generation / item["directory"]
-                if destination.exists() or destination.is_symlink():
-                    info = destination.lstat()
+            return os.open(
+                generation_id,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=root_descriptor,
+            )
+        except Exception:
+            raise IsolatedComponentCaptureError() from None
+
+    def _cleanup_with_root(self, journal, deadline, root_descriptor):
+        generation_id = journal["captureGeneration"]
+        generation_descriptor = -1
+        try:
+            self._require_capability(deadline)
+            try:
+                generation_descriptor = self._open_generation(
+                    root_descriptor, generation_id
+                )
+            except IsolatedComponentCaptureError:
+                try:
+                    os.stat(
+                        generation_id,
+                        dir_fd=root_descriptor,
+                        follow_symlinks=False,
+                    )
+                except FileNotFoundError:
+                    generation_descriptor = -1
+                else:
+                    raise
+            if generation_descriptor >= 0:
+                for item in reversed(journal["volumes"]):
+                    _remaining(deadline)
+                    self._require_capability(deadline)
+                    try:
+                        info = os.stat(
+                            item["directory"],
+                            dir_fd=generation_descriptor,
+                            follow_symlinks=False,
+                        )
+                    except FileNotFoundError:
+                        continue
                     if not stat.S_ISDIR(info.st_mode):
                         raise IsolatedComponentCaptureError()
-                    self._backend.delete(destination, deadline)
-            if generation.exists() or generation.is_symlink():
-                info = generation.lstat()
+                    self._backend.delete(
+                        generation_descriptor, item["directory"], deadline
+                    )
+                    self._require_capability(deadline)
+                os.close(generation_descriptor)
+                generation_descriptor = -1
+                self._require_capability(deadline)
+                info = os.stat(
+                    generation_id,
+                    dir_fd=root_descriptor,
+                    follow_symlinks=False,
+                )
                 if not stat.S_ISDIR(info.st_mode):
                     raise IsolatedComponentCaptureError()
-                generation.rmdir()
-                sync_directory(self.capture_root)
+                os.rmdir(generation_id, dir_fd=root_descriptor)
+                os.fsync(root_descriptor)
+            self._require_capability(deadline)
             self._remove_journal()
             return True
         except IsolatedComponentCaptureError:
             raise
         except Exception:
             raise IsolatedComponentCaptureError() from None
+        finally:
+            if generation_descriptor >= 0:
+                try:
+                    os.close(generation_descriptor)
+                except OSError:
+                    pass
+
+    def _cleanup(self, journal, deadline):
+        with self._held_capture(deadline) as root_descriptor:
+            return self._cleanup_with_root(journal, deadline, root_descriptor)
 
     def recover(self, deadline):
         _remaining(deadline)
+        self._require_capability(deadline)
         journal = self._read_journal()
-        children = self._root_children(deadline)
-        if journal is None:
-            if children:
+        with self._held_capture(deadline) as root_descriptor:
+            children = self._root_children(root_descriptor, deadline)
+            if journal is None:
+                if children:
+                    raise IsolatedComponentCaptureError()
+                return True
+            if any(item != journal["captureGeneration"] for item in children):
                 raise IsolatedComponentCaptureError()
-            return True
-        generation = self._generation(journal)
-        if any(item != generation for item in children):
-            raise IsolatedComponentCaptureError()
-        return self._cleanup(journal, deadline)
+            result = self._cleanup_with_root(journal, deadline, root_descriptor)
+        if result:
+            self._active_sources = None
+        return result
 
     @staticmethod
     def _sources(sources):
@@ -374,100 +641,149 @@ class LinuxCowCaptureEngine:
 
     def capture(self, sources, deadline):
         _remaining(deadline)
-        if self._read_journal() is not None or self._root_children(deadline):
-            raise IsolatedComponentCaptureError()
-        selected = self._sources(sources)
-        generation_id = self._id()
-        identifiers = [self._id() for _ in selected]
-        if len(set((generation_id, *identifiers))) != len(identifiers) + 1:
-            raise IsolatedComponentCaptureError()
-        journal = {
-            "schemaVersion": 1,
-            "captureGeneration": generation_id,
-            "state": "capturing",
-            "volumes": [
-                {
-                    "serviceId": source.service_id,
-                    "volumeId": source.volume_id,
-                    "captureId": capture_id,
-                    "directory": capture_id,
-                }
-                for source, capture_id in zip(selected, identifiers, strict=True)
-            ],
-        }
-        self._write_journal(journal)
-        generation = self._generation(journal)
+        self._require_capability(deadline)
         descriptors = []
-        captured = []
-        try:
-            generation.mkdir(mode=0o700)
-            sync_directory(self.capture_root)
-            for source, capture_id in zip(selected, identifiers, strict=True):
-                _remaining(deadline)
-                destination = generation / capture_id
-                before = source.path.lstat()
-                if not stat.S_ISDIR(before.st_mode) or (
-                    before.st_dev,
-                    before.st_ino,
-                ) != (source.device, source.inode):
-                    raise IsolatedComponentCaptureError()
-                self._backend.create_read_only(source.path, destination, deadline)
-                after = source.path.lstat()
-                if not stat.S_ISDIR(after.st_mode) or (after.st_dev, after.st_ino) != (
-                    source.device,
-                    source.inode,
-                ):
-                    raise IsolatedComponentCaptureError()
-                if self._backend.is_read_only(destination, deadline) is not True:
-                    raise IsolatedComponentCaptureError()
-                descriptor = os.open(
-                    destination,
-                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                )
-                descriptors.append(descriptor)
-                info = os.fstat(descriptor)
-                captured.append(
-                    IsolatedComponentVolume(
-                        source.service_id,
-                        source.container_id,
-                        source.volume_id,
-                        source.service_version,
-                        source.config_schema_version,
-                        source.data_schema_version,
-                        source.installation_revision,
-                        source.device,
-                        source.inode,
-                        info.st_dev,
-                        info.st_ino,
-                        descriptor,
-                        (source.container_id,),
-                        1,
-                        generation_id,
-                        capture_id,
-                    )
-                )
-            values = tuple(captured)
-            if not self.revalidate(values, deadline):
+
+        def abandon_unpublished_capture():
+            self._active_sources = None
+            while descriptors:
+                descriptor = descriptors.pop()
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+        with self._held_capture(
+            deadline, exit_failure=abandon_unpublished_capture
+        ) as root_descriptor:
+            if self._read_journal() is not None or self._root_children(
+                root_descriptor, deadline
+            ):
                 raise IsolatedComponentCaptureError()
-            return values
-        except (KeyboardInterrupt, SystemExit):
-            for descriptor in descriptors:
-                try:
-                    os.close(descriptor)
-                except OSError:
-                    pass
-            raise
-        except Exception:
-            for descriptor in descriptors:
-                try:
-                    os.close(descriptor)
-                except OSError:
-                    pass
+            selected = self._sources(sources)
+            if self._active_sources is not None or any(
+                not self._source_retained(source, deadline) for source in selected
+            ):
+                raise IsolatedComponentCaptureError()
+            generation_id = self._id()
+            identifiers = [self._id() for _ in selected]
+            if len(set((generation_id, *identifiers))) != len(identifiers) + 1:
+                raise IsolatedComponentCaptureError()
+            journal = {
+                "schemaVersion": 1,
+                "captureGeneration": generation_id,
+                "state": "capturing",
+                "volumes": [
+                    {
+                        "serviceId": source.service_id,
+                        "volumeId": source.volume_id,
+                        "captureId": capture_id,
+                        "directory": capture_id,
+                    }
+                    for source, capture_id in zip(selected, identifiers, strict=True)
+                ],
+            }
+            self._require_capability(deadline)
+            self._write_journal(journal)
+            self._require_capability(deadline)
+            captured = []
+            generation_descriptor = -1
             try:
-                self._cleanup(journal, deadline)
+                self._require_capability(deadline)
+                os.mkdir(generation_id, 0o700, dir_fd=root_descriptor)
+                os.fsync(root_descriptor)
+                generation_descriptor = self._open_generation(
+                    root_descriptor, generation_id
+                )
+                self._require_capability(deadline)
+                for source, capture_id in zip(selected, identifiers, strict=True):
+                    _remaining(deadline)
+                    self._require_capability(deadline)
+                    if not self._source_retained(source, deadline):
+                        raise IsolatedComponentCaptureError()
+                    with self._held_source(source, deadline) as source_descriptor:
+                        self._require_capability(deadline)
+                        self._backend.create_read_only(
+                            source_descriptor,
+                            generation_descriptor,
+                            capture_id,
+                            deadline,
+                        )
+                        self._require_capability(deadline)
+                    self._require_capability(deadline)
+                    if not self._source_retained(source, deadline):
+                        raise IsolatedComponentCaptureError()
+                    if (
+                        self._backend.is_read_only(
+                            generation_descriptor, capture_id, deadline
+                        )
+                        is not True
+                    ):
+                        raise IsolatedComponentCaptureError()
+                    descriptor = os.open(
+                        capture_id,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        dir_fd=generation_descriptor,
+                    )
+                    descriptors.append(descriptor)
+                    info = os.fstat(descriptor)
+                    captured.append(
+                        IsolatedComponentVolume(
+                            source.service_id,
+                            source.container_id,
+                            source.volume_id,
+                            source.service_version,
+                            source.config_schema_version,
+                            source.data_schema_version,
+                            source.installation_revision,
+                            source.device,
+                            source.inode,
+                            info.st_dev,
+                            info.st_ino,
+                            descriptor,
+                            (source.container_id,),
+                            1,
+                            generation_id,
+                            capture_id,
+                        )
+                    )
+                values = tuple(captured)
+                self._active_sources = selected
+                if not self.revalidate(values, deadline):
+                    raise IsolatedComponentCaptureError()
+                return values
+            except (KeyboardInterrupt, SystemExit):
+                self._active_sources = None
+                for descriptor in descriptors:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                raise
             except Exception:
-                pass
-            raise IsolatedComponentCaptureError() from None
+                self._active_sources = None
+                for descriptor in descriptors:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                if generation_descriptor >= 0:
+                    try:
+                        os.close(generation_descriptor)
+                    except OSError:
+                        pass
+                    generation_descriptor = -1
+                try:
+                    self._cleanup_with_root(journal, deadline, root_descriptor)
+                except Exception:
+                    pass
+                raise IsolatedComponentCaptureError() from None
+            finally:
+                if generation_descriptor >= 0:
+                    try:
+                        os.close(generation_descriptor)
+                    except OSError:
+                        pass
 
     def _matches_journal(self, capture, journal):
         if type(capture) not in (tuple, list) or not capture:
@@ -486,28 +802,54 @@ class LinuxCowCaptureEngine:
         )
 
     def revalidate(self, capture, deadline):
+        generation_descriptor = -1
         try:
             _remaining(deadline)
+            self._require_capability(deadline)
+            if self._capability_preflight is not None:
+                if self._active_sources is None or any(
+                    not self._source_retained(source, deadline)
+                    for source in self._active_sources
+                ):
+                    return False
             journal = self._read_journal()
             if journal is None or not self._matches_journal(capture, journal):
                 return False
-            generation = self._generation(journal)
-            for item in capture:
-                destination = generation / item.capture_id
-                info = os.fstat(item.descriptor)
-                observed = destination.lstat()
-                if (
-                    not stat.S_ISDIR(info.st_mode)
-                    or (info.st_dev, info.st_ino)
-                    != (item.snapshot_device, item.snapshot_inode)
-                    or (observed.st_dev, observed.st_ino)
-                    != (item.snapshot_device, item.snapshot_inode)
-                    or self._backend.is_read_only(destination, deadline) is not True
-                ):
-                    return False
+            with self._held_capture(deadline) as root_descriptor:
+                generation_descriptor = self._open_generation(
+                    root_descriptor, journal["captureGeneration"]
+                )
+                for item in capture:
+                    self._require_capability(deadline)
+                    info = os.fstat(item.descriptor)
+                    observed = os.stat(
+                        item.capture_id,
+                        dir_fd=generation_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        not stat.S_ISDIR(info.st_mode)
+                        or (info.st_dev, info.st_ino)
+                        != (item.snapshot_device, item.snapshot_inode)
+                        or (observed.st_dev, observed.st_ino)
+                        != (item.snapshot_device, item.snapshot_inode)
+                        or self._backend.is_read_only(
+                            generation_descriptor,
+                            item.capture_id,
+                            deadline,
+                        )
+                        is not True
+                    ):
+                        return False
             return True
         except Exception:
             return False
+        finally:
+            if generation_descriptor >= 0:
+                try:
+                    os.close(generation_descriptor)
+                except OSError:
+                    pass
 
     def release(self, capture, deadline):
         journal = None
@@ -530,7 +872,10 @@ class LinuxCowCaptureEngine:
         if journal is None:
             return False
         try:
-            return self._cleanup(journal, deadline)
+            result = self._cleanup(journal, deadline)
+            if result:
+                self._active_sources = None
+            return result
         except Exception:
             return False
 

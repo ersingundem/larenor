@@ -22,6 +22,10 @@ from .component_isolated_capture import (
     BtrfsReadOnlySnapshotBackend,
     LinuxCowCaptureEngine,
 )
+from .component_linux_capture_preflight import (
+    LinuxBtrfsCaptureCapability,
+    LinuxBtrfsCapturePreflight,
+)
 from .component_worker_server import ComponentSnapshotWorkerServer
 
 
@@ -127,6 +131,7 @@ class ComponentWorkerRuntime:
     server: ComponentSnapshotWorkerServer
     provider: PackagedComponentSnapshotBoundary
     capture: LinuxCowCaptureEngine
+    capture_capability: LinuxBtrfsCaptureCapability | None
     _resources: ExitStack
 
     def close(self):
@@ -146,6 +151,7 @@ def build_runtime(
     config,
     *,
     backend=None,
+    capture_preflight=None,
     require_privileged=True,
     docker_peer_uid=None,
     worker_peer_uid=None,
@@ -157,8 +163,23 @@ def build_runtime(
         raise ComponentWorkerRuntimeError()
     if require_privileged and os.geteuid() != 0:
         raise ComponentWorkerRuntimeError()
+    if capture_preflight is not None and not callable(
+        getattr(capture_preflight, "verify", None)
+    ):
+        raise ComponentWorkerRuntimeError()
     resources = ExitStack()
     try:
+        preflight = capture_preflight
+        if preflight is None and require_privileged:
+            preflight = LinuxBtrfsCapturePreflight(config.capture_root)
+        capability = None
+        if preflight is not None:
+            capability = preflight.verify(time.monotonic() + 5)
+            if type(capability) is not LinuxBtrfsCaptureCapability:
+                raise ComponentWorkerRuntimeError()
+            close_preflight = getattr(preflight, "close", None)
+            if callable(close_preflight):
+                resources.callback(close_preflight)
         containers = resources.enter_context(
             ManagedWorkerJournal(config.container_journal)
         )
@@ -168,6 +189,8 @@ def build_runtime(
             config.capture_root,
             config.capture_journal,
             backend=backend,
+            capability_preflight=preflight,
+            capture_capability=capability,
         )
         capture.recover(time.monotonic() + 5)
         endpoint = DockerEndpoint(
@@ -187,7 +210,9 @@ def build_runtime(
             socket_gid=config.socket_gid,
             peer_uid=worker_peer_uid,
         )
-        return ComponentWorkerRuntime(server, provider, capture, resources)
+        return ComponentWorkerRuntime(
+            server, provider, capture, capability, resources
+        )
     except Exception:
         resources.close()
         raise ComponentWorkerRuntimeError() from None

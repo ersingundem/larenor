@@ -227,6 +227,27 @@ def test_missing_id_wrong_device_or_duplicate_cannot_produce_observation(proc_tr
     unavailable(lambda: observe(proc_tree))
 
 
+def test_btrfs_device_alias_requires_explicit_narrow_opt_in(proc_tree):
+    info = proc_tree['task'] / 'mountinfo'
+    info.write_bytes(row(device='0:0', filesystem='btrfs'))
+    unavailable(lambda: observe(proc_tree))
+
+    observed = observe(proc_tree, allow_btrfs_device_alias=True)
+    assert observed.mount.filesystem == 'btrfs'
+    assert (observed.mount.device_major, observed.mount.device_minor) == (0, 0)
+
+    info.write_bytes(row(device='0:0', filesystem='ext4'))
+    unavailable(lambda: observe(proc_tree, allow_btrfs_device_alias=True))
+
+
+@pytest.mark.parametrize('value', [None, 1, 'true'])
+def test_btrfs_device_alias_opt_in_is_strict_boolean(proc_tree, value):
+    unavailable(lambda: module.observe_fd_mount(
+        proc_tree['fd'], deadline=time.monotonic() + 2,
+        allow_btrfs_device_alias=value,
+    ))
+
+
 @pytest.mark.parametrize('change', ['mount_id', 'mount_options', 'namespace', 'process_root', 'directory_mode', 'thread', 'deadline'])
 def test_changed_context_or_mount_during_read_fails_closed(proc_tree, monkeypatch, tmp_path, change):
     original = module._read

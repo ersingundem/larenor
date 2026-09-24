@@ -1,0 +1,401 @@
+"""Fail-closed capability contract for privileged Linux btrfs capture."""
+
+import os
+from types import SimpleNamespace
+import time
+
+import pytest
+
+from larenor_server.core_backups.component_linux_capture_preflight import (
+    CAP_SYS_ADMIN,
+    LinuxBtrfsCaptureCapability,
+    LinuxBtrfsCapturePreflight,
+    LinuxCaptureSystem,
+    LinuxCapturePreflightError,
+    parse_effective_capabilities,
+    parse_host_uid_map,
+)
+from larenor_server.plugins.linux_mount_observation import (
+    MountObservation,
+    MountRecord,
+)
+
+
+class System:
+    def __init__(self, root):
+        self.root = root
+        self.platform = "linux"
+        self.uid = 0
+        self.capabilities = 1 << CAP_SYS_ADMIN
+        self.filesystem = "btrfs"
+        self.read_only = False
+        self.idmapped = False
+        self.namespace = (31, 32)
+        self.mount_id = 17
+        self.user_namespace = (51, 52)
+        self.uid_map = (0, 0, 4294967295)
+        self.path_reads = 0
+        self.drift_path = False
+        self.opened = []
+        self.closed = []
+
+    def platform_name(self):
+        return self.platform
+
+    def effective_uid(self):
+        return self.uid
+
+    def effective_capabilities(self, deadline):
+        assert time.monotonic() < deadline
+        return self.capabilities
+
+    def effective_uid_map(self, deadline):
+        assert time.monotonic() < deadline
+        return self.uid_map
+
+    def user_namespace_identity(self, deadline):
+        assert time.monotonic() < deadline
+        return self.user_namespace
+
+    def open_directory(self, path):
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        self.opened.append(descriptor)
+        return descriptor
+
+    def path_info(self, path):
+        self.path_reads += 1
+        value = path.lstat()
+        value = SimpleNamespace(
+            st_mode=value.st_mode,
+            st_dev=value.st_dev,
+            st_ino=value.st_ino,
+            st_uid=self.uid,
+            st_gid=0,
+        )
+        if self.drift_path and self.path_reads > 1:
+            return SimpleNamespace(
+                st_mode=value.st_mode,
+                st_dev=value.st_dev,
+                st_ino=value.st_ino + 1,
+                st_uid=value.st_uid,
+                st_gid=value.st_gid,
+            )
+        return value
+
+    def descriptor_info(self, descriptor):
+        value = os.fstat(descriptor)
+        return SimpleNamespace(
+            st_mode=value.st_mode,
+            st_dev=value.st_dev,
+            st_ino=value.st_ino,
+            st_uid=self.uid,
+            st_gid=0,
+        )
+
+    def observe_mount(self, descriptor, deadline):
+        assert time.monotonic() < deadline
+        value = os.fstat(descriptor)
+        options = (("ro",) if self.read_only else ("rw",)) + (
+            ("idmapped",) if self.idmapped else ()
+        )
+        optional = ()
+        mount = MountRecord(
+            self.mount_id,
+            1,
+            os.major(value.st_dev),
+            os.minor(value.st_dev),
+            "/",
+            str(self.root),
+            options,
+            optional,
+            self.filesystem,
+            options,
+        )
+        return MountObservation(
+            mount,
+            (
+                value.st_dev,
+                value.st_ino,
+                self.uid,
+                0,
+                value.st_mode & 0o7777,
+            ),
+            self.namespace,
+            (41, 42, 0, 0, 0o755, 1),
+        )
+
+    def close(self, descriptor):
+        os.close(descriptor)
+        self.closed.append(descriptor)
+
+
+class BtrfsSubvolumeAliasSystem(System):
+    def __init__(self, root, source):
+        super().__init__(root)
+        info = source.stat()
+        self.source_inode = info.st_ino
+        self.source_device = info.st_dev + 1
+
+    def _alias(self, value):
+        if value.st_ino != self.source_inode:
+            return value
+        return SimpleNamespace(
+            st_mode=value.st_mode,
+            st_dev=self.source_device,
+            st_ino=value.st_ino,
+            st_uid=value.st_uid,
+            st_gid=value.st_gid,
+        )
+
+    def path_info(self, path):
+        return self._alias(super().path_info(path))
+
+    def descriptor_info(self, descriptor):
+        return self._alias(super().descriptor_info(descriptor))
+
+    def observe_mount(self, descriptor, deadline):
+        observed = super().observe_mount(descriptor, deadline)
+        if observed.directory_identity[1] != self.source_inode:
+            return observed
+        return MountObservation(
+            observed.mount,
+            (self.source_device, *observed.directory_identity[1:]),
+            observed.namespace_identity,
+            observed.process_root_identity,
+        )
+
+
+def test_preflight_returns_exact_secret_free_btrfs_capability(tmp_path):
+    root = tmp_path / "private-capture-root"
+    root.mkdir(mode=0o700)
+    system = System(root)
+
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+
+    info = root.stat()
+    assert capability == LinuxBtrfsCaptureCapability(
+        schema_version=1,
+        capture_device=info.st_dev,
+        capture_inode=info.st_ino,
+        mount_id=17,
+        namespace_device=31,
+        namespace_inode=32,
+        user_namespace_device=51,
+        user_namespace_inode=52,
+    )
+    assert repr(capability) == "LinuxBtrfsCaptureCapability(<private>)"
+    assert str(root) not in repr(capability)
+    assert system.closed == []
+    assert len(system.opened) == 1
+    assert preflight.revalidate(capability, time.monotonic() + 2)
+    preflight.close()
+    assert sorted(system.closed) == sorted(system.opened)
+
+
+def test_capability_receipt_rejects_non_exact_fields():
+    for values in (
+        (True, 11, 12, 13, 14, 15, 16, 17),
+        (1, -1, 12, 13, 14, 15, 16, 17),
+        (1, 11, 0, 13, 14, 15, 16, 17),
+        (1, 11, 12, 0, 14, 15, 16, 17),
+        (1, 11, 12, 13, 14, 15, -1, 17),
+    ):
+        with pytest.raises(
+            LinuxCapturePreflightError, match="^linux_capture_unavailable$"
+        ):
+            LinuxBtrfsCaptureCapability(*values)
+
+
+@pytest.mark.parametrize(
+    ("damage", "value"),
+    [
+        ("platform", "darwin"),
+        ("uid", 1000),
+        ("capabilities", 0),
+        ("filesystem", "ext4"),
+        ("read_only", True),
+        ("idmapped", True),
+        ("uid_map", (0, 1000, 1)),
+        ("drift_path", True),
+    ],
+)
+def test_preflight_rejects_unsupported_or_stale_host_without_details(
+    tmp_path, damage, value
+):
+    root = tmp_path / "private-host-detail"
+    root.mkdir(mode=0o700)
+    system = System(root)
+    setattr(system, damage, value)
+
+    with pytest.raises(
+        LinuxCapturePreflightError, match="^linux_capture_unavailable$"
+    ) as caught:
+        LinuxBtrfsCapturePreflight(root, system=system).verify(time.monotonic() + 2)
+
+    assert str(root) not in repr(caught.value)
+    assert system.closed == system.opened
+    for descriptor in system.closed:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+
+
+def test_preflight_revalidation_fails_closed_on_identity_drift(tmp_path):
+    root = tmp_path / "capture-root"
+    root.mkdir(mode=0o700)
+    system = System(root)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+
+    system.drift_path = True
+    system.path_reads = 1
+    assert preflight.revalidate(capability, time.monotonic() + 2) is False
+    assert preflight.revalidate(object(), time.monotonic() + 2) is False
+    preflight.close()
+
+
+def test_preflight_revalidation_rejects_user_namespace_drift(tmp_path):
+    root = tmp_path / "capture-root"
+    root.mkdir(mode=0o700)
+    system = System(root)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+
+    system.user_namespace = (61, 62)
+    assert preflight.revalidate(capability, time.monotonic() + 2) is False
+    system.user_namespace = (51, 52)
+    system.mount_id = 18
+    assert preflight.revalidate(capability, time.monotonic() + 2) is False
+    preflight.close()
+
+
+def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
+    root = tmp_path / "capture-root"
+    source = tmp_path / "source"
+    root.mkdir(mode=0o700)
+    source.mkdir()
+    system = System(root)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+    source_info = source.stat()
+
+    with preflight.retain_capture(capability, time.monotonic() + 2) as root_fd:
+        assert os.fstat(root_fd).st_ino == root.stat().st_ino
+    with preflight.retain_source(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    ) as source_fd:
+        assert os.fstat(source_fd).st_ino == source_info.st_ino
+
+    assert preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    )
+    system.namespace = (91, 92)
+    assert not preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    )
+    system.namespace = (31, 32)
+    assert not preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino + 1,
+        capability,
+        time.monotonic() + 2,
+    )
+    preflight.close()
+
+
+def test_btrfs_subvolume_device_alias_retains_same_mount_and_exact_source(tmp_path):
+    root = tmp_path / "capture-root"
+    source = tmp_path / "source-subvolume"
+    root.mkdir(mode=0o700)
+    source.mkdir()
+    system = BtrfsSubvolumeAliasSystem(root, source)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+    source_info = system.path_info(source)
+
+    assert source_info.st_dev != capability.capture_device
+    with preflight.retain_source(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    ) as descriptor:
+        assert system.descriptor_info(descriptor).st_dev == source_info.st_dev
+
+    preflight.close()
+
+
+def test_open_directory_rejects_symlinked_ancestor(tmp_path):
+    actual = tmp_path / "actual"
+    child = actual / "capture"
+    child.mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+
+    with pytest.raises(OSError):
+        LinuxCaptureSystem.open_directory(alias / "capture")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        b"Name:\tworker\n",
+        b"CapEff:\t0000000000200000\nCapEff:\t0000000000200000\n",
+        b"CapEff:\t000000000020000G\n",
+        b"CapEff:\t200000\n",
+        b"CapEff:\t0000000000200000",
+        b"CapEff:\t0000000000200000\x00\n",
+    ],
+)
+def test_effective_capability_parser_rejects_noncanonical_status(value):
+    with pytest.raises(LinuxCapturePreflightError, match="^linux_capture_unavailable$"):
+        parse_effective_capabilities(value)
+
+
+def test_effective_capability_parser_accepts_exact_kernel_field():
+    assert (
+        parse_effective_capabilities(
+            b"Name:\tworker\nCapEff:\t0000000000200000\nNoNewPrivs:\t0\n"
+        )
+        == 1 << CAP_SYS_ADMIN
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        b"         0       1000          1\n",
+        b"         0          0 4294967294\n",
+        b"         0          0 4294967295\n         1          1          1\n",
+        b"0 0 4294967295",
+        b"0 0 true\n",
+    ],
+)
+def test_host_uid_map_parser_rejects_remapped_or_malformed_authority(value):
+    with pytest.raises(LinuxCapturePreflightError, match="^linux_capture_unavailable$"):
+        parse_host_uid_map(value)
+
+
+def test_host_uid_map_parser_accepts_initial_user_namespace():
+    assert parse_host_uid_map(b"         0          0 4294967295\n") == (
+        0,
+        0,
+        4294967295,
+    )

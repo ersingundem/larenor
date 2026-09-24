@@ -253,7 +253,7 @@ class MountObservation:
         return self.mount.read_only
 
 
-def observe_fd_mount(fd, *, deadline):
+def observe_fd_mount(fd, *, deadline, allow_btrfs_device_alias=False):
     """Observe one borrowed directory FD, with before/after context checks.
 
     Successful return is an observation only, including on readonly/idmapped
@@ -264,7 +264,12 @@ def observe_fd_mount(fd, *, deadline):
     try:
         _deadline(deadline)
         deadline = min(deadline, time.monotonic() + 2.0)
-        _require(sys.platform == 'linux' and type(fd) is int and fd >= 0)
+        _require(
+            sys.platform == 'linux'
+            and type(fd) is int
+            and fd >= 0
+            and type(allow_btrfs_device_alias) is bool
+        )
         held = os.dup(fd)
         handles.append(held)
         os.set_inheritable(held, False)
@@ -284,7 +289,14 @@ def observe_fd_mount(fd, *, deadline):
             matching = [record for record in records if record.mount_id == mount_id]
             _require(len(matching) == 1)
             record = matching[0]
-            _require((record.device_major, record.device_minor) == (os.major(identity[0]), os.minor(identity[0])))
+            exact_device = (record.device_major, record.device_minor) == (
+                os.major(identity[0]), os.minor(identity[0])
+            )
+            _require(
+                exact_device
+                or allow_btrfs_device_alias
+                and record.filesystem == 'btrfs'
+            )
             _require(_mount_id(held, fdinfo, deadline) == mount_id)
             snapshots.append(record)
         fresh_proc = os.open(process_path, _DIRECTORY_FLAGS)
