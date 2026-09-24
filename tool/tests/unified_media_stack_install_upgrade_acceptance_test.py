@@ -192,6 +192,13 @@ class UpgradeDriver(FakeDriver):
             "schemaVersion": 1,
             "sourceRevision": revision,
             "manifestDigest": manifest["manifestDigest"],
+            "core": {
+                "image": manifest["core"]["image"],
+                "containerIdentityDigest": hashlib.sha256(
+                    (revision + ":core").encode("ascii")
+                ).hexdigest(),
+                "state": "running",
+            },
             "services": [
                 {
                     "serviceId": component["serviceId"],
@@ -216,6 +223,10 @@ class UpgradeDriver(FakeDriver):
             value["runtimeReceipt"]["services"][0]["containerIdentityDigest"] = (
                 "f" * 64
             )
+        elif revision == CURRENT_REVISION and self.runtime_drift == "core_image":
+            value["runtimeReceipt"]["core"]["image"] = "foreign/core:latest"
+        elif revision == CURRENT_REVISION and self.runtime_drift == "core_container":
+            value["runtimeReceipt"]["core"]["containerIdentityDigest"] = "f" * 64
         return value
 
     def materialize_base(self, revision):
@@ -469,6 +480,11 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         expected_manifest["manifestDigest"],
                     )
                     self.assertEqual(
+                        runtime["core"]["image"],
+                        expected_manifest["core"]["image"],
+                    )
+                    self.assertEqual(runtime["core"]["state"], "running")
+                    self.assertEqual(
                         {
                             item["serviceId"]: item["image"]
                             for item in runtime["services"]
@@ -494,6 +510,14 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 self.assertNotEqual(
                     result["installationPhases"][0]["runtimeReceiptDigest"],
                     result["installationPhases"][1]["runtimeReceiptDigest"],
+                )
+                self.assertNotEqual(
+                    driver.state.runtime_receipts[0]["core"][
+                        "containerIdentityDigest"
+                    ],
+                    driver.state.runtime_receipts[1]["core"][
+                        "containerIdentityDigest"
+                    ],
                 )
                 self.assertIn("upgrade_runtime_receipts", driver.calls)
                 self.assertNotIn("pull", driver.calls)
@@ -560,7 +584,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         )
 
     def test_install_and_upgrade_require_exact_running_service_receipts(self):
-        for drift in ("image", "container"):
+        for drift in ("image", "container", "core_image", "core_container"):
             with self.subTest(drift=drift), self.assertRaisesRegex(
                 target.ManagedStackCIError,
                 "unified_(?:container_receipt|upgrade_reconcile)_invalid",
