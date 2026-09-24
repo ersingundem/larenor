@@ -1332,6 +1332,124 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(Path(probe.host.root), target.ROOT)
         self.assertEqual(probe.host.expected_uid, 10001)
 
+    def test_native_capacity_fixture_only_floors_capacity_and_is_public(self):
+        bundle = target._revision_contract(CURRENT_REVISION)
+        manifest = bundle["deploymentManifest"]
+        requirements = {
+            item["path"]: item for item in manifest["ownedPaths"]
+        }
+
+        class HostFacts:
+            def __init__(self, *, clean=True, mutation=None):
+                self.clean_value = clean
+                self.mutation = mutation
+                self.calls = []
+
+            def architecture(self):
+                self.calls.append("architecture")
+                return "amd64"
+
+            def installation(self):
+                self.calls.append("installation")
+                return None
+
+            def clean(self, paths):
+                self.calls.append(("clean", tuple(paths)))
+                return self.clean_value
+
+            def inspect(self, path):
+                self.calls.append(("inspect", path))
+                requirement = requirements[path]
+                value = {
+                    "kind": "directory",
+                    "ownerUid": requirement["ownerUid"],
+                    "mode": 0o700,
+                    "device": 7,
+                    "availableMiB": 1,
+                }
+                if self.mutation is not None and path == next(iter(requirements)):
+                    value.update(self.mutation)
+                return value
+
+        driver = target.DockerDriver(
+            CURRENT_REVISION,
+            "linux/amd64",
+            Path("/tmp/native-capacity-owner.json"),
+            operation_id="1" * 32,
+        )
+        planner = driver._deployment_planner()
+        raw = HostFacts()
+        without_fixture = planner.preflight(bundle, "install", raw)
+        self.assertFalse(without_fixture["ready"])
+        self.assertIn(
+            "storage_capacity_insufficient",
+            {item["code"] for item in without_fixture["checks"]},
+        )
+
+        wrapped = target._NativeAcceptanceHostFacts(
+            raw,
+            capacity_floor_mib=manifest["requiredDiskMiB"],
+        )
+        with_fixture = planner.preflight(bundle, "install", wrapped)
+        self.assertTrue(with_fixture["ready"])
+        self.assertEqual(wrapped.architecture(), "amd64")
+        self.assertIsNone(wrapped.installation())
+        self.assertTrue(wrapped.clean(tuple(requirements)))
+        for path, requirement in requirements.items():
+            observed = wrapped.inspect(path)
+            self.assertEqual(
+                {key: observed[key] for key in (
+                    "kind", "ownerUid", "mode", "device")},
+                {
+                    "kind": "directory",
+                    "ownerUid": requirement["ownerUid"],
+                    "mode": 0o700,
+                    "device": 7,
+                },
+            )
+            self.assertEqual(
+                observed["availableMiB"], manifest["requiredDiskMiB"])
+
+        dirty = target._NativeAcceptanceHostFacts(
+            HostFacts(clean=False),
+            capacity_floor_mib=manifest["requiredDiskMiB"],
+        )
+        self.assertFalse(planner.preflight(bundle, "install", dirty)["ready"])
+        for mutation in (
+            {"ownerUid": 65534},
+            {"mode": 0o777},
+            {"kind": "file"},
+            {"device": -1},
+        ):
+            with self.subTest(mutation=mutation):
+                hostile = target._NativeAcceptanceHostFacts(
+                    HostFacts(mutation=mutation),
+                    capacity_floor_mib=manifest["requiredDiskMiB"],
+                )
+                self.assertFalse(
+                    planner.preflight(bundle, "install", hostile)["ready"])
+
+        receipt = self.run_upgrade(UpgradeDriver())
+        self.assertEqual(
+            receipt["storageCapacityState"], "contract_fixture")
+        self.assertIs(receipt["capacityVerified"], False)
+        for changed in (
+            receipt | {"storageCapacityState": "verified"},
+            receipt | {"capacityVerified": True},
+        ):
+            with self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_characterization_evidence_invalid",
+            ):
+                target.validate_receipt(
+                    changed,
+                    CURRENT_REVISION,
+                    "linux/amd64",
+                    upgrade_source=BASE_REVISION,
+                    reviewed_head=CURRENT_REVISION,
+                    expected_recovery="not_required",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
