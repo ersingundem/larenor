@@ -13,7 +13,9 @@ from larenor_server.core_backups.component_isolated_capture import (
     LinuxCowCaptureEngine,
 )
 from larenor_server.core_backups.component_linux_capture_preflight import (
+    CAP_SYS_ADMIN,
     LinuxBtrfsCapturePreflight,
+    LinuxCaptureSystem,
 )
 from larenor_server.core_backups.component_snapshot_provider import (
     ComponentVolumeSource,
@@ -111,6 +113,22 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     source = _source(root)
     captures = root / "captures"
     captures.mkdir(mode=0o700)
+    system = LinuxCaptureSystem()
+    deadline = time.monotonic() + 10
+    assert system.platform_name() == "linux"
+    assert system.effective_uid() == 0
+    assert system.effective_capabilities(deadline) & (1 << CAP_SYS_ADMIN)
+    assert system.effective_uid_map(deadline) == (0, 0, 4294967295)
+    namespace = system.user_namespace_identity(deadline)
+    assert len(namespace) == 2 and namespace[1] > 0
+    descriptor = system.open_directory(captures)
+    try:
+        observation = system.observe_mount(descriptor, deadline)
+        assert observation.mount.filesystem == "btrfs"
+        assert not observation.read_only
+        assert not observation.idmapped
+    finally:
+        system.close(descriptor)
     preflight = LinuxBtrfsCapturePreflight(captures)
     capability = preflight.verify(time.monotonic() + 10)
     assert preflight.revalidate(capability, time.monotonic() + 10)
