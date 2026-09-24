@@ -46,6 +46,7 @@ settings alone cannot create a native effect path.
 | Frame-aware Android adapter | `75d24392` | `35b70639` | Main-frame/exact-origin acceptance plus iframe, HTTP downgrade, foreign origin, popup, bounded replies, replacement, and stale-detach denials. |
 | Core authority and lifecycle | `92d71c96` | `d0c12ade` | Verified authority lease, 30-second confirmation, capability revision, route/lifecycle retirement, callback failure, and exactly-once behavior. |
 | Adversarial hardening | focused regression | `469b6ab8` | Canonical origin enforcement, permanent grant revocation after capability drift, and reachable legacy Save action before the lazy native-options section. |
+| Monotonic consent expiry | `266b7d17` | `4cd4e049` | Replaces injectable wall-clock deadlines with a production `Stopwatch` clock and locks both arm-to-preview and preview-to-confirm expiry at the exact 30-second boundary. |
 
 The final grouped milestone on `469b6ab8` passes:
 
@@ -56,7 +57,12 @@ The final grouped milestone on `469b6ab8` passes:
 - focused Flutter analysis with **0 issues**;
 - focused bridge/view coverage with `web_panel_native_bridge.dart` at
   **244/290 (84.1%)**, `web_panel_native_runtime.dart` at **110/130 (84.6%)**,
-  and `web_panel_view.dart` at **351/388 (90.5%)**.
+and `web_panel_view.dart` at **351/388 (90.5%)**.
+
+The independent review expiry regression then passes **52/52** focused bridge,
+renderer-monitor, and WebPanel view tests after the monotonic-clock GREEN. The
+RED failed to compile because the old controller exposed only a `DateTime`
+wall-clock callback; it could not express or enforce monotonic elapsed time.
 
 ## Remaining K08 acceptance
 
