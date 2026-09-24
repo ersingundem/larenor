@@ -10,6 +10,8 @@ import '../../server/tablet_fleet/domain/server_tablet_fleet_models.dart';
 import 'managed_tablet_credential_store.dart';
 
 const managedTabletProfilePreferenceKey = 'managed_tablet_profile_v2';
+const managedTabletProfileConfirmationPreferenceKey =
+    'managed_tablet_profile_confirmation_v1';
 
 final managedTabletProfileStoreProvider = Provider<ManagedTabletProfileStore>(
   (_) => ManagedTabletProfileStore(
@@ -171,6 +173,22 @@ final class AppliedManagedTabletProfile {
     confirmed: true,
   );
 
+  String get _confirmationToken => sha256
+      .convert(
+        utf8.encode(
+          jsonEncode([
+            1,
+            authorityFingerprint,
+            deviceId,
+            deviceRevision,
+            revision,
+            digest,
+            updatedAt,
+          ]),
+        ),
+      )
+      .toString();
+
   void _validate() {
     final expected = sha256
         .convert(
@@ -229,6 +247,8 @@ final class AppliedManagedTabletProfile {
 abstract interface class ManagedTabletProfilePersistence {
   Future<String?> read();
   Future<void> write(String? value);
+  Future<String?> readConfirmation();
+  Future<void> writeConfirmation(String? value);
 }
 
 final class SharedPreferencesManagedTabletProfilePersistence
@@ -244,12 +264,31 @@ final class SharedPreferencesManagedTabletProfilePersistence
       (await _preferences()).getString(managedTabletProfilePreferenceKey);
 
   @override
+  Future<String?> readConfirmation() async => (await _preferences()).getString(
+    managedTabletProfileConfirmationPreferenceKey,
+  );
+
+  @override
   Future<void> write(String? value) async {
     final preferences = await _preferences();
     final saved = value == null
         ? await preferences.remove(managedTabletProfilePreferenceKey)
         : await preferences.setString(managedTabletProfilePreferenceKey, value);
     if (!saved) throw StateError('managed_tablet_profile_not_persisted');
+  }
+
+  @override
+  Future<void> writeConfirmation(String? value) async {
+    final preferences = await _preferences();
+    final saved = value == null
+        ? await preferences.remove(
+            managedTabletProfileConfirmationPreferenceKey,
+          )
+        : await preferences.setString(
+            managedTabletProfileConfirmationPreferenceKey,
+            value,
+          );
+    if (!saved) throw StateError('managed_tablet_profile_not_confirmed');
   }
 }
 
@@ -263,7 +302,8 @@ final class ManagedTabletProfileStore {
     if (raw == null) return null;
     try {
       final profile = AppliedManagedTabletProfile.fromJson(jsonDecode(raw));
-      if (!profile.confirmed) {
+      final confirmation = await persistence.readConfirmation();
+      if (!profile.confirmed || confirmation != profile._confirmationToken) {
         throw StateError('managed_tablet_profile_unconfirmed');
       }
       return profile;
@@ -295,12 +335,15 @@ final class ManagedTabletProfileStore {
       publication,
     );
     final previousRaw = await persistence.read();
+    final previousConfirmation = await persistence.readConfirmation();
     final previous = previousRaw == null
         ? null
         : AppliedManagedTabletProfile.fromJson(jsonDecode(previousRaw));
     if (!isCurrent()) throw StateError('managed_tablet_action_retired');
     final safePrevious =
-        previous?.confirmed == true && previous?.belongsTo(enrollment) == true
+        previous?.confirmed == true &&
+            previousConfirmation == previous?._confirmationToken &&
+            previous?.belongsTo(enrollment) == true
         ? previous
         : null;
     if (safePrevious != null) {
@@ -315,6 +358,7 @@ final class ManagedTabletProfileStore {
       }
     }
     await persistence.write(jsonEncode(next.toJson()));
+    var confirmationPublished = false;
     try {
       if (!isCurrent()) throw StateError('managed_tablet_action_retired');
       if (activate != null) await activate(next);
@@ -322,13 +366,34 @@ final class ManagedTabletProfileStore {
       final committed = next._confirm();
       await persistence.write(jsonEncode(committed.toJson()));
       if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+      await persistence.writeConfirmation(committed._confirmationToken);
+      confirmationPublished = true;
+      if (!isCurrent()) throw StateError('managed_tablet_action_retired');
       return committed;
     } catch (error, stackTrace) {
       Object? rollbackFailure;
+      var documentRestored = false;
+      if (confirmationPublished) {
+        try {
+          await persistence.writeConfirmation(null);
+        } catch (rollbackError) {
+          rollbackFailure = rollbackError;
+        }
+      }
       try {
         await persistence.write(safePrevious == null ? null : previousRaw);
+        documentRestored = true;
       } catch (rollbackError) {
-        rollbackFailure = rollbackError;
+        rollbackFailure ??= rollbackError;
+      }
+      if (documentRestored) {
+        try {
+          await persistence.writeConfirmation(
+            safePrevious == null ? null : previousConfirmation,
+          );
+        } catch (rollbackError) {
+          rollbackFailure ??= rollbackError;
+        }
       }
       try {
         if (activate != null) await activate(safePrevious);

@@ -287,10 +287,15 @@ final class _ProfileCredentials implements ManagedTabletCredentialStore {
 
 final class _ProfilePersistence implements ManagedTabletProfilePersistence {
   String? value;
+  String? confirmation;
   @override
   Future<String?> read() async => value;
   @override
   Future<void> write(String? value) async => this.value = value;
+  @override
+  Future<String?> readConfirmation() async => confirmation;
+  @override
+  Future<void> writeConfirmation(String? value) async => confirmation = value;
 }
 
 void main() {

@@ -76,7 +76,10 @@ ManagedTabletProfilePublication publication({
 
 final class _Persistence implements ManagedTabletProfilePersistence {
   String? value;
+  String? confirmation;
   Completer<void>? nextWrite;
+  Completer<void>? writeGate;
+  int? gateAtWrite;
   int? failAtWrite;
   int writes = 0;
 
@@ -84,14 +87,21 @@ final class _Persistence implements ManagedTabletProfilePersistence {
   Future<String?> read() async => value;
 
   @override
+  Future<String?> readConfirmation() async => confirmation;
+
+  @override
   Future<void> write(String? value) async {
     writes++;
     if (writes == failAtWrite) throw StateError('scheduled_write_failure');
+    if (writes == gateAtWrite) await writeGate?.future;
     final gate = nextWrite;
     nextWrite = null;
     await gate?.future;
     this.value = value;
   }
+
+  @override
+  Future<void> writeConfirmation(String? value) async => confirmation = value;
 }
 
 void main() {
@@ -232,6 +242,47 @@ void main() {
       );
     },
   );
+
+  test('retirement after confirmed document keeps failed rollback inert on restart', () async {
+    final persistence = _Persistence()
+      ..gateAtWrite = 2
+      ..writeGate = Completer<void>()
+      ..failAtWrite = 3;
+    final store = ManagedTabletProfileStore(persistence);
+    var current = true;
+
+    final pending = store.apply(
+      enrollment(),
+      publication(),
+      expectedDeviceId: deviceId,
+      isCurrent: () => current,
+    );
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    persistence.writeGate!.complete();
+
+    await expectLater(
+      pending,
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'managed_tablet_profile_rollback_failed',
+        ),
+      ),
+    );
+    expect(persistence.confirmation, isNull);
+    await expectLater(
+      ManagedTabletProfileStore(persistence).readFor(enrollment()),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'managed_tablet_profile_unconfirmed',
+        ),
+      ),
+    );
+  });
 
   test(
     'same publication is idempotent; rollback and conflict fail closed',
