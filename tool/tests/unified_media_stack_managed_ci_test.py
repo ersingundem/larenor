@@ -18,10 +18,11 @@ COMPONENTS = (
 
 
 class FakeDriver:
-    def __init__(self, *, missing=None, fail_at=None):
+    def __init__(self, *, missing=None, fail_at=None, unhealthy=None):
         self.calls = []
         self.missing = missing
         self.fail_at = fail_at
+        self.unhealthy = unhealthy
         self.config_digest = "b" * 64
         self.ownership_digest = "c" * 64
         self.requirements = None
@@ -78,6 +79,18 @@ class FakeDriver:
 
     def restart(self, manifest):
         self._call("restart")
+
+    def public_health(self, component, phase):
+        service_id = component["serviceId"]
+        self._call("health:" + phase + ":" + service_id)
+        return {
+            "serviceId": service_id,
+            "profile": component["health"]["profile"],
+            "phase": phase,
+            "state": "unavailable" if service_id == self.unhealthy else "healthy",
+            "code": "public_probe_unavailable" if service_id == self.unhealthy
+                    else "public_probe_verified",
+        }
 
     def authenticated_readiness(self, service_id):
         self._call("readiness:" + service_id)
@@ -136,10 +149,27 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             self.assertEqual(driver.calls[-1], "cleanup")
             self.assertEqual(value["lifecycle"], ["config", "pull", "create", "start", "restart"])
             self.assertEqual(value["containerState"], "verified")
+            self.assertEqual(value["publicHealthState"], "verified")
             self.assertEqual(value["serviceState"], "not_verified")
             self.assertFalse(value["automaticRetry"])
             encoded = json.dumps(value, sort_keys=True).lower()
             self.assertNotRegex(encoded, r"token|password|credential|authorization|/var/lib")
+            for service_id, service in value["services"].items():
+                self.assertEqual(service["initialPublicHealth"]["state"], "healthy")
+                self.assertEqual(service["restartPublicHealth"]["state"], "healthy")
+                self.assertEqual(service["authenticatedReadiness"], {
+                    "serviceId": service_id,
+                    "state": "not_verified",
+                    "code": "bootstrap_authority_not_available",
+                })
+
+    def test_running_container_does_not_count_as_healthy(self):
+        driver = FakeDriver(unhealthy="seerr")
+        with self.assertRaisesRegex(target.ManagedStackCIError,
+                                    "unified_health_probe_failed"):
+            target.run_native(REVISION, "linux/amd64", driver)
+        self.assertIn("receipts:initial", driver.calls)
+        self.assertEqual(driver.calls[-1], "cleanup")
 
     def test_missing_or_ambiguous_service_fails_closed_and_always_cleans_owned_state(self):
         for driver in (FakeDriver(missing="seerr"), FakeDriver(fail_at="restart")):
@@ -412,6 +442,35 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 with self.assertRaisesRegex(target.ManagedStackCIError,
                                             "unified_dns_runtime_failed"):
                     driver._dns_peer_mask(peers)
+
+    def test_public_probe_is_exact_bounded_no_redirect_and_secret_free(self):
+        manifest = target.expected_manifest(REVISION)
+        component = manifest["components"][0]
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            with patch.object(target, "_command", return_value=(0, b"healthy\n")) as command:
+                receipt = driver.public_health(component, "initial", timeout=0)
+        self.assertEqual(receipt, {
+            "serviceId": "jellyfin", "profile": "jellyfin_public",
+            "phase": "initial", "state": "healthy", "code": "public_probe_verified",
+        })
+        arguments = command.call_args.args[0]
+        self.assertEqual(arguments[:3], ["/usr/bin/docker", "exec", target.package.CORE_NAME])
+        script = arguments[6]
+        self.assertIn("HTTPConnection", script)
+        self.assertIn("65537", script)
+        self.assertNotIn("urlopen", script)
+        self.assertNotRegex(" ".join(arguments).lower(), r"token|cookie|authorization")
+
+        for result in ((0, b"redirect\n"), (0, b"x" * 257), (1, b"")):
+            with self.subTest(result=result[0]):
+                with patch.object(target, "_command", return_value=result):
+                    with self.assertRaisesRegex(target.ManagedStackCIError,
+                                                "unified_health_probe_failed"):
+                        driver.public_health(component, "restart", timeout=0)
 
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:

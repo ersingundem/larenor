@@ -45,6 +45,14 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         )
         self.assertFalse(job["strategy"]["fail-fast"])
         self.assertGreaterEqual(job["timeout-minutes"], 35)
+        self.assertEqual(
+            [item["platform"] for item in job["strategy"]["matrix"]["include"]],
+            ["linux/amd64", "linux/arm64"],
+        )
+        native = next(step for step in job["steps"] if step.get("id") == "native")
+        verify = next(step for step in job["steps"] if step.get("id") == "verify")
+        self.assertIn("--run-native", native["run"])
+        self.assertIn("--expected-platform", verify["run"])
 
     def test_policy_rejects_manual_only_and_self_hosted_regressions(self):
         value = self.workflow()
