@@ -13,7 +13,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'API 35 sandboxed srcdoc cannot create WebSocket or worker egress',
+    'API 35 sandboxed srcdoc cannot create dynamic network egress',
     (tester) async {
       if (defaultTargetPlatform != TargetPlatform.android) return;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -32,6 +32,8 @@ const attempt = (name, operation) => {
 };
 parent.postMessage([
   attempt('WebSocket', () => new WebSocket('ws://127.0.0.1:${server.port}/escape')),
+  attempt('EventSource', () => new EventSource('/events')),
+  attempt('WebTransport', () => new WebTransport('https://127.0.0.1:${server.port}/transport')),
   attempt('Worker', () => new Worker('data:text/javascript,postMessage(1)'))
 ].join(','), '*');
 <\\/script>`;
@@ -62,7 +64,11 @@ document.body.append(frame);
           title = await controller.getTitle();
           if (title != null && title != 'waiting') break;
         }
-        expect(title, 'WebSocket:SecurityError,Worker:SecurityError');
+        expect(
+          title,
+          'WebSocket:SecurityError,EventSource:SecurityError,'
+          'WebTransport:SecurityError,Worker:SecurityError',
+        );
       } finally {
         await handle?.dispose();
         await subscription.cancel();

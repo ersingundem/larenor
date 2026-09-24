@@ -295,8 +295,9 @@ private class BoundedResponseInputStream(
 
 /**
  * Uses the official document-start hook before any page JavaScript. Dedicated
- * and shared workers are disabled. WebSockets fail closed because Android
- * WebView exposes no supported redirect-aware interception hook for them.
+ * and shared workers are disabled. WebSockets, server-sent events, and WebTransport
+ * fail closed because Android WebView exposes no supported redirect-aware
+ * interception hook for their long-lived connections.
  * Service-worker networking is separately disabled by ServiceWorkerRequestFirewall.
  */
 internal class WebPanelDynamicEgressPolicy(
@@ -316,6 +317,8 @@ internal class WebPanelDynamicEgressPolicy(
                 constructor() { throw new DOMException('Blocked', 'SecurityError'); }
               };
               Object.defineProperty(globalThis, 'WebSocket', { value: blockedNetworkContext, writable: false, configurable: false });
+              Object.defineProperty(globalThis, 'EventSource', { value: blockedNetworkContext, writable: false, configurable: false });
+              Object.defineProperty(globalThis, 'WebTransport', { value: blockedNetworkContext, writable: false, configurable: false });
               Object.defineProperty(globalThis, 'Worker', { value: blockedNetworkContext, writable: false, configurable: false });
               Object.defineProperty(globalThis, 'SharedWorker', { value: blockedNetworkContext, writable: false, configurable: false });
             })();

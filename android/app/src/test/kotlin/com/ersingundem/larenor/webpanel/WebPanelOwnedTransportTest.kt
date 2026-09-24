@@ -330,6 +330,8 @@ class WebPanelOwnedTransportTest {
         assertFalse(script.contains("wss://fixture.invalid:443"))
         assertFalse(script.contains("ws://fixture.invalid:8080"))
         assertTrue(script.contains("WebSocket"))
+        assertTrue(script.contains("EventSource"))
+        assertTrue(script.contains("WebTransport"))
         assertTrue(script.contains("Worker"))
         assertTrue(script.contains("SharedWorker"))
         assertTrue(script.contains("blockedNetworkContext"))
