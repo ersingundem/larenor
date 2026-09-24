@@ -10,6 +10,7 @@ import io
 import math
 import os
 import re
+import secrets
 import stat
 import sys
 import time
@@ -509,24 +510,27 @@ class ManagedComponentSnapshotProvider:
             ) from None
 
     @staticmethod
-    def _snapshot(source, descriptor, deadline):
+    def _snapshot(source, descriptor, deadline, capture_generation):
         payload = archive_component_directory(descriptor, deadline)
         return ComponentVolumeSnapshot(
             serviceId=source.service_id,
             serviceVersion=source.service_version,
             configSchemaVersion=source.config_schema_version,
             dataSchemaVersion=source.data_schema_version,
+            captureGeneration=capture_generation,
             volumeId=source.volume_id,
             payload=payload,
         )
 
-    def _capture(self, source, deadline):
+    def _capture(self, source, deadline, capture_generation):
         descriptor = _open_absolute_directory(source.path)
         try:
             before = os.fstat(descriptor)
             if (before.st_dev, before.st_ino) != (source.device, source.inode):
                 raise ComponentSnapshotProviderError()
-            snapshot = self._snapshot(source, descriptor, deadline)
+            snapshot = self._snapshot(
+                source, descriptor, deadline, capture_generation
+            )
             replacement = _open_absolute_directory(source.path)
             try:
                 after = os.fstat(replacement)
@@ -547,6 +551,10 @@ class ManagedComponentSnapshotProvider:
         captured = []
         total = 0
         with self.isolated_capture.acquire(self.sources, deadline) as leases:
+            generations = {item.capture_generation for item in leases}
+            if len(generations) != 1:
+                raise ComponentSnapshotProviderError()
+            capture_generation = next(iter(generations))
             selected = {
                 (item.service_id, item.volume_id): item for item in leases
             }
@@ -556,7 +564,12 @@ class ManagedComponentSnapshotProvider:
                 lease = selected.get((source.service_id, source.volume_id))
                 if lease is None:
                     raise ComponentSnapshotProviderError()
-                snapshot = self._snapshot(source, lease.descriptor, deadline)
+                snapshot = self._snapshot(
+                    source,
+                    lease.descriptor,
+                    deadline,
+                    capture_generation,
+                )
                 total += len(snapshot.payload)
                 if total > MAX_COMPONENT_BYTES:
                     raise ComponentSnapshotProviderError("snapshot_too_large")
@@ -603,10 +616,13 @@ class ManagedComponentSnapshotProvider:
                 if self.isolated_capture is not None:
                     snapshots = self._capture_isolated(deadline)
                 else:
+                    capture_generation = secrets.token_hex(16)
                     captured = []
                     total = 0
                     for source in self.sources:
-                        snapshot = self._capture(source, deadline)
+                        snapshot = self._capture(
+                            source, deadline, capture_generation
+                        )
                         total += len(snapshot.payload)
                         if total > MAX_COMPONENT_BYTES:
                             raise ComponentSnapshotProviderError("snapshot_too_large")

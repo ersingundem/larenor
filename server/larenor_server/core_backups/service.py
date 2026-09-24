@@ -122,6 +122,7 @@ _DATABASE_VALIDATION_VM_STEP_INTERVAL = 1_000
 _DATABASE_VALIDATION_VM_STEP_BUDGET = 100_000
 _SCHEMA_MARKER_KEY = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 _SCHEMA_MARKER_VALUE = re.compile(r"^[1-9][0-9]{0,9}$")
+_CAPTURE_GENERATION = re.compile(r"^[0-9a-f]{32}$")
 _BUNDLE_AUTHENTICATION = object()
 
 
@@ -343,6 +344,7 @@ class ComponentVolumeSnapshot:
     serviceVersion: str
     configSchemaVersion: int
     dataSchemaVersion: str
+    captureGeneration: str
     volumeId: str
     payload: bytes
 
@@ -405,6 +407,7 @@ class CoreBackupContract:
             catalog = cls._catalog_components()
             grouped = {}
             payloads = {}
+            generations = set()
             total = 0
             for snapshot in snapshots:
                 if type(snapshot) is not ComponentVolumeSnapshot:
@@ -418,6 +421,8 @@ class CoreBackupContract:
                     or snapshot.configSchemaVersion
                     != expected["configSchemaVersion"]
                     or snapshot.dataSchemaVersion != expected["dataSchemaVersion"]
+                    or type(snapshot.captureGeneration) is not str
+                    or _CAPTURE_GENERATION.fullmatch(snapshot.captureGeneration) is None
                     or resource_id not in expected["volumeResourceIds"]
                     or type(payload) is not bytes
                     or not 1 <= len(payload) <= MAX_COMPONENT_VOLUME_BYTES
@@ -428,6 +433,7 @@ class CoreBackupContract:
                 if total > MAX_COMPONENT_BYTES:
                     raise ValueError("component_capture_too_large")
                 payloads[resource_id] = payload
+                generations.add(snapshot.captureGeneration)
                 grouped.setdefault(snapshot.serviceId, []).append(resource_id)
             components = []
             for service_id in sorted(grouped):
@@ -444,7 +450,9 @@ class CoreBackupContract:
                         volumeResourceIds=volume_ids,
                     )
                 )
-            return components, payloads
+            if payloads and len(generations) != 1:
+                raise ValueError("mixed_capture_generation")
+            return components, payloads, next(iter(generations), None)
         except (AttributeError, TypeError, ValueError):
             raise ApiError("server_unavailable", 503) from None
 
@@ -584,7 +592,11 @@ class CoreBackupContract:
             try:
                 key = self._capture_vault_key(connection)
                 with self._component_boundary.quiesce(deadline) as snapshots:
-                    components, component_payloads = self._component_payloads(snapshots)
+                    (
+                        components,
+                        component_payloads,
+                        capture_generation,
+                    ) = self._component_payloads(snapshots)
                     database = connection.serialize()
                     family_board = self._capture_family_board()
             except BackupBlocked:
@@ -651,7 +663,7 @@ class CoreBackupContract:
         )
         manifest = BackupManifest(
             contractVersion=2,
-            snapshotId=secrets.token_hex(16),
+            snapshotId=capture_generation or secrets.token_hex(16),
             createdAt=int(self.settings.clock()),
             coreVersion=server_version(),
             databaseSchemaVersion=schema,

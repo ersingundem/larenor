@@ -100,6 +100,7 @@ def _descriptor(payload, *, volume_id="jellyfin-cache"):
         "serviceVersion": "10.11.11",
         "configSchemaVersion": 1,
         "dataSchemaVersion": "upstream_managed_unverified",
+        "captureGeneration": "1" * 32,
         "volumeId": volume_id,
         "byteLength": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),

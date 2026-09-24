@@ -26,6 +26,7 @@ _SERVICE_ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _VOLUME_ID = re.compile(r"[a-z][a-z0-9-]{0,127}\Z")
 _SAFE_VALUE = re.compile(r"[\x21-\x7e]{1,128}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_CAPTURE_GENERATION = re.compile(r"[0-9a-f]{32}\Z")
 
 
 class ComponentSnapshotWorkerError(RuntimeError):
@@ -201,6 +202,7 @@ class ComponentSnapshotWorkerClient:
             "serviceVersion",
             "configSchemaVersion",
             "dataSchemaVersion",
+            "captureGeneration",
             "volumeId",
             "byteLength",
             "sha256",
@@ -216,6 +218,9 @@ class ComponentSnapshotWorkerClient:
                 or type(descriptor.get("configSchemaVersion")) is not int
                 or not 1 <= descriptor["configSchemaVersion"] <= 2**31 - 1
                 or not _safe_text(descriptor.get("dataSchemaVersion"), _SAFE_VALUE)
+                or not _safe_text(
+                    descriptor.get("captureGeneration"), _CAPTURE_GENERATION
+                )
                 or not _safe_text(descriptor.get("volumeId"), _VOLUME_ID)
                 or type(size) is not int
                 or not 1 <= size <= MAX_COMPONENT_VOLUME_BYTES
@@ -274,6 +279,7 @@ class ComponentSnapshotWorkerClient:
                             serviceVersion=descriptor["serviceVersion"],
                             configSchemaVersion=descriptor["configSchemaVersion"],
                             dataSchemaVersion=descriptor["dataSchemaVersion"],
+                            captureGeneration=descriptor["captureGeneration"],
                             volumeId=descriptor["volumeId"],
                             payload=payload,
                         )
