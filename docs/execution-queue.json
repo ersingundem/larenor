@@ -1838,7 +1838,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi medya ve müzik Client geçişi",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.7",
         "B2"
@@ -1847,7 +1847,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/testing/s08-8-core-media-closure.tdd.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1859,9 +1860,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/s08-8-core-media-closure.tdd.md",
+          "commit": "962fa8db1b22e11aa53e5f1c8effebf7d657bd39",
+          "state": "completed",
+          "result": "passed",
+          "label": "3/3 resolved-import architecture, 81/81 primary Flutter, 54/54 active-surface regression and 2/2 real-loopback restart/logout/Core-switch journeys passed."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s08-8-core-media-closure.tdd.md",
+          "commit": "962fa8db1b22e11aa53e5f1c8effebf7d657bd39",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent full-diff authority, lifecycle, cache and direct-client boundary review found no remaining P1/P2 blocker; aggregate patch-id stayed identical after the K03 rebase."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "Rebased closure tree passed local grouped tests and independent P1/P2 review; exact current-head required CI and API 35 emulator journey are pending on the pull request."
     },
     {
       "id": "S08.9",
