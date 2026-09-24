@@ -808,6 +808,7 @@ class CoreServices:
                  if callable(getattr(
                      installation_backend, 'read_media_rows', None))
                  else None),
+                self.media_archive_health,
             )
             media_flow_provider = (
                 MediaFlowWorkerProvider(installation_backend)

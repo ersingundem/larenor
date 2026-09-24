@@ -6,6 +6,7 @@ import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
 import '../../media_result_origin.dart';
 import '../domain/server_media_rows_models.dart';
+import '../../media_catalog/domain/server_media_catalog_models.dart';
 import 'server_media_rows_api.dart';
 import 'server_media_rows_cache.dart';
 
@@ -31,6 +32,8 @@ final class ServerMediaRowsController extends ChangeNotifier {
   String? failure;
   ServerAccountMediaRows? value;
   ServerMediaResultOrigin? origin;
+  String? resolvingItemId;
+  String? resolutionFailure;
 
   bool get _authorized =>
       account.isCurrent(_accountGeneration) &&
@@ -56,6 +59,8 @@ final class ServerMediaRowsController extends ChangeNotifier {
     failure = null;
     value = null;
     origin = null;
+    resolvingItemId = null;
+    resolutionFailure = null;
     notifyListeners();
   }
 
@@ -68,7 +73,13 @@ final class ServerMediaRowsController extends ChangeNotifier {
       }
     }
 
-    if (_disposed || busy || !_authorized || !routeCurrent()) return;
+    if (_disposed ||
+        busy ||
+        resolvingItemId != null ||
+        !_authorized ||
+        !routeCurrent()) {
+      return;
+    }
     final operation = ++_epoch;
     bool valid() =>
         !_disposed && operation == _epoch && _authorized && routeCurrent();
@@ -131,6 +142,60 @@ final class ServerMediaRowsController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<ServerMediaCatalogPage?> resolve(
+    ServerMediaRowItem item, {
+    required bool Function() current,
+  }) async {
+    bool routeCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    final rows = value;
+    if (_disposed ||
+        rows == null ||
+        resolvingItemId != null ||
+        !_authorized ||
+        !routeCurrent()) {
+      return null;
+    }
+    final operation = ++_epoch;
+    bool valid() =>
+        !_disposed &&
+        operation == _epoch &&
+        _authorized &&
+        identical(value, rows) &&
+        routeCurrent();
+    resolvingItemId = item.itemId;
+    resolutionFailure = null;
+    notifyListeners();
+    ServerMediaCatalogPage? resolved;
+    try {
+      await account.withSession((api, session) async {
+        bool requestCurrent() => valid() && identical(account.session, session);
+        resolved = await ServerMediaRowsApi(
+          api,
+          session.accessToken,
+          requestId: _requestId,
+        ).resolveVerifiedRow(rows: rows, item: item, current: requestCurrent);
+        if (!requestCurrent()) resolved = null;
+      });
+    } on LarenorServerException catch (error) {
+      if (valid()) resolutionFailure = error.code;
+    } catch (_) {
+      if (valid()) resolutionFailure = 'connection_failed';
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        resolvingItemId = null;
+        notifyListeners();
+      }
+    }
+    return valid() ? resolved : null;
   }
 
   @override

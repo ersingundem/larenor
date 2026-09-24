@@ -3,6 +3,7 @@
 import json
 
 from conftest import auth
+from larenor_server.errors import ApiError
 from larenor_server.plugins.jellyfin_media_rows_executor import (
     JellyfinMediaRowsExecutionError,
 )
@@ -25,6 +26,43 @@ from test_media_service_bootstraps import (
 
 BASE = '/api/v1/media/rows/read'
 TARGET = '/api/v1/media/rows/target'
+RESOLVE = '/api/v1/media/rows/resolve'
+
+
+class CatalogResolver:
+    def __init__(self, installation):
+        self.installation = installation
+        self.calls = []
+        self.failure = None
+        self.change = None
+        self.service_revision = 8
+
+    def member_resolve(self, actor, body):
+        self.calls.append((actor, body))
+        if self.failure is not None:
+            raise self.failure
+        if self.change is not None:
+            self.change()
+        return {
+            'requestId': body.requestId,
+            'catalog': {
+                'schemaVersion': 1,
+                'installationId': self.installation['id'],
+                'installationRevision': self.installation['revision'],
+                'snapshotRevision': body.expectedSnapshotRevision,
+                'jellyfinServiceRevision': self.service_revision,
+                'offset': 0,
+                'nextOffset': None,
+                'total': 1,
+                'items': [{
+                    'itemId': body.itemId,
+                    'mediaKey': 'movie:tmdb:603',
+                    'title': 'The Matrix',
+                    'mediaKind': 'movie',
+                    'runtimeSeconds': 8160,
+                }],
+            },
+        }
 
 
 class RowsWorker:
@@ -307,3 +345,105 @@ def test_deadline_expiry_after_valid_result_is_worker_unavailable(
     assert response.status_code == 503
     assert response.json()['error']['code'] == 'media_rows_worker_unavailable'
     assert len(worker.calls) == 1
+
+
+def test_account_row_resolves_through_catalog_with_both_authorities(server):
+    app, client, _, _ = server
+    pair, installation, _worker, body = configured(server)
+    resolver = CatalogResolver(installation)
+    app.state.core.media_rows.catalog = resolver
+    request = {
+        **body,
+        'expectedSnapshotRevision': 4,
+        'expectedJellyfinServiceRevision': 8,
+        'itemId': '5' * 32,
+    }
+
+    response = client.post(RESOLVE, headers=auth(pair), json=request)
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload['requestId'] == body['requestId']
+    assert payload['bindingRevision'] == 1
+    assert payload['catalog']['items'] == [{
+        'itemId': '5' * 32,
+        'mediaKey': 'movie:tmdb:603',
+        'title': 'The Matrix',
+        'mediaKind': 'movie',
+        'runtimeSeconds': 8160,
+    }]
+    assert len(resolver.calls) == 1
+    assert resolver.calls[0][1].expectedSnapshotRevision == 4
+    serialized = json.dumps(payload).lower()
+    assert all(word not in serialized for word in (
+        'apikey', 'userid', 'token', 'password', 'endpoint', 'url'))
+
+
+def test_row_resolution_rejects_binding_catalog_and_late_session_drift(server):
+    app, client, _, _ = server
+    pair, installation, _worker, body = configured(server)
+    resolver = CatalogResolver(installation)
+    app.state.core.media_rows.catalog = resolver
+    request = {
+        **body,
+        'expectedSnapshotRevision': 4,
+        'expectedJellyfinServiceRevision': 8,
+        'itemId': '5' * 32,
+    }
+
+    stale = client.post(RESOLVE, headers=auth(pair), json={
+        **request,
+        'expectedBindingRevision': 2,
+    })
+    assert stale.status_code == 409
+    assert resolver.calls == []
+
+    resolver.service_revision = 9
+    changed = client.post(RESOLVE, headers=auth(pair), json=request)
+    assert changed.status_code == 409
+    assert changed.json()['error']['code'] == 'media_rows_authority_changed'
+
+    resolver.service_revision = 8
+    resolver.change = lambda: client.post(
+        '/api/v1/auth/logout', headers=auth(pair))
+    retired = client.post(RESOLVE, headers=auth(pair), json=request)
+    assert retired.status_code == 409
+    assert retired.json()['error']['code'] == 'media_rows_authority_changed'
+
+
+def test_row_resolution_maps_missing_item_without_private_detail(server):
+    app, client, _, _ = server
+    pair, installation, _worker, body = configured(server)
+    resolver = CatalogResolver(installation)
+    resolver.failure = ApiError('media_catalog_item_unavailable', 404)
+    app.state.core.media_rows.catalog = resolver
+
+    response = client.post(RESOLVE, headers=auth(pair), json={
+        **body,
+        'expectedSnapshotRevision': 4,
+        'expectedJellyfinServiceRevision': 8,
+        'itemId': '5' * 32,
+    })
+
+    assert response.status_code == 404
+    assert response.json()['error']['code'] == 'media_rows_item_unavailable'
+    assert 'catalog_item' not in response.text
+
+
+def test_row_resolution_preserves_late_unauthorized_for_session_retirement(server):
+    app, client, _, _ = server
+    pair, installation, _worker, body = configured(server)
+    resolver = CatalogResolver(installation)
+    resolver.failure = ApiError('invalid_session', 401)
+    app.state.core.media_rows.catalog = resolver
+
+    response = client.post(RESOLVE, headers=auth(pair), json={
+        **body,
+        'expectedSnapshotRevision': 4,
+        'expectedJellyfinServiceRevision': 8,
+        'itemId': '5' * 32,
+    })
+
+    assert response.status_code == 401
+    assert response.json()['error']['code'] == 'invalid_session'
+    assert len(resolver.calls) == 1
