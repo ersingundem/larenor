@@ -4,8 +4,7 @@ import json
 import time
 
 import pytest
-from conftest import auth, ready
-
+from conftest import auth, document, ready
 from larenor_server.core_backups import restore as restore_module
 from larenor_server.errors import StartupError
 from test_core_backup_components import PASSPHRASE, _install_boundary
@@ -51,6 +50,12 @@ def component_bundle(server, monkeypatch):
     app, client, settings, _clock = server
     _install_boundary(server, monkeypatch)
     pair = ready(server)
+    stored = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": document()},
+    )
+    assert stored.status_code == 200
     response = client.post(
         "/api/v1/admin/backups/export",
         headers=auth(pair),
@@ -111,4 +116,3 @@ def test_pending_core_decision_cannot_publish_and_exact_retry_recovers(
 
     assert recovered.events == [("recover", snapshot_id)]
     _assert_restored(target, key, context)
-

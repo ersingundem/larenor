@@ -1,8 +1,9 @@
 """Explicit offline composition for privileged managed-component restores."""
 
+import os
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass
-import os
 from pathlib import Path
 
 from ..files import private_read
@@ -43,7 +44,7 @@ def _absolute(value):
         ):
             raise ValueError()
         return value
-    except Exception:
+    except Exception:  # noqa: BLE001 - collapse private path/parser details
         raise ComponentRestoreRuntimeError() from None
 
 
@@ -78,7 +79,7 @@ class ComponentRestoreRuntimeConfig:
                 raise ValueError()
         except ComponentRestoreRuntimeError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 - expose one static operator error
             raise ComponentRestoreRuntimeError() from None
 
 
@@ -92,6 +93,7 @@ class ComponentRestoreRuntime:
     journal: ComponentRestoreRecoveryJournal
     coordinator: DurableComponentRestoreCoordinator
     _resources: ExitStack
+    _monotonic: object = time.monotonic
 
     def __repr__(self):
         return "ComponentRestoreRuntime(<private>)"
@@ -99,13 +101,27 @@ class ComponentRestoreRuntime:
     def plan(self, capture):
         return plan_component_restore(capture, self.authority)
 
-    def restore(self, capture, *, deadline):
-        plan = self.plan(capture)
-        return self.coordinator.restore(capture, plan, deadline=deadline)
+    def _selected_coordinator(self, checkpoint):
+        if checkpoint is None:
+            return self.coordinator
+        if not callable(checkpoint):
+            raise ComponentRestorePlanError()
+        return DurableComponentRestoreCoordinator(
+            self.journal,
+            self.boundary,
+            monotonic=self._monotonic,
+            checkpoint=checkpoint,
+        )
 
-    def recover(self, capture, *, deadline):
+    def restore(self, capture, *, deadline, checkpoint=None):
         plan = self.plan(capture)
-        return self.coordinator.recover(plan, deadline=deadline)
+        return self._selected_coordinator(checkpoint).restore(
+            capture, plan, deadline=deadline
+        )
+
+    def recover(self, capture, *, deadline, checkpoint=None):
+        plan = self.plan(capture)
+        return self._selected_coordinator(checkpoint).recover(plan, deadline=deadline)
 
     def close(self):
         self._resources.close()
@@ -162,10 +178,11 @@ def build_component_restore_runtime(
             enabled=True,
         )
         journal = ComponentRestoreRecoveryJournal(config.recovery_journal, key)
+        selected_monotonic = time.monotonic if monotonic is None else monotonic
         coordinator = DurableComponentRestoreCoordinator(
             journal,
             boundary,
-            **({} if monotonic is None else {"monotonic": monotonic}),
+            monotonic=selected_monotonic,
             checkpoint=checkpoint,
         )
         return ComponentRestoreRuntime(
@@ -175,11 +192,11 @@ def build_component_restore_runtime(
             journal,
             coordinator,
             resources,
+            selected_monotonic,
         )
     except ComponentRestoreRuntimeError:
         resources.close()
         raise
-    except Exception:
+    except Exception:  # noqa: BLE001 - close all retained resources fail-closed
         resources.close()
         raise ComponentRestoreRuntimeError() from None
-

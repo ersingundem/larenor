@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from larenor_server.core_backups.component_restore import ComponentRestorePlanError
 from larenor_server.core_backups.component_restore_runtime import (
     ComponentRestoreRuntimeConfig,
@@ -62,7 +61,9 @@ def selected_config(tmp_path):
 def test_config_rejects_ambiguous_or_unbounded_authority_paths(tmp_path, change):
     values = vars(selected_config(tmp_path)).copy()
     values.update(change)
-    with pytest.raises(ComponentRestoreRuntimeError, match="component_restore_unavailable"):
+    with pytest.raises(
+        ComponentRestoreRuntimeError, match="component_restore_unavailable"
+    ):
         ComponentRestoreRuntimeConfig(**values)
 
 
@@ -70,7 +71,9 @@ def test_config_rejects_duplicate_authority_or_recovery_paths(tmp_path):
     selected = selected_config(tmp_path)
     values = vars(selected).copy()
     values["recovery_journal"] = selected.container_journal
-    with pytest.raises(ComponentRestoreRuntimeError, match="component_restore_unavailable"):
+    with pytest.raises(
+        ComponentRestoreRuntimeError, match="component_restore_unavailable"
+    ):
         ComponentRestoreRuntimeConfig(**values)
 
 
@@ -79,7 +82,9 @@ def test_runtime_is_root_only_before_opening_operator_files(tmp_path, monkeypatc
     selected.recovery_key_file.unlink()
     monkeypatch.setattr(os, "geteuid", lambda: 10001)
 
-    with pytest.raises(ComponentRestoreRuntimeError, match="component_restore_unavailable"):
+    with pytest.raises(
+        ComponentRestoreRuntimeError, match="component_restore_unavailable"
+    ):
         build_component_restore_runtime(selected)
 
 
@@ -99,5 +104,7 @@ def test_runtime_composes_exact_durable_authority_without_engine_effects(tmp_pat
 
 
 def test_runtime_rejects_non_exact_configuration_type():
-    with pytest.raises(ComponentRestoreRuntimeError, match="component_restore_unavailable"):
+    with pytest.raises(
+        ComponentRestoreRuntimeError, match="component_restore_unavailable"
+    ):
         build_component_restore_runtime(object(), require_privileged=False)

@@ -96,6 +96,8 @@ def _read_journal(settings: Settings) -> dict | None:
     expected = {"version", "snapshotId", "databaseSha256", "keySha256"}
     if value["version"] == 2:
         expected.add("familyBoardSha256")
+    if "componentState" in value:
+        expected.add("componentState")
     if (
         set(value) != expected
         or type(value["snapshotId"]) is not str
@@ -103,8 +105,10 @@ def _read_journal(settings: Settings) -> dict | None:
         or any(
             type(value[name]) is not str
             or not re.fullmatch(r"[0-9a-f]{64}", value[name])
-            for name in expected - {"version", "snapshotId"}
+            for name in expected - {"version", "snapshotId"} - {"componentState"}
         )
+        or "componentState" in value
+        and value["componentState"] not in {"pending", "released"}
     ):
         raise StartupError("restore_recovery_invalid")
     return value
@@ -155,6 +159,8 @@ def recover_empty_restore(settings: Settings) -> bool:
     journal = _read_journal(settings)
     if journal is None:
         return False
+    if journal.get("componentState") == "pending":
+        raise StartupError("restore_components_pending")
     snapshot_id = journal["snapshotId"]
     stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)
     marker_exists = _verify_initialized_marker(settings)
@@ -211,7 +217,7 @@ def _worker_topology(settings: Settings) -> dict[str, bool]:
     }
 
 
-def _validate_capture(capture, settings: Settings) -> None:
+def _validate_capture(capture, settings: Settings, *, allow_components=False) -> None:
     manifest = capture.manifest
     if (
         manifest.contractVersion not in (1, 2)
@@ -228,11 +234,51 @@ def _validate_capture(capture, settings: Settings) -> None:
         raise ApiError("backup_incompatible", 409) from None
     # Component payloads can be authenticated and compatibility-checked, but
     # this slice deliberately has no host-volume publication authority.
-    if manifest.components:
+    if manifest.components and allow_components is not True:
         raise ApiError("backup_incompatible", 409)
 
 
-def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
+def _replace_journal(settings, snapshot_id, journal):
+    stage_dir, _stage_key, journal_path = _paths(settings, snapshot_id)
+    staged_journal = stage_dir / "restore-journal.json"
+    private_create(
+        staged_journal,
+        json.dumps(journal, sort_keys=True, separators=(",", ":")).encode(),
+    )
+    os.replace(staged_journal, journal_path)
+    sync_directory(settings.data_dir)
+
+
+def _component_checkpoint(settings, snapshot_id):
+    def checkpoint(state):
+        if type(state) is not dict or state.get("phase") != "released":
+            return
+        journal = _read_journal(settings)
+        if (
+            journal is None
+            or journal.get("snapshotId") != snapshot_id
+            or journal.get("componentState") not in {"pending", "released"}
+        ):
+            raise StartupError("restore_recovery_invalid")
+        if journal["componentState"] == "released":
+            return
+        _replace_journal(
+            settings,
+            snapshot_id,
+            {**journal, "componentState": "released"},
+        )
+
+    return checkpoint
+
+
+def restore_empty(
+    settings: Settings,
+    bundle: bytes,
+    passphrase: str,
+    *,
+    component_runtime=None,
+    deadline=None,
+) -> str:
     """Validate off-target, then journal and publish every captured resource."""
     checked_path(settings.data_dir)
     checked_path(settings.key_file)
@@ -246,8 +292,47 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
     except FileExistsError:
         pass
     with _open_restore_lock(lock_path):
-        if _read_journal(settings) is not None:
-            raise StartupError("restore_already_in_progress")
+        capture = _open_authenticated_bundle(bundle, passphrase)
+        has_components = bool(capture.manifest.components)
+        if has_components and (
+            component_runtime is None
+            or not callable(getattr(component_runtime, "restore", None))
+            or not callable(getattr(component_runtime, "recover", None))
+            or not callable(
+                getattr(getattr(component_runtime, "journal", None), "exists", None)
+            )
+            or type(deadline) not in (int, float)
+            or type(deadline) is bool
+        ):
+            raise StartupError("component_restore_unavailable")
+        _validate_capture(
+            capture,
+            settings,
+            allow_components=has_components and component_runtime is not None,
+        )
+        existing = _read_journal(settings)
+        if existing is not None:
+            if (
+                not has_components
+                or existing.get("componentState") not in {"pending", "released"}
+                or existing["snapshotId"] != capture.manifest.snapshotId
+            ):
+                raise StartupError("restore_already_in_progress")
+            checkpoint = _component_checkpoint(settings, existing["snapshotId"])
+            if existing["componentState"] == "pending":
+                if component_runtime.journal.exists():
+                    component_runtime.recover(
+                        capture, deadline=deadline, checkpoint=checkpoint
+                    )
+                else:
+                    component_runtime.restore(
+                        capture, deadline=deadline, checkpoint=checkpoint
+                    )
+            decided = _read_journal(settings)
+            if decided is None or decided.get("componentState") != "released":
+                raise StartupError("restore_components_pending")
+            recover_empty_restore(settings)
+            return existing["snapshotId"]
         marker = settings.data_dir / ".initialized"
         unexpected = [
             entry
@@ -262,8 +347,6 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
         ):
             raise StartupError("restore_target_not_empty")
 
-        capture = _open_authenticated_bundle(bundle, passphrase)
-        _validate_capture(capture, settings)
         snapshot_id = capture.manifest.snapshotId
         stage_dir, stage_key, journal_path = _paths(settings, snapshot_id)
         if stage_dir.exists() or stage_key.exists():
@@ -316,20 +399,25 @@ def restore_empty(settings: Settings, bundle: bytes, passphrase: str) -> str:
         }
         if family_board is not None:
             journal["familyBoardSha256"] = _digest(family_board)
+        if has_components:
+            journal["componentState"] = "pending"
         # A failed write must not leave a partial recovery journal alongside
         # private staged bytes. Publish the fully synced journal atomically;
         # once it exists, startup owns recovery even if directory sync fails.
-        staged_journal = stage_dir / "restore-journal.json"
         try:
-            private_create(
-                staged_journal,
-                json.dumps(journal, sort_keys=True, separators=(",", ":")).encode(),
-            )
-            os.replace(staged_journal, journal_path)
+            _replace_journal(settings, snapshot_id, journal)
         except Exception:
             if not journal_path.exists():
                 _cleanup_stage(stage_dir, stage_key)
             raise
-        sync_directory(settings.data_dir)
+        if has_components:
+            component_runtime.restore(
+                capture,
+                deadline=deadline,
+                checkpoint=_component_checkpoint(settings, snapshot_id),
+            )
+            decided = _read_journal(settings)
+            if decided is None or decided.get("componentState") != "released":
+                raise StartupError("restore_components_pending")
         recover_empty_restore(settings)
         return snapshot_id
