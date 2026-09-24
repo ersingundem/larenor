@@ -210,12 +210,21 @@ class UpgradeDriver(FakeDriver):
                 {
                     "serviceId": component["serviceId"],
                     "image": component["image"],
-                    "containerIdentityDigest": hashlib.sha256(
-                        (revision + ":" + component["serviceId"]).encode("ascii")
-                    ).hexdigest(),
+                    "containerIdentityDigest": (
+                        hashlib.sha256(
+                            (
+                                "larenor-container-v1\0"
+                                + format(index + 1, "064x")
+                            ).encode("ascii")
+                        ).hexdigest()
+                        if revision == CURRENT_REVISION
+                        else hashlib.sha256(
+                            (revision + ":" + component["serviceId"]).encode("ascii")
+                        ).hexdigest()
+                    ),
                     "state": "running",
                 }
-                for component in manifest["components"]
+                for index, component in enumerate(manifest["components"])
             ],
         }
 
@@ -907,6 +916,41 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 changed["installationPhases"][index][
                     "runtimeReceiptDigest"
                 ] = "f" * 64
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid",
+                ):
+                    target.validate_receipt(
+                        changed,
+                        CURRENT_REVISION,
+                        "linux/amd64",
+                        upgrade_source=BASE_REVISION,
+                        reviewed_head=CURRENT_REVISION,
+                        expected_recovery="not_required",
+                    )
+
+        foreign_identity = hashlib.sha256(
+            b"foreign-current-container",
+        ).hexdigest()
+        for mutation, indexes, subject in (
+            ("upgrade_restart_drift", (1,), "component"),
+            ("current_outer_drift", (1, 2), "component"),
+            ("core_upgrade_restart_drift", (1,), "core"),
+        ):
+            with self.subTest(mutation=mutation):
+                changed = copy.deepcopy(result)
+                for index in indexes:
+                    runtime = changed["installationPhases"][index]["runtimeReceipt"]
+                    if subject == "core":
+                        runtime["core"]["containerIdentityDigest"] = foreign_identity
+                    else:
+                        runtime["services"][0][
+                            "containerIdentityDigest"
+                        ] = foreign_identity
+                    phase = changed["installationPhases"][index]["phase"]
+                    changed["installationPhases"][index][
+                        "runtimeReceiptDigest"
+                    ] = _digest({"phase": phase, "runtimeReceipt": runtime})
                 with self.assertRaisesRegex(
                     target.ManagedStackCIError,
                     "unified_characterization_evidence_invalid",
