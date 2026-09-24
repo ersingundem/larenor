@@ -317,6 +317,8 @@ class UpgradeDriver(FakeDriver):
             journal["targetRevision"] = "f" * 40
         elif self.journal_drift == "foreign_root":
             journal["rootIdentity"] = "root-" + "8" * 59
+        if not isinstance(journal, dict) or type(journal.get("schemaVersion")) is not int:
+            return None
         expected = self._journal(operation, revision)
         if journal == expected and isinstance(self.state.effect, dict):
             if self.state.effect["installationReceipt"]["sourceRevision"] != revision:
