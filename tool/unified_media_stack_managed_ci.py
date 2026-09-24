@@ -990,18 +990,23 @@ def run_native(commit, selected_platform, driver, *, base_commit=None,
                     {"phase": "clean-install", "sourceRevision": base_commit,
                      "installationReceiptDigest":
                          base_receipt["installationReceipt"]["receiptDigest"],
+                     "runtimeReceipt": copy.deepcopy(
+                         base_receipt["runtimeReceipt"]),
                      "runtimeReceiptDigest": _digest({
                          "phase": "clean-install",
                          "runtimeReceipt": base_receipt["runtimeReceipt"]})},
                     {"phase": "upgrade", "sourceRevision": commit,
                      "installationReceiptDigest":
                          current_receipt["installationReceipt"]["receiptDigest"],
+                     "runtimeReceipt": copy.deepcopy(
+                         current_receipt["runtimeReceipt"]),
                      "runtimeReceiptDigest": _digest({
                          "phase": "upgrade",
                          "runtimeReceipt": current_receipt["runtimeReceipt"]})},
                     {"phase": "restart", "sourceRevision": commit,
                      "installationReceiptDigest":
                          current_receipt["installationReceipt"]["receiptDigest"],
+                     "runtimeReceipt": copy.deepcopy(restart_runtime),
                      "runtimeReceiptDigest": _digest({
                          "phase": "restart", "runtimeReceipt": restart_runtime})},
                 ],
@@ -1109,18 +1114,21 @@ def _validate_receipt(value, commit, selected_platform, *, upgrade_source=None,
                     {"phase": "clean-install", "sourceRevision": expected_base,
                      "installationReceiptDigest": phases[0].get(
                          "installationReceiptDigest"),
+                     "runtimeReceipt": phases[0].get("runtimeReceipt"),
                      "runtimeReceiptDigest": phases[0].get("runtimeReceiptDigest")}
                     if isinstance(phases, list) and len(phases) == 3
                     and isinstance(phases[0], dict) else None,
                     {"phase": "upgrade", "sourceRevision": commit,
                      "installationReceiptDigest": phases[1].get(
                          "installationReceiptDigest"),
+                     "runtimeReceipt": phases[1].get("runtimeReceipt"),
                      "runtimeReceiptDigest": phases[1].get("runtimeReceiptDigest")}
                     if isinstance(phases, list) and len(phases) == 3
                     and isinstance(phases[1], dict) else None,
                     {"phase": "restart", "sourceRevision": commit,
                      "installationReceiptDigest": phases[2].get(
                          "installationReceiptDigest"),
+                     "runtimeReceipt": phases[2].get("runtimeReceipt"),
                      "runtimeReceiptDigest": phases[2].get("runtimeReceiptDigest")}
                     if isinstance(phases, list) and len(phases) == 3
                     and isinstance(phases[2], dict) else None,
@@ -1146,6 +1154,28 @@ def _validate_receipt(value, commit, selected_platform, *, upgrade_source=None,
         if {(item["serviceId"], item["containerTarget"])
                 for item in private_proofs} != _persistent_mounts(manifest):
             raise ManagedStackCIError("unified_characterization_evidence_invalid")
+        try:
+            phase_runtime = (
+                _runtime_receipt(phases[0]["runtimeReceipt"], expected_base),
+                _runtime_receipt(phases[1]["runtimeReceipt"], commit),
+                _runtime_receipt(phases[2]["runtimeReceipt"], commit),
+            )
+        except ManagedStackCIError:
+            raise ManagedStackCIError(
+                "unified_characterization_evidence_invalid",
+            ) from None
+        for phase, runtime, item in zip(
+                ("clean-install", "upgrade", "restart"),
+                phase_runtime,
+                phases):
+            if (item["runtimeReceipt"] != runtime
+                    or item["runtimeReceiptDigest"] != _digest({
+                        "phase": phase,
+                        "runtimeReceipt": runtime,
+                    })):
+                raise ManagedStackCIError(
+                    "unified_characterization_evidence_invalid",
+                )
     expected = {item["serviceId"]: item for item in manifest["components"]}
     for service_id in COMPONENTS:
         service = value["services"].get(service_id)
