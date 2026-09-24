@@ -38,9 +38,9 @@ ModuleNotFoundError: No module named \
   'larenor_server.core_backups.component_restore_recovery'
 ```
 
-The recovery module reports **17 passed**. The grouped component restore,
+The recovery module reports **20 passed**. The grouped component restore,
 encrypted component capture and durable installation-authority batch reports
-**55 passed**, with no skips. The two warnings are upstream Starlette/httpx
+**58 passed**, with no skips. The two warnings are upstream Starlette/httpx
 deprecation warnings.
 
 The accepted S09.1 authority base is
@@ -58,9 +58,11 @@ Four permanent regressions record the audit findings and their fixes:
 | Deadline or authority drift after commit, and release failure after commit, restore the old target with one bounded release attempt | all three cases in `test_post_commit_drift_or_release_failure_restores_target_once` failed | `da451146999b4ad34f4495a99061ba0d3fe0629a` |
 | Failure to durably publish `released` after a successful release retains the honest `committed` journal and never invokes rollback or release again in the same run | `test_released_journal_failure_never_rolls_back_or_releases_again` observed `rolled_back` | `f1b74941581cf2f75a1e68755537becd03fcfe7c` |
 | Every ordinary post-acquire recovery failure releases the recovered authority once while preserving the journal | authority, deadline, rollback and journal-persist cases all observed zero releases | `43ba49d49cffde11b1029b3abc2806289ca36545` |
+| Durable commit must be followed by the same deadline and authority checks as the non-durable coordinator before publishing `committed` | both authority and deadline drift returned success with changed targets | `ff78a404ad804381270539e54b7cd29d0564b516` |
+| A malformed raw recovered capability must remain available for one release even when strict session validation rejects it | the malformed session observed zero release attempts | `ff78a404ad804381270539e54b7cd29d0564b516` |
 
 Ruff `0.14.10`, Python bytecode compilation, Android/security policy,
-125-task/63-feature queue validation, the seven-commit progress gate and
+125-task/63-feature queue validation, the ten-commit progress gate and
 `git diff --check` all pass. Queue and feature progress remains **26/125** and
 **0/63**.
 
