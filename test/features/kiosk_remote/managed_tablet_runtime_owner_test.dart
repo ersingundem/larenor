@@ -29,6 +29,7 @@ final class _Store implements ManagedTabletCredentialStore {
   _Store(this.value);
   ManagedTabletEnrollment? value;
   int clears = 0;
+  Object? clearFailure;
   Completer<void>? writeStarted, writeGate;
   @override
   Future<ManagedTabletEnrollment?> read() async => value;
@@ -45,6 +46,7 @@ final class _Store implements ManagedTabletCredentialStore {
     ManagedTabletBinding binding,
     String pairingId,
   ) async {
+    if (clearFailure case final error?) throw error;
     if (value?.binding == binding && value?.pairingId == pairingId) {
       value = null;
       clears++;
@@ -150,6 +152,7 @@ ManagedTabletRuntimeOwner _owner({
   required _Authority authority,
   required _Source source,
   required _Broker broker,
+  Future<void> Function()? onAuthorityRetired,
 }) => ManagedTabletRuntimeOwner(
   store: store,
   authority: authority,
@@ -163,6 +166,7 @@ ManagedTabletRuntimeOwner _owner({
   ),
   stateStore: MemoryManagedMqttStateStore(),
   now: () => DateTime.utc(2029),
+  onAuthorityRetired: onAuthorityRetired,
 );
 
 void main() {
@@ -450,11 +454,13 @@ void main() {
       final authority = _Authority()..failure = const ManagedTabletRevoked();
       final source = _Source();
       final broker = _Broker();
+      var retiredAuthorities = 0;
       final owner = _owner(
         store: store,
         authority: authority,
         source: source,
         broker: broker,
+        onAuthorityRetired: () async => retiredAuthorities++,
       );
       addTearDown(owner.dispose);
 
@@ -462,6 +468,44 @@ void main() {
 
       expect(store.value, isNull);
       expect(store.clears, 1);
+      expect(broker.connects, 0);
+      expect(retiredAuthorities, 1);
+    },
+  );
+
+  test(
+    'Core revoke retires UI and native lease even when credential clear fails',
+    () async {
+      final enrollment = _enrollment();
+      final store = _Store(enrollment)
+        ..clearFailure = StateError('secure_clear_failed');
+      final authority = _Authority()..failure = const ManagedTabletRevoked();
+      final source = _Source();
+      final broker = _Broker();
+      var retiredAuthorities = 0;
+      final owner = _owner(
+        store: store,
+        authority: authority,
+        source: source,
+        broker: broker,
+        onAuthorityRetired: () async => retiredAuthorities++,
+      );
+      addTearDown(owner.dispose);
+
+      await expectLater(
+        owner.updateBinding(enrollment.binding),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'secure_clear_failed',
+          ),
+        ),
+      );
+
+      expect(store.value, same(enrollment));
+      expect(retiredAuthorities, 1);
+      expect(source.retires, greaterThanOrEqualTo(1));
       expect(broker.connects, 0);
     },
   );

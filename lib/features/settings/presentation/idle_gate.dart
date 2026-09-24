@@ -140,9 +140,9 @@ class _IdleGateState extends ConsumerState<IdleGate>
         !settings.enabled) {
       return;
     }
-    if (settings.timeoutMinutes < 1 || settings.timeoutMinutes > 1440) return;
+    if (settings.timeoutSeconds < 30 || settings.timeoutSeconds > 86400) return;
 
-    _timer = Timer(Duration(minutes: settings.timeoutMinutes), () {
+    _timer = Timer(Duration(seconds: settings.timeoutSeconds), () {
       if (!mounted || !_windowActive) return;
       // Notify action owners synchronously, before rebuilding the Navigator's
       // TickerMode. They can expire/remove their pending confirmation safely.

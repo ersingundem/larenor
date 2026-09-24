@@ -6,16 +6,31 @@ import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_mqtt_runtim
 import 'package:larenor/features/kiosk_remote/runtime/native_managed_tablet_source.dart';
 
 final class _Actions implements ManagedTabletLocalActions {
-  _Actions({this.gate, this.fail = false});
+  _Actions({this.gate, this.syncGate, this.fail = false});
 
   final Completer<void>? gate;
+  final Completer<void>? syncGate;
   final bool fail;
   int refreshes = 0;
+  int profileSyncs = 0;
+  String? synchronizedClientVersion;
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) async {
     refreshes++;
     await gate?.future;
+    if (fail) throw StateError('fixture_failure');
+    if (!isCurrent()) throw StateError('fixture_retired');
+  }
+
+  @override
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) async {
+    profileSyncs++;
+    synchronizedClientVersion = clientVersion;
+    await syncGate?.future;
     if (fail) throw StateError('fixture_failure');
     if (!isCurrent()) throw StateError('fixture_retired');
   }
@@ -245,6 +260,16 @@ void main() {
         nativeCommands.add(call);
         return {'result': 'succeeded'};
       }
+      if (call.method == 'snapshot') {
+        return {
+          'schemaVersion': 1,
+          'batteryPercent': 50,
+          'network': 'wifi',
+          'appVersion': '1.2.3',
+          'appForeground': true,
+          'kioskState': 'none',
+        };
+      }
       return null;
     });
     final actions = _Actions();
@@ -262,6 +287,12 @@ void main() {
     );
     expect(actions.refreshes, 1);
     expect(
+      await lease.commandExecutor.execute('syncProfile'),
+      ManagedTabletCommandResult.succeeded,
+    );
+    expect(actions.profileSyncs, 1);
+    expect(actions.synchronizedClientVersion, '1.2.3');
+    expect(
       await lease.commandExecutor.execute('lockKiosk'),
       ManagedTabletCommandResult.succeeded,
     );
@@ -270,13 +301,48 @@ void main() {
       'sessionId': 'd' * 32,
       'kind': 'lockKiosk',
     });
-    for (final unsupported in ['syncProfile', 'unknown']) {
+    for (final unsupported in ['unknown']) {
       expect(
         await lease.commandExecutor.execute(unsupported),
         ManagedTabletCommandResult.unsupported,
       );
     }
     expect(actions.refreshes, 1);
+    expect(actions.profileSyncs, 1);
+  });
+
+  test('retirement wins over a delayed profile synchronization', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'snapshot') {
+        return {
+          'schemaVersion': 1,
+          'batteryPercent': 50,
+          'network': 'wifi',
+          'appVersion': '1.2.3',
+          'appForeground': true,
+          'kioskState': 'none',
+        };
+      }
+      return null;
+    });
+    final gate = Completer<void>();
+    final actions = _Actions(syncGate: gate);
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(enabled: true),
+      actions: actions,
+      isAndroid: true,
+      sessionId: () => '3' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    final result = lease!.commandExecutor.execute('syncProfile');
+    await Future<void>.delayed(Duration.zero);
+    await source.setForeground(false);
+    gate.complete();
+
+    expect(await result, ManagedTabletCommandResult.denied);
+    expect(actions.profileSyncs, 1);
   });
 
   test('native lock result is strict and cannot outlive its lease', () async {

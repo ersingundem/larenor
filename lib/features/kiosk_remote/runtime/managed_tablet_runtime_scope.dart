@@ -6,9 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
+import '../../settings/providers/settings_providers.dart';
+import '../../settings/providers/window_profile_provider.dart';
 import 'managed_tablet_credential_store.dart';
 import 'managed_tablet_mqtt_settings.dart';
 import 'managed_tablet_mqtt_runtime.dart';
+import 'managed_tablet_profile_store.dart';
+import 'managed_tablet_profile_sync.dart';
 import 'managed_tablet_runtime_owner.dart';
 import 'mqtt_local_broker.dart';
 import 'native_managed_tablet_source.dart';
@@ -70,6 +74,32 @@ final managedTabletCoreAuthorityProvider = Provider<ManagedTabletCoreAuthority>(
   (_) => CoreManagedTabletAuthority(),
 );
 
+final managedTabletProfileSynchronizerProvider =
+    Provider<ManagedTabletProfileSynchronizer>(
+      (ref) => ManagedTabletProfileSynchronizer(
+        account: ref.watch(serverAccountControllerProvider),
+        credentials: ref.watch(managedTabletCredentialStoreProvider),
+        profiles: ref.watch(managedTabletProfileStoreProvider),
+        activate: (profile) async {
+          if (!ref.mounted) {
+            throw StateError('managed_tablet_action_retired');
+          }
+          ref
+              .read(managedTabletActiveProfileProvider.notifier)
+              .activate(profile);
+          ref.invalidate(windowProfileProvider);
+          ref.invalidate(idleModeProvider);
+          await Future.wait([
+            ref.read(windowProfileProvider.future),
+            ref.read(idleModeProvider.future),
+          ]);
+          if (!ref.mounted) {
+            throw StateError('managed_tablet_action_retired');
+          }
+        },
+      ),
+    );
+
 final managedTabletLocalActionsProvider = Provider<ManagedTabletLocalActions>(
   (ref) => CallbackManagedTabletLocalActions(
     onRefreshDashboard: (isCurrent) async {
@@ -82,6 +112,9 @@ final managedTabletLocalActionsProvider = Provider<ManagedTabletLocalActions>(
         throw StateError('managed_tablet_action_retired');
       }
     },
+    onSyncProfile: (clientVersion, isCurrent) => ref
+        .read(managedTabletProfileSynchronizerProvider)
+        .synchronize(clientVersion: clientVersion, isCurrent: isCurrent),
   ),
 );
 
@@ -100,6 +133,12 @@ final managedTabletRuntimeOwnerProvider =
         settings: ref.watch(managedTabletDefaultMqttSettingsProvider),
         stateStore: SharedPreferencesManagedMqttStateStore(),
         now: DateTime.now,
+        onAuthorityRetired: () async {
+          if (!ref.mounted) return;
+          ref.read(managedTabletActiveProfileProvider.notifier).activate(null);
+          ref.invalidate(windowProfileProvider);
+          ref.invalidate(idleModeProvider);
+        },
       );
       ref.onDispose(() => unawaited(owner.dispose()));
       return owner;
@@ -121,12 +160,15 @@ final class _ManagedTabletRuntimeScopeState
     extends ConsumerState<ManagedTabletRuntimeScope>
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
+  late final ManagedTabletActiveProfileController _activeProfile;
   LocalMqttBrokerSettings? _appliedSettings;
   ManagedTabletRuntimeOwner? _appliedOwner;
+  int _profileAuthorityGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    _activeProfile = ref.read(managedTabletActiveProfileProvider.notifier);
     _account = ref.read(serverAccountControllerProvider)
       ..addListener(_synchronize);
     WidgetsBinding.instance.addObserver(this);
@@ -164,17 +206,60 @@ final class _ManagedTabletRuntimeScopeState
 
   void _synchronize() {
     if (!mounted) return;
-    unawaited(
-      ref
-          .read(managedTabletRuntimeOwnerProvider)
-          .updateBinding(_currentBinding()),
-    );
+    final generation = ++_profileAuthorityGeneration;
+    final binding = _currentBinding();
+    _publishProfile(null);
+    unawaited(_synchronizeAuthority(generation, binding));
+  }
+
+  Future<void> _synchronizeAuthority(
+    int generation,
+    ManagedTabletBinding? binding,
+  ) async {
+    await ref.read(managedTabletRuntimeOwnerProvider).updateBinding(binding);
+    if (!_authorityCurrent(generation, binding) || binding == null) return;
+    try {
+      final enrollment = await ref
+          .read(managedTabletCredentialStoreProvider)
+          .read();
+      if (!_authorityCurrent(generation, binding) ||
+          enrollment?.binding != binding ||
+          !enrollment!.expiresAt.isAfter(DateTime.now().toUtc())) {
+        return;
+      }
+      final profile = await ref
+          .read(managedTabletProfileStoreProvider)
+          .readFor(enrollment);
+      if (!_authorityCurrent(generation, binding) || profile == null) {
+        return;
+      }
+      _publishProfile(profile);
+    } catch (_) {
+      if (_authorityCurrent(generation, binding)) _publishProfile(null);
+    }
+  }
+
+  bool _authorityCurrent(int generation, ManagedTabletBinding? binding) =>
+      mounted &&
+      generation == _profileAuthorityGeneration &&
+      _currentBinding() == binding;
+
+  void _publishProfile(AppliedManagedTabletProfile? profile) {
+    if (!mounted) return;
+    _activeProfile.activate(profile);
+    ref.invalidate(windowProfileProvider);
+    ref.invalidate(idleModeProvider);
   }
 
   @override
   void dispose() {
+    _profileAuthorityGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _account.removeListener(_synchronize);
+    // Riverpod forbids provider mutations while Flutter is unmounting this
+    // widget. Retire after the lifecycle callback, and tolerate a parent
+    // ProviderScope being disposed in the same turn.
+    Future<void>.microtask(_activeProfile.clearIfMounted);
     super.dispose();
   }
 

@@ -17,6 +17,7 @@ final class ManagedTabletRuntimeOwner {
     required this.settings,
     required this.stateStore,
     required this.now,
+    this.onAuthorityRetired,
     this.logger,
   });
 
@@ -27,6 +28,7 @@ final class ManagedTabletRuntimeOwner {
   LocalMqttBrokerSettings settings;
   final ManagedMqttStateStore stateStore;
   final DateTime Function() now;
+  final Future<void> Function()? onAuthorityRetired;
   final void Function(String event)? logger;
 
   ManagedTabletBinding? _binding;
@@ -72,6 +74,7 @@ final class ManagedTabletRuntimeOwner {
     }
     final generation = ++_generation;
     await _schedule(generation, start: false);
+    await onAuthorityRetired?.call();
     if (!_enrollmentCurrent(generation, binding, routeCurrent)) {
       throw StateError('managed_tablet_enrollment_denied');
     }
@@ -121,7 +124,7 @@ final class ManagedTabletRuntimeOwner {
     }
     final generation = ++_generation;
     await _schedule(generation, start: false);
-    await store.clearIfCurrent(binding, pairingId);
+    await _clearAuthority(binding, pairingId);
   }
 
   Future<void> _schedule(
@@ -177,6 +180,13 @@ final class ManagedTabletRuntimeOwner {
           enrollmentGuard,
         ),
         now: now,
+        onRevoked: () async {
+          try {
+            await _clearAuthority(binding, enrollment!.pairingId);
+          } finally {
+            if (_current(generation)) await _retireCurrent();
+          }
+        },
         logger: logger,
       );
       _runtime = runtime;
@@ -186,10 +196,15 @@ final class ManagedTabletRuntimeOwner {
         await runtime.retire();
       }
     } on ManagedTabletRevoked {
-      if (enrollment != null) {
-        await store.clearIfCurrent(binding, enrollment.pairingId);
+      try {
+        if (enrollment != null) {
+          await _clearAuthority(binding, enrollment.pairingId);
+        } else {
+          await onAuthorityRetired?.call();
+        }
+      } finally {
+        if (_current(generation)) await _retireCurrent();
       }
-      if (_current(generation)) await _retireCurrent();
     } catch (_) {
       if (_current(generation)) await _retireCurrent();
     }
@@ -254,6 +269,17 @@ final class ManagedTabletRuntimeOwner {
       if (runtime != null) runtime.retire(),
       source.retire(),
     ]);
+  }
+
+  Future<void> _clearAuthority(
+    ManagedTabletBinding binding,
+    String pairingId,
+  ) async {
+    try {
+      await store.clearIfCurrent(binding, pairingId);
+    } finally {
+      await onAuthorityRetired?.call();
+    }
   }
 
   Future<void> dispose() async {

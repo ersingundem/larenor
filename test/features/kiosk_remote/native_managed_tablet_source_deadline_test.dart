@@ -5,6 +5,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_mqtt_runtime.dart';
 import 'package:larenor/features/kiosk_remote/runtime/native_managed_tablet_source.dart';
 
+final class _GatedActions implements ManagedTabletLocalActions {
+  final gate = Completer<void>();
+  bool Function()? commandCurrent;
+  int lateEffects = 0;
+
+  @override
+  Future<void> refreshDashboard({required bool Function() isCurrent}) async {}
+
+  @override
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) async {
+    commandCurrent = isCurrent;
+    await gate.future;
+    if (isCurrent()) lateEffects++;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel(NativeManagedTabletSource.channelName);
@@ -79,6 +98,82 @@ void main() {
       ),
     );
     snapshot.complete(null);
+  });
+
+  test(
+    'local action timeout retires lease before late work can commit',
+    () async {
+      final actions = _GatedActions();
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'start') return {'status': 'active'};
+        if (call.method == 'snapshot') {
+          return {
+            'schemaVersion': 1,
+            'batteryPercent': 80,
+            'network': 'wifi',
+            'appVersion': '1.2.3',
+            'appForeground': true,
+            'kioskState': 'locked',
+          };
+        }
+        return null;
+      });
+      final source = NativeManagedTabletSource(
+        config: const NativeManagedTabletSourceConfig(
+          enabled: true,
+          nativeCallTimeout: Duration(milliseconds: 30),
+        ),
+        channel: channel,
+        isAndroid: true,
+        sessionId: () => '4' * 32,
+        actions: actions,
+      );
+      final lease = await source.bind('scope');
+
+      expect(
+        await lease!.commandExecutor.execute('syncProfile'),
+        ManagedTabletCommandResult.failed,
+      );
+      expect(actions.commandCurrent!(), isFalse);
+      expect(source.status, NativeManagedTabletSourceStatus.retired);
+      actions.gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(actions.lateEffects, 0);
+      expect(
+        await lease.commandExecutor.execute('syncProfile'),
+        ManagedTabletCommandResult.denied,
+      );
+    },
+  );
+
+  test('native command timeout retires its platform session', () async {
+    final command = Completer<Object?>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'command') return command.future;
+      return null;
+    });
+    final source = NativeManagedTabletSource(
+      config: const NativeManagedTabletSourceConfig(
+        enabled: true,
+        nativeCallTimeout: Duration(milliseconds: 30),
+      ),
+      channel: channel,
+      isAndroid: true,
+      sessionId: () => '5' * 32,
+    );
+    final lease = await source.bind('scope');
+
+    expect(
+      await lease!.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.failed,
+    );
+    expect(source.status, NativeManagedTabletSourceStatus.retired);
+    expect(
+      await lease.commandExecutor.execute('lockKiosk'),
+      ManagedTabletCommandResult.denied,
+    );
+    command.complete({'result': 'succeeded'});
   });
 
   test(

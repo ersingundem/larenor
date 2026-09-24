@@ -4,6 +4,9 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_credential_store.dart';
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_profile_store.dart';
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_profile_sync.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/tablet_fleet/data/server_tablet_fleet_api.dart';
 import 'package:larenor/features/server/tablet_fleet/data/server_tablet_fleet_controller.dart';
@@ -96,6 +99,32 @@ class TabletFleetFixture extends AdminFixture {
     'tablets': records,
   };
 
+  Map<String, dynamic> profilePublication({String? digest}) {
+    final document = {
+      'schemaVersion': 1,
+      'fullscreen': true,
+      'idleTimeoutSeconds': 300,
+    };
+    final expected = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([1, coreId, homeId, standardTabletId, true, 300]),
+          ),
+        )
+        .toString();
+    return {
+      'publication': {
+        'schemaVersion': 1,
+        'deviceId': standardTabletId,
+        'deviceRevision': 2,
+        'revision': 2,
+        'digest': digest ?? expected,
+        'document': document,
+        'updatedAt': 1789977600.0,
+      },
+    };
+  }
+
   Future<http.Response> response(http.Request request) async {
     if (request.url.path.endsWith('/context')) {
       return this.json({
@@ -106,6 +135,13 @@ class TabletFleetFixture extends AdminFixture {
     }
     final path = request.url.path;
     if (!path.contains('/tablet-fleet/')) return defaultResponse(request);
+    if (request.method == 'GET' && path.endsWith('/profile-publication')) {
+      final item = records.first;
+      item['revision'] = 2;
+      item['desiredProfileRevision'] = 2;
+      item['profileState'] = 'updateRequired';
+      return this.json(profilePublication());
+    }
     if (request.method == 'GET') {
       return delayedList?.future ?? this.json(listBody);
     }
@@ -229,6 +265,39 @@ class TabletFleetFixture extends AdminFixture {
   }
 }
 
+final class _ProfileCredentials implements ManagedTabletCredentialStore {
+  _ProfileCredentials(this.value);
+  ManagedTabletEnrollment? value;
+
+  @override
+  Future<ManagedTabletEnrollment?> read() async => value;
+
+  @override
+  Future<void> write(ManagedTabletEnrollment value) async => this.value = value;
+
+  @override
+  Future<void> clearIfCurrent(
+    ManagedTabletBinding binding,
+    String pairingId,
+  ) async {}
+
+  @override
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment) async {}
+}
+
+final class _ProfilePersistence implements ManagedTabletProfilePersistence {
+  String? value;
+  String? confirmation;
+  @override
+  Future<String?> read() async => value;
+  @override
+  Future<void> write(String? value) async => this.value = value;
+  @override
+  Future<String?> readConfirmation() async => confirmation;
+  @override
+  Future<void> writeConfirmation(String? value) async => confirmation = value;
+}
+
 void main() {
   test('records are closed, scope-bound and capability proof is exact', () {
     final standard = ManagedTablet.fromJson(fleetTablet());
@@ -300,6 +369,121 @@ void main() {
           'differences': ['applicationVersion', 'profileRevision'],
         }),
         throwsA(isA<LarenorServerException>()),
+      );
+      fixture.account.dispose();
+    },
+  );
+
+  test(
+    'profile publication is digest-bound and acknowledged exactly',
+    () async {
+      final fixture = TabletFleetFixture();
+      await fixture.account.initialize();
+      await fixture.account.withSession((raw, session) async {
+        final api = ServerTabletFleetApi(
+          raw,
+          session.accessToken,
+          session.context!,
+        );
+        final publication = await api.readProfilePublication(standardTabletId);
+        expect(publication.deviceRevision, 2);
+        expect(publication.revision, 2);
+        expect(publication.document.fullscreen, isTrue);
+        expect(publication.document.idleTimeoutSeconds, 300);
+
+        final applied = await api.acknowledgeProfilePublication(
+          publication,
+          clientVersion: '1.2.3',
+        );
+        expect(applied.appliedProfileRevision, 2);
+        expect(applied.profileState, TabletProfileState.current);
+        final heartbeat = jsonDecode(fixture.calls.last.body);
+        expect(heartbeat, {
+          'schemaVersion': 1,
+          'expectedRevision': 2,
+          'clientVersion': '1.2.3',
+          'appliedProfileRevision': 2,
+        });
+      });
+
+      fixture.respond = (request) async {
+        if (request.url.path.endsWith('/profile-publication')) {
+          return fixture.json(fixture.profilePublication(digest: '0' * 64));
+        }
+        return fixture.response(request);
+      };
+      await fixture.account.withSession((raw, session) async {
+        await expectLater(
+          ServerTabletFleetApi(
+            raw,
+            session.accessToken,
+            session.context!,
+          ).readProfilePublication(standardTabletId),
+          throwsA(isA<LarenorServerException>()),
+        );
+      });
+      fixture.account.dispose();
+    },
+  );
+
+  test(
+    'profile synchronizer activates before exact heartbeat acknowledgement',
+    () async {
+      final fixture = TabletFleetFixture();
+      await fixture.account.initialize();
+      final session = fixture.account.session!;
+      final context = session.context!;
+      final pairingId = '1' * 32;
+      final credentials = _ProfileCredentials(
+        ManagedTabletEnrollment(
+          serverBaseUrl: session.endpoint.baseUrl,
+          coreId: context.coreId,
+          homeId: context.homeId,
+          accountId: session.user.id,
+          pairingId: pairingId,
+          deviceId: standardTabletId,
+          revision: 1,
+          scopes: const {'read', 'control'},
+          expiresAt: fixture.now.add(const Duration(hours: 1)),
+          token: 'A' * 43,
+          clientId: 'larenor-$pairingId',
+          topicPrefix: 'larenor/$pairingId',
+        ),
+      );
+      final persistence = _ProfilePersistence();
+      var activated = false;
+      final synchronizer = ManagedTabletProfileSynchronizer(
+        account: fixture.account,
+        credentials: credentials,
+        profiles: ManagedTabletProfileStore(persistence),
+        activate: (profile) async {
+          expect(profile?.revision, 2);
+          activated = true;
+        },
+      );
+      fixture.respond = (request) async {
+        if (request.url.path.endsWith('/heartbeat')) {
+          expect(activated, isTrue);
+        }
+        return fixture.response(request);
+      };
+
+      await synchronizer.synchronize(
+        clientVersion: '1.2.3',
+        isCurrent: () => true,
+      );
+
+      expect(activated, isTrue);
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/profile-publication'),
+        ),
+        hasLength(1),
+      );
+      expect(fixture.calls.last.url.path, endsWith('/heartbeat'));
+      expect(
+        (await ManagedTabletProfileStore(persistence).read())?.revision,
+        2,
       );
       fixture.account.dispose();
     },

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/configuration_writes.dart';
+import '../../kiosk_remote/runtime/managed_tablet_profile_store.dart';
 import '../data/pin_lock_store.dart';
 
 part 'settings_providers.g.dart';
@@ -165,15 +166,28 @@ class NightWindow extends _$NightWindow {
 /// Idle/ambient-mode configuration — after [timeoutMinutes] of no touch
 /// input, the dashboard is replaced with a low-distraction clock screen.
 class IdleModeSettings {
-  const IdleModeSettings({required this.enabled, required this.timeoutMinutes});
+  const IdleModeSettings({
+    required this.enabled,
+    required this.timeoutMinutes,
+    int? timeoutSeconds,
+  }) : timeoutSeconds = timeoutSeconds ?? timeoutMinutes * 60;
 
   final bool enabled;
   final int timeoutMinutes;
+  final int timeoutSeconds;
 
-  IdleModeSettings copyWith({bool? enabled, int? timeoutMinutes}) {
+  IdleModeSettings copyWith({
+    bool? enabled,
+    int? timeoutMinutes,
+    int? timeoutSeconds,
+  }) {
+    final nextMinutes = timeoutMinutes ?? this.timeoutMinutes;
     return IdleModeSettings(
       enabled: enabled ?? this.enabled,
-      timeoutMinutes: timeoutMinutes ?? this.timeoutMinutes,
+      timeoutMinutes: nextMinutes,
+      timeoutSeconds:
+          timeoutSeconds ??
+          (timeoutMinutes == null ? this.timeoutSeconds : nextMinutes * 60),
     );
   }
 }
@@ -183,8 +197,20 @@ const _idleTimeoutKey = 'idle_timeout_minutes';
 
 @riverpod
 class IdleMode extends _$IdleMode {
+  bool _managed = false;
+
   @override
   Future<IdleModeSettings> build() async {
+    final managed = ref.watch(managedTabletActiveProfileProvider);
+    if (managed != null) {
+      _managed = true;
+      return IdleModeSettings(
+        enabled: true,
+        timeoutMinutes: (managed.idleTimeoutSeconds / 60).ceil(),
+        timeoutSeconds: managed.idleTimeoutSeconds,
+      );
+    }
+    _managed = false;
     final prefs = await SharedPreferences.getInstance();
     return IdleModeSettings(
       enabled: prefs.getBool(_idleEnabledKey) ?? false,
@@ -195,6 +221,9 @@ class IdleMode extends _$IdleMode {
   Future<void> setEnabled(bool value) async {
     final current = state.value;
     if (current == null) return;
+    if (_managed) {
+      throw StateError('managed_tablet_profile_active');
+    }
     state = AsyncData(current.copyWith(enabled: value));
     await _savePreference((prefs) => prefs.setBool(_idleEnabledKey, value));
   }
@@ -202,6 +231,9 @@ class IdleMode extends _$IdleMode {
   Future<void> setTimeoutMinutes(int minutes) async {
     final current = state.value;
     if (current == null) return;
+    if (_managed) {
+      throw StateError('managed_tablet_profile_active');
+    }
     state = AsyncData(current.copyWith(timeoutMinutes: minutes));
     await _savePreference((prefs) => prefs.setInt(_idleTimeoutKey, minutes));
   }

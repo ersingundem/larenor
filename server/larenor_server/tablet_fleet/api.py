@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, Query, Response
 from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin, require_ready_user
-from ..home_resources.models import Identity, Revision
+from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import (
     CompleteTabletCommand,
     IssueTabletCommand,
     PollTabletCommands,
+    PublishTabletProfile,
     PreviewKioskProfileRollout,
     KioskProfileRolloutPreview,
     RegisterTablet,
@@ -18,6 +19,7 @@ from .models import (
     TabletCommandResponse,
     TabletHeartbeat,
     TabletList,
+    TabletProfilePublicationResponse,
     TabletResponse,
     UpdateTabletProfile,
 )
@@ -70,6 +72,26 @@ def heartbeat(core_id: Identity, home_id: Identity, device_id: Identity,
 def profile(core_id: Identity, home_id: Identity, device_id: Identity,
             body: UpdateTabletProfile, actor: Admin, core: Core):
     return core.tablet_fleet.update_profile(actor, core_id, home_id, device_id, body)
+
+
+@router.put(
+    ROOT + "/devices/{device_id}/profile-publication",
+    response_model=TabletProfilePublicationResponse,
+)
+def publish_profile(core_id: Identity, home_id: Identity, device_id: Identity,
+                    body: PublishTabletProfile, actor: Admin, core: Core):
+    return core.tablet_fleet.publish_profile(
+        actor, core_id, home_id, device_id, body
+    )
+
+
+@router.get(
+    ROOT + "/devices/{device_id}/profile-publication",
+    response_model=TabletProfilePublicationResponse,
+)
+def read_profile(core_id: Identity, home_id: Identity, device_id: Identity,
+                 actor: Ready, core: Core):
+    return core.tablet_fleet.read_profile(actor, core_id, home_id, device_id)
 
 
 @router.delete(ROOT + "/devices/{device_id}", status_code=204)

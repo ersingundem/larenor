@@ -18,9 +18,11 @@ from .models import (
     IssueTabletCommand,
     PreviewKioskProfileRollout,
     PollTabletCommands,
+    PublishTabletProfile,
     RegisterTablet,
     StoredTablet,
     TabletHeartbeat,
+    TabletProfileDocument,
     UpdateTabletProfile,
 )
 
@@ -86,6 +88,27 @@ class TabletFleetService:
         return (f"larenor-tablet-device-v1:{self.scope.coreId}:{self.scope.homeId}:"
                 f"{row['id']}:{row['owner_id']}:{row['family_id']}:{row['revision']}:"
                 f"{row['active']}:{row['created_at']}:{row['updated_at']}:{row['last_seen_at']}").encode("ascii")
+
+    def _profile_aad(self, row):
+        return (
+            f"larenor-tablet-profile-v1:{self.scope.coreId}:{self.scope.homeId}:"
+            f"{row['device_id']}:{row['revision']}:{row['schema_version']}:"
+            f"{row['digest']}:{row['created_at']}:{row['updated_at']}"
+        ).encode("ascii")
+
+    def _profile_digest(self, device_id, document):
+        payload = [
+            1,
+            self.scope.coreId,
+            self.scope.homeId,
+            device_id,
+            document.fullscreen,
+            document.idleTimeoutSeconds,
+        ]
+        encoded = json.dumps(
+            payload, separators=(",", ":"), ensure_ascii=True
+        ).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()
 
     def _command_tag(self, row):
         payload = json.dumps([
@@ -242,6 +265,50 @@ class TabletFleetService:
             raise ValueError("invalid_tablet_command")
         return row
 
+    def _validate_profile(self, row):
+        if (
+            row is None
+            or not isinstance(row["device_id"], str)
+            or _IDENTITY.fullmatch(row["device_id"]) is None
+            or type(row["revision"]) is not int
+            or not 1 <= row["revision"] <= 2**63 - 1
+            or type(row["schema_version"]) is not int
+            or row["schema_version"] != 1
+            or not isinstance(row["digest"], str)
+            or _DIGEST.fullmatch(row["digest"]) is None
+            or type(row["nonce"]) is not bytes
+            or len(row["nonce"]) != 12
+            or type(row["ciphertext"]) is not bytes
+            or not 17 <= len(row["ciphertext"]) <= 1024
+            or not self._finite(row["created_at"])
+            or not self._finite(row["updated_at"])
+            or row["created_at"] > row["updated_at"]
+        ):
+            raise ValueError("invalid_tablet_profile")
+        document = TabletProfileDocument.model_validate_json(
+            self._cipher.decrypt(
+                row["nonce"], row["ciphertext"], self._profile_aad(row)
+            )
+        )
+        if not hmac.compare_digest(
+            row["digest"], self._profile_digest(row["device_id"], document)
+        ):
+            raise ValueError("invalid_tablet_profile")
+        return document
+
+    def _public_profile(self, row, document, device_revision):
+        return {
+            "publication": {
+                "schemaVersion": 1,
+                "deviceId": row["device_id"],
+                "deviceRevision": device_revision,
+                "revision": row["revision"],
+                "digest": row["digest"],
+                "document": document.model_dump(),
+                "updatedAt": row["updated_at"],
+            }
+        }
+
     def _transaction(self, actor, core_id, home_id, *, write=False):
         self.auth.rate_limit([("tablet_fleet_write" if write else "tablet_fleet_read",
                                actor.id, 240)])
@@ -384,6 +451,11 @@ class TabletFleetService:
                 self._actor(connection, actor, admin=True)
                 row, old = self._device(connection, device_id, expected=body.expectedRevision,
                                         active=True)
+                if connection.execute(
+                    "SELECT 1 FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone() is not None:
+                    raise ApiError("tablet_profile_changed", 409)
                 if body.desiredProfileRevision < old.appliedProfileRevision:
                     raise ApiError("invalid_request")
                 stored = old.model_copy(update={"desiredProfileRevision": body.desiredProfileRevision})
@@ -400,6 +472,140 @@ class TabletFleetService:
                     device_id=device_id, occurred_at=now,
                 )
                 return output
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, sqlite3.Error):
+            raise ApiError("tablet_fleet_storage_unavailable", 503) from None
+
+    def publish_profile(self, actor, core_id, home_id, device_id, value):
+        body = PublishTabletProfile.model_validate(value)
+        now = float(self.settings.clock())
+        try:
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
+                self._actor(connection, actor, admin=True)
+                digest = self._profile_digest(device_id, body.document)
+                if not hmac.compare_digest(digest, body.documentDigest):
+                    raise ApiError("invalid_request", 400)
+                device_row, device = self._device(
+                    connection,
+                    device_id,
+                    expected=body.expectedDeviceRevision,
+                    active=True,
+                )
+                current = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone()
+                if current is None:
+                    if body.expectedProfileRevision != 0:
+                        raise ApiError("tablet_profile_changed", 409)
+                    current_revision = device.desiredProfileRevision
+                    created_at = now
+                else:
+                    self._validate_profile(current)
+                    if (
+                        current["revision"] != body.expectedProfileRevision
+                        or current["revision"] != device.desiredProfileRevision
+                    ):
+                        raise ApiError("tablet_profile_changed", 409)
+                    current_revision = current["revision"]
+                    created_at = current["created_at"]
+                if (
+                    current_revision >= 2**63 - 1
+                    or device_row["revision"] >= 2**63 - 1
+                ):
+                    raise ApiError("tablet_profile_changed", 409)
+                revision = current_revision + 1
+                profile_row = {
+                    "device_id": device_id,
+                    "revision": revision,
+                    "schema_version": 1,
+                    "digest": digest,
+                    "created_at": created_at,
+                    "updated_at": now,
+                }
+                profile_row["nonce"] = secrets.token_bytes(12)
+                profile_row["ciphertext"] = self._cipher.encrypt(
+                    profile_row["nonce"],
+                    body.document.model_dump_json().encode("utf-8"),
+                    self._profile_aad(profile_row),
+                )
+                updated_device = dict(device_row)
+                updated_device.update(
+                    revision=device_row["revision"] + 1, updated_at=now
+                )
+                stored = device.model_copy(
+                    update={"desiredProfileRevision": revision}
+                )
+                nonce, ciphertext = self._encrypt(updated_device, stored)
+                changed = connection.execute(
+                    "UPDATE managed_tablets SET revision=?,nonce=?,ciphertext=?,updated_at=? "
+                    "WHERE id=? AND revision=?",
+                    (
+                        updated_device["revision"],
+                        nonce,
+                        ciphertext,
+                        now,
+                        device_id,
+                        device_row["revision"],
+                    ),
+                )
+                if changed.rowcount != 1:
+                    raise ApiError("tablet_device_changed", 409)
+                connection.execute(
+                    "INSERT INTO managed_tablet_profiles VALUES(?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(device_id) DO UPDATE SET "
+                    "revision=excluded.revision,schema_version=excluded.schema_version,"
+                    "digest=excluded.digest,nonce=excluded.nonce,"
+                    "ciphertext=excluded.ciphertext,updated_at=excluded.updated_at",
+                    (
+                        profile_row["device_id"],
+                        profile_row["revision"],
+                        profile_row["schema_version"],
+                        profile_row["digest"],
+                        profile_row["nonce"],
+                        profile_row["ciphertext"],
+                        profile_row["created_at"],
+                        profile_row["updated_at"],
+                    ),
+                )
+                saved = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone()
+                document = self._validate_profile(saved)
+                self._record_event(
+                    connection,
+                    action="policy_updated",
+                    actor_id=actor.id,
+                    device_id=device_id,
+                    occurred_at=now,
+                )
+                return self._public_profile(
+                    saved, document, updated_device["revision"]
+                )
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, sqlite3.Error):
+            raise ApiError("tablet_fleet_storage_unavailable", 503) from None
+
+    def read_profile(self, actor, core_id, home_id, device_id):
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                self._actor(connection, actor)
+                device_row, device = self._device(
+                    connection, device_id, actor=actor, active=True
+                )
+                row = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone()
+                if row is None:
+                    raise ApiError("not_found", 404)
+                document = self._validate_profile(row)
+                if row["revision"] != device.desiredProfileRevision:
+                    raise ValueError("invalid_tablet_profile_revision")
+                return self._public_profile(row, document, device_row["revision"])
         except ApiError:
             raise
         except (InvalidTag, ValueError, sqlite3.Error):
@@ -706,15 +912,30 @@ class TabletFleetService:
                 devices = connection.execute("SELECT * FROM managed_tablets").fetchall()
                 commands = connection.execute(
                     "SELECT * FROM managed_tablet_commands ORDER BY sequence").fetchall()
-                if len(devices) > schema.MAX_DEVICES or len(commands) > schema.MAX_COMMANDS:
+                profiles = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles ORDER BY device_id"
+                ).fetchall()
+                if (
+                    len(devices) > schema.MAX_DEVICES
+                    or len(commands) > schema.MAX_COMMANDS
+                    or len(profiles) > schema.MAX_DEVICES
+                ):
                     raise ValueError("tablet_fleet_limit")
-                device_ids = {row["id"] for row in devices}
+                device_values = {}
                 for row in devices:
-                    self._validate_device(row)
+                    device_values[row["id"]] = self._validate_device(row)
                 for row in commands:
                     self._validate_command(row)
-                    if row["device_id"] not in device_ids:
+                    if row["device_id"] not in device_values:
                         raise ValueError("orphan_tablet_command")
+                for row in profiles:
+                    self._validate_profile(row)
+                    if (
+                        row["device_id"] not in device_values
+                        or row["revision"]
+                        != device_values[row["device_id"]].desiredProfileRevision
+                    ):
+                        raise ValueError("orphan_tablet_profile")
         except (InvalidTag, ValueError, sqlite3.Error):
             raise StartupError("tablet_fleet_storage_invalid") from None
 

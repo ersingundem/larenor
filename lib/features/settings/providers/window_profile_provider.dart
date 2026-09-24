@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../../../core/window/window_policy_models.dart';
+import '../../kiosk_remote/runtime/managed_tablet_profile_store.dart';
 
 const windowProfilePreferenceKey = 'window_profile';
 
@@ -39,8 +40,16 @@ final windowProfileProvider =
 
 /// An appearance preference only: it never enrolls or locks the device.
 class WindowProfileNotifier extends AsyncNotifier<WindowProfile> {
+  bool _managed = false;
+
   @override
   Future<WindowProfile> build() async {
+    final managed = ref.watch(managedTabletActiveProfileProvider);
+    if (managed != null) {
+      _managed = true;
+      return managed.fullscreen ? WindowProfile.panel : WindowProfile.adaptive;
+    }
+    _managed = false;
     final value = await ref.watch(windowProfileStoreProvider).read();
     return value == WindowProfile.panel.name
         ? WindowProfile.panel
@@ -51,6 +60,9 @@ class WindowProfileNotifier extends AsyncNotifier<WindowProfile> {
       ConfigurationWrites.run(() async {
         final current = isCurrent ?? () => true;
         if (!ref.mounted || !current()) return;
+        if (_managed) {
+          throw StateError('managed_tablet_profile_active');
+        }
         await ref.read(windowProfileStoreProvider).write(profile);
         if (ref.mounted && current()) state = AsyncData(profile);
       });

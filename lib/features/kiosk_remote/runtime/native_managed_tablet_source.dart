@@ -31,17 +31,40 @@ final class NativeManagedTabletSourceConfig {
 
 abstract interface class ManagedTabletLocalActions {
   Future<void> refreshDashboard({required bool Function() isCurrent});
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  });
 }
 
 final class CallbackManagedTabletLocalActions
     implements ManagedTabletLocalActions {
-  const CallbackManagedTabletLocalActions({required this.onRefreshDashboard});
+  const CallbackManagedTabletLocalActions({
+    required this.onRefreshDashboard,
+    this.onSyncProfile,
+  });
 
   final Future<void> Function(bool Function() isCurrent) onRefreshDashboard;
+  final Future<void> Function(String clientVersion, bool Function() isCurrent)?
+  onSyncProfile;
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) =>
       onRefreshDashboard(isCurrent);
+
+  @override
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) {
+    final callback = onSyncProfile;
+    if (callback == null) {
+      return Future<void>.error(
+        UnsupportedError('managed_tablet_profile_sync_disabled'),
+      );
+    }
+    return callback(clientVersion, isCurrent);
+  }
 }
 
 final class DisabledManagedTabletLocalActions
@@ -51,6 +74,12 @@ final class DisabledManagedTabletLocalActions
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) =>
       Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
+
+  @override
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) => Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
 }
 
 /// Session-bound Android telemetry for the K07 MQTT runtime.
@@ -190,6 +219,10 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     if (previous != null) await _stopSession(previous._sessionId);
   }
 
+  Future<void> _retireLease(_NativeManagedTabletSourceLease lease) async {
+    if (identical(_current, lease)) await _retireCurrent();
+  }
+
   Future<void> _stopSession(String sessionId) async {
     try {
       await _channel
@@ -260,7 +293,12 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
       return error.code == 'denied'
           ? ManagedTabletCommandResult.denied
           : ManagedTabletCommandResult.failed;
-    } on StateError {
+    } on StateError catch (error) {
+      if (error.message == 'native_tablet_source_timeout' &&
+          _isCurrent(lease)) {
+        await _retireLease(lease);
+        return ManagedTabletCommandResult.failed;
+      }
       return _isCurrent(lease)
           ? ManagedTabletCommandResult.failed
           : ManagedTabletCommandResult.denied;
@@ -405,29 +443,56 @@ final class _NativeManagedTabletCommandExecutor
   final _NativeManagedTabletSourceLease _lease;
   final ManagedTabletLocalActions _actions;
   bool _working = false;
+  int _operationGeneration = 0;
 
   @override
   Future<ManagedTabletCommandResult> execute(String kind) async {
-    bool current() => _owner._isCurrent(_lease);
+    final operationGeneration = ++_operationGeneration;
+    var timedOut = false;
+    bool current() =>
+        !timedOut &&
+        operationGeneration == _operationGeneration &&
+        _owner._isCurrent(_lease);
     if (!current()) return ManagedTabletCommandResult.denied;
-    if (kind != 'refreshDashboard' && kind != 'lockKiosk') {
+    if (kind != 'refreshDashboard' &&
+        kind != 'syncProfile' &&
+        kind != 'lockKiosk') {
       return ManagedTabletCommandResult.unsupported;
     }
     if (_working) return ManagedTabletCommandResult.denied;
     _working = true;
-    final operation = kind == 'refreshDashboard'
-        ? Future<ManagedTabletCommandResult>.sync(() async {
-            await _actions.refreshDashboard(isCurrent: current);
-            return ManagedTabletCommandResult.succeeded;
-          })
-        : _owner._executeNativeCommand(_lease, kind);
+    final operation = switch (kind) {
+      'refreshDashboard' => Future<ManagedTabletCommandResult>.sync(() async {
+        await _actions.refreshDashboard(isCurrent: current);
+        return ManagedTabletCommandResult.succeeded;
+      }),
+      'syncProfile' => Future<ManagedTabletCommandResult>.sync(() async {
+        final telemetry = await _owner._read(_lease);
+        await _actions.syncProfile(
+          clientVersion: telemetry.appVersion,
+          isCurrent: current,
+        );
+        return ManagedTabletCommandResult.succeeded;
+      }),
+      _ => _owner._executeNativeCommand(_lease, kind),
+    };
     operation.then<void>(
-      (_) => _working = false,
-      onError: (_, _) => _working = false,
+      (_) {
+        if (operationGeneration == _operationGeneration) _working = false;
+      },
+      onError: (_, _) {
+        if (operationGeneration == _operationGeneration) _working = false;
+      },
     );
     try {
       final result = await operation.timeout(configuredTimeout);
       return current() ? result : ManagedTabletCommandResult.denied;
+    } on TimeoutException {
+      timedOut = true;
+      _operationGeneration += 1;
+      _working = false;
+      await _owner._retireLease(_lease);
+      return ManagedTabletCommandResult.failed;
     } on UnsupportedError {
       return current()
           ? ManagedTabletCommandResult.unsupported
