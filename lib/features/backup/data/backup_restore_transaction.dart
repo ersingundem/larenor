@@ -29,11 +29,16 @@ String _canonical(Object? value) {
 String _restoreDigest(Object? value) =>
     sha256.convert(utf8.encode(_canonical(value))).toString();
 bool _same(Object? a, Object? b) => _canonical(a) == _canonical(b);
-bool _mutable(bool secret, String key) => secret
+bool _mutable(
+  bool secret,
+  String key, [
+  Set<String> additionalPreferenceKeys = const {},
+]) => secret
     ? key == WellbeingDisclosureStore.storageKey ||
           backupConnectionFields.values.any((v) => v.containsValue(key))
     : backupPreferenceKeys.contains(key) ||
-          {'dashboard_layout', 'enabled_services_migrated'}.contains(key);
+          {'dashboard_layout', 'enabled_services_migrated'}.contains(key) ||
+          additionalPreferenceKeys.contains(key);
 bool _directTarget(bool secret, String key) => secret
     ? key != WellbeingDisclosureStore.storageKey
     : {
@@ -62,21 +67,27 @@ class _PreparedChanges {
 }
 
 class _ReadRecorder implements BackupStorage {
-  _ReadRecorder(this.inner, this.current);
+  _ReadRecorder(
+    this.inner,
+    this.current, [
+    this.additionalPreferenceKeys = const {},
+  ]);
   final Future<void> Function() current;
   final BackupStorage inner;
+  final Set<String> additionalPreferenceKeys;
   final Map<String, Object?> values = {};
   Future<Object?> read(bool secret, String key) async {
     await current();
     final id = '${secret ? 's' : 'p'}:$key';
-    if (_mutable(secret, key) && values.containsKey(id)) {
+    if (_mutable(secret, key, additionalPreferenceKeys) &&
+        values.containsKey(id)) {
       return _cloneValue(values[id]);
     }
     final value = secret
         ? await inner.readSecret(key)
         : await inner.readPreference(key);
     await current();
-    if (_mutable(secret, key)) {
+    if (_mutable(secret, key, additionalPreferenceKeys)) {
       values[id] = _cloneValue(value);
       if (values.length > 100 ||
           utf8.encode(_canonical(values)).length >
@@ -136,13 +147,40 @@ Future<PreparedBackupRestore> _prepareRestore(
           'settings': groups['settings'],
         if (chosen.dashboard && frozen.hasDashboard)
           'dashboard': groups['dashboard'],
+        if (chosen.dashboard &&
+            frozen.hasDashboard &&
+            groups.containsKey('dashboardOwner'))
+          'dashboardOwner': groups['dashboardOwner'],
         if (chosen.connections && frozen.hasConnections)
           'connections': groups['connections'],
       };
       final narrowed = BackupSnapshot.fromJson({...json, 'groups': selected});
+      HomeDataScope? coreDashboardScope;
+      if (narrowed.hasDashboard) {
+        final dashboardOwner = narrowed.dashboardOwner;
+        final dashboardSource = dashboardOwner == null
+            ? HomeSource.directLocal
+            : HomeSource.values.singleWhere(
+                (value) => value.name == dashboardOwner['source'],
+              );
+        if (dashboardSource != access.source) {
+          throw const BackupException(
+            'restore_target_mismatch',
+            'This dashboard backup targets a different home source.',
+          );
+        }
+        if (dashboardSource == HomeSource.verifiedCore) {
+          coreDashboardScope = HomeDataScope.fromJson(dashboardOwner!['scope']);
+          if (!_same(coreDashboardScope.toJson(), owner['scope'])) {
+            throw const BackupException(
+              'restore_target_mismatch',
+              'This dashboard backup belongs to another Core home.',
+            );
+          }
+        }
+      }
       if (access.source == HomeSource.verifiedCore &&
-          (narrowed.hasDashboard ||
-              narrowed.hasConnections ||
+          (narrowed.hasConnections ||
               ((selected['settings'] as Map?)?.keys.any(
                     (key) => _directTarget(false, key as String),
                   ) ??
@@ -153,7 +191,7 @@ Future<PreparedBackupRestore> _prepareRestore(
         );
       }
       final homeBearing =
-          narrowed.hasDashboard ||
+          (narrowed.hasDashboard && coreDashboardScope == null) ||
           narrowed.hasConnections ||
           ((selected['settings'] as Map?)?.keys.any(
                 (key) => _directTarget(false, key as String),
@@ -168,7 +206,9 @@ Future<PreparedBackupRestore> _prepareRestore(
         await current();
       }
 
-      final reads = _ReadRecorder(repository._storage, bound);
+      final reads = _ReadRecorder(repository._storage, bound, {
+        if (coreDashboardScope != null) coreDashboardScope.storageKey,
+      });
       final reader = BackupRepository(storage: reads, now: repository._now);
       for (final service
           in ((selected['connections'] as Map?)?.keys ?? const [])) {
@@ -176,7 +216,12 @@ Future<PreparedBackupRestore> _prepareRestore(
           await reads.readSecret(key);
         }
       }
-      final changes = await reader._buildChanges(narrowed, chosen, conflict);
+      final changes = await reader._buildChanges(
+        narrowed,
+        chosen,
+        conflict,
+        coreDashboardScope: coreDashboardScope,
+      );
       final summary = await reader.preview(narrowed);
       await repository._requireStableConnections(changes.services);
       await current();
@@ -533,23 +578,10 @@ void _checkRestoreOwner(Object? owner) {
     _recoveryRequired();
   }
   if (owner.containsKey('scope')) {
-    final scope = owner['scope'];
-    if (scope is! Map ||
-        scope.length != 3 ||
-        !scope.keys.toSet().containsAll({'coreId', 'homeId', 'userId'}) ||
-        scope.values.any(
-          (v) =>
-              v is! String ||
-              v.isEmpty ||
-              v.length > 128 ||
-              v.contains(RegExp(r'[\x00-\x1f\x7f]')),
-        )) {
+    try {
+      HomeDataScope.fromJson(owner['scope']);
+    } catch (_) {
       _recoveryRequired();
-    }
-    for (final k in ['coreId', 'homeId']) {
-      if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(scope[k] as String)) {
-        _recoveryRequired();
-      }
     }
     if (owner['source'] != 'verifiedCore') _recoveryRequired();
   }
@@ -655,6 +687,10 @@ String _encodeV2(
         _recoveryRequired();
       }
     }
+    final owner = data['owner'] as Map<String, dynamic>;
+    final additionalPreferenceKeys = owner['source'] == 'verifiedCore'
+        ? {HomeDataScope.fromJson(owner['scope']).storageKey}
+        : const <String>{};
     List<_Change> decode(String side) => repo._decodeJournal(
       jsonEncode({
         'version': 1,
@@ -663,6 +699,7 @@ String _encodeV2(
             {'secret': row['secret'], 'key': row['key'], 'before': row[side]},
         ],
       }),
+      additionalPreferenceKeys: additionalPreferenceKeys,
     );
     final before = decode('before'), after = decode('after');
     final changes = [
@@ -674,7 +711,7 @@ String _encodeV2(
           after[i].before,
         ),
     ];
-    if ((data['owner'] as Map)['source'] == 'verifiedCore' &&
+    if (owner['source'] == 'verifiedCore' &&
         changes.any((c) => _directTarget(c.secret, c.key))) {
       _recoveryRequired();
     }

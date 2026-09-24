@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../core/home_data_scope.dart';
+import '../../../core/home_source_store.dart';
 import '../../../shared/network/server_bound_client.dart';
 import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
@@ -69,6 +71,24 @@ class BackupSnapshot {
       (_json['groups'] as Map).containsKey('connections');
   Map<String, dynamic> toJson() =>
       jsonDecode(jsonEncode(_json)) as Map<String, dynamic>;
+}
+
+extension BackupSnapshotDashboardOwnership on BackupSnapshot {
+  int get version => toJson()['version'] as int;
+
+  Map<String, dynamic>? get dashboardOwner {
+    final value = (toJson()['groups'] as Map)['dashboardOwner'];
+    return value == null
+        ? null
+        : Map<String, dynamic>.from(value as Map<String, dynamic>);
+  }
+
+  HomeDataScope? get dashboardScope {
+    final owner = dashboardOwner;
+    return owner?['source'] == HomeSource.verifiedCore.name
+        ? HomeDataScope.fromJson(owner!['scope'])
+        : null;
+  }
 }
 
 /// Only counts and fixed service identifiers: never addresses, users or tokens.
@@ -175,7 +195,7 @@ void validateBackupJson(Object? value) {
       required: {'version', 'createdAt', 'groups'},
     );
     if (root['version'] is! int ||
-        !{1, 2}.contains(root['version']) ||
+        !{1, 2, 3}.contains(root['version']) ||
         root['createdAt'] is! String ||
         DateTime.tryParse(root['createdAt'] as String) == null ||
         (root['createdAt'] as String).length > 40) {
@@ -184,6 +204,7 @@ void validateBackupJson(Object? value) {
     final groups = _object(root['groups'], {
       'settings',
       'dashboard',
+      'dashboardOwner',
       'connections',
       'privacy',
     });
@@ -192,7 +213,7 @@ void validateBackupJson(Object? value) {
         'Select at least one backup group.',
       );
     }
-    if (root['version'] == 2) {
+    if ((root['version'] as int) >= 2) {
       WellbeingDisclosurePolicy.fromJson(groups['privacy']);
     } else if (groups.containsKey('privacy')) {
       throw const BackupValidationException();
@@ -200,6 +221,15 @@ void validateBackupJson(Object? value) {
     if (groups.containsKey('settings')) _validateSettings(groups['settings']);
     if (groups.containsKey('dashboard')) {
       _validateDashboard(groups['dashboard']);
+    }
+    final owner = groups['dashboardOwner'];
+    if (root['version'] == 3) {
+      if (groups.containsKey('dashboard') != (owner != null)) {
+        throw const BackupValidationException();
+      }
+      if (owner != null) _validateDashboardOwner(owner);
+    } else if (owner != null) {
+      throw const BackupValidationException();
     }
     if (groups.containsKey('connections')) {
       final records = _object(
@@ -214,6 +244,25 @@ void validateBackupJson(Object? value) {
     rethrow;
   } catch (_) {
     // Never include malformed source data or values in a validation error.
+    throw const BackupValidationException();
+  }
+}
+
+void _validateDashboardOwner(Object? value) {
+  final owner = _object(value, {'source', 'scope'}, required: {'source'});
+  final source = owner['source'];
+  if (source == HomeSource.directLocal.name) {
+    if (owner.length != 1) throw const BackupValidationException();
+    return;
+  }
+  if (source != HomeSource.verifiedCore.name ||
+      owner.length != 2 ||
+      !owner.containsKey('scope')) {
+    throw const BackupValidationException();
+  }
+  try {
+    HomeDataScope.fromJson(owner['scope']);
+  } catch (_) {
     throw const BackupValidationException();
   }
 }

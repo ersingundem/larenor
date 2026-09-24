@@ -52,7 +52,7 @@ def validate_document(document: object) -> bytes:
         raise ApiError("invalid_request")
     snapshot = document["snapshot"]
     if (not isinstance(snapshot, dict) or set(snapshot) != {"version", "createdAt", "groups"} or
-            type(snapshot["version"]) is not int or snapshot["version"] != 2 or
+            type(snapshot["version"]) is not int or snapshot["version"] not in (2, 3) or
             not isinstance(snapshot["createdAt"], str) or len(snapshot["createdAt"]) > 40):
         raise ApiError("invalid_request")
     try:
@@ -60,10 +60,20 @@ def validate_document(document: object) -> bytes:
     except ValueError:
         raise ApiError("invalid_request") from None
     groups = snapshot["groups"]
-    if (not isinstance(groups, dict) or not set(groups) <= {"privacy", "settings", "dashboard", "connections"} or
-            "privacy" not in groups or not set(groups) - {"privacy"} or
+    allowed_groups = {"privacy", "settings", "dashboard", "connections"}
+    if snapshot["version"] == 3:
+        allowed_groups.add("dashboardOwner")
+    if (not isinstance(groups, dict) or not set(groups) <= allowed_groups or
+            "privacy" not in groups or not set(groups) - {"privacy", "dashboardOwner"} or
             any(not isinstance(group, dict) for group in groups.values())):
         raise ApiError("invalid_request")
+    if snapshot["version"] == 3:
+        has_dashboard = "dashboard" in groups
+        has_owner = "dashboardOwner" in groups
+        if has_dashboard != has_owner:
+            raise ApiError("invalid_request")
+        if has_owner:
+            _validate_dashboard_owner(groups["dashboardOwner"])
     privacy = groups["privacy"]
     if (set(privacy) != {"version", "entityIds", "reviewRequired"} or
             type(privacy["version"]) is not int or privacy["version"] != 1 or
@@ -82,6 +92,32 @@ def validate_document(document: object) -> bytes:
     if len(encoded) > MAX_JSON_BYTES:
         raise ApiError("payload_too_large", 413)
     return encoded
+
+
+def _validate_dashboard_owner(owner: dict) -> None:
+    source = owner.get("source")
+    if source == "directLocal":
+        if set(owner) != {"source"}:
+            raise ApiError("invalid_request")
+        return
+    if source != "verifiedCore" or set(owner) != {"source", "scope"}:
+        raise ApiError("invalid_request")
+    scope = owner["scope"]
+    if not isinstance(scope, dict) or set(scope) != {"coreId", "homeId", "userId"}:
+        raise ApiError("invalid_request")
+    if any(not isinstance(scope[key], str) or not re.fullmatch(r"[0-9a-f]{32}", scope[key])
+           for key in ("coreId", "homeId")):
+        raise ApiError("invalid_request")
+    user_id = scope["userId"]
+    if not isinstance(user_id, str) or not user_id or any(ord(character) < 32 or ord(character) == 127
+                                                         for character in user_id):
+        raise ApiError("invalid_request")
+    try:
+        utf16_length = len(user_id.encode("utf-16-le")) // 2
+    except UnicodeError:
+        raise ApiError("invalid_request") from None
+    if utf16_length > 128:
+        raise ApiError("invalid_request")
 
 
 class VaultService:

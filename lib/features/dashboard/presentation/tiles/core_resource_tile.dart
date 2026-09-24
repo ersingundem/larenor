@@ -37,20 +37,23 @@ class CoreResourceTile extends ConsumerWidget {
       onPressed: captured == null
           ? null
           : () {
+              if (!context.mounted) return;
               final latest = ref.read(sharedHomeResourcesProvider);
-              final exact = latest?.entries
-                  .where(
-                    (entry) =>
-                        latest.fresh &&
-                        !latest.stale &&
-                        binding!.matches(entry, latest.userRevision),
-                  )
+              final revision = latest?.userRevision;
+              if (latest == null ||
+                  !latest.fresh ||
+                  latest.stale ||
+                  revision == null) {
+                return;
+              }
+              final exact = latest.entries
+                  .where((entry) => binding!.matches(entry, revision))
                   .firstOrNull;
               if (exact == null) return;
               context.push(
                 CoreResourceNavigationTarget.fromRecord(
                   exact,
-                  userRevision: latest!.userRevision!,
+                  userRevision: revision,
                 ).location,
               );
             },

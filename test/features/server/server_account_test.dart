@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -248,7 +249,7 @@ void main() {
     expect(calls, 1);
   });
 
-  test('vault requires v2 privacy validation before use', () {
+  test('vault admits only supported snapshot versions before validation', () {
     expect(
       ServerVault.fromJson({'revision': 0, 'document': null}).snapshot,
       isNull,
@@ -271,6 +272,17 @@ void main() {
         'document': {
           'version': 1,
           'snapshot': {
+            'version': 4,
+            'createdAt': now.toIso8601String(),
+            'groups': {},
+          },
+        },
+      },
+      {
+        'revision': 1,
+        'document': {
+          'version': 1,
+          'snapshot': {
             'version': 2,
             'createdAt': now.toIso8601String(),
             'groups': {},
@@ -283,6 +295,17 @@ void main() {
         throwsA(code('invalid_response')),
       );
     }
+  });
+
+  test('vault parses the shared scoped v3 compatibility fixture', () {
+    final document = jsonDecode(
+      File('contracts/server-vault-dashboard-owner.v3.json').readAsStringSync(),
+    );
+
+    final vault = ServerVault.fromJson({'revision': 7, 'document': document});
+
+    expect(vault.revision, 7);
+    expect(vault.snapshot!.toJson(), document['snapshot']);
   });
 
   group('account boundary', () {
