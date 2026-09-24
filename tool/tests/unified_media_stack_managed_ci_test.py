@@ -625,10 +625,15 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             value | {"serviceState": "verified"},
             value | {"cleanupState": "planned"},
             value | {"acceptanceSourceHashes": {}},
+            value | {"schemaVersion": True},
+            value | {"composeConfigDigest": True},
+            value | {"ownershipReceiptDigest": []},
             wrong_profile,
             wrong_platform,
         ):
-            with self.assertRaises(target.ManagedStackCIError):
+            with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid"):
                 target.validate_receipt(changed, REVISION, "linux/amd64")
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "receipt.json"

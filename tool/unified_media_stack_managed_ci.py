@@ -422,21 +422,24 @@ def _duplicate_safe(text):
     return json.loads(text, object_pairs_hook=unique)
 
 
-def validate_receipt(value, commit, selected_platform):
+def _validate_receipt(value, commit, selected_platform):
     manifest = expected_manifest(commit)
     if (not isinstance(value, dict) or set(value) != {
             "schemaVersion", "result", "platform", "sourceCommit",
             "acceptanceSourceHashes", "manifestDigest", "composeConfigDigest",
             "ownershipReceiptDigest", "lifecycle", "containerState", "serviceState",
             "publicHealthState", "automaticRetry", "cleanupState", "services"}
+            or type(value.get("schemaVersion")) is not int
             or value.get("schemaVersion") != 1
             or value.get("result") != "unified_media_stack_characterized"
             or value.get("platform") != selected_platform
             or value.get("sourceCommit") != commit
             or value.get("acceptanceSourceHashes") != acceptance_source_hashes()
             or value.get("manifestDigest") != manifest["manifestDigest"]
-            or not re.fullmatch(r"[a-f0-9]{64}", value.get("composeConfigDigest", ""))
-            or not re.fullmatch(r"[a-f0-9]{64}", value.get("ownershipReceiptDigest", ""))
+            or not isinstance(value.get("composeConfigDigest"), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", value["composeConfigDigest"])
+            or not isinstance(value.get("ownershipReceiptDigest"), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", value["ownershipReceiptDigest"])
             or value.get("lifecycle") != ["config", "pull", "create", "start", "restart"]
             or value.get("containerState") != "verified"
             or value.get("publicHealthState") != "verified"
@@ -498,6 +501,16 @@ def validate_receipt(value, commit, selected_platform):
     if len(encoded) > MAX_OUTPUT or any(term in encoded for term in (
             "token", "password", "credential", "authorization", "/var/lib")):
         raise ManagedStackCIError("unified_characterization_evidence_invalid")
+
+
+def validate_receipt(value, commit, selected_platform):
+    try:
+        _validate_receipt(value, commit, selected_platform)
+    except ManagedStackCIError:
+        raise
+    except (AttributeError, KeyError, OverflowError, TypeError, ValueError):
+        raise ManagedStackCIError(
+            "unified_characterization_evidence_invalid") from None
 
 
 def verify(path, commit, selected_platform):
