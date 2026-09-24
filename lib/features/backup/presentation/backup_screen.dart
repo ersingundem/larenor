@@ -350,6 +350,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       _message = null;
     });
     try {
+      if (!await _authorized() || !mounted || generation != _generation) return;
       final pin = await ref.read(pinLockStoreProvider).read();
       if (!mounted || generation != _generation) return;
       if (pin != null && passphrase == pin) {
@@ -357,7 +358,18 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
         return;
       }
       BackupCodec.validatePassphrase(passphrase, settingsPin: pin);
-      BackupSnapshot? snapshot = await repository.capture(_selection);
+      final access = _selection.dashboard
+          ? await ref.read(backupRestoreAccessFactoryProvider)(
+              expectedPin: _pinValue,
+              isCurrent: () =>
+                  mounted && generation == _generation && _current(),
+            )
+          : null;
+      if (!mounted || generation != _generation || !_current()) return;
+      BackupSnapshot? snapshot = await repository.capture(
+        _selection,
+        access: access,
+      );
       if (!mounted || generation != _generation) return;
       final encrypted = await codec.encrypt(snapshot, passphrase);
       // Do not retain decrypted data while the system picker is open.

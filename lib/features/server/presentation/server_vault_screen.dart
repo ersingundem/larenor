@@ -189,7 +189,8 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       _review = null;
     });
     try {
-      final access = _direction == ServerVaultDirection.restore
+      final access =
+          _direction == ServerVaultDirection.restore || _selection.dashboard
           ? await ref.read(backupRestoreAccessFactoryProvider)(
               expectedPin: _initialPin,
               isCurrent: () => sessionCurrent(epoch) && _active,

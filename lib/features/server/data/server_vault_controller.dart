@@ -181,7 +181,9 @@ class ServerVaultController {
         );
         _check(epoch);
       }
-      final local = _validated(await _repository.capture(selected));
+      final local = _validated(
+        await _repository.capture(selected, access: access),
+      );
       _check(epoch);
       final localPreview = await _repository.preview(local);
       _check(epoch);
