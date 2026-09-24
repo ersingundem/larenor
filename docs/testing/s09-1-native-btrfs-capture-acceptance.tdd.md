@@ -46,8 +46,18 @@ strict for every filesystem and rejects invalid opt-in values. GREEN
 preflight. Exact mount ID, two identical mount snapshots, retained descriptor
 identity, process root, mount namespace, calling thread and deadline checks
 remain mandatory; even with the option enabled, a mismatched non-Btrfs device
-still fails closed. The focused mount-observation and capture-preflight suites
-pass locally. Real amd64/arm64 execution remains the exact-head merge gate.
+still fails closed.
+
+The next exact run `35944440173` passed capture-root verification on both
+architectures and exposed the corresponding source-subvolume rule: Btrfs can
+assign a distinct anonymous `st_dev` to a subvolume within the same exact
+mount. RED `a597e14d` models that topology while retaining the exact source
+device/inode supplied by discovery. GREEN `944473c3` removes only the invalid
+cross-subvolume device-equality comparison. The source must still match its
+own path and retained descriptor before and after the effect, plus the capture
+capability's Btrfs filesystem, exact mount ID and mount namespace. The focused
+mount-observation, capture-preflight and capture-engine suites pass locally.
+Real amd64/arm64 execution remains the exact-head merge gate.
 
 S09.1 remains pending. Queue progress stays at **26/125** and selected-feature
 progress stays at **0/63**; complete generation and platform acceptance remain
