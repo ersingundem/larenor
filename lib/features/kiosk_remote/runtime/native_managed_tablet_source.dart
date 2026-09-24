@@ -31,17 +31,33 @@ final class NativeManagedTabletSourceConfig {
 
 abstract interface class ManagedTabletLocalActions {
   Future<void> refreshDashboard({required bool Function() isCurrent});
+  Future<void> syncProfile({required bool Function() isCurrent});
 }
 
 final class CallbackManagedTabletLocalActions
     implements ManagedTabletLocalActions {
-  const CallbackManagedTabletLocalActions({required this.onRefreshDashboard});
+  const CallbackManagedTabletLocalActions({
+    required this.onRefreshDashboard,
+    this.onSyncProfile,
+  });
 
   final Future<void> Function(bool Function() isCurrent) onRefreshDashboard;
+  final Future<void> Function(bool Function() isCurrent)? onSyncProfile;
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) =>
       onRefreshDashboard(isCurrent);
+
+  @override
+  Future<void> syncProfile({required bool Function() isCurrent}) {
+    final callback = onSyncProfile;
+    if (callback == null) {
+      return Future<void>.error(
+        UnsupportedError('managed_tablet_profile_sync_disabled'),
+      );
+    }
+    return callback(isCurrent);
+  }
 }
 
 final class DisabledManagedTabletLocalActions
@@ -50,6 +66,10 @@ final class DisabledManagedTabletLocalActions
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) =>
+      Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
+
+  @override
+  Future<void> syncProfile({required bool Function() isCurrent}) =>
       Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
 }
 
@@ -410,17 +430,24 @@ final class _NativeManagedTabletCommandExecutor
   Future<ManagedTabletCommandResult> execute(String kind) async {
     bool current() => _owner._isCurrent(_lease);
     if (!current()) return ManagedTabletCommandResult.denied;
-    if (kind != 'refreshDashboard' && kind != 'lockKiosk') {
+    if (kind != 'refreshDashboard' &&
+        kind != 'syncProfile' &&
+        kind != 'lockKiosk') {
       return ManagedTabletCommandResult.unsupported;
     }
     if (_working) return ManagedTabletCommandResult.denied;
     _working = true;
-    final operation = kind == 'refreshDashboard'
-        ? Future<ManagedTabletCommandResult>.sync(() async {
-            await _actions.refreshDashboard(isCurrent: current);
-            return ManagedTabletCommandResult.succeeded;
-          })
-        : _owner._executeNativeCommand(_lease, kind);
+    final operation = switch (kind) {
+      'refreshDashboard' => Future<ManagedTabletCommandResult>.sync(() async {
+        await _actions.refreshDashboard(isCurrent: current);
+        return ManagedTabletCommandResult.succeeded;
+      }),
+      'syncProfile' => Future<ManagedTabletCommandResult>.sync(() async {
+        await _actions.syncProfile(isCurrent: current);
+        return ManagedTabletCommandResult.succeeded;
+      }),
+      _ => _owner._executeNativeCommand(_lease, kind),
+    };
     operation.then<void>(
       (_) => _working = false,
       onError: (_, _) => _working = false,
