@@ -36,6 +36,10 @@ final class ManagedTabletActiveProfileController
   AppliedManagedTabletProfile? build() => null;
 
   void activate(AppliedManagedTabletProfile? value) => state = value;
+
+  void clearIfMounted() {
+    if (ref.mounted) state = null;
+  }
 }
 
 final _identity = RegExp(r'^[0-9a-f]{32}$');

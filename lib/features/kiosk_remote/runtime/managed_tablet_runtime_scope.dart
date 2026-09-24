@@ -160,6 +160,7 @@ final class _ManagedTabletRuntimeScopeState
     extends ConsumerState<ManagedTabletRuntimeScope>
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
+  late final ManagedTabletActiveProfileController _activeProfile;
   LocalMqttBrokerSettings? _appliedSettings;
   ManagedTabletRuntimeOwner? _appliedOwner;
   int _profileAuthorityGeneration = 0;
@@ -167,6 +168,7 @@ final class _ManagedTabletRuntimeScopeState
   @override
   void initState() {
     super.initState();
+    _activeProfile = ref.read(managedTabletActiveProfileProvider.notifier);
     _account = ref.read(serverAccountControllerProvider)
       ..addListener(_synchronize);
     WidgetsBinding.instance.addObserver(this);
@@ -244,7 +246,7 @@ final class _ManagedTabletRuntimeScopeState
 
   void _publishProfile(AppliedManagedTabletProfile? profile) {
     if (!mounted) return;
-    ref.read(managedTabletActiveProfileProvider.notifier).activate(profile);
+    _activeProfile.activate(profile);
     ref.invalidate(windowProfileProvider);
     ref.invalidate(idleModeProvider);
   }
@@ -252,9 +254,12 @@ final class _ManagedTabletRuntimeScopeState
   @override
   void dispose() {
     _profileAuthorityGeneration++;
-    ref.read(managedTabletActiveProfileProvider.notifier).activate(null);
     WidgetsBinding.instance.removeObserver(this);
     _account.removeListener(_synchronize);
+    // Riverpod forbids provider mutations while Flutter is unmounting this
+    // widget. Retire after the lifecycle callback, and tolerate a parent
+    // ProviderScope being disposed in the same turn.
+    Future<void>.microtask(_activeProfile.clearIfMounted);
     super.dispose();
   }
 
