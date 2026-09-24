@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_settings_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
@@ -146,6 +147,34 @@ void main() {
           tester.getSemantics(zoom).flagsCollection.isToggled,
           ui.Tristate.isFalse,
         );
+        final nativeBridge = find.byKey(
+          const ValueKey('web-settings-native-bridge'),
+        );
+        if (nativeBridge.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(
+            nativeBridge,
+            160,
+            scrollable: find
+                .byWidgetPredicate(
+                  (widget) =>
+                      widget is Scrollable &&
+                      widget.axisDirection == AxisDirection.down,
+                )
+                .first,
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(tester.getSize(nativeBridge), const Size(60, 48));
+        expect(
+          tester.getSemantics(nativeBridge).flagsCollection.isToggled,
+          ui.Tristate.isFalse,
+        );
+        await tester.tap(nativeBridge);
+        await tester.pump();
+        expect(
+          tester.getSemantics(nativeBridge).flagsCollection.isToggled,
+          ui.Tristate.isTrue,
+        );
         final save = find.byKey(const ValueKey('web-settings-save'));
         if (save.evaluate().isEmpty) {
           await tester.scrollUntilVisible(
@@ -179,6 +208,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(saved()?.url, 'https://panel.invalid');
+        expect(saved()?.webPanel?.nativeBridge?.revision, 1);
+        expect(
+          saved()?.webPanel?.nativeBridge?.methods,
+          {WebPanelNativeMethod.speak},
+        );
         expect(find.byType(WebPanelSettingsScreen), findsNothing);
         expect(tester.takeException(), isNull);
         semantics.dispose();

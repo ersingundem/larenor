@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout_validation.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 
@@ -13,6 +14,11 @@ void main() {
       allowUploads: true,
       allowDownloads: true,
       allowExternalActions: true,
+      nativeBridge: const WebPanelNativePolicy(
+        revision: 7,
+        topOrigin: 'https://panel.invalid',
+        methods: {WebPanelNativeMethod.speak, WebPanelNativeMethod.scanQr},
+      ),
     );
     final tile = TileConfig(
       id: 'web',
@@ -30,6 +36,7 @@ void main() {
     });
     expect(TileConfig.fromJson(json).webPanel, options);
     expect(TileConfig.fromJson(json).webPanel?.allowExternalActions, isTrue);
+    expect(TileConfig.fromJson(json).webPanel?.nativeBridge, options.nativeBridge);
     final policy = options.policyFor(tile.url!)!;
     expect(
       policy.allows('https://login.invalid:8443/oauth?code=synthetic'),
@@ -59,6 +66,7 @@ void main() {
     expect(WebPanelOptions.fromJson({}).allowUploads, false);
     expect(WebPanelOptions.fromJson({}).allowDownloads, false);
     expect(WebPanelOptions.fromJson({}).allowExternalActions, false);
+    expect(WebPanelOptions.fromJson({}).nativeBridge, isNull);
   });
   test('grant rejects paths OAuth queries wildcard credentials and ambiguous encodings', () {
     for (final value in [
@@ -104,6 +112,38 @@ void main() {
         {'allowUploads': 1},
         {'allowDownloads': 'yes'},
         {'allowExternalActions': 'yes'},
+        {
+          'nativeBridge': {
+            'schemaVersion': 2,
+            'revision': 1,
+            'topOrigin': 'https://panel.invalid',
+            'methods': ['speak'],
+          },
+        },
+        {
+          'nativeBridge': {
+            'schemaVersion': 1,
+            'revision': 1,
+            'topOrigin': 'http://panel.invalid',
+            'methods': ['speak'],
+          },
+        },
+        {
+          'nativeBridge': {
+            'schemaVersion': 1,
+            'revision': 1,
+            'topOrigin': 'https://panel.invalid',
+            'methods': ['shell'],
+          },
+        },
+        {
+          'nativeBridge': {
+            'schemaVersion': 1,
+            'revision': 1,
+            'topOrigin': 'https://panel.invalid',
+            'methods': <String>[],
+          },
+        },
         {'unknown': 'field'},
       ]) {
         expect(
