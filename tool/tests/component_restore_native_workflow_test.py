@@ -61,7 +61,7 @@ class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
             "test_core_backup_component_restore_product.py",
             "test_core_backup_restore_cli_components.py",
             "sudo --preserve-env=PYTHONPATH,EXPECTED_PLATFORM",
-            "native_root_cli",
+            "test_core_backup_component_restore_native_cli.py",
             "linux/amd64:x86_64|linux/arm64:aarch64",
         ):
             self.assertIn(evidence, script)

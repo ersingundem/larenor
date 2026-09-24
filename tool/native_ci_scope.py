@@ -91,6 +91,7 @@ _WORKFLOW_PATTERNS = {
         "server/tests/test_core_backup_component_restore_recovery.py",
         "server/tests/test_core_backup_component_restore_runtime.py",
         "server/tests/test_core_backup_component_restore_product.py",
+        "server/tests/test_core_backup_component_restore_native_cli.py",
         "server/tests/test_core_backup_restore_cli_components.py",
         "server/tests/test_engine_http.py",
         "server/pyproject.toml",
