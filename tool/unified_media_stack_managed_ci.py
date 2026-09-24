@@ -1325,15 +1325,21 @@ def validate_rendered_config(rendered, expected, project_name, *, source_root=RE
         if not context.is_absolute():
             raise ValueError()
         context = context.resolve()
-        dockerfile = Path(dockerfile_value)
-        if not dockerfile.is_absolute():
-            dockerfile = context / dockerfile
-        dockerfile = dockerfile.resolve()
+        source = source_root.resolve()
+        expected_dockerfile = source_root / "server/Dockerfile"
+        source_state = source_root.lstat()
+        server_state = expected_dockerfile.parent.lstat()
+        dockerfile_state = expected_dockerfile.lstat()
     except (OSError, RuntimeError, ValueError):
         raise ManagedStackCIError("unified_manifest_invalid") from None
     if (core_build.get("args") != expected_build["args"]
-            or context != source_root.resolve()
-            or dockerfile != (source_root / "server/Dockerfile").resolve()):
+            or Path(context_value) != context
+            or context != source
+            or dockerfile_value != "server/Dockerfile"
+            or not stat.S_ISDIR(source_state.st_mode)
+            or not stat.S_ISDIR(server_state.st_mode)
+            or not stat.S_ISREG(dockerfile_state.st_mode)
+            or expected_dockerfile.resolve() != source / "server/Dockerfile"):
         raise ManagedStackCIError("unified_manifest_invalid")
 
 
