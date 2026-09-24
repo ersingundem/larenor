@@ -1,0 +1,120 @@
+// ignore_for_file: prefer_initializing_formals
+
+import 'package:flutter/foundation.dart';
+
+import '../../data/server_account_controller.dart';
+import '../../domain/server_models.dart';
+import '../../media_catalog/data/server_media_catalog_api.dart';
+import '../../media_result_origin.dart';
+import '../domain/server_media_rows_models.dart';
+import 'server_media_rows_api.dart';
+
+final class ServerMediaRowsController extends ChangeNotifier {
+  ServerMediaRowsController(this.account, {String Function()? requestId})
+    : _accountGeneration = account.generation,
+      _requestId = requestId {
+    account.addListener(_accountChanged);
+  }
+
+  final ServerAccountController account;
+  final int _accountGeneration;
+  final String Function()? _requestId;
+  int _epoch = 0;
+  bool _disposed = false;
+
+  bool busy = false;
+  String? failure;
+  ServerAccountMediaRows? value;
+  ServerMediaResultOrigin? origin;
+
+  bool get _authorized =>
+      account.isCurrent(_accountGeneration) &&
+      account.initialized &&
+      !account.working &&
+      !account.hasPendingContext &&
+      account.session != null &&
+      account.session?.context != null &&
+      account.session?.authMutationPending == false &&
+      account.session?.user.mustChangePassword == false;
+
+  void _accountChanged() {
+    if (!_authorized) {
+      retire();
+      return;
+    }
+  }
+
+  void retire() {
+    if (_disposed) return;
+    _epoch++;
+    busy = false;
+    failure = null;
+    value = null;
+    origin = null;
+    notifyListeners();
+  }
+
+  Future<void> refresh({required bool Function() current}) async {
+    bool routeCurrent() {
+      try {
+        return current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (_disposed || busy || !_authorized || !routeCurrent()) return;
+    final operation = ++_epoch;
+    bool valid() =>
+        !_disposed && operation == _epoch && _authorized && routeCurrent();
+    busy = true;
+    failure = null;
+    value = null;
+    origin = null;
+    notifyListeners();
+    try {
+      await account.withSession((api, session) async {
+        bool requestCurrent() => valid() && identical(account.session, session);
+        final target = await ServerMediaCatalogApi(
+          api,
+          session.accessToken,
+        ).discoverTarget(current: requestCurrent);
+        if (!requestCurrent()) return;
+        final fresh = await ServerMediaRowsApi(
+          api,
+          session.accessToken,
+          requestId: _requestId,
+        ).readVerifiedTarget(target: target, current: requestCurrent);
+        if (!requestCurrent()) return;
+        value = fresh;
+        origin = ServerMediaResultOrigin.live;
+      });
+    } on LarenorServerException catch (error) {
+      if (valid()) {
+        failure = error.code;
+        if (error.code == 'media_rows_authority_changed' ||
+            error.code == 'forbidden' ||
+            error.code == 'unauthorized') {
+          value = null;
+          origin = null;
+        }
+      }
+    } catch (_) {
+      if (valid()) failure = 'connection_failed';
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _epoch++;
+    account.removeListener(_accountChanged);
+    super.dispose();
+  }
+}

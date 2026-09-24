@@ -15,6 +15,8 @@ import '../data/server_media_catalog_controller.dart';
 import '../domain/server_media_catalog_models.dart';
 import '../../media_flow/data/server_media_flow_cache.dart';
 import '../../media_flow/presentation/server_media_flow_screen.dart';
+import '../../media_rows/data/server_media_rows_controller.dart';
+import '../../media_rows/presentation/server_media_rows_section.dart';
 
 /// Explicit, read-only Core catalog search. It never mounts or falls back to a
 /// device-local Jellyfin client.
@@ -24,6 +26,7 @@ final class ServerMediaCatalogScreen extends ConsumerStatefulWidget {
     this.requestId,
     this.catalogCache,
     this.flowCache,
+    this.showAccountRows = false,
   });
 
   @visibleForTesting
@@ -35,6 +38,8 @@ final class ServerMediaCatalogScreen extends ConsumerStatefulWidget {
   @visibleForTesting
   final ServerMediaFlowCache? flowCache;
 
+  final bool showAccountRows;
+
   @override
   ConsumerState<ServerMediaCatalogScreen> createState() =>
       _ServerMediaCatalogScreenState();
@@ -45,6 +50,7 @@ final class _ServerMediaCatalogScreenState
     with WidgetsBindingObserver {
   late final ServerAccountController _account;
   late final ServerMediaCatalogController _controller;
+  ServerMediaRowsController? _rowsController;
   late final int _accountGeneration;
   final _query = TextEditingController();
   ValueListenable<TickerModeData>? _ticker;
@@ -76,8 +82,17 @@ final class _ServerMediaCatalogScreenState
       cache: widget.catalogCache,
       requestId: widget.requestId,
     );
+    if (widget.showAccountRows) {
+      _rowsController = ServerMediaRowsController(
+        _account,
+        requestId: widget.requestId,
+      );
+    }
     _account.addListener(_accountChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _browse());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _browse();
+      _refreshRows();
+    });
   }
 
   @override
@@ -116,6 +131,7 @@ final class _ServerMediaCatalogScreenState
     _mediaKind = null;
     _query.clear();
     _controller.retire();
+    _rowsController?.retire();
   }
 
   bool Function() _capture() {
@@ -149,6 +165,13 @@ final class _ServerMediaCatalogScreenState
         current: current,
       ),
     );
+  }
+
+  void _refreshRows() {
+    final current = _capture();
+    final controller = _rowsController;
+    if (controller == null || !current() || controller.busy) return;
+    unawaited(controller.refresh(current: current));
   }
 
   void _selectFilter(int? value) {
@@ -198,6 +221,7 @@ final class _ServerMediaCatalogScreenState
     _ticker?.removeListener(_visibilityChanged);
     _account.removeListener(_accountChanged);
     _controller.dispose();
+    _rowsController?.dispose();
     _query.dispose();
     super.dispose();
   }
@@ -344,6 +368,16 @@ final class _ServerMediaCatalogScreenState
       return ServiceRootScaffold(
         title: l.mediaSearchTitle,
         slivers: [
+          if (_rowsController case final rowsController?)
+            SliverToBoxAdapter(
+              child: _bounded(
+                ServerMediaRowsSection(
+                  controller: rowsController,
+                  active: _active,
+                  onRetry: _refreshRows,
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: _bounded(
               Padding(
