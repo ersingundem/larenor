@@ -197,6 +197,18 @@ void main() {
         _selection,
         access: _Access(_scopeA),
       );
+      storage.reads.clear();
+      await expectLater(
+        repository.previewAuthorized(snapshot, access: _Access(_scopeB)),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            'restore_target_mismatch',
+          ),
+        ),
+      );
+      expect(storage.reads, isEmpty);
       final before = jsonEncode(storage.preferences);
       await expectLater(
         repository.prepareRestore(

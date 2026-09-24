@@ -227,6 +227,39 @@ class BackupRepository {
     }
   });
 
+  Future<BackupPreview> previewAuthorized(
+    BackupSnapshot snapshot, {
+    required BackupRestoreAccess access,
+  }) async {
+    final frozen = BackupSnapshot.fromJson(snapshot.toJson());
+    access.checkLive();
+    await access.checkDurable();
+    access.checkLive();
+    final owner = Map<String, dynamic>.from(access.ownership);
+    _checkRestoreOwner(owner);
+    if (owner['source'] != access.source.name) _expiredRestore();
+    if (frozen.hasDashboard) {
+      final dashboardOwner = frozen.dashboardOwner;
+      final dashboardSource = dashboardOwner == null
+          ? HomeSource.directLocal.name
+          : dashboardOwner['source'];
+      if (dashboardSource != access.source.name ||
+          dashboardSource == HomeSource.verifiedCore.name &&
+              !_same(dashboardOwner!['scope'], owner['scope'])) {
+        throw const BackupException(
+          'restore_target_mismatch',
+          'This dashboard backup belongs to another home.',
+        );
+      }
+    }
+    final result = await preview(frozen);
+    access.checkLive();
+    await access.checkDurable();
+    access.checkLive();
+    if (!_same(owner, access.ownership)) _expiredRestore();
+    return result;
+  }
+
   /// Apply only selected groups. A connection is a complete record: an old
   /// endpoint is never combined with the imported endpoint's token/password.
   Future<_PreparedChanges> _buildChanges(

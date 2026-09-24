@@ -436,7 +436,17 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       if (!await _authorized() || !mounted || generation != _generation) return;
       final snapshot = await codec.decrypt(_file!, passphrase);
       if (!mounted || generation != _generation) return;
-      final preview = await repository.preview(snapshot);
+      final access = snapshot.hasDashboard
+          ? await ref.read(backupRestoreAccessFactoryProvider)(
+              expectedPin: _pinValue,
+              isCurrent: () =>
+                  mounted && generation == _generation && _current(),
+            )
+          : null;
+      if (!mounted || generation != _generation || !_current()) return;
+      final preview = access == null
+          ? await repository.preview(snapshot)
+          : await repository.previewAuthorized(snapshot, access: access);
       if (!mounted || generation != _generation) return;
       setState(() {
         _snapshot = snapshot;
