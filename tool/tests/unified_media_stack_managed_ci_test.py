@@ -217,7 +217,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             service["entrypoint"] = None
         target.validate_rendered_config(resolved, expected, project)
         with tempfile.TemporaryDirectory() as temporary:
-            archived_root = Path(temporary) / "archived-source"
+            archived_root = (Path(temporary) / "archived-source").resolve()
             (archived_root / "server").mkdir(parents=True)
             (archived_root / "server/Dockerfile").write_text(
                 "FROM scratch\n",
