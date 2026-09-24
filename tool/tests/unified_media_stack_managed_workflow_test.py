@@ -88,6 +88,53 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertNotIn("secrets.", text)
         self.assertNotIn("continue-on-error", text)
 
+    def test_exact_base_revision_reaches_both_architectures_and_public_evidence(self):
+        value = self.workflow()
+        job = value["jobs"]["unified-media-stack-native"]
+        self.assertEqual(
+            job["strategy"]["matrix"]["include"],
+            [
+                {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
+                {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"},
+            ],
+        )
+        steps = job["steps"]
+        resolve = next(
+            step for step in steps
+            if step.get("name") == "Resolve exact supported upgrade source"
+        )
+        native = next(step for step in steps if step.get("id") == "native")
+        verify = next(step for step in steps if step.get("id") == "verify")
+        upload = next(
+            step for step in steps
+            if step.get("uses", "").startswith("actions/upload-artifact@")
+        )
+        for required in (
+            'upgrade_source="$PR_BASE_SHA"',
+            'reviewed_head="$PR_HEAD_SHA"',
+            "git show -s --format='%P'",
+            'set -- $(git show -s --format=',
+            'test "$#" -eq 1',
+            'reviewed_head="$GITHUB_SHA"',
+            '*[!0-9a-f]*',
+            '${#revision}" -eq 40',
+            '$upgrade_source" != "$GITHUB_SHA',
+            'git merge-base --is-ancestor',
+            'UPGRADE_SOURCE_SHA=$upgrade_source',
+            'REVIEWED_HEAD_SHA=$reviewed_head',
+        ):
+            self.assertIn(required, resolve["run"])
+        self.assertIn('UPGRADE_SOURCE_SHA="$UPGRADE_SOURCE_SHA"', native["run"])
+        self.assertIn('REVIEWED_HEAD_SHA="$REVIEWED_HEAD_SHA"', native["run"])
+        self.assertIn(
+            '--expected-upgrade-source "$UPGRADE_SOURCE_SHA"', verify["run"]
+        )
+        self.assertIn(
+            '--expected-reviewed-head "$REVIEWED_HEAD_SHA"', verify["run"]
+        )
+        self.assertIn("${{ github.sha }}", upload["with"]["name"])
+        self.assertIn("${{ runner.arch }}", upload["with"]["name"])
+
     def test_every_embedded_shell_script_parses(self):
         value = self.workflow()
         for step in value["jobs"]["unified-media-stack-native"]["steps"]:
