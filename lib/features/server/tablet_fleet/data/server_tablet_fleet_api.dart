@@ -138,6 +138,63 @@ class ServerTabletFleetApi {
     return result.tablets;
   }
 
+  Future<ManagedTabletProfilePublication> readProfilePublication(
+    String deviceId,
+  ) async {
+    final id = _id(deviceId);
+    final publication = ManagedTabletProfilePublication.fromJson(
+      await api.request('GET', '$_root/$id/profile-publication', token: token),
+    );
+    final expectedDigest = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              1,
+              context.coreId,
+              context.homeId,
+              id,
+              publication.document.fullscreen,
+              publication.document.idleTimeoutSeconds,
+            ]),
+          ),
+        )
+        .toString();
+    if (publication.deviceId != id ||
+        publication.digest != expectedDigest ||
+        publication.revision > publication.deviceRevision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return publication;
+  }
+
+  Future<ManagedTablet> acknowledgeProfilePublication(
+    ManagedTabletProfilePublication publication, {
+    required String clientVersion,
+  }) async {
+    final tablet = await _record(
+      api.request(
+        'POST',
+        '$_root/${_id(publication.deviceId)}/heartbeat',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'expectedRevision': _revision(publication.deviceRevision),
+          'clientVersion': _version(clientVersion),
+          'appliedProfileRevision': _revision(publication.revision),
+        },
+      ),
+      expectedId: publication.deviceId,
+      expectedRevision: publication.deviceRevision,
+    );
+    if (tablet.desiredProfileRevision != publication.revision ||
+        tablet.appliedProfileRevision != publication.revision ||
+        tablet.profileState != TabletProfileState.current ||
+        tablet.state != TabletFleetState.active) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return tablet;
+  }
+
   /// Client-side registration intentionally exposes standard mode only.
   /// Device Owner registration needs a future native proof adapter; the UI
   /// never turns a user choice into a privileged capability claim.

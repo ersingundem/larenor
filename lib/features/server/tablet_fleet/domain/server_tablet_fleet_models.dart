@@ -264,6 +264,90 @@ final class ManagedTabletList {
   final List<ManagedTablet> tablets;
 }
 
+final class ManagedTabletProfileDocument {
+  const ManagedTabletProfileDocument._({
+    required this.fullscreen,
+    required this.idleTimeoutSeconds,
+  });
+
+  factory ManagedTabletProfileDocument.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'schemaVersion',
+      'fullscreen',
+      'idleTimeoutSeconds',
+    });
+    final fullscreen = json['fullscreen'];
+    final idle = json['idleTimeoutSeconds'];
+    if (json['schemaVersion'] != 1 ||
+        fullscreen is! bool ||
+        idle is! int ||
+        idle < 30 ||
+        idle > 86400) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ManagedTabletProfileDocument._(
+      fullscreen: fullscreen,
+      idleTimeoutSeconds: idle,
+    );
+  }
+
+  final bool fullscreen;
+  final int idleTimeoutSeconds;
+
+  Map<String, Object> toJson() => {
+    'schemaVersion': 1,
+    'fullscreen': fullscreen,
+    'idleTimeoutSeconds': idleTimeoutSeconds,
+  };
+}
+
+final class ManagedTabletProfilePublication {
+  const ManagedTabletProfilePublication._({
+    required this.deviceId,
+    required this.deviceRevision,
+    required this.revision,
+    required this.digest,
+    required this.document,
+    required this.updatedAt,
+  });
+
+  factory ManagedTabletProfilePublication.fromJson(Object? value) {
+    final envelope = _closed(value, const {'publication'});
+    final json = _closed(envelope['publication'], const {
+      'schemaVersion',
+      'deviceId',
+      'deviceRevision',
+      'revision',
+      'digest',
+      'document',
+      'updatedAt',
+    });
+    final digest = json['digest'];
+    if (json['schemaVersion'] != 1 ||
+        digest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ManagedTabletProfilePublication._(
+      deviceId: _identity(json['deviceId']),
+      deviceRevision: _revision(json['deviceRevision']),
+      revision: _revision(json['revision']),
+      digest: digest,
+      document: ManagedTabletProfileDocument.fromJson(json['document']),
+      updatedAt: _time(json['updatedAt']),
+    );
+  }
+
+  final String deviceId, digest;
+  final int deviceRevision, revision;
+  final ManagedTabletProfileDocument document;
+  final double updatedAt;
+
+  @override
+  String toString() =>
+      'ManagedTabletProfilePublication(device: $deviceId, revision: $revision)';
+}
+
 enum KioskRolloutDeviceState {
   current,
   ready,

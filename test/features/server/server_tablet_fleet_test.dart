@@ -96,6 +96,32 @@ class TabletFleetFixture extends AdminFixture {
     'tablets': records,
   };
 
+  Map<String, dynamic> profilePublication({String? digest}) {
+    final document = {
+      'schemaVersion': 1,
+      'fullscreen': true,
+      'idleTimeoutSeconds': 300,
+    };
+    final expected = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([1, coreId, homeId, standardTabletId, true, 300]),
+          ),
+        )
+        .toString();
+    return {
+      'publication': {
+        'schemaVersion': 1,
+        'deviceId': standardTabletId,
+        'deviceRevision': 2,
+        'revision': 2,
+        'digest': digest ?? expected,
+        'document': document,
+        'updatedAt': 1789977600.0,
+      },
+    };
+  }
+
   Future<http.Response> response(http.Request request) async {
     if (request.url.path.endsWith('/context')) {
       return this.json({
@@ -106,6 +132,13 @@ class TabletFleetFixture extends AdminFixture {
     }
     final path = request.url.path;
     if (!path.contains('/tablet-fleet/')) return defaultResponse(request);
+    if (request.method == 'GET' && path.endsWith('/profile-publication')) {
+      final item = records.first;
+      item['revision'] = 2;
+      item['desiredProfileRevision'] = 2;
+      item['profileState'] = 'updateRequired';
+      return this.json(profilePublication());
+    }
     if (request.method == 'GET') {
       return delayedList?.future ?? this.json(listBody);
     }
@@ -301,6 +334,58 @@ void main() {
         }),
         throwsA(isA<LarenorServerException>()),
       );
+      fixture.account.dispose();
+    },
+  );
+
+  test(
+    'profile publication is digest-bound and acknowledged exactly',
+    () async {
+      final fixture = TabletFleetFixture();
+      await fixture.account.initialize();
+      await fixture.account.withSession((raw, session) async {
+        final api = ServerTabletFleetApi(
+          raw,
+          session.accessToken,
+          session.context!,
+        );
+        final publication = await api.readProfilePublication(standardTabletId);
+        expect(publication.deviceRevision, 2);
+        expect(publication.revision, 2);
+        expect(publication.document.fullscreen, isTrue);
+        expect(publication.document.idleTimeoutSeconds, 300);
+
+        final applied = await api.acknowledgeProfilePublication(
+          publication,
+          clientVersion: '1.2.3',
+        );
+        expect(applied.appliedProfileRevision, 2);
+        expect(applied.profileState, TabletProfileState.current);
+        final heartbeat = jsonDecode(fixture.calls.last.body);
+        expect(heartbeat, {
+          'schemaVersion': 1,
+          'expectedRevision': 2,
+          'clientVersion': '1.2.3',
+          'appliedProfileRevision': 2,
+        });
+      });
+
+      fixture.respond = (request) async {
+        if (request.url.path.endsWith('/profile-publication')) {
+          return fixture.json(fixture.profilePublication(digest: '0' * 64));
+        }
+        return fixture.response(request);
+      };
+      await fixture.account.withSession((raw, session) async {
+        await expectLater(
+          ServerTabletFleetApi(
+            raw,
+            session.accessToken,
+            session.context!,
+          ).readProfilePublication(standardTabletId),
+          throwsA(isA<LarenorServerException>()),
+        );
+      });
       fixture.account.dispose();
     },
   );
