@@ -6,9 +6,9 @@ Progress remains `26/125` queue items and `0/63` feature checklist items.
 
 ## Three delivery jobs
 
-1. `359faf51071b6450b79b91f4e311dc6cbc76fce7` maps accepted durable installation receipts to secret-free, exact restore authority targets.
-2. `d6a34ead` retains volume-root and parent descriptors, validates deterministic archive input, stages on the same filesystem, and rejects path, inode, schema, revision, traversal, link, and malformed archive drift.
-3. This commit connects the exact Docker authority to the root-inode-preserving Linux publisher and durable v3 recovery coordinator. The boundary is disabled unless explicitly constructed with the exact durable authority, Docker adapter, and Linux engine types.
+1. `f527b03a` maps accepted durable installation receipts to secret-free, exact restore authority targets.
+2. `07bcdafb` retains volume-root and parent descriptors, validates deterministic archive input, stages on the same filesystem, and rejects path, inode, schema, revision, traversal, link, and malformed archive drift.
+3. `f0fde359` connects the exact Docker authority to the root-inode-preserving Linux publisher and durable v3 recovery coordinator. The boundary is disabled unless explicitly constructed with the exact durable authority, Docker adapter, and Linux engine types.
 
 ## RED evidence
 

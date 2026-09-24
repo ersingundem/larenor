@@ -43,9 +43,10 @@ encrypted component capture and durable installation-authority batch reports
 **58 passed**, with no skips. The two warnings are upstream Starlette/httpx
 deprecation warnings.
 
-The accepted S09.1 authority base is
-`9332419a2cba7421eded4cdd7983378070dbb916`. Re-stacking the original three
-S09.2 commits preserved aggregate stable patch ID
+The accepted S09.1 authority base is the merged native-capture squash
+`e5763adfcc9306c5dfcffe312389065b6dbc6bd7`. The earlier restack onto
+`9332419a2cba7421eded4cdd7983378070dbb916` remains historical evidence: it
+preserved aggregate stable patch ID
 `54a5de16a4ebf07aa5fe26b83c891fc2cacd5595`.
 
 ## Independent audit closure
