@@ -199,49 +199,54 @@ void main() {
     }
   }
 
-  testWidgets(
-    'selected source inspection shows only bounded proof and stays separate from manifest compatibility',
-    (tester) async {
-      final sources = FixtureCoreBackupSources();
-      final fixture = await mount(
-        tester,
-        language: 'en',
-        width: 600,
-        sources: sources,
-      );
+  for (final width in [600.0, 1200.0]) {
+    testWidgets(
+      '${width.toInt()} wide source inspection hides its digest and stays separate from manifest compatibility',
+      (tester) async {
+        final sources = FixtureCoreBackupSources();
+        final fixture = await mount(
+          tester,
+          language: 'en',
+          width: width,
+          sources: sources,
+        );
 
-      await reveal(
-        tester,
-        find.byKey(const ValueKey('server-backups-source-inspect')),
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('server-backups-source-inspect')),
-      );
-      await tester.pumpAndSettle();
+        await reveal(
+          tester,
+          find.byKey(const ValueKey('server-backups-source-inspect')),
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('server-backups-source-inspect')),
+        );
+        await tester.pumpAndSettle();
 
-      expect(sources.inspections, 1);
-      expect(find.text('Selected backup source inspection'), findsOneWidget);
-      expect(find.text('Larenor backup magic verified'), findsOneWidget);
-      expect(find.text('8.0 KiB'), findsWidgets);
-      expect(
-        find.text(
-          '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        ),
-        findsOneWidget,
-      );
-      await reveal(tester, find.text('Restore compatibility preflight'));
-      expect(find.text('Restore compatibility preflight'), findsOneWidget);
-      expect(find.textContaining('content://'), findsNothing);
-      expect(find.textContaining('/private/'), findsNothing);
-      expect(find.textContaining('synthetic_admin_access'), findsNothing);
-      expect(find.textContaining('compatible. No restore'), findsNothing);
-      expect(
-        fixture.adminCalls.where((call) => call.url.path.contains('/restore')),
-        isEmpty,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+        expect(sources.inspections, 1);
+        expect(find.text('Selected backup source inspection'), findsOneWidget);
+        expect(find.text('Larenor backup magic verified'), findsOneWidget);
+        expect(find.text('8.0 KiB'), findsWidgets);
+        expect(
+          find.text(
+            '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          ),
+          findsNothing,
+        );
+        expect(find.text('Inspected SHA-256'), findsNothing);
+        await reveal(tester, find.text('Restore compatibility preflight'));
+        expect(find.text('Restore compatibility preflight'), findsOneWidget);
+        expect(find.textContaining('content://'), findsNothing);
+        expect(find.textContaining('/private/'), findsNothing);
+        expect(find.textContaining('synthetic_admin_access'), findsNothing);
+        expect(find.textContaining('compatible. No restore'), findsNothing);
+        expect(
+          fixture.adminCalls.where(
+            (call) => call.url.path.contains('/restore'),
+          ),
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'account generation retirement cancels inspection and drops its late proof',
