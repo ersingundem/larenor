@@ -479,12 +479,66 @@ def _public_container(value):
     }
 
 
+def _runtime_health_component(driver, component, source_revision):
+    try:
+        service_id = component.get("serviceId")
+        fixed_profiles = package._PACKAGED_HEALTH
+        if (not isinstance(component, dict)
+                or not isinstance(fixed_profiles, dict)
+                or set(fixed_profiles) != set(COMPONENTS)
+                or service_id not in COMPONENTS):
+            raise ValueError()
+        fixed = fixed_profiles[service_id]
+        if (not isinstance(fixed, dict)
+                or set(fixed) != {"profile", "path", "port"}
+                or not isinstance(fixed.get("profile"), str)
+                or not isinstance(fixed.get("path"), str)
+                or type(fixed.get("port")) is not int):
+            raise ValueError()
+        if "health" in component:
+            if component["health"] != fixed:
+                raise ValueError()
+            return component
+        if (not isinstance(driver, DockerDriver)
+                or source_revision == driver.commit
+                or driver._base_root is None
+                or driver._source_root != driver._base_root):
+            raise ValueError()
+        raw = _git_blob(
+            source_revision,
+            "server/larenor_server/plugins/packagedcatalog.json",
+        )
+        catalog = _duplicate_safe(raw.decode("utf-8", "strict"))
+        entries = catalog.get("entries") if isinstance(catalog, dict) else None
+        if not isinstance(entries, list) or len(entries) != len(COMPONENTS):
+            raise ValueError()
+        observed = {}
+        for entry in entries:
+            if (not isinstance(entry, dict)
+                    or entry.get("serviceId") not in COMPONENTS
+                    or entry["serviceId"] in observed
+                    or "health" not in entry):
+                raise ValueError()
+            observed[entry["serviceId"]] = entry["health"]
+        if observed != fixed_profiles:
+            raise ValueError()
+        return {**component, "health": copy.deepcopy(fixed)}
+    except (AttributeError, KeyError, TypeError, UnicodeError, ValueError,
+            json.JSONDecodeError):
+        raise ManagedStackCIError("unified_health_probe_failed") from None
+
+
 def _public_health_receipts(driver, manifest, phase, commit, selected_platform):
     if phase not in {"initial", "restart"}:
         raise ManagedStackCIError("unified_health_probe_failed")
     result = {}
-    for component in manifest["components"]:
+    for raw_component in manifest["components"]:
         try:
+            component = _runtime_health_component(
+                driver,
+                raw_component,
+                commit,
+            )
             value = driver.public_health(
                 component, phase, commit, manifest["manifestDigest"], selected_platform)
         except Exception:
@@ -2222,6 +2276,7 @@ class DockerDriver:
 
     def public_health(self, component, phase, source_revision, manifest_digest,
                       selected_platform, *, timeout=90, interval=2):
+        component = _runtime_health_component(self, component, source_revision)
         if (not isinstance(component, dict) or phase not in {"initial", "restart"}
                 or component.get("serviceId") not in COMPONENTS
                 or not isinstance(component.get("health"), dict)
@@ -2237,6 +2292,7 @@ class DockerDriver:
                     else _revision_manifest(source_revision))
         wanted = next((item for item in expected["components"]
                        if item["serviceId"] == service_id), None)
+        wanted = _runtime_health_component(self, wanted, source_revision)
         if (wanted is None or health != wanted["health"]
                 or manifest_digest != expected["manifestDigest"]):
             raise ManagedStackCIError("unified_health_probe_failed")
