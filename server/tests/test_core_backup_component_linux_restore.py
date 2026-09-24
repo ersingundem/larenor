@@ -536,7 +536,8 @@ def test_linux_boundary_restarts_after_power_loss(server, tmp_path, lost_phase):
         assert inputs["journal"].exists() is False
         for volume in inputs["receipt"].volumes:
             root = inputs["roots"][volume.intent.binding.resource.name]
-            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+            expected = "new" if lost_phase == "committed" else "old"
+            assert (root / "current.txt").read_text(encoding="utf-8") == expected
             assert not tuple(root.parent.glob(".larenor-restore-*"))
     finally:
         _close_production_inputs(inputs)
@@ -616,13 +617,13 @@ def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_
             peer_uid=lambda _: inputs["endpoint"].owner_uid,
         )
         file_engine = api().LinuxDirectoryRestoreEngine(system=PortableExchange())
-        restore_rollback = file_engine._restore_rollback
+        finalize = file_engine.finalize
 
-        def guarded_restore(lease, deadline):
+        def guarded_finalize(lease, deadline):
             assert inputs["state"]["paused"] is True
-            return restore_rollback(lease, deadline)
+            return finalize(lease, deadline)
 
-        file_engine._restore_rollback = guarded_restore
+        file_engine.finalize = guarded_finalize
         boundary = api().LinuxComponentRestoreBoundary(
             api().DurableComponentRestoreAuthority(inputs["authority"]),
             controller,
@@ -639,7 +640,74 @@ def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_
         assert inputs["state"]["paused"] is False
         for volume in inputs["receipt"].volumes:
             root = inputs["roots"][volume.intent.binding.resource.name]
-            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+            assert (root / "current.txt").read_text(encoding="utf-8") == "new"
+    finally:
+        _close_production_inputs(inputs)
+
+
+def test_committed_cleanup_is_idempotent_before_phase_persist(server, tmp_path):
+    inputs = _production_inputs(server, tmp_path)
+    try:
+        original_write = inputs["journal"].write
+
+        def fail_committed_finalized(state):
+            if state["phase"] == "committed_finalized":
+                raise ComponentRestorePlanError()
+            return original_write(state)
+
+        inputs["journal"].write = fail_committed_finalized
+        with pytest.raises(ComponentRestorePlanError):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+
+        assert inputs["state"]["paused"] is True
+        assert inputs["journal"].read()["phase"] == "committed"
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "new"
+            assert not tuple(root.parent.glob(".larenor-restore-*"))
+
+        inputs["journal"].write = original_write
+        assert DurableComponentRestoreCoordinator(
+            inputs["journal"], _restarted_boundary(inputs)
+        ).recover(inputs["plan"], deadline=time.monotonic() + 8)
+        assert inputs["state"]["paused"] is False
+        assert inputs["journal"].exists() is False
+    finally:
+        _close_production_inputs(inputs)
+
+
+def test_success_cleanup_finishes_before_unpause_allows_service_write(server, tmp_path):
+    inputs = _production_inputs(server, tmp_path)
+    try:
+        controller = inputs["boundary"]._controller
+        unpause = controller.unpause
+
+        def unpause_and_write(container_id, deadline):
+            assert not tuple(
+                path
+                for root in inputs["roots"].values()
+                for path in root.parent.glob(".larenor-restore-*")
+            )
+            result = unpause(container_id, deadline)
+            for volume in inputs["receipt"].volumes:
+                root = inputs["roots"][volume.intent.binding.resource.name]
+                (root / "current.txt").write_text("service-live", encoding="utf-8")
+            return result
+
+        controller.unpause = unpause_and_write
+        inputs["coordinator"].restore(
+            inputs["opened"], inputs["plan"], deadline=time.monotonic() + 8
+        )
+
+        assert inputs["journal"].exists() is False
+        assert inputs["state"]["paused"] is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "service-live"
     finally:
         _close_production_inputs(inputs)
 

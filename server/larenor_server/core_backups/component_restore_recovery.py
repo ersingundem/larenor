@@ -42,6 +42,7 @@ _PHASES = {
     "staging",
     "pre_commit",
     "committed",
+    "committed_finalized",
     "rolled_back",
     "rollback_finalized",
     "released",
@@ -293,13 +294,20 @@ class ComponentRestoreRecoveryJournal:
             or phase in {"acquiring", "acquired"}
             and paused
             or phase
-            in {"quiesced", "rollback_snapshots", "staging", "pre_commit", "committed"}
+            in {
+                "quiesced",
+                "rollback_snapshots",
+                "staging",
+                "pre_commit",
+                "committed",
+                "committed_finalized",
+            }
             and not paused
             or phase == "rollback_snapshots"
             and (not rollbacks or stages)
             or phase == "staging"
             and (not rollbacks or not stages or len(stages) > len(rollbacks))
-            or phase in {"pre_commit", "committed"}
+            or phase in {"pre_commit", "committed", "committed_finalized"}
             and (not rollbacks or len(rollbacks) != len(stages))
             or phase in {"rolled_back", "rollback_finalized", "released"}
             and len(stages) > len(rollbacks)
@@ -444,6 +452,7 @@ class DurableComponentRestoreCoordinator:
             "commit",
             "rollback",
             "finalize_rollback",
+            "finalize",
             "release",
         }
         if any(not callable(getattr(session, name, None)) for name in required):
@@ -513,6 +522,7 @@ class DurableComponentRestoreCoordinator:
         paused_containers = ()
         operation_id = secrets.token_hex(16)
         release_attempted = False
+        committed = False
         try:
             volumes = _plan_matches_capture(capture, plan)
             self._active(deadline)
@@ -617,6 +627,19 @@ class DurableComponentRestoreCoordinator:
                     paused_containers,
                 )
             )
+            committed = True
+            if session.finalize(tuple(rollbacks), tuple(stages)) is not True:
+                raise ComponentRestorePlanError()
+            self._persist(
+                self._state(
+                    plan,
+                    operation_id,
+                    "committed_finalized",
+                    rollbacks,
+                    stages,
+                    paused_containers,
+                )
+            )
             release_attempted = True
             if session.release() is not True:
                 raise ComponentRestorePlanError()
@@ -630,12 +653,6 @@ class DurableComponentRestoreCoordinator:
                     paused_containers,
                 )
             )
-            finalize = getattr(session, "finalize", None)
-            if (
-                callable(finalize)
-                and finalize(tuple(rollbacks), tuple(stages)) is not True
-            ):
-                raise ComponentRestorePlanError()
             self._journal.clear()
             return ComponentRestoreBatchReceipt(
                 snapshot_id=plan.snapshot_id,
@@ -644,7 +661,7 @@ class DurableComponentRestoreCoordinator:
             )
         except Exception:
             if session is not None:
-                if not release_attempted:
+                if not release_attempted and not committed:
                     self._cleanup(
                         session,
                         plan,
@@ -682,9 +699,10 @@ class DurableComponentRestoreCoordinator:
                     zip(stages, volumes, strict=False)
                 )
             )
-            or state["phase"] in {"staging", "pre_commit", "committed"}
+            or state["phase"]
+            in {"staging", "pre_commit", "committed", "committed_finalized"}
             and len(rollbacks) != len(volumes)
-            or state["phase"] in {"pre_commit", "committed"}
+            or state["phase"] in {"pre_commit", "committed", "committed_finalized"}
             and len(stages) != len(volumes)
         ):
             raise ComponentRestorePlanError()
@@ -733,7 +751,40 @@ class DurableComponentRestoreCoordinator:
                 self._persist(self._state(plan, state["operationId"], "released"))
                 self._journal.clear()
                 return True
-            if state["phase"] not in {"rolled_back", "rollback_finalized"}:
+            if state["phase"] == "committed":
+                if session.finalize(rollbacks, stages, deadline) is not True:
+                    raise ComponentRestorePlanError()
+                state = self._state(
+                    plan,
+                    state["operationId"],
+                    "committed_finalized",
+                    rollbacks,
+                    stages,
+                    tuple(state["pausedContainers"]),
+                )
+                self._persist(state)
+            if state["phase"] == "committed_finalized":
+                release_attempted = True
+                if session.release() is not True:
+                    raise ComponentRestorePlanError()
+                self._persist(
+                    self._state(
+                        plan,
+                        state["operationId"],
+                        "released",
+                        rollbacks,
+                        stages,
+                        tuple(state["pausedContainers"]),
+                    )
+                )
+                self._journal.clear()
+                return True
+            if state["phase"] not in {
+                "rolled_back",
+                "rollback_finalized",
+                "committed",
+                "committed_finalized",
+            }:
                 if session.revalidate(plan, deadline) is not True:
                     raise ComponentRestorePlanError()
                 self._active(deadline)

@@ -762,6 +762,19 @@ class LinuxDirectoryRestoreEngine:
     def finalize(self, lease, deadline):
         if self._root_current(lease, deadline) != lease.stage:
             raise ComponentRestorePlanError()
+        existing = tuple(
+            name
+            for name in (lease.stage_name, lease.trash_name, lease.rollback_name)
+            if self._artifact_exists(lease.parent, name)
+        )
+        if not existing:
+            lease.artifacts_finalized = True
+            return True
+        if lease.rollback_name not in existing:
+            raise ComponentRestorePlanError()
+        payload = _read_private(lease.parent, lease.rollback_name)
+        if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
+            raise ComponentRestorePlanError()
         for name in (lease.stage_name, lease.trash_name):
             try:
                 _remove_tree(lease.parent, name, deadline)
@@ -769,6 +782,7 @@ class LinuxDirectoryRestoreEngine:
                 pass
         os.unlink(lease.rollback_name, dir_fd=lease.parent)
         os.fsync(lease.parent)
+        lease.artifacts_finalized = True
         return True
 
     @staticmethod
@@ -798,10 +812,11 @@ class LinuxDirectoryRestoreEngine:
                         self._artifact_exists(lease.parent, name)
                         for name in (lease.stage_name, lease.trash_name)
                     )
-                    if (
-                        any(artifacts)
-                        or self._root_current(lease, deadline) != lease.rollback
-                    ):
+                    current = self._root_current(lease, deadline)
+                    expected = {lease.rollback}
+                    if staged is not None:
+                        expected.add((staged.byte_length, staged.sha256))
+                    if any(artifacts) or current not in expected:
                         raise ComponentRestorePlanError() from None
                     lease.artifacts_finalized = True
                 else:
@@ -964,6 +979,15 @@ class LinuxComponentRestoreSession:
     def rollback(self, rollbacks, stages, deadline=None):
         if deadline is None:
             deadline = self._deadline
+        self._requiesce(deadline)
+        self._recover_leases(rollbacks, stages, deadline)
+        for lease in reversed(self._leases or ()):
+            if lease.rollback is not None:
+                self._engine.rollback(lease, deadline)
+        self._rolled_back = True
+        return True
+
+    def _requiesce(self, deadline):
         container_ids = tuple(sorted({item.container_id for item in self._sources}))
         for container_id in container_ids:
             if container_id in self._adopted_pauses:
@@ -971,12 +995,6 @@ class LinuxComponentRestoreSession:
             if self._controller.pause(container_id, deadline) is not True:
                 raise ComponentRestorePlanError()
             self._adopted_pauses.append(container_id)
-        self._recover_leases(rollbacks, stages, deadline)
-        for lease in reversed(self._leases or ()):
-            if lease.rollback is not None:
-                self._engine.rollback(lease, deadline)
-        self._rolled_back = True
-        return True
 
     def finalize_rollback(self, rollbacks, stages, deadline=None):
         if deadline is None:
@@ -1000,14 +1018,16 @@ class LinuxComponentRestoreSession:
         return True
 
     def finalize(self, rollbacks, stages, deadline=None):
-        if not self._released:
+        if self._released:
             raise ComponentRestorePlanError()
         if deadline is None:
             deadline = self._deadline
+        self._requiesce(deadline)
         self._recover_leases(rollbacks, stages, deadline)
         for lease in self._leases or ():
             self._engine.finalize(lease, deadline)
         self._engine.close(self._leases or ())
+        self._leases = ()
         return True
 
 

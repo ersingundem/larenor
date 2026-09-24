@@ -124,6 +124,10 @@ class DurableSession:
         self.state.events.append(("finalize_rollback", self.operation_id))
         return True
 
+    def finalize(self, _rollbacks, _stages, _deadline=None):
+        self.state.events.append(("finalize", self.operation_id))
+        return True
+
     def release(self):
         self.state.release_attempts += 1
         self.state.release_operations.add(self.operation_id)
@@ -308,7 +312,7 @@ def test_released_journal_failure_never_rolls_back_or_releases_again(server, tmp
     ):
         coordinator.restore(opened, plan, deadline=10.0)
 
-    assert journal.read()["phase"] == "committed"
+    assert journal.read()["phase"] == "committed_finalized"
     assert state.target != state.initial
     assert not state.rollback_operations
     assert sum(event[0] == "release" for event in state.events) == 1
