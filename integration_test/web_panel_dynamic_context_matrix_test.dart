@@ -36,7 +36,7 @@ parent.postMessage({label: 'frame', value: runProbe()}, '*');
 </script></body>
 ''');
         } else if (request.uri.path == '/') {
-          rootLoads++;
+          final loadId = ++rootLoads;
           request.response.write('''
 <!doctype html><title>waiting</title><body><script>
 $probe
@@ -44,7 +44,7 @@ const results = {};
 const publish = (label, value) => {
   results[label] = value;
   if (Object.keys(results).length === 4) {
-    document.title = Object.keys(results).sort()
+    document.title = 'load=$loadId;' + Object.keys(results).sort()
       .map(key => key + '=' + results[key]).join(';');
   }
 };
@@ -93,17 +93,19 @@ setTimeout(() => appendOpaque('delayed'), 50);
             'WebSocket:SecurityError,EventSource:SecurityError,'
             'WebTransport:SecurityError,Worker:SecurityError,'
             'SharedWorker:SecurityError';
-        final expected =
+        final result =
             'delayed=$expectedProbe;frame=$expectedProbe;'
             'opaque=$expectedProbe;top=$expectedProbe';
-        expect(await _waitForTitle(tester, controller, expected), expected);
+        final firstLoad = 'load=1;$result';
+        expect(await _waitForTitle(tester, controller, firstLoad), firstLoad);
 
         await controller.reload();
         for (var attempt = 0; attempt < 80 && rootLoads < 2; attempt++) {
           await tester.pump(const Duration(milliseconds: 100));
         }
         expect(rootLoads, 2);
-        expect(await _waitForTitle(tester, controller, expected), expected);
+        final secondLoad = 'load=2;$result';
+        expect(await _waitForTitle(tester, controller, secondLoad), secondLoad);
       } finally {
         await handle?.dispose();
         await subscription.cancel();
