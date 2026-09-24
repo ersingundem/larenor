@@ -215,6 +215,42 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             service["command"] = None
             service["entrypoint"] = None
         target.validate_rendered_config(resolved, expected, project)
+        with tempfile.TemporaryDirectory() as temporary:
+            archived_root = Path(temporary) / "archived-source"
+            archived_root.mkdir()
+            archived = json.loads(json.dumps(resolved))
+            archived["services"]["larenor-core"]["build"]["context"] = str(
+                archived_root
+            )
+            archived["services"]["larenor-core"]["build"][
+                "dockerfile"
+            ] = "server/Dockerfile"
+            target.validate_rendered_config(
+                archived,
+                expected,
+                project,
+                source_root=archived_root,
+            )
+
+            for foreign in (
+                "../foreign/Dockerfile",
+                str(archived_root.parent / "foreign/Dockerfile"),
+            ):
+                with self.subTest(foreign=foreign):
+                    changed = json.loads(json.dumps(archived))
+                    changed["services"]["larenor-core"]["build"][
+                        "dockerfile"
+                    ] = foreign
+                    with self.assertRaisesRegex(
+                        target.ManagedStackCIError,
+                        "unified_manifest_invalid",
+                    ):
+                        target.validate_rendered_config(
+                            changed,
+                            expected,
+                            project,
+                            source_root=archived_root,
+                        )
         drifts = []
         changed = json.loads(json.dumps(resolved))
         changed["services"]["larenor-seerr"]["user"] = "0:0"
