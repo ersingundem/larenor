@@ -300,6 +300,48 @@ class WebPanelOwnedTransportTest {
     }
 
     @Test
+    fun exactDeclaredLengthReadReturnsSharedPermitWithoutEofOrCallerClose() {
+        MockWebServer().use { server ->
+            val origin = WebRequestOrigin("http", server.hostName, server.port)
+            val limiter = WebPanelRequestLimiter(1)
+            val first = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                requestLimiter = limiter,
+            )
+            val second = WebPanelOwnedHttpTransport(
+                WebRequestFirewall(setOf(origin)),
+                requestLimiter = limiter,
+            )
+            try {
+                server.enqueue(MockResponse().setBody("asset"))
+                server.enqueue(MockResponse().setBody("next"))
+                val response = first.fetch(
+                    Uri.parse(server.url("/asset.js").toString()),
+                    "GET",
+                )
+                val body = ByteArray(5)
+                var offset = 0
+                while (offset < body.size) {
+                    val read = response.data.read(body, offset, body.size - offset)
+                    assertTrue(read > 0)
+                    offset += read
+                }
+                assertEquals("asset", body.decodeToString())
+
+                val next = second.fetch(
+                    Uri.parse(server.url("/next.js").toString()),
+                    "GET",
+                )
+                assertEquals(200, next.statusCode)
+                assertEquals("next", next.data.bufferedReader().use { it.readText() })
+            } finally {
+                first.close()
+                second.close()
+            }
+        }
+    }
+
+    @Test
     fun documentStartGuardRequiresOfficialFeatureAndSealsDynamicEgress() {
         val view = WebView(org.robolectric.RuntimeEnvironment.getApplication())
         val installed = mutableListOf<Triple<WebView, String, Set<String>>>()
@@ -330,6 +372,8 @@ class WebPanelOwnedTransportTest {
         assertFalse(script.contains("wss://fixture.invalid:443"))
         assertFalse(script.contains("ws://fixture.invalid:8080"))
         assertTrue(script.contains("WebSocket"))
+        assertTrue(script.contains("EventSource"))
+        assertTrue(script.contains("WebTransport"))
         assertTrue(script.contains("Worker"))
         assertTrue(script.contains("SharedWorker"))
         assertTrue(script.contains("blockedNetworkContext"))
