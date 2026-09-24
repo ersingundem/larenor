@@ -26,6 +26,7 @@ ROOT_RE = re.compile(r"/[A-Za-z0-9._ -]+(?:/[A-Za-z0-9._ -]+)*\Z")
 TIMEZONE_RE = re.compile(r"(?:Etc|[A-Za-z_][A-Za-z0-9_+-]*)/[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*\Z")
 LOCALE_RE = re.compile(r"[a-z]{2}_[A-Z]{2}\.UTF-8\Z")
 REVISION_RE = re.compile(r"[a-f0-9]{40}\Z")
+DIGEST_RE = re.compile(r"[a-f0-9]{64}\Z")
 PRIVATE_RE = re.compile(r"token|api.?key|password|credential|authorization|secret", re.I)
 MAX_DOCUMENT_BYTES = 1024 * 1024
 
@@ -314,6 +315,41 @@ class DeploymentBundlePlanner:
         else:
             checks.append({"subject": "architecture", "state": "passed",
                            "code": "architecture_supported"})
+        installed_revision = None
+        try:
+            installed = host.installation()
+        except Exception:
+            installed = "invalid"
+        installation_code = "installation_state_verified"
+        if operation == "install":
+            if installed is not None:
+                installation_code = "installation_already_exists"
+        elif installed is None:
+            installation_code = "installation_missing"
+        elif (not isinstance(installed, dict) or set(installed) != {
+                "schemaVersion", "state", "sourceRevision", "manifestDigest",
+                "bundleDigest", "architecture"}
+                or installed.get("schemaVersion") != 1
+                or installed.get("state") != "installed"
+                or not isinstance(installed.get("sourceRevision"), str)
+                or not REVISION_RE.fullmatch(installed["sourceRevision"])
+                or not isinstance(installed.get("manifestDigest"), str)
+                or not DIGEST_RE.fullmatch(installed["manifestDigest"])
+                or not isinstance(installed.get("bundleDigest"), str)
+                or not DIGEST_RE.fullmatch(installed["bundleDigest"])
+                or installed.get("architecture") not in ARCHITECTURES):
+            installation_code = "installation_receipt_invalid"
+        elif installed["architecture"] != architecture:
+            installation_code = "installation_architecture_mismatch"
+        elif installed["sourceRevision"] == manifest["sourceRevision"]:
+            installation_code = "installation_already_current"
+        else:
+            installed_revision = installed["sourceRevision"]
+        checks.append({
+            "subject": "installation",
+            "state": "passed" if installation_code == "installation_state_verified" else "failed",
+            "code": installation_code,
+        })
         devices = {}
         for requirement in manifest["ownedPaths"]:
             code = "owned_path_verified"
@@ -357,6 +393,8 @@ class DeploymentBundlePlanner:
             "manifestDigest": manifest["manifestDigest"], "checks": checks,
             "backupTarget": manifest["backupTarget"],
             "rollbackTarget": manifest["rollbackTarget"],
+            "installedRevision": installed_revision,
+            "targetRevision": manifest["sourceRevision"],
         }
 
 
