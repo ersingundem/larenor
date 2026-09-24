@@ -17,12 +17,14 @@ Status: software acceptance candidate; independent review and exact-head CI rema
 | E2E | `70e47d94` | `flutter test test/features/server/server_media_cache_loopback_test.dart` | 2 real-loopback journeys passed. | Browse, recent and resume cross real Core HTTP; restart revalidates rows, logout retires values, same-URL Core replacement misses the old scope, and no direct service path is read. |
 | Search RED | `74543000b1bb5f2f0172e9fe34d9cf52667f7f75` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` | Expected failure: `search_route_bypasses_media_authority_selector`. | The production global-search action could still open the Direct provider search under Core authority. |
 | Search GREEN | `8e13be2794ea94da867d2414db921cc5efff65e7` | Architecture test plus local-search and Media Hub widget tests | 2 architecture and 26 widget tests passed. | The production search action enters `/media`, where the same fail-closed Core/direct selector chooses the catalog surface. |
+| Import RED | `38d4d24f43013ed937d2fbc3fe1af2bfb1e57b24` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` | Expected failure: a relative Jellyfin provider import was not detected. | A symbol-marker-only guard could be bypassed with the repository's normal relative-import style. |
+| Import GREEN | `8fff261bf2784d2bde4b0d1186602cc9e113dce5` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` | 3/3 passed. | Core-only files resolve every relative and package import and reject the legacy Jellyfin, Music Assistant, Arr, Seerr, casting, playback and Direct hub trees. |
 
 The restart distinction is explicit: catalog browse may finish from its verified cache, while account rows always perform a fresh target-bound read and therefore end with `origin=live` when that read succeeds.
 
 ## Grouped verification
 
-- `python3 -m unittest tool.tests.s08_8_core_media_architecture_test`: 2/2 passed.
+- `python3 -m unittest tool.tests.s08_8_core_media_architecture_test`: 3/3 passed.
 - Core Media Hub, accessibility, cache, rows API/controller and rows screen Flutter batch: 72/72 passed.
 - Navigation, dashboard, Core rows tile and settings tablet regression batch: 54/54 passed.
 - Targeted `dart analyze`: no issues; targeted `dart format --output=none --set-exit-if-changed`: no changes.
