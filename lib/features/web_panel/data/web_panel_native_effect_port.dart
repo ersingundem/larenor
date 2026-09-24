@@ -104,7 +104,20 @@ final class AndroidWebPanelNativeEffectPort
     WebPanelNativeCommand value,
     WebPanelBridgeTrustedFrame trusted,
   ) async {
-    if (_retired || trusted.binding != _bound || !await bind(trusted.binding)) {
+    if (_retired) {
+      return const WebPanelNativePortResult(
+        outcome: WebPanelNativePortOutcome.rejected,
+      );
+    }
+    if (_bound != trusted.binding &&
+        (_bound != null ||
+            _bindingScope != trusted.binding ||
+            !await bind(trusted.binding))) {
+      return const WebPanelNativePortResult(
+        outcome: WebPanelNativePortOutcome.rejected,
+      );
+    }
+    if (_retired || trusted.binding != _bound) {
       return const WebPanelNativePortResult(
         outcome: WebPanelNativePortOutcome.rejected,
       );
