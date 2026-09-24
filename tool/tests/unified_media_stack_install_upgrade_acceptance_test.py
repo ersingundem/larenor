@@ -519,7 +519,29 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     result["upgradeSourceHashes"],
                     result["acceptanceSourceHashes"],
                 )
-                target.validate_receipt(result, CURRENT_REVISION, platform)
+                target.validate_receipt(
+                    result,
+                    CURRENT_REVISION,
+                    platform,
+                    upgrade_source=BASE_REVISION,
+                    reviewed_head=CURRENT_REVISION,
+                )
+                for missing in ("both", "upgrade", "head"):
+                    arguments = {}
+                    if missing == "upgrade":
+                        arguments["reviewed_head"] = CURRENT_REVISION
+                    elif missing == "head":
+                        arguments["upgrade_source"] = BASE_REVISION
+                    with self.subTest(missing=missing), self.assertRaisesRegex(
+                        target.ManagedStackCIError,
+                        "unified_characterization_evidence_invalid",
+                    ):
+                        target.validate_receipt(
+                            result,
+                            CURRENT_REVISION,
+                            platform,
+                            **arguments,
+                        )
                 for field in ("upgradeSourceCommit", "reviewedHeadCommit"):
                     changed = copy.deepcopy(result)
                     changed[field] = "f" * 40
@@ -527,7 +549,13 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         target.ManagedStackCIError,
                         "unified_characterization_evidence_invalid",
                     ):
-                        target.validate_receipt(changed, CURRENT_REVISION, platform)
+                        target.validate_receipt(
+                            changed,
+                            CURRENT_REVISION,
+                            platform,
+                            upgrade_source=BASE_REVISION,
+                            reviewed_head=CURRENT_REVISION,
+                        )
 
     def test_install_and_upgrade_require_exact_running_service_receipts(self):
         for drift in ("image", "container"):
