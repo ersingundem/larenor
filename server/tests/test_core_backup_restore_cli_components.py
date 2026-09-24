@@ -1,7 +1,6 @@
 """Packaged offline CLI wiring for managed-component restore and restart."""
 
 from contextlib import nullcontext
-from pathlib import Path
 
 from larenor_server import cli
 from larenor_server.core_backups.component_restore_runtime import (
@@ -45,11 +44,15 @@ def test_cli_builds_root_only_runtime_and_reopens_core_after_one_decision(
     runtime = object()
     observed = {}
 
+    def build(config):
+        observed["config"] = config
+        return nullcontext(runtime)
+
     monkeypatch.setattr(cli.Settings, "from_environment", lambda: target)
     monkeypatch.setattr(
         cli,
         "build_component_restore_runtime",
-        lambda config: observed.setdefault("config", config) or nullcontext(runtime),
+        build,
     )
     monkeypatch.setattr(
         cli,
@@ -57,7 +60,9 @@ def test_cli_builds_root_only_runtime_and_reopens_core_after_one_decision(
         lambda *_args, **kwargs: observed.setdefault("restore", kwargs),
     )
     monkeypatch.setattr(
-        cli, "create_configured_app", lambda settings: observed.setdefault("app", settings)
+        cli,
+        "create_configured_app",
+        lambda settings: observed.setdefault("app", settings),
     )
 
     assert cli.main(args(bundle, passphrase, root)) == 0
@@ -93,4 +98,3 @@ def test_cli_rejects_partial_component_authority_without_reading_secrets(
         assert error.code == 2
     else:
         raise AssertionError("partial component authority accepted")
-
