@@ -226,3 +226,105 @@ def test_vault_envelope_privacy_and_version_validation(server, mutation):
     assert response.json()["error"]["code"] == "invalid_request"
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM vaults").fetchone()[0] == 0
+
+
+def _scoped_dashboard_document(*, source="verifiedCore"):
+    data = document()
+    data["snapshot"]["version"] = 3
+    data["snapshot"]["groups"]["dashboard"] = {"schemaVersion": 2, "rooms": [], "tiles": []}
+    owner = {"source": source}
+    if source == "verifiedCore":
+        owner["scope"] = {
+            "coreId": "a" * 32,
+            "homeId": "b" * 32,
+            "userId": "fixture-user",
+        }
+    data["snapshot"]["groups"]["dashboardOwner"] = owner
+    return data
+
+
+@pytest.mark.parametrize("source", ["directLocal", "verifiedCore"])
+def test_vault_v3_accepts_only_supported_dashboard_owners(server, source):
+    _app, client, _, _ = server
+    pair = ready(server)
+    data = _scoped_dashboard_document(source=source)
+
+    response = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": data},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["document"] == data
+
+
+def test_vault_v3_allows_non_dashboard_payload_without_owner(server):
+    _app, client, _, _ = server
+    pair = ready(server)
+    data = document()
+    data["snapshot"]["version"] = 3
+
+    response = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": data},
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda item: item["snapshot"].update(version=2),
+        lambda item: item["snapshot"]["groups"].pop("dashboard"),
+        lambda item: item["snapshot"]["groups"].pop("dashboardOwner"),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"].update(extra=True),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"].update(source="unknown"),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"].pop("scope"),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(extra=True),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(coreId="A" * 32),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(homeId="b" * 31),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(userId="bad\nuser"),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(userId="x" * 129),
+    ],
+)
+def test_vault_v3_rejects_owner_version_and_scope_substitution(server, mutation):
+    app, client, _, _ = server
+    pair = ready(server)
+    data = _scoped_dashboard_document()
+    mutation(data)
+
+    response = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": data},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+    with app.state.core.db.connection() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM vaults").fetchone()[0] == 0
+
+
+def test_vault_v3_direct_local_owner_cannot_smuggle_scope(server):
+    app, client, _, _ = server
+    pair = ready(server)
+    data = _scoped_dashboard_document(source="directLocal")
+    data["snapshot"]["groups"]["dashboardOwner"]["scope"] = {
+        "coreId": "a" * 32,
+        "homeId": "b" * 32,
+        "userId": "fixture-user",
+    }
+
+    response = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": data},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+    with app.state.core.db.connection() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM vaults").fetchone()[0] == 0
