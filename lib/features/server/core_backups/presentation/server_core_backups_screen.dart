@@ -462,7 +462,6 @@ class _ServerCoreBackupsScreenState
                     l10n.serverBackupsSourceMagicVerified,
                   ),
                   _row(l10n.serverBackupsSourceSize, _size(proof.byteLength)),
-                  _row(l10n.serverBackupsSourceSha256, proof.sha256),
                 ],
               ),
             ),
