@@ -1,10 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
 import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_core_backup_models.dart';
+import '../domain/server_core_backup_source_proof.dart';
 import 'server_core_backups_api.dart';
+
+final class _SourceInspectionOperation {
+  _SourceInspectionOperation(this.cancel);
+
+  final Future<void> Function() cancel;
+}
 
 final class ServerCoreBackupsController extends ChangeNotifier {
   ServerCoreBackupsController(this.account) {
@@ -22,8 +31,12 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   String? actionFailure;
   CoreBackupPlan? plan;
   CoreBackupCompatibility? compatibility;
+  ServerCoreBackupSourceInspection? sourceInspection;
+  bool sourceBusy = false;
+  String? sourceFailure;
   LarenorTransferCancellation? _requestCancellation;
   LarenorTransferCancellation? _exportCancellation;
+  _SourceInspectionOperation? _sourceOperation;
 
   bool get _authorized =>
       account.initialized &&
@@ -42,13 +55,19 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     _requestCancellation = null;
     _exportCancellation?.cancel();
     _exportCancellation = null;
+    final sourceOperation = _sourceOperation;
+    _sourceOperation = null;
+    if (sourceOperation != null) unawaited(_cancelSource(sourceOperation));
     _generation++;
     busy = false;
     actionBusy = false;
+    sourceBusy = false;
     failure = null;
     actionFailure = null;
+    sourceFailure = null;
     plan = null;
     compatibility = null;
+    sourceInspection = null;
     _emit();
   }
 
@@ -60,7 +79,14 @@ final class ServerCoreBackupsController extends ChangeNotifier {
       current();
 
   Future<void> load({required bool Function() current}) async {
-    if (_disposed || busy || actionBusy || !_authorized || !current()) return;
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current()) {
+      return;
+    }
     final epoch = _generation, accountEpoch = account.generation;
     final cancellation = LarenorTransferCancellation();
     _requestCancellation = cancellation;
@@ -103,7 +129,12 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     LarenorBinaryDestination destination, {
     required bool Function() current,
   }) async {
-    if (_disposed || busy || actionBusy || !_authorized || !current()) {
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current()) {
       passphrase.dispose();
       await destination.cancel();
       return null;
@@ -151,7 +182,14 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     CoreBackupManifest manifest, {
     required bool Function() current,
   }) async {
-    if (_disposed || busy || actionBusy || !_authorized || !current()) return;
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current()) {
+      return;
+    }
     final epoch = _generation, accountEpoch = account.generation;
     final cancellation = LarenorTransferCancellation();
     _requestCancellation = cancellation;
@@ -187,6 +225,52 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     }
   }
 
+  Future<void> inspectSource({
+    required Future<ServerCoreBackupSourceInspection?> Function() inspect,
+    required Future<void> Function() cancel,
+    required bool Function() current,
+  }) async {
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current()) {
+      return;
+    }
+    final epoch = _generation, accountEpoch = account.generation;
+    final operation = _SourceInspectionOperation(cancel);
+    _sourceOperation = operation;
+    sourceBusy = true;
+    sourceFailure = null;
+    sourceInspection = null;
+    _emit();
+    try {
+      final value = await inspect();
+      if (value != null && _current(epoch, accountEpoch, current)) {
+        sourceInspection = value;
+      }
+    } catch (_) {
+      if (_current(epoch, accountEpoch, current)) {
+        sourceFailure = 'source_inspection_failed';
+      }
+    } finally {
+      if (identical(_sourceOperation, operation)) _sourceOperation = null;
+      if (!_disposed && epoch == _generation) {
+        sourceBusy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> _cancelSource(_SourceInspectionOperation operation) async {
+    try {
+      await operation.cancel();
+    } catch (_) {
+      // Lifecycle retirement is terminal even if the platform is already gone.
+    }
+  }
+
   void _emit() {
     if (!_disposed) notifyListeners();
   }
@@ -197,6 +281,9 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     _requestCancellation = null;
     _exportCancellation?.cancel();
     _exportCancellation = null;
+    final sourceOperation = _sourceOperation;
+    _sourceOperation = null;
+    if (sourceOperation != null) unawaited(_cancelSource(sourceOperation));
     _disposed = true;
     _generation++;
     account.removeListener(_accountChanged);

@@ -229,6 +229,7 @@ void main() {
         ),
         findsOneWidget,
       );
+      await reveal(tester, find.text('Restore compatibility preflight'));
       expect(find.text('Restore compatibility preflight'), findsOneWidget);
       expect(find.textContaining('content://'), findsNothing);
       expect(find.textContaining('/private/'), findsNothing);
@@ -282,7 +283,7 @@ void main() {
         findsNothing,
       );
       expect(
-        find.text('You do not have permission for this action.'),
+        find.text('Your account is not permitted to perform this action.'),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);

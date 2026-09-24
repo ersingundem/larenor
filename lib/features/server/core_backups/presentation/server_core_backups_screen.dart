@@ -18,6 +18,7 @@ import '../../providers/server_providers.dart';
 import '../data/server_core_backups_controller.dart';
 import '../domain/server_core_backup_models.dart';
 import 'server_core_backup_file_access.dart';
+import 'server_core_backup_source_access.dart';
 
 /// A bounded encrypted-export and manifest-preflight surface. Restoring a
 /// running Core is intentionally not exposed; empty-Core recovery stays a
@@ -35,6 +36,7 @@ class _ServerCoreBackupsScreenState
   late final ServerAccountController _account;
   late final ServerCoreBackupsController _backups;
   late final ServerCoreBackupFileAccess _files;
+  late final ServerCoreBackupSourceAccess _sources;
   late final int _accountEpoch;
   final _passphrase = TextEditingController();
   final _confirmation = TextEditingController();
@@ -64,6 +66,7 @@ class _ServerCoreBackupsScreenState
     _accountEpoch = _account.generation;
     _backups = ServerCoreBackupsController(_account);
     _files = ref.read(serverCoreBackupFileAccessProvider).scoped();
+    _sources = ref.read(serverCoreBackupSourceAccessProvider).scoped();
     _account.addListener(_accountChanged);
   }
 
@@ -217,6 +220,21 @@ class _ServerCoreBackupsScreenState
     await _backups.preflight(manifest, current: _capture());
   }
 
+  Future<void> _inspectSource() async {
+    if (!_active ||
+        _backups.busy ||
+        _backups.actionBusy ||
+        _backups.sourceBusy) {
+      return;
+    }
+    setState(() => _notice = null);
+    await _backups.inspectSource(
+      inspect: _sources.inspect,
+      cancel: _sources.cancelPending,
+      current: _capture(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -276,7 +294,10 @@ class _ServerCoreBackupsScreenState
                         alignment: AlignmentDirectional.centerStart,
                         child: CupertinoButton(
                           key: const ValueKey('server-backups-refresh'),
-                          onPressed: !_backups.busy && !_backups.actionBusy
+                          onPressed:
+                              !_backups.busy &&
+                                  !_backups.actionBusy &&
+                                  !_backups.sourceBusy
                               ? _load
                               : null,
                           child: Text(l10n.commonRefresh),
@@ -297,6 +318,7 @@ class _ServerCoreBackupsScreenState
                         ),
                       ),
                     if (_backups.plan case final plan?) _plan(l10n, plan),
+                    _sourceInspectionSection(l10n),
                     SettingsSection(
                       margin: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -357,7 +379,10 @@ class _ServerCoreBackupsScreenState
           alignment: AlignmentDirectional.centerStart,
           child: CupertinoButton(
             key: const ValueKey('server-backups-export'),
-            onPressed: !_backups.busy && !_backups.actionBusy ? _export : null,
+            onPressed:
+                !_backups.busy && !_backups.actionBusy && !_backups.sourceBusy
+                ? _export
+                : null,
             child: Text(l10n.serverBackupsExport),
           ),
         ),
@@ -386,6 +411,65 @@ class _ServerCoreBackupsScreenState
         ),
     ],
   );
+
+  Widget _sourceInspectionSection(AppLocalizations l10n) {
+    final proof = _backups.sourceInspection;
+    return SettingsSection(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      header: Text(l10n.serverBackupsSourceInspectionTitle),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.serverBackupsSourceInspectionHint),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: CupertinoButton(
+              key: const ValueKey('server-backups-source-inspect'),
+              onPressed:
+                  !_backups.busy && !_backups.actionBusy && !_backups.sourceBusy
+                  ? _inspectSource
+                  : null,
+              child: Text(l10n.serverBackupsSourceInspect),
+            ),
+          ),
+        ),
+        if (_backups.sourceBusy)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: CupertinoActivityIndicator(),
+          ),
+        if (_backups.sourceFailure != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(l10n.serverBackupsSourceInspectionFailed),
+            ),
+          ),
+        if (proof != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _row(
+                    l10n.serverBackupsSourceMagic,
+                    l10n.serverBackupsSourceMagicVerified,
+                  ),
+                  _row(l10n.serverBackupsSourceSize, _size(proof.byteLength)),
+                  _row(l10n.serverBackupsSourceSha256, proof.sha256),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _secretField({
     required String label,
@@ -438,7 +522,8 @@ class _ServerCoreBackupsScreenState
             alignment: AlignmentDirectional.centerStart,
             child: CupertinoButton(
               key: const ValueKey('server-backups-preflight'),
-              onPressed: !_backups.busy && !_backups.actionBusy
+              onPressed:
+                  !_backups.busy && !_backups.actionBusy && !_backups.sourceBusy
                   ? () => _preflight(manifest)
                   : null,
               child: Text(l10n.serverBackupsPreflight),
