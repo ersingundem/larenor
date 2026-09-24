@@ -99,27 +99,27 @@
         },
         {
           "name": "Verify planner and native policy contracts",
-          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_bundle_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_bundle_test tool.tests.unified_media_stack_install_upgrade_acceptance_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test",
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
           "name": "Run exact unified stack lifecycle",
           "id": "native",
           "timeout-minutes": 38,
-          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  UPGRADE_SOURCE_SHA=\"$UPGRADE_SOURCE_SHA\" \\\n  REVIEWED_HEAD_SHA=\"$REVIEWED_HEAD_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\"",
+          "run": "set +e\nsudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  UPGRADE_SOURCE_SHA=\"$UPGRADE_SOURCE_SHA\" \\\n  REVIEWED_HEAD_SHA=\"$REVIEWED_HEAD_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --fault-after-upgrade-journal \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-fault-receipt.json\"\nstatus=\"$?\"\nset -e\ntest \"$status\" -eq 75\ntest -s \"$RUNNER_TEMP/unified-stack-fault-receipt.json\"\ntest \"$(wc -c < \"$RUNNER_TEMP/unified-stack-fault-receipt.json\")\" -le 512\nexec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  UPGRADE_SOURCE_SHA=\"$UPGRADE_SOURCE_SHA\" \\\n  REVIEWED_HEAD_SHA=\"$REVIEWED_HEAD_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\"",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
+          "name": "Verify bounded public native receipt",
+          "id": "verify",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-upgrade-source \"$UPGRADE_SOURCE_SHA\" --expected-reviewed-head \"$REVIEWED_HEAD_SHA\" --expected-platform \"$EXPECTED_PLATFORM\" --expected-recovery post_effect_reconciled",
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
           "name": "Remove only receipt-owned containers, network and directories",
           "id": "cleanup",
-          "if": "always() && needs.native-scope.outputs.run == 'true'",
+          "if": "steps.verify.outcome == 'success' && needs.native-scope.outputs.run == 'true'",
           "run": "sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  /usr/bin/python3 -B -m tool.unified_media_stack_managed_ci --cleanup-owned \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\""
-        },
-        {
-          "name": "Verify bounded public native receipt",
-          "id": "verify",
-          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-upgrade-source \"$UPGRADE_SOURCE_SHA\" --expected-reviewed-head \"$REVIEWED_HEAD_SHA\" --expected-platform \"$EXPECTED_PLATFORM\"",
-          "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
           "name": "Preserve verified secret-free unified stack receipt",

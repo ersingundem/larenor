@@ -64,7 +64,7 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
             "self-hosted", "linux", "x64", "larenor-native"]
         self.assertIn("self_hosted_forbidden", self.policy_errors(self_hosted))
 
-    def test_exact_chain_verification_artifact_and_always_cleanup_are_ordered(self):
+    def test_exact_chain_verification_artifact_and_verified_cleanup_are_ordered(self):
         value = self.workflow()
         steps = value["jobs"]["unified-media-stack-native"]["steps"]
         native = next(i for i, step in enumerate(steps) if step.get("id") == "native")
@@ -72,12 +72,12 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         verify = next(i for i, step in enumerate(steps) if step.get("id") == "verify")
         upload = next(i for i, step in enumerate(steps)
                       if step.get("uses", "").startswith("actions/upload-artifact@"))
-        self.assertLess(native, cleanup)
-        self.assertLess(cleanup, verify)
-        self.assertLess(verify, upload)
+        self.assertLess(native, verify)
+        self.assertLess(verify, cleanup)
+        self.assertLess(cleanup, upload)
         self.assertEqual(
             steps[cleanup]["if"],
-            "always() && needs.native-scope.outputs.run == 'true'",
+            "steps.verify.outcome == 'success' && needs.native-scope.outputs.run == 'true'",
         )
         self.assertIn("--cleanup-owned", steps[cleanup]["run"])
         self.assertIn("--run-native", steps[native]["run"])
