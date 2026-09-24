@@ -116,6 +116,31 @@ void main() {
     expect(calls.where((value) => value.method == 'execute'), isEmpty);
   });
 
+  test('retirement during a delayed bind is terminal', () async {
+    final binding = scope();
+    final bindGate = Completer<bool>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'bind') return bindGate.future;
+          if (call.method == 'retire') return null;
+          throw MissingPluginException();
+        });
+    final port = AndroidWebPanelNativeEffectPort(
+      channel: channel,
+      ownerId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+
+    final bindingResult = port.bind(binding);
+    await Future<void>.delayed(Duration.zero);
+    await port.retire(binding);
+    bindGate.complete(true);
+
+    expect(await bindingResult, isFalse);
+    expect(port.capabilities, isEmpty);
+    expect(calls.map((value) => value.method), ['bind', 'retire']);
+  });
+
   test(
     'QR uses one visible scanner flight and retirement cancels it',
     () async {
@@ -153,4 +178,33 @@ void main() {
       expect(calls.where((value) => value.method == 'execute'), isEmpty);
     },
   );
+
+  test('QR timeout cancels the visible scanner flight', () async {
+    final binding = scope();
+    var cancels = 0;
+    final gate = Completer<bool>();
+    final port = AndroidWebPanelNativeEffectPort(
+      channel: channel,
+      ownerId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      capabilities: const {WebPanelNativeMethod.scanQr},
+      qrTimeout: const Duration(milliseconds: 10),
+      scanQr: (_) => gate.future,
+      cancelQr: () async {
+        cancels++;
+        if (!gate.isCompleted) gate.complete(false);
+      },
+    );
+    await port.bind(binding);
+    final qr = WebPanelNativeCommand.parse('''{
+      "schemaVersion":1,"sequence":1,
+      "requestId":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "grantId":"ffffffffffffffffffffffffffffffff",
+      "method":"scanQr","payload":{"formats":["qr"]}
+    }''');
+
+    final result = await port.execute(qr, frame(binding));
+
+    expect(result.outcome, WebPanelNativePortOutcome.uncertain);
+    expect(cancels, 1);
+  });
 }
