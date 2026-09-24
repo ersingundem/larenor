@@ -373,9 +373,11 @@ final class ManagedTabletProfileStore {
     } catch (error, stackTrace) {
       Object? rollbackFailure;
       var documentRestored = false;
+      var confirmationCleared = false;
       if (confirmationPublished) {
         try {
           await persistence.writeConfirmation(null);
+          confirmationCleared = true;
         } catch (rollbackError) {
           rollbackFailure = rollbackError;
         }
@@ -387,12 +389,16 @@ final class ManagedTabletProfileStore {
         rollbackFailure ??= rollbackError;
       }
       if (documentRestored) {
-        try {
-          await persistence.writeConfirmation(
-            safePrevious == null ? null : previousConfirmation,
-          );
-        } catch (rollbackError) {
-          rollbackFailure ??= rollbackError;
+        final confirmationToRestore = safePrevious == null
+            ? null
+            : previousConfirmation;
+        if (confirmationToRestore != null ||
+            (!confirmationCleared && previousConfirmation != null)) {
+          try {
+            await persistence.writeConfirmation(confirmationToRestore);
+          } catch (rollbackError) {
+            rollbackFailure ??= rollbackError;
+          }
         }
       }
       try {
