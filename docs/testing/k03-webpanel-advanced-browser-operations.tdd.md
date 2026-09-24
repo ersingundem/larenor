@@ -1,6 +1,6 @@
 # K03 WebPanel advanced browser operations
 
-Status: **software slice ready; K03.remaining stays open**
+Status: **platform acceptance ready; exact-head API 35 CI pending; K03.remaining stays open**
 
 ## Three acceptance criteria
 
@@ -58,17 +58,22 @@ Status: **software slice ready; K03.remaining stays open**
   panel fails to attach; same-view navigation remains behind the exact-origin
   navigation firewall.
 - Attachment also requires AndroidX WebKit's official document-start script
-  feature. Before document JavaScript runs in each allowed origin, the installed
-  non-configurable guard disables `WebSocket`, `Worker` and `SharedWorker`.
-  WebSocket is deliberately unavailable because Android WebView exposes no
-  supported redirect-aware request callback; this evidence does not claim a
-  native WebSocket interceptor. Service Worker networking remains closed by the
-  separate process-wide policy above.
+  feature. Before document JavaScript runs in each realm, the installed
+  non-configurable guard disables `WebSocket`, `EventSource`, `WebTransport`,
+  `Worker` and `SharedWorker`. These long-lived transports are deliberately
+  unavailable because Android WebView exposes no supported redirect-aware
+  request callback for them; this evidence does not claim a native interceptor.
+  Service Worker networking remains closed by the separate process-wide policy.
 - The document-start rule is `*`, not the HTTP(S) allowlist, because sandboxed
-  `srcdoc` frames have an opaque origin. A dedicated API 35 integration test
-  creates that realm and requires both WebSocket and Worker constructors to
-  throw `SecurityError`; it carries no JavaScript message interface into native
-  code.
+  `srcdoc` frames have an opaque origin. Dedicated API 35 integration tests
+  require all five constructors to throw `SecurityError` in the top document,
+  a same-origin iframe, immediate and delayed opaque frames, and after reload.
+  They carry no JavaScript message interface into native code.
+- A separate real-WebView API 35 acceptance route proves an exact-origin
+  redirect reaches its script while a cross-origin redirect opens no foreign
+  socket and a declared response above 16 MB executes no script. The regular
+  owned-transport unit suite still covers cancellation, streaming overflow,
+  shared process capacity and exact attachment retirement deterministically.
 - TLS errors, client-certificate requests and HTTP-authentication challenges
   are cancelled by the native wrapper and are never delegated to the plugin.
   Host, realm and certificate details are not sent to Dart or logged.
@@ -113,6 +118,8 @@ the fail-fast permit cap. Adversarial RED `ff3f3d46` then exposes cross-attachme
 capacity, opaque-frame injection, system-proxy and failed-stream cleanup gaps;
 GREEN `5fdab42f` closes them. The grouped milestone passes **20/20** Android
 WebPanel Robolectric tests and **113/113** Flutter WebPanel tests; focused
-Flutter analysis reports no issues. K03.remaining and progress stay at
-**26/125** and **0/63** until review and exact-head CI are recorded. Physical
+Flutter analysis reports no issues. The new API 35 matrix and real-WebView
+transport journeys remain pending exact-head emulator CI, so K03.remaining and
+progress stay at **26/125** and **0/63** until that evidence and review are
+recorded. Physical
 tablet/DeX/OEM evidence stays in the separate manual gate described above.
