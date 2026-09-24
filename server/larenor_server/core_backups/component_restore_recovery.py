@@ -426,6 +426,13 @@ class DurableComponentRestoreCoordinator:
             raise ComponentRestorePlanError()
         return session
 
+    @staticmethod
+    def _release_failed_recovery(session):
+        try:
+            session.release()
+        except Exception:
+            pass
+
     def _cleanup(self, session, plan, operation_id, rollbacks, stages):
         try:
             if session.rollback(tuple(rollbacks), tuple(stages)) is not True:
@@ -587,6 +594,8 @@ class DurableComponentRestoreCoordinator:
     def _recover_locked(self, plan, *, deadline):
         if not self._journal.exists():
             return False
+        session = None
+        release_attempted = False
         try:
             self._active(deadline)
             state = self._journal.read()
@@ -623,6 +632,7 @@ class DurableComponentRestoreCoordinator:
                     stages,
                 )
                 self._persist(state)
+            release_attempted = True
             if session.release() is not True:
                 raise ComponentRestorePlanError()
             self._persist(
@@ -637,6 +647,10 @@ class DurableComponentRestoreCoordinator:
             self._journal.clear()
             return True
         except ComponentRestorePlanError:
+            if session is not None and not release_attempted:
+                self._release_failed_recovery(session)
             raise
         except Exception:
+            if session is not None and not release_attempted:
+                self._release_failed_recovery(session)
             raise ComponentRestorePlanError() from None

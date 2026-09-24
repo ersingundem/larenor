@@ -33,6 +33,8 @@ class DurableState:
         self.events = []
         self.rollback_operations = set()
         self.release_operations = set()
+        self.release_attempts = 0
+        self.recovery_fail = None
 
 
 class DurableSession:
@@ -82,7 +84,7 @@ class DurableSession:
 
     def revalidate(self, _plan, _deadline):
         self.state.events.append(("revalidate", self.operation_id))
-        return True
+        return self.state.recovery_fail != "authority"
 
     def commit(self, stages, _rollbacks, _deadline):
         self.state.events.append(("commit", self.operation_id))
@@ -95,6 +97,8 @@ class DurableSession:
         return True
 
     def rollback(self, _rollbacks, _stages):
+        if self.state.recovery_fail == "rollback":
+            raise RuntimeError("private rollback failure")
         if self.operation_id not in self.state.rollback_operations:
             self.state.rollback_operations.add(self.operation_id)
             self.state.target.update(self.state.rollback_payloads)
@@ -103,6 +107,7 @@ class DurableSession:
         return True
 
     def release(self):
+        self.state.release_attempts += 1
         self.state.release_operations.add(self.operation_id)
         self.state.events.append(("release", self.operation_id))
         return True
@@ -119,6 +124,18 @@ class DurableBoundary:
     def recover_durable(self, plan, operation_id, _deadline):
         self.state.events.append(("recover", operation_id, plan.snapshot_id))
         return DurableSession(self.state, operation_id)
+
+
+class RecoveryFailureBoundary(DurableBoundary):
+    def __init__(self, state, clock):
+        super().__init__(state)
+        self.clock = clock
+
+    def recover_durable(self, plan, operation_id, deadline):
+        session = super().recover_durable(plan, operation_id, deadline)
+        if self.state.recovery_fail == "deadline":
+            self.clock.now = 11.0
+        return session
 
 
 def durable_inputs(server, tmp_path, *, partial_commit=False, checkpoint=None):
@@ -368,6 +385,52 @@ def test_recovery_journal_serializes_cross_process_owners(tmp_path):
 
     descriptor = second.acquire_lock()
     second.release_lock(descriptor)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["authority", "deadline", "rollback", "persist"],
+)
+def test_recovery_post_acquire_failure_releases_exactly_once(
+    server, tmp_path, failure
+):
+    def checkpoint(value):
+        if value["phase"] == "pre_commit":
+            raise SimulatedCrash()
+
+    opened, plan, state, journal, coordinator = durable_inputs(
+        server,
+        tmp_path,
+        checkpoint=checkpoint,
+    )
+    with pytest.raises(SimulatedCrash):
+        coordinator.restore(opened, plan, deadline=10.0)
+    state.recovery_fail = failure
+    clock = type("Clock", (), {"now": 0.0, "__call__": lambda self: self.now})()
+    if failure == "persist":
+        write = journal.write
+
+        def fail_rolled_back(value):
+            if value["phase"] == "rolled_back":
+                raise ComponentRestorePlanError()
+            write(value)
+
+        journal.write = fail_rolled_back
+    restarted = DurableComponentRestoreCoordinator(
+        journal,
+        RecoveryFailureBoundary(state, clock),
+        monotonic=clock,
+    )
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        restarted.recover(plan, deadline=10.0)
+
+    assert journal.exists()
+    assert state.release_attempts == 1
+    assert sum(event[0] == "release" for event in state.events) == 1
 
 
 def test_default_durable_boundary_keeps_component_restore_disabled(
