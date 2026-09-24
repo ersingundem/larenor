@@ -141,6 +141,38 @@ void main() {
     expect(calls.map((value) => value.method), ['bind', 'retire']);
   });
 
+  test('execute awaits its exact delayed native bind', () async {
+    final binding = scope();
+    final bindGate = Completer<bool>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return switch (call.method) {
+            'bind' => bindGate.future,
+            'execute' => <String, Object?>{
+              'operationId': 'cccccccccccccccccccccccccccccccc',
+              'outcome': 'accepted',
+              'receiptHandle': 'cccccccccccccccccccccccccccccccc',
+            },
+            _ => throw MissingPluginException(),
+          };
+        });
+    final port = AndroidWebPanelNativeEffectPort(
+      channel: channel,
+      ownerId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+
+    final bindingResult = port.bind(binding);
+    final executing = port.execute(command(), frame(binding));
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.map((value) => value.method), ['bind']);
+
+    bindGate.complete(true);
+    expect(await bindingResult, isTrue);
+    expect((await executing).outcome, WebPanelNativePortOutcome.accepted);
+    expect(calls.map((value) => value.method), ['bind', 'execute']);
+  });
+
   test(
     'QR uses one visible scanner flight and retirement cancels it',
     () async {
