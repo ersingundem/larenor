@@ -586,6 +586,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             rollback = root.parent / (root.name + "-rollback")
             backups.mkdir()
             rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
             identity = root.stat()
             external = [backups.stat(), rollback.stat()]
             receipt.write_text(json.dumps({
@@ -620,6 +622,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             root.mkdir()
             backups.mkdir()
             rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
             (root / "replacement-private-state").write_text("retain\n")
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
@@ -639,6 +643,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             rollback = root.parent / (root.name + "-rollback")
             backups.mkdir()
             rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
             external = [backups.stat(), rollback.stat()]
             operation_id = "d" * 32
             receipt = Path(temporary) / "ownership.json"
@@ -676,6 +682,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             root.mkdir()
             backups.mkdir()
             rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
             operation_id = "d" * 32
             root_identity = root.stat()
             external = [backups.stat(), rollback.stat()]
@@ -712,6 +720,50 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             self.assertTrue(backups.exists())
             self.assertTrue((backups / "foreign").exists())
             self.assertTrue(displaced.exists())
+            self.assertTrue(rollback.exists())
+
+    def test_cleanup_rejects_external_owned_root_mode_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            operation_id = "d" * 32
+            root_identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": root_identity.st_dev,
+                "rootInode": root_identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o600)
+            backups.chmod(0o777)
+            (backups / "foreign").write_text("preserve\n")
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            command.assert_not_called()
+            self.assertTrue(root.exists())
+            self.assertTrue((backups / "foreign").exists())
             self.assertTrue(rollback.exists())
 
     def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):
