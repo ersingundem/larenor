@@ -582,18 +582,31 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             receipt = Path(temporary) / "ownership.json"
             operation_id = "d" * 32
             root.mkdir()
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            backups.mkdir()
+            rollback.mkdir()
             identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
             receipt.write_text(json.dumps({
                 "schemaVersion": 1, "operationId": operation_id,
                 "sourceCommit": REVISION, "root": str(root),
                 "rootDevice": identity.st_dev, "rootInode": identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
                 "projectName": "larenor-native-" + operation_id,
             }))
             (root / "data").mkdir()
+            (backups / "backup-private-state").write_text("retain-until-cleanup\n")
+            (rollback / "rollback-private-state").write_text("retain-until-cleanup\n")
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)
             self.assertFalse(root.exists())
+            self.assertFalse(backups.exists())
+            self.assertFalse(rollback.exists())
             self.assertEqual(command.call_count, 1)
             arguments = command.call_args.args[0]
             self.assertEqual(arguments[arguments.index("--project-name") + 1],
@@ -604,6 +617,8 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             command.assert_not_called()
 
             root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
             (root / "replacement-private-state").write_text("retain\n")
             with patch.object(target, "ROOT", root), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
@@ -613,6 +628,89 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             self.assertTrue(root.exists())
             self.assertTrue((root / "replacement-private-state").exists())
             command.assert_not_called()
+
+    def test_cleanup_rejects_mutable_external_ownership_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            root.mkdir()
+            identity = root.stat()
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            backups.mkdir()
+            rollback.mkdir()
+            external = [backups.stat(), rollback.stat()]
+            operation_id = "d" * 32
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": identity.st_dev,
+                "rootInode": identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o666)
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            self.assertTrue(root.exists())
+            command.assert_not_called()
+
+    def test_cleanup_rejects_replaced_external_owned_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
+            operation_id = "d" * 32
+            root_identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": root_identity.st_dev,
+                "rootInode": root_identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            displaced = backups.with_name(backups.name + "-displaced")
+            backups.rename(displaced)
+            backups.mkdir()
+            (backups / "foreign").write_text("preserve\n")
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            command.assert_not_called()
+            self.assertTrue(root.exists())
+            self.assertTrue(backups.exists())
+            self.assertTrue((backups / "foreign").exists())
+            self.assertTrue(displaced.exists())
+            self.assertTrue(rollback.exists())
 
     def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):
         value = target.run_native(REVISION, "linux/amd64", FakeDriver())

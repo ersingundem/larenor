@@ -811,7 +811,17 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     "unified_installation_receipt_invalid",
                 ):
                     self.run_upgrade(driver)
-                self.assertEqual(driver.calls[-1], "cleanup")
+                if tamper == "stale":
+                    self.assertIsNone(driver.state.journal)
+                    self.assertEqual(driver.calls[-1], "cleanup")
+                else:
+                    self.assertEqual(driver.state.journal["operation"], "install")
+                    self.assertIsNotNone(driver.state.journal["currentEffect"])
+                    self.assertEqual(
+                        driver.state.journal["privateState"],
+                        driver.private_receipts,
+                    )
+                    self.assertNotIn("cleanup", driver.calls)
 
     def test_interrupted_pre_effect_apply_fails_without_replay(self):
         for phase in ("install_before", "upgrade_before"):
@@ -830,7 +840,14 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 self.assertIn("reconcile:" + phase.removesuffix("_before"), " ".join(
                     driver.calls,
                 ))
-                self.assertEqual(driver.calls[-1], "cleanup")
+                operation = phase.removesuffix("_before")
+                self.assertEqual(driver.state.journal["operation"], operation)
+                self.assertIsNone(driver.state.journal["currentEffect"])
+                self.assertEqual(
+                    driver.state.journal["privateState"],
+                    driver.private_receipts,
+                )
+                self.assertNotIn("cleanup", driver.calls)
 
     def test_interrupted_post_effect_apply_reconciles_without_replay(self):
         for phase in ("install_after", "upgrade_after"):
@@ -1109,7 +1126,12 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             root = Path(raw)
             owned = root / "owned"
             owned.mkdir()
+            backups = root / "owned-backups"
+            rollback = root / "owned-rollback"
+            backups.mkdir()
+            rollback.mkdir()
             identity = owned.stat()
+            external = [backups.stat(), rollback.stat()]
             receipt = root / "ownership.json"
             operation_id = "1" * 32
             receipt.write_text(
@@ -1121,6 +1143,14 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         "root": str(owned),
                         "rootDevice": identity.st_dev,
                         "rootInode": identity.st_ino,
+                        "externalRoots": [
+                            {
+                                "path": str(path),
+                                "device": info.st_dev,
+                                "inode": info.st_ino,
+                            }
+                            for path, info in zip((backups, rollback), external)
+                        ],
                         "projectName": "larenor-native-" + operation_id,
                     },
                     sort_keys=True,
@@ -1151,7 +1181,12 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             parent = Path(raw)
             root = parent / "owned"
             root.mkdir()
+            backups = parent / "owned-backups"
+            rollback = parent / "owned-rollback"
+            backups.mkdir()
+            rollback.mkdir()
             identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
             operation_id = "1" * 32
             receipt = parent / "ownership.json"
             receipt.write_text(
@@ -1163,6 +1198,14 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                         "root": str(root),
                         "rootDevice": identity.st_dev,
                         "rootInode": identity.st_ino,
+                        "externalRoots": [
+                            {
+                                "path": str(path),
+                                "device": info.st_dev,
+                                "inode": info.st_ino,
+                            }
+                            for path, info in zip((backups, rollback), external)
+                        ],
                         "projectName": "larenor-native-" + operation_id,
                     },
                     sort_keys=True,
