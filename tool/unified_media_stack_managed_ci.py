@@ -650,7 +650,7 @@ def _effect_receipt(value, revision, selected_platform):
 def _apply_or_reconcile(driver, operation, revision, selected_platform):
     try:
         value = getattr(driver, "apply_" + operation)(revision)
-    except Exception:
+    except Exception as apply_error:
         try:
             recovery_pending = driver.recovery_pending()
         except Exception:
@@ -658,6 +658,11 @@ def _apply_or_reconcile(driver, operation, revision, selected_platform):
         try:
             value = driver.reconcile_upgrade(revision, operation)
         except Exception:
+            if isinstance(apply_error, ManagedStackCIError):
+                raise ManagedStackCIError(
+                    apply_error.code,
+                    preserve_resources=True,
+                ) from None
             raise ManagedStackCIError(
                 "unified_" + operation + "_reconcile_failed",
                 preserve_resources=recovery_pending,
