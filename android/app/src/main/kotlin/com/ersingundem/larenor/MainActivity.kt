@@ -132,6 +132,7 @@ class MainActivity : FlutterActivity() {
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (webPanelNativeEffects?.onActivityResult(requestCode, resultCode, data) == true) return
         if (webPanelDownload?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupDestination?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupSource?.onActivityResult(requestCode, resultCode, data) == true) return

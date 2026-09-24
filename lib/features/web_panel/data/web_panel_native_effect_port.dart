@@ -13,8 +13,11 @@ final class AndroidWebPanelNativeEffectPort
   AndroidWebPanelNativeEffectPort({
     MethodChannel channel = const MethodChannel(channelName),
     String? ownerId,
-    Set<WebPanelNativeMethod> capabilities = const {WebPanelNativeMethod.speak},
-    int capabilityRevision = 1,
+    Set<WebPanelNativeMethod> capabilities = const {
+      WebPanelNativeMethod.speak,
+      WebPanelNativeMethod.printDocument,
+    },
+    int capabilityRevision = 2,
   }) : _channel = channel,
        _ownerId = ownerId ?? secureWebPanelNativeId(),
        _capabilities = Set.unmodifiable(capabilities),
