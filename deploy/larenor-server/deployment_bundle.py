@@ -12,10 +12,10 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path, PurePosixPath
 import platform
 import re
 import stat
+from pathlib import Path, PurePosixPath
 
 
 HERE = Path(__file__).resolve().parent
@@ -89,6 +89,107 @@ def _duplicate_safe(text):
     return json.loads(text, object_pairs_hook=pairs)
 
 
+def _directory_identity(value):
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_uid,
+        value.st_gid,
+        stat.S_IFMT(value.st_mode),
+        stat.S_IMODE(value.st_mode),
+    )
+
+
+def _file_identity(value):
+    return _directory_identity(value) + (
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _directory_content_identity(value):
+    return _directory_identity(value) + (
+        value.st_nlink,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+class _DirectoryTree:
+    """Retain and revalidate one no-symlink absolute directory tree."""
+
+    def __init__(self):
+        self._descriptors = {}
+        self._identities = {}
+
+    def _remember(self, path, descriptor):
+        info = os.fstat(descriptor)
+        if not stat.S_ISDIR(info.st_mode) or info.st_nlink < 1:
+            raise OSError()
+        self._descriptors[path] = descriptor
+        self._identities[path] = _directory_identity(info)
+
+    def open(self, value):
+        path = PurePosixPath(str(value))
+        if not path.is_absolute() or str(path) != str(value):
+            raise OSError()
+        root = PurePosixPath("/")
+        if root not in self._descriptors:
+            descriptor = os.open(
+                "/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                self._remember(root, descriptor)
+            except Exception:
+                os.close(descriptor)
+                raise
+        current = root
+        for part in path.parts[1:]:
+            child = current / part
+            if child not in self._descriptors:
+                descriptor = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=self._descriptors[current],
+                )
+                try:
+                    self._remember(child, descriptor)
+                    entry = os.stat(
+                        part,
+                        dir_fd=self._descriptors[current],
+                        follow_symlinks=False,
+                    )
+                    if _directory_identity(entry) != self._identities[child]:
+                        raise OSError()
+                except Exception:
+                    self._descriptors.pop(child, None)
+                    self._identities.pop(child, None)
+                    os.close(descriptor)
+                    raise
+            current = child
+        return self._descriptors[path]
+
+    def revalidate(self):
+        for path, descriptor in self._descriptors.items():
+            if _directory_identity(os.fstat(descriptor)) != self._identities[path]:
+                raise OSError()
+            if path != PurePosixPath("/"):
+                entry = os.stat(
+                    path.name,
+                    dir_fd=self._descriptors[path.parent],
+                    follow_symlinks=False,
+                )
+                if _directory_identity(entry) != self._identities[path]:
+                    raise OSError()
+
+    def close(self):
+        for path in sorted(self._descriptors, key=lambda item: len(item.parts), reverse=True):
+            os.close(self._descriptors[path])
+        self._descriptors.clear()
+        self._identities.clear()
+
+
 class LocalHostFacts:
     """Read-only local facts for one operator-selected deployment root."""
 
@@ -105,16 +206,17 @@ class LocalHostFacts:
         return self._architecture or platform.machine().lower()
 
     def inspect(self, path):
-        descriptor = None
+        tree = _DirectoryTree()
         try:
             candidate = Path(path)
             if not candidate.is_absolute() or str(candidate) != str(PurePosixPath(str(candidate))):
                 raise OSError()
-            descriptor = os.open(candidate, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptor = tree.open(candidate)
             info = os.fstat(descriptor)
             volume = os.fstatvfs(descriptor)
             if not stat.S_ISDIR(info.st_mode) or info.st_nlink < 1:
                 raise OSError()
+            tree.revalidate()
             return {
                 "kind": "directory", "ownerUid": info.st_uid,
                 "mode": stat.S_IMODE(info.st_mode), "device": info.st_dev,
@@ -123,17 +225,53 @@ class LocalHostFacts:
         except (OSError, TypeError, ValueError):
             raise BundleError("bundle_host_inspection_invalid") from None
         finally:
-            if descriptor is not None:
-                os.close(descriptor)
+            tree.close()
+
+    def _read_receipt(self, root_descriptor):
+        descriptor = os.open(
+            INSTALLATION_RECEIPT_NAME,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=root_descriptor,
+        )
+        try:
+            before = os.fstat(descriptor)
+            if (not stat.S_ISREG(before.st_mode)
+                    or before.st_uid != self.expected_uid
+                    or stat.S_IMODE(before.st_mode) != 0o600
+                    or before.st_nlink != 1
+                    or not 2 <= before.st_size <= MAX_INSTALLATION_RECEIPT_BYTES):
+                raise ValueError()
+            raw = bytearray()
+            while len(raw) <= MAX_INSTALLATION_RECEIPT_BYTES:
+                chunk = os.read(descriptor, min(
+                    1024, MAX_INSTALLATION_RECEIPT_BYTES + 1 - len(raw)))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+            after = os.fstat(descriptor)
+            entry = os.stat(
+                INSTALLATION_RECEIPT_NAME,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (len(raw) != before.st_size
+                    or len(raw) > MAX_INSTALLATION_RECEIPT_BYTES
+                    or _file_identity(before) != _file_identity(after)
+                    or _file_identity(after) != _file_identity(entry)):
+                raise ValueError()
+            return bytes(raw), _file_identity(after)
+        finally:
+            os.close(descriptor)
 
     def installation(self):
-        root_descriptor = receipt_descriptor = None
+        tree = _DirectoryTree()
         try:
-            root_descriptor = os.open(
-                self.root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            root_descriptor = tree.open(self.root)
         except FileNotFoundError:
+            tree.close()
             return None
         except OSError:
+            tree.close()
             raise BundleError("bundle_host_inspection_invalid") from None
         try:
             root_before = os.fstat(root_descriptor)
@@ -143,40 +281,18 @@ class LocalHostFacts:
                     or root_before.st_nlink < 1):
                 raise ValueError()
             try:
-                receipt_descriptor = os.open(
-                    INSTALLATION_RECEIPT_NAME,
-                    os.O_RDONLY | os.O_NOFOLLOW,
-                    dir_fd=root_descriptor,
-                )
+                first_raw, first_identity = self._read_receipt(root_descriptor)
             except FileNotFoundError:
+                tree.revalidate()
                 return None
-            before = os.fstat(receipt_descriptor)
-            if (not stat.S_ISREG(before.st_mode)
-                    or before.st_uid != self.expected_uid
-                    or stat.S_IMODE(before.st_mode) != 0o600
-                    or before.st_nlink != 1
-                    or not 2 <= before.st_size <= MAX_INSTALLATION_RECEIPT_BYTES):
+            second_raw, second_identity = self._read_receipt(root_descriptor)
+            tree.revalidate()
+            if (first_raw != second_raw
+                    or first_identity != second_identity
+                    or _directory_identity(root_before)
+                    != _directory_identity(os.fstat(root_descriptor))):
                 raise ValueError()
-            raw = bytearray()
-            while len(raw) <= MAX_INSTALLATION_RECEIPT_BYTES:
-                chunk = os.read(receipt_descriptor, min(
-                    1024, MAX_INSTALLATION_RECEIPT_BYTES + 1 - len(raw)))
-                if not chunk:
-                    break
-                raw.extend(chunk)
-            after = os.fstat(receipt_descriptor)
-            root_after = os.fstat(root_descriptor)
-            identity = lambda value: (
-                value.st_dev, value.st_ino, value.st_uid, value.st_gid,
-                stat.S_IFMT(value.st_mode), stat.S_IMODE(value.st_mode),
-                value.st_nlink, value.st_size,
-            )
-            if (len(raw) != before.st_size
-                    or len(raw) > MAX_INSTALLATION_RECEIPT_BYTES
-                    or identity(before) != identity(after)
-                    or identity(root_before) != identity(root_after)):
-                raise ValueError()
-            text = bytes(raw).decode("ascii")
+            text = second_raw.decode("ascii")
             value = _duplicate_safe(text)
             if (not isinstance(value, dict)
                     or text != _canonical(value) + "\n"):
@@ -185,13 +301,10 @@ class LocalHostFacts:
         except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
             raise BundleError("bundle_host_inspection_invalid") from None
         finally:
-            if receipt_descriptor is not None:
-                os.close(receipt_descriptor)
-            if root_descriptor is not None:
-                os.close(root_descriptor)
+            tree.close()
 
     def clean(self, paths):
-        descriptors = {}
+        tree = _DirectoryTree()
         try:
             if (not isinstance(paths, (tuple, list)) or not 1 <= len(paths) <= 256
                     or any(type(item) is not str for item in paths)):
@@ -205,34 +318,35 @@ class LocalHostFacts:
                 item: {candidate.name for candidate in normalized if candidate.parent == item}
                 for item in normalized
             }
-            before = {}
             for item in normalized:
-                descriptor = os.open(
-                    str(item), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-                descriptors[item] = descriptor
-                info = os.fstat(descriptor)
-                if not stat.S_ISDIR(info.st_mode) or info.st_nlink < 1:
-                    raise ValueError()
-                before[item] = info
-            for item, descriptor in descriptors.items():
-                entries = os.listdir(descriptor)
-                if (len(entries) > 256 or set(entries) != expected_children[item]
-                        or len(entries) != len(set(entries))):
+                tree.open(item)
+            target_identities = {
+                item: _directory_content_identity(os.fstat(tree.open(item)))
+                for item in normalized
+            }
+            for item in normalized:
+                entries = set()
+                with os.scandir(tree.open(item)) as iterator:
+                    for index, entry in enumerate(iterator, start=1):
+                        if index > 256:
+                            return False
+                        if entry.name in entries:
+                            return False
+                        entries.add(entry.name)
+                if entries != expected_children[item]:
                     return False
-            identity = lambda value: (
-                value.st_dev, value.st_ino, value.st_uid, value.st_gid,
-                stat.S_IFMT(value.st_mode), stat.S_IMODE(value.st_mode),
-                value.st_nlink,
-            )
-            return all(
-                identity(before[item]) == identity(os.fstat(descriptor))
-                for item, descriptor in descriptors.items()
-            )
+            if any(
+                _directory_content_identity(os.fstat(tree.open(item)))
+                != target_identities[item]
+                for item in normalized
+            ):
+                raise OSError()
+            tree.revalidate()
+            return True
         except (OSError, TypeError, ValueError):
             raise BundleError("bundle_host_inspection_invalid") from None
         finally:
-            for descriptor in descriptors.values():
-                os.close(descriptor)
+            tree.close()
 
 
 def read_settings(path):

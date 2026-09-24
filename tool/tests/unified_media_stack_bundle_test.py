@@ -353,7 +353,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             architecture="amd64",
         )
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "installation"
+            root = Path(temporary).resolve() / "installation"
             root.mkdir(mode=0o700)
             path = root / ".larenor-installation.json"
             path.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n")
@@ -397,7 +397,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                 reader.installation()
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "clean"
+            root = Path(temporary).resolve() / "clean"
             child = root / "child"
             child.mkdir(parents=True)
             root.chmod(0o700)
@@ -447,7 +447,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
 
     def test_local_host_facts_rejects_ancestor_symlinks_and_path_replacement(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             real = base / "real"
             root = real / "root"
             child = root / "mid" / "leaf"
@@ -478,7 +478,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                         operation()
 
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             root = base / "root"
             middle = root / "mid"
             leaf = middle / "leaf"
@@ -528,7 +528,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         self.assertEqual(len(first_raw), len(second_raw))
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "installation"
+            root = Path(temporary).resolve() / "installation"
             root.mkdir(mode=0o700)
             receipt = root / bundle.INSTALLATION_RECEIPT_NAME
             receipt.write_bytes(first_raw)
@@ -573,7 +573,7 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
 
     def test_local_clean_inventory_stops_at_the_bounded_limit(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "installation"
+            root = Path(temporary).resolve() / "installation"
             root.mkdir(mode=0o700)
             for index in range(257):
                 (root / f"foreign-{index:03d}").touch()
@@ -588,6 +588,29 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                 side_effect=AssertionError("unbounded listdir is forbidden"),
             ):
                 self.assertFalse(reader.clean((str(root),)))
+
+    def test_local_clean_ignores_unrelated_ancestor_content_churn(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "installation"
+            root.mkdir(mode=0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_scandir = os.scandir
+            changed = False
+
+            def churning_scandir(path):
+                nonlocal changed
+                if not changed:
+                    changed = True
+                    (base / "unrelated").touch(mode=0o600)
+                return real_scandir(path)
+
+            with patch.object(bundle.os, "scandir", churning_scandir):
+                self.assertTrue(reader.clean((str(root),)))
 
 
 if __name__ == "__main__":
