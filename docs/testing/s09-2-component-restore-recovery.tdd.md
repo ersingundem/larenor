@@ -38,10 +38,31 @@ ModuleNotFoundError: No module named \
   'larenor_server.core_backups.component_restore_recovery'
 ```
 
-The new recovery module reports **12 passed**. The grouped component restore,
+The recovery module reports **17 passed**. The grouped component restore,
 encrypted component capture and durable installation-authority batch reports
-**46 passed**, with no skips. The two warnings are upstream Starlette/httpx
+**55 passed**, with no skips. The two warnings are upstream Starlette/httpx
 deprecation warnings.
+
+The accepted S09.1 authority base is
+`9332419a2cba7421eded4cdd7983378070dbb916`. Re-stacking the original three
+S09.2 commits preserved aggregate stable patch ID
+`54a5de16a4ebf07aa5fe26b83c891fc2cacd5595`.
+
+## Independent audit closure
+
+Four permanent regressions record the audit findings and their fixes:
+
+| Boundary | RED evidence | GREEN commit |
+| --- | --- | --- |
+| A semantically valid, directly constructed `BackupCapture` must not reach restore authority without successful encrypted-bundle authentication | `test_plan_rejects_semantically_valid_capture_without_bundle_authentication` failed because no exception was raised | `d18e26a757f684257e19e029290a16184581a890` |
+| Deadline or authority drift after commit, and release failure after commit, restore the old target with one bounded release attempt | all three cases in `test_post_commit_drift_or_release_failure_restores_target_once` failed | `da451146999b4ad34f4495a99061ba0d3fe0629a` |
+| Failure to durably publish `released` after a successful release retains the honest `committed` journal and never invokes rollback or release again in the same run | `test_released_journal_failure_never_rolls_back_or_releases_again` observed `rolled_back` | `f1b74941581cf2f75a1e68755537becd03fcfe7c` |
+| Every ordinary post-acquire recovery failure releases the recovered authority once while preserving the journal | authority, deadline, rollback and journal-persist cases all observed zero releases | `43ba49d49cffde11b1029b3abc2806289ca36545` |
+
+Ruff `0.14.10`, Python bytecode compilation, Android/security policy,
+125-task/63-feature queue validation, the seven-commit progress gate and
+`git diff --check` all pass. Queue and feature progress remains **26/125** and
+**0/63**.
 
 | Guarantee | Focused evidence |
 | --- | --- |
