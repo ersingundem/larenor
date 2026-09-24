@@ -43,6 +43,7 @@ _PHASES = {
     "pre_commit",
     "committed",
     "rolled_back",
+    "rollback_finalized",
     "released",
 }
 _MAX_JOURNAL_BYTES = 256 * 1024
@@ -300,7 +301,7 @@ class ComponentRestoreRecoveryJournal:
             and (not rollbacks or not stages or len(stages) > len(rollbacks))
             or phase in {"pre_commit", "committed"}
             and (not rollbacks or len(rollbacks) != len(stages))
-            or phase in {"rolled_back", "released"}
+            or phase in {"rolled_back", "rollback_finalized", "released"}
             and len(stages) > len(rollbacks)
         ):
             raise ComponentRestorePlanError()
@@ -442,18 +443,12 @@ class DurableComponentRestoreCoordinator:
             "revalidate",
             "commit",
             "rollback",
+            "finalize_rollback",
             "release",
         }
         if any(not callable(getattr(session, name, None)) for name in required):
             raise ComponentRestorePlanError()
         return session
-
-    @staticmethod
-    def _release_failed_recovery(session):
-        try:
-            session.release()
-        except Exception:
-            pass
 
     def _cleanup(
         self,
@@ -476,6 +471,18 @@ class DurableComponentRestoreCoordinator:
                 paused_containers,
             )
             self._journal.write(state)
+            if session.finalize_rollback(tuple(rollbacks), tuple(stages)) is not True:
+                return
+            self._journal.write(
+                self._state(
+                    plan,
+                    operation_id,
+                    "rollback_finalized",
+                    rollbacks,
+                    stages,
+                    paused_containers,
+                )
+            )
             if session.release() is not True:
                 return
             self._journal.write(
@@ -705,6 +712,9 @@ class DurableComponentRestoreCoordinator:
             ):
                 raise ComponentRestorePlanError()
             rollbacks, stages = self._receipts_for_plan(state, plan)
+            if state["phase"] == "released":
+                self._journal.clear()
+                return True
             recover = getattr(self._boundary, "recover_durable", None)
             if not callable(recover):
                 raise ComponentRestorePlanError()
@@ -716,15 +726,6 @@ class DurableComponentRestoreCoordinator:
             )
             session = self._session(session)
             self._active(deadline)
-            if state["phase"] == "released":
-                finalize = getattr(session, "finalize", None)
-                if (
-                    callable(finalize)
-                    and finalize(rollbacks, stages, deadline) is not True
-                ):
-                    raise ComponentRestorePlanError()
-                self._journal.clear()
-                return True
             if state["phase"] in {"acquiring", "acquired"}:
                 release_attempted = True
                 if session.release() is not True:
@@ -732,7 +733,7 @@ class DurableComponentRestoreCoordinator:
                 self._persist(self._state(plan, state["operationId"], "released"))
                 self._journal.clear()
                 return True
-            if state["phase"] != "rolled_back":
+            if state["phase"] not in {"rolled_back", "rollback_finalized"}:
                 if session.revalidate(plan, deadline) is not True:
                     raise ComponentRestorePlanError()
                 self._active(deadline)
@@ -742,6 +743,18 @@ class DurableComponentRestoreCoordinator:
                     plan,
                     state["operationId"],
                     "rolled_back",
+                    rollbacks,
+                    stages,
+                    tuple(state["pausedContainers"]),
+                )
+                self._persist(state)
+            if state["phase"] == "rolled_back":
+                if session.finalize_rollback(rollbacks, stages, deadline) is not True:
+                    raise ComponentRestorePlanError()
+                state = self._state(
+                    plan,
+                    state["operationId"],
+                    "rollback_finalized",
                     rollbacks,
                     stages,
                     tuple(state["pausedContainers"]),
@@ -763,10 +776,6 @@ class DurableComponentRestoreCoordinator:
             self._journal.clear()
             return True
         except ComponentRestorePlanError:
-            if session is not None and not release_attempted:
-                self._release_failed_recovery(session)
             raise
         except Exception:
-            if session is not None and not release_attempted:
-                self._release_failed_recovery(session)
             raise ComponentRestorePlanError() from None

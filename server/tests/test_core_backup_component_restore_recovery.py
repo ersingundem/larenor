@@ -33,6 +33,7 @@ class DurableState:
         self.rollback_operations = set()
         self.release_operations = set()
         self.release_attempts = 0
+        self.rollback_finalize_operations = set()
         self.recovery_fail = None
         self.revalidate_attempts = {}
         self.clock = None
@@ -116,6 +117,11 @@ class DurableSession:
             self.state.target.update(self.state.rollback_payloads)
             self.state.staged.clear()
         self.state.events.append(("rollback", self.operation_id))
+        return True
+
+    def finalize_rollback(self, _rollbacks, _stages, _deadline=None):
+        self.state.rollback_finalize_operations.add(self.operation_id)
+        self.state.events.append(("finalize_rollback", self.operation_id))
         return True
 
     def release(self):
@@ -334,7 +340,9 @@ def test_durable_post_commit_drift_rolls_back_and_preserves_old_target(
     assert not journal.exists()
 
 
-@pytest.mark.parametrize("recovery_phase", ["rolled_back", "released"])
+@pytest.mark.parametrize(
+    "recovery_phase", ["rolled_back", "rollback_finalized", "released"]
+)
 def test_recovery_restart_skips_completed_rollback_or_release_exactly_once(
     server, tmp_path, recovery_phase
 ):
@@ -485,8 +493,8 @@ def test_recovery_post_acquire_failure_releases_exactly_once(server, tmp_path, f
         restarted.recover(plan, deadline=10.0)
 
     assert journal.exists()
-    assert state.release_attempts == 1
-    assert sum(event[0] == "release" for event in state.events) == 1
+    assert state.release_attempts == 0
+    assert sum(event[0] == "release" for event in state.events) == 0
 
 
 def test_malformed_recovered_session_releases_retained_capability(server, tmp_path):
@@ -514,7 +522,7 @@ def test_malformed_recovered_session_releases_retained_capability(server, tmp_pa
     ):
         restarted.recover(plan, deadline=10.0)
 
-    assert malformed.release_attempts == 1
+    assert malformed.release_attempts == 0
     assert journal.exists()
 
 

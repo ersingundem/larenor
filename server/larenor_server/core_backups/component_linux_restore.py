@@ -387,6 +387,7 @@ class LinuxRestoreFileLease:
         self.trash_identity = None
         self.rollback = None
         self.stage = None
+        self.artifacts_finalized = False
 
     def __repr__(self):
         return "LinuxRestoreFileLease(<private>)"
@@ -720,15 +721,26 @@ class LinuxDirectoryRestoreEngine:
             payload = _read_private(lease.parent, lease.rollback_name)
             if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
                 raise ComponentRestorePlanError()
-            for name in (lease.stage_name, lease.trash_name):
-                try:
-                    _remove_tree(lease.parent, name, deadline)
-                except FileNotFoundError:
-                    pass
-            os.unlink(lease.rollback_name, dir_fd=lease.parent)
-            os.fsync(lease.parent)
             return True
         self._restore_rollback(lease, deadline)
+        return True
+
+    def finalize_rollback(self, lease, deadline):
+        if self._root_current(lease, deadline) != lease.rollback:
+            raise ComponentRestorePlanError()
+        existing = tuple(
+            name
+            for name in (lease.stage_name, lease.trash_name, lease.rollback_name)
+            if self._artifact_exists(lease.parent, name)
+        )
+        if not existing:
+            lease.artifacts_finalized = True
+            return True
+        if lease.rollback_name not in existing:
+            raise ComponentRestorePlanError()
+        payload = _read_private(lease.parent, lease.rollback_name)
+        if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
+            raise ComponentRestorePlanError()
         for name in (lease.stage_name, lease.trash_name):
             try:
                 _remove_tree(lease.parent, name, deadline)
@@ -736,7 +748,16 @@ class LinuxDirectoryRestoreEngine:
                 pass
         os.unlink(lease.rollback_name, dir_fd=lease.parent)
         os.fsync(lease.parent)
+        lease.artifacts_finalized = True
         return True
+
+    @staticmethod
+    def _artifact_exists(parent, name):
+        try:
+            os.stat(name, dir_fd=parent, follow_symlinks=False)
+            return True
+        except FileNotFoundError:
+            return False
 
     def finalize(self, lease, deadline):
         if self._root_current(lease, deadline) != lease.stage:
@@ -770,26 +791,40 @@ class LinuxDirectoryRestoreEngine:
                 ):
                     raise ComponentRestorePlanError()
                 lease.rollback = (rollback.byte_length, rollback.sha256)
-                payload = _read_private(lease.parent, lease.rollback_name)
-                if (
-                    len(payload),
-                    hashlib.sha256(payload).hexdigest(),
-                ) != lease.rollback:
-                    raise ComponentRestorePlanError()
+                try:
+                    payload = _read_private(lease.parent, lease.rollback_name)
+                except FileNotFoundError:
+                    artifacts = tuple(
+                        self._artifact_exists(lease.parent, name)
+                        for name in (lease.stage_name, lease.trash_name)
+                    )
+                    if (
+                        any(artifacts)
+                        or self._root_current(lease, deadline) != lease.rollback
+                    ):
+                        raise ComponentRestorePlanError() from None
+                    lease.artifacts_finalized = True
+                else:
+                    if (
+                        len(payload),
+                        hashlib.sha256(payload).hexdigest(),
+                    ) != lease.rollback:
+                        raise ComponentRestorePlanError()
                 if staged is not None:
                     if type(staged) is not ComponentRestoreStageReceipt:
                         raise ComponentRestorePlanError()
                     lease.stage = (staged.byte_length, staged.sha256)
-                    stage = os.open(
-                        lease.stage_name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                        dir_fd=lease.parent,
-                    )
-                    try:
-                        info = os.fstat(stage)
-                        lease.stage_identity = (info.st_dev, info.st_ino)
-                    finally:
-                        _close(stage)
+                    if not lease.artifacts_finalized:
+                        stage = os.open(
+                            lease.stage_name,
+                            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=lease.parent,
+                        )
+                        try:
+                            info = os.fstat(stage)
+                            lease.stage_identity = (info.st_dev, info.st_ino)
+                        finally:
+                            _close(stage)
             return leases
         except Exception:
             self.close(leases)
@@ -941,6 +976,14 @@ class LinuxComponentRestoreSession:
             if lease.rollback is not None:
                 self._engine.rollback(lease, deadline)
         self._rolled_back = True
+        return True
+
+    def finalize_rollback(self, rollbacks, stages, deadline=None):
+        if deadline is None:
+            deadline = self._deadline
+        self._recover_leases(rollbacks, stages, deadline)
+        for lease in self._leases or ():
+            self._engine.finalize_rollback(lease, deadline)
         return True
 
     def release(self):

@@ -182,6 +182,8 @@ def test_linux_engine_stages_commits_and_rolls_back_descriptor_bound_tree(tmp_pa
         assert (target_path / "current.txt").read_text(encoding="utf-8") == "new"
         assert engine.rollback(lease, deadline) is True
         assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+        assert (tmp_path / lease.rollback_name).exists()
+        assert engine.finalize_rollback(lease, deadline) is True
         assert not (tmp_path / lease.stage_name).exists()
     finally:
         engine.close(leases)
@@ -277,6 +279,7 @@ def test_linux_engine_removes_unjournaled_stage_during_recovery(tmp_path):
     try:
         assert engine.rollback(recovered[0], deadline) is True
         assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+        assert engine.finalize_rollback(recovered[0], deadline) is True
         assert not tuple(tmp_path.glob(".larenor-restore-*"))
     finally:
         engine.close(recovered)
@@ -310,6 +313,7 @@ def test_linux_engine_reconciles_real_sigkill_during_publication(tmp_path):
 
         assert engine.rollback(lease, time.monotonic() + 5) is True
         assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
+        assert engine.finalize_rollback(lease, time.monotonic() + 5) is True
         assert not tuple(tmp_path.glob(".larenor-restore-*"))
     finally:
         engine.close(leases)
@@ -636,5 +640,51 @@ def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_
         for volume in inputs["receipt"].volumes:
             root = inputs["roots"][volume.intent.binding.resource.name]
             assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+    finally:
+        _close_production_inputs(inputs)
+
+
+def test_rollback_artifacts_survive_rolled_back_journal_write_failure(server, tmp_path):
+    def checkpoint(state):
+        if state["phase"] == "pre_commit":
+            raise PowerLoss()
+
+    inputs = _production_inputs(server, tmp_path, checkpoint=checkpoint)
+    try:
+        with pytest.raises(PowerLoss):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+        original_write = inputs["journal"].write
+
+        def fail_rolled_back(state):
+            if state["phase"] == "rolled_back":
+                raise ComponentRestorePlanError()
+            return original_write(state)
+
+        inputs["journal"].write = fail_rolled_back
+        with pytest.raises(ComponentRestorePlanError):
+            DurableComponentRestoreCoordinator(
+                inputs["journal"], _restarted_boundary(inputs)
+            ).recover(inputs["plan"], deadline=time.monotonic() + 8)
+
+        assert inputs["state"]["paused"] is True
+        assert inputs["journal"].read()["phase"] == "pre_commit"
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert tuple(root.parent.glob(".larenor-restore-*.rollback"))
+
+        inputs["journal"].write = original_write
+        assert DurableComponentRestoreCoordinator(
+            inputs["journal"], _restarted_boundary(inputs)
+        ).recover(inputs["plan"], deadline=time.monotonic() + 8)
+        assert inputs["state"]["paused"] is False
+        assert inputs["journal"].exists() is False
+        for volume in inputs["receipt"].volumes:
+            root = inputs["roots"][volume.intent.binding.resource.name]
+            assert (root / "current.txt").read_text(encoding="utf-8") == "old"
+            assert not tuple(root.parent.glob(".larenor-restore-*"))
     finally:
         _close_production_inputs(inputs)
