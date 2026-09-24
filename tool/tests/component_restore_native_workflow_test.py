@@ -93,6 +93,10 @@ class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
         self.assertIsNotNone(patterns)
         for path in (
             "server/larenor_server/core_backups/component_linux_restore.py",
+            "server/larenor_server/core_backups/component_restore_runtime.py",
+            "server/larenor_server/core_backups/restore.py",
+            "server/larenor_server/cli.py",
+            "server/tests/test_core_backup_restore_cli_components.py",
             "server/tests/test_core_backup_component_restore_recovery.py",
             ".github/workflows/component-restore-native.yml",
         ):
