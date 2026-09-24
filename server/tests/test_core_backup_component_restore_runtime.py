@@ -15,6 +15,14 @@ from larenor_server.plugins.managed_container import ManagedWorkerJournal
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 
 
+class RestoreSystem:
+    def exchange_between(self, *_args):
+        raise AssertionError("not dispatched during composition")
+
+    def move(self, *_args):
+        raise AssertionError("not dispatched during composition")
+
+
 def initialized_journals(tmp_path):
     containers = tmp_path / "containers"
     volumes = tmp_path / "volumes"
@@ -27,15 +35,16 @@ def initialized_journals(tmp_path):
 
 
 def selected_config(tmp_path):
-    containers, volumes = initialized_journals(tmp_path)
-    key = tmp_path / "restore.key"
+    root = tmp_path.resolve()
+    containers, volumes = initialized_journals(root)
+    key = root / "restore.key"
     key.write_bytes(b"k" * 32)
     key.chmod(0o600)
     return ComponentRestoreRuntimeConfig(
         container_journal=containers,
         volume_journal=volumes,
         engine_socket=Path("/tmp") / f"engine-{os.getpid()}-{tmp_path.name}.sock",
-        recovery_journal=tmp_path / "restore-recovery.json",
+        recovery_journal=root / "restore-recovery.json",
         recovery_key_file=key,
         engine_uid=os.getuid(),
     )
@@ -79,7 +88,8 @@ def test_runtime_composes_exact_durable_authority_without_engine_effects(tmp_pat
     with build_component_restore_runtime(
         selected,
         require_privileged=False,
-        docker_peer_uid=os.getuid(),
+        docker_peer_uid=lambda _connection: os.getuid(),
+        system=RestoreSystem(),
     ) as runtime:
         assert runtime.journal.exists() is False
         assert runtime.config == selected
@@ -91,4 +101,3 @@ def test_runtime_composes_exact_durable_authority_without_engine_effects(tmp_pat
 def test_runtime_rejects_non_exact_configuration_type():
     with pytest.raises(ComponentRestoreRuntimeError, match="component_restore_unavailable"):
         build_component_restore_runtime(object(), require_privileged=False)
-
