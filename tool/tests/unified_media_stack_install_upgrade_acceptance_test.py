@@ -330,6 +330,10 @@ class UpgradeDriver(FakeDriver):
             return copy.deepcopy(self.state.effect)
         return None
 
+    def recovery_pending(self):
+        self._call("recovery_pending")
+        return self.state.journal is not None
+
     def upgrade_runtime_receipts(self, manifest):
         self._call("upgrade_runtime_receipts")
         runtime = self.state.effect["runtimeReceipt"]
