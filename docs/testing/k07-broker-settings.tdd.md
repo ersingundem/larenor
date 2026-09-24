@@ -45,10 +45,10 @@ git diff --check
 (no output)
 ```
 
-## Remaining K07 gates
+## Final K07 status
 
-K07 stays `pending`, so queue and selected-feature counters remain 26/125 and
-0/63. The remaining acceptance requires separately authorized native command
-effects, a real Mosquitto ACL/TLS deployment using a trusted certificate, and
-physical Huawei tablet and Samsung DeX background, resize, keyboard and
-TalkBack evidence. This slice does not claim those manual or platform gates.
+K07 software acceptance is `done`; queue and selected-feature counters are
+**29/125 (23.2%)** and **0/63 (0.0%)**. Native lock plus retained Dart
+refresh/profile effects and the live TLS ACL/ACK fixture are automated. A real
+Mosquitto deployment and physical Huawei/DeX/keyboard/TalkBack evidence remain
+MANUAL. See [`k07-software-acceptance.tdd.md`](k07-software-acceptance.tdd.md).

@@ -64,16 +64,10 @@ git diff --check
 (no output)
 ```
 
-## Deliberate remaining K07 boundaries
+## Final K07 status
 
-K07 remains pending and the progress counters do not change. A trusted
-managed-device enrollment UI/native identity proof must supply the initial
-`ManagedTabletEnrollment` and explicit local TLS broker setting. Live Mosquitto
-and managed-hardware validation is also outstanding.
-
-Native command effects remain unsupported. The current Android source can
-prove a bounded telemetry lease, but it cannot yet prove that the installed app
-is the exact Core-managed tablet or grant device-owner command capability.
-Opening command effects without that platform authority would let an admin
-pairing for another tablet control this process, so this slice preserves the
-fail-closed executor.
+Explicit secure enrollment, trusted local TLS broker settings, Core authority,
+production runtime ownership, native lock and retained Dart refresh/profile
+commands now close the automated boundary. K07 is `done` at **29/125 (23.2%)**.
+Real Mosquitto deployment, Huawei/DeX/TalkBack and OEM/DPC managed-hardware
+validation remain MANUAL.

@@ -11,12 +11,13 @@ MANIFEST = ROOT / "docs/testing/k07-software-acceptance.json"
 
 
 class K07AcceptanceTest(unittest.TestCase):
-    def test_pending_manifest_binds_current_software_and_cannot_close_queue(self):
-        value = acceptance.load_manifest(MANIFEST, ROOT, allow_pending=True)
+    def test_accepted_manifest_binds_current_software_review_and_ci(self):
+        value = acceptance.load_manifest(MANIFEST, ROOT)
         self.assertEqual(value["task"], "K07")
+        self.assertEqual(value["status"], "accepted")
         self.assertEqual(value["sourceCommit"], acceptance.SOURCE_COMMIT)
-        with self.assertRaisesRegex(acceptance.AcceptanceError, "acceptance_pending"):
-            acceptance.load_manifest(MANIFEST, ROOT)
+        self.assertEqual(value["review"]["commit"], value["ci"]["android"]["commit"])
+        self.assertEqual(value["review"]["commit"], value["ci"]["security"]["commit"])
 
     def test_each_required_reference_is_mandatory(self):
         value = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -36,11 +37,13 @@ class K07AcceptanceTest(unittest.TestCase):
             acceptance.validate_manifest(escaped, ROOT, allow_pending=True)
 
         premature = copy.deepcopy(value)
+        premature["status"] = "pending"
         premature["review"] = {
             "commit": "0" * 40,
             "result": "passed",
             "ref": "docs/testing/k07-software-acceptance.tdd.md",
         }
+        premature["ci"] = None
         with self.assertRaisesRegex(acceptance.AcceptanceError, "invalid_pending"):
             acceptance.validate_manifest(premature, ROOT, allow_pending=True)
 

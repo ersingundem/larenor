@@ -18,4 +18,5 @@ No enrollment, allowlist mutation, device-owner grant, reboot, reset, wipe, or l
 - GREEN `04f3b97b`: Flutter source tests pass 11/11; Android `ManagedTabletSourceBridgeTest` passes.
 - Focused Dart analysis, queue validation, per-commit progress, and diff checks are required before merge.
 
-K07 remains pending until its remaining paired API slices and physical managed-device acceptance are complete.
+The full paired API/runtime/profile chain is now accepted and K07 is `done`.
+Physical managed-device acceptance remains MANUAL.

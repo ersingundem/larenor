@@ -1,6 +1,6 @@
 # K07 paired remote API and MQTT acceptance
 
-Status: **software pairing, protocol, tablet management, managed MQTT runtime and bounded Android telemetry-source slices complete; secure authority wiring, native commands, live broker and physical-device acceptance pending**. K07 stays `pending` until those gates pass. Runtime evidence is recorded in [`k07-mqtt-runtime.tdd.md`](k07-mqtt-runtime.tdd.md) and [`k07-native-tablet-source.tdd.md`](k07-native-tablet-source.tdd.md).
+Status: **software accepted**. Secure authority/runtime ownership, TLS MQTT ACK/ACL behavior and bounded native/profile commands are closed by [`k07-software-acceptance.tdd.md`](k07-software-acceptance.tdd.md). Physical broker deployment and device acceptance remain MANUAL.
 
 ## Three accepted criteria
 
@@ -14,11 +14,12 @@ Status: **software pairing, protocol, tablet management, managed MQTT runtime an
 - `flutter test test/features/kiosk_remote/kiosk_remote_client_test.dart test/features/kiosk_remote/kiosk_remote_http_test.dart` — 6 passed.
 - Targeted Flutter analyze, Ruff/compile, security policy, execution queue, progress policy, diff, merge-tree and redacted gitleaks are required before publication.
 
-## Remaining gates
+## Remaining manual gates
 
-- Wire the concrete TLS MQTT adapter into the app/session lifecycle with secure pairing-token retrieval and a current component-egress grant, then prove it against a live local Mosquitto ACL/TLS fixture. The runtime rechecks egress and pairing authority before explicit reconnects, but does not claim a live broker acceptance run.
-- Bind secure pairing-token/Core authority to the runtime and implement native
-  kiosk command effects. Android battery/network/app foreground/kiosk readings
-  are now available through an opt-in, session-bound production port; this
-  slice intentionally grants no native command authority.
-- Verify broker loss, Huawei background behavior, Samsung DeX resize and physical keyboard/TalkBack on hardware.
+- Deploy and observe a real trusted-certificate Mosquitto installation. The
+  automated live TLS fixture already proves authentication, SUBACK/PUBACK, ACL
+  rejection, timeout and disconnect behavior.
+- Verify Huawei background behavior, Samsung DeX resize, physical keyboard,
+  TalkBack and OEM/DPC policy delivery on hardware.
+
+These gates remain MANUAL and do not keep K07 software acceptance pending.

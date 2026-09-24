@@ -1,6 +1,6 @@
 # K07 versioned tablet profile Core contract
 
-Status: **Core/API job complete; K07 remains pending**
+Status: **Core/API job complete; accepted as part of K07 closure**
 
 ## Scope
 
@@ -38,6 +38,7 @@ rollout and paired-remote server package passed **27/27**. Ruff, compile,
 security, queue, diff and commit-progress gates are recorded on the delivery
 commit.
 
-K07 stays pending at **26/125** queue progress and **0/63** selected-feature
-progress. Client fetch/atomic apply, live broker deployment, managed-device
-authority and physical-device acceptance remain separate jobs.
+Client fetch/atomic apply and managed-device authority are now automated and
+accepted with the full K07 chain. K07 is `done` at **29/125 (23.2%)** and
+**0/63 (0.0%)**. Real broker deployment and physical-device acceptance remain
+MANUAL.

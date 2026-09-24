@@ -1,6 +1,6 @@
 # K07 versioned managed-tablet profile synchronization
 
-Status: **software slice ready; K07 remains pending**
+Status: **software accepted as part of K07 closure**
 
 This slice replaces the revision-only `syncProfile` placeholder with one
 Core-published document and one bounded Client application path. It does not
@@ -42,7 +42,7 @@ acceptance.
   29.999-second/30.000-second ambient boundary.
 - Focused Dart analysis, Ruff 0.14.10 and diff checks passed.
 
-K07 remains `pending`, so queue and selected-feature counters stay at
-**26/125 (20.8%)** and **0/63 (0.0%)**. Trusted native device identity, live
-TLS Mosquitto ACL acceptance and physical Huawei/DeX behavior are still
-required before the queue item can close.
+K07 software acceptance is `done`; queue and selected-feature counters are
+**29/125 (23.2%)** and **0/63 (0.0%)**. Exact secure identity, TLS fixture and
+profile activation are automated. Real broker deployment and physical
+Huawei/DeX behavior remain MANUAL.

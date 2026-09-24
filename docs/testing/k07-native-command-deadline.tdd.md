@@ -46,9 +46,10 @@ the late acknowledgement no longer triggered a second exact cleanup. Commit
 `a7415639` restores that bounded post-ack stop without adding another stop to
 current-generation malformed or timeout paths.
 
-## Remaining acceptance
+## Final acceptance
 
-K07 stays pending. Live local Mosquitto TLS/ACL acceptance, trusted enrollment
-identity, Huawei background behavior, Samsung DeX and physical keyboard/
-TalkBack checks remain open. Queue and selected-feature counters stay at
-**26/125** and **0/63**.
+K07 software acceptance is `done`. Live TLS fixture, trusted enrollment and
+bounded native/profile commands are automated; queue and selected-feature
+counters are **29/125** and **0/63**. Real Mosquitto deployment, Huawei
+background behavior, Samsung DeX and physical keyboard/TalkBack checks remain
+MANUAL.

@@ -1,9 +1,13 @@
 {
   "schemaVersion": 1,
   "task": "K07",
-  "status": "pending",
+  "status": "accepted",
   "sourceCommit": "d37ebb1ba4d778f5866016ebb8d5e9d827a5b7bb",
-  "review": null,
+  "review": {
+    "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+    "result": "passed",
+    "ref": "docs/testing/k07-software-acceptance.tdd.md"
+  },
   "references": {
     "production": [
       "android/app/src/main/kotlin/com/ersingundem/larenor/kioskremote/ManagedTabletSourceBridge.kt",
@@ -31,6 +35,36 @@
       "docs/testing/k07-versioned-profile-sync.tdd.md"
     ]
   },
-  "ci": null,
+  "ci": {
+    "android": {
+      "url": "https://github.com/ersingundem/larenor/actions/runs/35953409201",
+      "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+      "result": "passed",
+      "requiredJobs": [
+        "analyze-test / flutter-test (0)",
+        "analyze-test / flutter-test (1)",
+        "analyze-test / flutter-test (2)",
+        "analyze-test / flutter-test (3)",
+        "analyze-test / static-analysis",
+        "build-debug-apk",
+        "end-to-end / emulator-journeys",
+        "server-test / server-test",
+        "server-test / server-test-shard-0",
+        "server-test / server-test-shard-1",
+        "server-test / server-test-shard-2",
+        "server-test / server-test-shard-3"
+      ]
+    },
+    "security": {
+      "url": "https://github.com/ersingundem/larenor/actions/runs/35953408908",
+      "commit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
+      "result": "passed",
+      "requiredJobs": [
+        "dependency-scan",
+        "platform-policy",
+        "secret-scan"
+      ]
+    }
+  },
   "manualBoundary": "Physical Huawei, DeX, TalkBack, OEM, DPC, broker deployment and device measurements remain separate manual gates."
 }
