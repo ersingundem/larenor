@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/home_session_controller.dart';
+import '../../../core/home_source_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/brand_icon.dart';
@@ -20,6 +22,7 @@ import '../../media/arr/presentation/readarr_screen.dart';
 import '../../media/arr/presentation/sonarr_screen.dart';
 import '../../media/bazarr/presentation/bazarr_home_screen.dart';
 import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
+import '../../media/hub/presentation/media_hub_screen.dart';
 import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
 import '../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
@@ -40,9 +43,13 @@ class SystemScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final enabled = ref.watch(enabledServicesProvider);
     final privacy = ref.watch(wellbeingDisclosureProvider);
+    final home = ref.watch(homeSessionControllerProvider);
+    final coreBoundary = home != null && home.source != HomeSource.directLocal;
     final connections = {
       for (final service in AppService.values)
-        service: ref.watch(savedServiceConnectionProvider(service)),
+        service: coreBoundary && service == AppService.jellyfin
+            ? const AsyncValue.data(true)
+            : ref.watch(savedServiceConnectionProvider(service)),
     };
     final services =
         AppService.values
@@ -146,7 +153,10 @@ class SystemScreen extends ConsumerWidget {
                             color: CupertinoColors.systemGreen,
                           ),
                     title: Text(serviceDisplayName(service)),
-                    additionalInfo: SavedServiceHealthStatus(service: service),
+                    additionalInfo:
+                        coreBoundary && service == AppService.jellyfin
+                        ? null
+                        : SavedServiceHealthStatus(service: service),
                     onTap: () => context.push('/system/${service.name}'),
                   ),
               ],
@@ -218,6 +228,12 @@ class OperationalServiceScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final home = ref.watch(homeSessionControllerProvider);
+    if (service == AppService.jellyfin &&
+        home != null &&
+        home.source != HomeSource.directLocal) {
+      return const MediaHubScreen();
+    }
     final connection = ref.watch(savedServiceConnectionProvider(service));
     final l10n = AppLocalizations.of(context);
     if (!connection.isLoading &&

@@ -6,7 +6,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/dashboard/presentation/home_dashboard_screen.dart';
@@ -15,9 +18,15 @@ import 'package:larenor/features/dashboard/providers/dashboard_providers.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/data/ws_client.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
+import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
+import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
+import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/home_scope_fixture.dart';
 
 const fixtureLayout = DashboardLayout(
   favoriteEntityIds: [
@@ -104,8 +113,10 @@ Widget app({
   double scale = 1,
   Brightness brightness = Brightness.light,
   GlobalKey? boundary,
+  HomeSessionController? home,
 }) => ProviderScope(
   overrides: [
+    if (home != null) homeSessionControllerProvider.overrideWithValue(home),
     dashboardLayoutProvider.overrideWithBuild((ref, notifier) async => layout),
     entitiesProvider.overrideWithBuild(
       (ref, notifier) async => fixtureEntities,
@@ -131,6 +142,124 @@ Widget app({
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets(
+    'unresolved Core keeps media navigation while local services are disabled',
+    (tester) async {
+      final harness = ScopeHarness(HomeSource.verifiedCore);
+      final home = HomeSessionController(
+        store: harness.source,
+        account: harness.account,
+      );
+      final boundary = GlobalKey();
+      addTearDown(() {
+        home.dispose();
+        harness.account.dispose();
+      });
+
+      await tester.pumpWidget(app(home: home, boundary: boundary));
+      await tester.pumpAndSettle();
+
+      expect(home.source, isNull);
+      expect(find.byIcon(CupertinoIcons.play_rectangle), findsOneWidget);
+      final container = ProviderScope.containerOf(boundary.currentContext!);
+      expect(container.exists(jellyfinConnectionProvider), isFalse);
+      expect(container.exists(jellyfinResumeItemsProvider), isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('verified Core media action opens only the Core surface', (
+    tester,
+  ) async {
+    final harness = ScopeHarness(HomeSource.verifiedCore);
+    await harness.signIn();
+    final home = HomeSessionController(
+      store: harness.source,
+      account: harness.account,
+    );
+    await home.initialize();
+    home.runtimeMounted(home.runtimeIdentity);
+    final scopeKey = GlobalKey();
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const HomeDashboardScreen()),
+        GoRoute(path: '/media', builder: (_, _) => const MediaHubScreen()),
+      ],
+    );
+    addTearDown(() {
+      router.dispose();
+      home.dispose();
+      harness.account.dispose();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeSessionControllerProvider.overrideWithValue(home),
+          serverAccountControllerProvider.overrideWithValue(harness.account),
+          dashboardLayoutProvider.overrideWithBuild(
+            (ref, notifier) async => fixtureLayout,
+          ),
+          entitiesProvider.overrideWithBuild(
+            (ref, notifier) async => fixtureEntities,
+          ),
+          enabledServicesProvider.overrideWithBuild(
+            (ref, notifier) async => {},
+          ),
+          haConnectionStatusProvider.overrideWith(
+            (ref) => Stream.value(HaConnectionStatus.connected),
+          ),
+        ],
+        child: SizedBox(
+          key: scopeKey,
+          child: CupertinoApp.router(
+            routerConfig: router,
+            theme: larenorTheme(brightness: Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(home.source, HomeSource.verifiedCore);
+    expect(find.byIcon(CupertinoIcons.play_rectangle), findsOneWidget);
+    await tester.tap(find.byIcon(CupertinoIcons.play_rectangle));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byType(MediaHubScreen), findsOneWidget);
+    expect(find.byType(ServerMediaCatalogScreen), findsOneWidget);
+    final container = ProviderScope.containerOf(scopeKey.currentContext!);
+    expect(container.exists(jellyfinConnectionProvider), isFalse);
+    expect(container.exists(jellyfinResumeItemsProvider), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'direct-local hides media navigation when local services are disabled',
+    (tester) async {
+      final harness = ScopeHarness(HomeSource.directLocal);
+      final home = HomeSessionController(
+        store: harness.source,
+        account: harness.account,
+      );
+      await home.initialize();
+      addTearDown(() {
+        home.dispose();
+        harness.account.dispose();
+      });
+
+      await tester.pumpWidget(app(home: home));
+      await tester.pumpAndSettle();
+
+      expect(home.source, HomeSource.directLocal);
+      expect(find.byIcon(CupertinoIcons.play_rectangle), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final (name, menuLabel, initial) in [
     ('room', 'Oda ekle', ''),

@@ -32,6 +32,8 @@ class ServiceTileShell extends StatelessWidget {
     required this.lines,
     this.service,
     this.evidence,
+    this.observeService = true,
+    this.transientStatus,
   });
 
   final IconData icon;
@@ -44,14 +46,21 @@ class ServiceTileShell extends StatelessWidget {
   /// via [BrandIcon] in the header instead of the generic [icon].
   final AppService? service;
   final ConnectionEvidence? evidence;
+  final bool observeService;
+  final String? transientStatus;
 
   @override
   Widget build(BuildContext context) {
     final service = this.service;
-    if (evidence == null && service != null) {
+    if (observeService && evidence == null && service != null) {
       return _ObservedServiceTileShell(shell: this, service: service);
     }
-    return _build(context, configured: connected, evidence: evidence);
+    return _build(
+      context,
+      configured: connected,
+      evidence: evidence,
+      transientStatus: transientStatus,
+    );
   }
 
   Widget _build(

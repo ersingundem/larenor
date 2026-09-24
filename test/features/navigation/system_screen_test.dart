@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
 import 'package:larenor/features/health/data/health_monitor.dart';
 import 'package:larenor/features/health/data/integration_health.dart';
@@ -17,6 +19,7 @@ import 'package:larenor/features/media/bazarr/providers/bazarr_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
+import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/jellyseerr/providers/jellyseerr_providers.dart';
 import 'package:larenor/features/media/prowlarr/providers/prowlarr_providers.dart';
 import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
@@ -29,11 +32,22 @@ import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
 import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../server/server_admin_test_support.dart';
+
+final class _CoreSource implements HomeSourcePersistence {
+  @override
+  Future<HomeSource> read() async => HomeSource.verifiedCore;
+
+  @override
+  Future<void> write(HomeSource source) async {}
+}
 
 class _Enabled extends EnabledServices {
   _Enabled(this.services);
@@ -241,6 +255,43 @@ void main() {
       expect(monitor.read(IntegrationId.proxmox).lastSuccessfulRead, isNotNull);
       expect(find.text('Data read successfully'), findsOneWidget);
       expect(container.exists(proxmoxClientProvider), isFalse);
+      await _close(tester, container);
+    },
+  );
+
+  testWidgets(
+    'verified Core system entry never mounts direct Jellyfin credentials',
+    (tester) async {
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      final home = HomeSessionController(
+        store: _CoreSource(),
+        account: fixture.account,
+      );
+      await home.initialize();
+      home.runtimeMounted(home.runtimeIdentity);
+      final container = ProviderContainer(
+        overrides: [
+          homeSessionControllerProvider.overrideWithValue(home),
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+          enabledServicesProvider.overrideWith(
+            () => _Enabled({AppService.jellyfin}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(home.dispose);
+      addTearDown(fixture.account.dispose);
+
+      await _show(tester, container);
+      expect(find.byKey(const ValueKey('system-jellyfin')), findsOneWidget);
+      expect(container.exists(jellyfinConnectionProvider), isFalse);
+      await tester.tap(find.byKey(const ValueKey('system-jellyfin')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(MediaHubScreen), findsOneWidget);
+      expect(container.exists(jellyfinConnectionProvider), isFalse);
+      expect(container.exists(jellyfinResumeItemsProvider), isFalse);
       await _close(tester, container);
     },
   );
