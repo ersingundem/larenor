@@ -19,9 +19,11 @@ class _Index extends LocalSearchIndexController {
   LocalSearchIndex build() => index;
 }
 
-LocalSearchIndex _index() => LocalSearchIndex.build(
+LocalSearchIndex _index({
+  LocalSearchAvailability availability = LocalSearchAvailability.stale,
+}) => LocalSearchIndex.build(
   homeSource: LocalSearchSource.core,
-  homeAvailability: LocalSearchAvailability.stale,
+  homeAvailability: availability,
   rooms: [
     const DashboardRoom(
       id: 'living',
@@ -112,7 +114,9 @@ void main() {
       final opened = <NavigationTarget>[];
       final container = ProviderContainer(
         overrides: [
-          localSearchIndexProvider.overrideWith(() => _Index(_index())),
+          localSearchIndexProvider.overrideWith(
+            () => _Index(_index(availability: LocalSearchAvailability.current)),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -151,7 +155,7 @@ void main() {
       );
       expect(find.byKey(const ValueKey('room:living')), findsOneWidget);
       expect(find.textContaining('Core'), findsWidgets);
-      expect(find.textContaining('Stale'), findsWidgets);
+      expect(find.textContaining('Current'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   }
@@ -173,5 +177,8 @@ void main() {
     expect(find.byKey(const ValueKey('system:proxmox')), findsOneWidget);
     expect(find.textContaining('Direct'), findsOneWidget);
     expect(find.textContaining('Offline'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('system:proxmox')));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 }

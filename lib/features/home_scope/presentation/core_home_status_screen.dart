@@ -113,6 +113,30 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                   ),
                 if (controller.account.context != null)
                   SettingsActionTile(
+                    key: const ValueKey('core-home-dashboard-entry'),
+                    buttonKey: const ValueKey('core-home-dashboard-action'),
+                    title: Text(l10n.homeTitle),
+                    additionalInfo: Text(l10n.dashboardWidgetPickerHint),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/dashboard');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-search-entry'),
+                    buttonKey: const ValueKey('core-home-search-action'),
+                    title: Text(l10n.navigationSearchTitle),
+                    additionalInfo: Text(l10n.navigationSearchHint),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/search');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
                     key: const ValueKey('core-home-media-catalog-entry'),
                     buttonKey: const ValueKey('core-home-media-catalog-action'),
                     title: Text(l10n.mediaSearchTitle),

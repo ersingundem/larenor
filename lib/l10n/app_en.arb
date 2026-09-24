@@ -4066,6 +4066,12 @@
   "jellyfinLegacyTrackPreferencesCancel": "Not now",
   "jellyfinLegacyTrackPreferencesApplying": "Saving preferences",
   "jellyfinLegacyTrackPreferencesFailed": "The preferences could not be saved. Check the Core session and try again.",
+  "coreResourceCardTitle": "Core resource",
+  "coreResourceCardHint": "Choose an authorized Core room or resource. The card becomes read-only when its revision changes.",
+  "coreResourceBindingCurrent": "Verified Core binding",
+  "coreResourceBindingStale": "Core binding needs refresh",
+  "roomBindCoreResource": "Link Core room",
+  "roomUnbindCoreResource": "Unlink Core room",
   "kioskEvidenceTrace": "Commit {commit}; test {test}; revision {revision}",
   "@kioskEvidenceTrace": {
     "placeholders": {

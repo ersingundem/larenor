@@ -2,13 +2,52 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
+import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
 import 'package:larenor/features/navigation/search/domain/local_search_index.dart';
 import 'package:larenor/features/navigation/search/domain/navigation_target.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 void main() {
+  test('authorized Core rows carry exact revision targets and stale state', () {
+    final context = ServerContext.fromJson({
+      'schemaVersion': 1,
+      'coreId': 'a' * 32,
+      'homeId': 'b' * 32,
+    });
+    final room = HomeResourceRecord.fromJson({
+      'ref': {
+        'schemaVersion': 1,
+        'coreId': 'a' * 32,
+        'homeId': 'b' * 32,
+        'kind': 'room',
+        'id': 'c' * 32,
+      },
+      'label': 'Salon',
+      'order': 1,
+      'revision': 7,
+      'aclRevision': 9,
+      'permissions': {'read': true, 'write': false},
+    }, expectedContext: context);
+    final index = LocalSearchIndex.build(
+      coreResources: [room],
+      coreUserRevision: 11,
+      coreAvailability: LocalSearchAvailability.stale,
+    );
+    final result = index.search('salon').single;
+    expect(result.id, 'core-room:${'c' * 32}');
+    expect(result.source, LocalSearchSource.core);
+    expect(result.availability, LocalSearchAvailability.stale);
+    final target = result.target as CoreResourceNavigationTarget;
+    expect(target.resourceRevision, 7);
+    expect(target.aclRevision, 9);
+    expect(target.userRevision, 11);
+    expect(CoreResourceNavigationTarget.tryParse(target.uri), target);
+    expect(index.resolve(result.id), same(result));
+  });
+
   test(
     'music and receiver pages resolve locally without indexing credentials',
     () {

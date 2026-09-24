@@ -1,20 +1,12 @@
-import '../../dashboard/domain/dashboard_website_url.dart';
-
 import 'dart:convert';
 
 import '../../../shared/network/server_bound_client.dart';
-import '../../dashboard/domain/tile_config.dart';
-import '../../dashboard/domain/keenetic_tile_validation.dart';
-import '../../dashboard/domain/core_keenetic_tile_validation.dart';
-import '../../dashboard/domain/today_tile_validation.dart';
-import '../../dashboard/domain/ha_area_binding.dart';
 import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../media/movie_night/domain/movie_night_preset.dart';
 import '../../settings/data/app_service.dart';
 import '../../settings/domain/screen_program.dart';
 import '../../ambient/domain/ambient_settings.dart';
-import '../../web_panel/domain/web_panel_options.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 
 class BackupException implements Exception {
@@ -313,122 +305,8 @@ void _validateConnection(String service, Object? value) {
 }
 
 void _validateDashboard(Object? value) {
-  final layout = _object(value, {
-    'schemaVersion',
-    'rooms',
-    'tiles',
-    'favoriteEntityIds',
-    'hiddenEntityIds',
-    'entityCardSizes',
-    'serviceCardSizes',
-  });
-  if (layout.containsKey('schemaVersion')) {
-    _integer(layout['schemaVersion'], 1, 2);
-  }
-  if (layout['rooms'] case final Object rooms) {
-    if (rooms is! List || rooms.length > 500) {
-      throw const BackupValidationException();
-    }
-    final ids = <String>{};
-    for (final raw in rooms) {
-      final room = _object(
-        raw,
-        {'id', 'name', 'entityIds', 'areaBinding'},
-        required: {'id', 'name'},
-      );
-      if (!ids.add(_string(room['id'], maxLength: 256))) {
-        throw const BackupValidationException();
-      }
-      _string(room['name'], maxLength: 256);
-      _entityIds(room['entityIds'] ?? <String>[]);
-      if (room['areaBinding'] != null) {
-        try {
-          validateHaAreaBindingJson(room['areaBinding']);
-          final binding = HaAreaBinding.fromJson(
-            room['areaBinding'] as Map<String, dynamic>,
-          );
-          final memberIds = (room['entityIds'] as List? ?? const [])
-              .cast<String>()
-              .toSet();
-          if (!memberIds.containsAll(binding.importedEntityIds) ||
-              memberIds
-                  .intersection(binding.excludedEntityIds.toSet())
-                  .isNotEmpty) {
-            throw const BackupValidationException();
-          }
-        } catch (_) {
-          throw const BackupValidationException();
-        }
-      }
-    }
-  }
-  if (layout['tiles'] case final Object tiles) {
-    if (tiles is! List || tiles.length > 2000) {
-      throw const BackupValidationException();
-    }
-    final ids = <String>{};
-    for (final raw in tiles) {
-      final tile = _object(
-        raw,
-        {
-          'id',
-          'type',
-          'x',
-          'y',
-          'width',
-          'height',
-          'entityId',
-          'url',
-          'title',
-          'keeneticMetric',
-          'keeneticInterfaceId',
-          'coreId',
-          'coreHomeId',
-          'coreResourceId',
-          'coreResourceRevision',
-          'coreResourceAclRevision',
-          'coreBindingId',
-          'coreBindingRevision',
-          'todaySection',
-          'todayQuery',
-          'webPanel',
-        },
-        required: {'id', 'type', 'x', 'y', 'width', 'height'},
-      );
-      if (!ids.add(_string(tile['id'], maxLength: 256)) ||
-          !TileType.values.map((e) => e.name).contains(tile['type']) ||
-          !hasValidKeeneticTileFields(tile) ||
-          !hasValidCoreKeeneticTileFields(tile) ||
-          !hasValidTodayTileFields(tile) ||
-          !hasValidWebPanelTileFields(tile)) {
-        throw const BackupValidationException();
-      }
-      _integer(tile['x'], 0, 100000);
-      _integer(tile['y'], 0, 100000);
-      _integer(tile['width'], 1, 100);
-      _integer(tile['height'], 1, 100);
-      if (tile['entityId'] != null) _entityIds([tile['entityId']]);
-      if (tile['title'] != null) {
-        _string(tile['title'], maxLength: 512, allowEmpty: true);
-      }
-      if (tile['url'] != null) {
-        final url = _string(tile['url'], maxLength: 4096);
-        if (dashboardWebsiteUrl(url) == null) {
-          throw const BackupValidationException();
-        }
-      }
-    }
-  }
-  _entityIds(layout['favoriteEntityIds'] ?? <String>[]);
-  _entityIds(layout['hiddenEntityIds'] ?? <String>[]);
   try {
-    validateDashboardCardSizesJson(
-      layout['entityCardSizes'] ?? const <String, dynamic>{},
-    );
-    validateDashboardCardSizesJson(
-      layout['serviceCardSizes'] ?? const <String, dynamic>{},
-      services: true,
-    );
+    validateDashboardLayoutJson(value);
   } catch (_) {
     throw const BackupValidationException();
   }
@@ -463,11 +341,4 @@ List<String> _strings(Object? value, {int maxCount = 10000}) {
     throw const BackupValidationException();
   }
   return result;
-}
-
-void _entityIds(Object? value) {
-  if (!_strings(value)
-      .every((e) => RegExp(r'^[a-z0-9_]+\.[a-z0-9_]+$').hasMatch(e))) {
-    throw const BackupValidationException();
-  }
 }

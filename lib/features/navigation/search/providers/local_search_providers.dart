@@ -5,6 +5,8 @@ import '../../../../core/home_session_controller.dart';
 import '../../../../core/home_source_store.dart';
 import '../../../dashboard/domain/dashboard_room.dart';
 import '../../../dashboard/providers/dashboard_providers.dart';
+import '../../../home_resources/data/home_resources_providers.dart';
+import '../../../home_resources/domain/home_resource_models.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../wellbeing/providers/wellbeing_providers.dart';
@@ -56,12 +58,19 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
   Set<AppService>? _services;
   LocalSearchSource? _homeSource;
   LocalSearchAvailability? _homeAvailability;
+  List<HomeResourceRecord>? _coreResources;
+  int? _coreUserRevision;
+  LocalSearchAvailability? _coreAvailability;
   LocalSearchIndex? _index;
 
   @override
   LocalSearchIndex build() {
-    final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
-    final entityStatus = ref.exists(entitiesProvider)
+    final home = ref.read(homeSessionControllerProvider);
+    final core = home?.source == HomeSource.verifiedCore;
+    final privacy = core
+        ? const AsyncData<Set<String>>({})
+        : ref.watch(wellbeingPrivateEntityIdsProvider);
+    final entityStatus = !core && ref.exists(entitiesProvider)
         ? ref.watch(
             entitiesProvider.select(
               (states) =>
@@ -69,7 +78,7 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
             ),
           )
         : (refreshing: false, error: false);
-    final names = ref.exists(entitiesProvider)
+    final names = !core && ref.exists(entitiesProvider)
         ? ref.watch(
             entitiesProvider.select(
               (states) => _EntityNames({
@@ -82,26 +91,28 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
             ),
           )
         : const _EntityNames({});
-    final rooms = ref.exists(dashboardLayoutProvider)
+    final rooms = !core && ref.exists(dashboardLayoutProvider)
         ? ref.watch(
                 dashboardLayoutProvider.select((layout) => layout.value?.rooms),
               ) ??
               const <DashboardRoom>[]
         : const <DashboardRoom>[];
-    final library = ref.exists(mediaLibraryIndexProvider)
+    final library = !core && ref.exists(mediaLibraryIndexProvider)
         ? _visibleCache(ref.watch(mediaLibraryIndexProvider))
         : null;
-    final rows = ref.exists(mediaHubRowsProvider)
+    final rows = !core && ref.exists(mediaHubRowsProvider)
         ? _visibleCache(ref.watch(mediaHubRowsProvider))
         : null;
-    final services = _availableCachedServices();
-    // This provider is a passive in-memory coordinator. Reading it never
-    // initializes Core or Direct transport, and makes source labeling reliable
-    // even when Search is the first screen to inspect the current home mode.
-    final home = ref.read(homeSessionControllerProvider);
-    final homeSource = home?.source == HomeSource.verifiedCore
-        ? LocalSearchSource.core
-        : LocalSearchSource.direct;
+    final services = core ? const <AppService>{} : _availableCachedServices();
+    final catalog = core ? ref.watch(sharedHomeResourcesProvider) : null;
+    final coreResources = catalog?.entries ?? const <HomeResourceRecord>[];
+    final coreUserRevision = catalog?.userRevision;
+    final coreAvailability = catalog == null || catalog.failure != null
+        ? LocalSearchAvailability.offline
+        : catalog.stale || !catalog.loaded
+        ? LocalSearchAvailability.stale
+        : LocalSearchAvailability.current;
+    final homeSource = core ? LocalSearchSource.core : LocalSearchSource.direct;
     final homeAvailability =
         home?.busy == true || home?.failure != null || entityStatus.error
         ? LocalSearchAvailability.offline
@@ -117,7 +128,10 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
         identical(rows, _rows) &&
         setEquals(services, _services) &&
         homeSource == _homeSource &&
-        homeAvailability == _homeAvailability) {
+        homeAvailability == _homeAvailability &&
+        listEquals(coreResources, _coreResources) &&
+        coreUserRevision == _coreUserRevision &&
+        coreAvailability == _coreAvailability) {
       return _index!;
     }
     _names = names;
@@ -127,6 +141,9 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
     _services = services;
     _homeSource = homeSource;
     _homeAvailability = homeAvailability;
+    _coreResources = coreResources;
+    _coreUserRevision = coreUserRevision;
+    _coreAvailability = coreAvailability;
     final media = <MediaTitle>[
       for (final row in rows ?? const <MediaRowData>[]) ...row.titles,
       if (library != null)
@@ -147,6 +164,9 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
       ],
       media: media,
       services: services,
+      coreResources: coreResources,
+      coreUserRevision: coreUserRevision,
+      coreAvailability: coreAvailability,
       homeSource: homeSource,
       homeAvailability: homeAvailability,
     );

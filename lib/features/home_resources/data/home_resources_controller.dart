@@ -21,7 +21,10 @@ class HomeResourcesController extends ChangeNotifier {
     this.clock,
     this.windowCurrent, {
     this.adminManagement = false,
+    this.retainSameRuntimeRows = false,
+    this.loadEveryPage = false,
   }) {
+    _runtimeIdentity = home.runtimeIdentity;
     home.addListener(_changed);
     home.account.addListener(_changed);
   }
@@ -30,6 +33,9 @@ class HomeResourcesController extends ChangeNotifier {
   final DateTime Function() clock;
   final bool Function() windowCurrent;
   final bool adminManagement;
+  final bool retainSameRuntimeRows;
+  final bool loadEveryPage;
+  late final Object _runtimeIdentity;
   HomeResourceMutationOutcome? mutationOutcome;
   bool _disposed = false,
       _visible = false,
@@ -75,6 +81,10 @@ class HomeResourcesController extends ChangeNotifier {
   bool get canLoadMore => fresh && !busy && nextAfter != null;
   bool get canManage => fresh && _ready!.user.canAdminister;
   bool get canMutate => adminManagement && canManage && loaded && !busy;
+  bool get stale => entries.isNotEmpty && (busy || failure != null || !fresh);
+
+  bool get _mayRetainRows =>
+      retainSameRuntimeRows && home.runtimeIdentity == _runtimeIdentity;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -88,7 +98,7 @@ class HomeResourcesController extends ChangeNotifier {
     loaded = false;
   }
 
-  void _retire() {
+  void _retire({bool preserveRows = false}) {
     epoch++;
     busy = false;
     _preparing = false;
@@ -100,13 +110,13 @@ class HomeResourcesController extends ChangeNotifier {
     _boundSession = null;
     failure = null;
     mutationOutcome = null;
-    _clear();
+    if (!preserveRows) _clear();
   }
 
   void setVisible(bool value) {
     if (_disposed || value == _visible) return;
     _visible = value;
-    _retire();
+    _retire(preserveRows: value && _mayRetainRows);
     _attempted = false;
     _emit();
     _startIfReady();
@@ -124,13 +134,13 @@ class HomeResourcesController extends ChangeNotifier {
     // Auth refresh owns its context GET. Hide rows while it binds the candidate;
     // never cancel that shared account operation from this page.
     if (_preparing && (_preparationCurrent?.call() ?? false)) {
-      _clear();
+      if (!_mayRetainRows) _clear();
       _emit();
       return;
     }
     if (!fresh ||
         (_boundSession != null && !identical(_boundSession, _ready))) {
-      _retire();
+      _retire(preserveRows: _mayRetainRows);
       _attempted = false;
     }
     _emit();
@@ -158,7 +168,7 @@ class HomeResourcesController extends ChangeNotifier {
         session.context == original.context &&
         session.user.id == original.user.id &&
         session.endpoint.baseUrl == original.endpoint.baseUrl;
-    if (!more) {
+    if (!more && !_mayRetainRows) {
       _clear();
       mutationOutcome = null;
     }
@@ -221,7 +231,7 @@ class HomeResourcesController extends ChangeNotifier {
       loaded = true;
     } catch (error) {
       if (current()) {
-        _clear();
+        if (!_mayRetainRows) _clear();
         failure = error is LarenorServerException
             ? error.code
             : 'connection_failed';
@@ -234,6 +244,9 @@ class HomeResourcesController extends ChangeNotifier {
         _preparationCurrent = null;
         busy = false;
         _emit();
+        if (loadEveryPage && fresh && failure == null && nextAfter != null) {
+          unawaited(loadMore());
+        }
       }
     }
   }

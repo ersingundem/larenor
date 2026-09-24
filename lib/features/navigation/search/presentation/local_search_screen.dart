@@ -136,14 +136,20 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
   void _openSelection(List<LocalSearchItem> results) {
     if (!_canFocus) return;
     final selected = ref.read(localSearchSelectionProvider).selectedId;
-    final item = results.where((item) => item.id == selected).firstOrNull;
-    if (item != null) widget.onOpenTarget(item.target);
+    final rendered = results.where((item) => item.id == selected).firstOrNull;
+    if (rendered != null) _openItem(rendered);
   }
 
   void _openItem(LocalSearchItem item) {
     if (!_canFocus) return;
-    ref.read(localSearchSelectionProvider.notifier).select(item.id);
-    widget.onOpenTarget(item.target);
+    final current = ref.read(localSearchIndexProvider).resolve(item.id);
+    if (current == null ||
+        current.availability != LocalSearchAvailability.current ||
+        current.target != item.target) {
+      return;
+    }
+    ref.read(localSearchSelectionProvider.notifier).select(current.id);
+    widget.onOpenTarget(current.target);
   }
 
   @override
@@ -247,7 +253,11 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
                                 key: ValueKey(results[item].id),
                                 item: results[item],
                                 selected: results[item].id == selectedId,
-                                onTap: () => _openItem(results[item]),
+                                onTap:
+                                    results[item].availability ==
+                                        LocalSearchAvailability.current
+                                    ? () => _openItem(results[item])
+                                    : null,
                               ),
                             ),
                     ),
@@ -305,7 +315,7 @@ class _SearchResultRow extends StatelessWidget {
   });
   final LocalSearchItem item;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -383,6 +393,7 @@ class _SearchResultRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Semantics(
         button: true,
+        enabled: onTap != null,
         selected: selected,
         label: '$title, $details',
         child: ExcludeSemantics(
@@ -423,7 +434,12 @@ class _SearchResultRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(CupertinoIcons.chevron_forward, size: 16),
+                Icon(
+                  onTap == null
+                      ? CupertinoIcons.clock
+                      : CupertinoIcons.chevron_forward,
+                  size: 16,
+                ),
               ],
             ),
           ),

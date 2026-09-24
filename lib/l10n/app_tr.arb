@@ -3713,6 +3713,12 @@
   "jellyfinLegacyTrackPreferencesCancel": "Şimdi değil",
   "jellyfinLegacyTrackPreferencesApplying": "Tercihler kaydediliyor",
   "jellyfinLegacyTrackPreferencesFailed": "Tercihler kaydedilemedi. Core oturumunu denetleyip yeniden deneyin.",
+  "coreResourceCardTitle": "Core kaynağı",
+  "coreResourceCardHint": "Yetkili bir Core odası veya kaynağı seçin. Revizyon değiştiğinde kart salt okunur olur.",
+  "coreResourceBindingCurrent": "Doğrulanmış Core bağlantısı",
+  "coreResourceBindingStale": "Core bağlantısı yenilenmeli",
+  "roomBindCoreResource": "Core odasına bağla",
+  "roomUnbindCoreResource": "Core odası bağlantısını kaldır",
   "kioskEvidenceTrace": "Commit {commit}; test {test}; revizyon {revision}",
   "@kioskEvidenceTrace": {
     "placeholders": {

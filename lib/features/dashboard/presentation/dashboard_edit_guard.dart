@@ -7,6 +7,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../../health/data/health_configuration.dart';
 import '../domain/dashboard_room.dart';
 import '../domain/ha_area_binding.dart';
+import '../../home_resources/data/home_resources_providers.dart';
 
 /// Guards local editors and already-visible accessory callbacks without
 /// starting a Home Assistant connection merely to display a layout preview.
@@ -130,6 +131,16 @@ abstract class DashboardEditState<T extends ConsumerStatefulWidget>
 /// A bound room is source-specific, including members manually added to it.
 /// Calling code should avoid creating its live controls when this is false.
 bool roomMatchesCurrentServer(WidgetRef ref, DashboardRoom room) {
+  final core = room.coreResource;
+  if (core != null) {
+    final catalog = ref.read(sharedHomeResourcesProvider);
+    return catalog != null &&
+        catalog.fresh &&
+        !catalog.stale &&
+        catalog.entries.any(
+          (entry) => core.matches(entry, catalog.userRevision),
+        );
+  }
   final binding = room.areaBinding;
   if (binding == null) return true;
   final current = ref.read(connectionConfigProvider);

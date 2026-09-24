@@ -202,6 +202,13 @@ const serviceTileKinds = {
     width: 3,
     height: 2,
   ),
+  TileType.coreResource: TileKindInfo(
+    'Core resource',
+    CupertinoIcons.square_stack_3d_up,
+    CupertinoColors.systemBlue,
+    width: 3,
+    height: 2,
+  ),
 };
 
 /// Which summary tile represents each optional service, so the dashboard's
@@ -282,6 +289,8 @@ String tileTypeLabel(BuildContext context, TileType type) {
       return l10n.keeneticConnectedDevices;
     case TileType.coreKeeneticBandwidth:
       return '${l10n.keeneticDownloadRate} / ${l10n.keeneticUploadRate}';
+    case TileType.coreResource:
+      return l10n.coreResourceCardTitle;
     case TileType.webview:
       return l10n.dashboardTileWebview;
   }

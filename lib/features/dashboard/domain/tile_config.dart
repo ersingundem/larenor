@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../keenetic/domain/keenetic_metric.dart';
 import '../../web_panel/domain/web_panel_options.dart';
+import '../../home_resources/domain/core_resource_binding.dart';
 
 part 'tile_config.freezed.dart';
 part 'tile_config.g.dart';
@@ -32,6 +33,7 @@ enum TileType {
   coreKeeneticMesh,
   coreKeeneticClients,
   coreKeeneticBandwidth,
+  coreResource,
 }
 
 @freezed
@@ -61,6 +63,7 @@ abstract class TileConfig with _$TileConfig {
     String? todaySection,
     String? todayQuery,
     WebPanelOptions? webPanel,
+    CoreResourceBinding? coreResource,
   }) = _TileConfig;
 
   const TileConfig._();
