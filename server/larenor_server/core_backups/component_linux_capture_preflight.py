@@ -520,7 +520,6 @@ class LinuxBtrfsCapturePreflight:
         )
         if (
             not stat.S_ISDIR(current[2])
-            or current[0] != capability.capture_device
             or type(observed) is not MountObservation
             or observed.directory_identity != expected
             or observed.mount.filesystem != "btrfs"
