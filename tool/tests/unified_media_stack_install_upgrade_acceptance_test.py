@@ -499,6 +499,19 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertIs(raised.exception.preserve_resources, True)
         self.assertEqual(str(raised.exception), "unified_manifest_invalid")
 
+        returning = FailingDriver(known)
+        returning.reconcile_upgrade = lambda _revision, _operation: None
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                returning,
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(raised.exception.code, "unified_manifest_invalid")
+        self.assertIs(raised.exception.preserve_resources, True)
+        self.assertEqual(str(raised.exception), "unified_manifest_invalid")
+
         with self.assertRaises(target.ManagedStackCIError) as raised:
             target._apply_or_reconcile(
                 FailingDriver(RuntimeError("private apply detail")),
