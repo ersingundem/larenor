@@ -11,6 +11,9 @@ from larenor_server.core_backups.component_isolated_capture import (
     BtrfsReadOnlySnapshotBackend,
     LinuxCowCaptureEngine,
 )
+from larenor_server.core_backups.component_linux_capture_preflight import (
+    LinuxBtrfsCapturePreflight,
+)
 from larenor_server.core_backups.component_snapshot_provider import (
     ComponentVolumeSource,
 )
@@ -62,6 +65,9 @@ def _source(root):
 def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     root = Path(os.environ["LARENOR_NATIVE_CAPTURE_ROOT"])
     assert os.geteuid() == 0
+    preflight = LinuxBtrfsCapturePreflight(root)
+    capability = preflight.verify(time.monotonic() + 10)
+    assert preflight.revalidate(capability, time.monotonic() + 10)
     source = _source(root)
     captures = root / "captures"
     captures.mkdir(mode=0o700)

@@ -17,6 +17,8 @@ class ComponentCaptureNativeWorkflowTest(unittest.TestCase):
         self.assertIn("mkfs.btrfs --force", value)
         self.assertIn("/var/lib/larenor-component-capture-", value)
         self.assertIn("test_core_backup_linux_cow_capture_native.py", value)
+        self.assertIn("component_linux_capture_preflight.py", value)
+        self.assertIn("test_core_backup_linux_capture_preflight.py", value)
         self.assertIn("--check-platform", value)
 
     def test_workflow_scope_excludes_restore_domains(self):

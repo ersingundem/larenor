@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import time
 
 import pytest
 
@@ -10,6 +11,9 @@ from larenor_server.core_backups.component_worker_runtime import (
     ComponentWorkerRuntimeError,
     build_runtime,
     main,
+)
+from larenor_server.core_backups.component_linux_capture_preflight import (
+    LinuxBtrfsCaptureCapability,
 )
 from larenor_server.plugins.managed_container import ManagedWorkerJournal
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
@@ -27,6 +31,17 @@ class Backend:
 
     def delete(self, destination, deadline):
         self.recovered = True
+
+
+class CapturePreflight:
+    def __init__(self):
+        self.calls = []
+        self.capability = LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+
+    def verify(self, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append("verify")
+        return self.capability
 
 
 def initialized_journals(tmp_path):
@@ -72,9 +87,11 @@ def selected_config(tmp_path):
 
 def test_runtime_composes_durable_authority_docker_adapter_and_capture(selected_config):
     selected = selected_config
+    preflight = CapturePreflight()
     with build_runtime(
         selected,
         backend=Backend(),
+        capture_preflight=preflight,
         require_privileged=False,
         docker_peer_uid=lambda _connection: os.getuid(),
         worker_peer_uid=lambda _connection: os.getuid(),
@@ -82,6 +99,28 @@ def test_runtime_composes_durable_authority_docker_adapter_and_capture(selected_
         assert runtime.server.provider is runtime.provider
         assert runtime.server.client_uid == os.getuid()
         assert runtime.server.path == selected.socket_path
+        assert runtime.capture_capability is preflight.capability
+    assert preflight.calls == ["verify"]
+
+
+def test_runtime_rejects_non_exact_capture_capability(selected_config):
+    class MalformedPreflight:
+        @staticmethod
+        def verify(_deadline):
+            return None
+
+    with pytest.raises(
+        ComponentWorkerRuntimeError, match="worker_configuration_invalid"
+    ):
+        with build_runtime(
+            selected_config,
+            backend=Backend(),
+            capture_preflight=MalformedPreflight(),
+            require_privileged=False,
+            docker_peer_uid=lambda _connection: os.getuid(),
+            worker_peer_uid=lambda _connection: os.getuid(),
+        ):
+            raise AssertionError("malformed capability must not compose")
 
 
 @pytest.mark.parametrize(

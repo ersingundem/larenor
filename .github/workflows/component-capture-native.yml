@@ -5,8 +5,10 @@ on:
     paths:
       - ".github/workflows/component-capture-native.yml"
       - "server/larenor_server/core_backups/component_isolated_capture.py"
+      - "server/larenor_server/core_backups/component_linux_capture_preflight.py"
       - "server/larenor_server/core_backups/component_worker_runtime.py"
       - "server/tests/test_core_backup_linux_cow_capture.py"
+      - "server/tests/test_core_backup_linux_capture_preflight.py"
       - "server/tests/test_core_backup_linux_cow_capture_native.py"
       - "server/tests/test_core_backup_component_worker_runtime.py"
       - "tool/tests/component_capture_native_workflow_test.py"

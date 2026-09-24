@@ -37,20 +37,23 @@ class IsolatedComponentCaptureError(RuntimeError):
 class BtrfsReadOnlySnapshotBackend:
     """Fixed-operation btrfs adapter; never accepts Client commands."""
 
-    def __init__(self, executable=Path("/usr/bin/btrfs")):
+    def __init__(self, executable=Path("/usr/bin/btrfs"), *, runner=None):
         try:
             executable = checked_path(Path(executable))
             info = executable.lstat()
+            selected_runner = subprocess.run if runner is None else runner
             if (
                 not stat.S_ISREG(info.st_mode)
                 or info.st_uid != 0
                 or stat.S_IMODE(info.st_mode) & 0o022
                 or not os.access(executable, os.X_OK)
+                or not callable(selected_runner)
             ):
                 raise ValueError()
         except Exception:
             raise IsolatedComponentCaptureError() from None
         self._executable = executable
+        self._runner = selected_runner
 
     @staticmethod
     def _timeout(deadline):
@@ -59,7 +62,7 @@ class BtrfsReadOnlySnapshotBackend:
 
     def _run(self, arguments, deadline, *, output=False):
         try:
-            result = subprocess.run(
+            result = self._runner(
                 [str(self._executable), *arguments],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE if output else subprocess.DEVNULL,
@@ -70,7 +73,7 @@ class BtrfsReadOnlySnapshotBackend:
             if result.returncode != 0:
                 raise ValueError()
             return result.stdout if output else b""
-        except (OSError, subprocess.SubprocessError, ValueError):
+        except Exception:
             raise IsolatedComponentCaptureError() from None
 
     def create_read_only(self, source, destination, deadline):

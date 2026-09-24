@@ -205,7 +205,7 @@ def test_capture_rejects_unjournaled_capture_root_entry(tmp_path):
     assert (tmp_path / "captures" / "foreign").is_dir()
 
 
-def test_btrfs_backend_uses_only_fixed_read_only_operations(monkeypatch):
+def test_btrfs_backend_uses_only_fixed_read_only_operations():
     calls = []
 
     def run(arguments, **options):
@@ -213,8 +213,7 @@ def test_btrfs_backend_uses_only_fixed_read_only_operations(monkeypatch):
         output = b"ro=true\n" if arguments[1:4] == ["property", "get", "-ts"] else b""
         return subprocess.CompletedProcess(arguments, 0, output)
 
-    monkeypatch.setattr(subprocess, "run", run)
-    backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"))
+    backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"), runner=run)
     deadline = time.monotonic() + 2
     backend.create_read_only(Path("/source"), Path("/capture"), deadline)
     backend.delete(Path("/capture"), deadline)
@@ -226,3 +225,4 @@ def test_btrfs_backend_uses_only_fixed_read_only_operations(monkeypatch):
     ]
     assert all(call[1]["stdin"] is subprocess.DEVNULL for call in calls)
     assert all(call[1]["stderr"] is subprocess.DEVNULL for call in calls)
+    assert all("shell" not in call[1] for call in calls)
