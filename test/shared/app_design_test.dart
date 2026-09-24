@@ -13,7 +13,6 @@ import 'package:larenor/features/settings/presentation/settings_split_screen.dar
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
 import 'package:larenor/features/media/hub/presentation/direct_media_hub_screen.dart';
-import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
