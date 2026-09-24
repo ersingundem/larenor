@@ -8,9 +8,13 @@ import pytest
 from conftest import ready
 
 from larenor_server.core_backups.component_restore import (
+    ComponentRestoreBoundary,
     ComponentRestoreAuthorityTarget,
     ComponentRestoreAuthorityVolume,
+    ComponentRestoreCoordinator,
     ComponentRestorePlanError,
+    ComponentRestoreRollbackReceipt,
+    ComponentRestoreStageReceipt,
     plan_component_restore,
 )
 from larenor_server.core_backups.models import MAX_COMPONENT_VOLUME_BYTES
@@ -254,3 +258,180 @@ def test_plan_rejects_malformed_or_oversize_capture_before_target_publish(server
 
     with pytest.raises(ComponentRestorePlanError):
         plan_component_restore(object(), Authority((authority_target(),)))
+
+
+class Clock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+class SyntheticRestoreSession:
+    def __init__(self, target, *, fail=None, clock=None):
+        self.target = target
+        self.fail = fail
+        self.clock = clock
+        self.events = []
+        self.staged = {}
+        self.rollback_calls = 0
+        self.release_calls = 0
+
+    def quiesce(self, targets, _deadline):
+        self.events.append(("quiesce", tuple(item.service_id for item in targets)))
+        if self.fail == "quiesce":
+            raise RuntimeError("private provider path")
+        return True
+
+    def capture_rollback(self, volume, _deadline):
+        self.events.append(("snapshot", volume.resource_id))
+        if self.fail == "snapshot" and len(self.events) == 3:
+            raise RuntimeError("private snapshot failure")
+        payload = self.target[volume.resource_id]
+        return ComponentRestoreRollbackReceipt(
+            resource_id=volume.resource_id,
+            binding_id=volume.binding_id,
+            binding_revision=volume.binding_revision,
+            receipt_id=hashlib.sha256(b"rollback:" + payload).hexdigest(),
+            byte_length=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+        )
+
+    def stage(self, volume, payload, rollback, _deadline):
+        self.events.append(("stage", volume.resource_id))
+        if self.fail == "stage" and len(self.staged) == 1:
+            raise RuntimeError("private staging failure")
+        self.staged[volume.resource_id] = payload
+        if self.fail == "deadline" and len(self.staged) == 2:
+            self.clock.now = 11.0
+        return ComponentRestoreStageReceipt(
+            resource_id=volume.resource_id,
+            binding_id=volume.binding_id,
+            binding_revision=volume.binding_revision,
+            rollback_receipt_id=rollback.receipt_id,
+            stage_id=hashlib.sha256(b"stage:" + payload).hexdigest(),
+            byte_length=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+        )
+
+    def revalidate(self, _plan, _deadline):
+        self.events.append(("revalidate",))
+        return self.fail != "authority"
+
+    def commit(self, stages, rollbacks, _deadline):
+        self.events.append(("commit", len(stages), len(rollbacks)))
+        self.target.update(self.staged)
+        return True
+
+    def rollback(self, rollbacks, stages):
+        self.events.append(("rollback", len(rollbacks), len(stages)))
+        self.rollback_calls += 1
+        self.staged.clear()
+        return True
+
+    def release(self):
+        self.events.append(("release",))
+        self.release_calls += 1
+        return True
+
+
+class SyntheticRestoreBoundary(ComponentRestoreBoundary):
+    def __init__(self, session):
+        self.session = session
+        self.acquire_calls = 0
+
+    def acquire(self, plan, _deadline):
+        self.acquire_calls += 1
+        self.session.events.append(
+            ("acquire", plan.snapshot_id, tuple(
+                item.installation_revision for item in plan.targets
+            ))
+        )
+        return self.session
+
+
+def restore_inputs(server, *, fail=None, clock=None):
+    opened = capture(server)
+    plan = plan_component_restore(opened, Authority((authority_target(),)))
+    target = {
+        item.resource_id: b"old:" + item.resource_id.encode()
+        for item in plan.targets[0].volumes
+    }
+    session = SyntheticRestoreSession(target, fail=fail, clock=clock)
+    boundary = SyntheticRestoreBoundary(session)
+    coordinator = ComponentRestoreCoordinator(boundary, monotonic=clock or (lambda: 0.0))
+    return opened, plan, target, session, boundary, coordinator
+
+
+def test_coordinator_stages_every_volume_then_revalidates_before_one_commit(server):
+    opened, plan, target, session, boundary, coordinator = restore_inputs(server)
+
+    receipt = coordinator.restore(opened, plan, deadline=10.0)
+
+    expected_resources = tuple(item.resource_id for item in plan.targets[0].volumes)
+    assert boundary.acquire_calls == 1
+    assert [event[0] for event in session.events] == [
+        "acquire",
+        "quiesce",
+        "snapshot",
+        "snapshot",
+        "stage",
+        "stage",
+        "revalidate",
+        "commit",
+        "release",
+    ]
+    assert tuple(event[1] for event in session.events[2:4]) == expected_resources
+    assert tuple(event[1] for event in session.events[4:6]) == expected_resources
+    assert target == {
+        resource_id: opened.payloads[resource_id]
+        for resource_id in expected_resources
+    }
+    assert receipt.snapshot_id == plan.snapshot_id
+    assert tuple(item.resource_id for item in receipt.rollbacks) == expected_resources
+    assert tuple(item.resource_id for item in receipt.stages) == expected_resources
+    assert session.rollback_calls == 0
+    assert session.release_calls == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["quiesce", "snapshot", "stage", "authority", "deadline"],
+)
+def test_coordinator_failure_rolls_back_and_releases_once_without_target_write(
+    server, failure
+):
+    clock = Clock()
+    opened, plan, target, session, _boundary, coordinator = restore_inputs(
+        server,
+        fail=failure,
+        clock=clock,
+    )
+    before = dict(target)
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        coordinator.restore(opened, plan, deadline=10.0)
+
+    assert target == before
+    assert not any(event[0] == "commit" for event in session.events)
+    assert session.rollback_calls == 1
+    assert session.release_calls == 1
+    assert session.events[-2][0] == "rollback"
+    assert session.events[-1] == ("release",)
+    if failure == "deadline":
+        assert session.events[-2] == ("rollback", 2, 2)
+
+
+def test_default_component_restore_boundary_rejects_without_host_effect(server):
+    opened = capture(server)
+    plan = plan_component_restore(opened, Authority((authority_target(),)))
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        ComponentRestoreCoordinator().restore(opened, plan, deadline=10.0)
