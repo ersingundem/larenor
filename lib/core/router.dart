@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/dashboard/presentation/home_dashboard_screen.dart';
 import '../features/home_scope/presentation/core_home_status_screen.dart';
+import '../features/home_resources/presentation/core_resource_destination_screen.dart';
 import 'home_session_controller.dart';
 import '../features/media/hub/domain/media_title.dart';
 import '../features/media/hub/presentation/media_hub_screen.dart';
@@ -103,6 +104,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
         GoRoute(path: '/media', builder: (_, _) => const MediaHubScreen()),
         GoRoute(path: '/media/catalog', redirect: (_, _) => '/media'),
+        GoRoute(
+          path: '/search',
+          builder: (context, state) => LocalSearchScreen(
+            autofocus: state.uri.queryParameters['focus'] == '1',
+            onOpenRemoteMedia: () => context.push('/media'),
+            onOpenTarget: (target) => context.go(target.location),
+          ),
+        ),
+        GoRoute(
+          path: '/core-resources/:kind/:resourceId',
+          builder: (_, state) {
+            final target = CoreResourceNavigationTarget.tryParse(state.uri);
+            return target == null
+                ? const CoreHomeStatusScreen()
+                : CoreResourceDestinationScreen(target: target);
+          },
+        ),
         GoRoute(
           path: '/settings',
           builder: (_, _) => const SettingsGateScreen(
@@ -254,6 +272,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => EntityDestinationScreen(
           entityId: state.pathParameters['entityId']!,
         ),
+      ),
+      GoRoute(
+        path: '/core-resources/:kind/:resourceId',
+        builder: (_, state) {
+          final target = CoreResourceNavigationTarget.tryParse(state.uri);
+          return target == null
+              ? const MissingDestinationScreen()
+              : CoreResourceDestinationScreen(target: target);
+        },
       ),
       GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
       GoRoute(

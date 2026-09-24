@@ -1,4 +1,5 @@
 import '../../../dashboard/domain/dashboard_room.dart';
+import '../../../home_resources/domain/home_resource_models.dart';
 import '../../../media/hub/domain/media_title.dart';
 import '../../../settings/data/app_service.dart';
 import 'navigation_target.dart';
@@ -142,14 +143,44 @@ class LocalSearchIndex {
     Iterable<MediaTitle> media = const [],
     Iterable<AppService> services = const [],
     Iterable<LocalSearchSystem> systems = const [],
+    Iterable<HomeResourceRecord> coreResources = const [],
+    int? coreUserRevision,
     Iterable<HomePageTarget> pages = const [],
     Iterable<MediaPageTarget> mediaPages = const [],
     LocalSearchSource homeSource = LocalSearchSource.direct,
     LocalSearchAvailability homeAvailability = LocalSearchAvailability.current,
     LocalSearchSource mediaSource = LocalSearchSource.direct,
     LocalSearchAvailability mediaAvailability = LocalSearchAvailability.current,
+    LocalSearchAvailability coreAvailability = LocalSearchAvailability.current,
   }) {
     final documents = <String, _Document>{};
+    if (coreUserRevision != null) {
+      for (final resource in coreResources) {
+        final target = CoreResourceNavigationTarget.fromRecord(
+          resource,
+          userRevision: coreUserRevision,
+        );
+        final kind = resource.kind == HomeResourceKind.room
+            ? LocalSearchKind.room
+            : LocalSearchKind.system;
+        final item = LocalSearchItem(
+          id: 'core-${resource.kind.name}:${resource.id}',
+          title: resource.label,
+          kind: kind,
+          target: target,
+          detail: resource.id,
+          source: LocalSearchSource.core,
+          availability: coreAvailability,
+        );
+        documents[item.id] = _Document(
+          item,
+          [resource.label, resource.id],
+          resource.kind == HomeResourceKind.room
+              ? const ['room', 'oda', 'core']
+              : const ['resource', 'kaynak', 'service', 'servis', 'core'],
+        );
+      }
+    }
     for (final page in mediaPages.toSet()) {
       final aliases = switch (page) {
         MediaPageTarget.music => [
@@ -349,6 +380,9 @@ class LocalSearchIndex {
     });
     return [for (final match in matches) match.document.item];
   }
+
+  LocalSearchItem? resolve(String id) =>
+      _documents.where((document) => document.item.id == id).firstOrNull?.item;
 }
 
 /// Join all known aliases before emitting rows. A later title can bridge an
