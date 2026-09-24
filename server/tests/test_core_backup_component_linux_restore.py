@@ -351,6 +351,7 @@ def _archived_capture(server, receipt, replacements):
                     serviceVersion=receipt.service_version,
                     configSchemaVersion=receipt.config_schema_version,
                     dataSchemaVersion=receipt.data_schema_version,
+                    captureGeneration="1" * 32,
                     volumeId=volume.volume_id,
                     payload=_payload(replacements[volume.volume_id]),
                 )

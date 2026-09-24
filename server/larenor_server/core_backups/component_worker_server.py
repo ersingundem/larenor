@@ -141,6 +141,7 @@ class ComponentSnapshotWorkerServer:
             "serviceVersion": snapshot.serviceVersion,
             "configSchemaVersion": snapshot.configSchemaVersion,
             "dataSchemaVersion": snapshot.dataSchemaVersion,
+            "captureGeneration": snapshot.captureGeneration,
             "volumeId": snapshot.volumeId,
             "byteLength": len(snapshot.payload),
             "sha256": hashlib.sha256(snapshot.payload).hexdigest(),

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-09-24",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -2111,7 +2111,7 @@
       "kind": "task",
       "parent": "S09",
       "title": "Tek kurulum/güncelleme ve yedek sözleşmesi",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B1",
         "S07.1",
@@ -2132,8 +2132,33 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/s09-1-final-capture-generation.tdd.md",
+          "commit": "e84253208d8d2989e9f647fcdf13949d257c4e99",
+          "state": "completed",
+          "result": "passed",
+          "label": "319 Server testi toplandı, 2 native skip; 58 Flutter ve 4 workflow testi geçti"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s09-1-final-capture-generation.tdd.md",
+          "commit": "e84253208d8d2989e9f647fcdf13949d257c4e99",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız P1/P2 incelemesi generation otoritesi ve lifecycle sınırlarını doğruladı"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35952609533",
+          "commit": "e84253208d8d2989e9f647fcdf13949d257c4e99",
+          "state": "completed",
+          "result": "passed",
+          "label": "Privileged capture native kabulü linux/amd64 ve linux/arm64 geçti"
+        }
+      ],
+      "completionCommit": "e84253208d8d2989e9f647fcdf13949d257c4e99",
       "reason": null
     },
     {

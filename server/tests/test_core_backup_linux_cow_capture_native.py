@@ -145,6 +145,7 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     )
 
     leases = engine.capture((source,), time.monotonic() + 10)
+    assert {item.capture_generation for item in leases} == {"1" * 32}
     generation_descriptor = os.open(
         captures / ("1" * 32),
         os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
@@ -162,11 +163,36 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
         os.close(descriptor)
     assert engine.release(leases, time.monotonic() + 10)
 
+    # Simulate publication interrupted after complete generation capture but
+    # before its release acknowledgement reaches the privileged engine.
+    unpublished = LinuxCowCaptureEngine(
+        captures,
+        journal,
+        backend=backend,
+        id_factory=iter(("3" * 32, "4" * 32)).__next__,
+        capability_preflight=preflight,
+        capture_capability=capability,
+    ).capture((source,), time.monotonic() + 10)
+    assert {item.capture_generation for item in unpublished} == {"3" * 32}
+    for item in unpublished:
+        os.close(item.descriptor)
+    assert journal.is_file()
+    recovery = LinuxCowCaptureEngine(
+        captures,
+        journal,
+        backend=backend,
+        capability_preflight=preflight,
+        capture_capability=capability,
+    )
+    assert recovery.recover(time.monotonic() + 10)
+    assert not journal.exists()
+    assert list(captures.iterdir()) == []
+
     interrupted = LinuxCowCaptureEngine(
         captures,
         journal,
         backend=_InterruptAfterSnapshot(backend),
-        id_factory=iter(("3" * 32, "4" * 32)).__next__,
+        id_factory=iter(("5" * 32, "6" * 32)).__next__,
         capability_preflight=preflight,
         capture_capability=capability,
     )

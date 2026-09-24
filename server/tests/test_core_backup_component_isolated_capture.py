@@ -68,7 +68,7 @@ class CaptureEngine:
                     descriptor,
                     (item.container_id,),
                     1,
-                    "capture-set-1",
+                    "1" * 32,
                     f"capture-{item.volume_id}",
                 )
             )
@@ -161,6 +161,7 @@ def test_capture_failure_or_consumer_interruption_still_releases(tmp_path):
         "schema",
         "version",
         "capture_identity",
+        "capture_generation_format",
         "mixed_generation",
         "descriptor_mode",
     ],
@@ -188,8 +189,10 @@ def test_capture_rejects_drift_and_malformed_leases_without_yield(tmp_path, dama
                 snapshot_device=first.source_device,
                 snapshot_inode=first.source_inode,
             )
+        elif damage == "capture_generation_format":
+            first = replace(first, capture_generation="capture-set-1")
         elif damage == "mixed_generation":
-            first = replace(first, capture_generation="capture-set-2")
+            first = replace(first, capture_generation="2" * 32)
         elif damage == "descriptor_mode":
             os.close(first.descriptor)
             invalid = engine.roots[first.volume_id] / "writable"
@@ -233,6 +236,7 @@ def test_managed_provider_archives_only_isolated_descriptors(tmp_path):
     with provider.quiesce(time.monotonic() + 3) as snapshots:
         assert controller.paused == {"larenor-jellyfin"}
         assert [call[0] for call in engine.calls][-1] == "release"
+        assert {item.captureGeneration for item in snapshots} == {"1" * 32}
         payloads = {
             item.volumeId: zipfile.ZipFile(io.BytesIO(item.payload)).read("state.txt")
             for item in snapshots

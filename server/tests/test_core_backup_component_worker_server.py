@@ -54,6 +54,7 @@ def snapshots():
         "serviceVersion": "10.11.11",
         "configSchemaVersion": 1,
         "dataSchemaVersion": "upstream_managed_unverified",
+        "captureGeneration": "1" * 32,
     }
     return (
         ComponentVolumeSnapshot(

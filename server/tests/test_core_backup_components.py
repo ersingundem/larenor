@@ -2,10 +2,10 @@
 
 import copy
 from contextlib import contextmanager
+from dataclasses import replace
 
 import pytest
 from conftest import auth, ready
-
 from larenor_server.core_backups.restore import _validate_capture
 from larenor_server.core_backups.service import (
     ComponentVolumeSnapshot,
@@ -14,6 +14,7 @@ from larenor_server.core_backups.service import (
 from larenor_server.errors import ApiError
 
 PASSPHRASE = "Correct horse battery staple 2026"
+CAPTURE_GENERATION = "1" * 32
 
 
 class ComponentBoundary:
@@ -40,6 +41,7 @@ def _snapshots():
         "serviceVersion": "10.11.11",
         "configSchemaVersion": 1,
         "dataSchemaVersion": "upstream_managed_unverified",
+        "captureGeneration": CAPTURE_GENERATION,
     }
     return (
         ComponentVolumeSnapshot(
@@ -94,12 +96,14 @@ def test_component_volumes_share_the_bounded_cut_and_stay_encrypted(
     )
 
     assert response.status_code == 200
+    assert response.headers["x-larenor-capture-generation"] == CAPTURE_GENERATION
     assert boundary.deadlines == [105.0]
     assert boundary.released and not boundary.active
     for snapshot in _snapshots():
         assert snapshot.payload not in response.content
 
     opened = app.state.core.core_backups.open_bundle(response.content, PASSPHRASE)
+    assert opened.manifest.snapshotId == CAPTURE_GENERATION
     assert opened.manifest.consistencyBoundary.model_dump() == {
         "mode": "core_write_lock_and_component_quiescence",
         "maxDurationSeconds": 5,
@@ -118,6 +122,29 @@ def test_component_volumes_share_the_bounded_cut_and_stay_encrypted(
     ]
     assert opened.payloads["component-jellyfin-cache"] == _snapshots()[0].payload
     assert opened.payloads["component-jellyfin-config"] == _snapshots()[1].payload
+
+
+def test_mixed_component_capture_generations_fail_before_publication(server):
+    app, client, settings, _clock = server
+    pair = ready(server)
+    first, second = _snapshots()
+    boundary = ComponentBoundary((first, replace(second, captureGeneration="2" * 32)))
+    app.state.core.core_backups = CoreBackupContract(
+        app.state.core.db,
+        app.state.core.auth,
+        settings,
+        component_boundary=boundary,
+    )
+
+    response = client.post(
+        "/api/v1/admin/backups/export",
+        headers=auth(pair),
+        json={"passphrase": PASSPHRASE},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "server_unavailable"
+    assert boundary.released
 
 
 def test_component_version_schema_and_volume_compatibility_fail_closed(

@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `db05532b` ve K07 kabul kaynağı `0a6c2b29` — 29/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8 ve K07 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı. S09.1 teslimi ilerliyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `21272df4` ve S09.1 kabul kaynağı `e8425320` — 30/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07 ve S09.1 exact review/CI kanıtıyla yazılım kabulünü tamamladı; fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  29/125 iş (%23,2; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  30/125 iş (%24,0; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -55,7 +55,7 @@ yeniden doğrular. K03.remaining `done`; kuyruk **27/125 (%21,6)**. Fiziksel
 Android, DeX, Huawei WebView, OEM renderer, DPC, force-stop, çevre birimi ve
 gerçek-site davranışı MANUAL kalır.
 
-### 24 Eylül S09.1 packaged capture worker adayı
+### 24 Eylül S09.1 yazılım kabulü
 
 `a083bca6`, mevcut authority-bound isolated capture lease'ini gerçek ayrıcalıklı
 Server entrypoint'ine ve Linux btrfs read-only/COW engine'ine bağladı. Exact
@@ -67,10 +67,15 @@ backup paketi **103 geçti / 1 açıkça native-fixture skip**, workflow sözle�
 **2/2** geçti. Dar native workflow gerçek btrfs snapshot/release/restart
 zincirini GitHub-hosted `linux/amd64` ve `linux/arm64` üzerinde çalıştırıyor.
 
-Bu dilim restore veya clean-install recovery sağlamaz ve database, vault key,
-yapılandırma ile component payloadlarının tek exact generation kanıtını tek
-başına kapatmaz. Bu nedenle S09.1 `pending`, kuyruk **28/125 (%22,4)** ve seçili
-özellik kabulü **0/63** kalır.
+PR #482 exact `e84253208d8d2989e9f647fcdf13949d257c4e99` kaynağı DB,
+vault key, yapılandırma ve managed component payloadlarını aynı immutable
+generation altında tuttu; encrypted Client export aynı generation header ve
+digest receipt'i doğrulanmadan OS-owned destination'ı commit etmiyor. Exact
+native CI `35952609533` hem `linux/amd64` hem `linux/arm64` için geçti. Bağımsız
+P1/P2 incelemesi mixed/malformed generation, lifecycle drift ve partial
+destination yollarının fail-closed kaldığını doğruladı. Üretim commitleri main
+`21272df4` üzerine restack edilirken dokuz stable patch-id değişmedi. S09.1
+`done`; kuyruk **30/125 (%24,0)** ve seçili özellik kabulü **0/63** kalır.
 
 ### 24 Eylül birleşik teslim kanıtı — PR #456–#462
 
@@ -95,10 +100,9 @@ kaldı. Sonraki PR #474 exact kabulü K03.remaining'i yukarıdaki kanıtla kapat
 
 S08.8'in o aşamada açık kalan direct medya UI/runtime ve merkezi
 browse/recent/resume sınırları PR #480 ile yukarıdaki exact kabulde kapandı.
-S09.1'in lease
-sözleşmesi production provider'a kadar bağlı; privileged Linux capture engine,
+S09.1'in lease sözleşmesi production provider, privileged Linux capture engine,
 amd64/arm64 native kabulü ve bütün DB/anahtar/yapılandırma/bileşen veri
-sınırlarının aynı generation içinde kanıtı kalıyor. K03'ün SAF, external action,
+sınırlarının aynı generation kanıtıyla tamamlandı. K03'ün SAF, external action,
 renderer yaşam döngüsü, owned subresource transportu ve document-start dynamic
 egress sınırı yazılım kabulünü tamamladı; fiziksel tablet/DeX/OEM kabulü ayrı
 MANUAL kapıda açık.
@@ -149,8 +153,8 @@ sağlayıcı consent/kota ile gerçek renderer/subtitle-engine kanıtını bekli
 F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; `B3`
 bağımlılığındaki S08.8 artık `done`, S08.11 ise `pending` olduğundan validator
 kapanışı reddediyor. #460 S09.1 izolasyon lease'ini ekledi; privileged Linux engine,
-iki mimarili native kabul ve birleşik generation arşivi güncel açık olarak
-üstte izleniyor. Geri yükleme/kurtarma S09.2, temiz kurulum/yükseltme ve Client
+iki mimarili native kabul ve birleşik generation arşivi daha sonra #482 ile
+üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2, temiz kurulum/yükseltme ve Client
 geri yükleme sınırı S09.3 kapsamındadır.
 
 [PR #447](https://github.com/ersingundem/larenor/pull/447) exact
