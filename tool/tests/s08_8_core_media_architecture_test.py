@@ -157,6 +157,29 @@ class CoreMediaArchitectureTest(unittest.TestCase):
                 errors,
             )
 
+    def test_relative_import_cannot_hide_a_direct_provider_dependency(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in CORE_ONLY_SURFACES:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("// verified Core surface\n", encoding="utf-8")
+            target = root / CORE_ONLY_SURFACES[1]
+            target.write_text(
+                "import '../../../media/jellyfin/providers/"
+                "jellyfin_providers.dart';\n"
+                "final direct = jellyfinConnectionProvider;\n",
+                encoding="utf-8",
+            )
+
+            errors = core_media_architecture_errors(root)
+
+            self.assertIn(
+                f"direct_import:{CORE_ONLY_SURFACES[1]}:"
+                "lib/features/media/jellyfin/providers/jellyfin_providers.dart",
+                errors,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
