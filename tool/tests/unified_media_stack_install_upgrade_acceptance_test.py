@@ -1,11 +1,13 @@
 """S09.3 RED contract for native clean-install and exact upgrade evidence."""
 
 import copy
+import functools
 import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 from tool import unified_media_stack_managed_ci as target
@@ -22,11 +24,6 @@ DEPLOYMENT_SPEC = importlib.util.spec_from_file_location(
 )
 deployment = importlib.util.module_from_spec(DEPLOYMENT_SPEC)
 DEPLOYMENT_SPEC.loader.exec_module(deployment)
-PLANNER = deployment.DeploymentBundlePlanner(
-    compose_path=ROOT / "deploy/larenor-server/unified.compose.yaml",
-    catalog_path=ROOT / "server/larenor_server/plugins/packagedcatalog.json",
-    env_example_path=ROOT / "deploy/larenor-server/.env.example",
-)
 SETTINGS = {
     "LARENOR_DATA_ROOT": "/var/lib/larenor-server",
     "LARENOR_TIMEZONE": "Europe/Istanbul",
@@ -59,6 +56,63 @@ def _source_materialization(revision):
             for path in target.SOURCE_FILES
         },
     }
+
+
+def _write_archived_source(root, revision, name):
+    target_path = root / name
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_bytes(_git_output("show", revision + ":" + name))
+    return target_path
+
+
+@functools.lru_cache(maxsize=4)
+def _revision_manifest(revision):
+    with tempfile.TemporaryDirectory(prefix="larenor-s093-red-manifest-") as raw:
+        root = Path(raw)
+        compose = _write_archived_source(
+            root, revision, "deploy/larenor-server/unified.compose.yaml"
+        )
+        catalog = _write_archived_source(
+            root, revision, "server/larenor_server/plugins/packagedcatalog.json"
+        )
+        package_path = _write_archived_source(
+            root, revision, "deploy/larenor-server/unified_package.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "s093_archived_package_" + revision, package_path
+        )
+        archived = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(archived)
+        return archived.UnifiedPackagePlanner(
+            compose_path=compose,
+            catalog_path=catalog,
+        ).preview(revision, target.SourceConfig())
+
+
+@functools.lru_cache(maxsize=8)
+def _installed_receipt(revision, architecture):
+    with tempfile.TemporaryDirectory(prefix="larenor-s093-red-bundle-") as raw:
+        root = Path(raw)
+        compose = _write_archived_source(
+            root, revision, "deploy/larenor-server/unified.compose.yaml"
+        )
+        catalog = _write_archived_source(
+            root, revision, "server/larenor_server/plugins/packagedcatalog.json"
+        )
+        env_example = _write_archived_source(
+            root, revision, "deploy/larenor-server/.env.example"
+        )
+        planner = deployment.DeploymentBundlePlanner(
+            compose_path=compose,
+            catalog_path=catalog,
+            env_example_path=env_example,
+        )
+        bundle = planner.plan(revision, SETTINGS)
+        return planner.installed_state_receipt(
+            bundle,
+            installation_id="1" * 32,
+            architecture=architecture,
+        )
 
 
 class PowerLoss(BaseException):
@@ -125,15 +179,15 @@ class UpgradeDriver(FakeDriver):
         ]
 
     def _receipt(self, revision):
-        bundle = PLANNER.plan(revision, SETTINGS)
-        return PLANNER.installed_state_receipt(
-            bundle,
-            installation_id="1" * 32,
-            architecture=self.selected_platform.split("/", 1)[1],
+        return copy.deepcopy(
+            _installed_receipt(
+                revision,
+                self.selected_platform.split("/", 1)[1],
+            )
         )
 
     def _runtime_receipt(self, revision):
-        manifest = target.expected_manifest(revision)
+        manifest = _revision_manifest(revision)
         return {
             "schemaVersion": 1,
             "sourceRevision": revision,
@@ -215,6 +269,7 @@ class UpgradeDriver(FakeDriver):
         self.state.runtime_receipts.append(
             copy.deepcopy(self.state.effect["runtimeReceipt"])
         )
+        self.state.journal["currentEffect"] = copy.deepcopy(self.state.effect)
         if self.interrupt_at == "upgrade_power_loss":
             raise PowerLoss()
         if self.interrupt_at == "upgrade_after":
@@ -222,13 +277,36 @@ class UpgradeDriver(FakeDriver):
         return copy.deepcopy(self.state.effect)
 
     def _journal(self, operation, revision):
-        return {
+        value = {
             "schemaVersion": 1,
             "operation": operation,
             "upgradeSourceCommit": BASE_REVISION,
             "targetRevision": revision,
             "rootIdentity": self.state.root_identity,
         }
+        if operation == "upgrade":
+            current_effect = None
+            if (
+                isinstance(self.state.effect, dict)
+                and self.state.effect.get("installationReceipt", {}).get(
+                    "sourceRevision"
+                )
+                == revision
+            ):
+                current_effect = copy.deepcopy(self.state.effect)
+            value.update(
+                {
+                    "baseEffect": {
+                        "installationReceipt": copy.deepcopy(self.state.stored),
+                        "runtimeReceipt": copy.deepcopy(
+                            self.state.runtime_receipts[0]
+                        ),
+                    },
+                    "currentEffect": current_effect,
+                    "privateState": copy.deepcopy(self.private_receipts),
+                }
+            )
+        return value
 
     def reconcile_upgrade(self, revision, operation):
         self._call("reconcile:" + operation + ":" + revision)
@@ -239,13 +317,33 @@ class UpgradeDriver(FakeDriver):
             journal["targetRevision"] = "f" * 40
         elif self.journal_drift == "foreign_root":
             journal["rootIdentity"] = "root-" + "8" * 59
-        if (
-            journal == self._journal(operation, revision)
-            and isinstance(self.state.effect, dict)
-            and self.state.effect["installationReceipt"]["sourceRevision"] == revision
-        ):
+        expected = self._journal(operation, revision)
+        if journal == expected and isinstance(self.state.effect, dict):
+            if self.state.effect["installationReceipt"]["sourceRevision"] != revision:
+                return None
+            if operation == "upgrade":
+                return {
+                    "baseEffect": copy.deepcopy(journal["baseEffect"]),
+                    "currentEffect": copy.deepcopy(journal["currentEffect"]),
+                    "privateState": copy.deepcopy(journal["privateState"]),
+                }
             return copy.deepcopy(self.state.effect)
         return None
+
+    def upgrade_runtime_receipts(self, manifest):
+        self._call("upgrade_runtime_receipts")
+        runtime = self.state.effect["runtimeReceipt"]
+        expected = {item["serviceId"] for item in manifest["components"]}
+        if {item["serviceId"] for item in runtime["services"]} != expected:
+            raise RuntimeError("runtime receipt mismatch")
+        return [
+            {
+                "serviceId": item["serviceId"],
+                "image": item["image"],
+                "state": "pulled",
+            }
+            for item in runtime["services"]
+        ]
 
     def persist_installation_receipt(self, receipt):
         if set(receipt) == {"installationReceipt", "runtimeReceipt"}:
@@ -353,9 +451,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 for revision, runtime in zip(
                     (BASE_REVISION, CURRENT_REVISION),
                     driver.state.runtime_receipts,
-                    strict=True,
                 ):
-                    expected_manifest = target.expected_manifest(revision)
+                    expected_manifest = _revision_manifest(revision)
                     expected_images = {
                         item["serviceId"]: item["image"]
                         for item in expected_manifest["components"]
@@ -392,6 +489,10 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     result["installationPhases"][0]["runtimeReceiptDigest"],
                     result["installationPhases"][1]["runtimeReceiptDigest"],
                 )
+                self.assertIn("upgrade_runtime_receipts", driver.calls)
+                self.assertNotIn("pull", driver.calls)
+                self.assertNotIn("create", driver.calls)
+                self.assertNotIn("start", driver.calls)
                 self.assertEqual(result["upgradeSourceCommit"], BASE_REVISION)
                 self.assertEqual(result["reviewedHeadCommit"], CURRENT_REVISION)
                 self.assertEqual(
@@ -563,6 +664,10 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(
             result["installationPhases"][0]["installationReceiptDigest"],
             state.persisted[0]["receiptDigest"],
+        )
+        self.assertEqual(
+            result["installationPhases"][0]["runtimeReceiptDigest"],
+            _digest(state.runtime_receipts[0]),
         )
         self.assertEqual(
             len(
