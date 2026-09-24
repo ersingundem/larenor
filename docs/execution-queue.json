@@ -2166,7 +2166,7 @@
       "kind": "task",
       "parent": "S09",
       "title": "Boş kurulumda doğrulanmış geri yükleme",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S09.1"
       ],
@@ -2185,9 +2185,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/s09-2-empty-component-restore.tdd.md",
+          "commit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+          "state": "completed",
+          "result": "passed",
+          "label": "159 test toplandı: 157 geçti ve 2 beklenen Darwin native-fixture skip; released-checkpoint düzeltmesinden sonra 24/24 odaklı recovery/product ve 1/1 adversarial restart replay testi geçti."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s09-2-empty-component-restore.tdd.md",
+          "commit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız final P1/P2 incelemesi authenticated journal, external released checkpoint replay, tam bir release ve fail-closed restart kararında blocker bulmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35961861335",
+          "commit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+          "state": "completed",
+          "result": "passed",
+          "label": "S09.2 native kabulü gerçek root CLI/runtime, renameat2, SIGKILL recovery, Docker ownership ve durable authority yolculuklarını linux/amd64 ile linux/arm64 üzerinde geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35961861609",
+          "commit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android Build statik analiz, dört Flutter ve dört Server shardı ile aggregate kapıları, debug APK ve API 35 emulator yolculuğunu geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35961861319",
+          "commit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security secret-scan, platform-policy ve dependency-scan kapılarını exact kaynakta geçti."
+        }
+      ],
+      "completionCommit": "34870d703178ba5ca4629e3d887d74aca4475d5a",
+      "reason": "Root-only offline restore runtime, Core ve managed component için tek durable karar, authenticated restart uzlaştırması ve iki mimarili gerçek CLI/native kabulü tamamlandı; yanlış parola, kesik, bozuk imzalı, uyumsuz veya authority driftli girdiler hedef yayımlamadan kapanıyor. S09.3 temiz kurulum, yükseltme, Client restore ve bileşen sağlık kanıtını ayrı tutar."
     },
     {
       "id": "S09.3",

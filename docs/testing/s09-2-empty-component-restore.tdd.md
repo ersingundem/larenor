@@ -1,7 +1,8 @@
 # S09.2 offline Core and component restore evidence
 
-Status: implementation pending exact-head CI and independent audit. S09.2 stays
-open at `30/125` queue items and `0/63` feature checklist items.
+Status: **accepted at exact source
+`34870d703178ba5ca4629e3d887d74aca4475d5a`**. S09.2 is `done` at
+`31/125` queue items; feature progress stays `0/63`.
 
 ## Three production jobs
 
@@ -55,7 +56,7 @@ unbootable; only the component coordinator's durable `released` checkpoint can
 change it to the publishable decision. Errors do not include host paths,
 payloads, passphrases, Docker responses, or receipt contents.
 
-## Required verification
+## Accepted verification
 
 The grouped local package covers runtime/config rejection, Core publication
 ordering, crash retry, existing empty-Core recovery, CLI secret handling,
@@ -64,5 +65,30 @@ and authenticated v3 reconciliation. The native workflow repeats the product
 runtime and CLI journeys together with real `renameat2`, `SIGKILL`, ownership,
 rollback, and durable-authority tests on both production architectures.
 
-Exact-head CI and independent review evidence are deliberately absent here;
-they must be attached before the queue item can close.
+The grouped local package collected **159 tests: 157 passed and 2 expected
+Darwin native-fixture skips**. After the released-checkpoint restart finding,
+the focused recovery and product package passed **24/24** and the independent
+adversarial replay regression passed **1/1**. The final independent P1/P2
+review confirmed that a failed external `released` checkpoint keeps the
+authenticated journal, a successful replay clears it, and the retained
+authority capability is released exactly once.
+
+Exact-source CI is complete:
+
+- Android Build
+  [`35961861609`](https://github.com/ersingundem/larenor/actions/runs/35961861609)
+  passed static analysis, four Flutter shards, four Server shards and their
+  aggregate gates, debug APK, and the API 35 emulator journey.
+- Security
+  [`35961861319`](https://github.com/ersingundem/larenor/actions/runs/35961861319)
+  passed secret, platform-policy, and dependency checks.
+- S09.2 Component Restore Native Acceptance
+  [`35961861335`](https://github.com/ersingundem/larenor/actions/runs/35961861335)
+  passed the production CLI/runtime journey on both `linux/amd64` and
+  `linux/arm64`, followed by its aggregate acceptance gate.
+
+The exact source was squash-merged as
+`5ea97117bae3164aad098c8baa7caa0061121f32`; source and squash aggregate stable
+patch-id is `553bc783d78b8bfcf0c68a7f7900ef87491b8d7a`, and the merge is in
+`origin/main` ancestry. S09.3 retains clean-install, upgrade, Client restore,
+and component-health acceptance; those requirements are not claimed here.
