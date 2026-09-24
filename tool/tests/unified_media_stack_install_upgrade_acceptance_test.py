@@ -1159,6 +1159,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 + "\n",
                 encoding="ascii",
             )
+            receipt.chmod(0o600)
             (owned / ".native-upgrade-journal.json").write_text(
                 "{}\n", encoding="ascii"
             )
@@ -1214,6 +1215,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 + "\n",
                 encoding="ascii",
             )
+            receipt.chmod(0o600)
 
             displaced = parent / "displaced"
             root.rename(displaced)

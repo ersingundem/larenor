@@ -598,6 +598,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 ],
                 "projectName": "larenor-native-" + operation_id,
             }))
+            receipt.chmod(0o600)
             (root / "data").mkdir()
             (backups / "backup-private-state").write_text("retain-until-cleanup\n")
             (rollback / "rollback-private-state").write_text("retain-until-cleanup\n")
@@ -692,6 +693,7 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                 ],
                 "projectName": "larenor-native-" + operation_id,
             }))
+            receipt.chmod(0o600)
             displaced = backups.with_name(backups.name + "-displaced")
             backups.rename(displaced)
             backups.mkdir()
