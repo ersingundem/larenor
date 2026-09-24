@@ -23,6 +23,10 @@ void main() {
       final probe = _probeScript(server.port);
       final encodedProbe = jsonEncode(probe);
       final subscription = server.listen((request) async {
+        request.response.headers.set(
+          HttpHeaders.cacheControlHeader,
+          'no-store',
+        );
         request.response.headers.contentType = ContentType.html;
         if (request.uri.path == '/frame') {
           request.response.write('''
@@ -31,7 +35,7 @@ $probe
 parent.postMessage({label: 'frame', value: runProbe()}, '*');
 </script></body>
 ''');
-        } else {
+        } else if (request.uri.path == '/') {
           rootLoads++;
           request.response.write('''
 <!doctype html><title>waiting</title><body><script>
@@ -64,6 +68,8 @@ appendOpaque('opaque');
 setTimeout(() => appendOpaque('delayed'), 50);
 </script></body>
 ''');
+        } else {
+          request.response.statusCode = HttpStatus.notFound;
         }
         await request.response.close();
       });
