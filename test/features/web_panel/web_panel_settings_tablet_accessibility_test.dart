@@ -209,10 +209,9 @@ void main() {
 
         expect(saved()?.url, 'https://panel.invalid');
         expect(saved()?.webPanel?.nativeBridge?.revision, 1);
-        expect(
-          saved()?.webPanel?.nativeBridge?.methods,
-          {WebPanelNativeMethod.speak},
-        );
+        expect(saved()?.webPanel?.nativeBridge?.methods, {
+          WebPanelNativeMethod.speak,
+        });
         expect(find.byType(WebPanelSettingsScreen), findsNothing);
         expect(tester.takeException(), isNull);
         semantics.dispose();

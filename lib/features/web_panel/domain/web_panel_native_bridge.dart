@@ -22,6 +22,86 @@ enum WebPanelBridgeStatus {
 
 enum WebPanelNativePortOutcome { accepted, rejected, unsupported, uncertain }
 
+/// Portable, explicit user opt-in. Presence enables only this exact HTTPS
+/// top-origin and closed method set; absence keeps the bridge disabled.
+@immutable
+final class WebPanelNativePolicy {
+  WebPanelNativePolicy({
+    required this.revision,
+    required this.topOrigin,
+    required Set<WebPanelNativeMethod> methods,
+  }) : methods = Set.unmodifiable(methods) {
+    if (!valid) throw const FormatException('bridge_policy_invalid');
+  }
+
+  factory WebPanelNativePolicy.fromJson(Object? json) {
+    if (json is! Map<String, Object?> ||
+        !setEquals(json.keys.toSet(), const {
+          'schemaVersion',
+          'revision',
+          'topOrigin',
+          'methods',
+        }) ||
+        json['schemaVersion'] is! int ||
+        json['schemaVersion'] != 1 ||
+        json['revision'] is! int ||
+        json['topOrigin'] is! String ||
+        json['methods'] is! List<Object?>) {
+      throw const FormatException('bridge_policy_invalid');
+    }
+    final rawMethods = json['methods']! as List<Object?>;
+    final methods = <WebPanelNativeMethod>{};
+    for (final value in rawMethods) {
+      final method = switch (value) {
+        'speak' => WebPanelNativeMethod.speak,
+        'printDocument' => WebPanelNativeMethod.printDocument,
+        'scanQr' => WebPanelNativeMethod.scanQr,
+        _ => throw const FormatException('bridge_policy_invalid'),
+      };
+      if (!methods.add(method)) {
+        throw const FormatException('bridge_policy_invalid');
+      }
+    }
+    return WebPanelNativePolicy(
+      revision: json['revision']! as int,
+      topOrigin: json['topOrigin']! as String,
+      methods: methods,
+    );
+  }
+
+  final int revision;
+  final String topOrigin;
+  final Set<WebPanelNativeMethod> methods;
+
+  bool get valid =>
+      revision > 0 &&
+      revision <= 0x7fffffff &&
+      _isSecureOrigin(topOrigin) &&
+      methods.isNotEmpty &&
+      methods.length <= WebPanelNativeMethod.values.length;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'revision': revision,
+    'topOrigin': topOrigin,
+    'methods': [
+      for (final method in WebPanelNativeMethod.values)
+        if (methods.contains(method)) method.name,
+    ],
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is WebPanelNativePolicy &&
+      revision == other.revision &&
+      topOrigin == other.topOrigin &&
+      setEquals(methods, other.methods);
+
+  @override
+  int get hashCode =>
+      Object.hash(revision, topOrigin, Object.hashAllUnordered(methods));
+}
+
 @immutable
 final class WebPanelBridgeScope {
   const WebPanelBridgeScope({

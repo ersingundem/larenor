@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'web_panel_native_bridge.dart';
 import 'web_panel_policy.dart';
 
 /// Portable presentation preferences only. No website cookies or credentials.
@@ -12,6 +13,7 @@ class WebPanelOptions {
     this.allowUploads = false,
     this.allowDownloads = false,
     this.allowExternalActions = false,
+    this.nativeBridge,
   }) : additionalOrigins = List.unmodifiable(additionalOrigins) {
     validateJson(toJson());
   }
@@ -20,6 +22,7 @@ class WebPanelOptions {
   final bool zoomEnabled;
   final int textZoom;
   final bool allowUploads, allowDownloads, allowExternalActions;
+  final WebPanelNativePolicy? nativeBridge;
 
   factory WebPanelOptions.fromJson(Map<String, dynamic> json) {
     validateJson(json);
@@ -31,6 +34,11 @@ class WebPanelOptions {
       allowUploads: json['allowUploads'] as bool? ?? false,
       allowDownloads: json['allowDownloads'] as bool? ?? false,
       allowExternalActions: json['allowExternalActions'] as bool? ?? false,
+      nativeBridge: json.containsKey('nativeBridge')
+          ? WebPanelNativePolicy.fromJson(
+              Map<String, Object?>.from(json['nativeBridge'] as Map),
+            )
+          : null,
     );
   }
 
@@ -41,6 +49,7 @@ class WebPanelOptions {
     'allowUploads': allowUploads,
     'allowDownloads': allowDownloads,
     'allowExternalActions': allowExternalActions,
+    if (nativeBridge != null) 'nativeBridge': nativeBridge!.toJson(),
   };
 
   static void validateJson(Object? value) {
@@ -53,6 +62,7 @@ class WebPanelOptions {
           'allowUploads',
           'allowDownloads',
           'allowExternalActions',
+          'nativeBridge',
         }.containsAll(value.keys)) {
       throw invalid;
     }
@@ -82,6 +92,13 @@ class WebPanelOptions {
         value['allowExternalActions'] is! bool) {
       throw invalid;
     }
+    if (value.containsKey('nativeBridge')) {
+      try {
+        WebPanelNativePolicy.fromJson(value['nativeBridge']);
+      } on FormatException {
+        throw invalid;
+      }
+    }
     final zoom = value.containsKey('textZoom') ? value['textZoom'] : 100;
     if (zoom is! int || zoom < 75 || zoom > 200) throw invalid;
   }
@@ -101,7 +118,8 @@ class WebPanelOptions {
       textZoom == other.textZoom &&
       allowUploads == other.allowUploads &&
       allowDownloads == other.allowDownloads &&
-      allowExternalActions == other.allowExternalActions;
+      allowExternalActions == other.allowExternalActions &&
+      nativeBridge == other.nativeBridge;
   @override
   int get hashCode => Object.hash(
     Object.hashAll(additionalOrigins),
@@ -110,6 +128,7 @@ class WebPanelOptions {
     allowUploads,
     allowDownloads,
     allowExternalActions,
+    nativeBridge,
   );
 }
 

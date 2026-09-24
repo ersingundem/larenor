@@ -13,6 +13,7 @@ import '../../dashboard/domain/tile_config.dart';
 import '../../dashboard/presentation/dashboard_edit_guard.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../domain/web_panel_options.dart';
+import '../domain/web_panel_native_bridge.dart';
 import '../domain/web_panel_policy.dart';
 
 /// Edits a portable local draft. No website renderer or API client is created.
@@ -31,6 +32,9 @@ class _WebPanelSettingsState
   late List<String> _origins;
   late bool _zoom;
   late bool _uploads, _downloads, _externalActions;
+  late bool _nativeBridge;
+  late Set<WebPanelNativeMethod> _nativeMethods;
+  late int _nativePolicyRevision;
   late int _textZoom;
   bool _expired = false, _returned = false;
   String? _error;
@@ -63,6 +67,10 @@ class _WebPanelSettingsState
     _uploads = tile.webPanel?.allowUploads ?? false;
     _downloads = tile.webPanel?.allowDownloads ?? false;
     _externalActions = tile.webPanel?.allowExternalActions ?? false;
+    final native = tile.webPanel?.nativeBridge;
+    _nativeBridge = native != null;
+    _nativeMethods = {...?native?.methods};
+    _nativePolicyRevision = native?.revision ?? 0;
   }
 
   @override
@@ -150,15 +158,35 @@ class _WebPanelSettingsState
         !interactionCurrent(generation)) {
       return;
     }
+    final l10n = AppLocalizations.of(context);
     final url = dashboardWebsiteUrl(_url.text);
     if (url == null ||
         WebOrigin.parse(url) == null ||
         _title.text.length > 512 ||
         RegExp(r'[\x00-\x1f\x7f]').hasMatch(_title.text)) {
-      setState(() => _error = AppLocalizations.of(context).homeInvalidUrl);
+      setState(() => _error = l10n.homeInvalidUrl);
       return;
     }
     final origin = WebOrigin.parse(url)!;
+    WebPanelNativePolicy? nativeBridge;
+    if (_nativeBridge) {
+      if (origin.scheme != 'https' || _nativeMethods.isEmpty) {
+        setState(() => _error = l10n.webPanelNativeBridgeHttpsRequired);
+        return;
+      }
+      final previous = widget.initialTile.webPanel?.nativeBridge;
+      final unchanged =
+          previous != null &&
+          previous.topOrigin == origin.displayName &&
+          setEquals(previous.methods, _nativeMethods);
+      nativeBridge = WebPanelNativePolicy(
+        revision: unchanged
+            ? previous.revision
+            : (_nativePolicyRevision + 1).clamp(1, 0x7fffffff),
+        topOrigin: origin.displayName,
+        methods: _nativeMethods,
+      );
+    }
     final options = WebPanelOptions(
       additionalOrigins: _origins
           .where((v) => v != origin.displayName)
@@ -168,6 +196,7 @@ class _WebPanelSettingsState
       allowUploads: _uploads,
       allowDownloads: _downloads,
       allowExternalActions: _externalActions,
+      nativeBridge: nativeBridge,
     );
     _returned = true;
     Navigator.pop(
@@ -507,6 +536,59 @@ class _WebPanelSettingsState
                         changed: (value) =>
                             setState(() => _externalActions = value),
                       ),
+                    ],
+                  ),
+                ),
+                _bounded(
+                  SettingsSection(
+                    margin: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 0),
+                    header: Text(l10n.webPanelNativeBridge),
+                    footer: Text(l10n.webPanelNativeBridgeHint),
+                    children: [
+                      _toggle(
+                        key: const ValueKey('web-settings-native-bridge'),
+                        label: l10n.webPanelNativeBridgeOptIn,
+                        value: _nativeBridge,
+                        generation: generation,
+                        changed: (value) => setState(() {
+                          _nativeBridge = value;
+                          if (value && _nativeMethods.isEmpty) {
+                            _nativeMethods.add(WebPanelNativeMethod.speak);
+                          }
+                        }),
+                      ),
+                      if (_nativeBridge)
+                        for (final entry
+                            in <(WebPanelNativeMethod, String, String)>[
+                              (
+                                WebPanelNativeMethod.speak,
+                                'web-settings-native-speak',
+                                l10n.webPanelNativeSpeak,
+                              ),
+                              (
+                                WebPanelNativeMethod.printDocument,
+                                'web-settings-native-print',
+                                l10n.webPanelNativePrint,
+                              ),
+                              (
+                                WebPanelNativeMethod.scanQr,
+                                'web-settings-native-scan',
+                                l10n.webPanelNativeScan,
+                              ),
+                            ])
+                          _toggle(
+                            key: ValueKey(entry.$2),
+                            label: entry.$3,
+                            value: _nativeMethods.contains(entry.$1),
+                            generation: generation,
+                            changed: (value) => setState(() {
+                              if (value) {
+                                _nativeMethods.add(entry.$1);
+                              } else if (_nativeMethods.length > 1) {
+                                _nativeMethods.remove(entry.$1);
+                              }
+                            }),
+                          ),
                     ],
                   ),
                 ),

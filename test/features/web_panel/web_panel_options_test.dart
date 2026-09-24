@@ -14,7 +14,7 @@ void main() {
       allowUploads: true,
       allowDownloads: true,
       allowExternalActions: true,
-      nativeBridge: const WebPanelNativePolicy(
+      nativeBridge: WebPanelNativePolicy(
         revision: 7,
         topOrigin: 'https://panel.invalid',
         methods: {WebPanelNativeMethod.speak, WebPanelNativeMethod.scanQr},
@@ -36,7 +36,10 @@ void main() {
     });
     expect(TileConfig.fromJson(json).webPanel, options);
     expect(TileConfig.fromJson(json).webPanel?.allowExternalActions, isTrue);
-    expect(TileConfig.fromJson(json).webPanel?.nativeBridge, options.nativeBridge);
+    expect(
+      TileConfig.fromJson(json).webPanel?.nativeBridge,
+      options.nativeBridge,
+    );
     final policy = options.policyFor(tile.url!)!;
     expect(
       policy.allows('https://login.invalid:8443/oauth?code=synthetic'),
