@@ -11,11 +11,10 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import os
-from pathlib import Path
 import re
 import subprocess
-from typing import Callable, Iterable
-
+from collections.abc import Callable, Iterable
+from pathlib import Path
 
 SHA256_RE = re.compile(r"^[0-9a-f]{40}$")
 RELEVANT_PATTERNS = (
@@ -98,30 +97,33 @@ _WORKFLOW_PATTERNS = {
         "server/uv.lock",
         "tool/tests/component_restore_native_workflow_test.py",
     ),
-    "jellyfin-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
-        ".github/workflows/jellyfin-managed-characterization.yml",
-    ),
-    "qbittorrent-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+    "jellyfin-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (".github/workflows/jellyfin-managed-characterization.yml",),
+    "qbittorrent-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (
         ".github/workflows/qbittorrent-managed-characterization.yml",
         "tool/qbittorrent_managed_ci.py",
         "tool/tests/qbittorrent_managed_ci_test.py",
         "tool/tests/qbittorrent_managed_workflow_test.py",
     ),
-    "arr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+    "arr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (
         ".github/workflows/arr-managed-characterization.yml",
         "tool/qbittorrent_managed_ci.py",
         "tool/arr_managed_ci.py",
         "tool/tests/arr_managed_ci_test.py",
         "tool/tests/arr_managed_workflow_test.py",
     ),
-    "seerr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+    "seerr-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (
         ".github/workflows/seerr-managed-characterization.yml",
         "tool/qbittorrent_managed_ci.py",
         "tool/seerr_managed_ci.py",
         "tool/tests/seerr_managed_ci_test.py",
         "tool/tests/seerr_managed_workflow_test.py",
     ),
-    "music-assistant-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+    "music-assistant-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (
         ".github/workflows/music-assistant-managed-characterization.yml",
         "tool/qbittorrent_managed_ci.py",
         "tool/music_assistant_managed_ci.py",
@@ -134,7 +136,8 @@ _WORKFLOW_PATTERNS = {
         "server/tests/test_music_*",
         "server/tests/test_plugin_catalog.py",
     ),
-    "unified-media-stack-managed.yml": _NATIVE_SUBSTRATE_PATTERNS + (
+    "unified-media-stack-managed.yml": _NATIVE_SUBSTRATE_PATTERNS
+    + (
         ".github/workflows/unified-media-stack-managed.yml",
         "server/Dockerfile",
         "server/Dockerfile.dockerignore",
@@ -233,10 +236,13 @@ def main() -> int:
         if SHA256_RE.fullmatch(base_sha) and SHA256_RE.fullmatch(head_sha)
         else "revision pair unavailable"
     )
-    _append(args.summary, (
-        f"Native characterization: **{'run' if run_native else 'reused'}** "
-        f"({reason}; {revisions})."
-    ))
+    _append(
+        args.summary,
+        (
+            f"Native characterization: **{'run' if run_native else 'reused'}** "
+            f"({reason}; {revisions})."
+        ),
+    )
     return 0
 
 

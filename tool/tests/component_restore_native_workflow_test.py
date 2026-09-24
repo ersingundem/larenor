@@ -1,16 +1,15 @@
 """Security and execution policy for S09.2 native restore acceptance."""
 
 import json
-from pathlib import Path
 import sys
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/component-restore-native.yml"
 sys.path.insert(0, str(ROOT / "tool"))
 
-from native_ci_scope import is_relevant, patterns_for_workflow  # noqa: E402
+from native_ci_scope import is_relevant, patterns_for_workflow
 
 
 class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
@@ -20,25 +19,32 @@ class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
 
     def test_exact_two_architecture_matrix_and_required_skip_aggregate(self):
         value = self.workflow()
-        self.assertEqual(value["on"], {
-            "workflow_dispatch": {},
-            "pull_request": {"branches": ["main"]},
-        })
+        self.assertEqual(
+            value["on"],
+            {
+                "workflow_dispatch": {},
+                "pull_request": {"branches": ["main"]},
+            },
+        )
         native = value["jobs"]["component-restore-native"]
         self.assertEqual(native["needs"], "native-scope")
         self.assertEqual(native["if"], "needs.native-scope.outputs.run == 'true'")
-        self.assertEqual(native["strategy"]["matrix"]["include"], [
-            {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
-            {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"},
-        ])
+        self.assertEqual(
+            native["strategy"]["matrix"]["include"],
+            [
+                {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
+                {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"},
+            ],
+        )
         acceptance = value["jobs"]["native-acceptance"]
         self.assertEqual(acceptance["if"], "always()")
         self.assertEqual(
             acceptance["needs"], ["native-scope", "component-restore-native"]
         )
         gate = acceptance["steps"][1]
-        self.assertEqual(gate["env"]["RUN_NATIVE"],
-                         "${{ needs.native-scope.outputs.run }}")
+        self.assertEqual(
+            gate["env"]["RUN_NATIVE"], "${{ needs.native-scope.outputs.run }}"
+        )
         self.assertEqual(gate["run"], "python3 tool/required_ci_aggregate.py native")
 
     def test_native_job_runs_real_restore_authority_and_power_loss_contracts(self):
@@ -77,8 +83,7 @@ class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
     def test_scope_uses_reviewed_base_classifier_and_fails_open(self):
         value = self.workflow()
         scope = value["jobs"]["native-scope"]
-        self.assertEqual(scope["outputs"]["run"],
-                         "${{ steps.scope.outputs.run }}")
+        self.assertEqual(scope["outputs"]["run"], "${{ steps.scope.outputs.run }}")
         checkout = next(step for step in scope["steps"] if "uses" in step)
         self.assertEqual(checkout["with"]["fetch-depth"], 0)
         decide = next(step for step in scope["steps"] if step.get("id") == "scope")
