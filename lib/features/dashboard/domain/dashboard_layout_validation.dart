@@ -135,8 +135,7 @@ bool _hasValidCoreResourceTile(Map<String, dynamic> tile) {
     return false;
   }
   try {
-    CoreResourceBinding.fromJson(raw);
-    return true;
+    return CoreResourceBinding.fromJson(raw).kind == HomeResourceKind.resource;
   } on FormatException {
     return false;
   }
