@@ -16,6 +16,7 @@ import 'package:larenor/features/kiosk/data/kiosk_usage_repository.dart';
 import 'package:larenor/features/kiosk/domain/kiosk_watchdog.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
 import 'package:larenor/features/web_panel/data/web_panel_data.dart';
 import 'package:larenor/features/web_panel/data/web_panel_external_actions.dart';
 import 'package:larenor/features/web_panel/data/web_panel_transfers.dart';
@@ -232,8 +233,10 @@ final class RendererMonitor implements WebPanelRendererMonitor {
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
     Set<WebOrigin> origins,
-    void Function() onRendererGone,
-  ) async {
+    void Function() onRendererGone, {
+    WebPanelNativePolicy? nativePolicy,
+    WebPanelNativeMessageHandler? onNativeMessage,
+  }) async {
     attachments++;
     allowedOrigins = origins;
     gone = onRendererGone;

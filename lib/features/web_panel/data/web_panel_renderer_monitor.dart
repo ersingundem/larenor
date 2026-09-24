@@ -7,6 +7,23 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../domain/web_panel_policy.dart';
+import '../domain/web_panel_native_bridge.dart';
+
+@immutable
+final class WebPanelNativeMessage {
+  const WebPanelNativeMessage({
+    required this.message,
+    required this.topOrigin,
+    required this.policyRevision,
+  });
+
+  final String message, topOrigin;
+  final int policyRevision;
+}
+
+typedef WebPanelNativeMessageHandler = Future<String> Function(
+  WebPanelNativeMessage message,
+);
 
 abstract interface class WebPanelRendererHandle {
   Future<void> dispose();
@@ -16,8 +33,10 @@ abstract interface class WebPanelRendererMonitor {
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
     Set<WebOrigin> allowedOrigins,
-    VoidCallback onRendererGone,
-  );
+    VoidCallback onRendererGone, {
+    WebPanelNativePolicy? nativePolicy,
+    WebPanelNativeMessageHandler? onNativeMessage,
+  });
 }
 
 /// Connects an Android WebView renderer lifetime to one exact Dart controller.
@@ -41,15 +60,17 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   final MethodChannel _channel;
   final String Function() _attachmentIds;
   final Duration operationTimeout;
-  final Map<String, VoidCallback> _callbacks = {};
+  final Map<String, _AttachmentCallbacks> _callbacks = {};
   final Set<String> _pendingLateAcknowledgements = {};
 
   @override
   Future<WebPanelRendererHandle?> attach(
     WebViewController controller,
     Set<WebOrigin> allowedOrigins,
-    VoidCallback onRendererGone,
-  ) async {
+    VoidCallback onRendererGone, {
+    WebPanelNativePolicy? nativePolicy,
+    WebPanelNativeMessageHandler? onNativeMessage,
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.android) return null;
     final platform = controller.platform;
     // Test/fallback platform implementations have no native WebView identity.
@@ -58,6 +79,8 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
       platform.webViewIdentifier,
       allowedOrigins,
       onRendererGone,
+      nativePolicy: nativePolicy,
+      onNativeMessage: onNativeMessage,
     );
   }
 
@@ -65,8 +88,10 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   Future<WebPanelRendererHandle> attachIdentifier(
     int webViewIdentifier,
     Set<WebOrigin> allowedOrigins,
-    VoidCallback onRendererGone,
-  ) async {
+    VoidCallback onRendererGone, {
+    WebPanelNativePolicy? nativePolicy,
+    WebPanelNativeMessageHandler? onNativeMessage,
+  }) async {
     final attachmentId = _attachmentIds();
     if (webViewIdentifier < 1 ||
         operationTimeout <= Duration.zero ||
@@ -75,11 +100,19 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
         allowedOrigins.length > 16) {
       throw StateError('renderer_monitor_invalid');
     }
+    if ((nativePolicy == null) != (onNativeMessage == null) ||
+        (nativePolicy != null && !nativePolicy.valid)) {
+      throw StateError('renderer_monitor_invalid');
+    }
     if (_callbacks.containsKey(attachmentId) ||
         _pendingLateAcknowledgements.contains(attachmentId)) {
       throw StateError('renderer_monitor_duplicate');
     }
-    _callbacks[attachmentId] = onRendererGone;
+    _callbacks[attachmentId] = _AttachmentCallbacks(
+      onRendererGone,
+      nativePolicy,
+      onNativeMessage,
+    );
     try {
       final origins =
           allowedOrigins
@@ -106,6 +139,7 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
         'webViewIdentifier': webViewIdentifier,
         'attachmentId': attachmentId,
         'allowedOrigins': origins,
+        if (nativePolicy != null) 'nativePolicy': nativePolicy.toJson(),
       });
       bool? attached;
       try {
@@ -129,6 +163,10 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
   }
 
   Future<void> _onMethodCall(MethodCall call) async {
+    if (call.method == 'nativeMessage') {
+      await _onNativeMessage(call.arguments);
+      return;
+    }
     if (call.method != 'rendererGone') return;
     final arguments = call.arguments;
     if (arguments is! Map ||
@@ -138,11 +176,77 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
     }
     final id = arguments['attachmentId']! as String;
     if (!_idPattern.hasMatch(id)) return;
-    final callback = _callbacks.remove(id);
+    final callback = _callbacks.remove(id)?.rendererGone;
     try {
       callback?.call();
     } catch (_) {
       // A retired UI callback never becomes a platform-channel failure.
+    }
+  }
+
+  Future<void> _onNativeMessage(Object? arguments) async {
+    if (arguments is! Map ||
+        arguments.keys.toSet().length != 5 ||
+        !arguments.keys.toSet().containsAll(const {
+          'attachmentId',
+          'messageId',
+          'message',
+          'topOrigin',
+          'policyRevision',
+        })) {
+      return;
+    }
+    final id = arguments['attachmentId'];
+    final messageId = arguments['messageId'];
+    final message = arguments['message'];
+    final topOrigin = arguments['topOrigin'];
+    final revision = arguments['policyRevision'];
+    if (id is! String ||
+        !_idPattern.hasMatch(id) ||
+        messageId is! int ||
+        messageId < 1 ||
+        message is! String ||
+        topOrigin is! String ||
+        revision is! int) {
+      return;
+    }
+    final binding = _callbacks[id];
+    final policy = binding?.nativePolicy;
+    final handler = binding?.nativeMessage;
+    if (binding == null ||
+        policy == null ||
+        handler == null ||
+        policy.revision != revision ||
+        policy.topOrigin != topOrigin) {
+      return;
+    }
+    String reply;
+    try {
+      reply = await handler(
+        WebPanelNativeMessage(
+          message: message,
+          topOrigin: topOrigin,
+          policyRevision: revision,
+        ),
+      );
+    } catch (_) {
+      reply = '{"schemaVersion":1,"status":"denied","reasonCode":"authority_denied"}';
+    }
+    if (!identical(_callbacks[id], binding)) return;
+    try {
+      await _channel
+          .invokeMethod<bool>('replyNative', {
+            'attachmentId': id,
+            'messageId': messageId,
+            'message': reply,
+          })
+          .timeout(operationTimeout);
+    } on TimeoutException {
+      // The authority remains revoked locally; native drops late reply ids.
+    } on PlatformException {
+      // Native attachment was retired or rejected the bounded reply.
+    } on MissingPluginException {
+      // The engine may already be shutting down.
     }
   }
 
@@ -181,6 +285,18 @@ final class WebPanelRendererChannel implements WebPanelRendererMonitor {
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
     return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   }
+}
+
+final class _AttachmentCallbacks {
+  const _AttachmentCallbacks(
+    this.rendererGone,
+    this.nativePolicy,
+    this.nativeMessage,
+  );
+
+  final VoidCallback rendererGone;
+  final WebPanelNativePolicy? nativePolicy;
+  final WebPanelNativeMessageHandler? nativeMessage;
 }
 
 final class _ChannelRendererHandle implements WebPanelRendererHandle {

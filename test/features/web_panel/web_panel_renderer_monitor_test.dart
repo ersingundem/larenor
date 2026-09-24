@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/web_panel/data/web_panel_renderer_monitor.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 
 void main() {
@@ -287,6 +288,61 @@ void main() {
         const StandardMethodCodec().decodeEnvelope((await response.future)!),
         isNull,
       );
+    },
+  );
+
+  test(
+    'native message policy is exact and stale detach drops late reply',
+    () async {
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return true;
+      });
+      final responseGate = Completer<String>();
+      final monitor = WebPanelRendererChannel(
+        channel: channel,
+        attachmentIds: () => '44444444444444444444444444444444',
+      );
+      final nativePolicy = WebPanelNativePolicy(
+        revision: 3,
+        topOrigin: 'https://fixture.invalid',
+        methods: {WebPanelNativeMethod.speak},
+      );
+      final handle = await monitor.attachIdentifier(
+        10,
+        WebPanelPolicy.fromUrl('https://fixture.invalid')!.allowedOrigins,
+        () {},
+        nativePolicy: nativePolicy,
+        onNativeMessage: (_) => responseGate.future,
+      );
+      expect(
+        (calls.single.arguments as Map)['nativePolicy'],
+        nativePolicy.toJson(),
+      );
+
+      final platformReply = Completer<ByteData?>();
+      unawaited(
+        messenger.handlePlatformMessage(
+          WebPanelRendererChannel.channelName,
+          const StandardMethodCodec().encodeMethodCall(
+            const MethodCall('nativeMessage', {
+              'attachmentId': '44444444444444444444444444444444',
+              'messageId': 1,
+              'message': '{"schemaVersion":1}',
+              'topOrigin': 'https://fixture.invalid',
+              'policyRevision': 3,
+            }),
+          ),
+          platformReply.complete,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await handle.dispose();
+      responseGate.complete('{"schemaVersion":1,"status":"denied"}');
+      await platformReply.future;
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.map((call) => call.method), ['attach', 'detach']);
     },
   );
 }

@@ -147,13 +147,15 @@ internal data class RendererAttachRequest(
     val webViewIdentifier: Long,
     val attachmentId: String,
     val allowedOrigins: Set<WebRequestOrigin>,
+    val nativePolicy: WebPanelNativeMessagePolicy?,
 ) {
     companion object {
         private val idPattern = Regex("^[0-9a-f]{32}$")
 
         fun parse(arguments: Any?): RendererAttachRequest {
             val values = arguments as? Map<*, *> ?: throw RendererRequestFailure()
-            if (values.keys != setOf("webViewIdentifier", "attachmentId", "allowedOrigins")) {
+            val required = setOf("webViewIdentifier", "attachmentId", "allowedOrigins")
+            if (values.keys != required && values.keys != required + "nativePolicy") {
                 throw RendererRequestFailure()
             }
             val identifier = when (val value = values["webViewIdentifier"]) {
@@ -174,7 +176,15 @@ internal data class RendererAttachRequest(
             }
             val origins = rawOrigins.map(WebRequestOrigin::parse).toSet()
             if (origins.size != rawOrigins.size) throw RendererRequestFailure()
-            return RendererAttachRequest(identifier, attachmentId, origins)
+            val nativePolicy = if (values.containsKey("nativePolicy")) {
+                WebPanelNativeMessagePolicy.parse(values["nativePolicy"])
+            } else {
+                null
+            }
+            if (nativePolicy != null && nativePolicy.origin !in origins) {
+                throw RendererRequestFailure()
+            }
+            return RendererAttachRequest(identifier, attachmentId, origins, nativePolicy)
         }
     }
 }
@@ -211,6 +221,7 @@ class WebPanelRendererBridge(
             when (call.method) {
                 "attach" -> result.success(attach(RendererAttachRequest.parse(call.arguments)))
                 "detach" -> result.success(detach(parseDetach(call.arguments)))
+                "replyNative" -> result.success(replyNative(call.arguments))
                 else -> result.notImplemented()
             }
         } catch (_: RendererRequestFailure) {
@@ -240,6 +251,28 @@ class WebPanelRendererBridge(
             dynamicEgress.close()
             return false
         }
+        val nativeMessages = request.nativePolicy?.let { nativePolicy ->
+            WebPanelWebMessageAdapter.install(
+                webView,
+                request.attachmentId,
+                nativePolicy,
+            ) { event ->
+                channel.invokeMethod(
+                    "nativeMessage",
+                    mapOf(
+                        "attachmentId" to event.attachmentId,
+                        "messageId" to event.messageId,
+                        "message" to event.message,
+                        "topOrigin" to event.topOrigin,
+                        "policyRevision" to nativePolicy.revision,
+                    ),
+                )
+            } ?: run {
+                ownedTransport.close()
+                dynamicEgress.close()
+                return false
+            }
+        }
         val current = webView.webViewClient
         val delegate = if (current is RendererAwareWebViewClient) current.delegate else current
         lateinit var wrapper: RendererAwareWebViewClient
@@ -261,6 +294,7 @@ class WebPanelRendererBridge(
         try {
             webView.webViewClient = wrapper
         } catch (error: RuntimeException) {
+            nativeMessages?.close()
             ownedTransport.close()
             dynamicEgress.close()
             throw error
@@ -270,6 +304,7 @@ class WebPanelRendererBridge(
             webView,
             wrapper,
             dynamicEgress,
+            nativeMessages,
         )
         viewOwners[request.webViewIdentifier] = request.attachmentId
         return true
@@ -281,6 +316,22 @@ class WebPanelRendererBridge(
         val id = values["attachmentId"] as? String ?: throw RendererRequestFailure()
         if (!Regex("^[0-9a-f]{32}$").matches(id)) throw RendererRequestFailure()
         return id
+    }
+
+    private fun replyNative(arguments: Any?): Boolean {
+        val values = arguments as? Map<*, *> ?: throw RendererRequestFailure()
+        if (values.keys != setOf("attachmentId", "messageId", "message")) {
+            throw RendererRequestFailure()
+        }
+        val attachmentId = values["attachmentId"] as? String ?: throw RendererRequestFailure()
+        val messageId = when (val value = values["messageId"]) {
+            is Int -> value
+            is Long -> value.takeIf { it in 1..Int.MAX_VALUE }?.toInt()
+            else -> null
+        } ?: throw RendererRequestFailure()
+        val message = values["message"] as? String ?: throw RendererRequestFailure()
+        if (!Regex("^[0-9a-f]{32}$").matches(attachmentId)) throw RendererRequestFailure()
+        return attachments[attachmentId]?.nativeMessages?.reply(messageId, message) == true
     }
 
     private fun detach(attachmentId: String): Boolean {
@@ -304,6 +355,7 @@ class WebPanelRendererBridge(
         val webView: WebView,
         val wrapper: RendererAwareWebViewClient,
         val dynamicEgress: AutoCloseable,
+        val nativeMessages: WebPanelNativeMessageAttachment?,
     ) {
         fun restore() {
             release(restoreClient = true)
@@ -311,6 +363,7 @@ class WebPanelRendererBridge(
 
         fun release(restoreClient: Boolean) {
             wrapper.retire()
+            nativeMessages?.close()
             runCatching(dynamicEgress::close)
             if (restoreClient && webView.webViewClient === wrapper) {
                 webView.webViewClient = wrapper.delegate
