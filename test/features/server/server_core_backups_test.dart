@@ -1153,6 +1153,7 @@ void main() {
               'attachment; filename="larenor-core-backup.larenor-core"',
           'cache-control': 'no-store',
           'x-content-type-options': 'nosniff',
+          'x-larenor-capture-generation': '1' * 32,
         },
       ),
     );
