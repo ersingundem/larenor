@@ -5,6 +5,7 @@ from contextlib import nullcontext
 from larenor_server import cli
 from larenor_server.core_backups.component_restore_runtime import (
     ComponentRestoreRuntimeConfig,
+    ComponentRestoreRuntimeError,
 )
 from larenor_server.files import private_create
 from test_core_backup_empty_restore import PASSPHRASE, _target
@@ -98,3 +99,29 @@ def test_cli_rejects_partial_component_authority_without_reading_secrets(
         assert error.code == 2
     else:
         raise AssertionError("partial component authority accepted")
+
+
+def test_cli_proves_privileged_runtime_before_reading_restore_secrets(
+    server, tmp_path, monkeypatch, capsys
+):
+    root = (tmp_path / "operator").resolve()
+    root.mkdir(mode=0o700)
+    target = _target(tmp_path / "target", server[3])
+    monkeypatch.setattr(cli.Settings, "from_environment", lambda: target)
+    monkeypatch.setattr(
+        cli,
+        "build_component_restore_runtime",
+        lambda _config: (_ for _ in ()).throw(ComponentRestoreRuntimeError()),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_read_restore_inputs",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("secret read")),
+    )
+
+    assert cli.main(args(root / "missing", root / "missing-secret", root)) == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == (
+        "Larenor Server initialization failed: component_restore_unavailable\n"
+    )
