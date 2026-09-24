@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/core_backups/presentation/server_core_backups_screen.dart';
 import 'package:larenor/features/server/core_backups/presentation/server_core_backup_file_access.dart';
+import 'package:larenor/features/server/core_backups/presentation/server_core_backup_source_access.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -56,6 +57,44 @@ final class _FixtureDestination extends BackupDestinationFixture {
   }
 }
 
+final class FixtureCoreBackupSources extends ServerCoreBackupSourceAccess {
+  FixtureCoreBackupSources({this.pending});
+
+  final Completer<ServerCoreBackupSourceInspection?>? pending;
+  int inspections = 0;
+  int cancels = 0;
+  bool active = false;
+
+  @override
+  ServerCoreBackupSourceAccess scoped() => this;
+
+  @override
+  bool get hasPendingOperation => active;
+
+  @override
+  Future<ServerCoreBackupSourceInspection?> inspect() async {
+    inspections++;
+    active = true;
+    try {
+      return await (pending?.future ??
+          Future.value(
+            const ServerCoreBackupSourceInspection(
+              byteLength: 8192,
+              sha256: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+            ),
+          ));
+    } finally {
+      active = false;
+    }
+  }
+
+  @override
+  Future<void> cancelPending() async {
+    active = false;
+    cancels++;
+  }
+}
+
 Future<void> reveal(WidgetTester tester, Finder target) async {
   await tester.scrollUntilVisible(
     target,
@@ -72,6 +111,7 @@ void main() {
     required double width,
     Map<String, dynamic>? response,
     FixtureCoreBackupFiles? files,
+    FixtureCoreBackupSources? sources,
   }) async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
@@ -87,6 +127,8 @@ void main() {
           serverAccountControllerProvider.overrideWithValue(fixture.account),
           if (files != null)
             serverCoreBackupFileAccessProvider.overrideWithValue(files),
+          if (sources != null)
+            serverCoreBackupSourceAccessProvider.overrideWithValue(sources),
         ],
         child: CupertinoApp(
           locale: Locale(language),
@@ -156,6 +198,133 @@ void main() {
       );
     }
   }
+
+  for (final width in [600.0, 1200.0]) {
+    testWidgets(
+      '${width.toInt()} wide source inspection hides its digest and stays separate from manifest compatibility',
+      (tester) async {
+        final sources = FixtureCoreBackupSources();
+        final fixture = await mount(
+          tester,
+          language: 'en',
+          width: width,
+          sources: sources,
+        );
+
+        await reveal(
+          tester,
+          find.byKey(const ValueKey('server-backups-source-inspect')),
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('server-backups-source-inspect')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(sources.inspections, 1);
+        expect(find.text('Selected backup source inspection'), findsOneWidget);
+        expect(find.text('Larenor backup magic verified'), findsOneWidget);
+        expect(find.text('8.0 KiB'), findsWidgets);
+        expect(
+          find.text(
+            '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          ),
+          findsNothing,
+        );
+        expect(find.text('Inspected SHA-256'), findsNothing);
+        await reveal(tester, find.text('Restore compatibility preflight'));
+        expect(find.text('Restore compatibility preflight'), findsOneWidget);
+        expect(find.textContaining('content://'), findsNothing);
+        expect(find.textContaining('/private/'), findsNothing);
+        expect(find.textContaining('synthetic_admin_access'), findsNothing);
+        expect(find.textContaining('compatible. No restore'), findsNothing);
+        expect(
+          fixture.adminCalls.where(
+            (call) => call.url.path.contains('/restore'),
+          ),
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'account generation retirement cancels inspection and drops its late proof',
+    (tester) async {
+      final pending = Completer<ServerCoreBackupSourceInspection?>();
+      final sources = FixtureCoreBackupSources(pending: pending);
+      final fixture = await mount(
+        tester,
+        language: 'en',
+        width: 600,
+        sources: sources,
+      );
+
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('server-backups-source-inspect')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('server-backups-source-inspect')),
+      );
+      await tester.pump();
+      expect(sources.active, isTrue);
+
+      await fixture.account.signOut();
+      await tester.pump();
+      expect(sources.cancels, 1);
+      pending.complete(
+        const ServerCoreBackupSourceInspection(
+          byteLength: 4096,
+          sha256: 'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+        ),
+        findsNothing,
+      );
+      expect(
+        find.text('Your account is not permitted to perform this action.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'route disposal cancels inspection and ignores the completed native proof',
+    (tester) async {
+      final pending = Completer<ServerCoreBackupSourceInspection?>();
+      final sources = FixtureCoreBackupSources(pending: pending);
+      await mount(tester, language: 'en', width: 600, sources: sources);
+
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('server-backups-source-inspect')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('server-backups-source-inspect')),
+      );
+      await tester.pump();
+      expect(sources.active, isTrue);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(sources.cancels, 1);
+      pending.complete(
+        const ServerCoreBackupSourceInspection(
+          byteLength: 4096,
+          sha256: 'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'blocked plan exposes the operation count and remains read-only',

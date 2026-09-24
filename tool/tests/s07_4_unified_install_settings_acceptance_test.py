@@ -27,9 +27,15 @@ SERVICES = (
 
 
 class HostFacts:
-    def __init__(self, manifest):
+    def __init__(self, planner, target):
+        manifest = target["deploymentManifest"]
         self.manifest = manifest
         self.calls = []
+        self.receipt = planner.installed_state_receipt(
+            planner.plan("b" * 40, target["settings"]),
+            installation_id="e" * 32,
+            architecture="amd64",
+        )
 
     def architecture(self):
         self.calls.append("architecture")
@@ -45,6 +51,14 @@ class HostFacts:
             "device": 4,
             "availableMiB": self.manifest["requiredDiskMiB"] * 4,
         }
+
+    def installation(self):
+        self.calls.append("installation")
+        return copy.deepcopy(self.receipt)
+
+    def clean(self, _paths):
+        self.calls.append("clean")
+        return True
 
 
 class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
@@ -120,7 +134,7 @@ class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
     ):
         value = self.planner.plan(REVISION, SETTINGS)
         manifest = value["deploymentManifest"]
-        host = HostFacts(manifest)
+        host = HostFacts(self.planner, value)
         preview = self.planner.preflight(value, "upgrade", host)
         self.assertTrue(preview["ready"])
         self.assertEqual(preview["backupTarget"], manifest["backupTarget"])
@@ -132,12 +146,14 @@ class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
                 self.subTest(operation=operation),
                 self.assertRaisesRegex(bundle.BundleError, "bundle_operation_invalid"),
             ):
-                self.planner.preflight(value, operation, HostFacts(manifest))
+                self.planner.preflight(
+                    value, operation, HostFacts(self.planner, value))
 
         stale = copy.deepcopy(value)
         stale["deploymentManifest"]["sourceRevision"] = "b" * 40
         with self.assertRaisesRegex(bundle.BundleError, "bundle_invalid"):
-            self.planner.preflight(stale, "upgrade", HostFacts(manifest))
+            self.planner.preflight(
+                stale, "upgrade", HostFacts(self.planner, value))
 
 
 if __name__ == "__main__":

@@ -1,8 +1,11 @@
 import importlib.util
 import copy
 import json
+import os
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,7 +24,9 @@ COMPONENTS = ("jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_ass
 
 
 class HostFacts:
-    def __init__(self, manifest, *, architecture="amd64", change=None):
+    def __init__(self, planner, target, *, architecture="amd64", change=None,
+                 installation="default", clean=True):
+        manifest = target["deploymentManifest"]
         self.calls = []
         self.selected_architecture = architecture
         self.facts = {}
@@ -33,6 +38,22 @@ class HostFacts:
         if change:
             path, values = change
             self.facts[path].update(values)
+        prior = planner.plan("b" * 40, target["settings"])
+        normalized_architecture = ({
+            "x86_64": "amd64", "aarch64": "arm64",
+        }.get(architecture, architecture) if isinstance(architecture, str)
+            else "unknown")
+        receipt_architecture = (
+            normalized_architecture
+            if normalized_architecture in {"amd64", "arm64"}
+            else "amd64"
+        )
+        self.installed = (planner.installed_state_receipt(
+            prior,
+            installation_id="e" * 32,
+            architecture=receipt_architecture,
+        ) if installation == "default" else installation)
+        self.clean_state = clean
 
     def architecture(self):
         self.calls.append("architecture")
@@ -41,6 +62,15 @@ class HostFacts:
     def inspect(self, path):
         self.calls.append(path)
         return dict(self.facts[path])
+
+    def installation(self):
+        self.calls.append("installation")
+        return copy.deepcopy(self.installed)
+
+    def clean(self, paths):
+        self.calls.append("clean")
+        self.clean_paths = tuple(paths)
+        return self.clean_state
 
 
 class UnifiedMediaStackBundleTest(unittest.TestCase):
@@ -119,7 +149,11 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             changed = copy.deepcopy(first)
             mutate(changed)
             with self.assertRaisesRegex(bundle.BundleError, "bundle_invalid"):
-                self.planner.preflight(changed, "install", HostFacts(manifest))
+                self.planner.preflight(
+                    changed,
+                    "install",
+                    HostFacts(self.planner, first, installation=None),
+                )
 
     def test_only_four_operator_settings_are_secret_free_and_bind_both_bundles(self):
         example = bundle.read_settings(ROOT / "deploy/larenor-server/.env.example")
@@ -148,15 +182,28 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         value = self.plan()
         manifest = value["deploymentManifest"]
         for operation in ("install", "upgrade"):
-            host = HostFacts(manifest)
+            host = HostFacts(
+                self.planner,
+                value,
+                installation=None if operation == "install" else "default",
+            )
             preview = self.planner.preflight(value, operation, host)
             self.assertTrue(preview["ready"])
             self.assertEqual(preview["operation"], operation)
             self.assertEqual(preview["architecture"], "amd64")
             self.assertEqual(preview["backupTarget"], "/DATA/AppData/larenor-server-backups")
             self.assertEqual(preview["rollbackTarget"], "/DATA/AppData/larenor-server-rollback")
-            self.assertEqual(host.calls[0], "architecture")
-            self.assertEqual(set(host.calls[1:]), {item["path"] for item in manifest["ownedPaths"]})
+            self.assertEqual(host.calls[:2], ["architecture", "installation"])
+            offset = 2
+            if operation == "install":
+                self.assertEqual(host.calls[2], "clean")
+                self.assertEqual(
+                    set(host.clean_paths),
+                    {item["path"] for item in manifest["ownedPaths"]},
+                )
+                offset = 3
+            self.assertEqual(set(host.calls[offset:]), {
+                item["path"] for item in manifest["ownedPaths"]})
             self.assertNotRegex(json.dumps(preview).lower(), r"docker|subprocess|daemon|token|password")
 
         first = next(item["path"] for item in manifest["ownedPaths"]
@@ -171,22 +218,399 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
             ("amd64", (first, {"availableMiB": 0}), "storage_capacity_insufficient"),
         ):
             with self.subTest(code=code):
-                host = HostFacts(manifest, architecture=architecture, change=change)
+                host = HostFacts(
+                    self.planner, value, architecture=architecture, change=change)
                 preview = self.planner.preflight(value, "upgrade", host)
                 self.assertFalse(preview["ready"])
                 self.assertIn(code, {item["code"] for item in preview["checks"]})
         with self.assertRaisesRegex(bundle.BundleError, "bundle_operation_invalid"):
-            self.planner.preflight(value, "apply", HostFacts(manifest))
+            self.planner.preflight(
+                value, "apply", HostFacts(self.planner, value))
         normalized = self.planner.preflight(
-            value, "install", HostFacts(manifest, architecture="x86_64"))
+            value, "install", HostFacts(
+                self.planner, value, architecture="x86_64", installation=None))
         self.assertEqual(normalized["architecture"], "amd64")
         changed = copy.deepcopy(value)
         changed["deploymentManifest"]["manifestDigest"] = "f" * 64
         with self.assertRaisesRegex(bundle.BundleError, "bundle_invalid"):
-            self.planner.preflight(changed, "upgrade", HostFacts(manifest))
+            self.planner.preflight(
+                changed, "upgrade", HostFacts(self.planner, value))
         source = TARGET.read_text()
         for forbidden_import in ("import subprocess", "import socket", "import docker"):
             self.assertNotIn(forbidden_import, source)
+
+    def test_install_and_upgrade_require_exact_opposite_installation_states(self):
+        value = self.plan()
+        manifest = value["deploymentManifest"]
+
+        installed = HostFacts(self.planner, value).installed
+        assert installed is not None
+        install = self.planner.preflight(
+            value, "install", HostFacts(
+                self.planner, value, installation=installed))
+        self.assertFalse(install["ready"])
+        self.assertIn("installation_already_exists", {
+            item["code"] for item in install["checks"]})
+
+        missing = self.planner.preflight(
+            value, "upgrade", HostFacts(
+                self.planner, value, installation=None))
+        self.assertFalse(missing["ready"])
+        self.assertIn("installation_missing", {
+            item["code"] for item in missing["checks"]})
+
+        dirty = self.planner.preflight(
+            value,
+            "install",
+            HostFacts(
+                self.planner,
+                value,
+                installation=None,
+                clean=False,
+            ),
+        )
+        self.assertFalse(dirty["ready"])
+        self.assertIn("installation_not_clean", {
+            item["code"] for item in dirty["checks"]})
+
+        already_current = self.planner.installed_state_receipt(
+            value, installation_id="e" * 32, architecture="amd64")
+        current = self.planner.preflight(
+            value, "upgrade", HostFacts(
+                self.planner, value, installation=already_current))
+        self.assertFalse(current["ready"])
+        self.assertIn("installation_already_current", {
+            item["code"] for item in current["checks"]})
+
+        for changed, code in (
+            ({"schemaVersion": 1}, "installation_receipt_invalid"),
+            (self.planner.installed_state_receipt(
+                self.planner.plan("b" * 40, SETTINGS),
+                installation_id="e" * 32,
+                architecture="arm64",
+            ), "installation_architecture_mismatch"),
+            (dict(installed, sourceRevision=1.0), "installation_receipt_invalid"),
+            (dict(installed, schemaVersion=True), "installation_receipt_invalid"),
+            (dict(installed, schemaVersion=1.0), "installation_receipt_invalid"),
+            (self.planner.installed_state_receipt(
+                self.planner.plan("b" * 40, dict(
+                    SETTINGS, LARENOR_DATA_ROOT="/DATA/AppData/foreign")),
+                installation_id="e" * 32,
+                architecture="amd64",
+            ), "installation_foreign"),
+        ):
+            with self.subTest(code=code):
+                preview = self.planner.preflight(
+                    value, "upgrade", HostFacts(
+                        self.planner, value, installation=changed))
+                self.assertFalse(preview["ready"])
+                self.assertIn(code, {item["code"] for item in preview["checks"]})
+
+        newer = dict(installed, releaseVersion="1.0.0")
+        newer["receiptDigest"] = bundle._digest({
+            key: item for key, item in newer.items() if key != "receiptDigest"
+        })
+        downgrade = self.planner.preflight(
+            value,
+            "upgrade",
+            HostFacts(self.planner, value, installation=newer),
+        )
+        self.assertFalse(downgrade["ready"])
+        self.assertIn("installation_not_upgradeable", {
+            item["code"] for item in downgrade["checks"]})
+
+        for host_architecture, receipt_architecture in (
+            ("amd64", "amd64"),
+            ("x86_64", "amd64"),
+            ("arm64", "arm64"),
+            ("aarch64", "arm64"),
+        ):
+            with self.subTest(architecture=host_architecture):
+                prior = self.planner.plan("b" * 40, SETTINGS)
+                receipt = self.planner.installed_state_receipt(
+                    prior,
+                    installation_id="e" * 32,
+                    architecture=receipt_architecture,
+                )
+                preview = self.planner.preflight(
+                    value,
+                    "upgrade",
+                    HostFacts(
+                        self.planner,
+                        value,
+                        architecture=host_architecture,
+                        installation=receipt,
+                    ),
+                )
+                self.assertTrue(preview["ready"])
+                self.assertEqual(preview["architecture"], receipt_architecture)
+
+    def test_local_receipt_reader_is_bounded_descriptor_owned_and_duplicate_safe(self):
+        value = self.plan()
+        receipt = self.planner.installed_state_receipt(
+            self.planner.plan("b" * 40, SETTINGS),
+            installation_id="e" * 32,
+            architecture="amd64",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve() / "installation"
+            root.mkdir(mode=0o700)
+            path = root / ".larenor-installation.json"
+            path.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n")
+            path.chmod(0o600)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            self.assertEqual(reader.installation(), receipt)
+            self.assertEqual(reader.architecture(), "amd64")
+            self.assertEqual(reader.inspect(str(root))["kind"], "directory")
+
+            path.unlink()
+            path.write_text('{"schemaVersion":1,"schemaVersion":1}')
+            path.chmod(0o600)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+            path.unlink()
+            path.write_bytes(b"x" * (bundle.MAX_INSTALLATION_RECEIPT_BYTES + 1))
+            path.chmod(0o600)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+            path.unlink()
+            path.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n")
+            path.chmod(0o644)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+            path.unlink()
+            foreign = root / "foreign"
+            foreign.write_text("{}")
+            path.symlink_to(foreign)
+            with self.assertRaisesRegex(
+                bundle.BundleError, "bundle_host_inspection_invalid"):
+                reader.installation()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve() / "clean"
+            child = root / "child"
+            child.mkdir(parents=True)
+            root.chmod(0o700)
+            child.chmod(0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            self.assertTrue(reader.clean((str(root), str(child))))
+            (child / "foreign-payload").write_text("foreign")
+            self.assertFalse(reader.clean((str(root), str(child))))
+
+        class WiredHost:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def architecture(self):
+                return "amd64"
+
+            def installation(self):
+                return None
+
+            def clean(self, _paths):
+                return True
+
+            def inspect(self, path):
+                requirement = next(
+                    item for item in value["deploymentManifest"]["ownedPaths"]
+                    if item["path"] == path)
+                return {
+                    "kind": "directory", "ownerUid": requirement["ownerUid"],
+                    "mode": 0o700, "device": 1,
+                    "availableMiB": value["deploymentManifest"]["requiredDiskMiB"] * 2,
+                }
+
+        with patch.object(bundle, "LocalHostFacts", WiredHost), patch.object(
+            bundle.DeploymentBundlePlanner,
+            "plan",
+            return_value=value,
+        ), patch("sys.stdout") as stdout:
+            self.assertEqual(bundle.main([
+                "--source-revision", REVISION,
+                "--operation", "install",
+            ]), 0)
+            self.assertTrue(stdout.write.called)
+
+    def test_local_host_facts_rejects_ancestor_symlinks_and_path_replacement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            real = base / "real"
+            root = real / "root"
+            child = root / "mid" / "leaf"
+            child.mkdir(parents=True)
+            for path in (real, root, root / "mid", child):
+                path.chmod(0o700)
+            alias = base / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            selected = alias / "root"
+            reader = bundle.LocalHostFacts(
+                selected,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            for operation in (
+                lambda: reader.inspect(str(selected)),
+                reader.installation,
+                lambda: reader.clean((
+                    str(selected),
+                    str(selected / "mid"),
+                    str(selected / "mid" / "leaf"),
+                )),
+            ):
+                with self.subTest(operation=operation):
+                    with self.assertRaisesRegex(
+                        bundle.BundleError, "bundle_host_inspection_invalid"
+                    ):
+                        operation()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "root"
+            middle = root / "mid"
+            leaf = middle / "leaf"
+            leaf.mkdir(parents=True)
+            outside = base / "outside"
+            (outside / "leaf").mkdir(parents=True)
+            for path in (root, middle, leaf, outside, outside / "leaf"):
+                path.chmod(0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_open = os.open
+            switched = False
+
+            def racing_open(path, flags, *args, **kwargs):
+                nonlocal switched
+                descriptor = real_open(path, flags, *args, **kwargs)
+                if not switched and (str(path) == str(middle) or path == "mid"):
+                    switched = True
+                    middle.rename(base / "parked")
+                    middle.symlink_to(outside, target_is_directory=True)
+                return descriptor
+
+            with patch.object(bundle.os, "open", racing_open):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.clean((str(root), str(middle), str(leaf)))
+
+    def test_local_receipt_reader_rejects_rewrite_and_fifo_without_blocking(self):
+        first = self.planner.installed_state_receipt(
+            self.planner.plan("b" * 40, SETTINGS),
+            installation_id="e" * 32,
+            architecture="amd64",
+        )
+        second = self.planner.installed_state_receipt(
+            self.planner.plan("b" * 40, SETTINGS),
+            installation_id="f" * 32,
+            architecture="amd64",
+        )
+        first_raw = (json.dumps(
+            first, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        second_raw = (json.dumps(
+            second, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+        self.assertEqual(len(first_raw), len(second_raw))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve() / "installation"
+            root.mkdir(mode=0o700)
+            receipt = root / bundle.INSTALLATION_RECEIPT_NAME
+            receipt.write_bytes(first_raw)
+            receipt.chmod(0o600)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_read = os.read
+            changed = False
+
+            def racing_read(descriptor, size):
+                nonlocal changed
+                chunk = real_read(descriptor, size)
+                if chunk and not changed:
+                    changed = True
+                    receipt.write_bytes(second_raw)
+                    receipt.chmod(0o600)
+                return chunk
+
+            with patch.object(bundle.os, "read", racing_read):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.installation()
+
+            receipt.unlink()
+            os.mkfifo(receipt, mode=0o600)
+            real_open = os.open
+
+            def require_nonblocking(path, flags, *args, **kwargs):
+                if path == bundle.INSTALLATION_RECEIPT_NAME:
+                    self.assertTrue(flags & os.O_NONBLOCK)
+                return real_open(path, flags, *args, **kwargs)
+
+            with patch.object(bundle.os, "open", require_nonblocking):
+                with self.assertRaisesRegex(
+                    bundle.BundleError, "bundle_host_inspection_invalid"
+                ):
+                    reader.installation()
+
+    def test_local_clean_inventory_stops_at_the_bounded_limit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve() / "installation"
+            root.mkdir(mode=0o700)
+            for index in range(257):
+                (root / f"foreign-{index:03d}").touch()
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            with patch.object(
+                bundle.os,
+                "listdir",
+                side_effect=AssertionError("unbounded listdir is forbidden"),
+            ):
+                self.assertFalse(reader.clean((str(root),)))
+
+    def test_local_clean_ignores_unrelated_ancestor_content_churn(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root = base / "installation"
+            root.mkdir(mode=0o700)
+            reader = bundle.LocalHostFacts(
+                root,
+                expected_uid=os.geteuid(),
+                architecture="amd64",
+            )
+            real_scandir = os.scandir
+            changed = False
+
+            def churning_scandir(path):
+                nonlocal changed
+                if not changed:
+                    changed = True
+                    (base / "unrelated").touch(mode=0o600)
+                return real_scandir(path)
+
+            with patch.object(bundle.os, "scandir", churning_scandir):
+                self.assertTrue(reader.clean((str(root),)))
 
 
 if __name__ == "__main__":

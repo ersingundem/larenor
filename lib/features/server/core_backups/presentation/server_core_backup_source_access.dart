@@ -5,16 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-@immutable
-final class ServerCoreBackupSourceInspection {
-  const ServerCoreBackupSourceInspection({
-    required this.byteLength,
-    required this.sha256,
-  });
+import '../domain/server_core_backup_source_proof.dart';
 
-  final int byteLength;
-  final String sha256;
-}
+export '../domain/server_core_backup_source_proof.dart';
 
 final class _SourceOperation {
   _SourceOperation(this.id);

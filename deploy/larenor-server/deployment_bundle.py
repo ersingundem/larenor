@@ -11,8 +11,11 @@ import copy
 import hashlib
 import importlib.util
 import json
-from pathlib import Path, PurePosixPath
+import os
+import platform
 import re
+import stat
+from pathlib import Path, PurePosixPath
 
 
 HERE = Path(__file__).resolve().parent
@@ -26,8 +29,16 @@ ROOT_RE = re.compile(r"/[A-Za-z0-9._ -]+(?:/[A-Za-z0-9._ -]+)*\Z")
 TIMEZONE_RE = re.compile(r"(?:Etc|[A-Za-z_][A-Za-z0-9_+-]*)/[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*\Z")
 LOCALE_RE = re.compile(r"[a-z]{2}_[A-Z]{2}\.UTF-8\Z")
 REVISION_RE = re.compile(r"[a-f0-9]{40}\Z")
+DIGEST_RE = re.compile(r"[a-f0-9]{64}\Z")
 PRIVATE_RE = re.compile(r"token|api.?key|password|credential|authorization|secret", re.I)
 MAX_DOCUMENT_BYTES = 1024 * 1024
+MAX_INSTALLATION_RECEIPT_BYTES = 4096
+INSTALLATION_RECEIPT_NAME = ".larenor-installation.json"
+INSTALLATION_ID_RE = re.compile(r"[a-f0-9]{32}\Z")
+VERSION_RE = re.compile(
+    r"(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})\."
+    r"(?:0|[1-9][0-9]{0,8})\Z"
+)
 
 
 class BundleError(ValueError):
@@ -64,6 +75,278 @@ def _has_private_key(value):
     if isinstance(value, list):
         return any(_has_private_key(item) for item in value)
     return False
+
+
+def _duplicate_safe(text):
+    def pairs(values):
+        result = {}
+        for key, value in values:
+            if key in result:
+                raise ValueError("duplicate_key")
+            result[key] = value
+        return result
+
+    return json.loads(text, object_pairs_hook=pairs)
+
+
+def _directory_identity(value):
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_uid,
+        value.st_gid,
+        stat.S_IFMT(value.st_mode),
+        stat.S_IMODE(value.st_mode),
+    )
+
+
+def _file_identity(value):
+    return _directory_identity(value) + (
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _directory_content_identity(value):
+    return _directory_identity(value) + (
+        value.st_nlink,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+class _DirectoryTree:
+    """Retain and revalidate one no-symlink absolute directory tree."""
+
+    def __init__(self):
+        self._descriptors = {}
+        self._identities = {}
+
+    def _remember(self, path, descriptor):
+        info = os.fstat(descriptor)
+        if not stat.S_ISDIR(info.st_mode) or info.st_nlink < 1:
+            raise OSError()
+        self._descriptors[path] = descriptor
+        self._identities[path] = _directory_identity(info)
+
+    def open(self, value):
+        path = PurePosixPath(str(value))
+        if not path.is_absolute() or str(path) != str(value):
+            raise OSError()
+        root = PurePosixPath("/")
+        if root not in self._descriptors:
+            descriptor = os.open(
+                "/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                self._remember(root, descriptor)
+            except Exception:
+                os.close(descriptor)
+                raise
+        current = root
+        for part in path.parts[1:]:
+            child = current / part
+            if child not in self._descriptors:
+                descriptor = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=self._descriptors[current],
+                )
+                try:
+                    self._remember(child, descriptor)
+                    entry = os.stat(
+                        part,
+                        dir_fd=self._descriptors[current],
+                        follow_symlinks=False,
+                    )
+                    if _directory_identity(entry) != self._identities[child]:
+                        raise OSError()
+                except Exception:
+                    self._descriptors.pop(child, None)
+                    self._identities.pop(child, None)
+                    os.close(descriptor)
+                    raise
+            current = child
+        return self._descriptors[path]
+
+    def revalidate(self):
+        for path, descriptor in self._descriptors.items():
+            if _directory_identity(os.fstat(descriptor)) != self._identities[path]:
+                raise OSError()
+            if path != PurePosixPath("/"):
+                entry = os.stat(
+                    path.name,
+                    dir_fd=self._descriptors[path.parent],
+                    follow_symlinks=False,
+                )
+                if _directory_identity(entry) != self._identities[path]:
+                    raise OSError()
+
+    def close(self):
+        for path in sorted(self._descriptors, key=lambda item: len(item.parts), reverse=True):
+            os.close(self._descriptors[path])
+        self._descriptors.clear()
+        self._identities.clear()
+
+
+class LocalHostFacts:
+    """Read-only local facts for one operator-selected deployment root."""
+
+    def __init__(self, data_root, *, expected_uid=10001, architecture=None):
+        root = Path(data_root)
+        if (not root.is_absolute() or str(root) != str(PurePosixPath(str(root)))
+                or type(expected_uid) is not int or expected_uid < 0):
+            raise BundleError("bundle_host_inspection_invalid")
+        self.root = root
+        self.expected_uid = expected_uid
+        self._architecture = architecture
+
+    def architecture(self):
+        return self._architecture or platform.machine().lower()
+
+    def inspect(self, path):
+        tree = _DirectoryTree()
+        try:
+            candidate = Path(path)
+            if not candidate.is_absolute() or str(candidate) != str(PurePosixPath(str(candidate))):
+                raise OSError()
+            descriptor = tree.open(candidate)
+            info = os.fstat(descriptor)
+            volume = os.fstatvfs(descriptor)
+            if not stat.S_ISDIR(info.st_mode) or info.st_nlink < 1:
+                raise OSError()
+            tree.revalidate()
+            return {
+                "kind": "directory", "ownerUid": info.st_uid,
+                "mode": stat.S_IMODE(info.st_mode), "device": info.st_dev,
+                "availableMiB": volume.f_bavail * volume.f_frsize // 1048576,
+            }
+        except (OSError, TypeError, ValueError):
+            raise BundleError("bundle_host_inspection_invalid") from None
+        finally:
+            tree.close()
+
+    def _read_receipt(self, root_descriptor):
+        descriptor = os.open(
+            INSTALLATION_RECEIPT_NAME,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=root_descriptor,
+        )
+        try:
+            before = os.fstat(descriptor)
+            if (not stat.S_ISREG(before.st_mode)
+                    or before.st_uid != self.expected_uid
+                    or stat.S_IMODE(before.st_mode) != 0o600
+                    or before.st_nlink != 1
+                    or not 2 <= before.st_size <= MAX_INSTALLATION_RECEIPT_BYTES):
+                raise ValueError()
+            raw = bytearray()
+            while len(raw) <= MAX_INSTALLATION_RECEIPT_BYTES:
+                chunk = os.read(descriptor, min(
+                    1024, MAX_INSTALLATION_RECEIPT_BYTES + 1 - len(raw)))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+            after = os.fstat(descriptor)
+            entry = os.stat(
+                INSTALLATION_RECEIPT_NAME,
+                dir_fd=root_descriptor,
+                follow_symlinks=False,
+            )
+            if (len(raw) != before.st_size
+                    or len(raw) > MAX_INSTALLATION_RECEIPT_BYTES
+                    or _file_identity(before) != _file_identity(after)
+                    or _file_identity(after) != _file_identity(entry)):
+                raise ValueError()
+            return bytes(raw), _file_identity(after)
+        finally:
+            os.close(descriptor)
+
+    def installation(self):
+        tree = _DirectoryTree()
+        try:
+            root_descriptor = tree.open(self.root)
+        except FileNotFoundError:
+            tree.close()
+            return None
+        except OSError:
+            tree.close()
+            raise BundleError("bundle_host_inspection_invalid") from None
+        try:
+            root_before = os.fstat(root_descriptor)
+            if (not stat.S_ISDIR(root_before.st_mode)
+                    or root_before.st_uid != self.expected_uid
+                    or stat.S_IMODE(root_before.st_mode) & 0o077
+                    or root_before.st_nlink < 1):
+                raise ValueError()
+            try:
+                first_raw, first_identity = self._read_receipt(root_descriptor)
+            except FileNotFoundError:
+                tree.revalidate()
+                return None
+            second_raw, second_identity = self._read_receipt(root_descriptor)
+            tree.revalidate()
+            if (first_raw != second_raw
+                    or first_identity != second_identity
+                    or _directory_identity(root_before)
+                    != _directory_identity(os.fstat(root_descriptor))):
+                raise ValueError()
+            text = second_raw.decode("ascii")
+            value = _duplicate_safe(text)
+            if (not isinstance(value, dict)
+                    or text != _canonical(value) + "\n"):
+                raise ValueError()
+            return value
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+            raise BundleError("bundle_host_inspection_invalid") from None
+        finally:
+            tree.close()
+
+    def clean(self, paths):
+        tree = _DirectoryTree()
+        try:
+            if (not isinstance(paths, (tuple, list)) or not 1 <= len(paths) <= 256
+                    or any(type(item) is not str for item in paths)):
+                raise ValueError()
+            normalized = tuple(PurePosixPath(item) for item in paths)
+            if (len(set(normalized)) != len(normalized)
+                    or any(not item.is_absolute() or str(item) != raw
+                           for item, raw in zip(normalized, paths))):
+                raise ValueError()
+            expected_children = {
+                item: {candidate.name for candidate in normalized if candidate.parent == item}
+                for item in normalized
+            }
+            for item in normalized:
+                tree.open(item)
+            target_identities = {
+                item: _directory_content_identity(os.fstat(tree.open(item)))
+                for item in normalized
+            }
+            for item in normalized:
+                entries = set()
+                with os.scandir(tree.open(item)) as iterator:
+                    for index, entry in enumerate(iterator, start=1):
+                        if index > 256:
+                            return False
+                        if entry.name in entries:
+                            return False
+                        entries.add(entry.name)
+                if entries != expected_children[item]:
+                    return False
+            if any(
+                _directory_content_identity(os.fstat(tree.open(item)))
+                != target_identities[item]
+                for item in normalized
+            ):
+                raise OSError()
+            tree.revalidate()
+            return True
+        except (OSError, TypeError, ValueError):
+            raise BundleError("bundle_host_inspection_invalid") from None
+        finally:
+            tree.close()
 
 
 def read_settings(path):
@@ -214,6 +497,7 @@ class DeploymentBundlePlanner:
             "composeDigest": _digest(compose),
             "casaOsComposeDigest": _digest(casaos_compose),
             "settingsSchemaDigest": settings_schema_digest,
+            "releaseVersion": CORE_VERSION,
         }
         value["manifestDigest"] = _digest(value)
         return value
@@ -284,6 +568,29 @@ class DeploymentBundlePlanner:
     def plan(self, source_revision, settings):
         return self._build(source_revision, settings)
 
+    def installed_state_receipt(self, bundle, *, installation_id, architecture):
+        manifest = self._validate_bundle(bundle)
+        if (type(installation_id) is not str
+                or not INSTALLATION_ID_RE.fullmatch(installation_id)
+                or type(architecture) is not str
+                or architecture not in ARCHITECTURES):
+            raise BundleError("bundle_host_inspection_invalid")
+        value = {
+            "schemaVersion": 1,
+            "state": "installed",
+            "installationId": installation_id,
+            "sourceRevision": manifest["sourceRevision"],
+            "releaseVersion": manifest["releaseVersion"],
+            "manifestDigest": manifest["manifestDigest"],
+            "bundleDigest": bundle["bundleDigest"],
+            "architecture": architecture,
+            "dataRoot": bundle["settings"]["LARENOR_DATA_ROOT"],
+            "entrypoint": manifest["entrypoint"],
+            "settingsSchemaDigest": manifest["settingsSchemaDigest"],
+        }
+        value["receiptDigest"] = _digest(value)
+        return value
+
     def _validate_bundle(self, value):
         if (not isinstance(value, dict) or set(value) != {
                 "schemaVersion", "settings", "dockerCompose", "casaOsCompose",
@@ -314,6 +621,71 @@ class DeploymentBundlePlanner:
         else:
             checks.append({"subject": "architecture", "state": "passed",
                            "code": "architecture_supported"})
+        installed_revision = None
+        try:
+            installed = host.installation()
+        except Exception:
+            installed = "invalid"
+        installation_code = "installation_state_verified"
+        if operation == "install":
+            if installed is not None:
+                installation_code = "installation_already_exists"
+            else:
+                try:
+                    clean = host.clean(tuple(
+                        item["path"] for item in manifest["ownedPaths"]))
+                except Exception:
+                    clean = False
+                if clean is not True:
+                    installation_code = "installation_not_clean"
+        elif installed is None:
+            installation_code = "installation_missing"
+        elif (not isinstance(installed, dict) or set(installed) != {
+                "schemaVersion", "state", "installationId", "sourceRevision",
+                "releaseVersion", "manifestDigest", "bundleDigest", "architecture",
+                "dataRoot", "entrypoint", "settingsSchemaDigest", "receiptDigest"}
+                or type(installed.get("schemaVersion")) is not int
+                or installed["schemaVersion"] != 1
+                or installed.get("state") != "installed"
+                or type(installed.get("installationId")) is not str
+                or not INSTALLATION_ID_RE.fullmatch(installed["installationId"])
+                or not isinstance(installed.get("sourceRevision"), str)
+                or not REVISION_RE.fullmatch(installed["sourceRevision"])
+                or type(installed.get("releaseVersion")) is not str
+                or not VERSION_RE.fullmatch(installed["releaseVersion"])
+                or not isinstance(installed.get("manifestDigest"), str)
+                or not DIGEST_RE.fullmatch(installed["manifestDigest"])
+                or not isinstance(installed.get("bundleDigest"), str)
+                or not DIGEST_RE.fullmatch(installed["bundleDigest"])
+                or installed.get("architecture") not in ARCHITECTURES
+                or type(installed.get("dataRoot")) is not str
+                or type(installed.get("entrypoint")) is not dict
+                or type(installed.get("settingsSchemaDigest")) is not str
+                or not DIGEST_RE.fullmatch(installed["settingsSchemaDigest"])
+                or type(installed.get("receiptDigest")) is not str
+                or not DIGEST_RE.fullmatch(installed["receiptDigest"])
+                or installed["receiptDigest"] != _digest({
+                    key: value for key, value in installed.items()
+                    if key != "receiptDigest"})):
+            installation_code = "installation_receipt_invalid"
+        elif installed["architecture"] != architecture:
+            installation_code = "installation_architecture_mismatch"
+        elif (installed["dataRoot"] != bundle["settings"]["LARENOR_DATA_ROOT"]
+                or installed["entrypoint"] != manifest["entrypoint"]
+                or installed["settingsSchemaDigest"] != manifest["settingsSchemaDigest"]):
+            installation_code = "installation_foreign"
+        elif installed["sourceRevision"] == manifest["sourceRevision"]:
+            installation_code = "installation_already_current"
+        elif tuple(map(int, installed["releaseVersion"].split("."))) > tuple(
+                map(int, manifest["releaseVersion"].split("."))):
+            installation_code = "installation_not_upgradeable"
+        else:
+            installed_revision = installed["sourceRevision"]
+        checks.append({
+            "subject": "installation",
+            "state": "passed" if installation_code == "installation_state_verified" else "failed",
+            "code": installation_code,
+        })
         devices = {}
         for requirement in manifest["ownedPaths"]:
             code = "owned_path_verified"
@@ -357,6 +729,8 @@ class DeploymentBundlePlanner:
             "manifestDigest": manifest["manifestDigest"], "checks": checks,
             "backupTarget": manifest["backupTarget"],
             "rollbackTarget": manifest["rollbackTarget"],
+            "installedRevision": installed_revision,
+            "targetRevision": manifest["sourceRevision"],
         }
 
 
@@ -366,6 +740,7 @@ def main(arguments=None):
     parser.add_argument("--env-file", type=Path, default=HERE / ".env.example")
     parser.add_argument("--format", choices=("manifest", "docker-compose", "casaos"),
                         default="manifest")
+    parser.add_argument("--operation", choices=("install", "upgrade"))
     args = parser.parse_args(arguments)
     try:
         planner = DeploymentBundlePlanner(
@@ -374,9 +749,15 @@ def main(arguments=None):
             env_example_path=args.env_file,
         )
         value = planner.plan(args.source_revision, read_settings(args.env_file))
-        selected = {"manifest": value["deploymentManifest"],
-                    "docker-compose": value["dockerCompose"],
-                    "casaos": value["casaOsCompose"]}[args.format]
+        selected = (planner.preflight(
+            value,
+            args.operation,
+            LocalHostFacts(value["settings"]["LARENOR_DATA_ROOT"]),
+        ) if args.operation else {
+            "manifest": value["deploymentManifest"],
+            "docker-compose": value["dockerCompose"],
+            "casaos": value["casaOsCompose"],
+        }[args.format])
         print(json.dumps(selected, sort_keys=True, indent=2, ensure_ascii=True))
     except BundleError as error:
         parser.exit(2, error.code + "\n")

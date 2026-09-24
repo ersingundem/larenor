@@ -178,6 +178,34 @@ def _catalog_tmpfs(entry):
     return sorted(result, key=lambda item: item["target"])
 
 
+_PACKAGED_HEALTH = {
+    "jellyfin": {"profile": "jellyfin_public", "path": "/health", "port": 8096},
+    "seerr": {"profile": "seerr_public", "path": "/api/v1/settings/public", "port": 5055},
+    "sonarr": {"profile": "sonarr_public", "path": "/ping", "port": 8989},
+    "radarr": {"profile": "radarr_public", "path": "/ping", "port": 7878},
+    "qbittorrent": {"profile": "qbittorrent_web", "path": "/", "port": 8080},
+    "music_assistant": {"profile": "music_assistant_info", "path": "/info", "port": 8095},
+}
+
+
+def _catalog_health(entry, service_id):
+    value = entry.get("health")
+    if (not isinstance(value, dict) or set(value) != {"profile", "path", "port"}
+            or value.get("profile") not in {
+                "jellyfin_public", "seerr_public", "sonarr_public", "radarr_public",
+                "qbittorrent_web", "music_assistant_info",
+            }
+            or not isinstance(value.get("path"), str)
+            or not re.fullmatch(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]{0,255}", value["path"])
+            or "//" in value["path"] or ".." in PurePosixPath(value["path"]).parts
+            or type(value.get("port")) is not int or not 1 <= value["port"] <= 65535):
+        raise PackageError("config_invalid")
+    result = {"profile": value["profile"], "path": value["path"], "port": value["port"]}
+    if result != _PACKAGED_HEALTH.get(service_id):
+        raise PackageError("config_invalid")
+    return result
+
+
 class UnifiedPackagePlanner:
     def __init__(self, *, compose_path, catalog_path):
         self._compose_path = Path(compose_path)
@@ -267,6 +295,7 @@ class UnifiedPackagePlanner:
                 "networks": service.get("networks", []),
                 "mounts": mounts,
                 "tmpfs": tmpfs,
+                "health": _catalog_health(entry, service_id),
             })
 
         requirements = self._directory_requirements(core_projection, components, catalog)
@@ -356,6 +385,7 @@ class UnifiedPackagePlanner:
                 "networks": service.get("networks", []),
                 "mounts": _mounts(service),
                 "tmpfs": tmpfs,
+                "health": _catalog_health(catalog[service_id], service_id),
             })
         if (manifest["core"] != wanted_core
                 or manifest["components"] != wanted_components

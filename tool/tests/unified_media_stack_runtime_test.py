@@ -112,6 +112,17 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
         self.assertEqual(preview["sourceRevision"], REVISION)
         self.assertRegex(preview["manifestDigest"], r"^[a-f0-9]{64}$")
         self.assertEqual(tuple(x["serviceId"] for x in preview["components"]), COMPONENTS)
+        self.assertEqual(
+            {x["serviceId"]: x["health"] for x in preview["components"]},
+            {
+                "jellyfin": {"profile": "jellyfin_public", "path": "/health", "port": 8096},
+                "seerr": {"profile": "seerr_public", "path": "/api/v1/settings/public", "port": 5055},
+                "sonarr": {"profile": "sonarr_public", "path": "/ping", "port": 8989},
+                "radarr": {"profile": "radarr_public", "path": "/ping", "port": 7878},
+                "qbittorrent": {"profile": "qbittorrent_web", "path": "/", "port": 8080},
+                "music_assistant": {"profile": "music_assistant_info", "path": "/info", "port": 8095},
+            },
+        )
         tmpfs = {item["serviceId"]: item["tmpfs"] for item in preview["components"]}
         self.assertEqual([item["target"] for item in tmpfs["sonarr"]], ["/run", "/tmp"])
         self.assertTrue(tmpfs["sonarr"][0]["executable"])
@@ -143,6 +154,14 @@ class UnifiedPackageRuntimeTest(unittest.TestCase):
                 changed_manifest["directoryRequirements"]))
         changed_manifest = json.loads(json.dumps(preview))
         changed_manifest["components"][2]["tmpfs"] = []
+        body = dict(changed_manifest)
+        body.pop("manifestDigest")
+        changed_manifest["manifestDigest"] = package._digest(body)
+        with self.assertRaisesRegex(package.PackageError, "manifest_invalid"):
+            self.planner.preflight(changed_manifest, HostFacts(
+                changed_manifest["directoryRequirements"]))
+        changed_manifest = json.loads(json.dumps(preview))
+        changed_manifest["components"][0]["health"]["path"] = "/redirect"
         body = dict(changed_manifest)
         body.pop("manifestDigest")
         changed_manifest["manifestDigest"] = package._digest(body)

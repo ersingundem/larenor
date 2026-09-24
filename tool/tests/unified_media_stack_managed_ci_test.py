@@ -1,10 +1,13 @@
+import contextlib
 import importlib.util
+import io
 import json
-from pathlib import Path
+import os
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import call, patch
-
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / "tool/unified_media_stack_managed_ci.py"
@@ -12,16 +15,18 @@ SPEC = importlib.util.spec_from_file_location("unified_media_stack_managed_ci", 
 target = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(target)
 REVISION = "a" * 40
+LEGACY_REVISION = "2f43b6cd606dab17640bb6f0a832b353b62c2313"
 COMPONENTS = (
     "jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_assistant",
 )
 
 
 class FakeDriver:
-    def __init__(self, *, missing=None, fail_at=None):
+    def __init__(self, *, missing=None, fail_at=None, unhealthy=None):
         self.calls = []
         self.missing = missing
         self.fail_at = fail_at
+        self.unhealthy = unhealthy
         self.config_digest = "b" * 64
         self.ownership_digest = "c" * 64
         self.requirements = None
@@ -79,6 +84,22 @@ class FakeDriver:
     def restart(self, manifest):
         self._call("restart")
 
+    def public_health(self, component, phase, source_revision, manifest_digest,
+                      selected_platform):
+        service_id = component["serviceId"]
+        self._call("health:" + phase + ":" + service_id)
+        return {
+            "serviceId": service_id,
+            "profile": component["health"]["profile"],
+            "phase": phase,
+            "sourceRevision": source_revision,
+            "manifestDigest": manifest_digest,
+            "platform": selected_platform,
+            "state": "unavailable" if service_id == self.unhealthy else "healthy",
+            "code": "public_probe_unavailable" if service_id == self.unhealthy
+                    else "public_probe_verified",
+        }
+
     def authenticated_readiness(self, service_id):
         self._call("readiness:" + service_id)
         return {"serviceId": service_id, "state": "not_verified",
@@ -129,17 +150,45 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             target.validate_receipt(value, REVISION, platform_name)
             self.assertEqual(driver.calls[:4], ["config", "prepare_owned", "inspect", "inspect"])
             self.assertEqual(driver.calls.count("inspect"), 10)
-            self.assertEqual(driver.calls[12:18], [
-                "pull", "create", "start", "receipts:initial", "restart", "receipts:restart",
+            self.assertEqual(driver.calls[12:16], [
+                "pull", "create", "start", "receipts:initial",
+            ])
+            self.assertEqual(driver.calls[16:22], [
+                "health:initial:" + item for item in COMPONENTS
+            ])
+            self.assertEqual(driver.calls[22:24], ["restart", "receipts:restart"])
+            self.assertEqual(driver.calls[24:30], [
+                "health:restart:" + item for item in COMPONENTS
             ])
             self.assertEqual(driver.calls[-7:-1], ["readiness:" + item for item in COMPONENTS])
             self.assertEqual(driver.calls[-1], "cleanup")
             self.assertEqual(value["lifecycle"], ["config", "pull", "create", "start", "restart"])
             self.assertEqual(value["containerState"], "verified")
+            self.assertEqual(value["publicHealthState"], "verified")
             self.assertEqual(value["serviceState"], "not_verified")
             self.assertFalse(value["automaticRetry"])
             encoded = json.dumps(value, sort_keys=True).lower()
             self.assertNotRegex(encoded, r"token|password|credential|authorization|/var/lib")
+            for service_id, service in value["services"].items():
+                self.assertEqual(service["initialPublicHealth"]["state"], "healthy")
+                self.assertEqual(service["restartPublicHealth"]["state"], "healthy")
+                self.assertEqual(service["authenticatedReadiness"], {
+                    "serviceId": service_id,
+                    "state": "not_verified",
+                    "code": "bootstrap_authority_not_available",
+                })
+                self.assertEqual(service["initialPublicHealth"]["platform"], platform_name)
+                self.assertEqual(service["restartPublicHealth"]["sourceRevision"], REVISION)
+                self.assertEqual(service["restartPublicHealth"]["manifestDigest"],
+                                 value["manifestDigest"])
+
+    def test_running_container_does_not_count_as_healthy(self):
+        driver = FakeDriver(unhealthy="seerr")
+        with self.assertRaisesRegex(target.ManagedStackCIError,
+                                    "unified_health_probe_failed"):
+            target.run_native(REVISION, "linux/amd64", driver)
+        self.assertIn("receipts:initial", driver.calls)
+        self.assertEqual(driver.calls[-1], "cleanup")
 
     def test_missing_or_ambiguous_service_fails_closed_and_always_cleans_owned_state(self):
         for driver in (FakeDriver(missing="seerr"), FakeDriver(fail_at="restart")):
@@ -161,12 +210,92 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         project = "larenor-native-" + "f" * 32
         resolved["name"] = project
         resolved["services"]["larenor-core"]["build"]["context"] = str(ROOT)
-        resolved["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            ROOT / "server/Dockerfile")
+        resolved["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         for service in resolved["services"].values():
             service["command"] = None
             service["entrypoint"] = None
         target.validate_rendered_config(resolved, expected, project)
+        with tempfile.TemporaryDirectory() as temporary:
+            archived_root = (Path(temporary) / "archived-source").resolve()
+            (archived_root / "server").mkdir(parents=True)
+            (archived_root / "server/Dockerfile").write_text(
+                "FROM scratch\n",
+                encoding="ascii",
+            )
+            archived = json.loads(json.dumps(resolved))
+            archived["services"]["larenor-core"]["build"]["context"] = str(
+                archived_root
+            )
+            archived["services"]["larenor-core"]["build"][
+                "dockerfile"
+            ] = "server/Dockerfile"
+            target.validate_rendered_config(
+                archived,
+                expected,
+                project,
+                source_root=archived_root,
+            )
+
+            for foreign in (
+                "../foreign/Dockerfile",
+                str(archived_root / "server/Dockerfile"),
+                str(archived_root.parent / "foreign/Dockerfile"),
+            ):
+                with self.subTest(foreign=foreign):
+                    changed = json.loads(json.dumps(archived))
+                    changed["services"]["larenor-core"]["build"][
+                        "dockerfile"
+                    ] = foreign
+                    with self.assertRaisesRegex(
+                        target.ManagedStackCIError,
+                        "unified_manifest_invalid",
+                    ):
+                        target.validate_rendered_config(
+                            changed,
+                            expected,
+                            project,
+                            source_root=archived_root,
+                        )
+
+            foreign_target = archived_root.parent / "foreign-Dockerfile"
+            foreign_target.write_text("FROM scratch\n", encoding="ascii")
+            (archived_root / "server/Dockerfile").unlink()
+            (archived_root / "server/Dockerfile").symlink_to(foreign_target)
+            with self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_manifest_invalid",
+            ):
+                target.validate_rendered_config(
+                    archived,
+                    expected,
+                    project,
+                    source_root=archived_root,
+                )
+
+            (archived_root / "server/Dockerfile").unlink()
+            (archived_root / "server").rmdir()
+            foreign_server = archived_root.parent / "foreign-server"
+            foreign_server.mkdir()
+            (foreign_server / "Dockerfile").write_text(
+                "FROM scratch\n",
+                encoding="ascii",
+            )
+            (archived_root / "server").symlink_to(
+                foreign_server,
+                target_is_directory=True,
+            )
+            with self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_manifest_invalid",
+            ):
+                target.validate_rendered_config(
+                    archived,
+                    expected,
+                    project,
+                    source_root=archived_root,
+                )
         drifts = []
         changed = json.loads(json.dumps(resolved))
         changed["services"]["larenor-seerr"]["user"] = "0:0"
@@ -301,9 +430,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         rendered = json.loads(json.dumps(expected))
         rendered["name"] = "larenor-native-" + "f" * 32
         rendered["services"]["larenor-core"]["build"]["context"] = str(target.REPOSITORY)
-        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            target.REPOSITORY / "server/Dockerfile"
-        )
+        rendered["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         target.validate_rendered_config(rendered, expected, rendered["name"])
         rendered["services"]["larenor-jellyfin"]["networks"]["control"][
             "aliases"
@@ -315,8 +444,9 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
         rendered["name"] = "larenor-native-" + "f" * 32
         rendered["services"]["larenor-core"]["build"]["context"] = str(
             target.REPOSITORY)
-        rendered["services"]["larenor-core"]["build"]["dockerfile"] = str(
-            target.REPOSITORY / "server/Dockerfile")
+        rendered["services"]["larenor-core"]["build"][
+            "dockerfile"
+        ] = "server/Dockerfile"
         rendered["services"]["larenor-core"]["dns"] = ["8.8.8.8"]
         with self.assertRaisesRegex(target.ManagedStackCIError,
                                     "unified_manifest_invalid"):
@@ -413,51 +543,547 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                                             "unified_dns_runtime_failed"):
                     driver._dns_peer_mask(peers)
 
+    def test_public_probe_is_exact_bounded_no_redirect_and_secret_free(self):
+        manifest = target.expected_manifest(REVISION)
+        component = manifest["components"][0]
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION, "linux/amd64", Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            with patch.object(target, "_command", return_value=(0, b"healthy\n")) as command:
+                receipt = driver.public_health(
+                    component, "initial", REVISION, manifest["manifestDigest"],
+                    "linux/amd64", timeout=0)
+        self.assertEqual(receipt, {
+            "serviceId": "jellyfin", "profile": "jellyfin_public",
+            "phase": "initial", "sourceRevision": REVISION,
+            "manifestDigest": manifest["manifestDigest"], "platform": "linux/amd64",
+            "state": "healthy", "code": "public_probe_verified",
+        })
+        arguments = command.call_args.args[0]
+        self.assertEqual(arguments[:3], ["/usr/bin/docker", "exec", target.package.CORE_NAME])
+        script = arguments[6]
+        self.assertIn("HTTPConnection", script)
+        self.assertIn("cap+1", script)
+        self.assertNotIn("urlopen", script)
+        self.assertNotRegex(" ".join(arguments).lower(), r"token|cookie|authorization")
+
+        for result in ((0, b"redirect\n"), (0, b"x" * 257), (1, b"")):
+            with self.subTest(result=result[0]):
+                with patch.object(target, "_command", return_value=result):
+                    with self.assertRaisesRegex(target.ManagedStackCIError,
+                                                "unified_health_probe_failed"):
+                        driver.public_health(
+                            component, "restart", REVISION, manifest["manifestDigest"],
+                            "linux/amd64", timeout=0)
+
+    def test_legacy_probe_uses_exact_archived_catalog_health_without_mutation(self):
+        legacy = target._revision_manifest(LEGACY_REVISION)
+        before = json.loads(json.dumps(legacy))
+        self.assertTrue(all("health" not in item for item in legacy["components"]))
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION,
+                "linux/amd64",
+                Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            driver._base_root = Path(temporary) / "archived-source"
+            driver._base_root.mkdir()
+            driver._source_root = driver._base_root
+            driver._active_revision = LEGACY_REVISION
+            real_command = target._command
+
+            def command_result(arguments, **kwargs):
+                if arguments[:2] == ["/usr/bin/git", "show"]:
+                    return real_command(arguments, **kwargs)
+                return 0, b"healthy\n"
+
+            with patch.object(
+                target,
+                "_command",
+                side_effect=command_result,
+            ) as command:
+                receipts = target._public_health_receipts(
+                    driver,
+                    legacy,
+                    "initial",
+                    LEGACY_REVISION,
+                    "linux/amd64",
+                )
+        self.assertEqual(legacy, before)
+        self.assertEqual(
+            {
+                item["serviceId"]: item["profile"]
+                for item in receipts.values()
+            },
+            {
+                service_id: profile["profile"]
+                for service_id, profile in target.package._PACKAGED_HEALTH.items()
+            },
+        )
+        self.assertTrue(all(
+            item["manifestDigest"] == before["manifestDigest"]
+            for item in receipts.values()
+        ))
+        docker_calls = [
+            item for item in command.call_args_list
+            if item.args[0][:2] == ["/usr/bin/docker", "exec"]
+        ]
+        self.assertEqual(len(docker_calls), len(target.COMPONENTS))
+
+        component = json.loads(json.dumps(before["components"][0]))
+        current = target.expected_manifest(REVISION)
+        current_component = json.loads(json.dumps(current["components"][0]))
+        current_component.pop("health")
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION,
+                "linux/amd64",
+                Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            driver._source_root = target.REPOSITORY
+            driver._active_revision = REVISION
+            with patch.object(target, "_command") as command, self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_health_probe_failed",
+            ):
+                driver.public_health(
+                    current_component,
+                    "initial",
+                    REVISION,
+                    current["manifestDigest"],
+                    "linux/amd64",
+                )
+            command.assert_not_called()
+
+        for health in (
+            None,
+            {},
+            {"profile": "jellyfin_public", "path": "/health", "port": 8097},
+        ):
+            with self.subTest(health=health), tempfile.TemporaryDirectory() as temporary:
+                changed = json.loads(json.dumps(component))
+                changed["health"] = health
+                driver = target.DockerDriver(
+                    REVISION,
+                    "linux/amd64",
+                    Path(temporary) / "ownership.json",
+                    operation_id="f" * 32,
+                )
+                driver._base_root = Path(temporary) / "archived-source"
+                driver._base_root.mkdir()
+                driver._source_root = driver._base_root
+                driver._active_revision = LEGACY_REVISION
+                with patch.object(target, "_command") as command, self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_health_probe_failed",
+                ):
+                    driver.public_health(
+                        changed,
+                        "initial",
+                        LEGACY_REVISION,
+                        before["manifestDigest"],
+                        "linux/amd64",
+                    )
+                command.assert_not_called()
+
+        catalog = json.loads(target._git_blob(
+            LEGACY_REVISION,
+            "server/larenor_server/plugins/packagedcatalog.json",
+        ))
+        catalog["entries"][0]["health"]["port"] += 1
+        drifted = json.dumps(catalog, separators=(",", ":")).encode("ascii")
+        duplicate = drifted.replace(
+            b'"health":{',
+            b'"health":{},"health":{',
+            1,
+        )
+        for catalog_payload in (drifted, duplicate):
+            with self.subTest(catalog_payload=catalog_payload[:32]), \
+                    tempfile.TemporaryDirectory() as temporary:
+                driver = target.DockerDriver(
+                    REVISION,
+                    "linux/amd64",
+                    Path(temporary) / "ownership.json",
+                    operation_id="f" * 32,
+                )
+                driver._base_root = Path(temporary) / "archived-source"
+                driver._base_root.mkdir()
+                driver._source_root = driver._base_root
+                driver._active_revision = LEGACY_REVISION
+                real_blob = target._git_blob
+
+                def blob(revision, name, **kwargs):
+                    if name == "server/larenor_server/plugins/packagedcatalog.json":
+                        return catalog_payload
+                    return real_blob(revision, name, **kwargs)
+
+                with patch.object(target, "_git_blob", side_effect=blob), patch.object(
+                    target,
+                    "_command",
+                ) as command, self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_health_probe_failed",
+                ):
+                    driver.public_health(
+                        component,
+                        "initial",
+                        LEGACY_REVISION,
+                        before["manifestDigest"],
+                        "linux/amd64",
+                    )
+                command.assert_not_called()
+
+    def test_embedded_public_probe_enforces_each_profile_and_response_bound(self):
+        class Response:
+            def __init__(self, status, headers, body):
+                self.status = status
+                self.headers = headers
+                self.body = body
+
+            def getheader(self, name):
+                return self.headers.get(name)
+
+            def read(self, amount):
+                return self.body[:amount]
+
+        class Connection:
+            selected = None
+
+            def __init__(self, host, port, timeout):
+                self.request_value = (host, port, timeout)
+
+            def request(self, method, path, headers):
+                self.request_value += (method, path, headers)
+
+            def getresponse(self):
+                return self.selected
+
+            def close(self):
+                pass
+
+        seerr_body = json.dumps({
+            "initialized": False, "applicationTitle": "Seerr", "mediaServerType": 2,
+            "publicSettings": "x" * 300,
+        }, separators=(",", ":")).encode("ascii")
+        music_body = json.dumps({
+            "server_id": "local", "server_version": "2.10.4", "schema_version": 65,
+            "base_url": "http://music/" + "x" * 300,
+        }, separators=(",", ":")).encode("ascii")
+        self.assertGreater(len(seerr_body), 256)
+        self.assertGreater(len(music_body), 256)
+        accepted = {
+            "jellyfin_public": ("jellyfin", "8096", "/health", "text/plain",
+                                b"Healthy"),
+            "seerr_public": (
+                "seerr", "5055", "/api/v1/settings/public", "application/json",
+                seerr_body),
+            "sonarr_public": (
+                "sonarr", "8989", "/ping", "application/json", b'{"status":"OK"}'),
+            "radarr_public": (
+                "radarr", "7878", "/ping", "application/json", b'{"status":"OK"}'),
+            "qbittorrent_web": (
+                "qbittorrent", "8080", "/", "text/html", b"<html>qBittorrent</html>"),
+            "music_assistant_info": (
+                "host.docker.internal", "8095", "/info", "application/json",
+                music_body),
+        }
+        for profile, (host, port, path, content_type, body) in accepted.items():
+            with self.subTest(profile=profile):
+                Connection.selected = Response(200, {
+                    "Content-Type": content_type, "Content-Length": str(len(body)),
+                }, body)
+                output = io.StringIO()
+                with patch("http.client.HTTPConnection", Connection), patch.object(
+                        sys, "argv", ["probe", profile, host, port, path]), contextlib.redirect_stdout(
+                            output):
+                    exec(target._PUBLIC_HEALTH_PROBE, {})
+                self.assertEqual(output.getvalue(), "healthy\n")
+
+        rejected = (
+            Response(302, {"Location": "/next", "Content-Length": "1"}, b"x"),
+            Response(200, {"Content-Type": "application/json",
+                           "Content-Length": "65537"}, b"{}"),
+            Response(200, {"Content-Type": "application/json"}, b"x" * 65537),
+        )
+        for response in rejected:
+            Connection.selected = response
+            with self.subTest(status=response.status), patch(
+                    "http.client.HTTPConnection", Connection), patch.object(
+                        sys, "argv", ["probe", "sonarr_public", "sonarr", "8989", "/ping"]):
+                with self.assertRaises(SystemExit):
+                    exec(target._PUBLIC_HEALTH_PROBE, {})
+
     def test_cleanup_removes_only_the_exact_receipt_owned_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "owned-root"
             receipt = Path(temporary) / "ownership.json"
             operation_id = "d" * 32
+            root.mkdir()
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
             receipt.write_text(json.dumps({
                 "schemaVersion": 1, "operationId": operation_id,
                 "sourceCommit": REVISION, "root": str(root),
+                "rootDevice": identity.st_dev, "rootInode": identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
                 "projectName": "larenor-native-" + operation_id,
             }))
-            root.mkdir()
-            (root / target.MARKER).write_text(operation_id + "\n")
+            receipt.chmod(0o600)
             (root / "data").mkdir()
+            (backups / "backup-private-state").write_text("retain-until-cleanup\n")
+            (rollback / "rollback-private-state").write_text("retain-until-cleanup\n")
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)
             self.assertFalse(root.exists())
+            self.assertFalse(backups.exists())
+            self.assertFalse(rollback.exists())
             self.assertEqual(command.call_count, 1)
             arguments = command.call_args.args[0]
             self.assertEqual(arguments[arguments.index("--project-name") + 1],
                              "larenor-native-" + operation_id)
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 target.cleanup_owned(receipt, REVISION)
             command.assert_not_called()
 
             root.mkdir()
-            (root / target.MARKER).write_text("e" * 32 + "\n")
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            (root / "replacement-private-state").write_text("retain\n")
             with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
                     target, "_command", return_value=(0, b"")) as command:
                 with self.assertRaisesRegex(target.ManagedStackCIError,
                                             "unified_cleanup_not_owned"):
                     target.cleanup_owned(receipt, REVISION)
             self.assertTrue(root.exists())
+            self.assertTrue((root / "replacement-private-state").exists())
             command.assert_not_called()
+
+    def test_cleanup_rejects_mutable_external_ownership_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            root.mkdir()
+            identity = root.stat()
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            external = [backups.stat(), rollback.stat()]
+            operation_id = "d" * 32
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": identity.st_dev,
+                "rootInode": identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o666)
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            self.assertTrue(root.exists())
+            command.assert_not_called()
+
+    def test_cleanup_rejects_replaced_external_owned_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            operation_id = "d" * 32
+            root_identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": root_identity.st_dev,
+                "rootInode": root_identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o600)
+            displaced = backups.with_name(backups.name + "-displaced")
+            backups.rename(displaced)
+            backups.mkdir()
+            (backups / "foreign").write_text("preserve\n")
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            command.assert_not_called()
+            self.assertTrue(root.exists())
+            self.assertTrue(backups.exists())
+            self.assertTrue((backups / "foreign").exists())
+            self.assertTrue(displaced.exists())
+            self.assertTrue(rollback.exists())
+
+    def test_cleanup_rejects_external_owned_root_mode_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            operation_id = "d" * 32
+            root_identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": root_identity.st_dev,
+                "rootInode": root_identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o600)
+            backups.chmod(0o777)
+            (backups / "foreign").write_text("preserve\n")
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            command.assert_not_called()
+            self.assertTrue(root.exists())
+            self.assertTrue((backups / "foreign").exists())
+            self.assertTrue(rollback.exists())
+
+    def test_cleanup_bounds_tree_inventory_before_docker_or_deletion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "owned-root"
+            backups = root.parent / (root.name + "-backups")
+            rollback = root.parent / (root.name + "-rollback")
+            root.mkdir()
+            backups.mkdir()
+            rollback.mkdir()
+            for path in (root, backups, rollback):
+                path.chmod(0o700)
+            for index in range(3):
+                (root / f"entry-{index}").write_text("preserve\n")
+            operation_id = "d" * 32
+            root_identity = root.stat()
+            external = [backups.stat(), rollback.stat()]
+            receipt = Path(temporary) / "ownership.json"
+            receipt.write_text(json.dumps({
+                "schemaVersion": 1,
+                "operationId": operation_id,
+                "sourceCommit": REVISION,
+                "root": str(root),
+                "rootDevice": root_identity.st_dev,
+                "rootInode": root_identity.st_ino,
+                "externalRoots": [
+                    {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
+                    for path, info in zip((backups, rollback), external)
+                ],
+                "projectName": "larenor-native-" + operation_id,
+            }))
+            receipt.chmod(0o600)
+
+            with patch.object(target, "ROOT", root), patch.object(
+                    target, "OWNED_UID", os.geteuid(), create=True), patch.object(
+                    target, "MAX_CLEANUP_ENTRIES", 2, create=True), patch.object(
+                    target, "_command", return_value=(0, b"")) as command:
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_cleanup_not_owned",
+                ):
+                    target.cleanup_owned(receipt, REVISION)
+
+            command.assert_not_called()
+            self.assertEqual(
+                {path.name for path in root.iterdir()},
+                {"entry-0", "entry-1", "entry-2"},
+            )
+            self.assertTrue(backups.exists())
+            self.assertTrue(rollback.exists())
 
     def test_receipt_verifier_rejects_private_extra_or_optimistic_readiness(self):
         value = target.run_native(REVISION, "linux/amd64", FakeDriver())
+        wrong_profile = json.loads(json.dumps(value))
+        wrong_profile["services"]["jellyfin"]["initialPublicHealth"]["profile"] = (
+            "seerr_public")
+        wrong_platform = json.loads(json.dumps(value))
+        wrong_platform["services"]["seerr"]["restartPublicHealth"]["platform"] = (
+            "linux/arm64")
         for changed in (
             value | {"privateToken": "never"},
             value | {"serviceState": "verified"},
             value | {"cleanupState": "planned"},
             value | {"acceptanceSourceHashes": {}},
+            value | {"schemaVersion": True},
+            value | {"composeConfigDigest": True},
+            value | {"ownershipReceiptDigest": []},
+            wrong_profile,
+            wrong_platform,
         ):
-            with self.assertRaises(target.ManagedStackCIError):
+            with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid"):
                 target.validate_receipt(changed, REVISION, "linux/amd64")
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "receipt.json"
