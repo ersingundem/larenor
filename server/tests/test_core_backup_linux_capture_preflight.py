@@ -132,6 +132,42 @@ class System:
         self.closed.append(descriptor)
 
 
+class BtrfsSubvolumeAliasSystem(System):
+    def __init__(self, root, source):
+        super().__init__(root)
+        info = source.stat()
+        self.source_inode = info.st_ino
+        self.source_device = info.st_dev + 1
+
+    def _alias(self, value):
+        if value.st_ino != self.source_inode:
+            return value
+        return SimpleNamespace(
+            st_mode=value.st_mode,
+            st_dev=self.source_device,
+            st_ino=value.st_ino,
+            st_uid=value.st_uid,
+            st_gid=value.st_gid,
+        )
+
+    def path_info(self, path):
+        return self._alias(super().path_info(path))
+
+    def descriptor_info(self, descriptor):
+        return self._alias(super().descriptor_info(descriptor))
+
+    def observe_mount(self, descriptor, deadline):
+        observed = super().observe_mount(descriptor, deadline)
+        if observed.directory_identity[1] != self.source_inode:
+            return observed
+        return MountObservation(
+            observed.mount,
+            (self.source_device, *observed.directory_identity[1:]),
+            observed.namespace_identity,
+            observed.process_root_identity,
+        )
+
+
 def test_preflight_returns_exact_secret_free_btrfs_capability(tmp_path):
     root = tmp_path / "private-capture-root"
     root.mkdir(mode=0o700)
@@ -280,6 +316,29 @@ def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
         capability,
         time.monotonic() + 2,
     )
+    preflight.close()
+
+
+def test_btrfs_subvolume_device_alias_retains_same_mount_and_exact_source(tmp_path):
+    root = tmp_path / "capture-root"
+    source = tmp_path / "source-subvolume"
+    root.mkdir(mode=0o700)
+    source.mkdir()
+    system = BtrfsSubvolumeAliasSystem(root, source)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+    source_info = system.path_info(source)
+
+    assert source_info.st_dev != capability.capture_device
+    with preflight.retain_source(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    ) as descriptor:
+        assert system.descriptor_info(descriptor).st_dev == source_info.st_dev
+
     preflight.close()
 
 
