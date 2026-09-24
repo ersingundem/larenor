@@ -267,7 +267,9 @@ class UpgradeDriver(FakeDriver):
         self._call("private_state")
         self.private_reads += 1
         value = copy.deepcopy(self.private_receipts)
-        if self.private_drift == "digest" and self.private_reads > 1:
+        if self.private_drift == "omit_always":
+            value.pop()
+        elif self.private_drift == "digest" and self.private_reads > 1:
             value[0]["digest"] = "8" * 64
         elif self.private_drift == "missing" and self.private_reads > 1:
             value.pop()
@@ -459,7 +461,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertNotIn("/var/lib", encoded)
         self.assertNotRegex(encoded, r"token|password|credential|authorization")
 
-        for drift in ("digest", "missing"):
+        for drift in ("digest", "missing", "omit_always"):
             with self.subTest(drift=drift), self.assertRaisesRegex(
                 target.ManagedStackCIError,
                 "unified_private_state_changed",
