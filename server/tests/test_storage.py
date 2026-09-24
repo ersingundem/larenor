@@ -1,4 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
+import copy
+import json
 import os
 from pathlib import Path
 import stat
@@ -229,9 +231,8 @@ def test_vault_envelope_privacy_and_version_validation(server, mutation):
 
 
 def _scoped_dashboard_document(*, source="verifiedCore"):
-    data = document()
-    data["snapshot"]["version"] = 3
-    data["snapshot"]["groups"]["dashboard"] = {"schemaVersion": 2, "rooms": [], "tiles": []}
+    fixture = Path(__file__).parents[2] / "contracts/server-vault-dashboard-owner.v3.json"
+    data = copy.deepcopy(json.loads(fixture.read_text()))
     owner = {"source": source}
     if source == "verifiedCore":
         owner["scope"] = {
@@ -241,6 +242,22 @@ def _scoped_dashboard_document(*, source="verifiedCore"):
         }
     data["snapshot"]["groups"]["dashboardOwner"] = owner
     return data
+
+
+def test_vault_v3_shared_compatibility_fixture_round_trips(server):
+    _app, client, _, _ = server
+    pair = ready(server)
+    fixture = Path(__file__).parents[2] / "contracts/server-vault-dashboard-owner.v3.json"
+    data = json.loads(fixture.read_text())
+
+    response = client.put(
+        "/api/v1/vault",
+        headers=auth(pair),
+        json={"expectedRevision": 0, "document": data},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"revision": 1, "document": data}
 
 
 @pytest.mark.parametrize("source", ["directLocal", "verifiedCore"])

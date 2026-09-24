@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "snapshot": {
+    "version": 3,
+    "createdAt": "2026-09-24T00:00:00Z",
+    "groups": {
+      "privacy": {
+        "version": 1,
+        "entityIds": [],
+        "reviewRequired": true
+      },
+      "dashboard": {
+        "schemaVersion": 2,
+        "rooms": [],
+        "tiles": [],
+        "favoriteEntityIds": [],
+        "hiddenEntityIds": [],
+        "entityCardSizes": {},
+        "serviceCardSizes": {}
+      },
+      "dashboardOwner": {
+        "source": "verifiedCore",
+        "scope": {
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "userId": "fixture-user"
+        }
+      }
+    }
+  }
+}
