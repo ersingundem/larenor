@@ -1388,7 +1388,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
 
         wrapped = target._NativeAcceptanceHostFacts(
             raw,
-            capacity_floor_mib=manifest["requiredDiskMiB"],
+            requirements=manifest["ownedPaths"],
         )
         with_fixture = planner.preflight(bundle, "install", wrapped)
         self.assertTrue(with_fixture["ready"])
@@ -1412,7 +1412,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
 
         dirty = target._NativeAcceptanceHostFacts(
             HostFacts(clean=False),
-            capacity_floor_mib=manifest["requiredDiskMiB"],
+            requirements=manifest["ownedPaths"],
         )
         self.assertFalse(planner.preflight(bundle, "install", dirty)["ready"])
         for mutation in (
@@ -1424,7 +1424,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 hostile = target._NativeAcceptanceHostFacts(
                     HostFacts(mutation=mutation),
-                    capacity_floor_mib=manifest["requiredDiskMiB"],
+                    requirements=manifest["ownedPaths"],
                 )
                 self.assertFalse(
                     planner.preflight(bundle, "install", hostile)["ready"])
@@ -1449,6 +1449,62 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     reviewed_head=CURRENT_REVISION,
                     expected_recovery="not_required",
                 )
+
+    def test_native_capacity_fixture_floors_each_real_device_independently(self):
+        bundle = target._revision_contract(CURRENT_REVISION)
+        manifest = bundle["deploymentManifest"]
+        requirements = {
+            item["path"]: item for item in manifest["ownedPaths"]
+        }
+        external = {manifest["backupTarget"], manifest["rollbackTarget"]}
+
+        class SplitDeviceFacts:
+            def architecture(self):
+                return "amd64"
+
+            def installation(self):
+                return None
+
+            def clean(self, paths):
+                return True
+
+            def inspect(self, path):
+                item = requirements[path]
+                return {
+                    "kind": "directory",
+                    "ownerUid": item["ownerUid"],
+                    "mode": 0o700,
+                    "device": 8 if path in external else 7,
+                    "availableMiB": 1,
+                }
+
+        expected_by_device = {
+            7: sum(item["requiredMiB"] for item in manifest["ownedPaths"]
+                   if item["path"] not in external),
+            8: sum(item["requiredMiB"] for item in manifest["ownedPaths"]
+                   if item["path"] in external),
+        }
+        self.assertEqual(expected_by_device, {7: 49152, 8: 98304})
+        wrapped = target._NativeAcceptanceHostFacts(
+            SplitDeviceFacts(),
+            requirements=manifest["ownedPaths"],
+        )
+        for path in requirements:
+            observed = wrapped.inspect(path)
+            expected_device = 8 if path in external else 7
+            self.assertEqual(observed["device"], expected_device)
+            self.assertEqual(
+                observed["availableMiB"], expected_by_device[expected_device])
+
+        driver = target.DockerDriver(
+            CURRENT_REVISION,
+            "linux/amd64",
+            Path("/tmp/native-capacity-owner.json"),
+            operation_id="1" * 32,
+        )
+        self.assertTrue(
+            driver._deployment_planner().preflight(
+                bundle, "install", wrapped)["ready"])
 
 
 if __name__ == "__main__":
