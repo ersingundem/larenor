@@ -6,11 +6,18 @@ on:
       - ".github/workflows/component-capture-native.yml"
       - "server/larenor_server/core_backups/component_isolated_capture.py"
       - "server/larenor_server/core_backups/component_linux_capture_preflight.py"
+      - "server/larenor_server/core_backups/component_snapshot_provider.py"
+      - "server/larenor_server/core_backups/component_worker.py"
       - "server/larenor_server/core_backups/component_worker_runtime.py"
+      - "server/larenor_server/core_backups/component_worker_server.py"
+      - "server/larenor_server/core_backups/service.py"
       - "server/tests/test_core_backup_linux_cow_capture.py"
       - "server/tests/test_core_backup_linux_capture_preflight.py"
       - "server/tests/test_core_backup_linux_cow_capture_native.py"
       - "server/tests/test_core_backup_component_worker_runtime.py"
+      - "server/tests/test_core_backup_component_isolated_capture.py"
+      - "server/tests/test_core_backup_component_worker_server.py"
+      - "server/tests/test_core_backup_components.py"
       - "tool/tests/component_capture_native_workflow_test.py"
       - "server/pyproject.toml"
       - "server/uv.lock"
@@ -86,7 +93,10 @@ jobs:
             PYTHONPATH="$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE/server/tests" \
             LARENOR_NATIVE_CAPTURE_ROOT="$LARENOR_NATIVE_CAPTURE_ROOT" \
             "$GITHUB_WORKSPACE/server/.venv/bin/python" -B -m pytest -q \
-            server/tests/test_core_backup_linux_cow_capture_native.py
+            server/tests/test_core_backup_linux_cow_capture_native.py \
+            server/tests/test_core_backup_component_isolated_capture.py \
+            server/tests/test_core_backup_component_worker_server.py \
+            server/tests/test_core_backup_components.py
           "$GITHUB_WORKSPACE/server/.venv/bin/larenor-component-backup-worker" \
             --check-platform
       - name: Unmount ephemeral fixture
