@@ -264,6 +264,8 @@ class UpgradeDriver(FakeDriver):
         self.state.runtime_receipts.append(
             copy.deepcopy(self.state.effect["runtimeReceipt"])
         )
+        self.state.journal["currentEffect"] = copy.deepcopy(self.state.effect)
+        self.state.journal["privateState"] = copy.deepcopy(self.private_receipts)
         if self.interrupt_at == "install_power_loss":
             raise PowerLoss()
         if self.interrupt_at == "install_after":
@@ -295,32 +297,34 @@ class UpgradeDriver(FakeDriver):
             "targetRevision": revision,
             "rootIdentity": self.state.root_identity,
         }
-        if operation == "upgrade":
-            current_effect = None
-            if (
-                isinstance(self.state.effect, dict)
-                and self.state.effect.get("installationReceipt", {}).get(
-                    "sourceRevision"
-                )
-                == revision
-            ):
-                current_effect = copy.deepcopy(self.state.effect)
-            value.update(
-                {
-                    "baseEffect": {
+        current_effect = None
+        if (
+            isinstance(self.state.effect, dict)
+            and self.state.effect.get("installationReceipt", {}).get(
+                "sourceRevision"
+            )
+            == revision
+        ):
+            current_effect = copy.deepcopy(self.state.effect)
+        value.update(
+            {
+                "baseEffect": (
+                    {
                         "installationReceipt": copy.deepcopy(self.state.stored),
                         "runtimeReceipt": copy.deepcopy(
                             self.state.runtime_receipts[0]
                         ),
-                    },
-                    "currentEffect": current_effect,
-                    "privateState": copy.deepcopy(self.private_receipts),
-                }
-            )
+                    }
+                    if operation == "upgrade"
+                    else None
+                ),
+                "currentEffect": current_effect,
+                "privateState": copy.deepcopy(self.private_receipts),
+            }
+        )
         return value
 
-    def reconcile_upgrade(self, revision, operation):
-        self._call("reconcile:" + operation + ":" + revision)
+    def _observed_journal(self):
         journal = copy.deepcopy(self.state.journal)
         if self.journal_drift == "bool_schema":
             journal["schemaVersion"] = True
@@ -328,6 +332,25 @@ class UpgradeDriver(FakeDriver):
             journal["targetRevision"] = "f" * 40
         elif self.journal_drift == "foreign_root":
             journal["rootIdentity"] = "root-" + "8" * 59
+        return journal
+
+    def recovery_operation(self):
+        self._call("recovery_operation")
+        if self.state.journal is None:
+            return None
+        journal = self._observed_journal()
+        if (
+            not isinstance(journal, dict)
+            or type(journal.get("schemaVersion")) is not int
+            or journal.get("schemaVersion") != 1
+            or journal.get("operation") not in {"install", "upgrade"}
+        ):
+            raise RuntimeError("invalid durable journal")
+        return journal["operation"]
+
+    def reconcile_upgrade(self, revision, operation):
+        self._call("reconcile:" + operation + ":" + revision)
+        journal = self._observed_journal()
         if not isinstance(journal, dict) or type(journal.get("schemaVersion")) is not int:
             return None
         expected = self._journal(operation, revision)
@@ -369,6 +392,11 @@ class UpgradeDriver(FakeDriver):
         self.state.stored = copy.deepcopy(receipt)
         self.state.persisted.append(copy.deepcopy(receipt))
         self.state.journal = None
+        if (
+            self.interrupt_at == "base_receipt_power_loss"
+            and receipt["sourceRevision"] == BASE_REVISION
+        ):
+            raise PowerLoss()
 
     def installation_receipt(self):
         self._call("installation_receipt")
@@ -739,6 +767,126 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         )
         self.assertIsNone(state.journal)
         self.assertEqual(restarted.calls[-1], "cleanup")
+
+    def test_install_power_loss_restarts_from_durable_journal_without_replay(self):
+        state = DurableUpgradeState()
+        crashed = UpgradeDriver(state=state, interrupt_at="install_power_loss")
+        with self.assertRaises(PowerLoss):
+            self.run_upgrade(crashed)
+
+        self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 0})
+        self.assertIsNone(state.stored)
+        self.assertEqual(
+            state.journal,
+            crashed._journal("install", BASE_REVISION),
+        )
+        durable_private = copy.deepcopy(state.journal["privateState"])
+
+        restarted = UpgradeDriver(state=state)
+        restarted.private_receipts = copy.deepcopy(durable_private)
+        result = self.run_upgrade(restarted)
+
+        self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 1})
+        self.assertEqual(
+            [item["sourceRevision"] for item in state.persisted],
+            [BASE_REVISION, CURRENT_REVISION],
+        )
+        self.assertEqual(state.stored["sourceRevision"], CURRENT_REVISION)
+        self.assertIsNone(state.journal)
+        self.assertIn(
+            "reconcile:install:" + BASE_REVISION,
+            restarted.calls,
+        )
+        self.assertEqual(
+            len(
+                [
+                    item
+                    for item in crashed.calls + restarted.calls
+                    if item.startswith("apply_install:")
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(
+            len(
+                [
+                    item
+                    for item in crashed.calls + restarted.calls
+                    if item.startswith("apply_upgrade:")
+                ]
+            ),
+            1,
+        )
+        self.assertEqual(
+            result["installationPhases"][0]["runtimeReceiptDigest"],
+            _digest(state.runtime_receipts[0]),
+        )
+        self.assertEqual(restarted.private_receipts, durable_private)
+        self.assertEqual(restarted.calls[-1], "cleanup")
+
+    def test_base_receipt_commit_power_loss_resumes_upgrade_without_reinstall(self):
+        state = DurableUpgradeState()
+        crashed = UpgradeDriver(
+            state=state,
+            interrupt_at="base_receipt_power_loss",
+        )
+        with self.assertRaises(PowerLoss):
+            self.run_upgrade(crashed)
+
+        self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 0})
+        self.assertEqual(state.stored["sourceRevision"], BASE_REVISION)
+        self.assertEqual(
+            [item["sourceRevision"] for item in state.persisted],
+            [BASE_REVISION],
+        )
+        self.assertIsNone(state.journal)
+        durable_private = copy.deepcopy(crashed.private_receipts)
+
+        restarted = UpgradeDriver(state=state)
+        restarted.private_receipts = copy.deepcopy(durable_private)
+        result = self.run_upgrade(restarted)
+
+        self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 1})
+        self.assertEqual(
+            [item["sourceRevision"] for item in state.persisted],
+            [BASE_REVISION, CURRENT_REVISION],
+        )
+        self.assertNotIn("apply_install:" + BASE_REVISION, restarted.calls)
+        self.assertEqual(
+            restarted.calls.count("apply_upgrade:" + CURRENT_REVISION),
+            1,
+        )
+        self.assertEqual(result["sourceCommit"], CURRENT_REVISION)
+        self.assertEqual(restarted.calls[-1], "cleanup")
+
+    def test_malformed_install_journal_preserves_state_without_cleanup(self):
+        crashed_state = DurableUpgradeState()
+        crashed = UpgradeDriver(
+            state=crashed_state,
+            interrupt_at="install_power_loss",
+        )
+        with self.assertRaises(PowerLoss):
+            self.run_upgrade(crashed)
+
+        for drift in ("bool_schema", "foreign_target", "foreign_root"):
+            with self.subTest(drift=drift):
+                state = copy.deepcopy(crashed_state)
+                before_journal = copy.deepcopy(state.journal)
+                before_private = copy.deepcopy(crashed.private_receipts)
+                restarted = UpgradeDriver(state=state, journal_drift=drift)
+                restarted.private_receipts = copy.deepcopy(before_private)
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_install_reconcile_failed",
+                ):
+                    self.run_upgrade(restarted)
+                self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 0})
+                self.assertIsNone(state.stored)
+                self.assertEqual(state.journal, before_journal)
+                self.assertEqual(restarted.private_receipts, before_private)
+                self.assertNotIn("cleanup", restarted.calls)
+                self.assertNotIn("apply_install:" + BASE_REVISION, restarted.calls)
+                self.assertNotIn("apply_upgrade:" + CURRENT_REVISION, restarted.calls)
 
     def test_malformed_foreign_or_root_drifted_journal_never_replays_effect(self):
         crashed_state = DurableUpgradeState()
