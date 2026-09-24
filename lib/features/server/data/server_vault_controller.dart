@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../../core/home_data_scope.dart';
+import '../../../core/home_source_store.dart';
 import '../../backup/data/backup_repository.dart';
 import '../../backup/data/backup_restore_access.dart';
 import '../../backup/data/backup_snapshot.dart';
@@ -30,11 +32,18 @@ class ServerVaultReview {
 }
 
 class _VaultIntent {
-  _VaultIntent(this.review, this.snapshot, this.epoch, this.prepared);
+  _VaultIntent(
+    this.review,
+    this.snapshot,
+    this.epoch,
+    this.prepared,
+    this.uploadAccess,
+  );
   final ServerVaultReview review;
   final BackupSnapshot snapshot;
   final int epoch;
   final PreparedBackupRestore? prepared;
+  final BackupRestoreAccess? uploadAccess;
 }
 
 /// One visible, unlocked route, bound to one authenticated Server account.
@@ -187,7 +196,9 @@ class ServerVaultController {
             : await _repository.captureAuthorized(selected, access: access),
       );
       _check(epoch);
-      final localPreview = await _repository.preview(local);
+      final localPreview = access == null
+          ? await _repository.preview(local)
+          : await _repository.previewAuthorized(local, access: access);
       _check(epoch);
       final remotePreview = remote == null
           ? null
@@ -207,6 +218,9 @@ class ServerVaultController {
         direction == ServerVaultDirection.upload ? local : remote!,
         epoch,
         prepared,
+        direction == ServerVaultDirection.upload && local.hasDashboard
+            ? access
+            : null,
       );
       return review;
     } catch (_) {
@@ -243,11 +257,68 @@ class ServerVaultController {
     }
   }
 
+  Never _expiredUploadAccess() => throw const BackupException(
+    'restore_expired',
+    'Read the restore preview again.',
+  );
+
+  Future<void> _checkUploadAccess(
+    _VaultIntent intent,
+    ServerVaultReview review,
+  ) async {
+    final access = intent.uploadAccess;
+    if (access == null) return;
+    try {
+      _check(intent.epoch);
+      _checkDeadline(review);
+      access.checkLive();
+      _check(intent.epoch);
+      await access.checkDurable();
+      _check(intent.epoch);
+      _checkDeadline(review);
+      access.checkLive();
+      final snapshotOwner = intent.snapshot.dashboardOwner;
+      final expectedSource =
+          snapshotOwner?['source'] as String? ?? HomeSource.directLocal.name;
+      final ownership = access.ownership;
+      if (access.source.name != expectedSource ||
+          ownership['source'] != expectedSource) {
+        _expiredUploadAccess();
+      }
+      if (expectedSource == HomeSource.directLocal.name) {
+        if (ownership.length != 1 ||
+            snapshotOwner != null && snapshotOwner.length != 1) {
+          _expiredUploadAccess();
+        }
+      } else if (expectedSource == HomeSource.verifiedCore.name) {
+        if (snapshotOwner == null ||
+            snapshotOwner.length != 2 ||
+            ownership.length != 2 ||
+            HomeDataScope.fromJson(snapshotOwner['scope']) !=
+                HomeDataScope.fromJson(ownership['scope'])) {
+          _expiredUploadAccess();
+        }
+      } else {
+        _expiredUploadAccess();
+      }
+      _check(intent.epoch);
+      _checkDeadline(review);
+    } on LarenorServerException {
+      rethrow;
+    } on BackupException {
+      rethrow;
+    } catch (_) {
+      _expiredUploadAccess();
+    }
+  }
+
   Future<void> upload(ServerVaultReview review) async {
     _begin();
     try {
       final intent = _take(review, ServerVaultDirection.upload);
-      await _account.withSession((api, session) {
+      await _checkUploadAccess(intent, review);
+      await _account.withSession((api, session) async {
+        await _checkUploadAccess(intent, review);
         _check(intent.epoch);
         _checkDeadline(review);
         return api.writeVault(

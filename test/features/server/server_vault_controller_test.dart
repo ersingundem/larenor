@@ -242,6 +242,7 @@ void main() {
 
   test('dashboard upload rejects authority retired after review', () async {
     final access = _MutableCoreAccess();
+    api.value = const ServerVault(revision: 7, snapshot: null);
     storage.preferences[_coreScopeA.storageKey] = jsonEncode({
       'version': 1,
       'scope': _coreScopeA.toJson(),
@@ -271,6 +272,7 @@ void main() {
 
   test('dashboard upload rechecks exact owner after durable await', () async {
     final access = _MutableCoreAccess();
+    api.value = const ServerVault(revision: 7, snapshot: null);
     storage.preferences[_coreScopeA.storageKey] = jsonEncode({
       'version': 1,
       'scope': _coreScopeA.toJson(),
@@ -307,6 +309,7 @@ void main() {
     'dashboard upload cancellation during durable recheck sends no PUT',
     () async {
       final access = _MutableCoreAccess();
+      api.value = const ServerVault(revision: 7, snapshot: null);
       storage.preferences[_coreScopeA.storageKey] = jsonEncode({
         'version': 1,
         'scope': _coreScopeA.toJson(),
