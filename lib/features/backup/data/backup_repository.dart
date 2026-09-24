@@ -45,10 +45,34 @@ class BackupRepository {
     required BackupRestoreAccess access,
   }) => _prepareRestore(this, snapshot, selection, conflictPolicy, access);
 
-  Future<BackupSnapshot> capture(
+  Future<BackupSnapshot> capture(BackupSelection selection) =>
+      _capture(selection, null);
+
+  Future<BackupSnapshot> captureAuthorized(
     BackupSelection selection, {
+    required BackupRestoreAccess access,
+  }) async {
+    if (access.source == HomeSource.verifiedCore) {
+      return _capture(selection, access);
+    }
+    access.checkLive();
+    await access.checkDurable();
+    access.checkLive();
+    final owner = Map<String, dynamic>.from(access.ownership);
+    _checkRestoreOwner(owner);
+    if (owner['source'] != HomeSource.directLocal.name) _expiredRestore();
+    final snapshot = await capture(selection);
+    access.checkLive();
+    await access.checkDurable();
+    access.checkLive();
+    if (!_same(owner, access.ownership)) _expiredRestore();
+    return snapshot;
+  }
+
+  Future<BackupSnapshot> _capture(
+    BackupSelection selection,
     BackupRestoreAccess? access,
-  }) => ConfigurationWrites.run(() async {
+  ) => ConfigurationWrites.run(() async {
     if (selection.isEmpty) {
       throw const BackupValidationException(
         'Select at least one backup group.',

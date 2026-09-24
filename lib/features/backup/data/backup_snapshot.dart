@@ -64,14 +64,20 @@ class BackupSnapshot {
     }
   }
   final Map<String, dynamic> _json;
-  int get version => _json['version'] as int;
   DateTime get createdAt => DateTime.parse(_json['createdAt'] as String);
   bool get hasSettings => (_json['groups'] as Map).containsKey('settings');
   bool get hasDashboard => (_json['groups'] as Map).containsKey('dashboard');
   bool get hasConnections =>
       (_json['groups'] as Map).containsKey('connections');
+  Map<String, dynamic> toJson() =>
+      jsonDecode(jsonEncode(_json)) as Map<String, dynamic>;
+}
+
+extension BackupSnapshotDashboardOwnership on BackupSnapshot {
+  int get version => toJson()['version'] as int;
+
   Map<String, dynamic>? get dashboardOwner {
-    final value = (_json['groups'] as Map)['dashboardOwner'];
+    final value = (toJson()['groups'] as Map)['dashboardOwner'];
     return value == null
         ? null
         : Map<String, dynamic>.from(value as Map<String, dynamic>);
@@ -83,9 +89,6 @@ class BackupSnapshot {
         ? HomeDataScope.fromJson(owner!['scope'])
         : null;
   }
-
-  Map<String, dynamic> toJson() =>
-      jsonDecode(jsonEncode(_json)) as Map<String, dynamic>;
 }
 
 /// Only counts and fixed service identifiers: never addresses, users or tokens.

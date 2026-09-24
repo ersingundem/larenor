@@ -118,7 +118,7 @@ void main() {
         },
       );
       final repository = BackupRepository(storage: storage);
-      final snapshot = await repository.capture(
+      final snapshot = await repository.captureAuthorized(
         _selection,
         access: _Access(_scopeA),
       );
@@ -193,7 +193,7 @@ void main() {
         },
       );
       final repository = BackupRepository(storage: storage);
-      final snapshot = await repository.capture(
+      final snapshot = await repository.captureAuthorized(
         _selection,
         access: _Access(_scopeA),
       );
@@ -233,7 +233,7 @@ void main() {
     );
     await expectLater(
       BackupRepository(storage: storage)
-          .capture(_selection, access: _DriftingAccess()),
+          .captureAuthorized(_selection, access: _DriftingAccess()),
       throwsA(
         isA<BackupException>().having(
           (error) => error.code,
@@ -261,7 +261,7 @@ void main() {
         },
       );
       final repository = BackupRepository(storage: storage);
-      final snapshot = await repository.capture(
+      final snapshot = await repository.captureAuthorized(
         _selection,
         access: _Access(_scopeA),
       );

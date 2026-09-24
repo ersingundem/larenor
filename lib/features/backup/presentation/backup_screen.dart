@@ -366,10 +366,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
             )
           : null;
       if (!mounted || generation != _generation || !_current()) return;
-      BackupSnapshot? snapshot = await repository.capture(
-        _selection,
-        access: access,
-      );
+      BackupSnapshot? snapshot = access == null
+          ? await repository.capture(_selection)
+          : await repository.captureAuthorized(_selection, access: access);
       if (!mounted || generation != _generation) return;
       final encrypted = await codec.encrypt(snapshot, passphrase);
       // Do not retain decrypted data while the system picker is open.
