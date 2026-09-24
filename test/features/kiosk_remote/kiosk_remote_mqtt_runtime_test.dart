@@ -269,7 +269,7 @@ void main() {
     expect(executor.calls, ['refreshDashboard']);
   });
 
-  test('out-of-range command deadline is rejected with an exact ack', () async {
+  test('out-of-range command numbers are rejected with exact acks', () async {
     final broker = _Broker();
     final executor = _Executor();
     final subject = _runtime(
@@ -279,6 +279,11 @@ void main() {
       authority: () async => pairing(),
     );
     await subject.start();
+
+    await broker.deliver({...command(), 'sequence': 1 << 80});
+
+    expect(_lastAck(broker)['error'], 'invalid_mqtt_command');
+    expect(executor.calls, isEmpty);
 
     await broker.deliver({...command(), 'expiresAt': 1e100});
 

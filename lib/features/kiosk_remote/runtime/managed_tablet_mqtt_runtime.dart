@@ -591,6 +591,7 @@ final class ManagedTabletMqttRuntime {
   ({String requestId, int sequence, String kind, DateTime expiresAt})? _parse(
     Map<String, dynamic> body,
   ) {
+    final expiresAtSeconds = body['expiresAt'];
     if (body.keys.toSet().difference(const {
           'schemaVersion',
           'requestId',
@@ -611,8 +612,14 @@ final class ManagedTabletMqttRuntime {
           'syncProfile',
           'lockKiosk',
         }.contains(body['kind']) ||
-        body['expiresAt'] is! num ||
-        !(body['expiresAt'] as num).isFinite) {
+        expiresAtSeconds is! num ||
+        !expiresAtSeconds.isFinite) {
+      return null;
+    }
+    final expiresAtMilliseconds = expiresAtSeconds * 1000;
+    if (!expiresAtMilliseconds.isFinite ||
+        expiresAtMilliseconds < -8640000000000000 ||
+        expiresAtMilliseconds > 8640000000000000) {
       return null;
     }
     return (
@@ -620,7 +627,7 @@ final class ManagedTabletMqttRuntime {
       sequence: body['sequence'] as int,
       kind: body['kind'] as String,
       expiresAt: DateTime.fromMillisecondsSinceEpoch(
-        ((body['expiresAt'] as num) * 1000).round(),
+        expiresAtMilliseconds.round(),
         isUtc: true,
       ),
     );
