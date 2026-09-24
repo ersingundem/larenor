@@ -1,10 +1,10 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`db05532b`**, K07 kabul
-kaynağı **`0a6c2b29`** commitidir. S08.8, K07, S09.1 ve K03 teslimlerini kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`21272df4`**, S09.1 kabul
+kaynağı **`e8425320`** commitidir. S08.8, K07, S09.1 ve K03 teslimlerini kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **29/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **30/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -65,39 +65,40 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   `35953408908` ve bağımsız P1/P2 review geçti; K07 yazılım kabulü kapandı ve
   sayaç 29/125 oldu. Huawei/DeX/TalkBack/OEM/DPC, gerçek broker kurulumu ve cihaz
   ölçümleri MANUAL kalır.
+- PR #482 exact `e8425320` kaynağında DB, vault key, yapılandırma ve managed
+  component payloadlarını tek immutable capture generation altında topladı;
+  Client export aynı generation receipt'i ve stream digest'i doğrulanmadan
+  destination'ı yayımlamıyor. Native CI `35952609533` amd64/arm64 geçti,
+  bağımsız P1/P2 review blocker bulmadı ve stable patch-id'ler main
+  `21272df4` üzerine restack sırasında değişmedi. S09.1 kapandı; sayaç 30/125.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S09.1:** Kalıcı kurulum otoritesi, Docker pause/adaptör ve generation-bound
-   read-only/COW capture lease main'de. Privileged Linux capture engine,
-   amd64/arm64 native kabulü ve DB/ayrı anahtar/yapılandırma/bileşen
-   veri+sürümlerinin aynı tutarlı generation içinde arşiv kanıtı kalır.
-2. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
+1. **S09.2–S09.3:** S09.2 yanlış parola, kesik, bozuk imzalı ve uyumsuz
    yedeklerde sıfır kısmi kabul ile boş izole ortamda anahtar/veri/bağlantı geri
    okuma, yeniden başlatma ve kurtarma zincirini; S09.3 amd64/arm64 temiz
    kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
    üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
-3. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
+2. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
    döngüsü, anonymous owned alt-kaynak transportu ve document-start dynamic
    egress; K07 secure enrollment, TLS MQTT ve bounded native/profile komutları
    yazılım kabulünü tamamladı. Fiziksel Android/Huawei/DeX/TalkBack/OEM, DPC,
    gerçek broker kurulumu, force-stop ve çevre birimi kanıtları ayrı manuel
    kapıdır.
-4. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
+3. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
    F60 paketlenmiş yayın motorunu, F46–F49 üretim adaptörlerini bekliyor.
-5. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
+4. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
    ekran görüntüleri, README, imzalı güncelleme ve CasaOS/Proxmox kurulumu son
    yazılım kapılarından sonra yapılır.
 
-## Sıradaki üç bağımsız yazılım hattı
+## Sıradaki iki bağımsız yazılım hattı
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S09.1 | Capture lease'i kullanan privileged Linux engine'i ve tam arşiv generation'ını uygula. | DB/anahtar/yapılandırma/bileşen veri+sürümü aynı generation; işlem kesilme/şema/sürüm, amd64/arm64 native kabul ve yedek izolasyonu |
-| B — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
-| C — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme ve Client preflight aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
+| A — S09.2 | İzole restore staging, post-commit authority/deadline reconciliation ve durable restart cleanup zincirini tamamla. | Yanlış parola, kesik/bozuk imza, sürüm/şema uyuşmazlığı ve kesinti sıfır kısmi kabul; S09.3 clean-install ayrı kalır |
+| B — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme ve Client preflight aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük

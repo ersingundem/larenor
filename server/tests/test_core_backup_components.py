@@ -6,7 +6,6 @@ from dataclasses import replace
 
 import pytest
 from conftest import auth, ready
-
 from larenor_server.core_backups.restore import _validate_capture
 from larenor_server.core_backups.service import (
     ComponentVolumeSnapshot,

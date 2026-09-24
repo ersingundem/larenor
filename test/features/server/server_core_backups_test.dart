@@ -377,7 +377,7 @@ Map<String, String> exportHeaders({
       'attachment; filename="larenor-core-backup.larenor-core"',
   'cache-control': 'no-store',
   'x-content-type-options': 'nosniff',
-  if (generation != null) 'x-larenor-capture-generation': generation,
+  'x-larenor-capture-generation': ?generation,
 };
 
 LarenorServerApi directApi(http.Client client, {Duration? timeout}) =>
