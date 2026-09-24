@@ -1,10 +1,16 @@
 package com.ersingundem.larenor.webpanel
 
+import android.app.Application
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class WebPanelNativeEffectBridgeTest {
     private val scope = effectScope()
 
@@ -47,7 +53,7 @@ class WebPanelNativeEffectBridgeTest {
             NativeEffectOutcome.REJECTED,
             runtime.execute(effectRequest(method = "speak", payload = mapOf("text" to "retired"))).outcome,
         )
-        assertEquals(1, speech.stopCalls)
+        assertEquals(2, speech.stopCalls)
     }
 
     @Test

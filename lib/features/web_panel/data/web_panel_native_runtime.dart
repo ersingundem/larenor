@@ -114,7 +114,11 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
          previewIds: previewIds,
          elapsed: elapsed,
        ),
-       _port = port;
+       _port = port {
+    if (port case final WebPanelNativeLifecyclePort lifecycle) {
+      unawaited(lifecycle.bind(_scope));
+    }
+  }
 
   final WebPanelNativePolicy policy;
   final WebPanelNativeAuthorityLease authority;
@@ -256,6 +260,9 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
     _decisionTimer = null;
     cancel();
     _status = WebPanelNativeRuntimeStatus.idle;
+    if (_port case final WebPanelNativeLifecyclePort lifecycle) {
+      unawaited(lifecycle.retire(_scope));
+    }
     _notify();
   }
 

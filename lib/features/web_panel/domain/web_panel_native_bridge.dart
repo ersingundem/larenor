@@ -348,6 +348,14 @@ abstract interface class WebPanelNativeBridgePort {
   );
 }
 
+/// Optional native lifetime fence. The WebPanel runtime calls this before the
+/// first effect and retires the exact bound scope on every route/lifecycle
+/// invalidation. Implementations must treat retirement as terminal.
+abstract interface class WebPanelNativeLifecyclePort {
+  Future<bool> bind(WebPanelBridgeScope scope);
+  Future<void> retire(WebPanelBridgeScope scope);
+}
+
 /// Safe production default while no frame-aware Android adapter is installed.
 final class UnsupportedWebPanelNativeBridgePort
     implements WebPanelNativeBridgePort {
