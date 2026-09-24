@@ -43,6 +43,13 @@ class CapturePreflight:
         self.calls.append("verify")
         return self.capability
 
+    def revalidate(self, capability, deadline):
+        assert time.monotonic() < deadline
+        return capability is self.capability
+
+    def source_retained(self, *_args):
+        return True
+
 
 def initialized_journals(tmp_path):
     containers = tmp_path / "containers"

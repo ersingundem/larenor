@@ -79,6 +79,8 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
         journal,
         backend=backend,
         id_factory=identifiers,
+        capability_preflight=preflight,
+        capture_capability=capability,
     )
 
     leases = engine.capture((source,), time.monotonic() + 10)
@@ -97,6 +99,8 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
         journal,
         backend=_InterruptAfterSnapshot(backend),
         id_factory=iter(("3" * 32, "4" * 32)).__next__,
+        capability_preflight=preflight,
+        capture_capability=capability,
     )
     try:
         interrupted.capture((source,), time.monotonic() + 10)
@@ -105,7 +109,11 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     else:
         raise AssertionError("native capture interruption was not exercised")
     assert journal.is_file()
-    assert LinuxCowCaptureEngine(captures, journal, backend=backend).recover(
-        time.monotonic() + 10
-    )
+    assert LinuxCowCaptureEngine(
+        captures,
+        journal,
+        backend=backend,
+        capability_preflight=preflight,
+        capture_capability=capability,
+    ).recover(time.monotonic() + 10)
     assert list(captures.iterdir()) == []

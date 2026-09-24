@@ -322,3 +322,65 @@ class LinuxBtrfsCapturePreflight:
             return self.verify(deadline) == capability
         except Exception:
             return False
+
+    def source_retained(self, path, device, inode, capability, deadline):
+        """Bind one source directory to the retained capture capability."""
+        descriptor = -1
+        try:
+            raw = str(path) if isinstance(path, Path) else ""
+            if (
+                type(capability) is not LinuxBtrfsCaptureCapability
+                or not isinstance(path, Path)
+                or not path.is_absolute()
+                or path == Path("/")
+                or ".." in path.parts
+                or not raw
+                or len(raw.encode("utf-8", "strict")) > 4096
+                or any(
+                    ord(character) < 32 or ord(character) == 127
+                    for character in raw
+                )
+                or type(device) is not int
+                or device < 0
+                or type(inode) is not int
+                or inode <= 0
+                or not self.revalidate(capability, deadline)
+            ):
+                return False
+            before = _identity(self._system.path_info(path))
+            descriptor = self._system.open_directory(path)
+            if type(descriptor) is not int or descriptor < 0:
+                return False
+            current = _identity(self._system.descriptor_info(descriptor))
+            observed = self._system.observe_mount(descriptor, deadline)
+            after = _identity(self._system.path_info(path))
+            _remaining(deadline)
+            return (
+                before == current == after
+                and stat.S_ISDIR(current[2])
+                and (current[0], current[1]) == (device, inode)
+                and current[0] == capability.capture_device
+                and type(observed) is MountObservation
+                and observed.directory_identity
+                == (
+                    current[0],
+                    current[1],
+                    current[3],
+                    current[4],
+                    stat.S_IMODE(current[2]),
+                )
+                and observed.mount.filesystem == "btrfs"
+                and not observed.read_only
+                and not observed.idmapped
+                and observed.namespace_identity
+                == (capability.namespace_device, capability.namespace_inode)
+                and self.revalidate(capability, deadline)
+            )
+        except Exception:
+            return False
+        finally:
+            if descriptor >= 0:
+                try:
+                    self._system.close(descriptor)
+                except Exception:
+                    pass

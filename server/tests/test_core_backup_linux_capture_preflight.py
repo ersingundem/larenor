@@ -29,6 +29,7 @@ class System:
         self.filesystem = "btrfs"
         self.read_only = False
         self.idmapped = False
+        self.namespace = (31, 32)
         self.path_reads = 0
         self.drift_path = False
         self.opened = []
@@ -53,7 +54,6 @@ class System:
         return descriptor
 
     def path_info(self, path):
-        assert path == self.root
         self.path_reads += 1
         value = path.lstat()
         value = SimpleNamespace(
@@ -111,7 +111,7 @@ class System:
                 0,
                 value.st_mode & 0o7777,
             ),
-            (31, 32),
+            self.namespace,
             (41, 42, 0, 0, 0o755, 1),
         )
 
@@ -201,6 +201,41 @@ def test_preflight_revalidation_fails_closed_on_identity_drift(tmp_path):
     system.path_reads = 1
     assert preflight.revalidate(capability, time.monotonic() + 2) is False
     assert preflight.revalidate(object(), time.monotonic() + 2) is False
+
+
+def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
+    root = tmp_path / "capture-root"
+    source = tmp_path / "source"
+    root.mkdir(mode=0o700)
+    source.mkdir()
+    system = System(root)
+    preflight = LinuxBtrfsCapturePreflight(root, system=system)
+    capability = preflight.verify(time.monotonic() + 2)
+    source_info = source.stat()
+
+    assert preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    )
+    system.namespace = (91, 92)
+    assert not preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    )
+    system.namespace = (31, 32)
+    assert not preflight.source_retained(
+        source,
+        source_info.st_dev,
+        source_info.st_ino + 1,
+        capability,
+        time.monotonic() + 2,
+    )
 
 
 @pytest.mark.parametrize(

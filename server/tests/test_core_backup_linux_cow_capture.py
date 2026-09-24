@@ -1,6 +1,7 @@
 """Linux read-only/COW component capture engine contract."""
 
 import json
+import fcntl
 import os
 import shutil
 import subprocess
@@ -15,6 +16,9 @@ from larenor_server.core_backups.component_isolated_capture import (
     IsolatedComponentCaptureError,
     LinuxCowCaptureEngine,
 )
+from larenor_server.core_backups.component_linux_capture_preflight import (
+    LinuxBtrfsCaptureCapability,
+)
 from larenor_server.core_backups.component_snapshot_provider import (
     ComponentVolumeSource,
 )
@@ -27,6 +31,7 @@ class FakeCowBackend:
         interrupt_after=None,
         delete_failure=False,
         replace_source=False,
+        after_create=None,
     ):
         self.interrupt_after = interrupt_after
         self.delete_failure = delete_failure
@@ -34,12 +39,15 @@ class FakeCowBackend:
         self.deleted = []
         self.read_only = set()
         self.replace_source = replace_source
+        self.after_create = after_create
 
     def create_read_only(self, source, destination, deadline):
         assert time.monotonic() < deadline
         shutil.copytree(source, destination)
         self.created.append((source, destination))
         self.read_only.add(destination)
+        if self.after_create is not None:
+            self.after_create()
         if self.replace_source:
             retired = source.with_name(source.name + "-retired")
             source.rename(retired)
@@ -84,14 +92,40 @@ def sources(tmp_path):
     return tuple(result)
 
 
-def engine(tmp_path, backend):
+class CapturePreflight:
+    def __init__(self):
+        self.retained = True
+        self.sources_retained = True
+        self.calls = []
+
+    def revalidate(self, capability, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append(("capability", capability))
+        return self.retained
+
+    def source_retained(self, path, device, inode, capability, deadline):
+        assert time.monotonic() < deadline
+        self.calls.append(("source", path, device, inode, capability))
+        return self.retained and self.sources_retained
+
+
+def engine(tmp_path, backend, *, preflight=None, identifiers=None):
     root = tmp_path / "captures"
     root.mkdir(mode=0o700)
+    capability = (
+        None
+        if preflight is None
+        else LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+    )
     return LinuxCowCaptureEngine(
         root,
         tmp_path / "capture-journal.json",
         backend=backend,
-        id_factory=iter(("1" * 32, "2" * 32, "3" * 32)).__next__,
+        id_factory=iter(
+            identifiers or ("1" * 32, "2" * 32, "3" * 32)
+        ).__next__,
+        capability_preflight=preflight,
+        capture_capability=capability,
     )
 
 
@@ -112,6 +146,103 @@ def test_engine_returns_one_read_only_generation_and_releases_durably(tmp_path):
     for value in values:
         with pytest.raises(OSError):
             os.fstat(value.descriptor)
+
+
+def test_capability_is_retained_and_release_is_exactly_once(tmp_path):
+    preflight = CapturePreflight()
+    backend = FakeCowBackend()
+    capture = engine(tmp_path, backend, preflight=preflight)
+
+    values = capture.capture(sources(tmp_path), time.monotonic() + 2)
+    assert all(
+        fcntl.fcntl(item.descriptor, fcntl.F_GETFL) & os.O_ACCMODE
+        == os.O_RDONLY
+        for item in values
+    )
+    assert all(
+        fcntl.fcntl(item.descriptor, fcntl.F_GETFD) & fcntl.FD_CLOEXEC
+        for item in values
+    )
+    assert capture.revalidate(values, time.monotonic() + 2) is True
+    assert capture.release(values, time.monotonic() + 2) is True
+    assert capture.release(values, time.monotonic() + 2) is False
+    assert len(backend.deleted) == 2
+    assert {call[0] for call in preflight.calls} == {"capability", "source"}
+
+
+def test_engine_requires_exact_preflight_and_capability_pair(tmp_path):
+    root = tmp_path / "captures"
+    root.mkdir(mode=0o700)
+    capability = LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15)
+    with pytest.raises(IsolatedComponentCaptureError):
+        LinuxCowCaptureEngine(
+            root,
+            tmp_path / "journal.json",
+            backend=FakeCowBackend(),
+            capture_capability=capability,
+        )
+
+
+def test_source_mount_drift_rolls_back_partial_capture(tmp_path):
+    preflight = CapturePreflight()
+    backend = FakeCowBackend(
+        after_create=lambda: setattr(preflight, "sources_retained", False)
+    )
+    capture = engine(tmp_path, backend, preflight=preflight)
+
+    with pytest.raises(IsolatedComponentCaptureError):
+        capture.capture(sources(tmp_path), time.monotonic() + 2)
+
+    assert len(backend.created) == 1
+    assert len(backend.deleted) == 1
+    assert not (tmp_path / "capture-journal.json").exists()
+    assert list((tmp_path / "captures").iterdir()) == []
+
+
+def test_capability_drift_retains_journal_until_safe_restart_cleanup(tmp_path):
+    preflight = CapturePreflight()
+    backend = FakeCowBackend()
+    capture = engine(tmp_path, backend, preflight=preflight)
+    values = capture.capture(sources(tmp_path), time.monotonic() + 2)
+
+    preflight.retained = False
+    assert capture.revalidate(values, time.monotonic() + 2) is False
+    assert capture.release(values, time.monotonic() + 2) is False
+    assert backend.deleted == []
+    assert (tmp_path / "capture-journal.json").is_file()
+    for item in values:
+        with pytest.raises(OSError):
+            os.fstat(item.descriptor)
+
+    preflight.retained = True
+    restarted = LinuxCowCaptureEngine(
+        tmp_path / "captures",
+        tmp_path / "capture-journal.json",
+        backend=backend,
+        capability_preflight=preflight,
+        capture_capability=LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15),
+    )
+    assert restarted.recover(time.monotonic() + 2) is True
+    assert restarted.recover(time.monotonic() + 2) is True
+    assert len(backend.deleted) == 2
+
+
+@pytest.mark.parametrize(
+    "identifiers",
+    [
+        ("1" * 32, "1" * 32, "3" * 32),
+        ("1" * 31, "2" * 32, "3" * 32),
+    ],
+)
+def test_generation_and_capture_ids_are_exact_and_unique(tmp_path, identifiers):
+    backend = FakeCowBackend()
+    capture = engine(tmp_path, backend, identifiers=identifiers)
+
+    with pytest.raises(IsolatedComponentCaptureError):
+        capture.capture(sources(tmp_path), time.monotonic() + 2)
+
+    assert backend.created == []
+    assert not (tmp_path / "capture-journal.json").exists()
 
 
 def test_restart_recovers_every_intended_snapshot_after_interruption(tmp_path):
@@ -226,3 +357,19 @@ def test_btrfs_backend_uses_only_fixed_read_only_operations():
     assert all(call[1]["stdin"] is subprocess.DEVNULL for call in calls)
     assert all(call[1]["stderr"] is subprocess.DEVNULL for call in calls)
     assert all("shell" not in call[1] for call in calls)
+
+
+def test_btrfs_runner_failure_is_static_and_source_free():
+    def fail(_arguments, **_options):
+        raise RuntimeError("private-host-path")
+
+    backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"), runner=fail)
+    with pytest.raises(
+        IsolatedComponentCaptureError, match="^isolated_capture_unavailable$"
+    ) as caught:
+        backend.create_read_only(
+            Path("/private/source"),
+            Path("/private/destination"),
+            time.monotonic() + 2,
+        )
+    assert "private" not in repr(caught.value)

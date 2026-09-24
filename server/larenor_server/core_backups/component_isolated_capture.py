@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, fields
 
 from .component_snapshot_provider import ComponentVolumeSource
+from .component_linux_capture_preflight import LinuxBtrfsCaptureCapability
 from ..files import checked_path, private_directory, private_read, sync_directory
 
 _CAPTURE_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,127}\Z")
@@ -158,6 +159,8 @@ class LinuxCowCaptureEngine:
         *,
         backend=None,
         id_factory=None,
+        capability_preflight=None,
+        capture_capability=None,
     ):
         try:
             self.capture_root = checked_path(Path(capture_root))
@@ -177,10 +180,51 @@ class LinuxCowCaptureEngine:
                 raise ValueError()
             if id_factory is not None and not callable(id_factory):
                 raise ValueError()
+            if (capability_preflight is None) != (capture_capability is None):
+                raise ValueError()
+            if capability_preflight is not None and (
+                type(capture_capability) is not LinuxBtrfsCaptureCapability
+                or not callable(getattr(capability_preflight, "revalidate", None))
+                or not callable(
+                    getattr(capability_preflight, "source_retained", None)
+                )
+            ):
+                raise ValueError()
         except Exception:
             raise IsolatedComponentCaptureError() from None
         self._backend = selected
         self._id_factory = id_factory or (lambda: secrets.token_hex(16))
+        self._capability_preflight = capability_preflight
+        self._capture_capability = capture_capability
+        self._active_sources = None
+
+    def _capability_retained(self, deadline):
+        if self._capability_preflight is None:
+            return True
+        try:
+            return self._capability_preflight.revalidate(
+                self._capture_capability, deadline
+            ) is True
+        except Exception:
+            return False
+
+    def _source_retained(self, source, deadline):
+        if self._capability_preflight is None:
+            return True
+        try:
+            return self._capability_preflight.source_retained(
+                source.path,
+                source.device,
+                source.inode,
+                self._capture_capability,
+                deadline,
+            ) is True
+        except Exception:
+            return False
+
+    def _require_capability(self, deadline):
+        if not self._capability_retained(deadline):
+            raise IsolatedComponentCaptureError()
 
     def _id(self):
         try:
@@ -317,20 +361,25 @@ class LinuxCowCaptureEngine:
     def _cleanup(self, journal, deadline):
         generation = self._generation(journal)
         try:
+            self._require_capability(deadline)
             for item in reversed(journal["volumes"]):
                 _remaining(deadline)
+                self._require_capability(deadline)
                 destination = generation / item["directory"]
                 if destination.exists() or destination.is_symlink():
                     info = destination.lstat()
                     if not stat.S_ISDIR(info.st_mode):
                         raise IsolatedComponentCaptureError()
                     self._backend.delete(destination, deadline)
+                    self._require_capability(deadline)
             if generation.exists() or generation.is_symlink():
+                self._require_capability(deadline)
                 info = generation.lstat()
                 if not stat.S_ISDIR(info.st_mode):
                     raise IsolatedComponentCaptureError()
                 generation.rmdir()
                 sync_directory(self.capture_root)
+            self._require_capability(deadline)
             self._remove_journal()
             return True
         except IsolatedComponentCaptureError:
@@ -340,6 +389,7 @@ class LinuxCowCaptureEngine:
 
     def recover(self, deadline):
         _remaining(deadline)
+        self._require_capability(deadline)
         journal = self._read_journal()
         children = self._root_children(deadline)
         if journal is None:
@@ -349,7 +399,10 @@ class LinuxCowCaptureEngine:
         generation = self._generation(journal)
         if any(item != generation for item in children):
             raise IsolatedComponentCaptureError()
-        return self._cleanup(journal, deadline)
+        result = self._cleanup(journal, deadline)
+        if result:
+            self._active_sources = None
+        return result
 
     @staticmethod
     def _sources(sources):
@@ -377,9 +430,14 @@ class LinuxCowCaptureEngine:
 
     def capture(self, sources, deadline):
         _remaining(deadline)
+        self._require_capability(deadline)
         if self._read_journal() is not None or self._root_children(deadline):
             raise IsolatedComponentCaptureError()
         selected = self._sources(sources)
+        if self._active_sources is not None or any(
+            not self._source_retained(source, deadline) for source in selected
+        ):
+            raise IsolatedComponentCaptureError()
         generation_id = self._id()
         identifiers = [self._id() for _ in selected]
         if len(set((generation_id, *identifiers))) != len(identifiers) + 1:
@@ -407,6 +465,9 @@ class LinuxCowCaptureEngine:
             sync_directory(self.capture_root)
             for source, capture_id in zip(selected, identifiers, strict=True):
                 _remaining(deadline)
+                self._require_capability(deadline)
+                if not self._source_retained(source, deadline):
+                    raise IsolatedComponentCaptureError()
                 destination = generation / capture_id
                 before = source.path.lstat()
                 if not stat.S_ISDIR(before.st_mode) or (
@@ -415,6 +476,9 @@ class LinuxCowCaptureEngine:
                 ) != (source.device, source.inode):
                     raise IsolatedComponentCaptureError()
                 self._backend.create_read_only(source.path, destination, deadline)
+                self._require_capability(deadline)
+                if not self._source_retained(source, deadline):
+                    raise IsolatedComponentCaptureError()
                 after = source.path.lstat()
                 if not stat.S_ISDIR(after.st_mode) or (after.st_dev, after.st_ino) != (
                     source.device,
@@ -450,10 +514,12 @@ class LinuxCowCaptureEngine:
                     )
                 )
             values = tuple(captured)
+            self._active_sources = selected
             if not self.revalidate(values, deadline):
                 raise IsolatedComponentCaptureError()
             return values
         except (KeyboardInterrupt, SystemExit):
+            self._active_sources = None
             for descriptor in descriptors:
                 try:
                     os.close(descriptor)
@@ -461,6 +527,7 @@ class LinuxCowCaptureEngine:
                     pass
             raise
         except Exception:
+            self._active_sources = None
             for descriptor in descriptors:
                 try:
                     os.close(descriptor)
@@ -491,11 +558,19 @@ class LinuxCowCaptureEngine:
     def revalidate(self, capture, deadline):
         try:
             _remaining(deadline)
+            self._require_capability(deadline)
+            if self._capability_preflight is not None:
+                if self._active_sources is None or any(
+                    not self._source_retained(source, deadline)
+                    for source in self._active_sources
+                ):
+                    return False
             journal = self._read_journal()
             if journal is None or not self._matches_journal(capture, journal):
                 return False
             generation = self._generation(journal)
             for item in capture:
+                self._require_capability(deadline)
                 destination = generation / item.capture_id
                 info = os.fstat(item.descriptor)
                 observed = destination.lstat()
@@ -533,7 +608,10 @@ class LinuxCowCaptureEngine:
         if journal is None:
             return False
         try:
-            return self._cleanup(journal, deadline)
+            result = self._cleanup(journal, deadline)
+            if result:
+                self._active_sources = None
+            return result
         except Exception:
             return False
 

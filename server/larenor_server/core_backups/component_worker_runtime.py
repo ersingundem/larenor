@@ -186,6 +186,8 @@ def build_runtime(
             config.capture_root,
             config.capture_journal,
             backend=backend,
+            capability_preflight=preflight,
+            capture_capability=capability,
         )
         capture.recover(time.monotonic() + 5)
         endpoint = DockerEndpoint(
