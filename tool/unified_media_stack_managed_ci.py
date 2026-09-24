@@ -889,7 +889,20 @@ def run_native(commit, selected_platform, driver, *, base_commit=None,
             manifest = planner.preview(commit, driver)
         except Exception:
             raise ManagedStackCIError("unified_manifest_invalid") from None
-        driver.prepare_owned(manifest)
+        adopted = driver.prepare_owned(manifest)
+        if adopted is True:
+            try:
+                refreshed = planner.preview(commit, driver)
+            except Exception:
+                raise ManagedStackCIError(
+                    "unified_manifest_invalid",
+                    preserve_resources=True,
+                ) from None
+            if refreshed != manifest:
+                raise ManagedStackCIError(
+                    "unified_manifest_invalid",
+                    preserve_resources=True,
+                )
         upgrade_evidence = None
         if base_commit is not None:
             expected_private = _persistent_mounts(manifest)
@@ -1991,7 +2004,7 @@ class DockerDriver:
             self.ownership_digest = hashlib.sha256(encoded).hexdigest()
             self._owned = True
             self._root_identity()
-            return
+            return True
         _, engine_platform = _command(
             ["/usr/bin/docker", "version", "--format", "{{.Server.Os}}/{{.Server.Arch}}"],
             environment=self._environment, timeout=30, output=True)
@@ -2063,6 +2076,7 @@ class DockerDriver:
             os.close(parent_fd)
         self.ownership_digest = hashlib.sha256(encoded).hexdigest()
         self._owned = True
+        return False
 
     def pull(self, manifest):
         for service_id in COMPONENTS:
