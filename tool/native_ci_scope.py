@@ -70,6 +70,28 @@ _NATIVE_SUBSTRATE_PATTERNS = (
     "tool/media_resource_smoke.py",
 )
 _WORKFLOW_PATTERNS = {
+    "component-restore-native.yml": (
+        ".github/workflows/component-restore-native.yml",
+        "server/larenor_server/core_backups/component_docker_adapter.py",
+        "server/larenor_server/core_backups/component_installation_authority.py",
+        "server/larenor_server/core_backups/component_linux_restore.py",
+        "server/larenor_server/core_backups/component_restore.py",
+        "server/larenor_server/core_backups/component_restore_recovery.py",
+        "server/larenor_server/core_backups/component_snapshot_provider.py",
+        "server/larenor_server/plugins/engine_http.py",
+        "server/larenor_server/plugins/managed_container.py",
+        "server/larenor_server/plugins/volume_create_journal.py",
+        "server/larenor_server/plugins/volume_transport.py",
+        "server/tests/test_core_backup_component_docker_adapter.py",
+        "server/tests/test_core_backup_component_installation_authority.py",
+        "server/tests/test_core_backup_component_linux_restore.py",
+        "server/tests/test_core_backup_component_restore.py",
+        "server/tests/test_core_backup_component_restore_recovery.py",
+        "server/tests/test_engine_http.py",
+        "server/pyproject.toml",
+        "server/uv.lock",
+        "tool/tests/component_restore_native_workflow_test.py",
+    ),
     "jellyfin-managed-characterization.yml": _NATIVE_SUBSTRATE_PATTERNS + (
         ".github/workflows/jellyfin-managed-characterization.yml",
     ),

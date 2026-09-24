@@ -27,7 +27,26 @@ The durable coordinator persists `released` before deleting rollback artifacts. 
 ## Verification
 
 - `test_core_backup_component_linux_restore.py`: 15 passed and one Linux-only native `renameat2` test skipped on macOS. The real POSIX `SIGKILL` test passed locally.
-- Grouped component Linux restore, Docker adapter, plan/coordinator, and durable recovery suite: 73 passed and one Linux-only native test skipped on macOS (74 collected).
+- Grouped component Linux restore, Docker adapter, installation authority,
+  plan/coordinator, and durable recovery suite: 83 passed and one Linux-only
+  native test skipped on macOS (84 collected).
 - Ruff 0.14.10, compile, diff-check, security scan, queue validation, and progress validation are required before commit.
 
 Linux CI runs the non-skipped native `renameat2` journey on each configured production architecture. The portable test seam is used only on non-Linux developer hosts.
+
+## Dedicated native acceptance
+
+`.github/workflows/component-restore-native.yml` is the required, scope-aware
+native gate for this contract. Its GitHub-hosted matrix runs the exact grouped
+restore suite on `linux/amd64` and `linux/arm64`; the architecture guard rejects
+a runner/platform mismatch before pytest starts. The suite includes the real
+Linux `renameat2` publication journey, the fork-and-`SIGKILL` restart fixture,
+Docker container/volume ownership, durable installation authority, atomic
+staging, rollback, and authenticated v3 recovery.
+
+The workflow loads the scope classifier from the reviewed base revision for
+pull requests and fails open when its evidence is incomplete. Restore engine,
+authority, adapter, recovery, fixture, dependency-lock, or workflow changes run
+both matrix legs. Documentation, unrelated client code, and other changes with
+no executable native restore input skip the matrix while the always-running
+aggregate still produces the required acceptance result.
