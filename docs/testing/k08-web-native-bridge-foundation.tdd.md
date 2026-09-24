@@ -72,3 +72,51 @@ review the authorized production TTS, print, and QR ports, then collect API 35
 emulator plus physical Huawei/DeX/WebView permission-revoke and accessibility
 journeys. Exact-head required CI and independent security review are also still
 required before the queue item can close.
+
+## Production effect ports
+
+This follow-up keeps K08 **pending** and queue progress at **31/125 (24.8%)**.
+It replaces the unsupported production default for verified-Core dashboard
+panels with three bounded device effects while preserving the v1 website
+contract and one-shot consent:
+
+1. Android `TextToSpeech` accepts only 1..500 control-free characters and an
+   optional canonical language tag. The native owner is bound to the exact
+   Core/home/account/session/source/policy/route/lifecycle scope. Background,
+   replacement, renderer retirement and logout stop speech without replay.
+2. `printDocument` never accepts a URL or bytes from the website. Its opaque
+   handle opens one user-visible Android document picker; only a canonical
+   `content://` selection whose resolver MIME is `application/pdf`, whose
+   decoded bytes begin `%PDF-`, and whose copied size is at most 25 MiB reaches
+   `PrintManager`. The private 64 KiB streaming copy is removed after printing,
+   cancellation or failure. A picker-owned pause is allowed; app stop, scope
+   retirement and stale picker results cancel it.
+3. QR uses the existing Android CameraX/ML Kit-backed `mobile_scanner` path in
+   a visible in-app surface. Only QR is advertised by this port; Data Matrix is
+   rejected until a reviewed decoder surface exists. Camera permission denial,
+   background, route/account/Core/session replacement, renderer loss, timeout
+   and explicit close terminate the single flight. The decoded value is
+   bounded to 2,048 control-free characters, stays in memory and is never
+   logged, persisted or placed in a public receipt.
+
+### RED to GREEN evidence
+
+| Job | RED | GREEN | Permanent evidence |
+| --- | --- | --- | --- |
+| Android speech | `f0b513e6` | `7b484e0a` | Exact scope/resumed owner, bounded text/locale, replacement and retirement; MethodChannel envelopes contain no Core secret or API URL. |
+| Confirmed print | `bc41920b` | `811fabec` | Opaque handle, visible SAF picker, exact PDF MIME/magic, 25 MiB cap, bounded streaming, cancellation and no raw URI in website messages. |
+| Visible QR | `8a3077f9` | `7070512d` | Single CameraX flight, permission/error UI, EN/TR 600/1280 at 200%, authority/background retirement and no replay. |
+| Terminal lifecycle review | `ff48b5f2` | `f940bc61` | Retirement wins a delayed native bind, and a bounded 25-second QR flight cancels its visible camera before the 30-second controller deadline. |
+
+The production-port grouped milestone passes:
+
+- **163/163 Flutter tests** across the complete WebPanel feature, dashboard
+  WebView tile, Core home/session scope and Core logout runtime;
+- **30/30 Robolectric tests** across every WebPanel native suite, including
+  the five speech, print, scope-replacement and stale-picker regressions;
+- focused Flutter analysis with **0 issues**, Dart formatting, Android backup
+  and CI trust security policy, execution-queue validation and `git diff
+  --check`.
+
+Physical Huawei/DeX permission-revoke evidence and independent exact-head
+security review remain required before K08 can move from `pending`.

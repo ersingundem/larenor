@@ -3306,6 +3306,7 @@
   "webPanelNativeArmPrint": "Sonraki yazdırma isteğine izin ver",
   "webPanelNativeArmScan": "Sonraki QR taramasına izin ver",
   "webPanelNativeConfirm": "Web sitesinin bu tek kullanımlık yerel işlemi onaylansın mı?",
+  "webPanelNativeQrVisiblePermission": "Kamera yalnız bu onaylı QR taraması için açık. Web sitesi kameraya erişemez veya ikinci bir tarama alamaz.",
   "kioskHidTitle": "Klavye tipi tarayıcı",
   "kioskHidIntro": "USB veya Bluetooth tarayıcıyı klavye modunda bağlayın, sonra yerel tarama oturumunu başlatın. Bitirmek için tarayıcıda Enter'a basın.",
   "kioskHidPrivacy": "Taramalar yalnızca bu ekranın belleğinde kalır. Web sitesine, komuta veya Core'a gönderilmez. Odak kaybı, arka plan veya hareketsizlik oturumu bitirir.",

@@ -37,6 +37,7 @@ class WebPanelView extends StatefulWidget {
     this.recoveryGate,
     this.nativeAuthority,
     this.nativePort,
+    this.nativePortFactory,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
@@ -50,6 +51,7 @@ class WebPanelView extends StatefulWidget {
   final KioskRecoveryGate? recoveryGate;
   final WebPanelNativeAuthorityLease? nativeAuthority;
   final WebPanelNativeBridgePort? nativePort;
+  final WebPanelNativeBridgePort Function()? nativePortFactory;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -133,6 +135,7 @@ class WebPanelViewState extends State<WebPanelView> {
         oldWidget.externalActionPort != widget.externalActionPort ||
         !identical(oldWidget.nativeAuthority, widget.nativeAuthority) ||
         !identical(oldWidget.nativePort, widget.nativePort) ||
+        !identical(oldWidget.nativePortFactory, widget.nativePortFactory) ||
         !identical(oldWidget.rendererMonitor, widget.rendererMonitor)) {
       _retire();
       _failure = null;
@@ -253,12 +256,13 @@ class WebPanelViewState extends State<WebPanelView> {
       }
       final nativePolicy = widget.options?.nativeBridge;
       final nativeAuthority = widget.nativeAuthority;
-      final nativePort = widget.nativePort;
       final initialOrigin = WebOrigin.parse(policy.initialUri.toString());
       if (nativePolicy != null &&
           nativeAuthority != null &&
-          nativePort != null &&
+          (widget.nativePortFactory != null || widget.nativePort != null) &&
           initialOrigin?.displayName == nativePolicy.topOrigin) {
+        final nativePort =
+            widget.nativePortFactory?.call() ?? widget.nativePort!;
         _native = WebPanelNativeRuntime(
           policy: nativePolicy,
           authority: nativeAuthority,

@@ -20,6 +20,7 @@ import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
 import com.ersingundem.larenor.webpanel.WebPanelDownloadBridge
+import com.ersingundem.larenor.webpanel.WebPanelNativeEffectBridge
 import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
 import com.ersingundem.larenor.backup.CoreBackupSourceBridge
@@ -41,6 +42,7 @@ class MainActivity : FlutterActivity() {
     private var gameStreamNative: GameStreamNativeBridge? = null
     private var webPanelRenderer: WebPanelRendererBridge? = null
     private var webPanelDownload: WebPanelDownloadBridge? = null
+    private var webPanelNativeEffects: WebPanelNativeEffectBridge? = null
     private var managedTabletSource: ManagedTabletSourceBridge? = null
     private var coreBackupDestination: CoreBackupDestinationBridge? = null
     private var coreBackupSource: CoreBackupSourceBridge? = null
@@ -64,6 +66,7 @@ class MainActivity : FlutterActivity() {
             flutterEngine,
         )
         webPanelDownload = WebPanelDownloadBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        webPanelNativeEffects = WebPanelNativeEffectBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupDestination = CoreBackupDestinationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupSource = CoreBackupSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -83,6 +86,7 @@ class MainActivity : FlutterActivity() {
         dualDisplay?.setResumed(true)
         gameStreamNative?.setResumed(true)
         managedTabletSource?.setResumed(true)
+        webPanelNativeEffects?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -98,7 +102,12 @@ class MainActivity : FlutterActivity() {
         dualDisplay?.setResumed(false)
         gameStreamNative?.setResumed(false)
         managedTabletSource?.setResumed(false)
+        webPanelNativeEffects?.setResumed(false)
         super.onPause()
+    }
+    override fun onStop() {
+        webPanelNativeEffects?.setStopped()
+        super.onStop()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
@@ -127,6 +136,7 @@ class MainActivity : FlutterActivity() {
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (webPanelNativeEffects?.onActivityResult(requestCode, resultCode, data) == true) return
         if (webPanelDownload?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupDestination?.onActivityResult(requestCode, resultCode, data) == true) return
         if (coreBackupSource?.onActivityResult(requestCode, resultCode, data) == true) return
@@ -151,6 +161,8 @@ class MainActivity : FlutterActivity() {
         webPanelRenderer = null
         webPanelDownload?.dispose()
         webPanelDownload = null
+        webPanelNativeEffects?.dispose()
+        webPanelNativeEffects = null
         managedTabletSource?.dispose()
         managedTabletSource = null
         dualDisplay?.dispose()

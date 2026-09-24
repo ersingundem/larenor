@@ -138,6 +138,7 @@ class Harness {
     WebPanelRendererMonitor? rendererMonitor,
     WebPanelNativeAuthorityLease? nativeAuthority,
     WebPanelNativeBridgePort? nativePort,
+    WebPanelNativeBridgePort Function()? nativePortFactory,
   }) async {
     final previous = WebViewPlatform.instance;
     WebViewPlatform.instance = platform;
@@ -193,6 +194,7 @@ class Harness {
                             rendererMonitor: monitor,
                             nativeAuthority: nativeAuthority,
                             nativePort: nativePort,
+                            nativePortFactory: nativePortFactory,
                             recoveryGate: recoveryGate,
                             policy:
                                 options?.policyFor(
@@ -274,6 +276,45 @@ final class NativePort implements WebPanelNativeBridgePort {
       receiptHandle: 'receipt-native-1',
     );
   }
+
+  @override
+  Future<bool> readback(
+    String receiptHandle,
+    WebPanelNativeCommand value,
+    WebPanelBridgeTrustedFrame trusted,
+  ) async => true;
+}
+
+final class TerminalNativePort
+    implements WebPanelNativeBridgePort, WebPanelNativeLifecyclePort {
+  bool retired = false;
+  int binds = 0;
+
+  @override
+  int get capabilityRevision => retired ? 0 : 1;
+  @override
+  Set<WebPanelNativeMethod> get capabilities =>
+      retired ? const {} : const {WebPanelNativeMethod.speak};
+
+  @override
+  Future<bool> bind(WebPanelBridgeScope scope) async {
+    binds++;
+    return !retired;
+  }
+
+  @override
+  Future<void> retire(WebPanelBridgeScope scope) async {
+    retired = true;
+  }
+
+  @override
+  Future<WebPanelNativePortResult> execute(
+    WebPanelNativeCommand value,
+    WebPanelBridgeTrustedFrame trusted,
+  ) async => const WebPanelNativePortResult(
+    outcome: WebPanelNativePortOutcome.accepted,
+    receiptHandle: 'receipt-native-1',
+  );
 
   @override
   Future<bool> readback(
@@ -1069,6 +1110,68 @@ void main() {
       ) as Map<String, Object?>;
       expect(late['status'], WebPanelBridgeStatus.denied.name);
       expect(port.executes, 0);
+    },
+  );
+
+  testWidgets(
+    'renderer recovery creates a fresh terminal native effect owner',
+    (tester) async {
+      final authority = WebPanelNativeAuthorityLease.verifiedCore(
+        coreId: '0123456789abcdef0123456789abcdef',
+        homeId: 'abcdef0123456789abcdef0123456789',
+        accountId: 'member@example',
+        sessionFamily: '11111111111111111111111111111111',
+        sourceId: 'panel-kitchen',
+        sourceRevision: 1,
+        isCurrent: () => true,
+      );
+      final options = WebPanelOptions(
+        nativeBridge: WebPanelNativePolicy(
+          revision: 1,
+          topOrigin: 'https://fixture.invalid',
+          methods: {WebPanelNativeMethod.speak},
+        ),
+      );
+      final monitor = RendererMonitor();
+      final ports = <TerminalNativePort>[];
+      final h = Harness();
+      await h.mount(
+        tester,
+        options: options,
+        rendererMonitor: monitor,
+        nativeAuthority: authority,
+        nativePortFactory: () {
+          final port = TerminalNativePort();
+          ports.add(port);
+          return port;
+        },
+      );
+      h.platform.controllers.single.delegate.finished(
+        'https://fixture.invalid/start',
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('web-panel-arm-native-speak')),
+        findsOneWidget,
+      );
+      expect(ports, hasLength(1));
+
+      monitor.gone!();
+      await tester.pump();
+      h.platform.controllers.last.delegate.finished(
+        'https://fixture.invalid/start',
+      );
+      await tester.pump();
+
+      expect(ports, hasLength(2));
+      expect(ports.first.retired, isTrue);
+      expect(ports.last.retired, isFalse);
+      expect(ports.last.binds, 1);
+      expect(
+        find.byKey(const ValueKey('web-panel-arm-native-speak')),
+        findsOneWidget,
+      );
+      await h.close(tester);
     },
   );
 }
