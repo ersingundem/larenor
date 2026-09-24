@@ -226,6 +226,14 @@ class BackupCapture:
     _bundle_authentication: object = field(default=None, compare=False, repr=False)
 
 
+@dataclass(frozen=True)
+class BackupPublication:
+    """Encrypted bytes and the exact immutable generation they contain."""
+
+    payload: bytes
+    capture_generation: str
+
+
 def _is_authenticated_backup_capture(capture: BackupCapture) -> bool:
     """Prove this exact capture came from successful bundle authentication."""
 
@@ -745,7 +753,7 @@ class CoreBackupContract:
             raise ApiError("backup_too_large", 413)
         return value
 
-    def export(self, actor: Principal, passphrase: str) -> bytes:
+    def publish(self, actor: Principal, passphrase: str) -> BackupPublication:
         if not self._export_lock.acquire(blocking=False):
             raise ApiError("backup_busy", 409)
         try:
@@ -755,11 +763,20 @@ class CoreBackupContract:
                 raise ApiError("backup_blocked", 409) from None
             salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
             aad = MAGIC + salt + nonce
-            return aad + AESGCM(self._derive_key(passphrase, salt)).encrypt(
-                nonce, self._archive(capture), aad
+            payload = aad + AESGCM(self._derive_key(passphrase, salt)).encrypt(
+                nonce,
+                self._archive(capture),
+                aad,
+            )
+            return BackupPublication(
+                payload=payload,
+                capture_generation=capture.manifest.snapshotId,
             )
         finally:
             self._export_lock.release()
+
+    def export(self, actor: Principal, passphrase: str) -> bytes:
+        return self.publish(actor, passphrase).payload
 
     def open_bundle(self, bundle: bytes, passphrase: str) -> BackupCapture:
         return open_backup_bundle(bundle, passphrase)

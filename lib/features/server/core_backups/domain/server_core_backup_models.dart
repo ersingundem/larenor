@@ -444,6 +444,7 @@ final class CoreBackupExport {
     required this.destination,
     required this.byteLength,
     required this.sha256,
+    required this.captureGeneration,
   });
 
   static const maxBytes = 168 * 1024 * 1024;
@@ -451,6 +452,7 @@ final class CoreBackupExport {
   final Uri destination;
   final int byteLength;
   final String sha256;
+  final String captureGeneration;
 
   @override
   String toString() => 'CoreBackupExport($byteLength bytes)';

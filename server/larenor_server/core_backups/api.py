@@ -48,13 +48,15 @@ def validate_restore(body: RestoreValidationRequest, core: Core, _actor: Admin):
     },
 )
 def export(body: BackupExportRequest, core: Core, actor: Admin):
+    publication = core.core_backups.publish(actor, body.passphrase)
     return Response(
-        core.core_backups.export(actor, body.passphrase),
+        publication.payload,
         media_type="application/vnd.larenor.core-backup",
         headers={
             "Content-Disposition": (
                 'attachment; filename="larenor-core-backup.larenor-core"'
             ),
             "X-Content-Type-Options": "nosniff",
+            "X-Larenor-Capture-Generation": publication.capture_generation,
         },
     )

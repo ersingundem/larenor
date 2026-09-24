@@ -63,10 +63,12 @@ final class LarenorBinaryReceipt {
     required this.destination,
     required this.byteLength,
     required this.sha256,
+    required this.captureGeneration,
   });
   final Uri destination;
   final int byteLength;
   final String sha256;
+  final String captureGeneration;
   @override
   String toString() => 'LarenorBinaryReceipt($byteLength)';
 }
@@ -325,9 +327,14 @@ class LarenorServerApi {
               mediaType ||
           response.headers['content-disposition'] != disposition ||
           response.headers['cache-control'] != 'no-store' ||
-          response.headers['x-content-type-options'] != 'nosniff') {
+          response.headers['x-content-type-options'] != 'nosniff' ||
+          !RegExp(
+            r'^[0-9a-f]{32}$',
+          ).hasMatch(response.headers['x-larenor-capture-generation'] ?? '')) {
         throw const LarenorServerException('invalid_response');
       }
+      final captureGeneration =
+          response.headers['x-larenor-capture-generation']!;
       final digestOutput = _DigestCapture();
       final digestInput = sha256.startChunkedConversion(digestOutput);
       var received = 0;
@@ -381,6 +388,7 @@ class LarenorServerApi {
         destination: uri,
         byteLength: received,
         sha256: digest,
+        captureGeneration: captureGeneration,
       );
     } on LarenorServerException {
       rethrow;

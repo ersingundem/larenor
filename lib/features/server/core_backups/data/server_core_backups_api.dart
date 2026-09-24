@@ -31,6 +31,7 @@ final class ServerCoreBackupsApi {
       destination: receipt.destination,
       byteLength: receipt.byteLength,
       sha256: receipt.sha256,
+      captureGeneration: receipt.captureGeneration,
     );
   }
 
