@@ -51,6 +51,9 @@ class ComponentRestoreNativeWorkflowTest(unittest.TestCase):
             "test_core_backup_component_installation_authority.py",
             "test_core_backup_component_restore.py",
             "test_core_backup_component_restore_recovery.py",
+            "test_core_backup_component_restore_runtime.py",
+            "test_core_backup_component_restore_product.py",
+            "test_core_backup_restore_cli_components.py",
             "linux/amd64:x86_64|linux/arm64:aarch64",
         ):
             self.assertIn(evidence, script)
