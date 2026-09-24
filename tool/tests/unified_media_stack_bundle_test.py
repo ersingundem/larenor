@@ -21,7 +21,8 @@ COMPONENTS = ("jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_ass
 
 
 class HostFacts:
-    def __init__(self, manifest, *, architecture="amd64", change=None):
+    def __init__(self, manifest, *, architecture="amd64", change=None,
+                 installation="default"):
         self.calls = []
         self.selected_architecture = architecture
         self.facts = {}
@@ -33,6 +34,14 @@ class HostFacts:
         if change:
             path, values = change
             self.facts[path].update(values)
+        self.installed = ({
+            "schemaVersion": 1,
+            "state": "installed",
+            "sourceRevision": "b" * 40,
+            "manifestDigest": "c" * 64,
+            "bundleDigest": "d" * 64,
+            "architecture": architecture,
+        } if installation == "default" else installation)
 
     def architecture(self):
         self.calls.append("architecture")
@@ -41,6 +50,10 @@ class HostFacts:
     def inspect(self, path):
         self.calls.append(path)
         return dict(self.facts[path])
+
+    def installation(self):
+        self.calls.append("installation")
+        return copy.deepcopy(self.installed)
 
 
 class UnifiedMediaStackBundleTest(unittest.TestCase):
@@ -148,15 +161,18 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         value = self.plan()
         manifest = value["deploymentManifest"]
         for operation in ("install", "upgrade"):
-            host = HostFacts(manifest)
+            host = HostFacts(
+                manifest,
+                installation=None if operation == "install" else "default",
+            )
             preview = self.planner.preflight(value, operation, host)
             self.assertTrue(preview["ready"])
             self.assertEqual(preview["operation"], operation)
             self.assertEqual(preview["architecture"], "amd64")
             self.assertEqual(preview["backupTarget"], "/DATA/AppData/larenor-server-backups")
             self.assertEqual(preview["rollbackTarget"], "/DATA/AppData/larenor-server-rollback")
-            self.assertEqual(host.calls[0], "architecture")
-            self.assertEqual(set(host.calls[1:]), {item["path"] for item in manifest["ownedPaths"]})
+            self.assertEqual(host.calls[:2], ["architecture", "installation"])
+            self.assertEqual(set(host.calls[2:]), {item["path"] for item in manifest["ownedPaths"]})
             self.assertNotRegex(json.dumps(preview).lower(), r"docker|subprocess|daemon|token|password")
 
         first = next(item["path"] for item in manifest["ownedPaths"]
@@ -178,7 +194,8 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         with self.assertRaisesRegex(bundle.BundleError, "bundle_operation_invalid"):
             self.planner.preflight(value, "apply", HostFacts(manifest))
         normalized = self.planner.preflight(
-            value, "install", HostFacts(manifest, architecture="x86_64"))
+            value, "install", HostFacts(
+                manifest, architecture="x86_64", installation=None))
         self.assertEqual(normalized["architecture"], "amd64")
         changed = copy.deepcopy(value)
         changed["deploymentManifest"]["manifestDigest"] = "f" * 64
@@ -187,6 +204,44 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
         source = TARGET.read_text()
         for forbidden_import in ("import subprocess", "import socket", "import docker"):
             self.assertNotIn(forbidden_import, source)
+
+    def test_install_and_upgrade_require_exact_opposite_installation_states(self):
+        value = self.plan()
+        manifest = value["deploymentManifest"]
+
+        installed = HostFacts(manifest).installed
+        assert installed is not None
+        install = self.planner.preflight(
+            value, "install", HostFacts(manifest, installation=installed))
+        self.assertFalse(install["ready"])
+        self.assertIn("installation_already_exists", {
+            item["code"] for item in install["checks"]})
+
+        missing = self.planner.preflight(
+            value, "upgrade", HostFacts(manifest, installation=None))
+        self.assertFalse(missing["ready"])
+        self.assertIn("installation_missing", {
+            item["code"] for item in missing["checks"]})
+
+        already_current = copy.deepcopy(installed)
+        already_current["sourceRevision"] = REVISION
+        current = self.planner.preflight(
+            value, "upgrade", HostFacts(manifest, installation=already_current))
+        self.assertFalse(current["ready"])
+        self.assertIn("installation_already_current", {
+            item["code"] for item in current["checks"]})
+
+        for changed, code in (
+            ({"schemaVersion": 1}, "installation_receipt_invalid"),
+            (dict(installed, architecture="arm64"),
+             "installation_architecture_mismatch"),
+            (dict(installed, sourceRevision=1.0), "installation_receipt_invalid"),
+        ):
+            with self.subTest(code=code):
+                preview = self.planner.preflight(
+                    value, "upgrade", HostFacts(manifest, installation=changed))
+                self.assertFalse(preview["ready"])
+                self.assertIn(code, {item["code"] for item in preview["checks"]})
 
 
 if __name__ == "__main__":

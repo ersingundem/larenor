@@ -46,6 +46,17 @@ class HostFacts:
             "availableMiB": self.manifest["requiredDiskMiB"] * 4,
         }
 
+    def installation(self):
+        self.calls.append("installation")
+        return {
+            "schemaVersion": 1,
+            "state": "installed",
+            "sourceRevision": "b" * 40,
+            "manifestDigest": "c" * 64,
+            "bundleDigest": "d" * 64,
+            "architecture": "amd64",
+        }
+
 
 class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
     def setUp(self):
