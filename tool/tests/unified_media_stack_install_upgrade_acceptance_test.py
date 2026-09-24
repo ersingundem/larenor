@@ -473,6 +473,46 @@ class UpgradeDriver(FakeDriver):
 
 
 class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
+    def test_apply_reconcile_preserves_bounded_known_failure_code(self):
+        class FailingDriver:
+            def __init__(self, failure):
+                self.failure = failure
+
+            def apply_install(self, _revision):
+                raise self.failure
+
+            def recovery_pending(self):
+                return True
+
+            def reconcile_upgrade(self, _revision, _operation):
+                raise RuntimeError("private reconcile detail")
+
+        known = target.ManagedStackCIError("unified_manifest_invalid")
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                FailingDriver(known),
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(raised.exception.code, "unified_manifest_invalid")
+        self.assertIs(raised.exception.preserve_resources, True)
+        self.assertEqual(str(raised.exception), "unified_manifest_invalid")
+
+        with self.assertRaises(target.ManagedStackCIError) as raised:
+            target._apply_or_reconcile(
+                FailingDriver(RuntimeError("private apply detail")),
+                "install",
+                BASE_REVISION,
+                "linux/amd64",
+            )
+        self.assertEqual(
+            raised.exception.code,
+            "unified_install_reconcile_failed",
+        )
+        self.assertIs(raised.exception.preserve_resources, True)
+        self.assertEqual(str(raised.exception), "unified_install_reconcile_failed")
+
     def run_upgrade(self, driver, platform="linux/amd64"):
         driver.selected_platform = platform
         return target.run_native(
