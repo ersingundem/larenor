@@ -31,7 +31,10 @@ final class NativeManagedTabletSourceConfig {
 
 abstract interface class ManagedTabletLocalActions {
   Future<void> refreshDashboard({required bool Function() isCurrent});
-  Future<void> syncProfile({required bool Function() isCurrent});
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  });
 }
 
 final class CallbackManagedTabletLocalActions
@@ -42,21 +45,25 @@ final class CallbackManagedTabletLocalActions
   });
 
   final Future<void> Function(bool Function() isCurrent) onRefreshDashboard;
-  final Future<void> Function(bool Function() isCurrent)? onSyncProfile;
+  final Future<void> Function(String clientVersion, bool Function() isCurrent)?
+  onSyncProfile;
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) =>
       onRefreshDashboard(isCurrent);
 
   @override
-  Future<void> syncProfile({required bool Function() isCurrent}) {
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) {
     final callback = onSyncProfile;
     if (callback == null) {
       return Future<void>.error(
         UnsupportedError('managed_tablet_profile_sync_disabled'),
       );
     }
-    return callback(isCurrent);
+    return callback(clientVersion, isCurrent);
   }
 }
 
@@ -69,8 +76,10 @@ final class DisabledManagedTabletLocalActions
       Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
 
   @override
-  Future<void> syncProfile({required bool Function() isCurrent}) =>
-      Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) => Future<void>.error(UnsupportedError('managed_tablet_action_disabled'));
 }
 
 /// Session-bound Android telemetry for the K07 MQTT runtime.
@@ -443,7 +452,11 @@ final class _NativeManagedTabletCommandExecutor
         return ManagedTabletCommandResult.succeeded;
       }),
       'syncProfile' => Future<ManagedTabletCommandResult>.sync(() async {
-        await _actions.syncProfile(isCurrent: current);
+        final telemetry = await _owner._read(_lease);
+        await _actions.syncProfile(
+          clientVersion: telemetry.appVersion,
+          isCurrent: current,
+        );
         return ManagedTabletCommandResult.succeeded;
       }),
       _ => _owner._executeNativeCommand(_lease, kind),

@@ -6,9 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
+import '../../settings/providers/settings_providers.dart';
+import '../../settings/providers/window_profile_provider.dart';
 import 'managed_tablet_credential_store.dart';
 import 'managed_tablet_mqtt_settings.dart';
 import 'managed_tablet_mqtt_runtime.dart';
+import 'managed_tablet_profile_store.dart';
+import 'managed_tablet_profile_sync.dart';
 import 'managed_tablet_runtime_owner.dart';
 import 'mqtt_local_broker.dart';
 import 'native_managed_tablet_source.dart';
@@ -70,6 +74,29 @@ final managedTabletCoreAuthorityProvider = Provider<ManagedTabletCoreAuthority>(
   (_) => CoreManagedTabletAuthority(),
 );
 
+final managedTabletProfileSynchronizerProvider =
+    Provider<ManagedTabletProfileSynchronizer>(
+      (ref) => ManagedTabletProfileSynchronizer(
+        account: ref.watch(serverAccountControllerProvider),
+        credentials: ref.watch(managedTabletCredentialStoreProvider),
+        profiles: ref.watch(managedTabletProfileStoreProvider),
+        activate: (_) async {
+          if (!ref.mounted) {
+            throw StateError('managed_tablet_action_retired');
+          }
+          ref.invalidate(windowProfileProvider);
+          ref.invalidate(idleModeProvider);
+          await Future.wait([
+            ref.read(windowProfileProvider.future),
+            ref.read(idleModeProvider.future),
+          ]);
+          if (!ref.mounted) {
+            throw StateError('managed_tablet_action_retired');
+          }
+        },
+      ),
+    );
+
 final managedTabletLocalActionsProvider = Provider<ManagedTabletLocalActions>(
   (ref) => CallbackManagedTabletLocalActions(
     onRefreshDashboard: (isCurrent) async {
@@ -82,6 +109,9 @@ final managedTabletLocalActionsProvider = Provider<ManagedTabletLocalActions>(
         throw StateError('managed_tablet_action_retired');
       }
     },
+    onSyncProfile: (clientVersion, isCurrent) => ref
+        .read(managedTabletProfileSynchronizerProvider)
+        .synchronize(clientVersion: clientVersion, isCurrent: isCurrent),
   ),
 );
 

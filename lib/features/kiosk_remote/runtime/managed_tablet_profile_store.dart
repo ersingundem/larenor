@@ -1,0 +1,249 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/configuration_writes.dart';
+import '../../server/domain/server_models.dart';
+import '../../server/tablet_fleet/domain/server_tablet_fleet_models.dart';
+import 'managed_tablet_credential_store.dart';
+
+const managedTabletProfilePreferenceKey = 'managed_tablet_profile_v1';
+
+final managedTabletProfileStoreProvider = Provider<ManagedTabletProfileStore>(
+  (_) => ManagedTabletProfileStore(
+    SharedPreferencesManagedTabletProfilePersistence(),
+  ),
+);
+
+final _identity = RegExp(r'^[0-9a-f]{32}$');
+final _digest = RegExp(r'^[0-9a-f]{64}$');
+
+final class AppliedManagedTabletProfile {
+  const AppliedManagedTabletProfile._({
+    required this.coreId,
+    required this.homeId,
+    required this.deviceId,
+    required this.deviceRevision,
+    required this.revision,
+    required this.digest,
+    required this.fullscreen,
+    required this.idleTimeoutSeconds,
+    required this.updatedAt,
+  });
+
+  factory AppliedManagedTabletProfile.fromPublication(
+    ManagedTabletBinding binding,
+    ManagedTabletProfilePublication publication,
+  ) {
+    if (publication.deviceId.isEmpty) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final value = AppliedManagedTabletProfile._(
+      coreId: binding.coreId,
+      homeId: binding.homeId,
+      deviceId: publication.deviceId,
+      deviceRevision: publication.deviceRevision,
+      revision: publication.revision,
+      digest: publication.digest,
+      fullscreen: publication.document.fullscreen,
+      idleTimeoutSeconds: publication.document.idleTimeoutSeconds,
+      updatedAt: publication.updatedAt,
+    );
+    value._validate();
+    return value;
+  }
+
+  factory AppliedManagedTabletProfile.fromJson(Object? value) {
+    const keys = {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'deviceId',
+      'deviceRevision',
+      'revision',
+      'digest',
+      'fullscreen',
+      'idleTimeoutSeconds',
+      'updatedAt',
+    };
+    if (value is! Map<String, dynamic> ||
+        value.length != keys.length ||
+        !value.keys.every(keys.contains) ||
+        value['schemaVersion'] != 1 ||
+        value['coreId'] is! String ||
+        value['homeId'] is! String ||
+        value['deviceId'] is! String ||
+        value['deviceRevision'] is! int ||
+        value['revision'] is! int ||
+        value['digest'] is! String ||
+        value['fullscreen'] is! bool ||
+        value['idleTimeoutSeconds'] is! int ||
+        value['updatedAt'] is! num) {
+      throw const FormatException('invalid_managed_tablet_profile');
+    }
+    final profile = AppliedManagedTabletProfile._(
+      coreId: value['coreId'] as String,
+      homeId: value['homeId'] as String,
+      deviceId: value['deviceId'] as String,
+      deviceRevision: value['deviceRevision'] as int,
+      revision: value['revision'] as int,
+      digest: value['digest'] as String,
+      fullscreen: value['fullscreen'] as bool,
+      idleTimeoutSeconds: value['idleTimeoutSeconds'] as int,
+      updatedAt: (value['updatedAt'] as num).toDouble(),
+    );
+    try {
+      profile._validate();
+    } on LarenorServerException {
+      throw const FormatException('invalid_managed_tablet_profile');
+    }
+    return profile;
+  }
+
+  final String coreId, homeId, deviceId, digest;
+  final int deviceRevision, revision, idleTimeoutSeconds;
+  final bool fullscreen;
+  final double updatedAt;
+
+  bool belongsTo(ManagedTabletBinding binding, String expectedDeviceId) =>
+      coreId == binding.coreId &&
+      homeId == binding.homeId &&
+      deviceId == expectedDeviceId;
+
+  Map<String, Object> toJson() => {
+    'schemaVersion': 1,
+    'coreId': coreId,
+    'homeId': homeId,
+    'deviceId': deviceId,
+    'deviceRevision': deviceRevision,
+    'revision': revision,
+    'digest': digest,
+    'fullscreen': fullscreen,
+    'idleTimeoutSeconds': idleTimeoutSeconds,
+    'updatedAt': updatedAt,
+  };
+
+  void _validate() {
+    final expected = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              1,
+              coreId,
+              homeId,
+              deviceId,
+              fullscreen,
+              idleTimeoutSeconds,
+            ]),
+          ),
+        )
+        .toString();
+    if (!_identity.hasMatch(coreId) ||
+        !_identity.hasMatch(homeId) ||
+        !_identity.hasMatch(deviceId) ||
+        deviceRevision < 1 ||
+        revision < 1 ||
+        revision > deviceRevision ||
+        !_digest.hasMatch(digest) ||
+        digest != expected ||
+        idleTimeoutSeconds < 30 ||
+        idleTimeoutSeconds > 86400 ||
+        !updatedAt.isFinite ||
+        updatedAt < 0) {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
+  @override
+  String toString() =>
+      'AppliedManagedTabletProfile(device: $deviceId, revision: $revision)';
+}
+
+abstract interface class ManagedTabletProfilePersistence {
+  Future<String?> read();
+  Future<void> write(String? value);
+}
+
+final class SharedPreferencesManagedTabletProfilePersistence
+    implements ManagedTabletProfilePersistence {
+  SharedPreferencesManagedTabletProfilePersistence({
+    Future<SharedPreferences> Function()? preferences,
+  }) : _preferences = preferences ?? SharedPreferences.getInstance;
+
+  final Future<SharedPreferences> Function() _preferences;
+
+  @override
+  Future<String?> read() async =>
+      (await _preferences()).getString(managedTabletProfilePreferenceKey);
+
+  @override
+  Future<void> write(String? value) async {
+    final preferences = await _preferences();
+    final saved = value == null
+        ? await preferences.remove(managedTabletProfilePreferenceKey)
+        : await preferences.setString(managedTabletProfilePreferenceKey, value);
+    if (!saved) throw StateError('managed_tablet_profile_not_persisted');
+  }
+}
+
+final class ManagedTabletProfileStore {
+  ManagedTabletProfileStore(this.persistence);
+
+  final ManagedTabletProfilePersistence persistence;
+
+  Future<AppliedManagedTabletProfile?> read() async {
+    final raw = await persistence.read();
+    if (raw == null) return null;
+    try {
+      return AppliedManagedTabletProfile.fromJson(jsonDecode(raw));
+    } on FormatException {
+      throw StateError('managed_tablet_profile_invalid');
+    }
+  }
+
+  Future<AppliedManagedTabletProfile> apply(
+    ManagedTabletBinding binding,
+    ManagedTabletProfilePublication publication, {
+    required String expectedDeviceId,
+    required bool Function() isCurrent,
+    Future<void> Function(AppliedManagedTabletProfile? profile)? activate,
+  }) => ConfigurationWrites.run(() async {
+    if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+    if (publication.deviceId != expectedDeviceId) {
+      throw StateError('managed_tablet_profile_changed');
+    }
+    final next = AppliedManagedTabletProfile.fromPublication(
+      binding,
+      publication,
+    );
+    final previousRaw = await persistence.read();
+    final previous = previousRaw == null
+        ? null
+        : AppliedManagedTabletProfile.fromJson(jsonDecode(previousRaw));
+    if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+    if (previous != null && previous.belongsTo(binding, publication.deviceId)) {
+      if (previous.revision > next.revision ||
+          (previous.revision == next.revision &&
+              previous.digest != next.digest)) {
+        throw StateError('managed_tablet_profile_changed');
+      }
+      if (previous.revision == next.revision) {
+        if (activate != null) await activate(previous);
+        return previous;
+      }
+    }
+    await persistence.write(jsonEncode(next.toJson()));
+    try {
+      if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+      if (activate != null) await activate(next);
+      if (!isCurrent()) throw StateError('managed_tablet_action_retired');
+      return next;
+    } catch (_) {
+      await persistence.write(previousRaw);
+      if (activate != null) await activate(previous);
+      rethrow;
+    }
+  });
+}

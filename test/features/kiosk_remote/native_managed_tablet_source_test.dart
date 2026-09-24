@@ -13,6 +13,7 @@ final class _Actions implements ManagedTabletLocalActions {
   final bool fail;
   int refreshes = 0;
   int profileSyncs = 0;
+  String? synchronizedClientVersion;
 
   @override
   Future<void> refreshDashboard({required bool Function() isCurrent}) async {
@@ -23,8 +24,12 @@ final class _Actions implements ManagedTabletLocalActions {
   }
 
   @override
-  Future<void> syncProfile({required bool Function() isCurrent}) async {
+  Future<void> syncProfile({
+    required String clientVersion,
+    required bool Function() isCurrent,
+  }) async {
     profileSyncs++;
+    synchronizedClientVersion = clientVersion;
     await syncGate?.future;
     if (fail) throw StateError('fixture_failure');
     if (!isCurrent()) throw StateError('fixture_retired');
@@ -255,6 +260,16 @@ void main() {
         nativeCommands.add(call);
         return {'result': 'succeeded'};
       }
+      if (call.method == 'snapshot') {
+        return {
+          'schemaVersion': 1,
+          'batteryPercent': 50,
+          'network': 'wifi',
+          'appVersion': '1.2.3',
+          'appForeground': true,
+          'kioskState': 'none',
+        };
+      }
       return null;
     });
     final actions = _Actions();
@@ -276,6 +291,7 @@ void main() {
       ManagedTabletCommandResult.succeeded,
     );
     expect(actions.profileSyncs, 1);
+    expect(actions.synchronizedClientVersion, '1.2.3');
     expect(
       await lease.commandExecutor.execute('lockKiosk'),
       ManagedTabletCommandResult.succeeded,
@@ -298,6 +314,16 @@ void main() {
   test('retirement wins over a delayed profile synchronization', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'start') return {'status': 'active'};
+      if (call.method == 'snapshot') {
+        return {
+          'schemaVersion': 1,
+          'batteryPercent': 50,
+          'network': 'wifi',
+          'appVersion': '1.2.3',
+          'appForeground': true,
+          'kioskState': 'none',
+        };
+      }
       return null;
     });
     final gate = Completer<void>();

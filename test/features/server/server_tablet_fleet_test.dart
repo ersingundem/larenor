@@ -4,6 +4,9 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_credential_store.dart';
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_profile_store.dart';
+import 'package:larenor/features/kiosk_remote/runtime/managed_tablet_profile_sync.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/tablet_fleet/data/server_tablet_fleet_api.dart';
 import 'package:larenor/features/server/tablet_fleet/data/server_tablet_fleet_controller.dart';
@@ -262,6 +265,34 @@ class TabletFleetFixture extends AdminFixture {
   }
 }
 
+final class _ProfileCredentials implements ManagedTabletCredentialStore {
+  _ProfileCredentials(this.value);
+  ManagedTabletEnrollment? value;
+
+  @override
+  Future<ManagedTabletEnrollment?> read() async => value;
+
+  @override
+  Future<void> write(ManagedTabletEnrollment value) async => this.value = value;
+
+  @override
+  Future<void> clearIfCurrent(
+    ManagedTabletBinding binding,
+    String pairingId,
+  ) async {}
+
+  @override
+  Future<void> clearIfExact(ManagedTabletEnrollment enrollment) async {}
+}
+
+final class _ProfilePersistence implements ManagedTabletProfilePersistence {
+  String? value;
+  @override
+  Future<String?> read() async => value;
+  @override
+  Future<void> write(String? value) async => this.value = value;
+}
+
 void main() {
   test('records are closed, scope-bound and capability proof is exact', () {
     final standard = ManagedTablet.fromJson(fleetTablet());
@@ -386,6 +417,63 @@ void main() {
           throwsA(isA<LarenorServerException>()),
         );
       });
+      fixture.account.dispose();
+    },
+  );
+
+  test(
+    'profile synchronizer activates before exact heartbeat acknowledgement',
+    () async {
+      final fixture = TabletFleetFixture();
+      await fixture.account.initialize();
+      final session = fixture.account.session!;
+      final context = session.context!;
+      final pairingId = '1' * 32;
+      final credentials = _ProfileCredentials(
+        ManagedTabletEnrollment(
+          serverBaseUrl: session.endpoint.baseUrl,
+          coreId: context.coreId,
+          homeId: context.homeId,
+          accountId: session.user.id,
+          pairingId: pairingId,
+          deviceId: standardTabletId,
+          revision: 1,
+          scopes: const {'read', 'control'},
+          expiresAt: fixture.now.add(const Duration(hours: 1)),
+          token: 'A' * 43,
+          clientId: 'larenor-$pairingId',
+          topicPrefix: 'larenor/$pairingId',
+        ),
+      );
+      final persistence = _ProfilePersistence();
+      var activated = false;
+      final synchronizer = ManagedTabletProfileSynchronizer(
+        account: fixture.account,
+        credentials: credentials,
+        profiles: ManagedTabletProfileStore(persistence),
+        activate: (profile) async {
+          expect(profile?.revision, 2);
+          activated = true;
+        },
+      );
+
+      await synchronizer.synchronize(
+        clientVersion: '1.2.3',
+        isCurrent: () => true,
+      );
+
+      expect(activated, isTrue);
+      expect(
+        fixture.calls.where(
+          (call) => call.url.path.endsWith('/profile-publication'),
+        ),
+        hasLength(1),
+      );
+      expect(fixture.calls.last.url.path, endsWith('/heartbeat'));
+      expect(
+        (await ManagedTabletProfileStore(persistence).read())?.revision,
+        2,
+      );
       fixture.account.dispose();
     },
   );
