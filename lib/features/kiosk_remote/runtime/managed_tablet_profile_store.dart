@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,6 +44,7 @@ final _digest = RegExp(r'^[0-9a-f]{64}$');
 final class AppliedManagedTabletProfile {
   const AppliedManagedTabletProfile._({
     required this.authorityFingerprint,
+    required this.transactionId,
     required this.coreId,
     required this.homeId,
     required this.deviceId,
@@ -64,6 +66,7 @@ final class AppliedManagedTabletProfile {
     }
     final value = AppliedManagedTabletProfile._(
       authorityFingerprint: _authorityFingerprint(enrollment),
+      transactionId: _transactionId(),
       coreId: enrollment.coreId,
       homeId: enrollment.homeId,
       deviceId: publication.deviceId,
@@ -83,6 +86,7 @@ final class AppliedManagedTabletProfile {
     const keys = {
       'schemaVersion',
       'authorityFingerprint',
+      'transactionId',
       'coreId',
       'homeId',
       'deviceId',
@@ -99,6 +103,7 @@ final class AppliedManagedTabletProfile {
         !value.keys.every(keys.contains) ||
         value['schemaVersion'] != 2 ||
         value['authorityFingerprint'] is! String ||
+        value['transactionId'] is! String ||
         value['coreId'] is! String ||
         value['homeId'] is! String ||
         value['deviceId'] is! String ||
@@ -113,6 +118,7 @@ final class AppliedManagedTabletProfile {
     }
     final profile = AppliedManagedTabletProfile._(
       authorityFingerprint: value['authorityFingerprint'] as String,
+      transactionId: value['transactionId'] as String,
       coreId: value['coreId'] as String,
       homeId: value['homeId'] as String,
       deviceId: value['deviceId'] as String,
@@ -132,7 +138,12 @@ final class AppliedManagedTabletProfile {
     return profile;
   }
 
-  final String authorityFingerprint, coreId, homeId, deviceId, digest;
+  final String authorityFingerprint,
+      transactionId,
+      coreId,
+      homeId,
+      deviceId,
+      digest;
   final int deviceRevision, revision, idleTimeoutSeconds;
   final bool fullscreen;
   final bool confirmed;
@@ -147,6 +158,7 @@ final class AppliedManagedTabletProfile {
   Map<String, Object> toJson() => {
     'schemaVersion': 2,
     'authorityFingerprint': authorityFingerprint,
+    'transactionId': transactionId,
     'coreId': coreId,
     'homeId': homeId,
     'deviceId': deviceId,
@@ -161,6 +173,7 @@ final class AppliedManagedTabletProfile {
 
   AppliedManagedTabletProfile _confirm() => AppliedManagedTabletProfile._(
     authorityFingerprint: authorityFingerprint,
+    transactionId: transactionId,
     coreId: coreId,
     homeId: homeId,
     deviceId: deviceId,
@@ -178,6 +191,7 @@ final class AppliedManagedTabletProfile {
         utf8.encode(
           jsonEncode([
             1,
+            transactionId,
             authorityFingerprint,
             deviceId,
             deviceRevision,
@@ -208,6 +222,7 @@ final class AppliedManagedTabletProfile {
         !_identity.hasMatch(homeId) ||
         !_identity.hasMatch(deviceId) ||
         !_digest.hasMatch(authorityFingerprint) ||
+        !_identity.hasMatch(transactionId) ||
         deviceRevision < 1 ||
         revision < 1 ||
         revision > deviceRevision ||
@@ -238,6 +253,14 @@ final class AppliedManagedTabletProfile {
             ),
           )
           .toString();
+
+  static String _transactionId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
 
   @override
   String toString() =>

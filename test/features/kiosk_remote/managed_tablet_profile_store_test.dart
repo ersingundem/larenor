@@ -79,7 +79,10 @@ final class _Persistence implements ManagedTabletProfilePersistence {
   String? confirmation;
   Completer<void>? nextWrite;
   Completer<void>? writeGate;
+  Completer<void>? afterWriteStarted;
+  Completer<void>? afterWriteGate;
   int? gateAtWrite;
+  int? gateAfterWriteAt;
   int? failAtWrite;
   int writes = 0;
 
@@ -98,6 +101,10 @@ final class _Persistence implements ManagedTabletProfilePersistence {
     nextWrite = null;
     await gate?.future;
     this.value = value;
+    if (writes == gateAfterWriteAt) {
+      afterWriteStarted?.complete();
+      await afterWriteGate?.future;
+    }
   }
 
   @override
@@ -282,6 +289,45 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('orphan marker cannot confirm an identical publication retry', () async {
+    final persistence = _Persistence();
+    final store = ManagedTabletProfileStore(persistence);
+    await store.apply(
+      enrollment(),
+      publication(),
+      expectedDeviceId: deviceId,
+      isCurrent: () => true,
+    );
+    final orphan = persistence.confirmation;
+    persistence.value = null;
+    persistence.gateAfterWriteAt = persistence.writes + 2;
+    persistence.afterWriteStarted = Completer<void>();
+    persistence.afterWriteGate = Completer<void>();
+
+    final retry = store.apply(
+      enrollment(),
+      publication(),
+      expectedDeviceId: deviceId,
+      isCurrent: () => true,
+    );
+    await persistence.afterWriteStarted!.future;
+
+    expect(persistence.confirmation, orphan);
+    await expectLater(
+      store.readFor(enrollment()),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'managed_tablet_profile_unconfirmed',
+        ),
+      ),
+    );
+    persistence.afterWriteGate!.complete();
+    await retry;
+    expect((await store.readFor(enrollment()))?.revision, 2);
   });
 
   test(

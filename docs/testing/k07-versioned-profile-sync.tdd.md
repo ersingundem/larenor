@@ -30,14 +30,15 @@ acceptance.
    clear effective policy without exposing those identifiers in preferences.
    Foreign rollback targets are cleared rather than reactivated, and a command
    deadline retires its native lease before late work can persist or heartbeat.
-   A two-phase local confirmation bit keeps an interrupted rollback inert on
-   restart even if the underlying preference rollback reports a write failure.
+   A two-phase confirmation marker bound to a fresh transaction nonce keeps an
+   interrupted rollback or orphan marker inert on restart even if the
+   underlying preference rollback reports a write failure.
 
 ## Verification
 
 - Core profile publication, tablet fleet and rollout packages: **19 passed**.
 - Managed profile store, native source/runtime, tablet API, window profile and
-  idle gate packages: **112 passed**. The widget acceptance checks the exact
+  idle gate packages: **113 passed**. The widget acceptance checks the exact
   29.999-second/30.000-second ambient boundary.
 - Focused Dart analysis, Ruff 0.14.10 and diff checks passed.
 
