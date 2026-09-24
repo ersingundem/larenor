@@ -732,7 +732,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 )
                 self.assertTrue(all(set(item) == {
                     "phase", "sourceRevision", "installationReceiptDigest",
-                    "runtimeReceiptDigest",
+                    "runtimeReceiptDigest", "runtimeReceipt",
                 } for item in result["installationPhases"]))
                 self.assertEqual(
                     [item["sourceRevision"] for item in result["installationPhases"]],
@@ -900,6 +900,51 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             restart["runtimeReceiptDigest"],
             result["installationPhases"][1]["runtimeReceiptDigest"],
         )
+
+        for index, phase in enumerate(("clean-install", "upgrade", "restart")):
+            with self.subTest(phase=phase, mutation="digest"):
+                changed = copy.deepcopy(result)
+                changed["installationPhases"][index][
+                    "runtimeReceiptDigest"
+                ] = "f" * 64
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid",
+                ):
+                    target.validate_receipt(
+                        changed,
+                        CURRENT_REVISION,
+                        "linux/amd64",
+                        upgrade_source=BASE_REVISION,
+                        reviewed_head=CURRENT_REVISION,
+                        expected_recovery="not_required",
+                    )
+
+            with self.subTest(phase=phase, mutation="runtime"):
+                changed = copy.deepcopy(result)
+                changed["installationPhases"][index]["runtimeReceipt"]["core"][
+                    "containerIdentityDigest"
+                ] = "f" * 64
+                changed["installationPhases"][index][
+                    "runtimeReceiptDigest"
+                ] = _digest({
+                    "phase": phase,
+                    "runtimeReceipt": changed["installationPhases"][index][
+                        "runtimeReceipt"
+                    ],
+                })
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid",
+                ):
+                    target.validate_receipt(
+                        changed,
+                        CURRENT_REVISION,
+                        "linux/amd64",
+                        upgrade_source=BASE_REVISION,
+                        reviewed_head=CURRENT_REVISION,
+                        expected_recovery="not_required",
+                    )
 
         for drift in (
             "core_image",
