@@ -24,11 +24,16 @@ final class AndroidWebPanelNativeEffectPort
     int capabilityRevision = 3,
     WebPanelQrScan? scanQr,
     WebPanelQrCancel? cancelQr,
-  }) : _channel = channel,
+  }) : // Public dependency seams intentionally avoid exposing private names.
+       // ignore: prefer_initializing_formals
+       _channel = channel,
        _ownerId = ownerId ?? secureWebPanelNativeId(),
        _capabilities = Set.unmodifiable(capabilities),
+       // ignore: prefer_initializing_formals
        _capabilityRevision = capabilityRevision,
+       // ignore: prefer_initializing_formals
        _scanQr = scanQr,
+       // ignore: prefer_initializing_formals
        _cancelQr = cancelQr;
 
   static const channelName = 'com.ersingundem.larenor/web_panel_native_effects';
