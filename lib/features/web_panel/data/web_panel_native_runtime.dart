@@ -113,6 +113,7 @@ final class WebPanelNativeRuntime extends ChangeNotifier {
          grantIds: grantIds,
          previewIds: previewIds,
          elapsed: elapsed,
+         portTimeout: const Duration(seconds: 30),
        ),
        _port = port {
     if (port case final WebPanelNativeLifecyclePort lifecycle) {

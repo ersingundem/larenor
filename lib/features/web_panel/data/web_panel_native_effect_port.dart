@@ -24,6 +24,7 @@ final class AndroidWebPanelNativeEffectPort
     int capabilityRevision = 3,
     WebPanelQrScan? scanQr,
     WebPanelQrCancel? cancelQr,
+    Duration qrTimeout = const Duration(seconds: 25),
   }) : // Public dependency seams intentionally avoid exposing private names.
        // ignore: prefer_initializing_formals
        _channel = channel,
@@ -34,7 +35,14 @@ final class AndroidWebPanelNativeEffectPort
        // ignore: prefer_initializing_formals
        _scanQr = scanQr,
        // ignore: prefer_initializing_formals
-       _cancelQr = cancelQr;
+       _cancelQr = cancelQr,
+       // ignore: prefer_initializing_formals
+       _qrTimeout = qrTimeout {
+    if (qrTimeout <= Duration.zero ||
+        qrTimeout >= const Duration(seconds: 30)) {
+      throw ArgumentError.value(qrTimeout, 'qrTimeout');
+    }
+  }
 
   static const channelName = 'com.ersingundem.larenor/web_panel_native_effects';
   final MethodChannel _channel;
@@ -43,8 +51,11 @@ final class AndroidWebPanelNativeEffectPort
   final int _capabilityRevision;
   final WebPanelQrScan? _scanQr;
   final WebPanelQrCancel? _cancelQr;
+  final Duration _qrTimeout;
   final Set<String> _localReceipts = {};
   WebPanelBridgeScope? _bound;
+  WebPanelBridgeScope? _bindingScope;
+  Future<bool>? _bindingFuture;
   bool _retired = false;
 
   @override
@@ -54,9 +65,25 @@ final class AndroidWebPanelNativeEffectPort
   int get capabilityRevision => _retired ? 0 : _capabilityRevision;
 
   @override
-  Future<bool> bind(WebPanelBridgeScope scope) async {
-    if (_retired || !scope.valid) return false;
-    if (_bound == scope) return true;
+  Future<bool> bind(WebPanelBridgeScope scope) {
+    if (_retired || !scope.valid) return Future<bool>.value(false);
+    if (_bound == scope) return Future<bool>.value(true);
+    final pending = _bindingFuture;
+    if (pending != null) {
+      return _bindingScope == scope ? pending : Future<bool>.value(false);
+    }
+    final attempt = _bind(scope);
+    _bindingScope = scope;
+    _bindingFuture = attempt;
+    return attempt.whenComplete(() {
+      if (identical(_bindingFuture, attempt)) {
+        _bindingFuture = null;
+        _bindingScope = null;
+      }
+    });
+  }
+
+  Future<bool> _bind(WebPanelBridgeScope scope) async {
     try {
       final accepted = await _channel
           .invokeMethod<bool>('bind', {
@@ -135,8 +162,7 @@ final class AndroidWebPanelNativeEffectPort
       );
     }
     try {
-      final accepted = await scanner(formats)
-          .timeout(const Duration(seconds: 30));
+      final accepted = await scanner(formats).timeout(_qrTimeout);
       if (_retired) {
         return const WebPanelNativePortResult(
           outcome: WebPanelNativePortOutcome.uncertain,
@@ -153,6 +179,7 @@ final class AndroidWebPanelNativeEffectPort
         receiptHandle: value.requestId,
       );
     } catch (_) {
+      await _cancelQrQuietly();
       return const WebPanelNativePortResult(
         outcome: WebPanelNativePortOutcome.uncertain,
       );
@@ -185,13 +212,15 @@ final class AndroidWebPanelNativeEffectPort
 
   @override
   Future<void> retire(WebPanelBridgeScope scope) async {
-    if (_retired || _bound != scope) return;
+    if (_retired ||
+        (_bound != null && _bound != scope) ||
+        (_bindingScope != null && _bindingScope != scope)) {
+      return;
+    }
     _retired = true;
     _bound = null;
     _localReceipts.clear();
-    try {
-      await _cancelQr?.call().timeout(const Duration(seconds: 2));
-    } catch (_) {}
+    await _cancelQrQuietly();
     try {
       await _channel
           .invokeMethod<void>('retire', {'ownerId': _ownerId})
@@ -199,6 +228,12 @@ final class AndroidWebPanelNativeEffectPort
     } catch (_) {
       // Local retirement is terminal even when the platform is unavailable.
     }
+  }
+
+  Future<void> _cancelQrQuietly() async {
+    try {
+      await _cancelQr?.call().timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   static Map<String, Object?> _scope(WebPanelBridgeScope value) => {
