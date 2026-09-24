@@ -327,16 +327,25 @@ class LinuxCowCaptureEngine:
                     pass
 
     @contextmanager
-    def _held_capture(self, deadline):
+    def _held_capture(self, deadline, *, exit_failure=None):
         descriptor = -1
+        yielded = False
+        body_failed = False
         try:
+            if exit_failure is not None and not callable(exit_failure):
+                raise IsolatedComponentCaptureError()
             if self._capability_preflight is not None:
                 with self._capability_preflight.retain_capture(
                     self._capture_capability, deadline
                 ) as descriptor:
                     if type(descriptor) is not int or descriptor < 0:
                         raise IsolatedComponentCaptureError()
-                    yield descriptor
+                    yielded = True
+                    try:
+                        yield descriptor
+                    except BaseException:
+                        body_failed = True
+                        raise
                 return
             before = self.capture_root.lstat()
             descriptor = os.open(
@@ -351,7 +360,12 @@ class LinuxCowCaptureEngine:
                 or (after.st_dev, after.st_ino) != (current.st_dev, current.st_ino)
             ):
                 raise IsolatedComponentCaptureError()
-            yield descriptor
+            yielded = True
+            try:
+                yield descriptor
+            except BaseException:
+                body_failed = True
+                raise
             current = os.fstat(descriptor)
             after = self.capture_root.lstat()
             if (after.st_dev, after.st_ino) != (current.st_dev, current.st_ino):
@@ -359,6 +373,11 @@ class LinuxCowCaptureEngine:
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception:
+            if yielded and not body_failed and exit_failure is not None:
+                try:
+                    exit_failure()
+                except Exception:
+                    pass
             raise IsolatedComponentCaptureError() from None
         finally:
             if self._capability_preflight is None and descriptor >= 0:
@@ -623,7 +642,20 @@ class LinuxCowCaptureEngine:
     def capture(self, sources, deadline):
         _remaining(deadline)
         self._require_capability(deadline)
-        with self._held_capture(deadline) as root_descriptor:
+        descriptors = []
+
+        def abandon_unpublished_capture():
+            self._active_sources = None
+            while descriptors:
+                descriptor = descriptors.pop()
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+        with self._held_capture(
+            deadline, exit_failure=abandon_unpublished_capture
+        ) as root_descriptor:
             if self._read_journal() is not None or self._root_children(
                 root_descriptor, deadline
             ):
@@ -654,7 +686,6 @@ class LinuxCowCaptureEngine:
             self._require_capability(deadline)
             self._write_journal(journal)
             self._require_capability(deadline)
-            descriptors = []
             captured = []
             generation_descriptor = -1
             try:

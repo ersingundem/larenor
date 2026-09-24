@@ -287,6 +287,38 @@ def test_capability_drift_retains_journal_until_safe_restart_cleanup(tmp_path):
     assert len(backend.deleted) == 2
 
 
+def test_final_capture_authority_loss_closes_fds_and_restarts_safely(tmp_path):
+    preflight = CapturePreflight()
+    preflight.fail_on_capability_call = 20
+    backend = FakeCowBackend()
+    capture = engine(tmp_path, backend, preflight=preflight)
+    descriptor_root = "/proc/self/fd" if Path("/proc/self/fd").is_dir() else "/dev/fd"
+    before = len(os.listdir(descriptor_root))
+
+    with pytest.raises(IsolatedComponentCaptureError):
+        capture.capture(sources(tmp_path), time.monotonic() + 2)
+
+    assert len(os.listdir(descriptor_root)) == before
+    assert capture._active_sources is None
+    assert (tmp_path / "capture-journal.json").is_file()
+    generation = tmp_path / "captures" / ("1" * 32)
+    assert {item.name for item in generation.iterdir()} == {"2" * 32, "3" * 32}
+    assert backend.deleted == []
+
+    preflight.fail_on_capability_call = None
+    restarted = LinuxCowCaptureEngine(
+        tmp_path / "captures",
+        tmp_path / "capture-journal.json",
+        backend=backend,
+        capability_preflight=preflight,
+        capture_capability=LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15, 16, 17),
+    )
+    assert restarted.recover(time.monotonic() + 2) is True
+    assert not (tmp_path / "capture-journal.json").exists()
+    assert list((tmp_path / "captures").iterdir()) == []
+    assert len(backend.deleted) == 2
+
+
 def test_capability_is_rechecked_before_generation_mutation(tmp_path):
     preflight = CapturePreflight()
     preflight.fail_on_capability_call = 4
