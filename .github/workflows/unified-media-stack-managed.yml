@@ -88,6 +88,11 @@
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
+          "name": "Resolve exact supported upgrade source",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  pull_request)\n    upgrade_source=\"$PR_BASE_SHA\"\n    reviewed_head=\"$PR_HEAD_SHA\"\n    test \"$(git show -s --format='%P' \"$GITHUB_SHA\")\" = \"$upgrade_source $reviewed_head\"\n    ;;\n  workflow_dispatch)\n    set -- $(git show -s --format='%P' \"$GITHUB_SHA\")\n    test \"$#\" -eq 1\n    upgrade_source=\"$1\"\n    reviewed_head=\"$GITHUB_SHA\"\n    ;;\n  *) exit 1;;\nesac\nfor revision in \"$upgrade_source\" \"$reviewed_head\"; do\n  case \"$revision\" in\n    *[!0-9a-f]*|'') exit 1;;\n  esac\n  test \"${#revision}\" -eq 40\ndone\ntest \"$upgrade_source\" != \"$GITHUB_SHA\"\ngit merge-base --is-ancestor \"$upgrade_source\" \"$GITHUB_SHA\"\ngit merge-base --is-ancestor \"$reviewed_head\" \"$GITHUB_SHA\"\necho \"UPGRADE_SOURCE_SHA=$upgrade_source\" >> \"$GITHUB_ENV\"\necho \"REVIEWED_HEAD_SHA=$reviewed_head\" >> \"$GITHUB_ENV\"",
+          "if": "needs.native-scope.outputs.run == 'true'"
+        },
+        {
           "name": "Install exact Python toolchain",
           "run": "python3 -m venv \"$RUNNER_TEMP/unified-stack-bootstrap\"\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python install 3.12.14\npython_bin=\"$(\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" python find 3.12.14)\"\ntest -x \"$python_bin\"\necho \"UNIFIED_STACK_PYTHON=$python_bin\" >> \"$GITHUB_ENV\"",
           "if": "needs.native-scope.outputs.run == 'true'"
@@ -101,7 +106,7 @@
           "name": "Run exact unified stack lifecycle",
           "id": "native",
           "timeout-minutes": 38,
-          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\"",
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" GITHUB_SHA=\"$GITHUB_SHA\" \\\n  UPGRADE_SOURCE_SHA=\"$UPGRADE_SOURCE_SHA\" \\\n  REVIEWED_HEAD_SHA=\"$REVIEWED_HEAD_SHA\" \\\n  GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  \"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --run-native \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\" \\\n  > \"$RUNNER_TEMP/unified-stack-public-receipt.json\"",
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
@@ -113,7 +118,7 @@
         {
           "name": "Verify bounded public native receipt",
           "id": "verify",
-          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-platform \"$EXPECTED_PLATFORM\"",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m tool.unified_media_stack_managed_ci --verify-receipt \"$RUNNER_TEMP/unified-stack-public-receipt.json\" --expected-commit \"$GITHUB_SHA\" --expected-upgrade-source \"$UPGRADE_SOURCE_SHA\" --expected-reviewed-head \"$REVIEWED_HEAD_SHA\" --expected-platform \"$EXPECTED_PLATFORM\"",
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {
