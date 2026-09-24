@@ -576,12 +576,20 @@ class ComponentRestoreCoordinator:
             except Exception:
                 pass
 
+    @staticmethod
+    def _failure_rollback(session, rollbacks, stages):
+        try:
+            session.rollback(tuple(rollbacks), tuple(stages))
+        except Exception:
+            pass
+
     def restore(self, capture, plan, *, deadline):
         """Return receipts only after an exact all-stage/revalidate/commit cut."""
 
         session = None
         rollbacks = []
         stages = []
+        release_attempted = False
         try:
             volumes = _plan_matches_capture(capture, plan)
             self._active(deadline)
@@ -628,15 +636,19 @@ class ComponentRestoreCoordinator:
             self._active(deadline)
             if session.commit(tuple(stages), tuple(rollbacks), deadline) is not True:
                 raise ComponentRestorePlanError()
-        except Exception:
-            if session is not None:
-                self._failure_cleanup(session, rollbacks, stages)
-            raise ComponentRestorePlanError() from None
-
-        try:
+            self._active(deadline)
+            if session.revalidate(plan, deadline) is not True:
+                raise ComponentRestorePlanError()
+            self._active(deadline)
+            release_attempted = True
             if session.release() is not True:
                 raise ComponentRestorePlanError()
         except Exception:
+            if session is not None:
+                if release_attempted:
+                    self._failure_rollback(session, rollbacks, stages)
+                else:
+                    self._failure_cleanup(session, rollbacks, stages)
             raise ComponentRestorePlanError() from None
         return ComponentRestoreBatchReceipt(
             snapshot_id=plan.snapshot_id,

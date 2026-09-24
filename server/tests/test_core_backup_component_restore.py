@@ -293,8 +293,10 @@ class SyntheticRestoreSession:
         self.clock = clock
         self.events = []
         self.staged = {}
+        self.rollback_payloads = {}
         self.rollback_calls = 0
         self.release_calls = 0
+        self.revalidate_calls = 0
 
     def quiesce(self, targets, _deadline):
         self.events.append(("quiesce", tuple(item.service_id for item in targets)))
@@ -307,6 +309,7 @@ class SyntheticRestoreSession:
         if self.fail == "snapshot" and len(self.events) == 3:
             raise RuntimeError("private snapshot failure")
         payload = self.target[volume.resource_id]
+        self.rollback_payloads[volume.resource_id] = payload
         return ComponentRestoreRollbackReceipt(
             resource_id=volume.resource_id,
             binding_id=volume.binding_id,
@@ -335,23 +338,29 @@ class SyntheticRestoreSession:
 
     def revalidate(self, _plan, _deadline):
         self.events.append(("revalidate",))
-        return self.fail != "authority"
+        self.revalidate_calls += 1
+        if self.fail == "authority":
+            return False
+        return not (self.fail == "commit_authority" and self.revalidate_calls > 1)
 
     def commit(self, stages, rollbacks, _deadline):
         self.events.append(("commit", len(stages), len(rollbacks)))
         self.target.update(self.staged)
+        if self.fail == "commit_deadline":
+            self.clock.now = 11.0
         return True
 
     def rollback(self, rollbacks, stages):
         self.events.append(("rollback", len(rollbacks), len(stages)))
         self.rollback_calls += 1
+        self.target.update(self.rollback_payloads)
         self.staged.clear()
         return True
 
     def release(self):
         self.events.append(("release",))
         self.release_calls += 1
-        return True
+        return self.fail != "release"
 
 
 class SyntheticRestoreBoundary(ComponentRestoreBoundary):
@@ -398,6 +407,7 @@ def test_coordinator_stages_every_volume_then_revalidates_before_one_commit(serv
         "stage",
         "revalidate",
         "commit",
+        "revalidate",
         "release",
     ]
     assert tuple(event[1] for event in session.events[2:4]) == expected_resources
@@ -442,6 +452,31 @@ def test_coordinator_failure_rolls_back_and_releases_once_without_target_write(
     assert session.events[-1] == ("release",)
     if failure == "deadline":
         assert session.events[-2] == ("rollback", 2, 2)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["commit_authority", "commit_deadline", "release"],
+)
+def test_post_commit_drift_or_release_failure_restores_target_once(server, failure):
+    clock = Clock()
+    opened, plan, target, session, _boundary, coordinator = restore_inputs(
+        server,
+        fail=failure,
+        clock=clock,
+    )
+    before = dict(target)
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        coordinator.restore(opened, plan, deadline=10.0)
+
+    assert target == before
+    assert session.rollback_calls == 1
+    assert session.release_calls == 1
+    assert sum(event[0] == "commit" for event in session.events) == 1
 
 
 def test_default_component_restore_boundary_rejects_without_host_effect(server):
