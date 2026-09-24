@@ -2092,7 +2092,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut yüzey testleri yetkili Core kaynaklarını arama, oda ve kartlara bağlıyor; same-runtime eski veriyi inert tutup logoutta temizliyor ve binding zarfını yedek doğrulamasından geçiriyor. Aynı URL’de Core değişimi, process restart, gerçek restore rebind ve hesap değişimini bu üç yüzeyde birlikte kanıtlayan çapraz akış E2E henüz yok; exact kapanış incelemesi ve CI tamamlanmadan sayaç artmaz."
     },
     {
       "id": "B4",
@@ -2721,7 +2721,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Sürümlü exact-origin/method politikası, frame-aware Android transportu ve monotonic 30 saniyelik onay/lifecycle sınırı mevcut; normal production çağrısı hâlâ authority/effect port sağlamıyor. Yetkili TTS, print ve QR effect portlarının gerçek üretim bağlanması ile izin iptali sonrası uçtan uca effect/receipt kanıtı ve bağımsız kapanış incelemesi eksik olduğundan sayaç artmaz; fiziksel Huawei/DeX kabulü ayrıca MANUAL kalır."
     },
     {
       "id": "K09",
