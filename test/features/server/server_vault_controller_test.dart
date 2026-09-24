@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/home_data_scope.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
+import 'package:larenor/features/backup/data/backup_restore_access.dart';
 import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_vault_controller.dart';
@@ -11,6 +14,47 @@ import 'package:larenor/features/wellbeing/data/wellbeing_disclosure_policy.dart
 
 import '../backup/backup_test_storage.dart';
 import 'server_vault_test_support.dart';
+
+final _coreScopeA = HomeDataScope.fromJson({
+  'coreId': 'a' * 32,
+  'homeId': 'b' * 32,
+  'userId': 'fixture',
+});
+final _coreScopeB = HomeDataScope.fromJson({
+  'coreId': 'c' * 32,
+  'homeId': 'd' * 32,
+  'userId': 'fixture',
+});
+
+final class _MutableCoreAccess implements BackupRestoreAccess {
+  HomeDataScope scope = _coreScopeA;
+  bool live = true;
+  Completer<void>? pendingDurable;
+
+  @override
+  HomeSource get source => HomeSource.verifiedCore;
+  @override
+  Map<String, dynamic> get ownership => {
+    'source': source.name,
+    'scope': scope.toJson(),
+  };
+  @override
+  DateTime get validUntil => DateTime.utc(2030);
+  @override
+  void checkLive() {
+    if (!live) {
+      throw const BackupException('restore_expired', 'Read again.');
+    }
+  }
+
+  @override
+  Future<void> checkDurable() async {
+    final pending = pendingDurable;
+    pendingDurable = null;
+    if (pending != null) await pending.future;
+    checkLive();
+  }
+}
 
 void main() {
   late VaultApi api;
@@ -195,6 +239,101 @@ void main() {
     );
     expect(api.writes, 0);
   });
+
+  test('dashboard upload rejects authority retired after review', () async {
+    final access = _MutableCoreAccess();
+    storage.preferences[_coreScopeA.storageKey] = jsonEncode({
+      'version': 1,
+      'scope': _coreScopeA.toJson(),
+      'revision': 1,
+      'layout': {'schemaVersion': 2, 'rooms': <Object>[], 'tiles': <Object>[]},
+    });
+    final review = await controller.prepare(
+      direction: ServerVaultDirection.upload,
+      selection: const BackupSelection(settings: false, dashboard: true),
+      access: access,
+    );
+
+    access.live = false;
+
+    await expectLater(
+      controller.upload(review),
+      throwsA(
+        isA<BackupException>().having(
+          (error) => error.code,
+          'code',
+          'restore_expired',
+        ),
+      ),
+    );
+    expect(api.writes, 0);
+  });
+
+  test('dashboard upload rechecks exact owner after durable await', () async {
+    final access = _MutableCoreAccess();
+    storage.preferences[_coreScopeA.storageKey] = jsonEncode({
+      'version': 1,
+      'scope': _coreScopeA.toJson(),
+      'revision': 1,
+      'layout': {'schemaVersion': 2, 'rooms': <Object>[], 'tiles': <Object>[]},
+    });
+    final review = await controller.prepare(
+      direction: ServerVaultDirection.upload,
+      selection: const BackupSelection(settings: false, dashboard: true),
+      access: access,
+    );
+    final durable = Completer<void>();
+    access.pendingDurable = durable;
+
+    final pending = controller.upload(review);
+    await Future<void>.delayed(Duration.zero);
+    access.scope = _coreScopeB;
+    durable.complete();
+
+    await expectLater(
+      pending,
+      throwsA(
+        isA<BackupException>().having(
+          (error) => error.code,
+          'code',
+          'restore_expired',
+        ),
+      ),
+    );
+    expect(api.writes, 0);
+  });
+
+  test(
+    'dashboard upload cancellation during durable recheck sends no PUT',
+    () async {
+      final access = _MutableCoreAccess();
+      storage.preferences[_coreScopeA.storageKey] = jsonEncode({
+        'version': 1,
+        'scope': _coreScopeA.toJson(),
+        'revision': 1,
+        'layout': {
+          'schemaVersion': 2,
+          'rooms': <Object>[],
+          'tiles': <Object>[],
+        },
+      });
+      final review = await controller.prepare(
+        direction: ServerVaultDirection.upload,
+        selection: const BackupSelection(settings: false, dashboard: true),
+        access: access,
+      );
+      final durable = Completer<void>();
+      access.pendingDurable = durable;
+
+      final pending = controller.upload(review);
+      await Future<void>.delayed(Duration.zero);
+      controller.invalidate();
+      durable.complete();
+
+      await expectLater(pending, throwsA(isA<LarenorServerException>()));
+      expect(api.writes, 0);
+    },
+  );
 
   test(
     'five-minute and backwards-clock reviews expire before mutation',
