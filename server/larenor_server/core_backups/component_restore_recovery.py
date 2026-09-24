@@ -523,6 +523,10 @@ class DurableComponentRestoreCoordinator:
             )
             if session.commit(tuple(stages), tuple(rollbacks), deadline) is not True:
                 raise ComponentRestorePlanError()
+            self._active(deadline)
+            if session.revalidate(plan, deadline) is not True:
+                raise ComponentRestorePlanError()
+            self._active(deadline)
             self._persist(
                 self._state(plan, operation_id, "committed", rollbacks, stages)
             )
@@ -614,9 +618,8 @@ class DurableComponentRestoreCoordinator:
             recover = getattr(self._boundary, "recover_durable", None)
             if not callable(recover):
                 raise ComponentRestorePlanError()
-            session = self._session(
-                recover(plan, state["operationId"], deadline)
-            )
+            session = recover(plan, state["operationId"], deadline)
+            session = self._session(session)
             self._active(deadline)
             if state["phase"] != "rolled_back":
                 if session.revalidate(plan, deadline) is not True:

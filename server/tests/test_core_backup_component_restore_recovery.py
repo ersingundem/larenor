@@ -35,6 +35,8 @@ class DurableState:
         self.release_operations = set()
         self.release_attempts = 0
         self.recovery_fail = None
+        self.revalidate_attempts = {}
+        self.clock = None
 
 
 class DurableSession:
@@ -84,7 +86,13 @@ class DurableSession:
 
     def revalidate(self, _plan, _deadline):
         self.state.events.append(("revalidate", self.operation_id))
-        return self.state.recovery_fail != "authority"
+        count = self.state.revalidate_attempts.get(self.operation_id, 0) + 1
+        self.state.revalidate_attempts[self.operation_id] = count
+        if self.state.recovery_fail == "authority":
+            return False
+        return not (
+            self.state.recovery_fail == "commit_authority" and count > 1
+        )
 
     def commit(self, stages, _rollbacks, _deadline):
         self.state.events.append(("commit", self.operation_id))
@@ -94,6 +102,8 @@ class DurableSession:
             ]
             if self.state.partial_commit and index == 0:
                 raise SimulatedCrash()
+        if self.state.recovery_fail == "commit_deadline":
+            self.state.clock.now = 11.0
         return True
 
     def rollback(self, _rollbacks, _stages):
@@ -136,6 +146,24 @@ class RecoveryFailureBoundary(DurableBoundary):
         if self.state.recovery_fail == "deadline":
             self.clock.now = 11.0
         return session
+
+
+class MalformedRecoveredSession:
+    def __init__(self):
+        self.release_attempts = 0
+
+    def release(self):
+        self.release_attempts += 1
+        return True
+
+
+class MalformedRecoveryBoundary(DurableBoundary):
+    def __init__(self, state, session):
+        super().__init__(state)
+        self.session = session
+
+    def recover_durable(self, _plan, _operation_id, _deadline):
+        return self.session
 
 
 def durable_inputs(server, tmp_path, *, partial_commit=False, checkpoint=None):
@@ -272,6 +300,32 @@ def test_released_journal_failure_never_rolls_back_or_releases_again(server, tmp
     assert state.target != state.initial
     assert not state.rollback_operations
     assert sum(event[0] == "release" for event in state.events) == 1
+
+
+@pytest.mark.parametrize("failure", ["commit_authority", "commit_deadline"])
+def test_durable_post_commit_drift_rolls_back_and_preserves_old_target(
+    server, tmp_path, failure
+):
+    opened, plan, state, journal, _coordinator = durable_inputs(server, tmp_path)
+    clock = type("Clock", (), {"now": 0.0, "__call__": lambda self: self.now})()
+    state.clock = clock
+    state.recovery_fail = failure
+    coordinator = DurableComponentRestoreCoordinator(
+        journal,
+        DurableBoundary(state),
+        monotonic=clock,
+    )
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        coordinator.restore(opened, plan, deadline=10.0)
+
+    assert state.target == state.initial
+    assert len(state.rollback_operations) == 1
+    assert state.release_attempts == 1
+    assert not journal.exists()
 
 
 @pytest.mark.parametrize("recovery_phase", ["rolled_back", "released"])
@@ -431,6 +485,35 @@ def test_recovery_post_acquire_failure_releases_exactly_once(
     assert journal.exists()
     assert state.release_attempts == 1
     assert sum(event[0] == "release" for event in state.events) == 1
+
+
+def test_malformed_recovered_session_releases_retained_capability(server, tmp_path):
+    def checkpoint(value):
+        if value["phase"] == "pre_commit":
+            raise SimulatedCrash()
+
+    opened, plan, state, journal, coordinator = durable_inputs(
+        server,
+        tmp_path,
+        checkpoint=checkpoint,
+    )
+    with pytest.raises(SimulatedCrash):
+        coordinator.restore(opened, plan, deadline=10.0)
+    malformed = MalformedRecoveredSession()
+    restarted = DurableComponentRestoreCoordinator(
+        journal,
+        MalformedRecoveryBoundary(state, malformed),
+        monotonic=lambda: 0.0,
+    )
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        restarted.recover(plan, deadline=10.0)
+
+    assert malformed.release_attempts == 1
+    assert journal.exists()
 
 
 def test_default_durable_boundary_keeps_component_restore_disabled(
