@@ -288,6 +288,7 @@ def test_vault_v3_allows_non_dashboard_payload_without_owner(server):
         lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(homeId="b" * 31),
         lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(userId="bad\nuser"),
         lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(userId="x" * 129),
+        lambda item: item["snapshot"]["groups"]["dashboardOwner"]["scope"].update(userId="👤" * 65),
     ],
 )
 def test_vault_v3_rejects_owner_version_and_scope_substitution(server, mutation):
