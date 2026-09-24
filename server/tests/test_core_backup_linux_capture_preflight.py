@@ -1,7 +1,6 @@
 """Fail-closed capability contract for privileged Linux btrfs capture."""
 
 import os
-from pathlib import Path
 from types import SimpleNamespace
 import time
 
@@ -199,9 +198,7 @@ def test_preflight_rejects_unsupported_or_stale_host_without_details(
     with pytest.raises(
         LinuxCapturePreflightError, match="^linux_capture_unavailable$"
     ) as caught:
-        LinuxBtrfsCapturePreflight(root, system=system).verify(
-            time.monotonic() + 2
-        )
+        LinuxBtrfsCapturePreflight(root, system=system).verify(time.monotonic() + 2)
 
     assert str(root) not in repr(caught.value)
     assert system.closed == system.opened
@@ -248,6 +245,17 @@ def test_source_is_bound_to_same_btrfs_device_namespace_and_fd(tmp_path):
     preflight = LinuxBtrfsCapturePreflight(root, system=system)
     capability = preflight.verify(time.monotonic() + 2)
     source_info = source.stat()
+
+    with preflight.retain_capture(capability, time.monotonic() + 2) as root_fd:
+        assert os.fstat(root_fd).st_ino == root.stat().st_ino
+    with preflight.retain_source(
+        source,
+        source_info.st_dev,
+        source_info.st_ino,
+        capability,
+        time.monotonic() + 2,
+    ) as source_fd:
+        assert os.fstat(source_fd).st_ino == source_info.st_ino
 
     assert preflight.source_retained(
         source,
@@ -298,16 +306,17 @@ def test_open_directory_rejects_symlinked_ancestor(tmp_path):
     ],
 )
 def test_effective_capability_parser_rejects_noncanonical_status(value):
-    with pytest.raises(
-        LinuxCapturePreflightError, match="^linux_capture_unavailable$"
-    ):
+    with pytest.raises(LinuxCapturePreflightError, match="^linux_capture_unavailable$"):
         parse_effective_capabilities(value)
 
 
 def test_effective_capability_parser_accepts_exact_kernel_field():
-    assert parse_effective_capabilities(
-        b"Name:\tworker\nCapEff:\t0000000000200000\nNoNewPrivs:\t0\n"
-    ) == 1 << CAP_SYS_ADMIN
+    assert (
+        parse_effective_capabilities(
+            b"Name:\tworker\nCapEff:\t0000000000200000\nNoNewPrivs:\t0\n"
+        )
+        == 1 << CAP_SYS_ADMIN
+    )
 
 
 @pytest.mark.parametrize(
@@ -321,9 +330,7 @@ def test_effective_capability_parser_accepts_exact_kernel_field():
     ],
 )
 def test_host_uid_map_parser_rejects_remapped_or_malformed_authority(value):
-    with pytest.raises(
-        LinuxCapturePreflightError, match="^linux_capture_unavailable$"
-    ):
+    with pytest.raises(LinuxCapturePreflightError, match="^linux_capture_unavailable$"):
         parse_host_uid_map(value)
 
 

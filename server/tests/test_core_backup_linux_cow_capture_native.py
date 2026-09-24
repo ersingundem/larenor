@@ -35,15 +35,19 @@ class _InterruptAfterSnapshot:
     def __init__(self, backend):
         self.backend = backend
 
-    def create_read_only(self, source, destination, deadline):
-        self.backend.create_read_only(source, destination, deadline)
+    def create_read_only(
+        self, source_descriptor, generation_descriptor, capture_id, deadline
+    ):
+        self.backend.create_read_only(
+            source_descriptor, generation_descriptor, capture_id, deadline
+        )
         raise KeyboardInterrupt()
 
-    def is_read_only(self, destination, deadline):
-        return self.backend.is_read_only(destination, deadline)
+    def is_read_only(self, generation_descriptor, capture_id, deadline):
+        return self.backend.is_read_only(generation_descriptor, capture_id, deadline)
 
-    def delete(self, destination, deadline):
-        return self.backend.delete(destination, deadline)
+    def delete(self, generation_descriptor, capture_id, deadline):
+        return self.backend.delete(generation_descriptor, capture_id, deadline)
 
 
 def _source(root):
@@ -123,9 +127,16 @@ def test_real_btrfs_capture_is_read_only_and_restart_releases_intent():
     )
 
     leases = engine.capture((source,), time.monotonic() + 10)
-    assert backend.is_read_only(
-        captures / ("1" * 32) / ("2" * 32), time.monotonic() + 10
+    generation_descriptor = os.open(
+        captures / ("1" * 32),
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
     )
+    try:
+        assert backend.is_read_only(
+            generation_descriptor, "2" * 32, time.monotonic() + 10
+        )
+    finally:
+        os.close(generation_descriptor)
     descriptor = os.open("state.txt", os.O_RDONLY, dir_fd=leases[0].descriptor)
     try:
         assert os.read(descriptor, 128) == b"durable component state\n"

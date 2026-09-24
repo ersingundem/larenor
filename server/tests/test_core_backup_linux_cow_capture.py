@@ -25,6 +25,14 @@ from larenor_server.core_backups.component_snapshot_provider import (
 )
 
 
+def descriptor_path(descriptor):
+    proc = Path(f"/proc/self/fd/{descriptor}")
+    if proc.exists():
+        return proc
+    raw = fcntl.fcntl(descriptor, 50, b"\0" * 1024)
+    return Path(raw.split(b"\0", 1)[0].decode())
+
+
 class FakeCowBackend:
     def __init__(
         self,
@@ -42,31 +50,35 @@ class FakeCowBackend:
         self.replace_source = replace_source
         self.after_create = after_create
 
-    def create_read_only(self, source, destination, deadline):
+    def create_read_only(
+        self, source_descriptor, generation_descriptor, capture_id, deadline
+    ):
         assert time.monotonic() < deadline
+        source = descriptor_path(source_descriptor)
+        destination = descriptor_path(generation_descriptor) / capture_id
         shutil.copytree(source, destination)
-        self.created.append((source, destination))
-        self.read_only.add(destination)
+        self.created.append(capture_id)
+        self.read_only.add(capture_id)
         if self.after_create is not None:
             self.after_create()
         if self.replace_source:
-            retired = source.with_name(source.name + "-retired")
-            source.rename(retired)
-            source.mkdir()
+            raise AssertionError("replacement must use the visible source path")
         if self.interrupt_after == len(self.created):
             raise KeyboardInterrupt()
 
-    def is_read_only(self, destination, deadline):
+    def is_read_only(self, generation_descriptor, capture_id, deadline):
         assert time.monotonic() < deadline
-        return destination in self.read_only
+        os.fstat(generation_descriptor)
+        return capture_id in self.read_only
 
-    def delete(self, destination, deadline):
+    def delete(self, generation_descriptor, capture_id, deadline):
         assert time.monotonic() < deadline
         if self.delete_failure:
             raise OSError("private backend detail")
+        destination = descriptor_path(generation_descriptor) / capture_id
         shutil.rmtree(destination)
-        self.read_only.discard(destination)
-        self.deleted.append(destination)
+        self.read_only.discard(capture_id)
+        self.deleted.append(capture_id)
 
 
 def sources(tmp_path):
@@ -101,6 +113,7 @@ class CapturePreflight:
         self.held_sources = 0
         self.capability_calls = 0
         self.fail_on_capability_call = None
+        self.capture_root = None
 
     def revalidate(self, capability, deadline):
         assert time.monotonic() < deadline
@@ -119,11 +132,28 @@ class CapturePreflight:
     @contextmanager
     def retain_source(self, path, device, inode, capability, deadline):
         assert self.source_retained(path, device, inode, capability, deadline)
+        descriptor = os.open(
+            path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+        )
         self.held_sources += 1
         try:
-            yield
+            yield descriptor
         finally:
             self.held_sources -= 1
+            os.close(descriptor)
+
+    @contextmanager
+    def retain_capture(self, capability, deadline):
+        assert self.revalidate(capability, deadline)
+        descriptor = os.open(
+            self.capture_root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        try:
+            yield descriptor
+            assert self.revalidate(capability, deadline)
+        finally:
+            os.close(descriptor)
 
 
 def engine(tmp_path, backend, *, preflight=None, identifiers=None):
@@ -134,13 +164,13 @@ def engine(tmp_path, backend, *, preflight=None, identifiers=None):
         if preflight is None
         else LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15, 16, 17)
     )
+    if preflight is not None:
+        preflight.capture_root = root
     return LinuxCowCaptureEngine(
         root,
         tmp_path / "capture-journal.json",
         backend=backend,
-        id_factory=iter(
-            identifiers or ("1" * 32, "2" * 32, "3" * 32)
-        ).__next__,
+        id_factory=iter(identifiers or ("1" * 32, "2" * 32, "3" * 32)).__next__,
         capability_preflight=preflight,
         capture_capability=capability,
     )
@@ -172,8 +202,7 @@ def test_capability_is_retained_and_release_is_exactly_once(tmp_path):
 
     values = capture.capture(sources(tmp_path), time.monotonic() + 2)
     assert all(
-        fcntl.fcntl(item.descriptor, fcntl.F_GETFL) & os.O_ACCMODE
-        == os.O_RDONLY
+        fcntl.fcntl(item.descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY
         for item in values
     )
     assert all(
@@ -251,9 +280,7 @@ def test_capability_drift_retains_journal_until_safe_restart_cleanup(tmp_path):
         tmp_path / "capture-journal.json",
         backend=backend,
         capability_preflight=preflight,
-        capture_capability=LinuxBtrfsCaptureCapability(
-            1, 11, 12, 13, 14, 15, 16, 17
-        ),
+        capture_capability=LinuxBtrfsCaptureCapability(1, 11, 12, 13, 14, 15, 16, 17),
     )
     assert restarted.recover(time.monotonic() + 2) is True
     assert restarted.recover(time.monotonic() + 2) is True
@@ -335,10 +362,10 @@ def test_revalidate_rejects_writable_or_identity_drift(tmp_path):
     backend = FakeCowBackend()
     capture = engine(tmp_path, backend)
     values = capture.capture(sources(tmp_path), time.monotonic() + 2)
-    destination = backend.created[0][1]
-    backend.read_only.remove(destination)
+    capture_id = backend.created[0]
+    backend.read_only.remove(capture_id)
     assert capture.revalidate(values, time.monotonic() + 2) is False
-    backend.read_only.add(destination)
+    backend.read_only.add(capture_id)
     damaged = (
         replace(values[0], snapshot_inode=values[0].snapshot_inode + 1),
         *values[1:],
@@ -364,11 +391,19 @@ def test_malformed_restart_journal_fails_closed_without_deleting(tmp_path):
 
 
 def test_capture_rejects_source_identity_drift_and_retains_no_payload(tmp_path):
-    backend = FakeCowBackend(replace_source=True)
+    selected = sources(tmp_path)
+    source = selected[0].path
+
+    def replace_source():
+        retired = source.with_name(source.name + "-retired")
+        source.rename(retired)
+        source.mkdir()
+
+    backend = FakeCowBackend(after_create=replace_source)
     capture = engine(tmp_path, backend)
 
     with pytest.raises(IsolatedComponentCaptureError):
-        capture.capture(sources(tmp_path), time.monotonic() + 2)
+        capture.capture(selected, time.monotonic() + 2)
 
     assert not (tmp_path / "capture-journal.json").exists()
     assert list((tmp_path / "captures").iterdir()) == []
@@ -386,7 +421,7 @@ def test_capture_rejects_unjournaled_capture_root_entry(tmp_path):
     assert (tmp_path / "captures" / "foreign").is_dir()
 
 
-def test_btrfs_backend_uses_only_fixed_read_only_operations():
+def test_btrfs_backend_uses_only_fixed_read_only_operations(tmp_path):
     calls = []
 
     def run(arguments, **options):
@@ -396,30 +431,152 @@ def test_btrfs_backend_uses_only_fixed_read_only_operations():
 
     backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"), runner=run)
     deadline = time.monotonic() + 2
-    backend.create_read_only(Path("/source"), Path("/capture"), deadline)
-    backend.delete(Path("/capture"), deadline)
+    source = tmp_path / "source"
+    generation = tmp_path / "generation"
+    source.mkdir()
+    generation.mkdir()
+    source_descriptor = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
+    generation_descriptor = os.open(generation, os.O_RDONLY | os.O_DIRECTORY)
+    capture_id = "a" * 32
+    try:
+        backend.create_read_only(
+            source_descriptor, generation_descriptor, capture_id, deadline
+        )
+        backend.delete(generation_descriptor, capture_id, deadline)
+    finally:
+        os.close(source_descriptor)
+        os.close(generation_descriptor)
 
     assert [call[0][1:] for call in calls] == [
-        ["subvolume", "snapshot", "-r", "/source", "/capture"],
-        ["property", "get", "-ts", "/capture", "ro"],
-        ["subvolume", "delete", "/capture"],
+        [
+            "subvolume",
+            "snapshot",
+            "-r",
+            f"/proc/self/fd/{source_descriptor}",
+            f"/proc/self/fd/{generation_descriptor}/{capture_id}",
+        ],
+        [
+            "property",
+            "get",
+            "-ts",
+            f"/proc/self/fd/{generation_descriptor}/{capture_id}",
+            "ro",
+        ],
+        [
+            "subvolume",
+            "delete",
+            f"/proc/self/fd/{generation_descriptor}/{capture_id}",
+        ],
+    ]
+    assert [call[1]["pass_fds"] for call in calls] == [
+        (source_descriptor, generation_descriptor),
+        (generation_descriptor,),
+        (generation_descriptor,),
     ]
     assert all(call[1]["stdin"] is subprocess.DEVNULL for call in calls)
     assert all(call[1]["stderr"] is subprocess.DEVNULL for call in calls)
     assert all("shell" not in call[1] for call in calls)
 
 
-def test_btrfs_runner_failure_is_static_and_source_free():
+def test_btrfs_effects_stay_bound_while_visible_paths_are_swapped(tmp_path):
+    source = tmp_path / "source"
+    generation = tmp_path / "generation"
+    source.mkdir()
+    generation.mkdir()
+    source_identity = (source.stat().st_dev, source.stat().st_ino)
+    generation_identity = (generation.stat().st_dev, generation.stat().st_ino)
+    source_descriptor = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
+    generation_descriptor = os.open(generation, os.O_RDONLY | os.O_DIRECTORY)
+    calls = []
+
+    def swap(path):
+        retained = path.with_name(path.name + "-retained")
+        path.rename(retained)
+        path.mkdir()
+        return retained
+
+    def restore(path, retained):
+        path.rmdir()
+        retained.rename(path)
+
+    def run(arguments, **options):
+        retained_source = swap(source)
+        retained_generation = swap(generation)
+        try:
+            passed = options["pass_fds"]
+            if arguments[1:4] == ["subvolume", "snapshot", "-r"]:
+                assert passed == (source_descriptor, generation_descriptor)
+                assert (
+                    os.fstat(source_descriptor).st_dev,
+                    os.fstat(source_descriptor).st_ino,
+                ) == source_identity
+            else:
+                assert passed == (generation_descriptor,)
+            assert (
+                os.fstat(generation_descriptor).st_dev,
+                os.fstat(generation_descriptor).st_ino,
+            ) == generation_identity
+            assert (source.stat().st_dev, source.stat().st_ino) != source_identity
+            assert (
+                generation.stat().st_dev,
+                generation.stat().st_ino,
+            ) != generation_identity
+            calls.append(arguments[1:3])
+            output = (
+                b"ro=true\n" if arguments[1:4] == ["property", "get", "-ts"] else b""
+            )
+            return subprocess.CompletedProcess(arguments, 0, output)
+        finally:
+            restore(source, retained_source)
+            restore(generation, retained_generation)
+
+    backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"), runner=run)
+    capture_id = "a" * 32
+    try:
+        backend.create_read_only(
+            source_descriptor,
+            generation_descriptor,
+            capture_id,
+            time.monotonic() + 2,
+        )
+        assert backend.is_read_only(
+            generation_descriptor, capture_id, time.monotonic() + 2
+        )
+        backend.delete(generation_descriptor, capture_id, time.monotonic() + 2)
+    finally:
+        os.close(source_descriptor)
+        os.close(generation_descriptor)
+
+    assert calls == [
+        ["subvolume", "snapshot"],
+        ["property", "get"],
+        ["property", "get"],
+        ["subvolume", "delete"],
+    ]
+
+
+def test_btrfs_runner_failure_is_static_and_source_free(tmp_path):
     def fail(_arguments, **_options):
         raise RuntimeError("private-host-path")
 
     backend = BtrfsReadOnlySnapshotBackend(Path("/usr/bin/env"), runner=fail)
-    with pytest.raises(
-        IsolatedComponentCaptureError, match="^isolated_capture_unavailable$"
-    ) as caught:
-        backend.create_read_only(
-            Path("/private/source"),
-            Path("/private/destination"),
-            time.monotonic() + 2,
-        )
+    source = tmp_path / "private-source"
+    generation = tmp_path / "private-destination"
+    source.mkdir()
+    generation.mkdir()
+    source_descriptor = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
+    generation_descriptor = os.open(generation, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        with pytest.raises(
+            IsolatedComponentCaptureError, match="^isolated_capture_unavailable$"
+        ) as caught:
+            backend.create_read_only(
+                source_descriptor,
+                generation_descriptor,
+                "a" * 32,
+                time.monotonic() + 2,
+            )
+    finally:
+        os.close(source_descriptor)
+        os.close(generation_descriptor)
     assert "private" not in repr(caught.value)

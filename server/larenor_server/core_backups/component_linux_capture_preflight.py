@@ -60,9 +60,7 @@ def parse_effective_capabilities(value):
         if any(not line or len(line) > 4096 for line in lines):
             raise ValueError()
         matches = [
-            match
-            for line in lines
-            if (match := _CAPABILITY_FIELD.fullmatch(line))
+            match for line in lines if (match := _CAPABILITY_FIELD.fullmatch(line))
         ]
         if len(matches) != 1 or sum(line.startswith(b"CapEff:") for line in lines) != 1:
             raise ValueError()
@@ -225,10 +223,7 @@ class LinuxCaptureSystem:
                 if (
                     not stat.S_ISDIR(info.st_mode)
                     or index < len(parts) - 1
-                    and (
-                        info.st_uid != 0
-                        or stat.S_IMODE(info.st_mode) & 0o022
-                    )
+                    and (info.st_uid != 0 or stat.S_IMODE(info.st_mode) & 0o022)
                 ):
                     _close(following)
                     raise OSError()
@@ -325,15 +320,13 @@ class LinuxBtrfsCapturePreflight:
                 or not raw
                 or len(raw.encode("utf-8", "strict")) > 4096
                 or any(
-                    ord(character) < 32 or ord(character) == 127
-                    for character in raw
+                    ord(character) < 32 or ord(character) == 127 for character in raw
                 )
             ):
                 raise ValueError()
             selected = system or LinuxCaptureSystem()
             if any(
-                not callable(getattr(selected, name, None))
-                for name in self._METHODS
+                not callable(getattr(selected, name, None)) for name in self._METHODS
             ):
                 raise ValueError()
         except Exception:
@@ -361,10 +354,7 @@ class LinuxBtrfsCapturePreflight:
             or uid_map != _HOST_UID_MAP
             or type(user_namespace) is not tuple
             or len(user_namespace) != 2
-            or any(
-                type(value) is not int or value < 0
-                for value in user_namespace
-            )
+            or any(type(value) is not int or value < 0 for value in user_namespace)
             or user_namespace[1] <= 0
         ):
             raise LinuxCapturePreflightError()
@@ -496,6 +486,24 @@ class LinuxBtrfsCapturePreflight:
                 except Exception:
                     pass
 
+    @contextmanager
+    def retain_capture(self, capability, deadline):
+        """Retain the exact capture-root descriptor across one mutation."""
+        try:
+            if not self.revalidate(capability, deadline):
+                raise LinuxCapturePreflightError()
+            descriptor = self._descriptor
+            if descriptor < 0:
+                raise LinuxCapturePreflightError()
+            yield descriptor
+            _remaining(deadline)
+            if not self.revalidate(capability, deadline):
+                raise LinuxCapturePreflightError()
+        except LinuxCapturePreflightError:
+            raise
+        except Exception:
+            raise LinuxCapturePreflightError() from None
+
     def _source_observation(self, descriptor, capability, deadline):
         current = _identity(self._system.descriptor_info(descriptor))
         observed = self._system.observe_mount(descriptor, deadline)
@@ -536,8 +544,7 @@ class LinuxBtrfsCapturePreflight:
                 or not raw
                 or len(raw.encode("utf-8", "strict")) > 4096
                 or any(
-                    ord(character) < 32 or ord(character) == 127
-                    for character in raw
+                    ord(character) < 32 or ord(character) == 127 for character in raw
                 )
                 or type(device) is not int
                 or device < 0
@@ -558,7 +565,7 @@ class LinuxBtrfsCapturePreflight:
                 or (current[0], current[1]) != (device, inode)
             ):
                 raise LinuxCapturePreflightError()
-            yield
+            yield descriptor
             _remaining(deadline)
             if not self.revalidate(capability, deadline):
                 raise LinuxCapturePreflightError()
