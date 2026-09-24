@@ -473,6 +473,69 @@ class UpgradeDriver(FakeDriver):
 
 
 class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
+    def test_recovery_revalidates_config_after_adopting_owned_project(self):
+        class RecoveryConfigDriver(UpgradeDriver):
+            def __init__(self, *, fail_after_adoption=False, **arguments):
+                super().__init__(**arguments)
+                self.project_name = "larenor-native-" + "b" * 32
+                self.retained_project_name = "larenor-native-" + "a" * 32
+                self.config_projects = []
+                self.fail_after_adoption = fail_after_adoption
+
+            def config(self, path, revision):
+                self.config_projects.append(self.project_name)
+                if (self.fail_after_adoption
+                        and self.project_name == self.retained_project_name):
+                    raise RuntimeError("private adopted config failure")
+                self.config_digest = hashlib.sha256(
+                    self.project_name.encode("ascii")
+                ).hexdigest()
+                return target.SourceConfig().config(path, revision)
+
+            def prepare_owned(self, manifest):
+                super().prepare_owned(manifest)
+                self.project_name = self.retained_project_name
+                return True
+
+        state = DurableUpgradeState()
+        crashed = UpgradeDriver(state=state, interrupt_at="upgrade_power_loss")
+        with self.assertRaises(PowerLoss):
+            self.run_upgrade(crashed)
+
+        restarted = RecoveryConfigDriver(state=state)
+        result = self.run_upgrade(restarted)
+
+        self.assertEqual(
+            restarted.config_projects,
+            ["larenor-native-" + "b" * 32, "larenor-native-" + "a" * 32],
+        )
+        self.assertEqual(
+            result["composeConfigDigest"],
+            hashlib.sha256(restarted.retained_project_name.encode("ascii")).hexdigest(),
+        )
+        self.assertEqual(state.apply_counts, {"install": 1, "upgrade": 1})
+
+        failed_state = DurableUpgradeState()
+        crashed = UpgradeDriver(
+            state=failed_state,
+            interrupt_at="upgrade_power_loss",
+        )
+        with self.assertRaises(PowerLoss):
+            self.run_upgrade(crashed)
+        failed = RecoveryConfigDriver(
+            state=failed_state,
+            fail_after_adoption=True,
+        )
+        with self.assertRaisesRegex(
+            target.ManagedStackCIError,
+            "unified_manifest_invalid",
+        ) as raised:
+            self.run_upgrade(failed)
+        self.assertIs(raised.exception.preserve_resources, True)
+        self.assertIsNotNone(failed_state.journal)
+        self.assertNotIn("cleanup", failed.calls)
+        self.assertEqual(failed_state.apply_counts, {"install": 1, "upgrade": 1})
+
     def test_apply_reconcile_preserves_bounded_known_failure_code(self):
         class FailingDriver:
             def __init__(self, failure):
