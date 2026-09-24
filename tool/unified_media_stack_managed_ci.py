@@ -1224,6 +1224,28 @@ def _validate_receipt(value, commit, selected_platform, *, upgrade_source=None,
                     "serviceId": service_id, "state": "not_verified",
                     "code": "bootstrap_authority_not_available"}):
             raise ManagedStackCIError("unified_characterization_evidence_invalid")
+    if expanded:
+        if phase_runtime[1] != phase_runtime[2]:
+            raise ManagedStackCIError(
+                "unified_characterization_evidence_invalid",
+            )
+        current_identities = {
+            item["serviceId"]: item["containerIdentityDigest"]
+            for item in phase_runtime[1]["services"]
+        }
+        for service_id in COMPONENTS:
+            service = value["services"][service_id]
+            if any(
+                service[phase]["containerIdentityDigest"]
+                != current_identities[service_id]
+                for phase in (
+                    "initialContainerReceipt",
+                    "restartContainerReceipt",
+                )
+            ):
+                raise ManagedStackCIError(
+                    "unified_characterization_evidence_invalid",
+                )
     encoded = _canonical(value).lower()
     if len(encoded) > MAX_OUTPUT or any(term in encoded for term in (
             "token", "password", "credential", "authorization", "/var/lib")):
