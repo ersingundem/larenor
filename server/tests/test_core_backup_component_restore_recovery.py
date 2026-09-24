@@ -318,6 +318,43 @@ def test_released_journal_failure_never_rolls_back_or_releases_again(server, tmp
     assert sum(event[0] == "release" for event in state.events) == 1
 
 
+def test_released_restart_replays_external_decision_before_clear(server, tmp_path):
+    def crash_after_released_persist(value):
+        if value["phase"] == "released":
+            raise SimulatedCrash()
+
+    opened, plan, state, journal, coordinator = durable_inputs(
+        server,
+        tmp_path,
+        checkpoint=crash_after_released_persist,
+    )
+    with pytest.raises(SimulatedCrash):
+        coordinator.restore(opened, plan, deadline=10.0)
+    assert journal.read()["phase"] == "released"
+    assert sum(event[0] == "release" for event in state.events) == 1
+
+    with pytest.raises(SimulatedCrash):
+        DurableComponentRestoreCoordinator(
+            journal,
+            DurableBoundary(state),
+            monotonic=lambda: 0.0,
+            checkpoint=crash_after_released_persist,
+        ).recover(plan, deadline=10.0)
+    assert journal.read()["phase"] == "released"
+
+    replayed = []
+    restarted = DurableComponentRestoreCoordinator(
+        journal,
+        DurableBoundary(state),
+        monotonic=lambda: 0.0,
+        checkpoint=lambda value: replayed.append(value["phase"]),
+    )
+    assert restarted.recover(plan, deadline=10.0) is True
+    assert replayed == ["released"]
+    assert journal.exists() is False
+    assert sum(event[0] == "release" for event in state.events) == 1
+
+
 @pytest.mark.parametrize("failure", ["commit_authority", "commit_deadline"])
 def test_durable_post_commit_drift_rolls_back_and_preserves_old_target(
     server, tmp_path, failure
