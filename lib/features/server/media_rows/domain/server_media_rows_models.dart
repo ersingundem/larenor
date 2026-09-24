@@ -24,6 +24,44 @@ int _revision(Object? value) {
 
 enum ServerMediaRowKind { movie, episode }
 
+final class ServerMediaRowsTarget {
+  const ServerMediaRowsTarget._({
+    required this.installationId,
+    required this.installationRevision,
+    required this.bindingRevision,
+  });
+
+  factory ServerMediaRowsTarget.fromJson(
+    Object? value, {
+    required String expectedInstallationId,
+    required int expectedInstallationRevision,
+  }) {
+    final map = _object(value, {
+      'schemaVersion',
+      'installationId',
+      'installationRevision',
+      'bindingRevision',
+    });
+    final schemaVersion = map['schemaVersion'];
+    final installationId = _identity(map['installationId']);
+    final installationRevision = _revision(map['installationRevision']);
+    if (schemaVersion is! int ||
+        schemaVersion != 1 ||
+        installationId != expectedInstallationId ||
+        installationRevision != expectedInstallationRevision) {
+      _invalid();
+    }
+    return ServerMediaRowsTarget._(
+      installationId: installationId,
+      installationRevision: installationRevision,
+      bindingRevision: _revision(map['bindingRevision']),
+    );
+  }
+
+  final String installationId;
+  final int installationRevision, bindingRevision;
+}
+
 final class ServerMediaRowItem {
   const ServerMediaRowItem._({
     required this.itemId,
@@ -146,6 +184,7 @@ final class ServerAccountMediaRows {
     required String expectedRequestId,
     required String expectedInstallationId,
     required int expectedInstallationRevision,
+    required int expectedBindingRevision,
   }) {
     final map = _object(value, {
       'requestId',
@@ -159,19 +198,36 @@ final class ServerAccountMediaRows {
     final installationRevision = _revision(map['installationRevision']);
     if (requestId != expectedRequestId ||
         installationId != expectedInstallationId ||
-        installationRevision != expectedInstallationRevision) {
+        installationRevision != expectedInstallationRevision ||
+        _revision(map['bindingRevision']) != expectedBindingRevision) {
       _invalid();
     }
     return ServerAccountMediaRows._(
       requestId: requestId,
       installationId: installationId,
       installationRevision: installationRevision,
-      bindingRevision: _revision(map['bindingRevision']),
+      bindingRevision: expectedBindingRevision,
       rows: ServerMediaRows.fromJson(map['rows']),
     );
   }
 
-  final String requestId, installationId;
+  factory ServerAccountMediaRows.cached({
+    required String installationId,
+    required int installationRevision,
+    required int bindingRevision,
+    required ServerMediaRows rows,
+  }) {
+    return ServerAccountMediaRows._(
+      requestId: null,
+      installationId: _identity(installationId),
+      installationRevision: _revision(installationRevision),
+      bindingRevision: _revision(bindingRevision),
+      rows: rows,
+    );
+  }
+
+  final String? requestId;
+  final String installationId;
   final int installationRevision, bindingRevision;
   final ServerMediaRows rows;
 }

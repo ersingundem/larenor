@@ -22,16 +22,42 @@ final class ServerMediaRowsApi {
   }
 
   Future<ServerAccountMediaRows> readCurrent({bool Function()? current}) async {
-    _requireCurrent(current);
-    final target = await ServerMediaCatalogApi(
-      api,
-      token,
-    ).discoverTarget(current: current);
+    final target = await discoverTarget(current: current);
     return readVerifiedTarget(target: target, current: current);
   }
 
+  Future<ServerMediaRowsTarget> discoverTarget({
+    bool Function()? current,
+  }) async {
+    _requireCurrent(current);
+    final catalog = await ServerMediaCatalogApi(
+      api,
+      token,
+    ).discoverTarget(current: current);
+    _requireCurrent(current);
+    try {
+      final response = await api.request(
+        'POST',
+        '/media/rows/target',
+        token: token,
+        body: {
+          'installationId': catalog.installationId,
+          'expectedInstallationRevision': catalog.installationRevision,
+        },
+      );
+      _requireCurrent(current);
+      return ServerMediaRowsTarget.fromJson(
+        response,
+        expectedInstallationId: catalog.installationId,
+        expectedInstallationRevision: catalog.installationRevision,
+      );
+    } on FormatException {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
   Future<ServerAccountMediaRows> readVerifiedTarget({
-    required ServerMediaCatalogTarget target,
+    required ServerMediaRowsTarget target,
     bool Function()? current,
   }) async {
     _requireCurrent(current);
@@ -48,6 +74,7 @@ final class ServerMediaRowsApi {
           'requestId': requestId,
           'installationId': target.installationId,
           'expectedInstallationRevision': target.installationRevision,
+          'expectedBindingRevision': target.bindingRevision,
         },
       );
       _requireCurrent(current);
@@ -56,6 +83,7 @@ final class ServerMediaRowsApi {
         expectedRequestId: requestId,
         expectedInstallationId: target.installationId,
         expectedInstallationRevision: target.installationRevision,
+        expectedBindingRevision: target.bindingRevision,
       );
     } on FormatException {
       throw const LarenorServerException('invalid_response');

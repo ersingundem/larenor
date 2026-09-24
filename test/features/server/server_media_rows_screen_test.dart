@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'server_admin_test_support.dart';
 
@@ -70,6 +71,14 @@ final class _Fixture extends AdminFixture {
       if (request.url.path.endsWith('/media/catalog/target')) {
         return json(_target());
       }
+      if (request.url.path.endsWith('/media/rows/target')) {
+        return json({
+          'schemaVersion': 1,
+          'installationId': _installationId,
+          'installationRevision': 7,
+          'bindingRevision': 4,
+        });
+      }
       if (request.url.path.endsWith('/media/catalog/browse')) {
         return json({'requestId': _requestId, 'catalog': _catalog()});
       }
@@ -117,6 +126,8 @@ Widget _app(_Fixture fixture, {String locale = 'en', double scale = 1}) =>
     );
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets(
     'Core media hub renders account recent and resume rows read-only',
     (tester) async {
@@ -154,6 +165,7 @@ void main() {
         'requestId': _requestId,
         'installationId': _installationId,
         'expectedInstallationRevision': 7,
+        'expectedBindingRevision': 4,
       });
       semantics.dispose();
     },

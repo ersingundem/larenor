@@ -56,6 +56,19 @@ class ReadAccountMediaRowsRequest(StrictModel):
     requestId: ObjectId
     installationId: ObjectId
     expectedInstallationRevision: Revision
+    expectedBindingRevision: Revision
+
+
+class ReadAccountMediaRowsTargetRequest(StrictModel):
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+
+
+class AccountMediaRowsTargetResponse(StrictModel):
+    schemaVersion: Literal[1] = 1
+    installationId: ObjectId
+    installationRevision: Revision
+    bindingRevision: Revision
 
 
 class AccountMediaRowsResponse(StrictModel):

@@ -7,9 +7,10 @@ from ..dependencies import get_core, require_ready_user
 from ..models import ErrorResponse
 from .media_rows_models import (
     AccountMediaRowsResponse,
+    AccountMediaRowsTargetResponse,
     ReadAccountMediaRowsRequest,
+    ReadAccountMediaRowsTargetRequest,
 )
-
 
 Core = Annotated[object, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
@@ -19,6 +20,11 @@ router = APIRouter(
     responses={status: {'model': ErrorResponse}
                for status in (400, 401, 403, 409, 503)},
 )
+
+
+@router.post('/target', response_model=AccountMediaRowsTargetResponse)
+def target(body: ReadAccountMediaRowsTargetRequest, core: Core, actor: Ready):
+    return core.media_rows.target(actor, body)
 
 
 @router.post('/read', response_model=AccountMediaRowsResponse)

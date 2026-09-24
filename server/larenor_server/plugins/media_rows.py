@@ -9,6 +9,7 @@ from .media_rows_models import (
     MediaRowsReadback,
     PrivateJellyfinMediaRowsAuthority,
     ReadAccountMediaRowsRequest,
+    ReadAccountMediaRowsTargetRequest,
 )
 
 
@@ -65,14 +66,27 @@ class MediaRowsManagement:
         except Exception:  # noqa: BLE001 - authority callbacks fail closed
             return False
 
+    def target(self, actor, body):
+        if type(body) is not ReadAccountMediaRowsTargetRequest:
+            raise ApiError('invalid_request')
+        binding, _bootstrap = self._snapshot(actor, body)
+        return {
+            'schemaVersion': 1,
+            'installationId': binding.installation_id,
+            'installationRevision': binding.installation_revision,
+            'bindingRevision': binding.binding_revision,
+        }
+
     def read(self, actor, body):
         if type(body) is not ReadAccountMediaRowsRequest:
             raise ApiError('invalid_request')
+        binding, bootstrap = self._snapshot(actor, body)
+        if binding.binding_revision != body.expectedBindingRevision:
+            raise ApiError('media_rows_authority_changed', 409)
         if self.backend is None or not callable(
             getattr(self.backend, 'read_media_rows', None)
         ):
             raise ApiError('media_rows_worker_unavailable', 503)
-        binding, bootstrap = self._snapshot(actor, body)
         deadline = self._monotonic() + 5
         gate = lambda: self._retained(actor, body, binding, bootstrap)
         if gate() is not True:
