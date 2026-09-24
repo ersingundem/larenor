@@ -246,7 +246,11 @@ class LinuxCaptureSystem:
 
     @staticmethod
     def observe_mount(descriptor, deadline):
-        return observe_fd_mount(descriptor, deadline=deadline)
+        return observe_fd_mount(
+            descriptor,
+            deadline=deadline,
+            allow_btrfs_device_alias=True,
+        )
 
     @staticmethod
     def close(descriptor):
