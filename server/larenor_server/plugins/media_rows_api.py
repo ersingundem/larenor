@@ -12,7 +12,6 @@ from .media_rows_models import (
     ReadAccountMediaRowsTargetRequest,
 )
 
-
 Core = Annotated[object, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 router = APIRouter(

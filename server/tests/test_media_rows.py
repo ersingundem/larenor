@@ -14,11 +14,14 @@ from test_admin import activate
 from test_admin import create as create_user
 from test_media_service_bootstraps import (
     BASE as BOOTSTRAPS,
+)
+from test_media_service_bootstraps import (
     BootstrapBackend,
     installed,
+)
+from test_media_service_bootstraps import (
     request as bootstrap_request,
 )
-
 
 BASE = '/api/v1/media/rows/read'
 TARGET = '/api/v1/media/rows/target'
@@ -166,7 +169,7 @@ def test_target_body_rejects_private_and_read_fields_without_worker(server):
 
 
 def test_ready_owner_reads_bounded_recent_and_resume_without_private_identity(server):
-    app, client, _, _ = server
+    _, client, _, _ = server
     pair, installation, worker, body = configured(server)
 
     response = client.post(BASE, headers=auth(pair), json=body)
