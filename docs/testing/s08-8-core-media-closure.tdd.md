@@ -15,6 +15,8 @@ Status: software acceptance candidate; independent review and exact-head CI rema
 | RED | `153e90144e664f1536d001b5158e721e7ade0654` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` | Expected failure: the verified-Core Media Hub entry imported `jellyfinClientProvider`. | The missing source boundary was reproduced before the selector split. |
 | GREEN | `6a9a35072c20ce8f6477ebe848b68c2013a979ff` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` and `flutter test test/features/media/hub/media_hub_screen_test.dart` | 2 architecture tests and 17 widget tests passed. | The Core selector is provider-free, `home == null` is fail-closed, and only exact Direct authority publishes the direct subtree. |
 | E2E | `70e47d94` | `flutter test test/features/server/server_media_cache_loopback_test.dart` | 2 real-loopback journeys passed. | Browse, recent and resume cross real Core HTTP; restart revalidates rows, logout retires values, same-URL Core replacement misses the old scope, and no direct service path is read. |
+| Search RED | `74543000b1bb5f2f0172e9fe34d9cf52667f7f75` | `python3 -m unittest tool.tests.s08_8_core_media_architecture_test` | Expected failure: `search_route_bypasses_media_authority_selector`. | The production global-search action could still open the Direct provider search under Core authority. |
+| Search GREEN | `8e13be2794ea94da867d2414db921cc5efff65e7` | Architecture test plus local-search and Media Hub widget tests | 2 architecture and 26 widget tests passed. | The production search action enters `/media`, where the same fail-closed Core/direct selector chooses the catalog surface. |
 
 The restart distinction is explicit: catalog browse may finish from its verified cache, while account rows always perform a fresh target-bound read and therefore end with `origin=live` when that read succeeds.
 
@@ -24,7 +26,7 @@ The restart distinction is explicit: catalog browse may finish from its verified
 - Core Media Hub, accessibility, cache, rows API/controller and rows screen Flutter batch: 72/72 passed.
 - Navigation, dashboard, Core rows tile and settings tablet regression batch: 54/54 passed.
 - Targeted `dart analyze`: no issues; targeted `dart format --output=none --set-exit-if-changed`: no changes.
-- Security policy, queue validation, four-commit progress gate and `git diff --check`: passed.
+- Security policy, queue validation, progress gate and `git diff --check`: passed.
 
 ## Persistence and privacy bounds
 
