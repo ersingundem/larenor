@@ -1,11 +1,11 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`8032e5a0`**, S09.2 kabul
-kaynağı **`34870d70`** commitidir. S08.8, K07, S09.1, S09.2 ve K03 teslimlerini
-kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`a87d1bb3`**, S08.11 kabul
+kaynağı **`5e440235`** commitidir. S08.8, K07, S09.1, S09.2, S08.11 ve K03
+teslimlerini kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **31/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **32/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -94,6 +94,14 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   switch, restart, gerçek restore rebind ve account replacement çapraz E2E
   eksik olduğundan S08.11 `pending` kaldı. #484 ve #485 sayaç artırmadı;
   toplam **31/125**, seçili özellikler **0/63** olarak kaldı.
+- PR #488 exact `5e440235` kaynağında Core dashboard yedeğini exact
+  `coreId/homeId/userId` sahibine bağladı; aynı URL Core değişimi, restart,
+  restore/remount, yabancı scope reddi, güncel revision aktivasyonu ve logout
+  retirement çapraz akışını arama/oda/kart yüzeylerinde kanıtladı. Android Build
+  `35966881025` attempt 2, Security `35966880542` ve bağımsız P1/P2 denetimi
+  geçti. Kaynak `1d603365` olarak squash birleşti; aggregate stable patch-id
+  `7d9be065b6c8a6bdc6cbb95ab48868511d988fd4` eşleşti. S08.11 kapandı ve sayaç
+  **32/125** oldu; fiziksel medya alıcıları MANUAL kaldı.
 
 ## Kanıtı açık kalan sınırlar
 
@@ -120,7 +128,7 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
 | A — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme, Client preflight ve component health aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
-| B — S08.11 / K08 | Arama/oda/kart same-URL Core-switch, restart ve restore E2E'sini; yetkili TTS/print/QR üretim portlarını ayrı sahiplikte tamamla. | Logout/account replacement eski sonucu temizler; permission revoke sonrası native effect/receipt yayımlanmaz; exact review/CI olmadan sayaç değişmez |
+| B — K08 | `a87d1bb3` ile birleşen yetkili TTS/print/QR effect portu ve permission-revoke akışının atomik kapanış kanıtını kaydet. | Birleşmiş exact ürün/test kanıtı bağımsız review ve CI ile queue'ya bağlanmadan sayaç değişmez |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük

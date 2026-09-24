@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `8032e5a0` ve S09.2 kabul kaynağı `34870d70` — 31/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1 ve S09.2 exact review/CI kanıtıyla yazılım kabulünü tamamladı; K08 ve S08.11 üretim dilimleri birleşti fakat kalan kabul sınırları nedeniyle `pending` kaldı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `a87d1bb3` ve S08.11 kabul kaynağı `5e440235` — 32/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, S09.1, S09.2 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. K08 üretim effect portları ve permission-revoke akışı `a87d1bb3` ile birleşti; yalnız atomik kapanış kanıtı ve queue güncellemesi beklediği için burada `pending` kaldı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  31/125 iş (%24,8; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  32/125 iş (%25,6; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,32 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 24 Eylül S08.11 yazılım kabulü
+
+PR #488 exact `5e440235b6f7cc39cb638ea5ac9fd2f033a667f1`
+kaynağında Core dashboard yedek şeması v3 capture, preview, restore ve recovery
+journalını exact `coreId/homeId/userId` sahibine ve tek scoped anahtara bağladı.
+Aynı URL'de Core A→B değişimi A katalog/arama sonuçlarını emekli ediyor; A
+yedeği B kapsamında preview/apply olmadan reddediliyor ve iki scoped anahtar da
+değişmiyor. A'ya dönüş, gerçek restore ve `ConfigurationScope` remount sonrası
+kartlar güncel revision refetch edilene dek inert; logout ve geç callback'ler
+eski sonucu tekrar yayımlamıyor. Dart ve Python vault sınırları retired upload
+authority ile malformed/future v3 sahibini fail-closed reddediyor.
+
+Yerel kabul 378 Flutter backup/vault, 49 odaklı Core replacement/restore ve 39
+Python vault testiyle tamamlandı. Final bağımsız denetim 92 controller/account/UI
+ve 8 çapraz akış testini yeniden doğruladı; P1/P2 blocker bulmadı. Exact Android
+Build `35966881025` attempt 2 statik analiz, dört Flutter shardı ve aggregate,
+dört Server shardı ve aggregate, debug APK ve API 35 emulator yolculuğunu;
+Security `35966880542` secret/platform/dependency kapılarını geçti. İlk Server
+attemptindeki ilişkisiz Docker-adapter testi tek kez false döndü; aynı test
+izole + 12 seri tekrarda 13/13 geçti ve failed-job rerun aynı SHA'da kod
+değişmeden yeşil oldu. Kaynak `1d603365` olarak squash birleşti; aggregate
+stable patch-id `7d9be065b6c8a6bdc6cbb95ab48868511d988fd4` eşleşti. S08.11 `done`;
+kuyruk **32/125 (%25,6)**. Fiziksel HomePod, Cast, Apple TV, Huawei, DeX ve OEM
+yolculukları ayrı MANUAL kapılardır.
+[Kapanış kanıtı](testing/s08-11-authority-crossflow-closure.tdd.md).
 
 ### 24 Eylül S08.8 yazılım kabulü
 
@@ -197,9 +223,10 @@ exact cache ve merkezi katalog→sağlayıcı→oynatıcı→kuyruk ürün E2E's
 S08.8'in o tarihte açık direct UI/runtime ve browse/recent/resume eşliği PR
 #480 ile sonradan kapandı. F28 chapter eylemleri, bookmark, sleep timer ve MediaSession'ı; F24
 sağlayıcı consent/kota ile gerçek renderer/subtitle-engine kanıtını bekliyor.
-F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; `B3`
-bağımlılığındaki S08.8 artık `done`, S08.11 ise `pending` olduğundan validator
-kapanışı reddediyor. #460 S09.1 izolasyon lease'ini ekledi; privileged Linux engine,
+F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; o teslim anında `B3`
+bağımlılığındaki S08.11 `pending` olduğu için validator kapanışı reddediyordu.
+S08.11 daha sonra #488 ile üstteki exact kanıtta kapandı. #460 S09.1 izolasyon
+lease'ini ekledi; privileged Linux engine,
 iki mimarili native kabul ve birleşik generation arşivi daha sonra #482 ile
 üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2 de PR #483 ile
 kapandı; temiz kurulum/yükseltme, Client geri yükleme ve component health
