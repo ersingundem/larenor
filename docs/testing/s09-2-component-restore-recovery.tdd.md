@@ -14,11 +14,12 @@ renames it and fsyncs the parent directory. A separate verified mode-0600
 journal is capped at 256 KiB and authenticated with HMAC-SHA256 using an
 injected 32-byte key that is never persisted.
 
-Restart reconciliation verifies the HMAC and exact plan digest before asking
-the injected boundary for the same operation ID. Any incomplete transaction,
-including a partial commit, rolls back to the captured receipts. Durable
-`rolled_back` and `released` phases make recovery restartable; boundary effects
-use the stable operation ID for idempotence. The default production boundary
+Restart reconciliation verifies the HMAC, exact plan digest and exact planned
+paused-container set before asking the injected boundary for the same operation
+ID. Pre-commit transactions roll back to captured receipts; a durably
+`committed` transaction finishes forward. Durable `rolled_back`,
+`rollback_finalized`, `committed_finalized` and `released` phases make artifact
+cleanup and release independently restartable. The default production boundary
 still has no adapter and rejects component restore before any host effect.
 
 ## TDD evidence
@@ -38,9 +39,10 @@ ModuleNotFoundError: No module named \
   'larenor_server.core_backups.component_restore_recovery'
 ```
 
-The recovery module reports **20 passed**. The grouped component restore,
-encrypted component capture and durable installation-authority batch reports
-**58 passed**, with no skips. The two warnings are upstream Starlette/httpx
+The focused recovery and Linux-boundary pair reports **41 passed** and one
+Linux-only native skip on macOS. The grouped component restore, Docker adapter,
+installation authority and durable recovery batch reports **89 passed** and
+one Linux-only native skip. The two warnings are upstream Starlette/httpx
 deprecation warnings.
 
 The accepted S09.1 authority base is the merged native-capture squash
@@ -51,16 +53,14 @@ preserved aggregate stable patch ID
 
 ## Independent audit closure
 
-Four permanent regressions record the audit findings and their fixes:
+The final three permanent regressions supersede earlier release-on-failure
+behavior and close the native recovery audit:
 
 | Boundary | RED evidence | GREEN commit |
 | --- | --- | --- |
-| A semantically valid, directly constructed `BackupCapture` must not reach restore authority without successful encrypted-bundle authentication | `test_plan_rejects_semantically_valid_capture_without_bundle_authentication` failed because no exception was raised | `d18e26a757f684257e19e029290a16184581a890` |
-| Deadline or authority drift after commit, and release failure after commit, restore the old target with one bounded release attempt | all three cases in `test_post_commit_drift_or_release_failure_restores_target_once` failed | `da451146999b4ad34f4495a99061ba0d3fe0629a` |
-| Failure to durably publish `released` after a successful release retains the honest `committed` journal and never invokes rollback or release again in the same run | `test_released_journal_failure_never_rolls_back_or_releases_again` observed `rolled_back` | `f1b74941581cf2f75a1e68755537becd03fcfe7c` |
-| Every ordinary post-acquire recovery failure releases the recovered authority once while preserving the journal | authority, deadline, rollback and journal-persist cases all observed zero releases | `43ba49d49cffde11b1029b3abc2806289ca36545` |
-| Durable commit must be followed by the same deadline and authority checks as the non-durable coordinator before publishing `committed` | both authority and deadline drift returned success with changed targets | `ff78a404ad804381270539e54b7cd29d0564b516` |
-| A malformed raw recovered capability must remain available for one release even when strict session validation rejects it | the malformed session observed zero release attempts | `ff78a404ad804381270539e54b7cd29d0564b516` |
+| An `acquiring` or `acquired` record must not claim an independent admin pause | native recovery unpaused the externally paused container | `ad07ae89236f79cb52018c51002d38ee2485f620` |
+| Rollback evidence must survive failure to persist `rolled_back` | the first recovery deleted the rollback archive, so the second recovery could not repeat rollback | `95213ea9eb24540ebc88b59aba1500564f6f3588` |
+| Commit and rollback artifact cleanup must finish before release, including cleanup-complete/phase-write-loss recovery | an immediate service write after unpause failed live digest finalization; missing artifacts after a failed `committed_finalized` write wedged recovery | `ae2a3f822e11941af6b7bb31f1adfceaf4619102` |
 
 Ruff `0.14.10`, Python bytecode compilation, Android/security policy,
 125-task/63-feature queue validation, the ten-commit progress gate and
@@ -72,16 +72,17 @@ Ruff `0.14.10`, Python bytecode compilation, Android/security policy,
 | Restart after authority acquisition, quiescence, rollback snapshots, staging or pre-commit restores the original target | `test_restart_reconciles_each_precommit_crash_once` |
 | A partial cross-volume commit is rolled back after restart and a second recovery is a no-op | `test_partial_commit_is_rolled_back_after_restart_and_recovery_is_idempotent` |
 | A successful durable batch clears the journal only after one exact release | `test_successful_durable_batch_clears_journal_after_exact_release` |
-| Crashes after durable rollback or release do not repeat either effect | `test_recovery_restart_skips_completed_rollback_or_release_exactly_once` |
+| Crashes after durable rollback cleanup or release do not repeat either effect | `test_recovery_restart_skips_completed_rollback_or_release_exactly_once` |
+| Acquiring/acquired recovery never adopts an unproven admin pause | `test_recovery_never_adopts_unproven_admin_pause` |
+| A failed `rolled_back` journal write preserves rollback evidence for the next recovery | `test_rollback_artifacts_survive_rolled_back_journal_write_failure` |
+| Commit cleanup is complete before unpause and remains idempotent if its phase write fails | `test_success_cleanup_finishes_before_unpause_allows_service_write`, `test_committed_cleanup_is_idempotent_before_phase_persist` |
 | Journal mode, bound, HMAC, plan binding and absence of payload/path data fail closed | `test_v3_journal_is_private_authenticated_bounded_and_fail_closed` |
 | A second process cannot acquire the active restore journal owner lock | `test_recovery_journal_serializes_cross_process_owners` |
 | Without an injected reviewed boundary, production restore remains disabled | `test_default_durable_boundary_keeps_component_restore_disabled` |
 
 ## Remaining S09.2 work
 
-The journal and coordinator are production-grade local persistence, but the
-only exercising boundary remains synthetic. A separately reviewed Linux
-snapshot/stage/swap adapter must provide real idempotent effects keyed by the
-journal operation ID before live component restore can be enabled. Native
-crash/power-loss acceptance and exact-head CI also remain open. S09.2 stays
-pending; counters remain **26/125** and **0/63**.
+The journal and Linux boundary now cover native crash and power-loss behavior,
+but S09.2 still requires exact-head dual-architecture CI and product-level
+restore exposure review before the queue item can close. S09.2 stays pending;
+counters remain **26/125** and **0/63**.
