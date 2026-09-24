@@ -37,7 +37,7 @@ acceptance.
 
 - Core profile publication, tablet fleet and rollout packages: **19 passed**.
 - Managed profile store, native source/runtime, tablet API, window profile and
-  idle gate packages: **110 passed**. The widget acceptance checks the exact
+  idle gate packages: **112 passed**. The widget acceptance checks the exact
   29.999-second/30.000-second ambient boundary.
 - Focused Dart analysis, Ruff 0.14.10 and diff checks passed.
 
