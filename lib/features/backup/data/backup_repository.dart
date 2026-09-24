@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
+import '../../../core/home_data_scope.dart';
 import '../../../core/home_source_store.dart';
 import '../../server/data/server_session_store.dart';
 import '../../server/domain/server_models.dart';
@@ -44,82 +45,105 @@ class BackupRepository {
     required BackupRestoreAccess access,
   }) => _prepareRestore(this, snapshot, selection, conflictPolicy, access);
 
-  Future<BackupSnapshot> capture(BackupSelection selection) =>
-      ConfigurationWrites.run(() async {
-        if (selection.isEmpty) {
-          throw const BackupValidationException(
-            'Select at least one backup group.',
-          );
+  Future<BackupSnapshot> capture(
+    BackupSelection selection, {
+    BackupRestoreAccess? access,
+  }) => ConfigurationWrites.run(() async {
+    if (selection.isEmpty) {
+      throw const BackupValidationException(
+        'Select at least one backup group.',
+      );
+    }
+    await _requireRecovered();
+    if (selection.connections) {
+      await _requireStableConnections(backupConnectionFields.keys);
+    }
+    try {
+      final groups = <String, dynamic>{};
+      Map<String, dynamic>? dashboardOwner;
+      HomeDataScope? dashboardScope;
+      Future<void> currentDashboardAccess() async {
+        if (access == null) return;
+        access.checkLive();
+        await access.checkDurable();
+        access.checkLive();
+        if (dashboardOwner != null &&
+            !_same(dashboardOwner, access.ownership)) {
+          _expiredRestore();
         }
-        await _requireRecovered();
-        if (selection.connections) {
-          await _requireStableConnections(backupConnectionFields.keys);
+      }
+
+      if (selection.dashboard && access != null) {
+        await currentDashboardAccess();
+        dashboardOwner = Map<String, dynamic>.from(access.ownership);
+        _checkRestoreOwner(dashboardOwner);
+        if (dashboardOwner['source'] != access.source.name) {
+          _expiredRestore();
         }
-        try {
-          final groups = <String, dynamic>{};
-          final policy = WellbeingDisclosurePolicy.decode(
-            await _storage.readSecret(WellbeingDisclosureStore.storageKey),
-          );
-          final privateRaw = await _storage.readSecret(
-            WellbeingStore.storageKey,
-          );
-          if (privateRaw != null && privateRaw.length > 32768) {
-            throw const BackupValidationException();
-          }
-          final privateSettings = privateRaw == null
-              ? null
-              : WellbeingStore.decode(jsonDecode(privateRaw));
-          groups['privacy'] = WellbeingDisclosurePolicy.fromJson(
-            WellbeingDisclosurePolicy(
-              entityIds: {
-                ...policy.entityIds,
-                ...?privateSettings?.bindings.map((v) => v.entityId),
-              },
-              reviewRequired: policy.reviewRequired,
-            ).toJson(),
-          ).toJson();
-          if (selection.settings) {
-            groups['settings'] = <String, dynamic>{
-              for (final key in backupPreferenceKeys)
-                key: await _storage.readPreference(key),
-            };
-          }
-          if (selection.dashboard) {
-            final raw = await _storage.readPreference(_dashboardKey);
-            groups['dashboard'] = raw == null
-                ? <String, dynamic>{
-                    'rooms': [],
-                    'tiles': [],
-                    'favoriteEntityIds': [],
-                    'hiddenEntityIds': [],
-                  }
-                : jsonDecode(raw as String);
-          }
-          if (selection.connections) {
-            final records = <String, dynamic>{};
-            for (final service in backupConnectionFields.keys) {
-              final record = await _readConnection(service);
-              if (record != null) records[service] = record;
-            }
-            groups['connections'] = records;
-          }
-          if (selection.connections) {
-            await _requireStableConnections(backupConnectionFields.keys);
-          }
-          return BackupSnapshot.fromJson({
-            'version': 2,
-            'createdAt': _now().toUtc().toIso8601String(),
-            'groups': groups,
-          });
-        } on BackupException {
-          rethrow;
-        } catch (_) {
-          throw const BackupException(
-            'storage_failed',
-            'The selected configuration could not be read.',
-          );
+        if (access.source == HomeSource.verifiedCore) {
+          dashboardScope = HomeDataScope.fromJson(dashboardOwner['scope']);
         }
+      }
+      final policy = WellbeingDisclosurePolicy.decode(
+        await _storage.readSecret(WellbeingDisclosureStore.storageKey),
+      );
+      final privateRaw = await _storage.readSecret(WellbeingStore.storageKey);
+      if (privateRaw != null && privateRaw.length > 32768) {
+        throw const BackupValidationException();
+      }
+      final privateSettings = privateRaw == null
+          ? null
+          : WellbeingStore.decode(jsonDecode(privateRaw));
+      groups['privacy'] = WellbeingDisclosurePolicy.fromJson(
+        WellbeingDisclosurePolicy(
+          entityIds: {
+            ...policy.entityIds,
+            ...?privateSettings?.bindings.map((v) => v.entityId),
+          },
+          reviewRequired: policy.reviewRequired,
+        ).toJson(),
+      ).toJson();
+      if (selection.settings) {
+        groups['settings'] = <String, dynamic>{
+          for (final key in backupPreferenceKeys)
+            key: await _storage.readPreference(key),
+        };
+      }
+      if (selection.dashboard) {
+        final key = dashboardScope?.storageKey ?? _dashboardKey;
+        final raw = await _storage.readPreference(key);
+        await currentDashboardAccess();
+        groups['dashboard'] = _decodeStoredDashboard(raw, dashboardScope);
+        if (dashboardOwner != null) {
+          groups['dashboardOwner'] = dashboardOwner;
+        }
+      }
+      if (selection.connections) {
+        final records = <String, dynamic>{};
+        for (final service in backupConnectionFields.keys) {
+          final record = await _readConnection(service);
+          if (record != null) records[service] = record;
+        }
+        groups['connections'] = records;
+      }
+      if (selection.connections) {
+        await _requireStableConnections(backupConnectionFields.keys);
+      }
+      await currentDashboardAccess();
+      return BackupSnapshot.fromJson({
+        'version': dashboardOwner == null ? 2 : 3,
+        'createdAt': _now().toUtc().toIso8601String(),
+        'groups': groups,
       });
+    } on BackupException {
+      rethrow;
+    } catch (_) {
+      throw const BackupException(
+        'storage_failed',
+        'The selected configuration could not be read.',
+      );
+    }
+  });
 
   Future<BackupPreview> preview(
     BackupSnapshot snapshot,
@@ -144,9 +168,10 @@ class BackupRepository {
       for (final service in connections.keys) {
         if (await _hasConnection(service)) existingServices.add(service);
       }
+      final dashboardKey = snapshot.dashboardScope?.storageKey ?? _dashboardKey;
       final existingDashboard =
           snapshot.hasDashboard &&
-          await _storage.readPreference(_dashboardKey) != null;
+          await _storage.readPreference(dashboardKey) != null;
       await _requireStableConnections(connections.keys);
       return BackupPreview(
         createdAt: snapshot.createdAt,
@@ -183,8 +208,9 @@ class BackupRepository {
   Future<_PreparedChanges> _buildChanges(
     BackupSnapshot snapshot,
     BackupSelection selection,
-    BackupConflictPolicy conflictPolicy,
-  ) async {
+    BackupConflictPolicy conflictPolicy, {
+    HomeDataScope? coreDashboardScope,
+  }) async {
     final json = snapshot.toJson();
     // Validate every group, including ones the user chose not to restore.
     validateBackupJson(json);
@@ -282,16 +308,25 @@ class BackupRepository {
         }
       }
       if (selection.dashboard && snapshot.hasDashboard) {
-        final previous = await _storage.readPreference(_dashboardKey);
-        if (replace || previous == null) {
-          changes.add(
-            _Change(
-              false,
-              _dashboardKey,
-              previous,
-              jsonEncode(groups['dashboard']),
-            ),
+        final owner = snapshot.dashboardOwner;
+        if (coreDashboardScope == null &&
+            owner?['source'] == HomeSource.verifiedCore.name) {
+          throw const BackupException(
+            'restore_target_mismatch',
+            'This backup targets a verified Core home.',
           );
+        }
+        final key = coreDashboardScope?.storageKey ?? _dashboardKey;
+        final previous = await _storage.readPreference(key);
+        if (replace || previous == null) {
+          final after = coreDashboardScope == null
+              ? jsonEncode(groups['dashboard'])
+              : _encodeScopedDashboard(
+                  coreDashboardScope,
+                  previous,
+                  groups['dashboard'],
+                );
+          changes.add(_Change(false, key, previous, after));
         }
       }
       if (selection.connections && snapshot.hasConnections) {
@@ -326,6 +361,14 @@ class BackupRepository {
     BackupSelection selection, {
     BackupConflictPolicy conflictPolicy = BackupConflictPolicy.keepExisting,
   }) => ConfigurationWrites.run(() async {
+    if (selection.dashboard &&
+        snapshot.hasDashboard &&
+        snapshot.dashboardScope != null) {
+      throw const BackupException(
+        'restore_target_mismatch',
+        'Verified Core dashboard restore requires a live authorized target.',
+      );
+    }
     final plan = await _buildChanges(snapshot, selection, conflictPolicy);
     final changes = plan.changes, affectedServices = plan.services;
     if (changes.isEmpty) return;
@@ -479,6 +522,73 @@ class BackupRepository {
     return values;
   }
 
+  Map<String, dynamic> _decodeStoredDashboard(
+    Object? raw,
+    HomeDataScope? scope,
+  ) {
+    const empty = <String, dynamic>{
+      'rooms': [],
+      'tiles': [],
+      'favoriteEntityIds': [],
+      'hiddenEntityIds': [],
+    };
+    if (raw == null) return empty;
+    if (raw is! String || utf8.encode(raw).length > maxBackupPlaintextBytes) {
+      throw const BackupValidationException();
+    }
+    final decoded = jsonDecode(raw);
+    if (scope == null) {
+      if (decoded is! Map<String, dynamic>) {
+        throw const BackupValidationException();
+      }
+      return decoded;
+    }
+    if (decoded is! Map<String, dynamic> ||
+        decoded.length != 4 ||
+        !decoded.keys.toSet().containsAll({
+          'version',
+          'scope',
+          'revision',
+          'layout',
+        }) ||
+        decoded['version'] != 1 ||
+        HomeDataScope.fromJson(decoded['scope']) != scope ||
+        decoded['revision'] is! int ||
+        (decoded['revision'] as int) < 1 ||
+        decoded['layout'] is! Map<String, dynamic>) {
+      throw const BackupValidationException();
+    }
+    return Map<String, dynamic>.from(decoded['layout'] as Map<String, dynamic>);
+  }
+
+  String _encodeScopedDashboard(
+    HomeDataScope scope,
+    Object? previous,
+    Object? layout,
+  ) {
+    var revision = 0;
+    if (previous != null) {
+      if (previous is! String) throw const BackupValidationException();
+      final decoded = jsonDecode(previous);
+      if (decoded is! Map<String, dynamic> ||
+          decoded.length != 4 ||
+          decoded['version'] != 1 ||
+          HomeDataScope.fromJson(decoded['scope']) != scope ||
+          decoded['revision'] is! int ||
+          (decoded['revision'] as int) < 1 ||
+          (decoded['revision'] as int) >= 9223372036854775806) {
+        throw const BackupValidationException();
+      }
+      revision = decoded['revision'] as int;
+    }
+    return jsonEncode({
+      'version': 1,
+      'scope': scope.toJson(),
+      'revision': revision + 1,
+      'layout': layout,
+    });
+  }
+
   Future<void> _write(_Change change, {required bool previous}) {
     final value = _cloneValue(previous ? change.before : change.after);
     return change.secret
@@ -517,7 +627,10 @@ class BackupRepository {
     return raw;
   }
 
-  List<_Change> _decodeJournal(String raw) {
+  List<_Change> _decodeJournal(
+    String raw, {
+    Set<String> additionalPreferenceKeys = const {},
+  }) {
     try {
       if (utf8.encode(raw).length > _maxJournalBytes) {
         throw const FormatException();
@@ -537,6 +650,7 @@ class BackupRepository {
         ...backupPreferenceKeys,
         _dashboardKey,
         _migrationKey,
+        ...additionalPreferenceKeys,
       };
       final seen = <String>{};
       return (json['changes'] as List).map((raw) {
