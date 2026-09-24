@@ -140,7 +140,7 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         for step in value["jobs"]["unified-media-stack-native"]["steps"]:
             script = step.get("run")
             if script:
-                with self.subTest(name=step["name"]):
+                with self.subTest(name=step.get("name")):
                     result = subprocess.run(
                         ["/bin/bash", "-n"], input=script, text=True,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
