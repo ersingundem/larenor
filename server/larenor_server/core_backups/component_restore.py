@@ -13,7 +13,11 @@ import secrets
 import time
 
 from .models import MAX_COMPONENT_BYTES, MAX_COMPONENT_VOLUME_BYTES, BackupManifest
-from .service import BackupCapture, _validate_payload_contract
+from .service import (
+    BackupCapture,
+    _is_authenticated_backup_capture,
+    _validate_payload_contract,
+)
 
 
 _COMPONENT_ID = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
@@ -365,6 +369,7 @@ def _authority_snapshot(authority):
 def _capture_resources(capture):
     if (
         not _exact(capture, BackupCapture)
+        or not _is_authenticated_backup_capture(capture)
         or type(capture.manifest) is not BackupManifest
         or type(capture.payloads) is not dict
     ):

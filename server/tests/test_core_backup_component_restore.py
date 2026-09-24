@@ -69,7 +69,8 @@ def capture(server):
         settings,
         component_boundary=ComponentBoundary(),
     )
-    return contract.capture(actor)
+    passphrase = "component restore authenticated bundle"
+    return contract.open_bundle(contract.export(actor, passphrase), passphrase)
 
 
 def authority_target(**changes):
@@ -258,6 +259,23 @@ def test_plan_rejects_malformed_or_oversize_capture_before_target_publish(server
 
     with pytest.raises(ComponentRestorePlanError):
         plan_component_restore(object(), Authority((authority_target(),)))
+
+
+def test_plan_rejects_semantically_valid_capture_without_bundle_authentication(server):
+    opened = capture(server)
+    constructed = BackupCapture(
+        manifest=opened.manifest,
+        payloads=opened.payloads,
+    )
+    authority = Authority((authority_target(),))
+
+    with pytest.raises(
+        ComponentRestorePlanError,
+        match="^component_restore_unavailable$",
+    ):
+        plan_component_restore(constructed, authority)
+
+    assert authority.calls == 0
 
 
 class Clock:
