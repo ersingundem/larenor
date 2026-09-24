@@ -123,3 +123,14 @@ transport journeys remain pending exact-head emulator CI, so K03.remaining and
 progress stay at **26/125** and **0/63** until that evidence and review are
 recorded. Physical
 tablet/DeX/OEM evidence stays in the separate manual gate described above.
+
+Exact-head emulator CI at `d7b71fd9` then exposed a real lifetime gap: WebView
+can consume exactly the declared `Content-Length` without requesting EOF or
+closing the response stream. That stranded a process-wide permit, eventually
+blocking both the allowed redirect script and the matrix's same-origin frame;
+the matrix had served load 2 and remained at `waiting`, so it was not stale
+reload evidence. RED `183bddc0` reproduces the starvation with two attachments
+and one shared permit. GREEN `03216bd0` treats exact declared-length completion
+as terminal while preserving the streaming byte cap and exactly-once close.
+The rebased Android WebPanel group now passes **21/21** tests. Exact-head API 35
+CI remains the final automated gate, and the progress counters remain unchanged.
