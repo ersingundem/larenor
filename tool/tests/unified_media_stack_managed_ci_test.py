@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import call, patch
 
-
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / "tool/unified_media_stack_managed_ci.py"
 SPEC = importlib.util.spec_from_file_location("unified_media_stack_managed_ci", TARGET)

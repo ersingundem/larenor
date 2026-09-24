@@ -1,8 +1,7 @@
 import json
-from pathlib import Path
 import subprocess
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/unified-media-stack-managed.yml"
@@ -78,8 +77,7 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertLess(cleanup, upload)
         self.assertEqual(
             steps[cleanup]["if"],
-            "steps.verify.outcome == 'success' && "
-            "needs.native-scope.outputs.run == 'true'",
+            "always() && needs.native-scope.outputs.run == 'true'",
         )
         self.assertIn("--cleanup-owned", steps[cleanup]["run"])
         self.assertIn('test "${{ steps.verify.outcome }}" = success || exit 0',

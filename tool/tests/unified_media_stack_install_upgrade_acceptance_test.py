@@ -6,15 +6,14 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tool import unified_media_stack_managed_ci as target
 from tool.tests.unified_media_stack_managed_ci_test import FakeDriver
-
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_REVISION = "2f43b6cd606dab17640bb6f0a832b353b62c2313"
