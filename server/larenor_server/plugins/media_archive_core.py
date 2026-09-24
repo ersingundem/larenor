@@ -10,6 +10,7 @@ from .media_archive_core_models import (
     MediaArchiveCollectionAuthority,
     MediaArchiveReadRequest,
     MediaCatalogBrowseRequest,
+    MediaCatalogResolveRequest,
     MediaCatalogSearchRequest,
     PrivateMediaArchiveCollection,
 )
@@ -254,6 +255,40 @@ class MediaArchiveHealthManagement:
             raise ApiError('invalid_request')
         current, observation = self._collect(actor, body, member=True)
         return self._catalog_response(body, current, observation)
+
+    def member_resolve(self, actor, body):
+        if type(body) is not MediaCatalogResolveRequest:
+            raise ApiError('invalid_request')
+        current, observation = self._collect(actor, body, member=True)
+        items = [
+            item for item in observation.jellyfin.items
+            if item.integrity == 'playable' and item.itemId == body.itemId
+        ]
+        if len(items) != 1:
+            raise ApiError('media_catalog_item_unavailable', 404)
+        source = next(
+            item for item in current.sources if item.serviceId == 'jellyfin')
+        item = items[0]
+        return {
+            'requestId': body.requestId,
+            'catalog': {
+                'schemaVersion': 1,
+                'installationId': current.installationId,
+                'installationRevision': current.installationRevision,
+                'snapshotRevision': current.snapshotRevision,
+                'jellyfinServiceRevision': source.serviceRevision,
+                'offset': 0,
+                'nextOffset': None,
+                'total': 1,
+                'items': [{
+                    'itemId': item.itemId,
+                    'mediaKey': item.mediaKey,
+                    'title': item.title,
+                    'mediaKind': item.mediaKind,
+                    'runtimeSeconds': item.runtimeSeconds,
+                }],
+            },
+        }
 
     def member_target(self, actor):
         with self.db.connection() as connection:

@@ -86,6 +86,12 @@ class MediaCatalogBrowseRequest(MediaArchiveReadRequest):
     limit: int = Field(ge=1, le=50)
 
 
+class MediaCatalogResolveRequest(MediaArchiveReadRequest):
+    """Resolve one opaque Jellyfin item through the current catalog proof."""
+
+    itemId: ObjectId
+
+
 class MediaCatalogItem(StrictModel):
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)

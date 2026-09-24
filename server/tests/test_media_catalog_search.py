@@ -14,6 +14,7 @@ BASE = '/api/v1/admin/media/archive-health/catalog/search'
 MEMBER_TARGET = '/api/v1/media/catalog/target'
 MEMBER_SEARCH = '/api/v1/media/catalog/search'
 MEMBER_BROWSE = '/api/v1/media/catalog/browse'
+MEMBER_RESOLVE = '/api/v1/media/catalog/resolve'
 
 
 def _items(worker):
@@ -372,3 +373,67 @@ def test_member_browse_rechecks_session_after_private_worker(server):
     })
     assert response.status_code == 401
     assert len(worker.calls) == 1
+
+
+def test_member_resolves_one_opaque_row_item_through_current_catalog(server):
+    pair, installation, _current, reader, worker, body = configured(server)
+    _items(worker)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    response = server[1].post(MEMBER_RESOLVE, headers=auth(member), json={
+        **body,
+        'itemId': 'd' * 32,
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        'requestId': 'e' * 32,
+        'catalog': {
+            'schemaVersion': 1,
+            'installationId': installation['id'],
+            'installationRevision': installation['revision'],
+            'snapshotRevision': 4,
+            'jellyfinServiceRevision': 8,
+            'offset': 0,
+            'nextOffset': None,
+            'total': 1,
+            'items': [{
+                'itemId': 'd' * 32,
+                'mediaKey': 'episode:tvdb:101:1:3',
+                'title': 'Matrix episode',
+                'mediaKind': 'episode',
+                'runtimeSeconds': None,
+            }],
+        },
+    }
+    assert reader.calls == 2 and len(worker.calls) == 1
+
+
+def test_member_resolve_rejects_missing_or_unplayable_items(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    _items(worker)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    for item_id in ('e' * 32, 'f' * 32):
+        response = server[1].post(MEMBER_RESOLVE, headers=auth(member), json={
+            **body,
+            'itemId': item_id,
+        })
+        assert response.status_code == 404
+        assert response.json()['error']['code'] == \
+            'media_catalog_item_unavailable'
+
+
+def test_invalid_member_resolve_never_reaches_private_worker(server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    create_user(server[1], pair)
+    member = activate(server[1], 'member')
+
+    response = server[1].post(MEMBER_RESOLVE, headers=auth(member), json={
+        **body,
+        'itemId': 'not-an-id',
+    })
+    assert response.status_code == 400
+    assert worker.calls == []
