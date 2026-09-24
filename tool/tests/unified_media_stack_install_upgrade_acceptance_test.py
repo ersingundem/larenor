@@ -143,6 +143,7 @@ class UpgradeDriver(FakeDriver):
         journal_drift=None,
         root_identity=None,
         runtime_drift=None,
+        restart_runtime_drift=None,
     ):
         super().__init__()
         self.state = state or DurableUpgradeState()
@@ -151,10 +152,12 @@ class UpgradeDriver(FakeDriver):
         self.private_drift = private_drift
         self.journal_drift = journal_drift
         self.runtime_drift = runtime_drift
+        self.restart_runtime_drift = restart_runtime_drift
         if root_identity is not None:
             self.state.root_identity = root_identity
         self.reads = 0
         self.private_reads = 0
+        self.last_restart_runtime = None
         self.selected_platform = "linux/amd64"
         self.base_materialization = _source_materialization(BASE_REVISION)
         manifest = target.expected_manifest(CURRENT_REVISION)
@@ -385,6 +388,26 @@ class UpgradeDriver(FakeDriver):
             for item in runtime["services"]
         ]
 
+    def runtime_receipt(self, manifest, revision):
+        self._call("runtime_receipt:" + revision)
+        value = copy.deepcopy(self.state.effect["runtimeReceipt"])
+        if revision != CURRENT_REVISION:
+            raise RuntimeError("foreign restart revision")
+        if self.restart_runtime_drift == "core_image":
+            value["core"]["image"] = "foreign/core:latest"
+        elif self.restart_runtime_drift == "core_container":
+            value["core"]["containerIdentityDigest"] = "f" * 64
+        elif self.restart_runtime_drift == "core_state":
+            value["core"]["state"] = "stopped"
+        elif self.restart_runtime_drift == "component_image":
+            value["services"][0]["image"] = "foreign/image:latest"
+        elif self.restart_runtime_drift == "component_container":
+            value["services"][0]["containerIdentityDigest"] = "f" * 64
+        elif self.restart_runtime_drift == "component_state":
+            value["services"][0]["state"] = "stopped"
+        self.last_restart_runtime = copy.deepcopy(value)
+        return value
+
     def persist_installation_receipt(self, receipt):
         if set(receipt) == {"installationReceipt", "runtimeReceipt"}:
             receipt = receipt["installationReceipt"]
@@ -553,6 +576,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 self.assertNotIn("start", driver.calls)
                 self.assertEqual(result["upgradeSourceCommit"], BASE_REVISION)
                 self.assertEqual(result["reviewedHeadCommit"], CURRENT_REVISION)
+                self.assertEqual(result["recoveryState"], "not_required")
+                self.assertIs(result["effectReapplied"], False)
                 self.assertEqual(
                     result["upgradeSourceHashes"],
                     driver.base_materialization["sourceHashes"],
@@ -618,6 +643,44 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                 "unified_(?:container_receipt|upgrade_reconcile)_invalid",
             ):
                 self.run_upgrade(UpgradeDriver(runtime_drift=drift))
+
+    def test_restart_rereads_full_runtime_and_phase_binds_public_digest(self):
+        driver = UpgradeDriver()
+        result = self.run_upgrade(driver)
+
+        self.assertEqual(
+            driver.calls.count("runtime_receipt:" + CURRENT_REVISION),
+            1,
+        )
+        self.assertIsNotNone(driver.last_restart_runtime)
+        restart = result["installationPhases"][2]
+        self.assertEqual(
+            restart["runtimeReceiptDigest"],
+            _digest(
+                {
+                    "phase": "restart",
+                    "runtimeReceipt": driver.last_restart_runtime,
+                }
+            ),
+        )
+        self.assertNotEqual(
+            restart["runtimeReceiptDigest"],
+            result["installationPhases"][1]["runtimeReceiptDigest"],
+        )
+
+        for drift in (
+            "core_image",
+            "core_container",
+            "core_state",
+            "component_image",
+            "component_container",
+            "component_state",
+        ):
+            with self.subTest(drift=drift), self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_(?:container_receipt|upgrade_reconcile)_invalid",
+            ):
+                self.run_upgrade(UpgradeDriver(restart_runtime_drift=drift))
 
     def test_private_state_is_preserved_and_never_serialized(self):
         driver = UpgradeDriver()
@@ -739,6 +802,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             restarted.calls,
         )
         self.assertEqual(result["reviewedHeadCommit"], CURRENT_REVISION)
+        self.assertEqual(result["recoveryState"], "post_effect_reconciled")
+        self.assertIs(result["effectReapplied"], False)
         self.assertEqual(
             [item["sourceRevision"] for item in result["installationPhases"]],
             [BASE_REVISION, CURRENT_REVISION, CURRENT_REVISION],
@@ -821,6 +886,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             result["installationPhases"][0]["runtimeReceiptDigest"],
             _digest(state.runtime_receipts[0]),
         )
+        self.assertEqual(result["recoveryState"], "post_effect_reconciled")
+        self.assertIs(result["effectReapplied"], False)
         self.assertEqual(restarted.private_receipts, durable_private)
         self.assertEqual(restarted.calls[-1], "cleanup")
 
@@ -857,6 +924,8 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             1,
         )
         self.assertEqual(result["sourceCommit"], CURRENT_REVISION)
+        self.assertEqual(result["recoveryState"], "not_required")
+        self.assertIs(result["effectReapplied"], False)
         self.assertEqual(restarted.calls[-1], "cleanup")
 
     def test_malformed_install_journal_preserves_state_without_cleanup(self):
