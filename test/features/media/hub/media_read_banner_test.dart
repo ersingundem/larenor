@@ -8,6 +8,7 @@ import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_library_index.dart';
 import 'package:larenor/features/media/hub/domain/media_read_result.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
+import 'package:larenor/features/media/hub/presentation/direct_media_hub_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_hub_screen.dart';
 import 'package:larenor/features/media/hub/presentation/media_search_screen.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
@@ -60,7 +61,7 @@ Widget _hub(
     jellyfinClientProvider.overrideWith((_) => null),
     mediaHubRowsProvider.overrideWith(load),
   ],
-  child: _app(const MediaHubScreen(), scale: scale, locale: locale),
+  child: _app(const DirectMediaHubScreen(), scale: scale, locale: locale),
 );
 
 void main() {
@@ -135,7 +136,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Available movie'), findsWidgets);
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(MediaHubScreen)),
+        tester.element(find.byType(DirectMediaHubScreen)),
       );
       container.read(_accountProvider.notifier).change();
       await tester.pump();
