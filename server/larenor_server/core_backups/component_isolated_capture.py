@@ -24,6 +24,7 @@ from .component_linux_capture_preflight import LinuxBtrfsCaptureCapability
 from ..files import checked_path, private_directory, private_read, sync_directory
 
 _CAPTURE_ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,127}\Z")
+_CAPTURE_GENERATION = re.compile(r"[0-9a-f]{32}\Z")
 _HEX_ID = re.compile(r"[0-9a-f]{32}\Z")
 _MAX_JOURNAL_BYTES = 64 * 1024
 
@@ -967,7 +968,7 @@ class AuthorityBoundIsolatedCapture:
                 or type(value.capture_version) is not int
                 or value.capture_version != 1
                 or type(value.capture_generation) is not str
-                or _CAPTURE_ID.fullmatch(value.capture_generation) is None
+                or _CAPTURE_GENERATION.fullmatch(value.capture_generation) is None
                 or type(value.capture_id) is not str
                 or _CAPTURE_ID.fullmatch(value.capture_id) is None
                 or value.capture_id in capture_ids

@@ -161,6 +161,7 @@ def test_capture_failure_or_consumer_interruption_still_releases(tmp_path):
         "schema",
         "version",
         "capture_identity",
+        "capture_generation_format",
         "mixed_generation",
         "descriptor_mode",
     ],
@@ -188,6 +189,8 @@ def test_capture_rejects_drift_and_malformed_leases_without_yield(tmp_path, dama
                 snapshot_device=first.source_device,
                 snapshot_inode=first.source_inode,
             )
+        elif damage == "capture_generation_format":
+            first = replace(first, capture_generation="capture-set-1")
         elif damage == "mixed_generation":
             first = replace(first, capture_generation="2" * 32)
         elif damage == "descriptor_mode":
