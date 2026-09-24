@@ -45,17 +45,20 @@ def _git_output(*arguments):
 
 
 def _source_materialization(revision):
+    source_hashes = {}
+    for path in target.SOURCE_FILES:
+        try:
+            raw = _git_output("show", revision + ":" + path)
+        except subprocess.CalledProcessError:
+            source_hashes[path] = None
+        else:
+            source_hashes[path] = hashlib.sha256(raw).hexdigest()
     return {
         "sourceRevision": revision,
         "treeObject": _git_output("rev-parse", revision + "^{tree}")
         .decode("ascii")
         .strip(),
-        "sourceHashes": {
-            path: hashlib.sha256(
-                _git_output("show", revision + ":" + path)
-            ).hexdigest()
-            for path in target.SOURCE_FILES
-        },
+        "sourceHashes": source_hashes,
     }
 
 
@@ -615,19 +618,53 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                     result["upgradeSourceHashes"],
                     result["acceptanceSourceHashes"],
                 )
+                required_base = {
+                    ".github/workflows/unified-media-stack-managed.yml",
+                    "deploy/larenor-server/unified.compose.yaml",
+                    "deploy/larenor-server/unified_package.py",
+                    "deploy/larenor-server/deployment_bundle.py",
+                    "deploy/larenor-server/.env.example",
+                    "server/larenor_server/plugins/packagedcatalog.json",
+                    "tool/unified_media_stack_managed_ci.py",
+                }
+                self.assertTrue(
+                    all(
+                        result["upgradeSourceHashes"][path] is not None
+                        for path in required_base
+                    )
+                )
+                self.assertIsNone(
+                    result["upgradeSourceHashes"]["tool/tests/"
+                    "unified_media_stack_install_upgrade_acceptance_test.py"]
+                )
+                self.assertTrue(
+                    all(
+                        isinstance(value, str) and len(value) == 64
+                        for value in result["acceptanceSourceHashes"].values()
+                    )
+                )
                 target.validate_receipt(
                     result,
                     CURRENT_REVISION,
                     platform,
                     upgrade_source=BASE_REVISION,
                     reviewed_head=CURRENT_REVISION,
+                    expected_recovery="not_required",
                 )
-                for missing in ("both", "upgrade", "head"):
-                    arguments = {}
-                    if missing == "upgrade":
-                        arguments["reviewed_head"] = CURRENT_REVISION
+                for missing in ("all", "upgrade", "head", "recovery"):
+                    arguments = {
+                        "upgrade_source": BASE_REVISION,
+                        "reviewed_head": CURRENT_REVISION,
+                        "expected_recovery": "not_required",
+                    }
+                    if missing == "all":
+                        arguments.clear()
+                    elif missing == "upgrade":
+                        arguments.pop("upgrade_source")
                     elif missing == "head":
-                        arguments["upgrade_source"] = BASE_REVISION
+                        arguments.pop("reviewed_head")
+                    else:
+                        arguments.pop("expected_recovery")
                     with self.subTest(missing=missing), self.assertRaisesRegex(
                         target.ManagedStackCIError,
                         "unified_characterization_evidence_invalid",
@@ -651,7 +688,20 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
                             platform,
                             upgrade_source=BASE_REVISION,
                             reviewed_head=CURRENT_REVISION,
+                            expected_recovery="not_required",
                         )
+                with self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_characterization_evidence_invalid",
+                ):
+                    target.validate_receipt(
+                        result,
+                        CURRENT_REVISION,
+                        platform,
+                        upgrade_source=BASE_REVISION,
+                        reviewed_head=CURRENT_REVISION,
+                        expected_recovery="post_effect_reconciled",
+                    )
 
     def test_install_and_upgrade_require_exact_running_service_receipts(self):
         for drift in ("image", "container", "core_image", "core_container"):
@@ -821,6 +871,14 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
         self.assertEqual(result["reviewedHeadCommit"], CURRENT_REVISION)
         self.assertEqual(result["recoveryState"], "post_effect_reconciled")
         self.assertIs(result["effectReapplied"], False)
+        target.validate_receipt(
+            result,
+            CURRENT_REVISION,
+            "linux/amd64",
+            upgrade_source=BASE_REVISION,
+            reviewed_head=CURRENT_REVISION,
+            expected_recovery="post_effect_reconciled",
+        )
         self.assertEqual(
             [item["sourceRevision"] for item in result["installationPhases"]],
             [BASE_REVISION, CURRENT_REVISION, CURRENT_REVISION],

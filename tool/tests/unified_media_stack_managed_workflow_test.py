@@ -132,6 +132,9 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertIn(
             '--expected-reviewed-head "$REVIEWED_HEAD_SHA"', verify["run"]
         )
+        self.assertIn(
+            "--expected-recovery post_effect_reconciled", verify["run"]
+        )
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
         self.assertIn("${{ runner.arch }}", upload["with"]["name"])
 
