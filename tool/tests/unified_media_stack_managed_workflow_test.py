@@ -82,6 +82,8 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
             "needs.native-scope.outputs.run == 'true'",
         )
         self.assertIn("--cleanup-owned", steps[cleanup]["run"])
+        self.assertIn('test "${{ steps.verify.outcome }}" = success || exit 0',
+                      steps[cleanup]["run"])
         self.assertIn("--run-native", steps[native]["run"])
         self.assertIn("--verify-receipt", steps[verify]["run"])
         self.assertEqual(steps[upload]["with"]["if-no-files-found"], "error")

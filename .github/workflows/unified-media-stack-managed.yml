@@ -118,8 +118,8 @@
         {
           "name": "Remove only receipt-owned containers, network and directories",
           "id": "cleanup",
-          "if": "steps.verify.outcome == 'success' && needs.native-scope.outputs.run == 'true'",
-          "run": "sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  /usr/bin/python3 -B -m tool.unified_media_stack_managed_ci --cleanup-owned \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\""
+          "if": "always() && needs.native-scope.outputs.run == 'true'",
+          "run": "test \"${{ steps.verify.outcome }}\" = success || exit 0\nsudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" RUNNER_TEMP=\"$RUNNER_TEMP\" GITHUB_WORKSPACE=\"$GITHUB_WORKSPACE\" \\\n  /usr/bin/python3 -B -m tool.unified_media_stack_managed_ci --cleanup-owned \\\n  --ownership-receipt \"$RUNNER_TEMP/unified-stack-ownership.json\""
         },
         {
           "name": "Preserve verified secret-free unified stack receipt",
