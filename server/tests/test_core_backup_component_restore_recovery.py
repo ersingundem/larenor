@@ -5,7 +5,6 @@ import stat
 from dataclasses import replace
 
 import pytest
-
 from larenor_server.core_backups.component_restore import ComponentRestorePlanError
 from larenor_server.core_backups.component_restore_recovery import (
     ComponentRestoreRecoveryJournal,
@@ -48,11 +47,15 @@ class DurableSession:
         self.state.events.append(("quiesce", self.operation_id, len(targets)))
         return True
 
+    def paused_containers(self):
+        return ("a" * 64,)
+
     def capture_rollback(self, volume, _deadline):
+        import hashlib
+
         from larenor_server.core_backups.component_restore import (
             ComponentRestoreRollbackReceipt,
         )
-        import hashlib
 
         payload = self.state.target[volume.resource_id]
         self.state.rollback_payloads[volume.resource_id] = payload
@@ -67,10 +70,11 @@ class DurableSession:
         )
 
     def stage(self, volume, payload, rollback, _deadline):
+        import hashlib
+
         from larenor_server.core_backups.component_restore import (
             ComponentRestoreStageReceipt,
         )
-        import hashlib
 
         self.state.staged[volume.resource_id] = payload
         self.state.events.append(("stage", self.operation_id, volume.resource_id))
@@ -90,9 +94,7 @@ class DurableSession:
         self.state.revalidate_attempts[self.operation_id] = count
         if self.state.recovery_fail == "authority":
             return False
-        return not (
-            self.state.recovery_fail == "commit_authority" and count > 1
-        )
+        return not (self.state.recovery_fail == "commit_authority" and count > 1)
 
     def commit(self, stages, _rollbacks, _deadline):
         self.state.events.append(("commit", self.operation_id))
@@ -131,7 +133,7 @@ class DurableBoundary:
         self.state.events.append(("acquire", operation_id, plan.snapshot_id))
         return DurableSession(self.state, operation_id)
 
-    def recover_durable(self, plan, operation_id, _deadline):
+    def recover_durable(self, plan, operation_id, _paused_containers, _deadline):
         self.state.events.append(("recover", operation_id, plan.snapshot_id))
         return DurableSession(self.state, operation_id)
 
@@ -141,8 +143,10 @@ class RecoveryFailureBoundary(DurableBoundary):
         super().__init__(state)
         self.clock = clock
 
-    def recover_durable(self, plan, operation_id, deadline):
-        session = super().recover_durable(plan, operation_id, deadline)
+    def recover_durable(self, plan, operation_id, paused_containers, deadline):
+        session = super().recover_durable(
+            plan, operation_id, paused_containers, deadline
+        )
         if self.state.recovery_fail == "deadline":
             self.clock.now = 11.0
         return session
@@ -162,7 +166,7 @@ class MalformedRecoveryBoundary(DurableBoundary):
         super().__init__(state)
         self.session = session
 
-    def recover_durable(self, _plan, _operation_id, _deadline):
+    def recover_durable(self, _plan, _operation_id, _paused_containers, _deadline):
         return self.session
 
 
@@ -227,12 +231,14 @@ def test_restart_reconciles_each_precommit_crash_once(
     )
     assert restarted.recover(plan, deadline=10.0) is True
     assert state.target == state.initial
-    assert len(state.rollback_operations) == 1
+    assert len(state.rollback_operations) == (0 if crash_phase == "acquired" else 1)
     assert len(state.release_operations) == 1
-    assert sum(event[0] == "rollback" for event in state.events) == 1
+    assert sum(event[0] == "rollback" for event in state.events) == (
+        0 if crash_phase == "acquired" else 1
+    )
     assert sum(event[0] == "release" for event in state.events) == 1
     assert restarted.recover(plan, deadline=10.0) is False
-    assert len(state.rollback_operations) == 1
+    assert len(state.rollback_operations) == (0 if crash_phase == "acquired" else 1)
     assert len(state.release_operations) == 1
 
 
@@ -367,9 +373,7 @@ def test_recovery_restart_skips_completed_rollback_or_release_exactly_once(
     assert second_restart.recover(plan, deadline=10.0) is False
 
 
-def test_v3_journal_is_private_authenticated_bounded_and_fail_closed(
-    server, tmp_path
-):
+def test_v3_journal_is_private_authenticated_bounded_and_fail_closed(server, tmp_path):
     def checkpoint(state):
         if state["phase"] == "staging":
             raise SimulatedCrash()
@@ -445,9 +449,7 @@ def test_recovery_journal_serializes_cross_process_owners(tmp_path):
     "failure",
     ["authority", "deadline", "rollback", "persist"],
 )
-def test_recovery_post_acquire_failure_releases_exactly_once(
-    server, tmp_path, failure
-):
+def test_recovery_post_acquire_failure_releases_exactly_once(server, tmp_path, failure):
     def checkpoint(value):
         if value["phase"] == "pre_commit":
             raise SimulatedCrash()
@@ -516,9 +518,7 @@ def test_malformed_recovered_session_releases_retained_capability(server, tmp_pa
     assert journal.exists()
 
 
-def test_default_durable_boundary_keeps_component_restore_disabled(
-    server, tmp_path
-):
+def test_default_durable_boundary_keeps_component_restore_disabled(server, tmp_path):
     opened = capture(server)
     plan = plan_component_restore(opened, Authority((authority_target(),)))
     journal = ComponentRestoreRecoveryJournal(

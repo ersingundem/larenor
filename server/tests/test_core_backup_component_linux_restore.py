@@ -13,28 +13,27 @@ from contextlib import contextmanager
 
 import pytest
 from conftest import ready
-
 from larenor_server.core_backups.component_restore import (
     ComponentRestorePlanError,
     ComponentRestoreRollbackReceipt,
     ComponentRestoreVolumeTarget,
     plan_component_restore,
 )
-from larenor_server.core_backups.component_snapshot_provider import (
-    ComponentVolumeSource,
-    archive_component_directory,
-)
 from larenor_server.core_backups.component_restore_recovery import (
     ComponentRestoreRecoveryJournal,
     DurableComponentRestoreCoordinator,
+)
+from larenor_server.core_backups.component_snapshot_provider import (
+    ComponentVolumeSource,
+    archive_component_directory,
 )
 from larenor_server.core_backups.service import (
     ComponentVolumeSnapshot,
     CoreBackupContract,
 )
-from test_core_backup_component_docker_adapter import installed_authority
 from test_core_backup_component_docker_adapter import (
     effect_reply,
+    installed_authority,
     make_roots,
     running_inspect,
 )
@@ -274,9 +273,7 @@ def test_linux_engine_removes_unjournaled_stage_during_recovery(tmp_path):
     )
     engine.close(leases)
 
-    recovered = engine.recover(
-        ((source, target),), "2" * 32, (receipt,), (), deadline
-    )
+    recovered = engine.recover(((source, target),), "2" * 32, (receipt,), (), deadline)
     try:
         assert engine.rollback(recovered[0], deadline) is True
         assert (target_path / "current.txt").read_text(encoding="utf-8") == "old"
@@ -435,6 +432,50 @@ def _close_production_inputs(inputs):
     context.__exit__(None, None, None)
 
 
+def _restarted_boundary(inputs, *, system=None):
+    controller = importlib.import_module(
+        "larenor_server.core_backups.component_docker_adapter"
+    ).UnixDockerComponentSnapshotAdapter(
+        inputs["endpoint"],
+        inputs["authority"],
+        peer_uid=lambda _: inputs["endpoint"].owner_uid,
+    )
+    return api().LinuxComponentRestoreBoundary(
+        api().DurableComponentRestoreAuthority(inputs["authority"]),
+        controller,
+        api().LinuxDirectoryRestoreEngine(system=system or PortableExchange()),
+        enabled=True,
+    )
+
+
+@pytest.mark.parametrize("lost_phase", ("acquiring", "acquired"))
+def test_recovery_never_adopts_unproven_admin_pause(server, tmp_path, lost_phase):
+    def checkpoint(state):
+        if state["phase"] == lost_phase:
+            raise PowerLoss()
+
+    inputs = _production_inputs(server, tmp_path, checkpoint=checkpoint)
+    try:
+        with pytest.raises(PowerLoss):
+            inputs["coordinator"].restore(
+                inputs["opened"],
+                inputs["plan"],
+                deadline=time.monotonic() + 8,
+            )
+        inputs["state"]["paused"] = True
+
+        restarted = DurableComponentRestoreCoordinator(
+            inputs["journal"], _restarted_boundary(inputs)
+        )
+        with pytest.raises(ComponentRestorePlanError):
+            restarted.recover(inputs["plan"], deadline=time.monotonic() + 8)
+
+        assert inputs["state"]["paused"] is True
+        assert inputs["journal"].read()["phase"] == lost_phase
+    finally:
+        _close_production_inputs(inputs)
+
+
 def test_linux_boundary_restores_and_finalizes_exact_volume_trees(server, tmp_path):
     inputs = _production_inputs(server, tmp_path)
     try:
@@ -570,9 +611,7 @@ def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_
             inputs["authority"],
             peer_uid=lambda _: inputs["endpoint"].owner_uid,
         )
-        file_engine = api().LinuxDirectoryRestoreEngine(
-            system=PortableExchange()
-        )
+        file_engine = api().LinuxDirectoryRestoreEngine(system=PortableExchange())
         restore_rollback = file_engine._restore_rollback
 
         def guarded_restore(lease, deadline):
@@ -586,9 +625,12 @@ def test_recovery_requiesces_container_unpaused_after_commit_effect(server, tmp_
             file_engine,
             enabled=True,
         )
-        assert DurableComponentRestoreCoordinator(
-            inputs["journal"], boundary
-        ).recover(inputs["plan"], deadline=time.monotonic() + 8) is True
+        assert (
+            DurableComponentRestoreCoordinator(inputs["journal"], boundary).recover(
+                inputs["plan"], deadline=time.monotonic() + 8
+            )
+            is True
+        )
 
         assert inputs["state"]["paused"] is False
         for volume in inputs["receipt"].volumes:

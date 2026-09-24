@@ -1,5 +1,6 @@
 """Linux component restore boundaries bound to durable installation receipts."""
 
+import ctypes
 import hashlib
 import io
 import json
@@ -10,12 +11,10 @@ import sys
 import time
 import zipfile
 
-import ctypes
-
+from .component_docker_adapter import UnixDockerComponentSnapshotAdapter
 from .component_installation_authority import (
     DurableComponentInstallationAuthority,
 )
-from .component_docker_adapter import UnixDockerComponentSnapshotAdapter
 from .component_restore import (
     ComponentRestoreAuthorityTarget,
     ComponentRestoreAuthorityVolume,
@@ -347,13 +346,16 @@ class LinuxRestoreSystem:
             ctypes.c_uint,
         ]
         renameat2.restype = ctypes.c_int
-        if renameat2(
-            first_parent,
-            first.encode(),
-            second_parent,
-            second.encode(),
-            1,
-        ) != 0:
+        if (
+            renameat2(
+                first_parent,
+                first.encode(),
+                second_parent,
+                second.encode(),
+                1,
+            )
+            != 0
+        ):
             raise ComponentRestorePlanError()
 
 
@@ -396,11 +398,7 @@ def _write_private(parent, name, payload):
     try:
         descriptor = os.open(
             name,
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | os.O_NOFOLLOW
-            | os.O_CLOEXEC,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
             0o600,
             dir_fd=parent,
         )
@@ -525,17 +523,11 @@ class LinuxDirectoryRestoreEngine:
                     before = source.path.lstat()
                     parent = os.open(
                         source.path.parent,
-                        os.O_RDONLY
-                        | os.O_DIRECTORY
-                        | os.O_NOFOLLOW
-                        | os.O_CLOEXEC,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
                     )
                     root = os.open(
                         source.path.name,
-                        os.O_RDONLY
-                        | os.O_DIRECTORY
-                        | os.O_NOFOLLOW
-                        | os.O_CLOEXEC,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
                         dir_fd=parent,
                     )
                     current = os.fstat(root)
@@ -546,8 +538,7 @@ class LinuxDirectoryRestoreEngine:
                         != (source.device, source.inode)
                         or (current.st_dev, current.st_ino)
                         != (source.device, source.inode)
-                        or (after.st_dev, after.st_ino)
-                        != (source.device, source.inode)
+                        or (after.st_dev, after.st_ino) != (source.device, source.inode)
                         or os.fstat(parent).st_dev != current.st_dev
                     ):
                         raise ComponentRestorePlanError()
@@ -853,6 +844,12 @@ class LinuxComponentRestoreSession:
             self._adopted_pauses.append(container_id)
         return True
 
+    def paused_containers(self):
+        paused = tuple(sorted(self._adopted_pauses))
+        if paused != tuple(sorted(set(paused))):
+            raise ComponentRestorePlanError()
+        return paused
+
     def capture_rollback(self, volume, deadline):
         lease = self._volume_pairs((volume,))[0]
         byte_length, sha256 = self._engine.capture_rollback(lease, deadline)
@@ -1041,11 +1038,24 @@ class LinuxComponentRestoreBoundary:
         except Exception:
             raise ComponentRestorePlanError() from None
 
-    def recover_durable(self, plan, operation_id, deadline):
+    def recover_durable(self, plan, operation_id, paused_containers, deadline):
         try:
             sources, paused = self._controller.restore_sources(deadline)
             self._pairs(plan, sources)
-            if self._controller.adopt_restore_pauses(paused, deadline) is not True:
+            planned = tuple(sorted({item.container_id for item in sources}))
+            if (
+                type(paused_containers) is not tuple
+                or paused_containers != tuple(sorted(set(paused_containers)))
+                or paused_containers not in ((), planned)
+                or any(item not in planned for item in paused)
+                or not paused_containers
+                and paused
+            ):
+                raise ComponentRestorePlanError()
+            adopted = tuple(item for item in paused if item in paused_containers)
+            if adopted != paused:
+                raise ComponentRestorePlanError()
+            if self._controller.adopt_restore_pauses(adopted, deadline) is not True:
                 raise ComponentRestorePlanError()
             return LinuxComponentRestoreSession(
                 plan,
@@ -1053,7 +1063,7 @@ class LinuxComponentRestoreBoundary:
                 sources,
                 self._controller,
                 self._engine,
-                adopted_pauses=paused,
+                adopted_pauses=adopted,
                 deadline=deadline,
             )
         except ComponentRestorePlanError:
