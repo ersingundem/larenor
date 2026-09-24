@@ -15,6 +15,7 @@ SPEC = importlib.util.spec_from_file_location("unified_media_stack_managed_ci", 
 target = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(target)
 REVISION = "a" * 40
+LEGACY_REVISION = "2f43b6cd606dab17640bb6f0a832b353b62c2313"
 COMPONENTS = (
     "jellyfin", "seerr", "sonarr", "radarr", "qbittorrent", "music_assistant",
 )
@@ -576,6 +577,165 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
                         driver.public_health(
                             component, "restart", REVISION, manifest["manifestDigest"],
                             "linux/amd64", timeout=0)
+
+    def test_legacy_probe_uses_exact_archived_catalog_health_without_mutation(self):
+        legacy = target._revision_manifest(LEGACY_REVISION)
+        before = json.loads(json.dumps(legacy))
+        self.assertTrue(all("health" not in item for item in legacy["components"]))
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION,
+                "linux/amd64",
+                Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            driver._base_root = Path(temporary) / "archived-source"
+            driver._base_root.mkdir()
+            driver._source_root = driver._base_root
+            driver._active_revision = LEGACY_REVISION
+            real_command = target._command
+
+            def command_result(arguments, **kwargs):
+                if arguments[:2] == ["/usr/bin/git", "show"]:
+                    return real_command(arguments, **kwargs)
+                return 0, b"healthy\n"
+
+            with patch.object(
+                target,
+                "_command",
+                side_effect=command_result,
+            ) as command:
+                receipts = target._public_health_receipts(
+                    driver,
+                    legacy,
+                    "initial",
+                    LEGACY_REVISION,
+                    "linux/amd64",
+                )
+        self.assertEqual(legacy, before)
+        self.assertEqual(
+            {
+                item["serviceId"]: item["profile"]
+                for item in receipts.values()
+            },
+            {
+                service_id: profile["profile"]
+                for service_id, profile in target.package._PACKAGED_HEALTH.items()
+            },
+        )
+        self.assertTrue(all(
+            item["manifestDigest"] == before["manifestDigest"]
+            for item in receipts.values()
+        ))
+        docker_calls = [
+            item for item in command.call_args_list
+            if item.args[0][:2] == ["/usr/bin/docker", "exec"]
+        ]
+        self.assertEqual(len(docker_calls), len(target.COMPONENTS))
+
+        component = json.loads(json.dumps(before["components"][0]))
+        current = target.expected_manifest(REVISION)
+        current_component = json.loads(json.dumps(current["components"][0]))
+        current_component.pop("health")
+        with tempfile.TemporaryDirectory() as temporary:
+            driver = target.DockerDriver(
+                REVISION,
+                "linux/amd64",
+                Path(temporary) / "ownership.json",
+                operation_id="f" * 32,
+            )
+            driver._source_root = target.REPOSITORY
+            driver._active_revision = REVISION
+            with patch.object(target, "_command") as command, self.assertRaisesRegex(
+                target.ManagedStackCIError,
+                "unified_health_probe_failed",
+            ):
+                driver.public_health(
+                    current_component,
+                    "initial",
+                    REVISION,
+                    current["manifestDigest"],
+                    "linux/amd64",
+                )
+            command.assert_not_called()
+
+        for health in (
+            None,
+            {},
+            {"profile": "jellyfin_public", "path": "/health", "port": 8097},
+        ):
+            with self.subTest(health=health), tempfile.TemporaryDirectory() as temporary:
+                changed = json.loads(json.dumps(component))
+                changed["health"] = health
+                driver = target.DockerDriver(
+                    REVISION,
+                    "linux/amd64",
+                    Path(temporary) / "ownership.json",
+                    operation_id="f" * 32,
+                )
+                driver._base_root = Path(temporary) / "archived-source"
+                driver._base_root.mkdir()
+                driver._source_root = driver._base_root
+                driver._active_revision = LEGACY_REVISION
+                with patch.object(target, "_command") as command, self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_health_probe_failed",
+                ):
+                    driver.public_health(
+                        changed,
+                        "initial",
+                        LEGACY_REVISION,
+                        before["manifestDigest"],
+                        "linux/amd64",
+                    )
+                command.assert_not_called()
+
+        catalog = json.loads(target._git_blob(
+            LEGACY_REVISION,
+            "server/larenor_server/plugins/packagedcatalog.json",
+        ))
+        catalog["entries"][0]["health"]["port"] += 1
+        drifted = json.dumps(catalog, separators=(",", ":")).encode("ascii")
+        duplicate = drifted.replace(
+            b'"health":{',
+            b'"health":{},"health":{',
+            1,
+        )
+        for catalog_payload in (drifted, duplicate):
+            with self.subTest(catalog_payload=catalog_payload[:32]), \
+                    tempfile.TemporaryDirectory() as temporary:
+                driver = target.DockerDriver(
+                    REVISION,
+                    "linux/amd64",
+                    Path(temporary) / "ownership.json",
+                    operation_id="f" * 32,
+                )
+                driver._base_root = Path(temporary) / "archived-source"
+                driver._base_root.mkdir()
+                driver._source_root = driver._base_root
+                driver._active_revision = LEGACY_REVISION
+                real_blob = target._git_blob
+
+                def blob(revision, name, **kwargs):
+                    if name == "server/larenor_server/plugins/packagedcatalog.json":
+                        return catalog_payload
+                    return real_blob(revision, name, **kwargs)
+
+                with patch.object(target, "_git_blob", side_effect=blob), patch.object(
+                    target,
+                    "_command",
+                ) as command, self.assertRaisesRegex(
+                    target.ManagedStackCIError,
+                    "unified_health_probe_failed",
+                ):
+                    driver.public_health(
+                        component,
+                        "initial",
+                        LEGACY_REVISION,
+                        before["manifestDigest"],
+                        "linux/amd64",
+                    )
+                command.assert_not_called()
 
     def test_embedded_public_probe_enforces_each_profile_and_response_bound(self):
         class Response:
