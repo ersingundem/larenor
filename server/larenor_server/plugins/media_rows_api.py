@@ -6,9 +6,9 @@ from ..auth import Principal
 from ..dependencies import get_core, require_ready_user
 from ..models import ErrorResponse
 from .media_rows_models import (
+    AccountMediaRowResolutionResponse,
     AccountMediaRowsResponse,
     AccountMediaRowsTargetResponse,
-    AccountMediaRowResolutionResponse,
     ReadAccountMediaRowsRequest,
     ReadAccountMediaRowsTargetRequest,
     ResolveAccountMediaRowRequest,

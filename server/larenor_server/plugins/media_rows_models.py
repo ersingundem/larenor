@@ -7,8 +7,8 @@ from pydantic import Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
-from .stack_plan import MediaStackPlan
 from .media_archive_core_models import MediaCatalogPage
+from .stack_plan import MediaStackPlan
 
 
 class MediaRowItem(StrictModel):

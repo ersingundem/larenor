@@ -3,6 +3,7 @@
 import json
 
 from conftest import auth
+from larenor_server.errors import ApiError
 from larenor_server.plugins.jellyfin_media_rows_executor import (
     JellyfinMediaRowsExecutionError,
 )
@@ -10,7 +11,6 @@ from larenor_server.plugins.media_rows_models import (
     MediaRowItem,
     MediaRowsReadback,
 )
-from larenor_server.errors import ApiError
 from test_admin import activate
 from test_admin import create as create_user
 from test_media_service_bootstraps import (

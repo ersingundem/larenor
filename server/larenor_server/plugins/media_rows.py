@@ -5,16 +5,16 @@ import time
 
 from ..errors import ApiError
 from .jellyfin_media_rows_executor import JellyfinMediaRowsExecutionError
+from .media_archive_core_models import (
+    MediaCatalogResolveRequest,
+    MediaCatalogSearchResponse,
+)
 from .media_rows_models import (
     MediaRowsReadback,
     PrivateJellyfinMediaRowsAuthority,
     ReadAccountMediaRowsRequest,
     ReadAccountMediaRowsTargetRequest,
     ResolveAccountMediaRowRequest,
-)
-from .media_archive_core_models import (
-    MediaCatalogResolveRequest,
-    MediaCatalogSearchResponse,
 )
 
 
@@ -70,7 +70,7 @@ class MediaRowsManagement:
                     current_bootstrap.api_key, bootstrap.api_key
                 )
             )
-        except Exception:  # noqa: BLE001 - authority callbacks fail closed
+        except Exception:
             return False
 
     def target(self, actor, body):
@@ -129,7 +129,7 @@ class MediaRowsManagement:
             raise ApiError('media_rows_worker_unavailable', 503) from None
         except ApiError:
             raise
-        except Exception:  # noqa: BLE001 - private worker details stay private
+        except Exception:
             raise ApiError('media_rows_worker_unavailable', 503) from None
         return {
             'requestId': body.requestId,
