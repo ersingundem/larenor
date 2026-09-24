@@ -10,16 +10,23 @@ from .media_rows_models import (
     PrivateJellyfinMediaRowsAuthority,
     ReadAccountMediaRowsRequest,
     ReadAccountMediaRowsTargetRequest,
+    ResolveAccountMediaRowRequest,
+)
+from .media_archive_core_models import (
+    MediaCatalogResolveRequest,
+    MediaCatalogSearchResponse,
 )
 
 
 class MediaRowsManagement:
-    def __init__(self, auth, settings, bindings, bootstraps, backend=None):
+    def __init__(self, auth, settings, bindings, bootstraps, backend=None,
+                 catalog=None):
         self.auth = auth
         self.settings = settings
         self.bindings = bindings
         self.bootstraps = bootstraps
         self.backend = backend
+        self.catalog = catalog
         self._monotonic = time.monotonic
 
     def _snapshot(self, actor, body):
@@ -130,4 +137,59 @@ class MediaRowsManagement:
             'installationRevision': binding.installation_revision,
             'bindingRevision': binding.binding_revision,
             'rows': rows,
+        }
+
+    def resolve(self, actor, body):
+        if type(body) is not ResolveAccountMediaRowRequest:
+            raise ApiError('invalid_request')
+        binding, bootstrap = self._snapshot(actor, body)
+        if binding.binding_revision != body.expectedBindingRevision:
+            raise ApiError('media_rows_authority_changed', 409)
+        if self.catalog is None or not callable(
+            getattr(self.catalog, 'member_resolve', None)
+        ):
+            raise ApiError('media_rows_worker_unavailable', 503)
+        try:
+            resolved = MediaCatalogSearchResponse.model_validate(
+                self.catalog.member_resolve(
+                    actor,
+                    MediaCatalogResolveRequest(
+                        requestId=body.requestId,
+                        installationId=body.installationId,
+                        expectedInstallationRevision=(
+                            body.expectedInstallationRevision
+                        ),
+                        expectedSnapshotRevision=body.expectedSnapshotRevision,
+                        itemId=body.itemId,
+                    ),
+                )
+            )
+        except ApiError as error:
+            if error.status == 401:
+                raise
+            if error.status in {403, 409}:
+                raise ApiError('media_rows_authority_changed', 409) from None
+            if error.status == 404:
+                raise ApiError('media_rows_item_unavailable', 404) from None
+            raise ApiError('media_rows_worker_unavailable', 503) from None
+        except Exception:
+            raise ApiError('media_rows_worker_unavailable', 503) from None
+        page = resolved.catalog
+        if (
+            resolved.requestId != body.requestId
+            or page.installationId != body.installationId
+            or page.installationRevision != body.expectedInstallationRevision
+            or page.snapshotRevision != body.expectedSnapshotRevision
+            or page.jellyfinServiceRevision
+            != body.expectedJellyfinServiceRevision
+            or len(page.items) != 1
+            or page.items[0].itemId != body.itemId
+        ):
+            raise ApiError('media_rows_authority_changed', 409)
+        if self._retained(actor, body, binding, bootstrap) is not True:
+            raise ApiError('media_rows_authority_changed', 409)
+        return {
+            'requestId': body.requestId,
+            'bindingRevision': binding.binding_revision,
+            'catalog': page,
         }

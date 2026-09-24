@@ -44,6 +44,213 @@ Map<String, Object?> _response() => {
 };
 
 void main() {
+  test(
+    'resolves one retained row through exact row and catalog authority',
+    () async {
+      final calls = <http.Request>[];
+      final rows = ServerAccountMediaRows.fromJson(
+        _response(),
+        expectedRequestId: _requestId,
+        expectedInstallationId: _installationId,
+        expectedInstallationRevision: 7,
+        expectedBindingRevision: 4,
+      );
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.test'),
+        client: MockClient((request) async {
+          calls.add(request);
+          if (request.url.path.endsWith('/media/catalog/target')) {
+            return http.Response(
+              jsonEncode({
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': 7,
+                'snapshotRevision': 8,
+                'jellyfinServiceRevision': 9,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          expect(request.url.path, '/api/v1/media/rows/resolve');
+          expect(jsonDecode(request.body), {
+            'requestId': _requestId,
+            'installationId': _installationId,
+            'expectedInstallationRevision': 7,
+            'expectedBindingRevision': 4,
+            'expectedSnapshotRevision': 8,
+            'expectedJellyfinServiceRevision': 9,
+            'itemId': _itemId,
+          });
+          return http.Response(
+            jsonEncode({
+              'requestId': _requestId,
+              'bindingRevision': 4,
+              'catalog': {
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': 7,
+                'snapshotRevision': 8,
+                'jellyfinServiceRevision': 9,
+                'offset': 0,
+                'nextOffset': null,
+                'total': 1,
+                'items': const [
+                  {
+                    'itemId': _itemId,
+                    'mediaKey': 'movie:tmdb:603',
+                    'title': 'The Matrix',
+                    'mediaKind': 'movie',
+                    'runtimeSeconds': 8160,
+                  },
+                ],
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(api.close);
+
+      final page = await ServerMediaRowsApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).resolveVerifiedRow(rows: rows, item: rows.rows.recent.single);
+
+      expect(page.items.single.mediaKey, 'movie:tmdb:603');
+      expect(calls.map((call) => call.url.path), [
+        '/api/v1/media/catalog/target',
+        '/api/v1/media/rows/resolve',
+      ]);
+    },
+  );
+
+  test(
+    'foreign row and changed resolution authority fail before use',
+    () async {
+      var calls = 0;
+      final rows = ServerAccountMediaRows.fromJson(
+        _response(),
+        expectedRequestId: _requestId,
+        expectedInstallationId: _installationId,
+        expectedInstallationRevision: 7,
+        expectedBindingRevision: 4,
+      );
+      final foreign = ServerAccountMediaRows.fromJson(
+        _response(),
+        expectedRequestId: _requestId,
+        expectedInstallationId: _installationId,
+        expectedInstallationRevision: 7,
+        expectedBindingRevision: 4,
+      ).rows.recent.single;
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.test'),
+        client: MockClient((request) async {
+          calls++;
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': 1,
+              'installationId': _installationId,
+              'installationRevision': 8,
+              'snapshotRevision': 8,
+              'jellyfinServiceRevision': 9,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(api.close);
+      final client = ServerMediaRowsApi(api, 'synthetic-access');
+
+      await expectLater(
+        client.resolveVerifiedRow(rows: rows, item: foreign),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(calls, 0);
+      await expectLater(
+        client.resolveVerifiedRow(rows: rows, item: rows.rows.recent.single),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+      expect(calls, 1);
+    },
+  );
+
+  test('resolved catalog kind must match the retained row kind', () async {
+    final rows = ServerAccountMediaRows.fromJson(
+      _response(),
+      expectedRequestId: _requestId,
+      expectedInstallationId: _installationId,
+      expectedInstallationRevision: 7,
+      expectedBindingRevision: 4,
+    );
+    final api = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.test'),
+      client: MockClient((request) async {
+        final body = request.url.path.endsWith('/media/catalog/target')
+            ? {
+                'schemaVersion': 1,
+                'installationId': _installationId,
+                'installationRevision': 7,
+                'snapshotRevision': 8,
+                'jellyfinServiceRevision': 9,
+              }
+            : {
+                'requestId': _requestId,
+                'bindingRevision': 4,
+                'catalog': {
+                  'schemaVersion': 1,
+                  'installationId': _installationId,
+                  'installationRevision': 7,
+                  'snapshotRevision': 8,
+                  'jellyfinServiceRevision': 9,
+                  'offset': 0,
+                  'nextOffset': null,
+                  'total': 1,
+                  'items': const [
+                    {
+                      'itemId': _itemId,
+                      'mediaKey': 'episode:tvdb:101:2:1',
+                      'title': 'Wrong kind',
+                      'mediaKind': 'episode',
+                      'runtimeSeconds': 3600,
+                    },
+                  ],
+                },
+              };
+        return http.Response(
+          jsonEncode(body),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    await expectLater(
+      ServerMediaRowsApi(
+        api,
+        'synthetic-access',
+        requestId: () => _requestId,
+      ).resolveVerifiedRow(rows: rows, item: rows.rows.recent.single),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_response',
+        ),
+      ),
+    );
+  });
+
   test('reads strict account rows through the current Core target', () async {
     final calls = <http.Request>[];
     final api = LarenorServerApi(

@@ -41,6 +41,30 @@ Map<String, Object?> _rows({int revision = 10, int bindingRevision = 4}) => {
   },
 };
 
+Map<String, Object?> _resolution() => {
+  'requestId': _requestId,
+  'bindingRevision': 4,
+  'catalog': {
+    'schemaVersion': 1,
+    'installationId': _installationId,
+    'installationRevision': 7,
+    'snapshotRevision': 8,
+    'jellyfinServiceRevision': 9,
+    'offset': 0,
+    'nextOffset': null,
+    'total': 1,
+    'items': const [
+      {
+        'itemId': '33333333333333333333333333333333',
+        'mediaKey': 'movie:tmdb:603',
+        'title': 'The Matrix',
+        'mediaKind': 'movie',
+        'runtimeSeconds': 8160,
+      },
+    ],
+  },
+};
+
 final class _Fixture extends AdminFixture {
   _Fixture() {
     respond = (request) async {
@@ -62,6 +86,11 @@ final class _Fixture extends AdminFixture {
           _rows(revision: revision, bindingRevision: bindingRevision),
         );
       }
+      if (request.url.path.endsWith('/media/rows/resolve')) {
+        final gate = resolveGate;
+        if (gate != null) return gate.future;
+        return json(_resolution());
+      }
       return defaultResponse(request);
     };
   }
@@ -69,6 +98,7 @@ final class _Fixture extends AdminFixture {
   int revision = 10;
   int bindingRevision = 4;
   Completer<http.Response>? rowsGate;
+  Completer<http.Response>? resolveGate;
 }
 
 final class _RowsBackend implements ServerMediaRowsCacheBackend {
@@ -334,6 +364,75 @@ void main() {
     expect(controller.failure, isNull);
     expect(controller.busy, isFalse);
   });
+
+  test(
+    'verified late unauthorized resolution retires the exact session',
+    () async {
+      final fixture = _Fixture();
+      await fixture.account.initialize();
+      final controller = ServerMediaRowsController(
+        fixture.account,
+        requestId: () => _requestId,
+      );
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      await controller.refresh(current: () => true);
+      fixture.resolveGate = Completer<http.Response>();
+
+      final pending = controller.resolve(
+        controller.value!.rows.recent.single,
+        current: () => true,
+      );
+      while (!fixture.calls.any(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      )) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      fixture.resolveGate!.complete(
+        fixture.json({
+          'error': {'code': 'unauthorized'},
+        }, 401),
+      );
+
+      expect(await pending, isNull);
+      expect(fixture.account.session, isNull);
+      expect(controller.value, isNull);
+      expect(controller.resolvingItemId, isNull);
+    },
+  );
+
+  test(
+    'logout during delayed resolution cannot publish a stale item',
+    () async {
+      final fixture = _Fixture();
+      await fixture.account.initialize();
+      final controller = ServerMediaRowsController(
+        fixture.account,
+        requestId: () => _requestId,
+      );
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      await controller.refresh(current: () => true);
+      fixture.resolveGate = Completer<http.Response>();
+
+      final pending = controller.resolve(
+        controller.value!.rows.recent.single,
+        current: () => true,
+      );
+      while (!fixture.calls.any(
+        (call) => call.url.path.endsWith('/media/rows/resolve'),
+      )) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await fixture.account.signOut();
+      fixture.resolveGate!.complete(fixture.json(_resolution()));
+
+      expect(await pending, isNull);
+      expect(controller.value, isNull);
+      expect(controller.resolutionFailure, isNull);
+      expect(controller.resolvingItemId, isNull);
+    },
+  );
 
   test('authority and worker failures never retain old rows', () async {
     final fixture = _Fixture();

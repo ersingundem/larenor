@@ -8,8 +8,10 @@ from ..models import ErrorResponse
 from .media_rows_models import (
     AccountMediaRowsResponse,
     AccountMediaRowsTargetResponse,
+    AccountMediaRowResolutionResponse,
     ReadAccountMediaRowsRequest,
     ReadAccountMediaRowsTargetRequest,
+    ResolveAccountMediaRowRequest,
 )
 
 Core = Annotated[object, Depends(get_core)]
@@ -18,7 +20,7 @@ router = APIRouter(
     prefix='/media/rows',
     tags=['Account media rows'],
     responses={status: {'model': ErrorResponse}
-               for status in (400, 401, 403, 409, 503)},
+               for status in (400, 401, 403, 404, 409, 503)},
 )
 
 
@@ -30,3 +32,8 @@ def target(body: ReadAccountMediaRowsTargetRequest, core: Core, actor: Ready):
 @router.post('/read', response_model=AccountMediaRowsResponse)
 def read(body: ReadAccountMediaRowsRequest, core: Core, actor: Ready):
     return core.media_rows.read(actor, body)
+
+
+@router.post('/resolve', response_model=AccountMediaRowResolutionResponse)
+def resolve(body: ResolveAccountMediaRowRequest, core: Core, actor: Ready):
+    return core.media_rows.resolve(actor, body)

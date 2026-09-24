@@ -173,6 +173,7 @@ MESSAGES = {
     'media_preparation_conflict': 'This request conflicts with a saved media preparation.',
     'media_catalog_changed': 'The media catalog changed. Review the preparation again.',
     'media_catalog_item_unavailable': 'This media item is no longer available in the current catalog.',
+    'media_rows_item_unavailable': 'This account media item is no longer available.',
     'media_context_changed': 'The Core or home changed. Review the preparation again.',
     'media_preparation_limit_reached': 'The media preparation limit has been reached.',
     'media_preparation_storage_unavailable': 'The saved media preparations are unavailable.',

@@ -8,6 +8,7 @@ from pydantic import Field, field_validator, model_validator
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
 from .stack_plan import MediaStackPlan
+from .media_archive_core_models import MediaCatalogPage
 
 
 class MediaRowItem(StrictModel):
@@ -64,6 +65,16 @@ class ReadAccountMediaRowsTargetRequest(StrictModel):
     expectedInstallationRevision: Revision
 
 
+class ResolveAccountMediaRowRequest(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+    expectedBindingRevision: Revision
+    expectedSnapshotRevision: Revision
+    expectedJellyfinServiceRevision: Revision
+    itemId: ObjectId
+
+
 class AccountMediaRowsTargetResponse(StrictModel):
     schemaVersion: Literal[1] = 1
     installationId: ObjectId
@@ -77,6 +88,12 @@ class AccountMediaRowsResponse(StrictModel):
     installationRevision: Revision
     bindingRevision: Revision
     rows: MediaRowsReadback
+
+
+class AccountMediaRowResolutionResponse(StrictModel):
+    requestId: ObjectId
+    bindingRevision: Revision
+    catalog: MediaCatalogPage
 
 
 class PrivateJellyfinMediaRowsAuthority(StrictModel):
