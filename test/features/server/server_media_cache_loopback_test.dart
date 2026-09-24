@@ -680,8 +680,10 @@ void main() {
     await catalog.browseCurrent(current: () => true);
     await rows.refresh(current: () => true);
     expect(catalog.origin, ServerMediaResultOrigin.verifiedCache);
+    expect(rows.origin, ServerMediaResultOrigin.live);
     expect(rows.value?.rows.recent.single.title, 'The Matrix');
     expect(rows.value?.rows.resume.single.positionSeconds, 900);
+    expect(core.rowReads, 2);
 
     await currentAccount.signOut();
     expect(catalog.page, isNull);
