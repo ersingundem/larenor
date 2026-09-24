@@ -37,6 +37,26 @@ class ComponentCaptureNativeWorkflowTest(unittest.TestCase):
         self.assertIn("VolumeCreateJournal", value)
         self.assertIn("assert not journal.exists()", value)
 
+    def test_both_architectures_own_generation_and_drift_acceptance(self):
+        workflow = WORKFLOW.read_text()
+        scope = workflow.split("  workflow_dispatch:", 1)[0]
+        for path in (
+            "component_snapshot_provider.py",
+            "component_worker.py",
+            "component_worker_server.py",
+            "core_backups/service.py",
+        ):
+            self.assertIn(path, scope)
+        for test in (
+            "test_core_backup_components.py",
+            "test_core_backup_component_isolated_capture.py",
+            "test_core_backup_component_worker_server.py",
+        ):
+            self.assertIn(test, workflow)
+        native = NATIVE_TEST.read_text()
+        self.assertIn("capture_generation", native)
+        self.assertIn("publication interrupted after complete generation", native)
+
 
 if __name__ == "__main__":
     unittest.main()
