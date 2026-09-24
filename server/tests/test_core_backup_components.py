@@ -97,6 +97,7 @@ def test_component_volumes_share_the_bounded_cut_and_stay_encrypted(
     )
 
     assert response.status_code == 200
+    assert response.headers["x-larenor-capture-generation"] == CAPTURE_GENERATION
     assert boundary.deadlines == [105.0]
     assert boundary.released and not boundary.active
     for snapshot in _snapshots():

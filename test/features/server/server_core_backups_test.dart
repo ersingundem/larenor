@@ -168,6 +168,7 @@ final class BackupFixture extends AdminFixture {
                     'attachment; filename="larenor-core-backup.larenor-core"',
                 'cache-control': 'no-store',
                 'x-content-type-options': 'nosniff',
+                'x-larenor-capture-generation': '1' * 32,
               },
             );
       }
@@ -368,12 +369,13 @@ class CountingDestination implements LarenorBinaryDestination {
   Future<void> cancel() async => cancelled = true;
 }
 
-Map<String, String> exportHeaders() => {
+Map<String, String> exportHeaders({String? generation = '11111111111111111111111111111111'}) => {
   'content-type': 'application/vnd.larenor.core-backup',
   'content-disposition':
       'attachment; filename="larenor-core-backup.larenor-core"',
   'cache-control': 'no-store',
   'x-content-type-options': 'nosniff',
+  if (generation != null) 'x-larenor-capture-generation': generation,
 };
 
 LarenorServerApi directApi(http.Client client, {Duration? timeout}) =>
@@ -729,6 +731,7 @@ void main() {
     expect(destination.bytes, fixture.bundle);
     expect(destination.maxChunk, lessThanOrEqualTo(64 * 1024));
     expect(exported!.byteLength, fixture.bundle.length);
+    expect(exported.captureGeneration, '1' * 32);
     expect(exported.destination, Uri.parse('content://larenor-test/export'));
     final request = fixture.adminCalls.single;
     expect(request.url.path, endsWith('/admin/backups/export'));
@@ -851,6 +854,47 @@ void main() {
       expect(mismatchDestination.committed, isFalse);
     },
   );
+
+  test('missing or malformed generation receipt deletes partial output', () async {
+    final body = Uint8List.fromList([
+      ...utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'),
+      ...List<int>.filled(64, 7),
+    ]);
+    for (final generation in <String?>[null, '2' * 31, 'G' * 32]) {
+      final destination = CountingDestination();
+      final api = directApi(
+        StreamingClient(
+          (_) async => http.StreamedResponse(
+            Stream.value(body),
+            200,
+            contentLength: body.length,
+            headers: exportHeaders(generation: generation),
+          ),
+        ),
+      );
+      addTearDown(api.close);
+
+      await expectLater(
+        api.exportCoreBackup(
+          token: 'synthetic-token',
+          passphrase: LarenorRequestSecret.coreBackup(
+            'Synthetic export passphrase 2026',
+          ),
+          destination: destination,
+          cancellation: LarenorTransferCancellation(),
+        ),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+      expect(destination.cancelled, isTrue);
+      expect(destination.committed, isFalse);
+    }
+  });
 
   test(
     'cancellation closes the response stream and blocks late add commit',
