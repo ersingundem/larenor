@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `cf4b8059` ve K08 kabul kaynağı `2a39ca2b` — 33/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, K08, S09.1, S09.2 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `b7a82258` — 34/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, K08, S09.1, S09.2, S09.3 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  33/125 iş (%26,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       █████░░░░░░░░░░░░░░░  34/125 iş (%27,2; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,52 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 24 Eylül S09.3 yazılım kabulü
+
+PR #491 exact `8113e8e456f36abca19b2eb8e3d4296a60faeef4`
+kaynağında exact installed-state/host-fact preflightini, admin ve route sahibi
+salt okunur Client kaynak incelemesini, packaged Core/component health
+receiptlerini ve gerçek native clean-install→upgrade→fresh-process recovery
+zincirini birleştiriyor. Exact ancestor Git nesnelerinden materialize ediliyor;
+current sürüm force-recreate ediliyor; Core ve tüm managed component writable
+mountları random bounded sentinel ile korunuyor. Post-effect kesinti ikinci
+süreçte effect replay olmadan uzlaştırılıyor ve cleanup yalnız doğrulanmış
+receipt ile descriptor-revalidated owned roots üzerinde çalışıyor.
+Fresh-process recovery, retained Compose proje kimliğini benimsedikten sonra
+current configi yeniden render edip kanıt digestini yeniliyor. Public
+installation phase kanıtı her embedded runtime receiptini kendi digestine,
+upgrade/restart Core kimliğini birbirine ve current component kimliklerini dış
+initial/restart receiptlerine bağlıyor.
+
+Yerel exact kaynak **64/64 Python/native sözleşme** ve **12/12 Client widget**
+testini geçti. Security policy, Python derleme, commit-progress ve diff kapıları
+temizdi; iki bağımsız final inceleme P1/P2 blocker bulmadı. Önceki exact
+`69173ecd` native run `36038916185`, iki mimaride 59/59 sözleşme testinden
+sonra hosted runner yaklaşık 14 GiB sağladığı için production 147456 MiB
+aynı-cihaz preflightinde pull/create öncesi fail-closed durdu. Current exact
+yalnız native acceptance driverında gerçek device başına gereken kapasiteyi
+fixture eder; production `LocalHostFacts` ve deployment politikası değişmedi,
+public receipt `contract_fixture`/`capacityVerified=false` işaretlidir. İkinci
+exact `84f4abdf` install aşaması kodunu genel reconcile koduyla maskelediğini
+gösterdi. Exact `3007994b` reconcile exception yolunu düzeltti; native run
+`36040926865` ise empty reconcile sonucunun final receipt doğrulamasında aynı
+kodu yeniden maskelediğini kanıtladı. Current exact bu yolu da düzeltir; yalnız
+allowlistli aşama kodunu private ayrıntı sızdırmadan korur, unknown/malformed
+sonuçları sabit reconcile kodunda tutar. `89fbfcc6` native run `36041571640`
+ardından gerçek `unified_manifest_invalid` kökünü gösterdi: archived Compose
+göreli Dockerfile yolunu checkout CWD'sine bağlıyordu. Current exact yalnız
+canonical archived context altındaki literal `server/Dockerfile` yolunu kabul
+eder; absolute/traversal/foreign/symlink yollar fail-closed kalır. Security
+`36045879756`, dual-architecture Unified Media Stack Native Acceptance
+`36045879876` ve Android Build `36045880167` attempt 2 geçti. Failed-only
+Server shard-3 job `107796968207` ile aggregate job `107801997329`; native
+amd64 job `107789265813` ile arm64 job `107789265906` başarıyla tamamlandı.
+Kaynak `b7a82258f11a6bd46f00d9a8561dcb2b895fb030` olarak squash birleşti ve
+`origin/main` ancestry'sinde doğrulandı. Source/squash aggregate stable patch-id
+`9b614a3dcf5e3703ab6ee953956acfd4afeb5d3f` eşleşti. S09.3 `done`; sayaç
+**34/125 (%27,2)** ve seçili özellik kabulü **0/63** kaldı.
+[Kapanış kanıtı](testing/s09-3-clean-install-upgrade-recovery.tdd.md).
 
 ### 24 Eylül K08 sınırlı web→native köprü yazılım kabulü
 
@@ -255,7 +301,7 @@ lease'ini ekledi; privileged Linux engine,
 iki mimarili native kabul ve birleşik generation arşivi daha sonra #482 ile
 üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2 de PR #483 ile
 kapandı; temiz kurulum/yükseltme, Client geri yükleme ve component health
-S09.3 kapsamındadır.
+S09.3 ile yukarıdaki exact kanıtta kapandı.
 
 [PR #447](https://github.com/ersingundem/larenor/pull/447) exact
 `11139268` ile bounded managed-volume provider dilimini tamamlayıp `36e05f9a`

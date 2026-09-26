@@ -2269,7 +2269,7 @@
       "kind": "task",
       "parent": "S09",
       "title": "Yazılım temiz kurulum/yükseltme/kurtarma CI’sı",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S09.2",
         "B2"
@@ -2289,9 +2289,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/s09-3-clean-install-upgrade-recovery.tdd.md",
+          "commit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Current exact source passed 64 grouped deployment/runtime/bundle/install-upgrade/workflow tests and 12 lifecycle-bound Client backup-source widget tests."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/s09-3-clean-install-upgrade-recovery.tdd.md",
+          "commit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Two independent current-exact P1/P2 audits found no blocker in source provenance, adopted-project config proof, phase runtime identity binding, per-device acceptance capacity isolation, bounded stage diagnostics, fresh-process recovery, private-state preservation, health receipts or bounded cleanup."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36045879876",
+          "commit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Current-exact Unified Media Stack native clean-install, upgrade, fresh-process recovery and bounded receipt verification passed on linux/amd64 job 107789265813 and linux/arm64 job 107789265906; superseded runs retain capacity and stage-diagnostic history."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36045880167",
+          "commit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Current-exact Android Build attempt 2 passed static analysis, four Flutter shards and aggregate, four Server shards and aggregate, debug APK and API 35 emulator journey; failed-only shard-3 job 107796968207 and aggregate job 107801997329 completed successfully."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36045879756",
+          "commit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Current-exact Security dependency-scan job 107789179269, secret-scan job 107789179493 and platform-policy job 107789179579 passed."
+        }
+      ],
+      "completionCommit": "8113e8e456f36abca19b2eb8e3d4296a60faeef4",
+      "reason": "Exact source completed local grouped and Client tests, two independent P1/P2 reviews, Security, Android/API 35 and dual-architecture native CI. PR #491 squash b7a82258f11a6bd46f00d9a8561dcb2b895fb030 is in origin/main ancestry; source and squash aggregate stable patch-id 9b614a3dcf5e3703ab6ee953956acfd4afeb5d3f matched. Production automation and physical home-device mutation remain outside this software acceptance."
     },
     {
       "id": "B5",
