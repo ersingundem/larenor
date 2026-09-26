@@ -1,11 +1,10 @@
 # Larenor — güncel teslim sırası (24 Eylül 2026)
 
-Bu sayfanın birleşmiş kod tabanı `origin/main` **`cf4b8059`**, K08 kabul
-kaynağı **`2a39ca2b`** commitidir. S08.8, K07, K08, S09.1, S09.2, S08.11 ve
-K03 teslimlerini kapsar.
+Bu sayfanın birleşmiş kod tabanı `origin/main` **`b7a82258`** commitidir.
+S08.8, K07, K08, S09.1, S09.2, S09.3, S08.11 ve K03 teslimlerini kapsar.
 Canlı kabul sayacı
 [`execution-queue.json`](execution-queue.json) ile
-üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **33/125 iş**,
+üretilen [`EXECUTION_QUEUE.md`](EXECUTION_QUEUE.md) içindedir: **34/125 iş**,
 **0/63 seçili özellik**. PR #328, 28 kaynak PR'ın exact head commitlerini tek
 birleşim zincirinde korudu ve bütün zorunlu kontroller geçtikten sonra main'e
 girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden kapatmaz.
@@ -110,24 +109,43 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
   `49dd58e007084eeff56f383b3d4f3e46b6b6f860` eşleşti. K08 yazılım kabulü
   kapandı ve sayaç **33/125** oldu; fiziksel Huawei/DeX/TalkBack/OEM/DPC MANUAL
   kaldı.
+- PR #491 current exact `8113e8e4` kaynağında installed-state/host-fact preflightini,
+  salt okunur Client backup-source inspection sınırını, packaged component
+  health receiptlerini ve exact ancestor→reviewed-head native yükseltmesini
+  birleştiriyor. Yerel 64/64 native/Python ve 12/12 Client widget testi ile iki
+  bağımsız P1/P2 incelemesi geçti. Önceki exact `69173ecd` native run
+  `36038916185`, hosted runner capacity preflightinde pull/create öncesi
+  fail-closed durdu. Current exact production politikasını değiştirmeden yalnız
+  acceptance receiptinde açıkça `not_verified` olan per-device capacity
+  fixture ekledi. İkinci exactte maskelenen native aşama kodu `3007994b`
+  koşusunda empty reconcile sonucu nedeniyle yeniden maskelendi. Current exact
+  allowlistli kodu bu yolda da bounded biçimde koruyor; unknown/malformed
+  sonuçlar sabit reconcile kodunda kalıyor. `89fbfcc6` native run gerçek
+  `unified_manifest_invalid` kökünü gösterdi; current exact archived absolute
+  build context altındaki literal relative Dockerfile'ı doğrulayıp
+  absolute/traversal/foreign/symlink yolları reddediyor. Retained recovery
+  projesi current configi yeniden doğruluyor; phase runtime receiptleri kendi
+  digestlerine, upgrade/restart Core ve dış component kimliklerine bağlı.
+  Security `36045879756` ve dual-architecture Unified Media Stack Native
+  Acceptance `36045879876` geçti. Android Build `36045880167` failed-only
+  timing rerunı da geçti. Exact kaynak `b7a82258` olarak squash birleşti;
+  source/squash aggregate stable patch-id
+  `9b614a3dcf5e3703ab6ee953956acfd4afeb5d3f` eşleşti ve main ancestry
+  doğrulandı. S09.3 `done`; sayaç **34/125**, seçili özellikler **0/63** kaldı.
 
 ## Kanıtı açık kalan sınırlar
 
-1. **S09.3:** S09.2 yanlış parola, kesik/bozuk imza, uyumsuz girdi, boş izole
-   ortam ve restart recovery kapılarını tamamladı. S09.3 amd64/arm64 temiz
-   kurulum/yükseltme, Client geri yükleme sınırı ve bileşen sağlık kanıtını,
-   üretim otomasyonu veya ev cihazı çalıştırmadan kapatmalı.
-2. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
+1. **Kiosk manuel sınırı:** K03 native SAF, external action, renderer yaşam
    döngüsü, anonymous owned alt-kaynak transportu ve document-start dynamic
    egress; K07 secure enrollment, TLS MQTT ve bounded native/profile komutları
    yazılım kabulünü tamamladı. Fiziksel Android/Huawei/DeX/TalkBack/OEM, DPC,
    gerçek broker kurulumu, force-stop ve çevre birimi kanıtları ayrı manuel
    kapıdır.
-3. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
+2. **F01–F63:** Birleşen özellik dilimleri Core otoritesi ve tablet yüzeyleri
    sağlıyor; üretim sağlayıcıları, gerçek donanım veya native motor eksik olan
    görevler pending kalır. DeX ikinci ekran gerçek ayrı Flutter görevini,
    F60 paketlenmiş yayın motorunu, F46–F49 üretim adaptörlerini bekliyor.
-4. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
+3. **Son ürün:** Ortak tablet tasarım/performans/güvenlik denetimi, gerçek tablet
    ekran görüntüleri, README, imzalı güncelleme ve CasaOS/Proxmox kurulumu son
    yazılım kapılarından sonra yapılır.
 
@@ -135,7 +153,9 @@ girdi. Birleşmiş kod, kuyruktaki bütün kabul ölçütlerini kendiliğinden k
 
 | Hat | İlk dar teslim | Tamamlanma kapısı |
 | --- | --- | --- |
-| A — S09.3 | Temiz kurulum/yükseltme ve Client geri yükleme sınırını exact S09.1/S09.2 çıktılarıyla bağla. | amd64/arm64 temiz kurulum, sürüm yükseltme, Client preflight ve component health aynı imzalı artefaktlarla kanıtlanır; fiziksel ev cihazı yazımı yapılmaz |
+| A — PRODUCT.PROVIDERS | Spotify, Apple Music ve YouTube Music için sır sızdırmayan destek/onay/yenileme/iptal durum modelini tek müzik merkezi sözleşmesiyle başlat. | Dar Server/Client sözleşme testleri ve exact-head CI geçer; gerçek hesap, üyelik ve HomePod etkileri MANUAL.MEDIA'da kalır. |
+| B — K09 | Read-only cihaz ölçümü ile uygulama görünümü/MediaProjection yetkisini ayrı, süreli ve iptal edilebilir receiptlerle modelle. | PIN/secret yüzeyleri dışlanır, onay bitince yayın/kayıt kapanır; dar native/Client testleri ve exact-head CI geçer, fiziksel OEM/DPC MANUAL.TABLET'te kalır. |
+| C — K11/K12 | Otomatik komuta dönüşmeyen tarama girdisi ile sınırlı watchdog/ölçüm sözleşmelerini iki küçük PR'a böl. | K11 izin/yenilenen tarama/kablo kopması; K12 bounded crash/reconnect, içeriksiz retention ve CSV preview test/review/CI kanıtlarını ayrı tamamlar; fiziksel çevre birimleri MANUAL.KIOSK'ta kalır. |
 
 Hatlar farklı dosya sahipliklerinde ilerler. Her hat önce eksik kabul ölçütünü
 başarısız testle sabitler, yalnız ilgili testleri yerelde çalıştırır ve büyük
