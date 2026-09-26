@@ -17,7 +17,10 @@ from tool.tests.unified_media_stack_managed_ci_test import FakeDriver
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_REVISION = "2f43b6cd606dab17640bb6f0a832b353b62c2313"
-CURRENT_REVISION = "aecb951418f2d22d11fc6ee24ed706f6ee83645f"
+# Keep the reviewed contract tree reachable from main after the feature branch
+# is deleted. The accepted source and this squash commit have the same stable
+# aggregate patch and therefore the same S09.3 contract content.
+CURRENT_REVISION = "b7a82258f11a6bd46f00d9a8561dcb2b895fb030"
 PLATFORMS = ("linux/amd64", "linux/arm64")
 DEPLOYMENT_SPEC = importlib.util.spec_from_file_location(
     "s093_deployment_bundle",
