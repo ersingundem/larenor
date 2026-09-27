@@ -9,6 +9,8 @@ enum PersonalCameraFailure {
   profileExists,
   profileStale,
   enrollmentTimeout,
+  profileMissing,
+  matchTimeout,
   unavailable,
 }
 
@@ -49,6 +51,7 @@ final class PersonalCameraCapabilities {
     required this.requiresGooglePlayServices,
     required this.faceDetection,
     required this.identityRecognition,
+    required this.personalizationMatching,
     required this.termsUrl,
     required this.performanceEvaluation,
   });
@@ -63,6 +66,7 @@ final class PersonalCameraCapabilities {
   final bool requiresGooglePlayServices;
   final bool faceDetection;
   final bool identityRecognition;
+  final bool personalizationMatching;
   final Uri termsUrl;
   final String performanceEvaluation;
 }
@@ -81,11 +85,26 @@ final class PersonalFaceProfile {
   final String detectorVersion;
 }
 
+enum PersonalFaceMatchState { matched, noMatch, ambiguous }
+
+final class PersonalFaceMatch {
+  const PersonalFaceMatch({
+    required this.profileId,
+    required this.state,
+    required this.sampleCount,
+  });
+
+  final String profileId;
+  final PersonalFaceMatchState state;
+  final int sampleCount;
+}
+
 abstract interface class PersonalCameraPlatform {
   Stream<PersonalCameraEvent> get events;
   Future<PersonalCameraCapabilities> capabilities();
   Future<PersonalFaceProfile?> profile();
   Future<PersonalFaceProfile> enroll(String sessionId);
+  Future<PersonalFaceMatch> match(String sessionId);
   Future<void> deleteProfile(String profileId);
   Future<PersonalCameraSession> open();
   Future<void> close(String sessionId);
@@ -136,6 +155,7 @@ final class MethodChannelPersonalCameraPlatform
         'requiresGooglePlayServices',
         'faceDetection',
         'identityRecognition',
+        'personalizationMatching',
         'termsUrl',
         'performanceEvaluation',
       });
@@ -162,6 +182,7 @@ final class MethodChannelPersonalCameraPlatform
         ),
         faceDetection: _boolean(value['faceDetection']),
         identityRecognition: _boolean(value['identityRecognition']),
+        personalizationMatching: _boolean(value['personalizationMatching']),
         termsUrl: termsUrl,
         performanceEvaluation: _token(value['performanceEvaluation']),
       );
@@ -209,6 +230,46 @@ final class MethodChannelPersonalCameraPlatform
         }),
       );
       return _profile(value);
+    } on PlatformException catch (error) {
+      throw PersonalCameraException(_failure(error.code));
+    } on MissingPluginException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    } on FormatException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    }
+  }
+
+  @override
+  Future<PersonalFaceMatch> match(String sessionId) async {
+    try {
+      final value = _map(
+        await _methods.invokeMethod<Object>('match', {
+          'schemaVersion': 1,
+          'sessionId': sessionId,
+        }),
+      );
+      _exact(value, const {
+        'schemaVersion',
+        'profileId',
+        'state',
+        'sampleCount',
+      });
+      final sampleCount = _integer(value['sampleCount']);
+      if (_integer(value['schemaVersion']) != 1 ||
+          sampleCount < 0 ||
+          sampleCount > 32) {
+        throw const FormatException('Invalid personal face match');
+      }
+      return PersonalFaceMatch(
+        profileId: _identity(value['profileId']),
+        state: switch (_token(value['state'])) {
+          'matched' => PersonalFaceMatchState.matched,
+          'noMatch' => PersonalFaceMatchState.noMatch,
+          'ambiguous' => PersonalFaceMatchState.ambiguous,
+          _ => throw const FormatException('Invalid personal face match state'),
+        },
+        sampleCount: sampleCount,
+      );
     } on PlatformException catch (error) {
       throw PersonalCameraException(_failure(error.code));
     } on MissingPluginException {
@@ -312,6 +373,8 @@ final class MethodChannelPersonalCameraPlatform
     'profileExists' => PersonalCameraFailure.profileExists,
     'profileStale' => PersonalCameraFailure.profileStale,
     'enrollmentTimeout' => PersonalCameraFailure.enrollmentTimeout,
+    'profileMissing' => PersonalCameraFailure.profileMissing,
+    'matchTimeout' => PersonalCameraFailure.matchTimeout,
     _ => PersonalCameraFailure.unavailable,
   };
 

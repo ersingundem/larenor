@@ -34,12 +34,15 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.sqrt
 
 /**
  * Owns one foreground-only front-camera preview.
  *
- * CameraX receives only a preview surface. There is deliberately no image
- * analysis, image capture, recorder, file, log, or network output.
+ * CameraX receives only a preview surface until the user explicitly enrolls
+ * or checks a local personalization profile. Temporary analysis frames are
+ * closed immediately; there is no image capture, recorder, file, log, or
+ * network output.
  */
 class PersonalCameraBridge(
     private val activity: Activity,
@@ -58,6 +61,10 @@ class PersonalCameraBridge(
         private const val TERMS_URL = "https://developers.google.com/ml-kit/terms"
         private const val ENROLLMENT_SAMPLES = 8
         private const val ENROLLMENT_TIMEOUT_MS = 20_000L
+        private const val MATCH_SAMPLES = 5
+        private const val MATCH_TIMEOUT_MS = 15_000L
+        private const val MATCH_RMS_LIMIT = 0.055
+        private const val MATCH_COMPONENT_LIMIT = 0.15
     }
 
     private data class Session(
@@ -69,6 +76,15 @@ class PersonalCameraBridge(
 
     private data class Enrollment(
         val sessionId: String,
+        val result: MethodChannel.Result,
+        val samples: MutableList<List<Double>> = mutableListOf(),
+        var analysis: ImageAnalysis? = null,
+        var timeout: Runnable? = null,
+    )
+
+    private data class Matching(
+        val sessionId: String,
+        val profile: PersonalFaceProfile,
         val result: MethodChannel.Result,
         val samples: MutableList<List<Double>> = mutableListOf(),
         var analysis: ImageAnalysis? = null,
@@ -94,6 +110,7 @@ class PersonalCameraBridge(
     private var session: Session? = null
     private var pendingPermission: MethodChannel.Result? = null
     private var enrollment: Enrollment? = null
+    private var matching: Matching? = null
     private var resumed = false
     private var focused = false
     private var disposed = false
@@ -133,6 +150,7 @@ class PersonalCameraBridge(
                 "capabilities" -> capabilities(exact(call.arguments, setOf("schemaVersion")), result)
                 "profile" -> profile(exact(call.arguments, setOf("schemaVersion")), result)
                 "enroll" -> enroll(exact(call.arguments, setOf("schemaVersion", "sessionId")), result)
+                "match" -> match(exact(call.arguments, setOf("schemaVersion", "sessionId")), result)
                 "deleteProfile" -> deleteProfile(
                     exact(call.arguments, setOf("schemaVersion", "profileId")),
                     result,
@@ -160,7 +178,7 @@ class PersonalCameraBridge(
         val current = session
         if (current == null || current.id != sessionId || !interactive()) return fail(result, "expired")
         if (profiles.load() != null) return fail(result, "profileExists")
-        if (enrollment != null) return fail(result, "cameraBusy")
+        if (enrollment != null || matching != null) return fail(result, "cameraBusy")
         powerFailure()?.let { return fail(result, it) }
         try {
             val value = Enrollment(sessionId, result)
@@ -185,10 +203,41 @@ class PersonalCameraBridge(
         }
     }
 
+    private fun match(arguments: Map<String, Any?>, result: MethodChannel.Result) {
+        require(arguments["schemaVersion"] == SCHEMA_VERSION)
+        val sessionId = arguments["sessionId"] as? String ?: throw IllegalArgumentException()
+        val current = session
+        if (current == null || current.id != sessionId || !interactive()) return fail(result, "expired")
+        val profile = profiles.load() ?: return fail(result, "profileMissing")
+        if (enrollment != null || matching != null) return fail(result, "cameraBusy")
+        powerFailure()?.let { return fail(result, it) }
+        try {
+            val value = Matching(sessionId, profile, result)
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+            value.analysis = analysis
+            matching = value
+            analysis.setAnalyzer(analysisExecutor, ::analyzeMatchFrame)
+            provider?.bindToLifecycle(
+                activity as LifecycleOwner,
+                CameraSelector.DEFAULT_FRONT_CAMERA,
+                analysis,
+            ) ?: throw IllegalStateException("camera_provider_missing")
+            val timeout = Runnable {
+                if (matching === value) stopMatching("matchTimeout")
+            }
+            value.timeout = timeout
+            activity.window.decorView.postDelayed(timeout, MATCH_TIMEOUT_MS)
+        } catch (_: RuntimeException) {
+            if (matching == null) fail(result, "unavailable") else stopMatching("unavailable")
+        }
+    }
+
     private fun deleteProfile(arguments: Map<String, Any?>, result: MethodChannel.Result) {
         require(arguments["schemaVersion"] == SCHEMA_VERSION)
         val profileId = arguments["profileId"] as? String ?: throw IllegalArgumentException()
-        if (enrollment != null) return fail(result, "cameraBusy")
+        if (enrollment != null || matching != null) return fail(result, "cameraBusy")
         if (!profiles.deleteVerified(profileId)) return fail(result, "profileStale")
         result.success(
             mapOf(
@@ -219,6 +268,50 @@ class PersonalCameraBridge(
             }
             .addOnFailureListener(main) {
                 if (enrollment === operation) stopEnrollment("unavailable")
+            }
+            .addOnCompleteListener {
+                analysisBusy.set(false)
+                image.close()
+            }
+    }
+
+    private fun analyzeMatchFrame(image: ImageProxy) {
+        val operation = matching
+        val mediaImage = image.image
+        if (operation == null || mediaImage == null || session?.id != operation.sessionId ||
+            !analysisBusy.compareAndSet(false, true)
+        ) {
+            image.close()
+            return
+        }
+        val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+        detector.process(input)
+            .addOnSuccessListener(main) { faces ->
+                if (matching !== operation || session?.id != operation.sessionId) return@addOnSuccessListener
+                if (faces.size > 1) {
+                    completeMatching(operation, "ambiguous")
+                    return@addOnSuccessListener
+                }
+                faceVector(faces)?.let { vector ->
+                    operation.samples.add(vector)
+                    if (operation.samples.size >= MATCH_SAMPLES) {
+                        val candidate = average(operation.samples)
+                        val differences = candidate.zip(operation.profile.vector) { left, right -> left - right }
+                        val rms = sqrt(differences.sumOf { it * it } / differences.size)
+                        val maximum = differences.maxOf { abs(it) }
+                        completeMatching(
+                            operation,
+                            if (rms <= MATCH_RMS_LIMIT && maximum <= MATCH_COMPONENT_LIMIT) {
+                                "matched"
+                            } else {
+                                "noMatch"
+                            },
+                        )
+                    }
+                }
+            }
+            .addOnFailureListener(main) {
+                if (matching === operation) stopMatching("unavailable")
             }
             .addOnCompleteListener {
                 analysisBusy.set(false)
@@ -264,8 +357,7 @@ class PersonalCameraBridge(
 
     private fun completeEnrollment(operation: Enrollment) {
         if (enrollment !== operation) return
-        val dimensions = operation.samples.first().size
-        val vector = List(dimensions) { index -> operation.samples.sumOf { it[index] } / operation.samples.size }
+        val vector = average(operation.samples)
         val profile = PersonalFaceProfile(
             id = UUID.randomUUID().toString(),
             createdAtMs = System.currentTimeMillis(),
@@ -280,6 +372,24 @@ class PersonalCameraBridge(
         } catch (_: Exception) {
             stopEnrollment("unavailable")
         }
+    }
+
+    private fun average(samples: List<List<Double>>): List<Double> {
+        val dimensions = samples.first().size
+        return List(dimensions) { index -> samples.sumOf { it[index] } / samples.size }
+    }
+
+    private fun completeMatching(operation: Matching, state: String) {
+        if (matching !== operation) return
+        finishMatching(operation)
+        operation.result.success(
+            mapOf(
+                "schemaVersion" to SCHEMA_VERSION,
+                "profileId" to operation.profile.id,
+                "state" to state,
+                "sampleCount" to operation.samples.size,
+            ),
+        )
     }
 
     private fun profileMap(value: PersonalFaceProfile): Map<String, Any?> = mapOf(
@@ -306,6 +416,21 @@ class PersonalCameraBridge(
         operation.analysis = null
     }
 
+    private fun stopMatching(code: String) {
+        val operation = matching ?: return
+        finishMatching(operation)
+        fail(operation.result, code)
+    }
+
+    private fun finishMatching(operation: Matching) {
+        if (matching !== operation) return
+        matching = null
+        operation.timeout?.let { activity.window.decorView.removeCallbacks(it) }
+        operation.analysis?.clearAnalyzer()
+        operation.analysis?.let { analysis -> runCatching { provider?.unbind(analysis) } }
+        operation.analysis = null
+    }
+
     private fun capabilities(arguments: Map<String, Any?>, result: MethodChannel.Result) {
         require(arguments["schemaVersion"] == SCHEMA_VERSION)
         val frontCamera = activity.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT)
@@ -322,6 +447,7 @@ class PersonalCameraBridge(
                 "requiresGooglePlayServices" to false,
                 "faceDetection" to true,
                 "identityRecognition" to false,
+                "personalizationMatching" to true,
                 "termsUrl" to TERMS_URL,
                 "performanceEvaluation" to "pending",
             ),
@@ -443,6 +569,7 @@ class PersonalCameraBridge(
     private fun release(current: Session) {
         if (session?.id != current.id) return
         stopEnrollment("expired")
+        stopMatching("expired")
         session = null
         current.camera.cameraInfo.cameraState.removeObservers(activity as LifecycleOwner)
         try {

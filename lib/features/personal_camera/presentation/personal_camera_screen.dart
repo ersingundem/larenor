@@ -36,6 +36,7 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
   bool _routeVisible = true;
   late final Future<PersonalCameraCapabilities> _capabilities;
   PersonalFaceProfile? _profile;
+  PersonalFaceMatch? _match;
   PersonalCameraFailure? _profileFailure;
   bool _profileLoaded = false;
   bool _profileBusy = false;
@@ -90,7 +91,40 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
     try {
       final value = await widget.platform.enroll(session.id);
       if (!mounted || _controller.session?.id != session.id) return;
-      setState(() => _profile = value);
+      setState(() {
+        _profile = value;
+        _match = null;
+      });
+    } on PersonalCameraException catch (error) {
+      if (mounted) setState(() => _profileFailure = error.failure);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _profileFailure = PersonalCameraFailure.unavailable);
+      }
+    } finally {
+      if (mounted) setState(() => _profileBusy = false);
+    }
+  }
+
+  Future<void> _checkMatch() async {
+    final session = _controller.session;
+    final profile = _profile;
+    if (session == null || profile == null || _profileBusy || !_current()) {
+      return;
+    }
+    setState(() {
+      _profileBusy = true;
+      _profileFailure = null;
+      _match = null;
+    });
+    try {
+      final value = await widget.platform.match(session.id);
+      if (!mounted ||
+          _controller.session?.id != session.id ||
+          _profile?.id != profile.id) {
+        return;
+      }
+      setState(() => _match = value);
     } on PersonalCameraException catch (error) {
       if (mounted) setState(() => _profileFailure = error.failure);
     } catch (_) {
@@ -132,7 +166,10 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
     try {
       await widget.platform.deleteProfile(profile.id);
       if (!mounted) return;
-      setState(() => _profile = null);
+      setState(() {
+        _profile = null;
+        _match = null;
+      });
     } on PersonalCameraException catch (error) {
       if (mounted) setState(() => _profileFailure = error.failure);
     } catch (_) {
@@ -159,7 +196,10 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      if (_controller.session == null) _match = null;
+    });
   }
 
   @override
@@ -222,6 +262,8 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
     PersonalCameraFailure.profileStale => l.personalCameraProfileStale,
     PersonalCameraFailure.enrollmentTimeout =>
       l.personalCameraEnrollmentTimeout,
+    PersonalCameraFailure.profileMissing => l.personalCameraProfileMissing,
+    PersonalCameraFailure.matchTimeout => l.personalCameraMatchTimeout,
     PersonalCameraFailure.unavailable => l.personalCameraUnavailable,
   };
 
@@ -333,6 +375,12 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
                                   : l.personalCameraCapabilityDisabled,
                             ),
                             _CapabilityRow(
+                              label: l.personalCameraCapabilityPersonalization,
+                              value: value.personalizationMatching
+                                  ? l.personalCameraCapabilityAvailable
+                                  : l.personalCameraCapabilityDisabled,
+                            ),
+                            _CapabilityRow(
                               label: l.personalCameraCapabilityEvaluation,
                               value: value.performanceEvaluation == 'pending'
                                   ? l.personalCameraCapabilityPending
@@ -379,6 +427,33 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
                             ),
                           ),
                         ),
+                      if (_match case final match?)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              switch (match.state) {
+                                PersonalFaceMatchState.matched =>
+                                  l.personalCameraMatchReady,
+                                PersonalFaceMatchState.noMatch =>
+                                  l.personalCameraMatchGeneric,
+                                PersonalFaceMatchState.ambiguous =>
+                                  l.personalCameraMatchAmbiguous,
+                              },
+                              style: TextStyle(
+                                color:
+                                    match.state ==
+                                        PersonalFaceMatchState.matched
+                                    ? CupertinoColors.activeGreen.resolveFrom(
+                                        context,
+                                      )
+                                    : CupertinoColors.secondaryLabel
+                                          .resolveFrom(context),
+                              ),
+                            ),
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: _profileBusy
@@ -394,18 +469,31 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
                                     : null,
                                 child: Text(l.personalCameraProfileEnroll),
                               )
-                            : CupertinoButton(
-                                key: const ValueKey(
-                                  'personal-camera-profile-delete',
-                                ),
-                                onPressed: _confirmDeleteProfile,
-                                child: Text(
-                                  l.personalCameraProfileDelete,
-                                  style: TextStyle(
-                                    color: CupertinoColors.systemRed
-                                        .resolveFrom(context),
+                            : Column(
+                                children: [
+                                  CupertinoButton.filled(
+                                    key: const ValueKey(
+                                      'personal-camera-profile-match',
+                                    ),
+                                    onPressed: session != null && active
+                                        ? _checkMatch
+                                        : null,
+                                    child: Text(l.personalCameraMatchCheck),
                                   ),
-                                ),
+                                  CupertinoButton(
+                                    key: const ValueKey(
+                                      'personal-camera-profile-delete',
+                                    ),
+                                    onPressed: _confirmDeleteProfile,
+                                    child: Text(
+                                      l.personalCameraProfileDelete,
+                                      style: TextStyle(
+                                        color: CupertinoColors.systemRed
+                                            .resolveFrom(context),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                       ),
                     ],
