@@ -355,7 +355,13 @@ class HomeAssistantAdapter:
             raise ApiError('not_found', 404)
         if value.request != body:
             raise ApiError('ha_command_conflict', 409)
-        if (attribution is None and value.attribution.source != 'core_api') or (
+        # Schema-v2 receipts predate durable attribution. Migration marks
+        # their source as ``unknown`` rather than inventing provenance.  An
+        # exact client replay must still recover that durable receipt after a
+        # lost acknowledgement; all actor, resource and request fields were
+        # checked above, and an explicitly attributed automation command must
+        # still match its complete attribution.
+        if (attribution is None and value.attribution.source not in ('core_api', 'unknown')) or (
                 attribution is not None and value.attribution != attribution):
             raise ApiError('ha_command_conflict', 409)
         if value.receipt.dispatchState == 'pending' and body.requestId not in self._active_commands:
@@ -518,7 +524,14 @@ class HomeAssistantAdapter:
                 outcome = False
             else:
                 outcome = self._commander(service, binding.entityId, body.action, guard=guard)
-                guard()
+                # The effect may already have reached Home Assistant.  A
+                # concurrent ACL/session change must hide the response from
+                # the caller, but must not discard the provider outcome and
+                # leave a durable pending receipt that restart recovery can
+                # only classify as unknown.  The readback and _current_read
+                # below still recheck authority; readback failure cannot block
+                # the commit, and the final read check can still hide the
+                # response from the now-unauthorized caller.
             observed = None
             if outcome is True:
                 try:

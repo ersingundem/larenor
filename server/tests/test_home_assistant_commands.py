@@ -60,7 +60,9 @@ def test_command_is_persisted_before_one_dispatch_and_same_request_is_idempotent
     conflict = client.post(public + '/commands', headers=auth(admin),
         json={**payload, 'action': 'turn_off'})
     assert conflict.status_code == 409
-    assert conflict.json()['error']['code'] == 'ha_command_conflict'
+    # Manual command arbitration owns the global request key and rejects a
+    # changed payload before the HA-specific receipt lookup.
+    assert conflict.json()['error']['code'] == 'idempotency_conflict'
     assert ha.command_calls == 1
 
     with app.state.core.db.connection() as c:
