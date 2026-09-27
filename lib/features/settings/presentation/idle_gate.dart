@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/idle_prevention.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../kiosk/data/kiosk_sensor_api.dart';
+import '../../kiosk/data/kiosk_sensor_controller.dart';
+import '../../kiosk/domain/kiosk_sensor_models.dart';
 import '../providers/settings_providers.dart';
 import '../../ambient/presentation/ambient_screen.dart';
 
@@ -25,6 +28,7 @@ class IdleGate extends ConsumerStatefulWidget {
 class _IdleGateState extends ConsumerState<IdleGate>
     with WidgetsBindingObserver {
   Timer? _timer;
+  Timer? _approachPoller;
   bool _idle = false;
   bool _foreground = true;
   bool _focused = true;
@@ -34,6 +38,9 @@ class _IdleGateState extends ConsumerState<IdleGate>
   final _clockFocus = FocusNode(debugLabel: 'Ambient clock');
   late final AppInteractionController _interaction;
   late final IdlePreventionController _prevention;
+  late KioskSensorController _approachController;
+  int _approachEpoch = 0;
+  bool _approachReadBusy = false;
 
   bool get _windowActive => _foreground && _focused;
 
@@ -45,6 +52,10 @@ class _IdleGateState extends ConsumerState<IdleGate>
     _foreground = state == null || state == AppLifecycleState.resumed;
     _interaction = AppInteractionController(active: _foreground);
     _prevention = ref.read(idlePreventionProvider);
+    // Ambient wake owns a separate controller. A manual KioskSensorScreen may
+    // already own the single native session; a busy start here must never stop
+    // or retire that screen's session.
+    _approachController = KioskSensorController(AndroidKioskSensorApi());
     _prevention.addListener(_preventionChanged);
     FocusManager.instance.addEarlyKeyEventHandler(_keyEvent);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,6 +67,9 @@ class _IdleGateState extends ConsumerState<IdleGate>
   void dispose() {
     _prevention.removeListener(_preventionChanged);
     _timer?.cancel();
+    _approachEpoch++;
+    _approachPoller?.cancel();
+    unawaited(_approachController.retire());
     FocusManager.instance.removeEarlyKeyEventHandler(_keyEvent);
     _focusScope.dispose();
     _clockFocus.dispose();
@@ -125,6 +139,7 @@ class _IdleGateState extends ConsumerState<IdleGate>
   void _resetTimer() {
     if (!mounted) return;
     _timer?.cancel();
+    unawaited(_retireApproach());
     final wasIdle = _idle;
     _idle = false;
     _interaction.setActive(_windowActive);
@@ -149,10 +164,80 @@ class _IdleGateState extends ConsumerState<IdleGate>
       _interaction.setActive(false);
       FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _idle = true);
+      unawaited(_startApproachWake());
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _idle && _windowActive) _clockFocus.requestFocus();
       });
     });
+  }
+
+  Future<void> _startApproachWake() async {
+    final settings = ref.read(idleModeProvider).value;
+    if (!_idle ||
+        !_windowActive ||
+        settings == null ||
+        !settings.enabled ||
+        !settings.wakeOnApproach) {
+      return;
+    }
+    final epoch = ++_approachEpoch;
+    _approachPoller?.cancel();
+    try {
+      final initial = await _approachController.start(intervalMillis: 1000);
+      if (!_approachCurrent(epoch) ||
+          initial.powerLimited ||
+          !initial.approachAvailable) {
+        await _retireApproach();
+        return;
+      }
+      _approachPoller = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => unawaited(_pollApproach(epoch)),
+      );
+    } on KioskSensorException {
+      await _retireApproach();
+    }
+  }
+
+  bool _approachCurrent(int epoch) {
+    final settings = ref.read(idleModeProvider).value;
+    return mounted &&
+        epoch == _approachEpoch &&
+        _idle &&
+        _windowActive &&
+        settings?.enabled == true &&
+        settings?.wakeOnApproach == true;
+  }
+
+  Future<void> _pollApproach(int epoch) async {
+    if (_approachReadBusy) return;
+    if (!_approachCurrent(epoch)) {
+      await _retireApproach();
+      return;
+    }
+    _approachReadBusy = true;
+    try {
+      final value = await _approachController.refresh();
+      if (!_approachCurrent(epoch)) return;
+      if (value.powerLimited || !value.approachAvailable) {
+        await _retireApproach();
+      } else if (value.isApproached == true) {
+        _resetTimer();
+      }
+    } on KioskSensorException catch (error) {
+      if (error.failure != KioskSensorFailure.busy) {
+        await _retireApproach();
+      }
+    } finally {
+      _approachReadBusy = false;
+    }
+  }
+
+  Future<void> _retireApproach() async {
+    _approachEpoch++;
+    _approachPoller?.cancel();
+    _approachPoller = null;
+    await _approachController.retire();
   }
 
   @override

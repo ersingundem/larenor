@@ -197,7 +197,29 @@ class DisplayPane extends ConsumerWidget {
                       : null,
                 ),
               ),
-              if (idleMode.enabled)
+              if (idleMode.enabled) ...[
+                CupertinoListTile(
+                  leading: const IconBadge(
+                    icon: CupertinoIcons.waveform_path,
+                    color: CupertinoColors.systemGreen,
+                  ),
+                  title: Text(l10n.settingsWakeOnApproach),
+                  subtitle: Text(l10n.settingsWakeOnApproachHint),
+                  trailing: _SettingsSwitchControl(
+                    key: const ValueKey('display-wake-on-approach'),
+                    label: l10n.settingsWakeOnApproach,
+                    value: idleMode.wakeOnApproach,
+                    onChanged: surfaceCurrent()
+                        ? (value) {
+                            if (surfaceCurrent()) {
+                              ref
+                                  .read(idleModeProvider.notifier)
+                                  .setWakeOnApproach(value);
+                            }
+                          }
+                        : null,
+                  ),
+                ),
                 CupertinoListTile(
                   title: Text(l10n.settingsIdleModeAfter),
                   additionalInfo: Text(
@@ -212,6 +234,7 @@ class DisplayPane extends ConsumerWidget {
                         }
                       : null,
                 ),
+              ],
             ],
           ],
         ),

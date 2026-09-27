@@ -212,6 +212,8 @@
   "settingsKeepScreenOnHint": "Duvara monte tabletler için önerilir",
   "settingsIdleMode": "Boşta/ambiyans modu",
   "settingsIdleModeHint": "Hareketsizlik sonrası bir saat ekranı göster",
+  "settingsWakeOnApproach": "Yaklaşınca uyandır",
+  "settingsWakeOnApproachHint": "Ambiyans ekranı görünürken tableti yerel yakınlık sensörüyle uyandırır. Görüntü, yüz kimliği, ses, geçmiş veya otomasyon oluşturulmaz.",
   "settingsIdleModeAfter": "Şu süre sonra",
   "settingsMinutesShort": "{minutes} dk",
   "settingsSectionNightMode": "GECE MODU",

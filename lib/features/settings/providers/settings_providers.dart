@@ -169,17 +169,20 @@ class IdleModeSettings {
   const IdleModeSettings({
     required this.enabled,
     required this.timeoutMinutes,
+    this.wakeOnApproach = false,
     int? timeoutSeconds,
   }) : timeoutSeconds = timeoutSeconds ?? timeoutMinutes * 60;
 
   final bool enabled;
   final int timeoutMinutes;
   final int timeoutSeconds;
+  final bool wakeOnApproach;
 
   IdleModeSettings copyWith({
     bool? enabled,
     int? timeoutMinutes,
     int? timeoutSeconds,
+    bool? wakeOnApproach,
   }) {
     final nextMinutes = timeoutMinutes ?? this.timeoutMinutes;
     return IdleModeSettings(
@@ -188,12 +191,14 @@ class IdleModeSettings {
       timeoutSeconds:
           timeoutSeconds ??
           (timeoutMinutes == null ? this.timeoutSeconds : nextMinutes * 60),
+      wakeOnApproach: wakeOnApproach ?? this.wakeOnApproach,
     );
   }
 }
 
 const _idleEnabledKey = 'idle_mode_enabled';
 const _idleTimeoutKey = 'idle_timeout_minutes';
+const _idleWakeOnApproachKey = 'idle_wake_on_approach';
 
 @riverpod
 class IdleMode extends _$IdleMode {
@@ -202,19 +207,21 @@ class IdleMode extends _$IdleMode {
   @override
   Future<IdleModeSettings> build() async {
     final managed = ref.watch(managedTabletActiveProfileProvider);
+    final prefs = await SharedPreferences.getInstance();
     if (managed != null) {
       _managed = true;
       return IdleModeSettings(
         enabled: true,
         timeoutMinutes: (managed.idleTimeoutSeconds / 60).ceil(),
         timeoutSeconds: managed.idleTimeoutSeconds,
+        wakeOnApproach: prefs.getBool(_idleWakeOnApproachKey) ?? false,
       );
     }
     _managed = false;
-    final prefs = await SharedPreferences.getInstance();
     return IdleModeSettings(
       enabled: prefs.getBool(_idleEnabledKey) ?? false,
       timeoutMinutes: prefs.getInt(_idleTimeoutKey) ?? 5,
+      wakeOnApproach: prefs.getBool(_idleWakeOnApproachKey) ?? false,
     );
   }
 
@@ -236,6 +243,15 @@ class IdleMode extends _$IdleMode {
     }
     state = AsyncData(current.copyWith(timeoutMinutes: minutes));
     await _savePreference((prefs) => prefs.setInt(_idleTimeoutKey, minutes));
+  }
+
+  Future<void> setWakeOnApproach(bool value) async {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.copyWith(wakeOnApproach: value));
+    await _savePreference(
+      (prefs) => prefs.setBool(_idleWakeOnApproachKey, value),
+    );
   }
 }
 

@@ -331,6 +331,8 @@
   "settingsKeepScreenOnHint": "Recommended for wall-mounted tablets",
   "settingsIdleMode": "Idle/ambient mode",
   "settingsIdleModeHint": "Show a clock screen after inactivity",
+  "settingsWakeOnApproach": "Wake on approach",
+  "settingsWakeOnApproachHint": "While the ambient screen is visible, use the tablet proximity sensor locally to wake it. No image, face identity, audio, history, or automation is created.",
   "settingsIdleModeAfter": "After",
   "settingsMinutesShort": "{minutes} min",
   "@settingsMinutesShort": {
