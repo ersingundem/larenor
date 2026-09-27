@@ -3610,7 +3610,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3634,7 +3634,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal tesliminde gerçek veya sentetik olayları hiçbir adaptör yazması yapmadan değerlendiren, saat dilimi/DST bağlamını ve tetiklenen/bastırılan kararları görünür kılan Core ve Client deneme haftası uygulanıyor."
     },
     {
       "id": "F03",
