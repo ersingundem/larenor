@@ -4481,7 +4481,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Adil ev işi paylaşımı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4505,7 +4505,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tekrarlayan görev, üye sırası, saat dilimi, erteleme/handoff ve exact revision/idempotent işlem akışının tam Client/Core dilimi geliştiriliyor."
+      "reason": "Uygulama commit 8a7d553f: exact v2 görev/member/permission sözleşmesi, tekrar ve saat dilimi, aktif kişi sırası, admin oluşturma, 1/3/7 gün erteleme, idempotent skip/handoff, ayrılan üye kurtarma ve receipt reconciliation tamamlandı. Focused Python py_compile, Dart format ve Flutter analyze geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
     },
     {
       "id": "F37",
@@ -4575,7 +4575,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Canlı aile panosu ve beyaz tahta",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4598,14 +4598,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Canlı aile panosunda öğe yetkisi, eşzamanlı çakışma/birleştirme, audit geçmişi ve çevrimdışı yeniden bağlanma akışı geliştiriliyor."
     },
     {
       "id": "F40",
       "kind": "task",
       "parent": "G07",
       "title": "Ortak kaynak rezervasyonu",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4629,7 +4629,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Ortak kaynak rezervasyonunda çakışma, tekrar, saat dilimi-DST, iptal, yetki ve exact revision/idempotency akışı geliştiriliyor."
     },
     {
       "id": "G08",
