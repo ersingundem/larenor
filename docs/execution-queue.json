@@ -4129,7 +4129,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4154,7 +4154,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İlk üretim dilimi yalnız Core'un güncel Jellyfin katalog otoritesiyle doğruladığı ve sağlayıcının açıkça indirmeye izin verdiği medya için sürümlü çevrimdışı manifest ve iptal edilebilir aktarım kurar; DRM'li/harici sağlayıcılar, lisanssız içerik ve istemciye servis anahtarı verme yolları kapalı kalır."
+      "reason": "Güncel Jellyfin katalog otoritesiyle sınırlandırılmış, HMAC etiketli ve iptal edilebilir çevrimdışı grant; 32 KiB menzilli izole worker aktarımı; 20 GiB cihaz kotası; kaldığı yerden devam; final SHA-256; Secure Storage anahtarlı AES-256-GCM parça kasası ve diske açık metin yazmadan localhost menzilli oynatma tamamlandı. Hesap, oturum ailesi, Core/ev, medya revisionı ve süre değişince erişim kapanıyor; DRM veya harici sağlayıcı indirme yolu yok. Özellik testleri kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Client→Core→Jellyfin E2E, bağımsız inceleme ve exact-head CI henüz tamamlanmadı."
     },
     {
       "id": "F28",

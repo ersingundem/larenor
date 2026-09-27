@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10 ve K12 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `debdbc5a` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26 ve F27 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,31 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F27 seyahat için çevrimdışı medya — uygulama tamamlandı, test bekliyor
+
+F27 tek çalışma dalında tamamlandı. Core yalnız güncel Jellyfin katalog
+otoritesinin indirmeye uygun, boyutu ve SHA-256 kimliği bilinen dosyaları için
+hesap, oturum ailesi, Core/ev, kurulum, snapshot, servis ve medya revision'ına
+bağlı süreli grant üretiyor. En fazla yedi günlük ve aktör başına 32 grant,
+20 GiB Client kotası, monoton ilerleme, final digest, iptal ve her parçada
+yeniden yetki denetimi uygulanıyor. Jellyfin API anahtarı izole worker'dan
+çıkmıyor; dosya exact `Range`/`Content-Range` sözleşmesiyle 32 KiB parçalar
+halinde taşınıyor.
+
+Client her parçayı grant'e özel Secure Storage anahtarıyla AES-256-GCM
+şifreleyip atomik kaydediyor, mevcut parçaları yeniden hashleyerek indirmeye
+kaldığı yerden devam ediyor ve tamamlanan kopyayı diske açık metin yazmadan
+yalnız rastgele yollu loopback HTTP üzerinden menzilli olarak oynatıyor. Hesap
+veya oturum ailesi değişimi, grant süresinin dolması, iptal ve rota yaşam
+döngüsü oynatma kiralamasını kapatıyor; DRM veya harici abonelik sağlayıcısını
+indirme yolu açılmadı. `daff7d40`, `1e5f2196` ve `debdbc5a` dilimleri Python
+py_compile, Flutter l10n üretimi, odaklı Flutter analyze ve diff kapılarından
+geçti. Kullanıcının kararı gereği özellik testleri son toplu doğrulama evresine
+bırakıldı. F27 **uygulama tamamlandı · test bekliyor**; sayaçlar **37/125
+(%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek
+Client→Core→Jellyfin E2E, kesinti/devam/kota/süre sonu yolculukları, bağımsız
+inceleme ve exact-head CI açık kalıyor.
 
 ### 27 Eylül F21 birlikte senkron izleme — uygulama tamamlandı, test bekliyor
 
