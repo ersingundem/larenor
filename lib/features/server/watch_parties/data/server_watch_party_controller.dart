@@ -123,6 +123,18 @@ final class ServerWatchPartyController extends ChangeNotifier {
           );
         });
 
+  Future<void> transfer({
+    required ServerWatchPartyMember nextLeader,
+    required bool Function() current,
+  }) => snapshot == null
+      ? Future.value()
+      : _run(current, (api, session, valid) {
+          return ServerWatchPartyApi(
+            api,
+            session,
+          ).transfer(snapshot: snapshot!, nextLeader: nextLeader);
+        });
+
   Future<void> leave({required bool Function() current}) async {
     final selected = snapshot;
     if (selected == null || busy || !_authorized) return;

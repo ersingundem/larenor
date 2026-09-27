@@ -114,6 +114,22 @@ final class ServerWatchPartyApi {
     },
   );
 
+  Future<ServerWatchPartySnapshot> transfer({
+    required ServerWatchPartySnapshot snapshot,
+    required ServerWatchPartyMember nextLeader,
+  }) => _snapshot(
+    'POST',
+    '/media/watch-parties/${snapshot.roomId}/leader',
+    body: {
+      'schemaVersion': 1,
+      'requestId': _id(),
+      'expectedRoomRevision': snapshot.revision,
+      'expectedLeaderRevision': snapshot.self(session.user.id).revision,
+      'nextLeaderAccountId': nextLeader.accountId,
+      'expectedNextLeaderRevision': nextLeader.revision,
+    },
+  );
+
   Future<void> leave(ServerWatchPartySnapshot snapshot) async {
     final response = serverObject(
       await api.request(

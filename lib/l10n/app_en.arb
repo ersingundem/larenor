@@ -4426,6 +4426,11 @@
   "jellyfinWatchPartyCode": "Invitation code",
   "jellyfinWatchPartyCopyCode": "Copy invitation code",
   "jellyfinWatchPartyLeave": "Leave room",
+  "jellyfinWatchPartyTransfer": "Make …{account} the leader",
+  "@jellyfinWatchPartyTransfer": {
+    "placeholders": {"account": {"type": "String"}}
+  },
+  "jellyfinWatchPartyRefreshNeeded": "The room changed. Refreshing the current authority is required.",
   "jellyfinWatchPartyStatus": "{count} connected · ±{tolerance} ms sync window",
   "@jellyfinWatchPartyStatus": {
     "placeholders": {

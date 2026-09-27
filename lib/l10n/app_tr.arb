@@ -4073,6 +4073,11 @@
   "jellyfinWatchPartyCode": "Davet kodu",
   "jellyfinWatchPartyCopyCode": "Davet kodunu kopyala",
   "jellyfinWatchPartyLeave": "Odadan ayrıl",
+  "jellyfinWatchPartyTransfer": "Liderliği …{account} hesabına ver",
+  "@jellyfinWatchPartyTransfer": {
+    "placeholders": {"account": {"type": "String"}}
+  },
+  "jellyfinWatchPartyRefreshNeeded": "Oda değişti. Güncel yetkiyi yenilemek gerekiyor.",
   "jellyfinWatchPartyStatus": "{count} bağlı · ±{tolerance} ms senkron aralığı",
   "@jellyfinWatchPartyStatus": {
     "placeholders": {

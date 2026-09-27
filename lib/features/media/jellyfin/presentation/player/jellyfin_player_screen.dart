@@ -728,6 +728,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   Future<void> _showWatchPartySheet() async {
     final snapshot = _watchParty.snapshot;
     final l10n = AppLocalizations.of(context);
+    final failure = _watchParty.failure;
     await showCupertinoModalPopup<void>(
       context: context,
       builder: (sheetContext) => CupertinoActionSheet(
@@ -735,10 +736,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         message: snapshot == null
             ? Text(l10n.jellyfinWatchPartyHint)
             : Text(
-                l10n.jellyfinWatchPartyStatus(
-                  snapshot.participants.where((item) => item.connected).length,
-                  snapshot.toleranceMs,
-                ),
+                '${l10n.jellyfinWatchPartyStatus(snapshot.participants.where((item) => item.connected).length, snapshot.toleranceMs)}${failure == null ? '' : '\n${l10n.jellyfinWatchPartyRefreshNeeded}'}',
               ),
         actions: snapshot == null
             ? [
@@ -758,6 +756,26 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                 ),
               ]
             : [
+                if (_watchPartyLeader)
+                  for (final member in snapshot.participants.where(
+                    (item) => !item.isLeader && item.connected,
+                  ))
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(
+                          _watchParty.transfer(
+                            nextLeader: member,
+                            current: () => _watchPartyRouteCurrent,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        l10n.jellyfinWatchPartyTransfer(
+                          member.accountId.substring(26),
+                        ),
+                      ),
+                    ),
                 if (_watchParty.invitation != null)
                   CupertinoActionSheetAction(
                     onPressed: () {
