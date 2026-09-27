@@ -20,6 +20,7 @@ from .models import (
     PollTabletCommands,
     PublishTabletProfile,
     RegisterTablet,
+    RestoreTabletProfile,
     StoredTablet,
     TabletHeartbeat,
     TabletProfileDocument,
@@ -39,6 +40,7 @@ _COMMAND_MODE = {
 }
 _MAX_COMMAND_TTL_SECONDS = 300
 _MAX_AUDIT_EVENTS = 20_000
+_MAX_PROFILE_HISTORY = 32
 
 
 class TabletFleetService:
@@ -309,6 +311,23 @@ class TabletFleetService:
             }
         }
 
+    def _archive_profile(self, connection, row, archived_at):
+        self._validate_profile(row)
+        connection.execute(
+            "INSERT INTO managed_tablet_profile_history VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                row["device_id"], row["revision"], row["schema_version"],
+                row["digest"], row["nonce"], row["ciphertext"],
+                row["created_at"], row["updated_at"], archived_at,
+            ),
+        )
+        connection.execute(
+            "DELETE FROM managed_tablet_profile_history WHERE device_id=? "
+            "AND revision NOT IN (SELECT revision FROM managed_tablet_profile_history "
+            "WHERE device_id=? ORDER BY revision DESC LIMIT ?)",
+            (row["device_id"], row["device_id"], _MAX_PROFILE_HISTORY),
+        )
+
     def _transaction(self, actor, core_id, home_id, *, write=False):
         self.auth.rate_limit([("tablet_fleet_write" if write else "tablet_fleet_read",
                                actor.id, 240)])
@@ -552,6 +571,8 @@ class TabletFleetService:
                 )
                 if changed.rowcount != 1:
                     raise ApiError("tablet_device_changed", 409)
+                if current is not None:
+                    self._archive_profile(connection, current, now)
                 connection.execute(
                     "INSERT INTO managed_tablet_profiles VALUES(?,?,?,?,?,?,?,?) "
                     "ON CONFLICT(device_id) DO UPDATE SET "
@@ -583,6 +604,138 @@ class TabletFleetService:
                 )
                 return self._public_profile(
                     saved, document, updated_device["revision"]
+                )
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, sqlite3.Error):
+            raise ApiError("tablet_fleet_storage_unavailable", 503) from None
+
+    def profile_history(self, actor, core_id, home_id, device_id):
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                self._actor(connection, actor, admin=True)
+                self._device(connection, device_id)
+                rows = connection.execute(
+                    "SELECT * FROM managed_tablet_profile_history "
+                    "WHERE device_id=? ORDER BY revision DESC LIMIT ?",
+                    (device_id, _MAX_PROFILE_HISTORY),
+                ).fetchall()
+                entries = []
+                for row in rows:
+                    self._validate_profile(row)
+                    if not self._finite(row["archived_at"]):
+                        raise ValueError("invalid_profile_history")
+                    entries.append({
+                        "revision": row["revision"],
+                        "digest": row["digest"],
+                        "createdAt": row["created_at"],
+                        "updatedAt": row["updated_at"],
+                        "archivedAt": row["archived_at"],
+                    })
+                return {
+                    "schemaVersion": 1,
+                    "deviceId": device_id,
+                    "entries": entries,
+                }
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, sqlite3.Error):
+            raise ApiError("tablet_fleet_storage_unavailable", 503) from None
+
+    def restore_profile(self, actor, core_id, home_id, device_id, value):
+        body = RestoreTabletProfile.model_validate(value)
+        now = float(self.settings.clock())
+        try:
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
+                self._actor(connection, actor, admin=True)
+                device_row, device = self._device(
+                    connection,
+                    device_id,
+                    expected=body.expectedDeviceRevision,
+                    active=True,
+                )
+                current = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone()
+                if current is None:
+                    raise ApiError("not_found", 404)
+                self._validate_profile(current)
+                if (
+                    current["revision"] != body.expectedProfileRevision
+                    or current["revision"] != device.desiredProfileRevision
+                    or current["revision"] >= 2**63 - 1
+                    or device_row["revision"] >= 2**63 - 1
+                ):
+                    raise ApiError("tablet_profile_changed", 409)
+                source = connection.execute(
+                    "SELECT * FROM managed_tablet_profile_history "
+                    "WHERE device_id=? AND revision=?",
+                    (device_id, body.sourceRevision),
+                ).fetchone()
+                if source is None:
+                    raise ApiError("not_found", 404)
+                document = self._validate_profile(source)
+                revision = current["revision"] + 1
+                profile_row = {
+                    "device_id": device_id,
+                    "revision": revision,
+                    "schema_version": 1,
+                    "digest": self._profile_digest(device_id, document),
+                    "created_at": current["created_at"],
+                    "updated_at": now,
+                }
+                profile_row["nonce"] = secrets.token_bytes(12)
+                profile_row["ciphertext"] = self._cipher.encrypt(
+                    profile_row["nonce"],
+                    document.model_dump_json().encode("utf-8"),
+                    self._profile_aad(profile_row),
+                )
+                updated_device = dict(device_row)
+                updated_device.update(
+                    revision=device_row["revision"] + 1,
+                    updated_at=now,
+                )
+                stored = device.model_copy(
+                    update={"desiredProfileRevision": revision}
+                )
+                nonce, ciphertext = self._encrypt(updated_device, stored)
+                changed = connection.execute(
+                    "UPDATE managed_tablets SET revision=?,nonce=?,ciphertext=?,updated_at=? "
+                    "WHERE id=? AND revision=?",
+                    (
+                        updated_device["revision"], nonce, ciphertext, now,
+                        device_id, device_row["revision"],
+                    ),
+                )
+                if changed.rowcount != 1:
+                    raise ApiError("tablet_device_changed", 409)
+                self._archive_profile(connection, current, now)
+                connection.execute(
+                    "UPDATE managed_tablet_profiles SET "
+                    "revision=?,schema_version=?,digest=?,nonce=?,ciphertext=?,updated_at=? "
+                    "WHERE device_id=?",
+                    (
+                        profile_row["revision"], profile_row["schema_version"],
+                        profile_row["digest"], profile_row["nonce"],
+                        profile_row["ciphertext"], profile_row["updated_at"],
+                        device_id,
+                    ),
+                )
+                saved = connection.execute(
+                    "SELECT * FROM managed_tablet_profiles WHERE device_id=?",
+                    (device_id,),
+                ).fetchone()
+                restored = self._validate_profile(saved)
+                self._record_event(
+                    connection,
+                    action="policy_updated",
+                    actor_id=actor.id,
+                    device_id=device_id,
+                    occurred_at=now,
+                )
+                return self._public_profile(
+                    saved, restored, updated_device["revision"]
                 )
         except ApiError:
             raise

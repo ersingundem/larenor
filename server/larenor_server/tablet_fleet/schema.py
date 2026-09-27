@@ -50,7 +50,19 @@ PROFILE_TABLE = """CREATE TABLE managed_tablet_profiles (
         created_at REAL NOT NULL, updated_at REAL NOT NULL,
         FOREIGN KEY(device_id) REFERENCES managed_tablets(id) ON DELETE CASCADE)"""
 
-TABLES = {**LEGACY_TABLES, "managed_tablet_profiles": PROFILE_TABLE}
+PROFILE_HISTORY_TABLE = """CREATE TABLE managed_tablet_profile_history (
+        device_id TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK(revision > 0),
+        schema_version INTEGER NOT NULL CHECK(schema_version=1),
+        digest TEXT NOT NULL,
+        nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,
+        created_at REAL NOT NULL, updated_at REAL NOT NULL,
+        archived_at REAL NOT NULL,
+        PRIMARY KEY(device_id,revision),
+        FOREIGN KEY(device_id) REFERENCES managed_tablets(id) ON DELETE CASCADE)"""
+
+V2_TABLES = {**LEGACY_TABLES, "managed_tablet_profiles": PROFILE_TABLE}
+TABLES = {**V2_TABLES, "managed_tablet_profile_history": PROFILE_HISTORY_TABLE}
 
 
 def _validate(connection, expected_tables):
@@ -78,6 +90,7 @@ def _validate(connection, expected_tables):
         "managed_tablet_events": 1,
         "managed_tablet_audit_state": 0,
         **({"managed_tablet_profiles": 1} if "managed_tablet_profiles" in expected_tables else {}),
+        **({"managed_tablet_profile_history": 1} if "managed_tablet_profile_history" in expected_tables else {}),
     }
     for table, count in expected_indexes.items():
         indexes = connection.execute(f"PRAGMA index_list({table})").fetchall()
@@ -101,7 +114,7 @@ def migrate_tablet_fleet(connection: sqlite3.Connection) -> None:
                 raise ValueError("unmarked_tablet_fleet")
             for statement in TABLES.values():
                 connection.execute(statement)
-            connection.execute("INSERT INTO metadata VALUES('tablet_fleet_schema','2')")
+            connection.execute("INSERT INTO metadata VALUES('tablet_fleet_schema','3')")
             return
         if marker["value"] == "1":
             _validate(connection, LEGACY_TABLES)
@@ -109,7 +122,14 @@ def migrate_tablet_fleet(connection: sqlite3.Connection) -> None:
             connection.execute(
                 "UPDATE metadata SET value='2' WHERE key='tablet_fleet_schema'"
             )
-        elif marker["value"] != "2":
+            marker = {"value": "2"}
+        if marker["value"] == "2":
+            _validate(connection, V2_TABLES)
+            connection.execute(PROFILE_HISTORY_TABLE)
+            connection.execute(
+                "UPDATE metadata SET value='3' WHERE key='tablet_fleet_schema'"
+            )
+        elif marker["value"] != "3":
             raise ValueError("invalid_tablet_fleet")
         _validate(connection, TABLES)
     except (ValueError, TypeError, sqlite3.Error):

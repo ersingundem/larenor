@@ -12,6 +12,7 @@ from .models import (
     IssueTabletCommand,
     PollTabletCommands,
     PublishTabletProfile,
+    RestoreTabletProfile,
     PreviewKioskProfileRollout,
     KioskProfileRolloutPreview,
     RegisterTablet,
@@ -20,6 +21,7 @@ from .models import (
     TabletHeartbeat,
     TabletList,
     TabletProfilePublicationResponse,
+    TabletProfileHistory,
     TabletResponse,
     UpdateTabletProfile,
 )
@@ -92,6 +94,28 @@ def publish_profile(core_id: Identity, home_id: Identity, device_id: Identity,
 def read_profile(core_id: Identity, home_id: Identity, device_id: Identity,
                  actor: Ready, core: Core):
     return core.tablet_fleet.read_profile(actor, core_id, home_id, device_id)
+
+
+@router.get(
+    ROOT + "/devices/{device_id}/profile-history",
+    response_model=TabletProfileHistory,
+)
+def profile_history(core_id: Identity, home_id: Identity, device_id: Identity,
+                    actor: Admin, core: Core):
+    return core.tablet_fleet.profile_history(
+        actor, core_id, home_id, device_id
+    )
+
+
+@router.post(
+    ROOT + "/devices/{device_id}/profile-publication/restore",
+    response_model=TabletProfilePublicationResponse,
+)
+def restore_profile(core_id: Identity, home_id: Identity, device_id: Identity,
+                    body: RestoreTabletProfile, actor: Admin, core: Core):
+    return core.tablet_fleet.restore_profile(
+        actor, core_id, home_id, device_id, body
+    )
 
 
 @router.delete(ROOT + "/devices/{device_id}", status_code=204)

@@ -86,6 +86,33 @@ class TabletProfilePublicationResponse(FrozenModel):
     publication: TabletProfilePublication
 
 
+class RestoreTabletProfile(Versioned):
+    expectedDeviceRevision: Revision
+    expectedProfileRevision: ProfileRevision
+    sourceRevision: Revision
+
+
+class TabletProfileHistoryEntry(FrozenModel):
+    revision: Revision
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    createdAt: float
+    updatedAt: float
+    archivedAt: float
+
+    @field_validator("createdAt", "updatedAt", "archivedAt", mode="before")
+    @classmethod
+    def finite_time(cls, value):
+        if type(value) is not float or not math.isfinite(value):
+            raise ValueError("invalid_time")
+        return value
+
+
+class TabletProfileHistory(FrozenModel):
+    schemaVersion: Literal[1]
+    deviceId: Identity
+    entries: list[TabletProfileHistoryEntry] = Field(max_length=32)
+
+
 class TabletRef(HomeScope):
     kind: Literal["managed_tablet"]
     id: Identity
