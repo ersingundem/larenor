@@ -14,11 +14,17 @@ class AudioSource private constructor(
     val artist: String?,
     val album: String?,
     val artworkBytes: ByteArray?,
+    val mediaKind: String,
+    val initialPositionMs: Long,
+    val sleepTimerSeconds: Long?,
 ) {
     override fun toString() = "AudioSource(redacted)"
     companion object {
         val mimeTypes = setOf("audio/mpeg", "audio/aac", "audio/mp4", "audio/ogg", "audio/flac", "audio/wav")
-        private val keys = setOf("id", "uri", "mimeType", "title", "artist", "album", "artworkBytes")
+        private val keys = setOf(
+            "id", "uri", "mimeType", "title", "artist", "album", "artworkBytes",
+            "mediaKind", "initialPositionMs", "sleepTimerSeconds",
+        )
         fun parse(value: Any?): AudioSource {
             val map = value as? Map<*, *> ?: throw AudioRejected("invalidSource")
             if (map.keys.any { it !in keys }) throw AudioRejected("invalidSource")
@@ -26,10 +32,27 @@ class AudioSource private constructor(
             if (!Regex("[a-zA-Z0-9_-]{1,128}").matches(id)) throw AudioRejected("invalidSource")
             val mime = text(map["mimeType"], 32)
             if (mime !in mimeTypes) throw AudioRejected("invalidSource")
+            val mediaKind = map["mediaKind"]?.let { text(it, 16) } ?: "music"
+            if (mediaKind !in setOf("music", "audiobook", "podcast")) {
+                throw AudioRejected("invalidSource")
+            }
+            val initialPositionMs = integer(map["initialPositionMs"], 0) ?: 0
+            if (initialPositionMs !in 0..2_592_000_000L) throw AudioRejected("invalidSource")
+            val sleepTimerSeconds = integer(map["sleepTimerSeconds"])
+            if (sleepTimerSeconds != null && sleepTimerSeconds !in 60..86_400L) {
+                throw AudioRejected("invalidSource")
+            }
             return AudioSource(id, safeUri(map["uri"]), mime!!,
                 text(map["title"], 256) ?: throw AudioRejected("invalidSource"),
                 text(map["artist"], 256), text(map["album"], 256),
-                map["artworkBytes"]?.let { AudioArtwork.input(it, AudioArtwork.MAX_OUTPUT_BYTES) })
+                map["artworkBytes"]?.let { AudioArtwork.input(it, AudioArtwork.MAX_OUTPUT_BYTES) },
+                mediaKind, initialPositionMs, sleepTimerSeconds)
+        }
+
+        private fun integer(value: Any?, default: Long? = null): Long? = when (value) {
+            null -> default
+            is Byte, is Short, is Int, is Long -> (value as Number).toLong()
+            else -> throw AudioRejected("invalidSource")
         }
 
         fun text(value: Any?, limit: Int): String? {
@@ -76,6 +99,8 @@ data class AudioSnapshot(
     val failure: String? = null,
     val artworkState: String = "none",
     val artworkId: String? = null,
+    val mediaKind: String = "music",
+    val sleepTimerEndsAtMs: Long? = null,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "supported" to true, "phase" to phase, "sourceId" to sourceId,
@@ -84,6 +109,7 @@ data class AudioSnapshot(
         "canPlay" to canPlay, "canPause" to canPause, "canSeek" to canSeek,
         "canStop" to canStop, "failure" to failure,
         "artworkState" to artworkState, "artworkId" to artworkId,
+        "mediaKind" to mediaKind, "sleepTimerEndsAtMs" to sleepTimerEndsAtMs,
     )
 }
 
@@ -91,6 +117,7 @@ interface AudioOwner {
     fun pause()
     fun resume()
     fun seek(positionMs: Long)
+    fun setSleepTimer(seconds: Long?) {}
     fun shutdown()
     fun snapshot(): AudioSnapshot
     fun artwork(sourceId: String, artworkId: String): Map<String, Any> = throw AudioRejected("unavailable")
@@ -197,6 +224,16 @@ class AudioCoordinator(private val nowMs: () -> Long) {
         owner?.seek(position) ?: throw AudioRejected("unavailable")
     }
 
+    fun setSleepTimer(seconds: Any?) {
+        val value = when (seconds) {
+            null -> null
+            is Byte, is Short, is Int, is Long -> (seconds as Number).toLong()
+            else -> throw AudioRejected("invalidSleepTimer")
+        }
+        if (value != null && value !in 60..86_400L) throw AudioRejected("invalidSleepTimer")
+        owner?.setSleepTimer(value) ?: throw AudioRejected("unavailable")
+    }
+
     fun observe(listener: (AudioSnapshot) -> Unit): () -> Unit {
         observers.add(listener)
         listener(state)
@@ -252,6 +289,17 @@ class AudioCommandRouter(private val host: AudioCommandHost) {
                 checkSource(arguments, seek = true)
                 host.coordinator.seek(arguments["positionMs"])
             } else host.coordinator.seek(arguments)
+            null
+        }
+        "setSleepTimer" -> {
+            val map = arguments as? Map<*, *> ?: throw AudioRejected("invalidSleepTimer")
+            val expected = map["sourceId"]
+            if (map.keys !in setOf(setOf("sourceId"), setOf("sourceId", "seconds")) ||
+                expected !is String || !Regex("[a-zA-Z0-9_-]{1,128}").matches(expected)) {
+                throw AudioRejected("invalidSleepTimer")
+            }
+            host.coordinator.requireSource(expected)
+            host.coordinator.setSleepTimer(map["seconds"])
             null
         }
         "stop" -> { checkSource(arguments); host.coordinator.stop(); null }

@@ -56,6 +56,14 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
     private val artwork = AudioArtworkState()
     private val artworkWorker = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, ArrayBlockingQueue<Runnable>(1))
     private var artworkJob: Future<*>? = null
+    private var sleepTimerEndsAtMs: Long? = null
+    private val sleepTimerExpiry = Runnable {
+        if (!releasing && sleepTimerEndsAtMs != null) {
+            sleepTimerEndsAtMs = null
+            player.pause()
+            publish()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -179,9 +187,10 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
                 player.clearMediaItems()
                 val metadata = selectedAudioMetadata(next, null)
                 player.setMediaItem(MediaItem.Builder().setMediaId(next.id).setUri(next.uri.toString())
-                    .setMimeType(next.mimeType).setMediaMetadata(metadata).build())
+                    .setMimeType(next.mimeType).setMediaMetadata(metadata).build(), next.initialPositionMs)
                 player.prepare()
                 player.play()
+                setSleepTimer(next.sleepTimerSeconds)
                 replacing = false
                 publish()
                 next.artworkBytes?.let { bytes ->
@@ -229,7 +238,9 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
             canSeek = usable && duration != null && player.isCurrentMediaItemSeekable,
             canStop = !releasing, failure = lastFailure,
             artworkState = if (lastFailure == null) artwork.phase else "none",
-            artworkId = if (lastFailure == null) artwork.artworkId else null)
+            artworkId = if (lastFailure == null) artwork.artworkId else null,
+            mediaKind = current.mediaKind,
+            sleepTimerEndsAtMs = sleepTimerEndsAtMs)
     }
 
     override fun artwork(sourceId: String, artworkId: String) = artwork.read(sourceId, artworkId)
@@ -240,10 +251,17 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
         player.play(); publish()
     }
     override fun seek(positionMs: Long) { player.seekTo(positionMs); publish() }
+    override fun setSleepTimer(seconds: Long?) {
+        handler.removeCallbacks(sleepTimerExpiry)
+        sleepTimerEndsAtMs = seconds?.let { System.currentTimeMillis() + it * 1000L }
+        if (seconds != null) handler.postDelayed(sleepTimerExpiry, seconds * 1000L)
+        publish()
+    }
     override fun shutdown() {
         if (releasing) return
         releasing = true
         handler.removeCallbacksAndMessages(null)
+        sleepTimerEndsAtMs = null
         artwork.clear()
         artworkJob?.cancel(true)
         artworkWorker.shutdownNow()

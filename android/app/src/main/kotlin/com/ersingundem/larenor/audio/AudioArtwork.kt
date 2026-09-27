@@ -142,7 +142,13 @@ class SelectedAudioBitmapLoader(private val state: AudioArtworkState) : BitmapLo
 @UnstableApi
 fun selectedAudioMetadata(source: AudioSource?, artwork: AudioArtwork?): MediaMetadata {
     if (source == null) return MediaMetadata.EMPTY
+    val mediaType = when (source.mediaKind) {
+        "audiobook" -> MediaMetadata.MEDIA_TYPE_AUDIO_BOOK
+        "podcast" -> MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+        else -> MediaMetadata.MEDIA_TYPE_MUSIC
+    }
     return MediaMetadata.Builder().setTitle(source.title).setArtist(source.artist)
         .setAlbumTitle(source.album).setIsBrowsable(false).setIsPlayable(true)
+        .setMediaType(mediaType)
         .setArtworkData(artwork?.bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()
 }

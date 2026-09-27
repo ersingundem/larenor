@@ -148,6 +148,26 @@ class LocalAudioBridge {
     );
   }
 
+  Future<void> setSleepTimer(
+    Duration? duration, {
+    required String expectedSourceId,
+  }) {
+    if (!RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(expectedSourceId) ||
+        (duration != null &&
+            (duration.inMilliseconds % 1000 != 0 ||
+                duration.inSeconds < 60 ||
+                duration.inSeconds > 86400))) {
+      throw const LocalAudioException(LocalAudioFailure.invalidSleepTimer);
+    }
+    return _command(
+      'setSleepTimer',
+      payload: {
+        'sourceId': expectedSourceId,
+        if (duration != null) 'seconds': duration.inSeconds,
+      },
+    );
+  }
+
   Future<void> stop({String? expectedSourceId}) => _command(
     'stop',
     payload: _controlPayload(expectedSourceId),

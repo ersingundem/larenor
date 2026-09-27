@@ -4,11 +4,14 @@ export 'local_audio_artwork.dart';
 
 enum LocalAudioPhase { idle, loading, ready, ended, error }
 
+enum LocalAudioMediaKind { music, audiobook, podcast }
+
 enum LocalAudioFailure {
   unsupported,
   invalidSource,
   invalidArtwork,
   invalidPosition,
+  invalidSleepTimer,
   foregroundRequired,
   busy,
   unavailable,
@@ -36,6 +39,9 @@ class LocalAudioSource {
     String? artist,
     String? album,
     LocalAudioArtwork? artwork,
+    LocalAudioMediaKind mediaKind = LocalAudioMediaKind.music,
+    Duration initialPosition = Duration.zero,
+    Duration? sleepTimer,
   }) {
     if (!RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(id) ||
         !mimeTypes.contains(mimeType)) {
@@ -45,7 +51,26 @@ class LocalAudioSource {
     _sourceText(title);
     if (artist != null) _sourceText(artist);
     if (album != null) _sourceText(album);
-    return LocalAudioSource._(id, uri, mimeType, title, artist, album, artwork);
+    if (initialPosition.isNegative ||
+        initialPosition.inMilliseconds > 2592000000 ||
+        (sleepTimer != null &&
+            (sleepTimer.inMilliseconds % 1000 != 0 ||
+                sleepTimer.inSeconds < 60 ||
+                sleepTimer.inSeconds > 86400))) {
+      throw const LocalAudioException(LocalAudioFailure.invalidSource);
+    }
+    return LocalAudioSource._(
+      id,
+      uri,
+      mimeType,
+      title,
+      artist,
+      album,
+      artwork,
+      mediaKind,
+      initialPosition,
+      sleepTimer,
+    );
   }
   const LocalAudioSource._(
     this.id,
@@ -55,6 +80,9 @@ class LocalAudioSource {
     this.artist,
     this.album,
     this.artwork,
+    this.mediaKind,
+    this.initialPosition,
+    this.sleepTimer,
   );
   static const mimeTypes = {
     'audio/mpeg',
@@ -68,6 +96,9 @@ class LocalAudioSource {
   final Uri uri;
   final String? artist, album;
   final LocalAudioArtwork? artwork;
+  final LocalAudioMediaKind mediaKind;
+  final Duration initialPosition;
+  final Duration? sleepTimer;
 
   static void validateUri(Uri uri) {
     final value = uri.toString();
@@ -106,6 +137,9 @@ class LocalAudioSource {
     'title': title,
     'artist': artist,
     'album': album,
+    'mediaKind': mediaKind.name,
+    'initialPositionMs': initialPosition.inMilliseconds,
+    if (sleepTimer != null) 'sleepTimerSeconds': sleepTimer!.inSeconds,
     if (artwork != null) 'artworkBytes': artwork!.bytes,
   };
   @override
@@ -130,6 +164,8 @@ class LocalAudioSnapshot {
     this.failure,
     this.artworkState = LocalAudioArtworkState.none,
     this.artworkId,
+    this.mediaKind = LocalAudioMediaKind.music,
+    this.sleepTimerEndsAt,
   });
   factory LocalAudioSnapshot.fromChannel(Object? value) {
     final data = _map(value);
@@ -162,10 +198,16 @@ class LocalAudioSnapshot {
     final canPause = _bool(data, 'canPause');
     final canSeek = _bool(data, 'canSeek');
     final canStop = _bool(data, 'canStop');
+    final mediaKind = LocalAudioMediaKind.values
+        .where((kind) => kind.name == (data['mediaKind'] ?? 'music'))
+        .firstOrNull;
+    final sleepTimerEndsAt = _dateTime(data['sleepTimerEndsAtMs']);
     if ((playing && (source == null || phase != LocalAudioPhase.ready)) ||
         (canSeek && (duration == null || source == null)) ||
         ((canPlay || canPause) && source == null) ||
-        (duration != null && duration == Duration.zero)) {
+        (duration != null && duration == Duration.zero) ||
+        mediaKind == null ||
+        (sleepTimerEndsAt != null && source == null)) {
       _invalid();
     }
     return LocalAudioSnapshot(
@@ -185,6 +227,8 @@ class LocalAudioSnapshot {
       failure: _failure(data['failure']),
       artworkState: artworkState,
       artworkId: artworkId,
+      mediaKind: mediaKind,
+      sleepTimerEndsAt: sleepTimerEndsAt,
     );
   }
   final bool supported, isPlaying, canPlay, canPause, canSeek, canStop;
@@ -194,6 +238,8 @@ class LocalAudioSnapshot {
   final LocalAudioFailure? failure;
   final LocalAudioArtworkState artworkState;
   final String? artworkId;
+  final LocalAudioMediaKind mediaKind;
+  final DateTime? sleepTimerEndsAt;
 }
 
 class LocalAudioPowerStatus {
@@ -278,6 +324,12 @@ Duration? _duration(Object? value) {
   if (value == null) return null;
   if (value is! int || value < 0 || value > 2592000000) _invalid();
   return Duration(milliseconds: value);
+}
+
+DateTime? _dateTime(Object? value) {
+  if (value == null) return null;
+  if (value is! int || value < 0 || value > 4102444800000) _invalid();
+  return DateTime.fromMillisecondsSinceEpoch(value);
 }
 
 LocalAudioFailure? _failure(Object? value) {
