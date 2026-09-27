@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `3213b4e6` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `e4e8d84b` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F21, F25, F26, F27, F28, F32, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -17,15 +17,29 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-### 27 Eylül F16 otomatik kurtarma tatbikatı — uygulama başladı
+### 27 Eylül F16 otomatik kurtarma tatbikatı — uygulama tamamlandı, test bekliyor
 
-F16 için aktif ürün dilimi fresh Core yedeğini yalnız işlem belleğindeki geçici
-parolayla açan, üretim otomasyon ve cihaz etkilerini yapısal olarak kapatan
-disposable bir tatbikat sözleşmesi kuruyor. İlk adım sürümlü istek/iş/makbuz
-modelleri, tek aktif iş, bounded geçmiş ve admin otoritesidir. İzole worker, boş
-Core/DB/vault anahtarı doğrulaması, disposable bileşen sağlık kontrolü ve Client
-sonuç ekranı sonraki bağımsız commitlerdir. F16 kabul edilmedi; kuyruk sayaçları
-**37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+F16 tek çalışma dalında tamamlandı. Core; sürümlü istek/iş/makbuz sözleşmesi,
+tek aktif tatbikat, 64 kayıtla sınırlı kalıcı geçmiş, idempotent elle başlatma,
+iptal ve deadline sınırları sunuyor. Dispatcher her adımda güncel yönetici
+yetkisini doğruluyor ve kesilen çalışan işi güvenli biçimde yeniden ele alıyor.
+Fresh şifreli yedek yalnız özel geçici dizinde açılıyor; boş Core veritabanı,
+vault anahtarı, yapılandırma, aile panosu ve bileşen arşivleri üretim worker
+soketleri kapalıyken bütünlük ve sağlık denetiminden geçiyor. Sonuç makbuzu
+üretim etkilerini reddeden politikayı, doğrulanan kaynakları ve sınırlı hata
+kodunu saklıyor. Kalıcı 30 günlük plan güncel hesap rolü/revision'ını tekrar
+doğrulayarak aynı tek-aktif iş kuyruğunu kullanıyor.
+
+Flutter yönetici ekranı aylık planı açıp kapatıyor, sonraki zamanı ve son 20
+makbuzu gösteriyor, elle çalıştırma ve etkin işi iptal etme akışlarını güncel
+oturum/rota/foreground sınırında yürütüyor. `ddcdce43`, `8e4c9101`, `2a1e111e`,
+`a84c4d13` ve `e4e8d84b` dilimleri Python import/izole full-restore smoke,
+l10n üretimi, odaklı Flutter analyze ve diff kapılarından geçti. Kullanıcının
+kararı gereği özellik testleri son toplu doğrulama evresine bırakıldı. F16
+**uygulama tamamlandı · test bekliyor**; sayaçlar **37/125 (%29,6)** ve
+**3/63 (%4,8)** olarak değişmedi. Yetki/iptal/bozuk-geç cevap ve limit test
+paketi, bağımsız inceleme, gerçek Client→izole Core/servis E2E ve exact-head CI
+açık kalıyor.
 
 ### 27 Eylül F61 bağımsız VNC — framebuffer hattı uygulandı, backend açık
 

@@ -3319,7 +3319,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Otomatik kurtarma tatbikatı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3343,7 +3343,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Fresh Core yedeğini üretim etkileri yapısal olarak kapalı disposable ortamda sınayan sürümlü iş/receipt, durable history ve elle çalıştırma akışı tek çalışma dalında uygulanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Durable sürümlü tatbikat sözleşmesi, tek aktif iş ve bounded geçmiş; güncel admin otoritesi, iptal/deadline, crash-safe dispatcher; fresh şifreli Core yedeğini production effect kapalı disposable Core/DB/vault/config/family-board/component hedefinde açıp bütünlük/sağlık makbuzu üretme; 30 günlük kalıcı plan ve Flutter run/cancel/plan/history yüzeyi ddcdce43, 8e4c9101, 2a1e111e, a84c4d13 ve e4e8d84b ile uygulandı. Python smoke, Flutter l10n üretimi ve odaklı analyze temiz; özellik testleri, bağımsız review ve exact-head CI final toplu doğrulama evresinde açık."
     },
     {
       "id": "F17",
