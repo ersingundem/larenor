@@ -107,4 +107,16 @@ class ComponentUpdateService:
         )
         if len(matches) != 1:
             raise ApiError("not_found", 404)
-        return self._confirmations.confirm(actor, *matches[0], body)
+        command = self._confirmations.confirm(actor, *matches[0], body)
+        try:
+            validate = getattr(self._boundary, "validate_update", None)
+            if not callable(validate):
+                raise ValueError("component_update_worker_unavailable")
+            if validate(command, time.monotonic() + 5) != command:
+                raise ValueError("component_update_worker_mismatch")
+            return command
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            self._confirmations.discard_unvalidated(command)
+            raise ApiError("component_update_worker_unavailable", 503) from None

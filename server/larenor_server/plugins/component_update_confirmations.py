@@ -237,3 +237,22 @@ class ComponentUpdateConfirmationStore:
             raise StartupError(
                 "component_update_confirmations_storage_invalid"
             ) from None
+
+    def discard_unvalidated(self, command: ComponentUpdateCommand) -> None:
+        """Remove only the exact command rejected by the isolated worker."""
+        try:
+            command = verify_update_command(command)
+            with self.db.transaction() as connection:
+                rows = connection.execute(
+                    "SELECT * FROM component_update_confirmations "
+                    "WHERE update_id=? AND installation_id=? LIMIT 2",
+                    (command.updateId, command.installationId),
+                ).fetchall()
+                if len(rows) != 1 or self._validate(rows[0]) != command:
+                    raise ValueError("component_update_confirmation_mismatch")
+                connection.execute(
+                    "DELETE FROM component_update_confirmations WHERE update_id=?",
+                    (command.updateId,),
+                )
+        except (ComponentUpdateError, ValueError, TypeError, sqlite3.Error):
+            raise ApiError("component_update_unavailable", 503) from None
