@@ -6,6 +6,7 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../domain/kiosk_peripheral_contract.dart';
+import '../data/kiosk_peripheral_qr_capture.dart';
 import '../data/kiosk_peripheral_runtime.dart';
 
 export '../data/kiosk_peripheral_runtime.dart'
@@ -15,10 +16,16 @@ export '../data/kiosk_peripheral_runtime.dart'
         KioskPeripheralOptInStore;
 
 class KioskPeripheralScreen extends StatefulWidget {
-  const KioskPeripheralScreen({super.key, this.runtime, this.optInStore});
+  const KioskPeripheralScreen({
+    super.key,
+    this.runtime,
+    this.optInStore,
+    this.qrCapture,
+  });
 
   final KioskPeripheralRuntime? runtime;
   final KioskPeripheralOptInStore? optInStore;
+  final KioskPeripheralQrCapture? qrCapture;
 
   @override
   State<KioskPeripheralScreen> createState() => _KioskPeripheralScreenState();
@@ -28,6 +35,7 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
     with WidgetsBindingObserver {
   late final KioskPeripheralRuntime _runtime;
   late final KioskPeripheralOptInStore _store;
+  late final KioskPeripheralQrCapture _qrCapture;
   final KioskPeripheralInputGate _gate = KioskPeripheralInputGate();
   KioskPeripheralInventory? _inventory;
   KioskPeripheralAuthority? _authority;
@@ -47,6 +55,7 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
     super.initState();
     _runtime = widget.runtime ?? AndroidKioskPeripheralRuntime();
     _store = widget.optInStore ?? const LocalKioskPeripheralOptInStore();
+    _qrCapture = widget.qrCapture ?? MobileKioskPeripheralQrCapture();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
@@ -191,6 +200,10 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
   }
 
   Future<void> _consume(KioskPeripheralCapability provider) async {
+    if (provider.kind == KioskPeripheralKind.qr) {
+      await _consumeQr(provider);
+      return;
+    }
     final epoch = _epoch;
     final authority = _authority;
     if (!_current(epoch) ||
@@ -221,6 +234,56 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
       if (_current(epoch)) setState(() => _error = true);
     } finally {
       if (_current(epoch)) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _consumeQr(KioskPeripheralCapability provider) async {
+    final epoch = _epoch;
+    if (!_current(epoch) ||
+        _busy ||
+        !_optedIn.contains(provider.providerId) ||
+        !provider.supported ||
+        !provider.connected) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _review = null;
+      _error = false;
+    });
+    try {
+      final payload = await _qrCapture.capture(context);
+      if (payload == null || !mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      await _refresh();
+      final currentEpoch = _epoch;
+      final inventory = _inventory;
+      final authority = _authority;
+      if (!_current(currentEpoch) || inventory == null || authority == null) {
+        throw const FormatException('stale qr authority');
+      }
+      final refreshed = inventory.provider(provider.providerId);
+      final sample = _qrCapture.seal(
+        payload: payload,
+        provider: refreshed,
+        authority: authority,
+      );
+      final input = _gate.accept(
+        sample.rawInput,
+        inventory: inventory,
+        expectedAuthority: authority,
+        isCurrent: () =>
+            _current(currentEpoch) && identical(_authority, authority),
+        nowElapsedMs: sample.nowElapsedMs,
+      );
+      if (_current(currentEpoch)) setState(() => _review = input);
+    } catch (_) {
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        setState(() => _error = true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -307,7 +370,13 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
 
   Widget _providerRow(AppLocalizations l, KioskPeripheralCapability provider) {
     final enabled = _optedIn.contains(provider.providerId);
-    final canConsume = provider.acceptsInput && _authority != null && !_busy;
+    final canRequestQr =
+        provider.kind == KioskPeripheralKind.qr &&
+        enabled &&
+        provider.supported &&
+        provider.connected;
+    final canConsume =
+        (provider.acceptsInput || canRequestQr) && _authority != null && !_busy;
     final title = switch (provider.kind) {
       KioskPeripheralKind.qr => l.kioskPeripheralQr,
       KioskPeripheralKind.nfc => l.kioskPeripheralNfc,

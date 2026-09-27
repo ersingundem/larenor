@@ -2,6 +2,7 @@ package com.ersingundem.larenor.kiosk
 
 import android.app.Activity
 import android.app.PendingIntent
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -221,6 +222,10 @@ class KioskPeripheralBridge(
 
     private fun providerFacts(): List<ProviderFacts> {
         val manager = activity.packageManager
+        val cameraSupported = manager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+        val cameraPermission = if (
+            activity.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        ) "granted" else "unknown"
         val nfcSupported = nfc != null && manager.hasSystemFeature(PackageManager.FEATURE_NFC)
         val usbSupported = manager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)
         val externalKeyboard = InputDevice.getDeviceIds().any { id ->
@@ -234,7 +239,7 @@ class KioskPeripheralBridge(
         ).isNotEmpty()
         val printSupported = activity.getSystemService(Context.PRINT_SERVICE) is PrintManager
         return listOf(
-            ProviderFacts("qr.camera", "qr", false, "unknown", false, 4096),
+            ProviderFacts("qr.camera", "qr", cameraSupported, cameraPermission, cameraSupported, 4096),
             ProviderFacts(NFC_PROVIDER, "nfc", nfcSupported, "notRequired", nfc?.isEnabled == true, 4096),
             ProviderFacts("ble.gatt", "ble", false, "unknown", false, 4096),
             ProviderFacts(USB_PROVIDER, "usb", usbSupported, "notRequired", externalKeyboard, 512),
