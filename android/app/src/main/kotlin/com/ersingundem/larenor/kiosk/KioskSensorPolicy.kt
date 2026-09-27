@@ -41,7 +41,7 @@ sealed interface KioskSensorSample {
 
 interface KioskSensorHost {
     fun availability(): KioskSensorAvailability
-    fun start(listener: (KioskSensorSample) -> Unit)
+    fun start(intervalMillis: Long, listener: (KioskSensorSample) -> Unit)
     fun stop()
     fun nowMillis(): Long
     fun token(): String
@@ -87,7 +87,7 @@ class KioskSensorPolicy(private val host: KioskSensorHost) {
         val id = host.token()
         if (!SESSION.matches(id)) throw KioskFailure("unavailable")
         try {
-            host.start(::accept)
+            host.start(interval, ::accept)
         } catch (_: RuntimeException) {
             host.stop()
             throw KioskFailure("unavailable")

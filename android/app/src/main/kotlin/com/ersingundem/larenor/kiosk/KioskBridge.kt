@@ -15,11 +15,16 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.UUID
 
-class KioskBridge(private val activity: Activity, messenger: BinaryMessenger) : MethodChannel.MethodCallHandler, KioskHost {
+class KioskBridge internal constructor(
+    private val activity: Activity,
+    messenger: BinaryMessenger,
+    sensorHost: KioskSensorHost = AndroidKioskSensorHost(activity),
+    private val focused: () -> Boolean = { activity.window.decorView.hasWindowFocus() },
+) : MethodChannel.MethodCallHandler, KioskHost {
     private val channel = MethodChannel(messenger, "com.ersingundem.larenor/kiosk")
     private val admin = ComponentName(activity, KioskAdminReceiver::class.java)
     private val policy = KioskPolicy(this)
-    private val sensors = KioskSensorPolicy(AndroidKioskSensorHost(activity))
+    private val sensors = KioskSensorPolicy(sensorHost)
     private var resumed = false
     private var disposed = false
     init { channel.setMethodCallHandler(this) }
@@ -30,7 +35,7 @@ class KioskBridge(private val activity: Activity, messenger: BinaryMessenger) : 
     }
     fun windowChanged() { policy.invalidate(); syncSensors() }
     private fun syncSensors() {
-        sensors.setInteractive(resumed && activity.window.decorView.hasWindowFocus())
+        sensors.setInteractive(resumed && focused())
     }
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (disposed) { result.error("unavailable", "Kiosk unavailable", null); return }

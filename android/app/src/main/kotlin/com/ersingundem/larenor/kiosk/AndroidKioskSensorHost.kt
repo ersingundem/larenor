@@ -100,19 +100,23 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
         }
     }
 
-    override fun start(listener: (KioskSensorSample) -> Unit) {
+    override fun start(intervalMillis: Long, listener: (KioskSensorSample) -> Unit) {
         stop()
         this.listener = listener
+        val samplingPeriodMicros = intervalMillis
+            .coerceIn(MIN_INTERVAL_MILLIS, MAX_INTERVAL_MILLIS)
+            .times(MICROS_PER_MILLI)
+            .toInt()
         lightStarted = light?.let {
-            manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            manager.registerListener(this, it, samplingPeriodMicros)
         } == true
         motionStarted = motion?.let {
-            manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            manager.registerListener(this, it, samplingPeriodMicros)
         } == true
         approachStarted = approach?.let { sensor ->
             val maxRange = sensor.maximumRange.toDouble()
             maxRange.isFinite() && maxRange in 0.1..100.0 &&
-                manager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+                manager.registerListener(this, sensor, samplingPeriodMicros)
         } == true
         if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             cameras.registerAvailabilityCallback(cameraCallback, Handler(Looper.getMainLooper()))
@@ -170,4 +174,10 @@ class AndroidKioskSensorHost(context: Context) : KioskSensorHost, SensorEventLis
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
     override fun nowMillis(): Long = SystemClock.elapsedRealtime()
     override fun token(): String = UUID.randomUUID().toString()
+
+    private companion object {
+        const val MIN_INTERVAL_MILLIS = 1000L
+        const val MAX_INTERVAL_MILLIS = 10000L
+        const val MICROS_PER_MILLI = 1000L
+    }
 }
