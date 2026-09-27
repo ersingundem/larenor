@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `01bee407` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F18, F19, F20, F21, F25, F26, F27, F28, F32, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `db4dd733` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F18, F19, F20, F21, F25, F26, F27, F28, F32, F53, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -36,6 +36,27 @@ compile, l10n üretimi ve odaklı Flutter analyze kapılarından geçti. Özelli
 testleri, bağımsız son inceleme, iki izole gerçek Core E2E ve exact-head CI final
 doğrulama evresinde açık olduğundan F19 **uygulama tamamlandı · test bekliyor**;
 sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+
+### 27 Eylül F53 evdeki tabletleri tek yerden yönetme — uygulama tamamlandı, test bekliyor
+
+F53'ün güncel uygulaması eski `codex/f53-tablet-fleet-client` dalındaki teslimi
+aşıyor. Core; Core/ev/oturum ailesi yetkisine bağlı kayıt, iptal, heartbeat,
+profil revizyonu, süreli ve idempotent komut, sonuç makbuzu, denetim günlüğü ve
+imzalı kademeli dağıtım önizlemesi sunuyor. Yanlış ev, değiştirilmiş kayıt veya
+iptal edilmiş tablet fail-closed reddediliyor; standart uygulama ile Device
+Owner komut yetenekleri hem sözleşmede hem yönetim ekranında ayrı gösteriliyor.
+
+Client; yönetici ekranı, belirsiz komut sonucu uzlaştırması, sürümlü profil
+yayınını okuyan cihaz senkronizasyonu, güvenli credential deposu, foreground ve
+hesap/rota nesil sınırı ile native Android kiosk durum kaynağını ürün runtime'ına
+bağlıyor. `8f4a743d`, `19095110`, `022ba38c` ve `b4272e38` teslimleri güncel
+branch'in atasıdır. Güncel Server kaynakları Python compile, ilgili Server,
+kiosk runtime, ayarlar ve bağlantı ekranları odaklı Flutter analyze kapılarından
+geçti. Kullanıcının kararı gereği özellik testleri final toplu doğrulamaya
+bırakıldı. F53 **uygulama tamamlandı · test bekliyor**; sayaçlar **37/125
+(%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek Client→izole Core E2E,
+yetki/iptal/bozuk-geç cevap ve limit testleri, bağımsız inceleme, exact-head CI
+ile Huawei/OEM/DPC fiziksel kabulü açık kalıyor.
 
 ### 27 Eylül F18 elektrik kesintisinde düzenli kapanış — uygulama tamamlandı, test bekliyor
 

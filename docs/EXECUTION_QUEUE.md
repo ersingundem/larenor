@@ -13,7 +13,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
-| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 0 | 0 |
+| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 6 | 0 | 0 | 0 |
@@ -37,7 +37,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F53 | Evdeki tabletleri tek yerden yönetme | Başlanabilir | — |
+| 1 | K13 | Yönetilen profil dağıtımı ve filo bağı | Başlanabilir | — |
 | 2 | F08 | Yapay zekâ kaynak yöneticisi | Başlanabilir | — |
 | 3 | F04 | Çakışan kurallar hakemi | Başlanabilir | — |
 | 4 | F11 | Sınırlı yetkili mini eklentiler | Başlanabilir | — |
@@ -54,10 +54,10 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 15 | F43 | Evdeyken kamera kayıt profili | Başlanabilir | — |
 | 16 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
 | 17 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 18 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 19 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
-| 20 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 21 | K13 | Yönetilen profil dağıtımı ve filo bağı | Bağımlılık bekliyor | F53 |
+| 18 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
+| 19 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 20 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 21 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
 | 22 | F02 | Otomasyonun deneme haftası | Bağımlılık bekliyor | F04 |
 | 23 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
 | 24 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03, F04 |
@@ -76,12 +76,11 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 37 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
 | 38 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
 | 39 | F49 | Bahçe sulama ve su bütçesi | Bağımlılık bekliyor | F04 |
-| 40 | F58 | E-paper mini ev ekranları | Bağımlılık bekliyor | F53 |
-| 41 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G03, G04, G05, G06, G07, G08, G09, G10, G11 |
-| 42 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 43 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 44 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 45 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 40 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G04, G05, G06, G07, G08, G09, G10, G11 |
+| 41 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 42 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 43 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 44 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -159,6 +158,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Uygulama tamamlandı · test bekliyor | — |
 | F18 | Elektrik kesintisinde düzenli kapanış | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
+| F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
 | F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
