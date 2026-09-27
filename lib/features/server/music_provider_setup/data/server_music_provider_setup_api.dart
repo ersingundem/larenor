@@ -38,12 +38,12 @@ final class ServerMusicProviderSetupApi {
 
   Future<ServerMusicProviderSetup> submit({
     required ServerMusicProviderSetup previous,
-    required String stepId,
     required ServerMusicProviderSetupSubmission submission,
   }) async {
+    final stepId = previous.stepId;
     if (previous.interaction !=
             ServerMusicProviderSetupInteraction.submitForm ||
-        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,79}$').hasMatch(stepId)) {
+        stepId == null) {
       _invalidRequest();
     }
     submission.validateAgainst(previous.fields);

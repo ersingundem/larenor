@@ -94,11 +94,56 @@ class MusicProviderSetup(StrictModel):
     state: Literal['queued', 'action_required', 'ready', 'cancelled', 'needs_attention']
     nextAction: Literal['awaiting_core_discovery', 'continue_in_larenor', 'retry', 'none']
     interaction: Literal['open_external', 'submit_form'] | None
+    stepId: str | None = Field(default=None, min_length=1, max_length=80)
+    externalUrl: str | None = Field(default=None, max_length=4096, repr=False)
     fields: list[ProviderSetupEntry] = Field(max_length=16)
     providerInstanceId: str | None = Field(default=None, max_length=128)
     installAvailable: Literal[False] = False
     createdAt: str
     updatedAt: str
+
+    @field_validator('stepId')
+    @classmethod
+    def safe_public_step_id(cls, value):
+        if (value is not None
+                and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,79}',
+                                 value) is None):
+            raise ValueError('invalid_provider_setup_projection')
+        return value
+
+    @model_validator(mode='after')
+    def coherent_public_projection(self):
+        if (self.state == 'ready') != (self.providerInstanceId is not None):
+            raise ValueError('invalid_provider_setup_projection')
+        active = self.state == 'action_required'
+        if not active:
+            if (self.interaction is not None or self.stepId is not None
+                    or self.externalUrl is not None or self.fields):
+                raise ValueError('invalid_provider_setup_projection')
+        elif self.interaction == 'open_external':
+            if (self.stepId is not None or self.externalUrl is None
+                    or self.fields):
+                raise ValueError('invalid_provider_setup_projection')
+            parsed = urlsplit(self.externalUrl)
+            if (parsed.scheme != 'https' or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None
+                    or parsed.fragment):
+                raise ValueError('invalid_provider_setup_projection')
+        elif self.interaction == 'submit_form':
+            if (self.stepId is None or self.externalUrl is not None
+                    or not self.fields):
+                raise ValueError('invalid_provider_setup_projection')
+        else:
+            raise ValueError('invalid_provider_setup_projection')
+        valid_next_action = {
+            'awaiting_core_discovery': self.state == 'queued',
+            'continue_in_larenor': active,
+            'retry': self.state == 'needs_attention',
+            'none': self.state in {'ready', 'cancelled'},
+        }[self.nextAction]
+        if not valid_next_action:
+            raise ValueError('invalid_provider_setup_projection')
+        return self
 
 
 class MusicProviderSetupResponse(StrictModel):

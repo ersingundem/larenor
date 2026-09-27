@@ -257,6 +257,17 @@ final class ServerMusicProviderSetup {
       interaction = json['interaction'] == null
           ? null
           : _responseEnum(json['interaction'], _setupInteractions),
+      stepId = json['stepId'] == null
+          ? null
+          : _responseText(
+              json['stepId'],
+              min: 1,
+              max: 80,
+              pattern: RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,79}$'),
+            ),
+      externalUrl = json['externalUrl'] == null
+          ? null
+          : _externalUrl(json['externalUrl']),
       fields = _fields(json['fields']),
       providerInstanceId = json['providerInstanceId'] == null
           ? null
@@ -287,6 +298,8 @@ final class ServerMusicProviderSetup {
           'state',
           'nextAction',
           'interaction',
+          'stepId',
+          'externalUrl',
           'fields',
           'providerInstanceId',
           'installAvailable',
@@ -306,19 +319,46 @@ final class ServerMusicProviderSetup {
     return List.unmodifiable(result);
   }
 
+  static Uri _externalUrl(Object? value) {
+    final text = _responseText(value, min: 1, max: 4096);
+    final uri = Uri.tryParse(text);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasFragment) {
+      _invalidResponse();
+    }
+    return uri;
+  }
+
   bool _coherent() {
-    if (interaction == ServerMusicProviderSetupInteraction.openExternal &&
-        fields.isNotEmpty) {
-      return false;
-    }
-    if (interaction == ServerMusicProviderSetupInteraction.submitForm &&
-        fields.isEmpty) {
-      return false;
-    }
-    if (interaction == null && fields.isNotEmpty) return false;
     if ((state == ServerMusicProviderSetupState.ready) !=
         (providerInstanceId != null)) {
       return false;
+    }
+    final actionRequired =
+        state == ServerMusicProviderSetupState.actionRequired;
+    if (!actionRequired &&
+        (interaction != null ||
+            stepId != null ||
+            externalUrl != null ||
+            fields.isNotEmpty)) {
+      return false;
+    }
+    if (actionRequired) {
+      switch (interaction) {
+        case ServerMusicProviderSetupInteraction.openExternal:
+          if (stepId != null || externalUrl == null || fields.isNotEmpty) {
+            return false;
+          }
+        case ServerMusicProviderSetupInteraction.submitForm:
+          if (stepId == null || externalUrl != null || fields.isEmpty) {
+            return false;
+          }
+        case null:
+          return false;
+      }
     }
     return switch (nextAction) {
       ServerMusicProviderSetupNextAction.awaitingCoreDiscovery =>
@@ -341,6 +381,8 @@ final class ServerMusicProviderSetup {
   final ServerMusicProviderSetupState state;
   final ServerMusicProviderSetupNextAction nextAction;
   final ServerMusicProviderSetupInteraction? interaction;
+  final String? stepId;
+  final Uri? externalUrl;
   final List<ServerMusicProviderSetupField> fields;
   final String? providerInstanceId;
   final DateTime createdAt, updatedAt;

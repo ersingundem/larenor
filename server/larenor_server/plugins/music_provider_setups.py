@@ -138,6 +138,13 @@ class MusicProviderSetupManagement:
     def _public(self, row, stored):
         discovery = stored.discovery
         terminal = stored.status in {'ready', 'cancelled'}
+        action_required = stored.status == 'action_required'
+        if action_required:
+            if discovery is None:
+                raise ApiError('music_provider_setup_storage_unavailable', 503)
+            self._validate_discovery(discovery)
+        interaction = (self._interaction(discovery)
+                       if action_required else None)
         result = {
             'id': row['id'], 'requestId': stored.request.requestId,
             'installationId': row['installation_id'],
@@ -148,8 +155,12 @@ class MusicProviderSetupManagement:
                            if stored.status == 'needs_attention'
                            else 'awaiting_core_discovery' if discovery is None
                            else 'continue_in_larenor'),
-            'interaction': None if discovery is None or terminal else self._interaction(discovery),
-            'fields': [] if discovery is None or terminal else [
+            'interaction': interaction,
+            'stepId': (discovery.stepId
+                       if interaction == 'submit_form' else None),
+            'externalUrl': (discovery.externalUrl
+                            if interaction == 'open_external' else None),
+            'fields': [] if not action_required else [
                 entry.model_dump() for entry in discovery.entries],
             'providerInstanceId': stored.providerInstanceId,
             'installAvailable': False,
