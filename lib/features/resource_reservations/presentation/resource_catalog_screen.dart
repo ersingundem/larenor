@@ -98,6 +98,17 @@ final class _ResourceCatalogScreenState extends State<ResourceCatalogScreen> {
                     liveRegion: true,
                     child: Text(_status(l10n, state)),
                   ),
+                  if (state == ResourceCatalogState.offline ||
+                      state == ResourceCatalogState.error ||
+                      state == ResourceCatalogState.uncertain) ...[
+                    const SizedBox(height: 8),
+                    _CatalogAction(
+                      key: const ValueKey('resource-catalog-refresh'),
+                      label: l10n.resourceReservationsReconcile,
+                      onPressed: () => controller.load(_lease),
+                      child: Text(l10n.resourceReservationsReconcile),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   if (wide)
                     Row(

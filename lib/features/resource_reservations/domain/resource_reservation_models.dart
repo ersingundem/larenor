@@ -593,10 +593,15 @@ class ReservationSnapshot {
     required this.calendarRevision,
     required this.resource,
     required this.canCreate,
+    int? totalReservations,
+    this.reservationsTruncated = false,
+    this.historyTruncated = false,
+    this.busyTruncated = false,
     required List<ResourceReservationItem> reservations,
     required List<ReservationHistoryItem> history,
     required List<ReservationBusyWindow> busy,
-  }) : reservations = List.unmodifiable(reservations),
+  }) : totalReservations = totalReservations ?? reservations.length,
+       reservations = List.unmodifiable(reservations),
        history = List.unmodifiable(history),
        busy = List.unmodifiable(busy);
 
@@ -604,6 +609,10 @@ class ReservationSnapshot {
   final int calendarRevision;
   final ReservationResource resource;
   final bool canCreate;
+  final int totalReservations;
+  final bool reservationsTruncated;
+  final bool historyTruncated;
+  final bool busyTruncated;
   final List<ResourceReservationItem> reservations;
   final List<ReservationHistoryItem> history;
   final List<ReservationBusyWindow> busy;
@@ -612,18 +621,44 @@ class ReservationSnapshot {
     Object? raw,
     ResourceReservationAuthority expected,
   ) {
-    final value = _reservationMap(raw, const {
-      'schemaVersion',
-      'authority',
-      'calendarRevision',
-      'resource',
-      'canCreate',
-      'reservations',
-      'history',
-      'busy',
-    });
-    if (value['schemaVersion'] != 1 ||
+    if (raw is! Map) _invalidReservation();
+    final version = raw['schemaVersion'];
+    final value = _reservationMap(
+      raw,
+      version == 1
+          ? const {
+              'schemaVersion',
+              'authority',
+              'calendarRevision',
+              'resource',
+              'canCreate',
+              'reservations',
+              'history',
+              'busy',
+            }
+          : version == 2
+          ? const {
+              'schemaVersion',
+              'authority',
+              'calendarRevision',
+              'resource',
+              'canCreate',
+              'totalReservations',
+              'reservationsTruncated',
+              'historyTruncated',
+              'busyTruncated',
+              'reservations',
+              'history',
+              'busy',
+            }
+          : _invalidReservation(),
+    );
+    if ((version != 1 && version != 2) ||
         value['canCreate'] is! bool ||
+        (version == 2 && value['totalReservations'] is! int) ||
+        (version == 2 && value['reservationsTruncated'] is! bool) ||
+        (version == 2 && value['historyTruncated'] is! bool) ||
+        (version == 2 && value['busyTruncated'] is! bool) ||
         value['reservations'] is! List ||
         value['history'] is! List ||
         value['busy'] is! List) {
@@ -642,6 +677,13 @@ class ReservationSnapshot {
       calendarRevision: _reservationRevision(value['calendarRevision']),
       resource: ReservationResource.fromJson(value['resource']),
       canCreate: value['canCreate']! as bool,
+      totalReservations: version == 2
+          ? value['totalReservations']! as int
+          : (value['reservations']! as List).length,
+      reservationsTruncated:
+          version == 2 && value['reservationsTruncated']! as bool,
+      historyTruncated: version == 2 && value['historyTruncated']! as bool,
+      busyTruncated: version == 2 && value['busyTruncated']! as bool,
       reservations: (value['reservations']! as List)
           .map(ResourceReservationItem.fromJson)
           .toList(),
@@ -666,8 +708,9 @@ class ReservationReceipt {
     required this.action,
     required this.expectedCalendarRevision,
     required this.calendarRevision,
+    int? currentCalendarRevision,
     required this.reservation,
-  });
+  }) : currentCalendarRevision = currentCalendarRevision ?? calendarRevision;
 
   final ResourceReservationAuthority authority;
   final String eventId;
@@ -676,24 +719,44 @@ class ReservationReceipt {
   final ReservationAction action;
   final int expectedCalendarRevision;
   final int calendarRevision;
+  final int currentCalendarRevision;
   final ResourceReservationItem reservation;
 
   factory ReservationReceipt.fromJson(
     Object? raw,
     ResourceReservationAuthority expected,
   ) {
-    final value = _reservationMap(raw, const {
-      'schemaVersion',
-      'authority',
-      'eventId',
-      'actorId',
-      'commandId',
-      'action',
-      'expectedCalendarRevision',
-      'calendarRevision',
-      'reservation',
-    });
-    if (value['schemaVersion'] != 1) _invalidReservation();
+    if (raw is! Map) _invalidReservation();
+    final version = raw['schemaVersion'];
+    final value = _reservationMap(
+      raw,
+      version == 1
+          ? const {
+              'schemaVersion',
+              'authority',
+              'eventId',
+              'actorId',
+              'commandId',
+              'action',
+              'expectedCalendarRevision',
+              'calendarRevision',
+              'reservation',
+            }
+          : version == 2
+          ? const {
+              'schemaVersion',
+              'authority',
+              'eventId',
+              'actorId',
+              'commandId',
+              'action',
+              'expectedCalendarRevision',
+              'calendarRevision',
+              'currentCalendarRevision',
+              'reservation',
+            }
+          : _invalidReservation(),
+    );
     final authority = ResourceReservationAuthority.fromJson(
       value['authority'],
       routeId: expected.routeId,
@@ -716,6 +779,9 @@ class ReservationReceipt {
         value['expectedCalendarRevision'],
       ),
       calendarRevision: _reservationRevision(value['calendarRevision']),
+      currentCalendarRevision: version == 2
+          ? _reservationRevision(value['currentCalendarRevision'])
+          : _reservationRevision(value['calendarRevision']),
       reservation: ResourceReservationItem.fromJson(value['reservation']),
     );
   }

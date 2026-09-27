@@ -262,8 +262,6 @@ class ResourceReservationService:
     def snapshot(self, actor, core_id, home_id, resource_id, body):
         authority = self._expected(actor, core_id, home_id, resource_id, body)
         revision, events, records = self.store._read(actor, authority)
-        if len(records) > 256:
-            raise ApiError("reservation_export_limit_reached", 413)
         resources = self.catalog.list()[1]
         resource = next((item for item in resources if item.id == authority.resource.id), None)
         if (
@@ -274,21 +272,26 @@ class ResourceReservationService:
         ):
             raise ApiError("authority_changed", 409)
         ordered = sorted(records.values(), key=lambda value: (value.created_at, value.id))
-        reservations = [self._reservation(item, actor) for item in ordered]
+        visible = ordered[-256:]
+        reservations = [self._reservation(item, actor) for item in visible]
         busy = [
             {"startUtc": occurrence.start_utc, "endUtc": occurrence.end_utc,
              "units": item.units}
             for item in ordered if item.cancelled_at is None
             for occurrence in item.occurrences
         ]
-        if len(busy) > 256:
-            raise ApiError("availability_limit_reached", 413)
+        busy = sorted(busy, key=lambda value: (value["startUtc"], value["endUtc"]))
+        history = events[-256:]
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "authority": self._authority_json(authority, actor),
             "calendarRevision": revision,
             "resource": self._resource_json(resource),
             "canCreate": resource.active,
+            "totalReservations": len(ordered),
+            "reservationsTruncated": len(ordered) > len(visible),
+            "historyTruncated": len(events) > len(history),
+            "busyTruncated": len(busy) > 256,
             "reservations": reservations,
             "history": [{
                 "eventId": event.event_id,
@@ -296,8 +299,8 @@ class ResourceReservationService:
                 "actorId": event.actor_id,
                 "reservationId": event.reservation_id,
                 "calendarRevision": event.calendar_revision,
-            } for event in events[-256:]],
-            "busy": sorted(busy, key=lambda value: (value["startUtc"], value["endUtc"])),
+            } for event in history],
+            "busy": busy[:256],
         }
 
     def create(self, actor, core_id, home_id, resource_id, body):
@@ -359,7 +362,7 @@ class ResourceReservationService:
 
     def _receipt_json(self, receipt, authority, actor):
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "authority": self._authority_json(authority, actor),
             "eventId": receipt.event_id,
             "actorId": actor.id,
@@ -367,5 +370,8 @@ class ResourceReservationService:
             "action": "create" if receipt.action == "created" else "cancel",
             "expectedCalendarRevision": receipt.calendar_revision - 1,
             "calendarRevision": receipt.calendar_revision,
+            "currentCalendarRevision": max(
+                authority.calendar_revision, receipt.calendar_revision,
+            ),
             "reservation": self._reservation(receipt.reservation, actor),
         }

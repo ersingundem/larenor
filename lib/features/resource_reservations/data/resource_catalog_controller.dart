@@ -15,10 +15,15 @@ enum ResourceCatalogState {
 }
 
 final class ResourceCatalogController extends ChangeNotifier {
-  ResourceCatalogController(this.api, {required this.commandIds});
+  ResourceCatalogController(
+    this.api, {
+    required this.commandIds,
+    this.onAuthorityChanged,
+  });
 
   final ResourceCatalogApi api;
   final String Function() commandIds;
+  final VoidCallback? onAuthorityChanged;
   ResourceCatalogState _state = ResourceCatalogState.detached;
   int _epoch = 0;
   int? _revision;
@@ -54,6 +59,10 @@ final class ResourceCatalogController extends ChangeNotifier {
       _set(ResourceCatalogState.ready);
     } on TimeoutException {
       if (_current(lease)) _set(ResourceCatalogState.offline);
+    } on ReservationApiException catch (error) {
+      if (!_authorityFailure(error, lease) && _current(lease)) {
+        _set(ResourceCatalogState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ResourceCatalogState.error);
     }
@@ -81,6 +90,10 @@ final class ResourceCatalogController extends ChangeNotifier {
       _accept(lease, revision, receipt, created: true);
     } on TimeoutException {
       if (_current(lease)) _set(ResourceCatalogState.uncertain);
+    } on ReservationApiException catch (error) {
+      if (!_recoverMutation(error, lease)) {
+        if (_current(lease)) _set(ResourceCatalogState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ResourceCatalogState.error);
     }
@@ -113,6 +126,10 @@ final class ResourceCatalogController extends ChangeNotifier {
       _accept(lease, revision, receipt, previous: resource);
     } on TimeoutException {
       if (_current(lease)) _set(ResourceCatalogState.uncertain);
+    } on ReservationApiException catch (error) {
+      if (!_recoverMutation(error, lease)) {
+        if (_current(lease)) _set(ResourceCatalogState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ResourceCatalogState.error);
     }
@@ -136,6 +153,10 @@ final class ResourceCatalogController extends ChangeNotifier {
       _accept(lease, revision, receipt, previous: resource, deactivated: true);
     } on TimeoutException {
       if (_current(lease)) _set(ResourceCatalogState.uncertain);
+    } on ReservationApiException catch (error) {
+      if (!_recoverMutation(error, lease)) {
+        if (_current(lease)) _set(ResourceCatalogState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ResourceCatalogState.error);
     }
@@ -146,6 +167,24 @@ final class ResourceCatalogController extends ChangeNotifier {
       _state == ResourceCatalogState.ready &&
       _canManage &&
       revision != null;
+
+  bool _authorityFailure(ReservationApiException error, int lease) {
+    if (error.code != 'authority_changed') return false;
+    if (_current(lease)) {
+      retire();
+      onAuthorityChanged?.call();
+    }
+    return true;
+  }
+
+  bool _recoverMutation(ReservationApiException error, int lease) {
+    if (_authorityFailure(error, lease)) return true;
+    if (error.code == 'revision_conflict' && _current(lease)) {
+      unawaited(load(lease));
+      return true;
+    }
+    return false;
+  }
 
   bool _contains(ReservationResource value) => _resources.any(
     (item) =>

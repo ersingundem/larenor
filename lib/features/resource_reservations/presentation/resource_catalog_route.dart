@@ -137,7 +137,11 @@ final class _ResourceCatalogRouteState
         return;
       }
       _api = api;
-      _controller = ResourceCatalogController(api, commandIds: _randomId);
+      _controller = ResourceCatalogController(
+        api,
+        commandIds: _randomId,
+        onAuthorityChanged: _refreshAuthority,
+      );
     } catch (_) {
       // The route stays read-only and exposes no stale retained state.
     } finally {
@@ -157,6 +161,13 @@ final class _ResourceCatalogRouteState
     if (controller != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
     }
+  }
+
+  void _refreshAuthority() {
+    if (!mounted) return;
+    _retire();
+    setState(() {});
+    _schedule();
   }
 
   String _randomId() {

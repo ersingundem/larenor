@@ -485,6 +485,10 @@ class ReservationStore:
         replay: sqlite3.Row,
         reservation: Reservation,
     ) -> ReservationReceipt:
+        if replay["action"] == "created" and reservation.cancelled_at is not None:
+            reservation = Reservation(
+                **{**reservation.__dict__, "cancelled_at": None}
+            )
         return ReservationReceipt(
             replay["event_id"], replay["command_id"], replay["action"],
             replay["calendar_revision"], reservation,

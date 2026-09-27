@@ -41,12 +41,17 @@ class _PendingReservation {
 }
 
 class ResourceReservationController extends ChangeNotifier {
-  ResourceReservationController(this._api, {required this.commandIds});
+  ResourceReservationController(
+    this._api, {
+    required this.commandIds,
+    this.onAuthorityChanged,
+  });
 
   static const exportLimit = 256;
 
   final ResourceReservationApi _api;
   final String Function() commandIds;
+  final VoidCallback? onAuthorityChanged;
   ResourceReservationAuthority? _authority;
   ReservationViewState _state = ReservationViewState.detached;
   ReservationResource? _resource;
@@ -55,6 +60,10 @@ class ResourceReservationController extends ChangeNotifier {
   List<ReservationBusyWindow> _busy = const [];
   List<ResourceReservationItem> _exported = const [];
   int? _calendarRevision;
+  int _totalReservations = 0;
+  bool _reservationsTruncated = false;
+  bool _historyTruncated = false;
+  bool _busyTruncated = false;
   bool _canCreate = false;
   int _epoch = 0;
   _PendingReservation? _pending;
@@ -68,6 +77,12 @@ class ResourceReservationController extends ChangeNotifier {
   List<ReservationBusyWindow> get busy => List.unmodifiable(_busy);
   List<ResourceReservationItem> get exported => List.unmodifiable(_exported);
   int? get calendarRevision => _calendarRevision;
+  int get totalReservations => _totalReservations;
+  bool get reservationsTruncated => _reservationsTruncated;
+  bool get historyTruncated => _historyTruncated;
+  bool get busyTruncated => _busyTruncated;
+  bool get hasBoundedView =>
+      _reservationsTruncated || _historyTruncated || _busyTruncated;
   bool get canCreate => _canCreate;
 
   ReservationLease bind(ResourceReservationAuthority authority) {
@@ -107,6 +122,10 @@ class ResourceReservationController extends ChangeNotifier {
     _busy = const [];
     _exported = const [];
     _calendarRevision = null;
+    _totalReservations = 0;
+    _reservationsTruncated = false;
+    _historyTruncated = false;
+    _busyTruncated = false;
     _canCreate = false;
     _pending = null;
   }
@@ -114,6 +133,19 @@ class ResourceReservationController extends ChangeNotifier {
   void _set(ReservationViewState state) {
     _state = state;
     notifyListeners();
+  }
+
+  bool _authorityFailure(
+    ReservationApiException error,
+    ReservationLease lease,
+  ) {
+    if (error.code != 'authority_changed') return false;
+    if (_current(lease)) {
+      _clear();
+      _set(ReservationViewState.error);
+      onAuthorityChanged?.call();
+    }
+    return true;
   }
 
   bool _validSnapshot(ReservationSnapshot value, ReservationLease lease) =>
@@ -124,11 +156,16 @@ class ResourceReservationController extends ChangeNotifier {
       value.resource.timezone.isNotEmpty &&
       value.resource.capacity >= 1 &&
       value.resource.capacity <= 64 &&
+      value.totalReservations >= value.reservations.length &&
+      value.reservationsTruncated ==
+          (value.totalReservations > value.reservations.length) &&
       value.reservations.length <= exportLimit &&
       value.reservations.map((item) => item.id).toSet().length ==
           value.reservations.length &&
       value.history.length <= exportLimit &&
+      (!value.historyTruncated || value.history.length == exportLimit) &&
       value.busy.length <= exportLimit &&
+      (!value.busyTruncated || value.busy.length == exportLimit) &&
       value.history.every(
         (item) =>
             item.eventId.isNotEmpty &&
@@ -193,6 +230,10 @@ class ResourceReservationController extends ChangeNotifier {
       }
       _resource = value.resource;
       _calendarRevision = value.calendarRevision;
+      _totalReservations = value.totalReservations;
+      _reservationsTruncated = value.reservationsTruncated;
+      _historyTruncated = value.historyTruncated;
+      _busyTruncated = value.busyTruncated;
       _canCreate = value.canCreate;
       _reservations = value.reservations;
       _history = value.history;
@@ -205,6 +246,10 @@ class ResourceReservationController extends ChangeNotifier {
       );
     } on TimeoutException {
       if (_current(lease)) _set(ReservationViewState.offline);
+    } on ReservationApiException catch (error) {
+      if (!_authorityFailure(error, lease) && _current(lease)) {
+        _set(ReservationViewState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ReservationViewState.error);
     }
@@ -249,6 +294,7 @@ class ResourceReservationController extends ChangeNotifier {
       if (_current(lease)) _set(ReservationViewState.uncertain);
     } on ReservationApiException catch (error) {
       if (!_current(lease)) return;
+      if (_authorityFailure(error, lease)) return;
       _pending = null;
       _set(
         error.code == 'reservation_overlap' || error.code == 'revision_conflict'
@@ -298,6 +344,7 @@ class ResourceReservationController extends ChangeNotifier {
       if (_current(lease)) _set(ReservationViewState.uncertain);
     } on ReservationApiException catch (error) {
       if (!_current(lease)) return;
+      if (_authorityFailure(error, lease)) return;
       _pending = null;
       _set(
         error.code == 'reservation_overlap' || error.code == 'revision_conflict'
@@ -353,12 +400,26 @@ class ResourceReservationController extends ChangeNotifier {
       _set(ReservationViewState.error);
       return;
     }
+    if (receipt.currentCalendarRevision != receipt.calendarRevision) {
+      _pending = null;
+      _clear();
+      _set(ReservationViewState.error);
+      onAuthorityChanged?.call();
+      return;
+    }
     final without = _reservations
         .where((item) => item.id != receipt.reservation.id)
         .toList();
-    _reservations = List.unmodifiable([...without, receipt.reservation]);
+    final updated = [...without, receipt.reservation];
+    _totalReservations += pending.action == ReservationAction.create ? 1 : 0;
+    _reservations = List.unmodifiable(
+      updated.length > exportLimit
+          ? updated.sublist(updated.length - exportLimit)
+          : updated,
+    );
     _calendarRevision = receipt.calendarRevision;
-    _history = List.unmodifiable([
+    _reservationsTruncated = _totalReservations > _reservations.length;
+    final history = [
       ..._history,
       ReservationHistoryItem(
         eventId: receipt.eventId,
@@ -367,10 +428,52 @@ class ResourceReservationController extends ChangeNotifier {
         reservationId: receipt.reservation.id,
         calendarRevision: receipt.calendarRevision,
       ),
-    ]);
+    ];
+    _historyTruncated = _historyTruncated || history.length > exportLimit;
+    _history = List.unmodifiable(
+      history.length > exportLimit
+          ? history.sublist(history.length - exportLimit)
+          : history,
+    );
+    _updateBusy(pending, receipt.reservation);
     _exported = const [];
     _pending = null;
     _set(ReservationViewState.ready);
+    if (hasBoundedView) unawaited(load(lease));
+  }
+
+  void _updateBusy(
+    _PendingReservation pending,
+    ResourceReservationItem reservation,
+  ) {
+    if (_busyTruncated) return;
+    final values = [..._busy];
+    if (pending.action == ReservationAction.create) {
+      values.addAll(
+        reservation.occurrences.map(
+          (item) => ReservationBusyWindow(
+            startUtc: item.startUtc,
+            endUtc: item.endUtc,
+            units: reservation.units,
+          ),
+        ),
+      );
+    } else {
+      for (final occurrence in reservation.occurrences) {
+        final index = values.indexWhere(
+          (item) =>
+              item.startUtc == occurrence.startUtc &&
+              item.endUtc == occurrence.endUtc &&
+              item.units == reservation.units,
+        );
+        if (index >= 0) values.removeAt(index);
+      }
+    }
+    values.sort((left, right) {
+      final start = left.startUtc.compareTo(right.startUtc);
+      return start != 0 ? start : left.endUtc.compareTo(right.endUtc);
+    });
+    _busy = List.unmodifiable(values);
   }
 
   Future<void> reconcile(ReservationLease lease) async {
@@ -386,6 +489,10 @@ class ResourceReservationController extends ChangeNotifier {
       _acceptIfCurrent(lease, pending, receipt);
     } on TimeoutException {
       // Preserve the single uncertain command. A write is never replayed.
+    } on ReservationApiException catch (error) {
+      if (!_authorityFailure(error, lease) && _current(lease)) {
+        _set(ReservationViewState.uncertain);
+      }
     } catch (_) {
       if (_current(lease)) _set(ReservationViewState.uncertain);
     }
@@ -441,6 +548,10 @@ class ResourceReservationController extends ChangeNotifier {
       notifyListeners();
     } on TimeoutException {
       if (_current(lease)) _set(ReservationViewState.offline);
+    } on ReservationApiException catch (error) {
+      if (!_authorityFailure(error, lease) && _current(lease)) {
+        _set(ReservationViewState.error);
+      }
     } catch (_) {
       if (_current(lease)) _set(ReservationViewState.error);
     }

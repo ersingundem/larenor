@@ -255,6 +255,30 @@ class _ResourceReservationScreenState extends State<ResourceReservationScreen> {
     );
   }
 
+  Future<void> _confirmCancel(ResourceReservationItem item) async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(widget.strings.cancel),
+        content: Text('${widget.strings.cancel}: ${item.localStart}'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(CupertinoLocalizations.of(context).cancelButtonLabel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(widget.strings.cancel),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.controller.cancel(_lease, item);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => CupertinoPageScaffold(
     navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
@@ -429,6 +453,12 @@ class _ResourceReservationScreenState extends State<ResourceReservationScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (status != null) Semantics(liveRegion: true, child: Text(status)),
+          if (widget.controller.hasBoundedView)
+            Text(
+              '${strings.availability}: '
+              '${widget.controller.reservations.length}/'
+              '${widget.controller.totalReservations}',
+            ),
           for (final item in widget.controller.busy)
             Text(
               '${item.startUtc} – ${item.endUtc} · ${item.units} ${strings.units}',
@@ -447,17 +477,17 @@ class _ResourceReservationScreenState extends State<ResourceReservationScreen> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             Text(item.fold == 0 ? strings.earlierFold : strings.laterFold),
-            if (item.occurrences.isNotEmpty)
-              Text(
-                '${item.occurrences.first.startUtc} – ${item.occurrences.first.endUtc}',
-              ),
+            for (final occurrence in item.occurrences.take(3))
+              Text('${occurrence.startUtc} – ${occurrence.endUtc}'),
+            if (item.occurrences.length > 3)
+              Text('+${item.occurrences.length - 3}'),
             if (item.cancelled)
               Text(strings.cancelled)
             else if (item.canCancel)
               _AccessibleButton(
                 key: ValueKey('reservation-cancel-${item.id}'),
                 label: strings.cancel,
-                onPressed: () => widget.controller.cancel(_lease, item),
+                onPressed: () => _confirmCancel(item),
               ),
           ],
           for (final event in widget.controller.history)
@@ -471,6 +501,14 @@ class _ResourceReservationScreenState extends State<ResourceReservationScreen> {
               label: strings.reconcile,
               filled: true,
               onPressed: () => widget.controller.reconcile(_lease),
+            ),
+          ],
+          if (state == ReservationViewState.offline ||
+              state == ReservationViewState.error) ...[
+            const SizedBox(height: 12),
+            _AccessibleButton(
+              label: strings.reconcile,
+              onPressed: () => widget.controller.load(_lease),
             ),
           ],
           const SizedBox(height: 12),
