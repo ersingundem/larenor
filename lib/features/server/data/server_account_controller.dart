@@ -737,13 +737,50 @@ class ServerAccountController extends ChangeNotifier {
       final identity = await _api!.context(candidate.accessToken);
       _check(generation);
       bound = candidate.withContext(identity);
-      await _persist(bound, generation);
+      await _persistBoundSession(bound, generation);
       _check(generation);
     }
     _session = bound;
     _pendingSession = null;
     _candidateSaved = false;
     _failure = null;
+  }
+
+  Future<void> _persistBoundSession(ServerSession bound, int generation) async {
+    final activeId = _activeProfileId;
+    final identity = bound.context;
+    final replacement = identity == null
+        ? const <ServerHomeProfile>[]
+        : _profiles
+              .where(
+                (profile) =>
+                    profile.profileId != activeId &&
+                    profile.session.context?.coreId == identity.coreId &&
+                    profile.session.context?.homeId == identity.homeId &&
+                    profile.session.user.id == bound.user.id,
+              )
+              .toList(growable: false);
+    if (replacement.isEmpty) {
+      await _persist(bound, generation);
+      return;
+    }
+    if (activeId == null || replacement.length != 1) {
+      throw const LarenorServerException('identity_conflict');
+    }
+    final existing = replacement.single;
+    await _persistRegistry(
+      ServerHomeRegistry(
+        activeProfileId: existing.profileId,
+        profiles: [
+          for (final profile in _profiles)
+            if (profile.profileId == existing.profileId)
+              profile.withSession(bound)
+            else if (profile.profileId != activeId)
+              profile,
+        ],
+      ),
+      generation,
+    );
   }
 
   Future<void> _contextFailure(Object error, int generation) async {
