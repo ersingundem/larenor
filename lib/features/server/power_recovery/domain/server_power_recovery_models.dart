@@ -14,6 +14,13 @@ String _identity(Object? value) {
   return value;
 }
 
+int _revision(Object? value, {bool allowZero = false}) {
+  if (value is! int || value < (allowZero ? 0 : 1)) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return value;
+}
+
 void _keys(Map<String, dynamic> json, Set<String> expected) {
   if (json.length != expected.length || !json.keys.every(expected.contains)) {
     throw const LarenorServerException('invalid_response');
@@ -186,6 +193,7 @@ final class PowerRecoveryStep {
     final sequence = json['sequence'];
     final action = json['action'];
     final target = json['targetId'];
+    final targetKind = json['targetKind'];
     final result = json['resultCode'];
     final state = switch (json['state']) {
       'queued' => PowerStepState.queued,
@@ -195,6 +203,7 @@ final class PowerRecoveryStep {
       'skipped' => PowerStepState.skipped,
       _ => throw const LarenorServerException('invalid_response'),
     };
+    final targeted = action == 'shutdownTarget' || action == 'startTarget';
     if (sequence is! int ||
         sequence < 1 ||
         action is! String ||
@@ -206,10 +215,28 @@ final class PowerRecoveryStep {
           'startTarget',
           'releaseNewWork',
         }.contains(action) ||
+        targeted != (target != null && targetKind != null) ||
         target != null && target is! String ||
-        result is! String) {
+        targetKind != null &&
+            !const {
+              'service',
+              'proxmoxGuest',
+              'networkDevice',
+              'coreHost',
+            }.contains(targetKind) ||
+        result is! String ||
+        !const {
+          'pending',
+          'completed',
+          'no_active_work',
+          'active_work_timeout',
+          'checkpoint_failed',
+          'effect_failed',
+          'restore_disabled',
+        }.contains(result)) {
       throw const LarenorServerException('invalid_response');
     }
+    _time(json['createdAt']);
     return PowerRecoveryStep(
       stepId: _identity(json['stepId']),
       sequence: sequence,
@@ -274,12 +301,22 @@ final class PowerRecoveryRun {
     };
     final rawSteps = json['steps'];
     final failure = json['failureCode'];
+    final restoreEligible = json['restoreEligibleAt'];
     if (!const {'open', 'held'}.contains(json['gateState']) ||
         rawSteps is! List ||
         rawSteps.length > 134 ||
-        failure != null && failure is! String) {
+        failure != null &&
+            !const {
+              'active_work_timeout',
+              'checkpoint_failed',
+              'effect_failed',
+            }.contains(failure)) {
       throw const LarenorServerException('invalid_response');
     }
+    _revision(json['policyRevision']);
+    _identity(json['triggerEventId']);
+    _time(json['createdAt']);
+    if (restoreEligible != null) _time(restoreEligible);
     return PowerRecoveryRun(
       runId: _identity(json['runId']),
       state: state,
@@ -321,6 +358,7 @@ final class PowerRecoveryStatus {
     });
     final source = json['sourceState'];
     final rawRuns = json['recentRuns'];
+    final lastSequence = json['lastSequence'];
     if (!const {
           'unconfigured',
           'online',
@@ -328,6 +366,8 @@ final class PowerRecoveryStatus {
           'lowBattery',
         }.contains(source) ||
         !const {'open', 'held'}.contains(json['gateState']) ||
+        lastSequence is! int ||
+        lastSequence < 0 ||
         rawRuns is! List ||
         rawRuns.length > 20) {
       throw const LarenorServerException('invalid_response');

@@ -483,7 +483,7 @@ class PowerRecoveryService:
                 self._token(self._policy_row(connection))
             active = state["active_run_id"]
             if active is not None and connection.execute(
-                "SELECT 1 FROM power_recovery_runs WHERE run_id=? AND state NOT IN ('completed','failed')",
+                "SELECT 1 FROM power_recovery_runs WHERE run_id=? AND state != 'completed'",
                 (active,),
             ).fetchone() is None:
                 raise StartupError("power_recovery_storage_invalid")
