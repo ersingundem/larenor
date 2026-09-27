@@ -3380,7 +3380,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3404,7 +3404,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "UPS kaynağı, kritik eşikler ve sıralı kapanış/enerji dönüşü politikası tek çalışma dalında uygulanıyor; ağır işleri durdurma, veritabanı checkpoint, bağımlılık sıralı host eylemleri ve idempotent olay makbuzları bağlanacak."
     },
     {
       "id": "G03",

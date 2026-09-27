@@ -17,6 +17,16 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 27 Eylül F18 elektrik kesintisinde düzenli kapanış — uygulama başladı
+
+F18 için aktif dilim; UPS kaynağını, kritik eşikleri ve sıralı kapanış/
+enerji dönüşü politikasını sürümlü ve kalıcı bir Core sözleşmesine
+bağlayacak. Ağır işleri durdurma, veritabanını checkpoint etme, sunucuları
+bağımlılık sırasında kapatma ve enerji kararlı döndüğünde ters sırada
+açma adımları kalıcı makbuzlarla izlenecek. Sahte, eski ve yinelenen olaylar
+aynı state machine tarafından reddedilecek. F18 kabul edilmedi; sayaçlar
+**37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+
 ### 27 Eylül F17 silinemez kurtarma hedefi — uygulama tamamlandı, test bekliyor
 
 F17 tek çalışma dalında tamamlandı. `63907e92` sürümlü hedef politikasını,
