@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
-import '../../providers/settings_providers.dart';
-import 'settings_nav_row.dart';
 import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../core_audit/data/core_audit_controller.dart';
+import '../../../core_audit/data/core_audit_providers.dart';
+import '../../providers/settings_providers.dart';
+import '../settings_file_dialog.dart';
+import 'settings_nav_row.dart';
 
 class SecurityPane extends ConsumerWidget {
   const SecurityPane({super.key});
@@ -16,6 +21,7 @@ class SecurityPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final pin = ref.watch(pinLockProvider).value;
+    final coreAudit = ref.watch(coreAuditControllerProvider);
     final interaction = AppInteractionScope.maybeRead(context);
     final epoch = interaction?.epoch;
     bool current() =>
@@ -69,8 +75,163 @@ class SecurityPane extends ConsumerWidget {
               ),
           ],
         ),
+        ListenableBuilder(
+          listenable: coreAudit,
+          builder: (context, _) => SettingsSection(
+            header: Semantics(
+              key: const ValueKey('core-audit-settings-header'),
+              header: true,
+              child: Text(l10n.coreAuditTitle),
+            ),
+            footer: _CoreAuditStatus(
+              controller: coreAudit,
+              hasSettingsPin: pin != null,
+            ),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('core-audit-compare-action'),
+                leading: const IconBadge(
+                  icon: CupertinoIcons.shield_lefthalf_fill,
+                  color: CupertinoColors.systemBlue,
+                ),
+                title: Text(l10n.coreAuditCompare),
+                additionalInfo: Text(_coreAuditSummary(l10n, coreAudit)),
+                onTap: current() && coreAudit.canRefresh
+                    ? () {
+                        if (current()) unawaited(coreAudit.refresh());
+                      }
+                    : null,
+              ),
+              if (coreAudit.canPin)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('core-audit-pin-action'),
+                  leading: const IconBadge(
+                    icon: CupertinoIcons.pin_fill,
+                    color: CupertinoColors.systemGreen,
+                  ),
+                  title: Text(l10n.coreAuditPinAction),
+                  onTap: current() && pin != null
+                      ? () => unawaited(
+                          _authorizeCheckpointAction(
+                            context,
+                            ref,
+                            coreAudit,
+                            rotate: false,
+                          ),
+                        )
+                      : null,
+                ),
+              if (coreAudit.canRotate)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('core-audit-rotate-action'),
+                  leading: const IconBadge(
+                    icon: CupertinoIcons.arrow_2_circlepath,
+                    color: CupertinoColors.systemOrange,
+                  ),
+                  title: Text(l10n.coreAuditRotateAction),
+                  onTap: current() && pin != null
+                      ? () => unawaited(
+                          _authorizeCheckpointAction(
+                            context,
+                            ref,
+                            coreAudit,
+                            rotate: true,
+                          ),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  static String _coreAuditSummary(
+    AppLocalizations l10n,
+    CoreAuditController controller,
+  ) {
+    if (!controller.available) return l10n.coreAuditUnavailable;
+    if (controller.busy || !controller.loaded) return l10n.coreAuditChecking;
+    if (controller.checkpointAlarm == 'rollback') {
+      return l10n.coreAuditRollbackAlarm;
+    }
+    if (controller.checkpointAlarm != null) {
+      return l10n.coreAuditMismatchAlarm;
+    }
+    if (controller.checkpointFailure != null) {
+      return l10n.coreAuditStorageFailed;
+    }
+    if (controller.failure != null || controller.verification == null) {
+      return l10n.coreAuditRequestFailed;
+    }
+    if (controller.trustedCheckpoint == null) {
+      return '${l10n.coreAuditVerified} ${l10n.coreAuditUnpinned}';
+    }
+    return controller.trustedCompared
+        ? '${l10n.coreAuditVerified} ${l10n.coreAuditMatched}'
+        : l10n.coreAuditPinned;
+  }
+
+  Future<void> _authorizeCheckpointAction(
+    BuildContext context,
+    WidgetRef ref,
+    CoreAuditController controller, {
+    required bool rotate,
+  }) async {
+    if (!context.mounted) return;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool current() =>
+        context.mounted &&
+        interaction?.active != false &&
+        interaction?.epoch == epoch &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+    if (!current() || (rotate ? !controller.canRotate : !controller.canPin)) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(
+          rotate
+              ? l10n.coreHaCheckpointRotateTitle
+              : l10n.coreHaCheckpointPinTitle,
+        ),
+        content: Text(
+          rotate
+              ? l10n.coreHaCheckpointRotateConfirmation
+              : l10n.coreHaCheckpointPinConfirmation,
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              rotate ? l10n.coreAuditRotateAction : l10n.coreAuditPinAction,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || !current() || confirmed != true) return;
+    final authorized = await reauthenticateSettingsFileDialog(
+      context,
+      ref.read(pinLockStoreProvider),
+    );
+    if (!current() || !authorized) return;
+    if (rotate) {
+      await controller.rotateTrusted();
+    } else {
+      await controller.pinCurrent();
+    }
   }
 
   Future<void> _clearPin(BuildContext context, WidgetRef ref) async {
@@ -107,6 +268,37 @@ class SecurityPane extends ConsumerWidget {
       context: context,
       useRootNavigator: false,
       builder: (_) => const _PinDialog(),
+    );
+  }
+}
+
+class _CoreAuditStatus extends StatelessWidget {
+  const _CoreAuditStatus({
+    required this.controller,
+    required this.hasSettingsPin,
+  });
+
+  final CoreAuditController controller;
+  final bool hasSettingsPin;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final alarm =
+        controller.checkpointAlarm != null ||
+        controller.checkpointFailure != null;
+    return Semantics(
+      key: const ValueKey('core-audit-status'),
+      liveRegion: true,
+      child: Text(
+        hasSettingsPin || !controller.available
+            ? SecurityPane._coreAuditSummary(l10n, controller)
+            : '${SecurityPane._coreAuditSummary(l10n, controller)} '
+                  '${l10n.coreAuditPinRequired}',
+        style: alarm
+            ? TextStyle(color: CupertinoColors.systemRed.resolveFrom(context))
+            : null,
+      ),
     );
   }
 }
