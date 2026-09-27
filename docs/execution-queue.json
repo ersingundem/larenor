@@ -3510,7 +3510,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "DeX'te iki ekrana farklı görev",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3533,7 +3533,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut bounded dual-display authority ve Android Presentation köprüsü gerçek ikincil Flutter görev yüzeyi, oynatıcı/odak sahipliği ve hot-plug kapanışıyla tamamlanıyor; test/review/CI final doğrulama kapısına bırakıldı."
+      "reason": "Aynı Android uygulamasında bounded native topoloji ve görev yöneticisi; ayrı, eklentisiz ve oturumdan yalıtılmış dış Flutter renderer; genel dashboard/şimdi çalıyor rolleri; ana ekranda odak/oynatıcı sahipliği ve event-driven hot-plug/yön/resize emekliliği tamamlandı. Testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı; bağımsız inceleme, exact-head CI ve fiziksel DeX/OEM kabulü henüz tamamlanmadı."
     },
     {
       "id": "G04",
