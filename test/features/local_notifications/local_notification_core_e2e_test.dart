@@ -128,6 +128,36 @@ final class _Platform implements LocalNotificationPlatform {
   }
 
   @override
+  Future<LocalNotificationDeliveryRegistration> prepareBackgroundDelivery({
+    required ServerSession session,
+    required LocalNotificationSubscription subscription,
+    required DateTime expiresAt,
+    required bool Function() current,
+  }) async =>
+      throw StateError('background delivery is not used by this fixture');
+
+  @override
+  Future<void> activateBackgroundDelivery({
+    required LocalNotificationDeliveryLease lease,
+    required bool Function() current,
+  }) async =>
+      throw StateError('background delivery is not used by this fixture');
+
+  @override
+  Future<void> disableBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
+    required bool Function() current,
+  }) async =>
+      throw StateError('background delivery is not used by this fixture');
+
+  @override
+  Future<void> cancelPreparedBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
+    required bool Function() current,
+  }) async =>
+      throw StateError('background delivery is not used by this fixture');
+
+  @override
   Future<void> openNotificationSettings({
     required bool Function() current,
   }) async {

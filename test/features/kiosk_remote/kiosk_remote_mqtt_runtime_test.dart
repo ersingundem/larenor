@@ -29,10 +29,15 @@ ManagedTabletPairingCredential pairing({
 
 const telemetry = ManagedTabletTelemetry(
   batteryPercent: 73,
+  charging: false,
   network: 'wifi',
   appVersion: '1.0.0+1',
+  appBuild: 1,
   appForeground: true,
   kioskState: 'foreground',
+  memoryUsedMb: 128,
+  memoryLimitMb: 512,
+  processUptimeSeconds: 60,
 );
 
 final class _Broker implements LocalMqttBroker {
@@ -235,7 +240,7 @@ void main() {
       expect(broker.subscriptions, isEmpty);
       final before = broker.publications.length;
       await subject.refreshTelemetry();
-      expect(broker.publications.length, before + 5);
+      expect(broker.publications.length, before + 10);
       await subject.retire();
       expect(subject.status, ManagedTabletMqttStatus.retired);
       expect(broker.disconnectCalls, 1);
@@ -393,10 +398,15 @@ void main() {
             .toSet(),
         {
           '$_prefix/sensor/battery/state',
+          '$_prefix/sensor/charging/state',
           '$_prefix/sensor/network/state',
           '$_prefix/sensor/app_version/state',
+          '$_prefix/sensor/app_build/state',
           '$_prefix/sensor/app_foreground/state',
           '$_prefix/sensor/kiosk_state/state',
+          '$_prefix/sensor/memory_used_mb/state',
+          '$_prefix/sensor/memory_limit_mb/state',
+          '$_prefix/sensor/process_uptime_seconds/state',
         },
       );
       expect(
@@ -579,7 +589,7 @@ void main() {
       expect(subject.status, ManagedTabletMqttStatus.connected);
       expect(broker.disconnectCalls, 1);
       expect(broker.subscriptions, ['$_prefix/command']);
-      expect(broker.publications, hasLength(6));
+      expect(broker.publications, hasLength(11));
     },
   );
 

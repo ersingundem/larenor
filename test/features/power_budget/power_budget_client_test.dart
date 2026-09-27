@@ -49,6 +49,7 @@ const sample = PowerBudgetSnapshot(
       reductionW: 3000,
       targetW: 0,
       priority: 10,
+      communicationLossBehavior: 'stop_charging',
     ),
   ],
 );
@@ -58,6 +59,15 @@ final class _Api implements PowerBudgetApi {
   var retired = false;
   @override
   Future<PowerBudgetSnapshot> load() => gate?.future ?? Future.value(sample);
+  @override
+  Future<PowerBudgetReceipt> confirm(PowerBudgetSnapshot snapshot) async =>
+      PowerBudgetReceipt(
+        commandId: 'command',
+        previewId: snapshot.planId,
+        planHash: snapshot.planHash,
+        status: 'verified',
+        applyCount: 1,
+      );
   @override
   void retire() => retired = true;
 }

@@ -77,6 +77,7 @@ Future<_Gateway> _pump(
         strings: strings,
         filter: filter(),
         cameraNames: {'d' * 32: strings.cameraName},
+        onShare: null,
       ),
     ),
   );

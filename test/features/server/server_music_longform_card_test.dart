@@ -62,6 +62,7 @@ Future<void> _mount(
               failure: failure,
               busy: false,
               onRetry: retry,
+              onOpen: null,
             ),
           ),
         ),

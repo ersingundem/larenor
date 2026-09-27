@@ -137,6 +137,22 @@ final class _Api implements LegacyRemoteManagementApi {
     return _result(lastPreview!);
   }
 
+  @override
+  Future<LegacyRemoteLearningResult> learn(
+    LegacyRemoteAuthority authority, {
+    required LegacyRemoteDevice device,
+    required LegacyRemoteCommandKey key,
+  }) async => LegacyRemoteLearningResult(
+    requestId: 'fedcba9876543210fedcba9876543210',
+    device: device,
+    key: key,
+    status: LegacyRemoteLearningStatus.uncertain,
+    learningVerified: false,
+    bindingId: null,
+    profileRevision: null,
+    codeSetRevision: null,
+  );
+
   LegacyRemoteCommandPreview? lastPreview;
 }
 

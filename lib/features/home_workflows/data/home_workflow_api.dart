@@ -37,14 +37,11 @@ final class HomeWorkflowAccountApi implements HomeWorkflowApi {
     required this.account,
     required this.context,
     required this.isCurrent,
-    required int generation,
-    required ServerEndpoint endpoint,
-    required String accountId,
-    required LarenorServerApi api,
-  }) : _generation = generation,
-       _endpoint = endpoint,
-       _accountId = accountId,
-       _api = api;
+    required this._generation,
+    required this._endpoint,
+    required this._accountId,
+    required this._api,
+  });
 
   static Future<HomeWorkflowAccountApi> connect({
     required ServerAccountController account,

@@ -60,6 +60,14 @@ Map<String, Object?> snapshotJson({
       'color': 'yellow',
     },
   ],
+  'permissions': [
+    {
+      'schemaVersion': 1,
+      'elementId': cardId,
+      'ownerId': account,
+      'canEdit': true,
+    },
+  ],
 };
 
 FamilyBoardSnapshot snap({int revision = 1, String text = 'Film gecesi'}) =>
@@ -89,6 +97,24 @@ final class FakeBoardGateway implements FamilyBoardGateway {
     required int afterSequence,
   }) async {
     deltas++;
+    final events = List.generate(current.boardRevision - afterSequence, (i) {
+      final sequence = afterSequence + i + 1;
+      return {
+        'schemaVersion': 1,
+        'sequence': sequence,
+        'action': 'update',
+        'actorId': account,
+        'elementId': cardId,
+        'boardRevision': sequence,
+        'createdAt': 17.0 + sequence,
+        'previousHash': sequence == 1
+            ? '0' * 64
+            : sequence == 2
+            ? 'a' * 64
+            : 'b' * 64,
+        'eventHash': sequence == 1 ? 'a' * 64 : 'b' * 64,
+      };
+    });
     return FamilyBoardDelta.fromJson(
       {
         'schemaVersion': 1,
@@ -99,21 +125,7 @@ final class FakeBoardGateway implements FamilyBoardGateway {
         'afterSequence': afterSequence,
         'nextAfter': current.boardRevision,
         'auditHead': deltaHeadOverride ?? current.auditHead,
-        'events': current.boardRevision == afterSequence
-            ? <Object?>[]
-            : [
-                {
-                  'schemaVersion': 1,
-                  'sequence': afterSequence + 1,
-                  'action': 'update',
-                  'actorId': account,
-                  'elementId': cardId,
-                  'boardRevision': afterSequence + 1,
-                  'createdAt': 17.0,
-                  'previousHash': 'a' * 64,
-                  'eventHash': 'b' * 64,
-                },
-              ],
+        'events': events,
       },
       binding(),
       expectedAfter: afterSequence,
@@ -167,7 +179,8 @@ void main() {
     final raw = snapshotJson()
       ..['boardRevision'] = 0
       ..['auditHead'] = '0' * 64
-      ..['elements'] = <Object?>[];
+      ..['elements'] = <Object?>[]
+      ..['permissions'] = <Object?>[];
     final gateway = FakeBoardGateway()
       ..current = FamilyBoardSnapshot.fromJson(raw, binding());
     final controller = FamilyBoardController(
@@ -317,7 +330,7 @@ void main() {
       gateway.failure = null;
       gateway.current = snap(revision: 2, text: 'Uzaktan güncel');
       await controller.refreshDelta();
-      expect((gateway.deltas, gateway.reads), (1, 2));
+      expect((gateway.deltas, gateway.reads), (2, 2));
       expect(controller.snapshot!.cards.single.text, 'Uzaktan güncel');
       expect(controller.offline, isFalse);
     },

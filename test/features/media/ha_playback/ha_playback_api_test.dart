@@ -54,6 +54,7 @@ void main() {
     final play = api.play(
       entityId: 'media_player.living',
       source: page.children.single,
+      transport: HaPlaybackTransport.audio,
       isCurrent: () => true,
     );
     await drain();
@@ -173,7 +174,12 @@ void main() {
       'light.one',
     ]) {
       await expectLater(
-        api.play(entityId: target, source: source, isCurrent: () => true),
+        api.play(
+          entityId: target,
+          source: source,
+          transport: HaPlaybackTransport.audio,
+          isCurrent: () => true,
+        ),
         throwsA(isA<HaPlaybackException>()),
       );
     }

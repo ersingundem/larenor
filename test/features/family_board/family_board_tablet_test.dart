@@ -24,6 +24,11 @@ const en = FamilyBoardStrings(
   drawingHint: 'Draw with touch or add a mark with keyboard',
   loading: 'Loading family board',
   unavailable: 'Board unavailable',
+  history: 'History',
+  historyEmpty: 'No history yet',
+  added: 'Added',
+  updated: 'Updated',
+  removed: 'Removed',
 );
 const tr = FamilyBoardStrings(
   title: 'Aile panosu',
@@ -42,6 +47,11 @@ const tr = FamilyBoardStrings(
   drawingHint: 'Dokunarak çiz veya klavyeyle işaret ekle',
   loading: 'Aile panosu yükleniyor',
   unavailable: 'Pano kullanılamıyor',
+  history: 'Geçmiş',
+  historyEmpty: 'Henüz geçmiş yok',
+  added: 'Eklendi',
+  updated: 'Güncellendi',
+  removed: 'Kaldırıldı',
 );
 
 void main() {

@@ -86,6 +86,7 @@ class _Inventory extends HaPlaybackApi {
   Future<void> play({
     required String entityId,
     required HaMediaNode source,
+    required HaPlaybackTransport transport,
     required bool Function() isCurrent,
   }) async => throw StateError('wrong playback path');
 }

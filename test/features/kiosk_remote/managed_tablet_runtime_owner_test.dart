@@ -86,10 +86,15 @@ final class _Lease implements NativeManagedTabletSourceLease {
   Future<ManagedTabletTelemetry> readTelemetry() async =>
       const ManagedTabletTelemetry(
         batteryPercent: 75,
+        charging: false,
         network: 'wifi',
         appVersion: '1.0.0',
+        appBuild: 1,
         appForeground: true,
         kioskState: 'foreground',
+        memoryUsedMb: 128,
+        memoryLimitMb: 512,
+        processUptimeSeconds: 60,
       );
 }
 
