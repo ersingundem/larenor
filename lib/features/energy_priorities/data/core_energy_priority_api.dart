@@ -294,6 +294,7 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
           powerW: _integer(slot['powerW'], zero: true),
           projectedSocWh: _integer(slot['projectedSocWh'], zero: true),
           reason: reason,
+          startsAt: _instant(slot['startsAtMs']),
         );
       })
       .toList(growable: false);
@@ -388,6 +389,12 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
     consumptionEnergyWh: load.fold(0, (sum, value) => sum + value),
     importPriceMicrosPerKwh: prices.reduce(max),
     slots: slots,
+    meterCapturedAt: _instant(meter['capturedAtMs']),
+    batteryCapturedAt: _instant(battery['capturedAtMs']),
+    forecastGeneratedAt: _instant(forecast['generatedAtMs']),
+    slotDuration: Duration(
+      seconds: _durationSeconds(forecast['slotDurationSeconds']),
+    ),
   );
 }
 
@@ -540,6 +547,16 @@ int _signed(Object? value) =>
     : throw _invalid;
 int _percent(Object? value) =>
     value is int && value >= 0 && value <= 100 ? value : throw _invalid;
+DateTime _instant(Object? value) => DateTime.fromMillisecondsSinceEpoch(
+  _integer(value, zero: true),
+  isUtc: true,
+);
+int _durationSeconds(Object? value) {
+  final seconds = _integer(value);
+  if (seconds < 300 || seconds > 3600) throw _invalid;
+  return seconds;
+}
+
 List<int> _integers(Object? raw, {bool signed = false}) {
   if (raw is! List || raw.isEmpty || raw.length > 96) throw _invalid;
   return raw

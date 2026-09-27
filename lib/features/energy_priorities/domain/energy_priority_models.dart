@@ -10,10 +10,12 @@ final class EnergyPlanSlot {
     required this.powerW,
     required this.projectedSocWh,
     required this.reason,
+    this.startsAt,
   });
   final int index, powerW, projectedSocWh;
   final EnergyPlanAction action;
   final String reason;
+  final DateTime? startsAt;
 }
 
 @immutable
@@ -38,6 +40,10 @@ final class EnergyPrioritySnapshot {
     required this.consumptionEnergyWh,
     required this.importPriceMicrosPerKwh,
     required this.slots,
+    this.meterCapturedAt,
+    this.batteryCapturedAt,
+    this.forecastGeneratedAt,
+    this.slotDuration = const Duration(minutes: 15),
   });
   final String coreId, homeId, accountId, sessionFamilyId;
   final int homeRevision, accountRevision;
@@ -49,6 +55,28 @@ final class EnergyPrioritySnapshot {
   final int reservePercent, stateOfChargePercent;
   final int solarEnergyWh, consumptionEnergyWh, importPriceMicrosPerKwh;
   final List<EnergyPlanSlot> slots;
+  final DateTime? meterCapturedAt, batteryCapturedAt, forecastGeneratedAt;
+  final Duration slotDuration;
+
+  EnergyPlanSlot? actionableAt(DateTime now) {
+    final instant = now.toUtc();
+    if (!slots.any((slot) => slot.startsAt != null)) {
+      for (final slot in slots) {
+        if (slot.action != EnergyPlanAction.hold) return slot;
+      }
+      return null;
+    }
+    for (final slot in slots) {
+      final start = slot.startsAt;
+      if (slot.action != EnergyPlanAction.hold &&
+          start != null &&
+          !instant.isBefore(start) &&
+          instant.isBefore(start.add(slotDuration))) {
+        return slot;
+      }
+    }
+    return null;
+  }
 
   bool exactFor(EnergyPrioritySnapshot other) =>
       coreId == other.coreId &&

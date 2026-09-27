@@ -96,6 +96,11 @@ class EnergyPriorityService:
         except Exception:  # noqa: BLE001 -- provider failures are redacted
             raise ApiError("energy_provider_unavailable", 503) from None
         now = int(self.settings.clock() * 1000)
+        forecast_slot_ms = inputs.forecast.slotDurationSeconds * 1_000
+        forecast_end_ms = (
+            inputs.forecast.startsAtMs
+            + len(inputs.forecast.solarEnergyWh) * forecast_slot_ms
+        )
         if (
             (inputs.coreId, inputs.homeId, inputs.homeRevision)
             != (authority.coreId, authority.homeId, authority.homeRevision)
@@ -105,6 +110,8 @@ class EnergyPriorityService:
             or now - inputs.battery.capturedAtMs > 5 * 60 * 1000
             or inputs.forecast.generatedAtMs > now
             or now - inputs.forecast.generatedAtMs > 24 * 60 * 60 * 1000
+            or inputs.forecast.startsAtMs > now + forecast_slot_ms
+            or forecast_end_ms <= now
         ):
             raise ApiError("revision_conflict", 409)
         return inputs
@@ -150,6 +157,8 @@ class EnergyPriorityService:
         if body.slotIndex >= len(snapshot.plan.slots):
             raise ApiError("invalid_request")
         slot = snapshot.plan.slots[body.slotIndex]
+        now = int(self.settings.clock() * 1000)
+        slot_duration_ms = snapshot.inputs.forecast.slotDurationSeconds * 1_000
         if (
             capability is None
             or not capability.writable
@@ -158,6 +167,7 @@ class EnergyPriorityService:
             or (slot.action == "charge" and not capability.canCharge)
             or (slot.action == "discharge" and not capability.canDischarge)
             or slot.action == "hold"
+            or not slot.startsAtMs <= now < slot.startsAtMs + slot_duration_ms
         ):
             raise ApiError("forbidden", 403)
         target = slot.powerW if slot.action == "charge" else -slot.powerW
