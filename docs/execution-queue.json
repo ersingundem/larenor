@@ -3736,7 +3736,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Evin alışılmış düzeninden sapmalar",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3760,7 +3760,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal tesliminde evin alışılmış düzeninden sapmaları ölçülebilir, açıklanabilir ve kullanıcı tarafından yönetilebilir hale getiren Core ve Client akışı uygulanıyor."
     },
     {
       "id": "F10",
