@@ -28,6 +28,7 @@ import '../habit_anomalies/presentation/server_habit_anomaly_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
 import '../media_recovery/presentation/server_media_recovery_screen.dart';
+import '../mini_plugins/presentation/server_mini_plugin_screen.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
 import '../power_recovery/presentation/server_power_recovery_screen.dart';
 import '../providers/server_providers.dart';
@@ -595,6 +596,36 @@ class _ServerConnectionScreenState
                         if (!session.user.mustChangePassword)
                           SettingsSection(
                             children: [
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-mini-plugins',
+                                  ),
+                                  leading: const Icon(CupertinoIcons.cube_box),
+                                  title: Text(l10n.serverMiniPluginTitle),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  ServerMiniPluginScreen(
+                                                    gateCurrent:
+                                                        widget
+                                                            .adminGateCurrent ??
+                                                        () => true,
+                                                  ),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
                               if (session.user.canAdminister)
                                 SettingsActionTile(
                                   buttonKey: const ValueKey(
