@@ -372,12 +372,39 @@ final class BoardStroke extends BoardElement {
   };
 }
 
+final class BoardElementPermission {
+  const BoardElementPermission._(this.elementId, this.ownerId, this.canEdit);
+  factory BoardElementPermission.fromJson(Object? raw) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'elementId',
+      'ownerId',
+      'canEdit',
+    });
+    if (value['schemaVersion'] != 1 || value['canEdit'] is! bool) _invalid();
+    return BoardElementPermission._(
+      _id(value['elementId']),
+      _id(value['ownerId']),
+      value['canEdit'] as bool,
+    );
+  }
+  final String elementId, ownerId;
+  final bool canEdit;
+  Map<String, Object> toJson() => {
+    'schemaVersion': 1,
+    'elementId': elementId,
+    'ownerId': ownerId,
+    'canEdit': canEdit,
+  };
+}
+
 final class FamilyBoardSnapshot {
   const FamilyBoardSnapshot._(
     this.binding,
     this.boardRevision,
     this.auditHead,
     this.elements,
+    this.permissions,
   );
   factory FamilyBoardSnapshot.fromJson(
     Object? raw,
@@ -389,13 +416,30 @@ final class FamilyBoardSnapshot {
       'boardRevision',
       'auditHead',
       'elements',
+      'permissions',
     });
     if (value['schemaVersion'] != 1) _invalid();
     expected.validateServerAuthority(value['authority']);
     final source = value['elements'];
-    if (source is! List || source.length > 512) _invalid();
+    final permissionSource = value['permissions'];
+    if (source is! List ||
+        source.length > 512 ||
+        permissionSource is! List ||
+        permissionSource.length > 512) {
+      _invalid();
+    }
     final elements = source.map(BoardElement.fromJson).toList(growable: false);
     if (elements.map((e) => e.id).toSet().length != elements.length) _invalid();
+    final permissions = permissionSource
+        .map(BoardElementPermission.fromJson)
+        .toList(growable: false);
+    final elementIds = elements.map((e) => e.id).toSet();
+    final permissionIds = permissions.map((e) => e.elementId).toList();
+    if (permissionIds.toSet().length != permissionIds.length ||
+        permissionIds.toSet().difference(elementIds).isNotEmpty ||
+        elementIds.difference(permissionIds.toSet()).isNotEmpty) {
+      _invalid();
+    }
     final revision = _revision(value['boardRevision']);
     final auditHead = _hash(value['auditHead']);
     if (revision == 0 && (elements.isNotEmpty || auditHead != '0' * 64)) {
@@ -406,16 +450,22 @@ final class FamilyBoardSnapshot {
       revision,
       auditHead,
       List.unmodifiable(elements),
+      List.unmodifiable(permissions),
     );
   }
   final FamilyBoardBinding binding;
   final int boardRevision;
   final String auditHead;
   final List<BoardElement> elements;
+  final List<BoardElementPermission> permissions;
   List<BoardCard> get cards =>
       elements.whereType<BoardCard>().toList(growable: false);
   List<BoardStroke> get strokes =>
       elements.whereType<BoardStroke>().toList(growable: false);
+  bool canEdit(String elementId) => permissions
+      .where((permission) => permission.elementId == elementId)
+      .single
+      .canEdit;
   Map<String, Object> toJson() => {
     'schemaVersion': 1,
     'authority': {
@@ -428,6 +478,7 @@ final class FamilyBoardSnapshot {
     'boardRevision': boardRevision,
     'auditHead': auditHead,
     'elements': elements.map((e) => e.toJson()).toList(growable: false),
+    'permissions': permissions.map((e) => e.toJson()).toList(growable: false),
   };
 }
 
@@ -642,7 +693,7 @@ final class FamilyBoardReceipt {
         _id(value['requestId']) != expected.requestId ||
         action != expected.action ||
         _id(value['elementId']) != target ||
-        revision != expected.expectedBoardRevision + 1 ||
+        revision <= expected.expectedBoardRevision ||
         _positive(value['auditSequence']) != revision) {
       _invalid();
     }

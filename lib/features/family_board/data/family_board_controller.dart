@@ -43,6 +43,7 @@ final class FamilyBoardController extends ChangeNotifier {
   final bool Function(FamilyBoardBinding binding) isCurrent;
   final String Function() _idFactory;
   FamilyBoardSnapshot? snapshot;
+  List<FamilyBoardAuditEvent> history = const [];
   BoardFailure? failure;
   bool busy = false, offline = false, _retired = false;
   int _epoch = 0;
@@ -77,6 +78,7 @@ final class FamilyBoardController extends ChangeNotifier {
   void _stale(int operation) {
     if (operation != _epoch || _retired) return;
     snapshot = null;
+    history = const [];
     busy = false;
     offline = false;
     failure = BoardFailure.stale;
@@ -96,6 +98,8 @@ final class FamilyBoardController extends ChangeNotifier {
         return _stale(operation);
       }
       snapshot = value;
+      history = await _readHistory(value, operation);
+      if (!_current(operation)) return _stale(operation);
       await cache.write(value, isCurrent: () => _current(operation));
       if (!_current(operation)) return _stale(operation);
     } on FamilyBoardException catch (error) {
@@ -117,6 +121,7 @@ final class FamilyBoardController extends ChangeNotifier {
         }
         if (!_current(operation)) return _stale(operation);
         snapshot = retained;
+        history = const [];
         offline = retained != null;
         failure = retained == null ? BoardFailure.offline : null;
       } else {
@@ -165,7 +170,7 @@ final class FamilyBoardController extends ChangeNotifier {
     final value = snapshot;
     if (!canMutate || value == null) return;
     final previous = value.cards.where((card) => card.id == id).firstOrNull;
-    if (previous == null) return;
+    if (previous == null || !value.canEdit(id)) return;
     FamilyBoardCommand command;
     try {
       final card = BoardCard(
@@ -192,7 +197,8 @@ final class FamilyBoardController extends ChangeNotifier {
     final value = snapshot;
     if (!canMutate ||
         value == null ||
-        !value.elements.any((element) => element.id == id)) {
+        !value.elements.any((element) => element.id == id) ||
+        !value.canEdit(id)) {
       return;
     }
     FamilyBoardCommand command;
@@ -252,6 +258,8 @@ final class FamilyBoardController extends ChangeNotifier {
         return _stale(operation);
       }
       snapshot = readback;
+      history = await _readHistory(readback, operation);
+      if (!_current(operation)) return _stale(operation);
       await cache.write(readback, isCurrent: () => _current(operation));
       if (!_current(operation)) return _stale(operation);
     } on FamilyBoardException catch (error) {
@@ -308,6 +316,8 @@ final class FamilyBoardController extends ChangeNotifier {
           return _stale(operation);
         }
         snapshot = value;
+        history = await _readHistory(value, operation);
+        if (!_current(operation)) return _stale(operation);
         await cache.write(value, isCurrent: () => _current(operation));
       }
       offline = false;
@@ -334,11 +344,27 @@ final class FamilyBoardController extends ChangeNotifier {
     }
   }
 
+  Future<List<FamilyBoardAuditEvent>> _readHistory(
+    FamilyBoardSnapshot value,
+    int operation,
+  ) async {
+    final after = max(0, value.boardRevision - 20);
+    final page = await gateway.delta(binding, afterSequence: after);
+    if (!_current(operation) ||
+        page.boardRevision != value.boardRevision ||
+        page.nextAfter != value.boardRevision ||
+        page.auditHead != value.auditHead) {
+      throw const FamilyBoardException('invalid_response');
+    }
+    return List.unmodifiable(page.events);
+  }
+
   void retire() {
     if (_retired) return;
     _retired = true;
     _epoch++;
     snapshot = null;
+    history = const [];
     busy = false;
     offline = false;
     failure = BoardFailure.stale;

@@ -107,6 +107,7 @@ class FamilyBoardService:
                 boardRevision=0,
                 auditHead=ZERO_HASH,
                 elements=[],
+                permissions=[],
             )
 
     def delta(self, actor, core_id, home_id, board_id, body):

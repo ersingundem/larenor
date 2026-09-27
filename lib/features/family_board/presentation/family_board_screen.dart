@@ -25,6 +25,11 @@ final class FamilyBoardStrings {
     required this.drawingHint,
     required this.loading,
     required this.unavailable,
+    required this.history,
+    required this.historyEmpty,
+    required this.added,
+    required this.updated,
+    required this.removed,
   });
   factory FamilyBoardStrings.fromLocalizations(AppLocalizations l) =>
       FamilyBoardStrings(
@@ -44,6 +49,11 @@ final class FamilyBoardStrings {
         drawingHint: l.familyBoardDrawingHint,
         loading: l.familyBoardLoading,
         unavailable: l.familyBoardUnavailable,
+        history: l.familyBoardHistory,
+        historyEmpty: l.familyBoardHistoryEmpty,
+        added: l.familyBoardHistoryAdded,
+        updated: l.familyBoardHistoryUpdated,
+        removed: l.familyBoardHistoryRemoved,
       );
   final String title,
       cards,
@@ -60,7 +70,12 @@ final class FamilyBoardStrings {
       empty,
       drawingHint,
       loading,
-      unavailable;
+      unavailable,
+      history,
+      historyEmpty,
+      added,
+      updated,
+      removed;
 }
 
 final class FamilyBoardScreen extends StatefulWidget {
@@ -196,6 +211,8 @@ final class _FamilyBoardScreenState extends State<FamilyBoardScreen>
                       const SizedBox(height: 20),
                       board,
                     ],
+                    const SizedBox(height: 20),
+                    _history(context),
                   ],
                 ),
               );
@@ -271,7 +288,9 @@ final class _FamilyBoardScreenState extends State<FamilyBoardScreen>
                         ),
                         padding: const EdgeInsets.all(16),
                         alignment: AlignmentDirectional.centerStart,
-                        onPressed: widget.controller.canMutate
+                        onPressed:
+                            widget.controller.canMutate &&
+                                widget.controller.snapshot!.canEdit(card.id)
                             ? () => _edit(card)
                             : null,
                         child: ExcludeSemantics(
@@ -311,6 +330,29 @@ final class _FamilyBoardScreenState extends State<FamilyBoardScreen>
         ),
       ],
     ),
+  );
+
+  Widget _history(BuildContext context) => _panel(
+    context,
+    widget.strings.history,
+    widget.controller.history.isEmpty
+        ? Text(widget.strings.historyEmpty)
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final event in widget.controller.history.reversed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '#${event.sequence} · ${switch (event.action) {
+                      BoardAction.append => widget.strings.added,
+                      BoardAction.update => widget.strings.updated,
+                      BoardAction.delete => widget.strings.removed,
+                    }}',
+                  ),
+                ),
+            ],
+          ),
   );
 
   Widget _panel(BuildContext context, String title, Widget child) => Container(

@@ -109,12 +109,30 @@ class BoardAuditEvent(FrozenModel):
     eventHash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
 
 
+class BoardElementPermission(FrozenModel):
+    schemaVersion: Literal[1]
+    elementId: Identity
+    ownerId: Identity
+    canEdit: bool
+
+
 class BoardSnapshot(FrozenModel):
     schemaVersion: Literal[1]
     authority: BoardAuthority
     boardRevision: BoardRevision
     auditHead: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     elements: list[BoardElement] = Field(max_length=512)
+    permissions: list[BoardElementPermission] = Field(max_length=512)
+
+    @model_validator(mode="after")
+    def exact_permissions(self):
+        element_ids = {item.id for item in self.elements}
+        permission_ids = [item.elementId for item in self.permissions]
+        if (len(element_ids) != len(self.elements)
+                or len(set(permission_ids)) != len(permission_ids)
+                or set(permission_ids) != element_ids):
+            raise ValueError("invalid_board_permissions")
+        return self
 
 
 class PublicBoardSnapshot(FrozenModel):

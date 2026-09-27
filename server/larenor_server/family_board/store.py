@@ -17,6 +17,7 @@ from .models import (
     BoardAuthority,
     BoardCommand,
     BoardDelta,
+    BoardElementPermission,
     BoardReceipt,
     BoardSnapshot,
     PublicBoardSnapshot,
@@ -282,6 +283,16 @@ class FamilyBoardStore:
             raise ValueError("invalid_audit_head")
         return events
 
+    @staticmethod
+    def _owners(events):
+        owners = {}
+        for event in events:
+            if event.action == "append":
+                owners[event.elementId] = event.actorId
+            elif event.action == "delete":
+                owners.pop(event.elementId, None)
+        return owners
+
     def _save_state(self, connection, values, state):
         plain = state.model_dump_json().encode("utf-8")
         if len(plain) > 2_000_000:
@@ -342,9 +353,10 @@ class FamilyBoardStore:
                         raise ApiError("revision_conflict", 409)
                     state = StoredBoard(elements=[], receipts={})
                     revision, count, head = 0, 0, ZERO_HASH
+                    events = []
                 else:
                     state = self._decode_state(row)
-                    self._decode_events(connection, row)
+                    events = self._decode_events(connection, row)
                     revision, count, head = (
                         row["board_revision"],
                         row["event_count"],
@@ -357,7 +369,7 @@ class FamilyBoardStore:
                         raise ApiError("idempotency_conflict", 409)
                     self._authority(authority, write=True)
                     return replay.receipt
-                if command.expectedBoardRevision != revision:
+                if command.expectedBoardRevision > revision:
                     raise ApiError("revision_conflict", 409)
                 if len(state.receipts) >= MAX_RECEIPTS or count >= MAX_EVENTS:
                     raise ApiError("revision_conflict", 409)
@@ -367,6 +379,18 @@ class FamilyBoardStore:
                     if command.element is not None
                     else command.elementId
                 )
+                if command.expectedBoardRevision < revision and any(
+                        event.elementId == target
+                        for event in events[command.expectedBoardRevision:]):
+                    # Only disjoint offline/concurrent edits may merge. The same
+                    # element always requires a fresh authoritative read.
+                    raise ApiError("revision_conflict", 409)
+                if command.action != "append":
+                    owner = self._owners(events).get(target)
+                    if owner is None:
+                        raise ValueError("missing_element_owner")
+                    if authority.role != "admin" and owner != authority.accountId:
+                        raise ApiError("forbidden", 403)
                 if command.action == "append":
                     if target in elements or len(elements) >= MAX_ELEMENTS:
                         raise ApiError("revision_conflict", 409)
@@ -445,7 +469,8 @@ class FamilyBoardStore:
             with self._connection() as connection:
                 row = self._row(connection, authority)
                 state = self._decode_state(row)
-                self._decode_events(connection, row)
+                events = self._decode_events(connection, row)
+                owners = self._owners(events)
                 self._authority(authority)
                 return BoardSnapshot(
                     schemaVersion=1,
@@ -453,6 +478,16 @@ class FamilyBoardStore:
                     boardRevision=row["board_revision"],
                     auditHead=row["audit_head"],
                     elements=state.elements,
+                    permissions=[
+                        BoardElementPermission(
+                            schemaVersion=1,
+                            elementId=item.id,
+                            ownerId=owners[item.id],
+                            canEdit=(authority.role == "admin"
+                                     or owners[item.id] == authority.accountId),
+                        )
+                        for item in state.elements
+                    ],
                 )
         except ApiError:
             raise
