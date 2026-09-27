@@ -2475,7 +2475,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Apple TV video ve medya hedefleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B2",
         "S08.8"
@@ -2496,7 +2496,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Apple TV video hedefi yazılım dilimi tek dalda uygulanıyor; mevcut Cast/Apple ses ve Jellyfin oturum yollarından ayrı, capability ve taşıma kimliği bağlı bir video hedefi sözleşmesi hazırlanıyor."
     },
     {
       "id": "PRODUCT.PROVIDERS",
