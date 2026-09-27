@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 6 | 1 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 7 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 1 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F22 | Kendi televizyon kanalların | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -162,6 +162,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F25 | Jenerik ve kapanış atlama | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
+| F22 | Kendi televizyon kanalların | Uygulama tamamlandı · test bekliyor | — |
 | F27 | Seyahat için çevrimdışı medya | Uygulama tamamlandı · test bekliyor | — |
 | F28 | Sesli kitap ve podcast merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |

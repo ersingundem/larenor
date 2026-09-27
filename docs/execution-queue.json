@@ -4066,7 +4066,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4090,7 +4090,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Uygulama tamamlandı: izinli Core kataloğundan seçim, döngülü rehber, silinmiş/erişilemeyen boşluk yeniden planlama ve yönetilen Jellyfin hedefinde canlı/baştan oynatma f0797514fb8f1a949a9b9acc21396bc1422c6d4e ile gönderildi. Hedefli Flutter analiz, Python compile/import ve create→guide→live/restart→gap→reschedule→cancel smoke geçti; tam commit CI ve final fonksiyonellik geçişi bekleniyor."
     },
     {
       "id": "F23",
