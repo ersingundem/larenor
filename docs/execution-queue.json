@@ -4674,7 +4674,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4698,7 +4698,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mahremiyet korumalı olay paylaşımında redaction preview, açık alıcı/TTL/scope, revoke, erişim audit ve exact revision/idempotency akışı geliştiriliyor."
+      "reason": "Redaction preview, alıcı/TTL/scope, revoke, erişim audit, exact revision/idempotency ve gerçek byte artifact indirme akışı uygulandı; provider smoke, restart, 503 fail-closed ve focused analyze geçti. Eski sözleşme testleri ile tam CI kabulü bekliyor."
     },
     {
       "id": "F41",
@@ -4929,7 +4929,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Bahçe sulama ve su bütçesi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4954,7 +4954,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Bahçe sulama ve su bütçesinde gerçek controller/valve/flow capability, preview-confirm, günlük kota ve bağlantı kesilmesinde güvenli durdurma geliştiriliyor."
+      "reason": "Gerçek controller capability, günlük bütçe, preview-confirm, canlı safety yenilemesi, akış/kapalı vana kanıtı ve bağlantı kesilmesinde doğrulanmış safe-stop uygulandı; server 8/8, Flutter 7/7, analyze ve HTTP smoke geçti. Fiziksel vana/flow kabulü ve tam CI bekliyor."
     },
     {
       "id": "G10",
@@ -5031,7 +5031,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5055,14 +5055,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Kaynak capability/revision/freshness, explicit unknown/absenceProven=false, kalıcı request-id idempotency ve strict Flutter görünürlüğü uygulandı; server 18/18, Flutter 14/14, analyze ve focused smoke geçti. Gerçek BLE/UWB/HA provider ve tam CI bekliyor."
     },
     {
       "id": "F58",
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5087,14 +5087,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "E-paper mini ev ekranlarında gerçek cihaz capability, düşük bant genişlikli içerik planlama, çevrimdışı güvenli durum ve doğrulanmış teslim akışı geliştiriliyor."
+      "reason": "E-paper capability, piksel/renk, pil, son temas ve çevrimdışı son görüntü tutma uyarısı uygulandı; server 6/6, Flutter 13/13, analyze ve compile geçti. Fiziksel etiket/köprü kabulü ve tam CI bekliyor."
     },
     {
       "id": "F59",
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5118,14 +5118,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "3D yazıcı ve atölye merkezinde gerçek OctoPrint capability, iş/ısı/durum izleme ve güvenli pause/cancel akışı geliştiriliyor."
     },
     {
       "id": "F60",
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5149,7 +5149,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tablet oyun yayınında Sunshine uyumlu host capability, güvenli eşleme, oynatma/girdi yaşam döngüsü ve kopuş davranışı geliştiriliyor."
     },
     {
       "id": "G11",
@@ -5290,7 +5290,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız VNC uzak ekran",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5317,7 +5317,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Flutter/native framebuffer byte ownership, bounded single-frame ACK pump ve ürün yüzeyi 723138aa, cb2023a5 ve 3213b4e6 ile bağlandı. Gerçek Android TLS/RFB backend, güvenli ilk sertifika keşfi, VNC auth, IME/touchpad/zoom/resize ve gerçek host kabulü açık; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Bağımsız VNC uzak ekranda gerçek Android TLS/RFB backend, güvenli ilk sertifika keşfi, VNC auth, IME/touchpad/zoom/resize ve kopuş kapanışı tamamlanıyor."
     },
     {
       "id": "FINAL",
