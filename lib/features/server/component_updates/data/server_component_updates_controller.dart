@@ -20,6 +20,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
   ServerComponentUpdateInventory? inventory;
   ServerComponentUpdateCommand? confirmation;
   ServerComponentUpdateJob? job;
+  List<ServerComponentUpdateJob> jobs = const [];
 
   bool get authorized =>
       account.isCurrent(_accountEpoch) &&
@@ -38,6 +39,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     inventory = null;
     confirmation = null;
     job = null;
+    jobs = const [];
     _emit();
   }
 
@@ -64,11 +66,12 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
                   )
                   .toList(growable: false);
         final nextJob = matches.isEmpty ? null : matches.first;
-        return (inventory: nextInventory, job: nextJob);
+        return (inventory: nextInventory, job: nextJob, jobs: latest);
       });
       if (valid()) {
         inventory = value.inventory;
         job = value.job;
+        jobs = value.jobs;
       }
     } catch (error) {
       if (valid()) {
@@ -151,6 +154,12 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
       if (valid()) {
         confirmation = result.command;
         job = result.job;
+        jobs = List.unmodifiable([
+          result.job,
+          ...jobs.where(
+            (item) => item.installationId != result.job.installationId,
+          ),
+        ]);
       }
     } catch (error) {
       if (valid()) {
@@ -166,14 +175,12 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     }
   }
 
-  Future<void> cancelJob({required bool Function() current}) async {
+  Future<void> cancelJob({
+    required ServerComponentUpdateJob job,
+    required bool Function() current,
+  }) async {
     final selected = job;
-    if (_disposed ||
-        busy ||
-        selected == null ||
-        selected.terminal ||
-        !authorized ||
-        !current()) {
+    if (_disposed || busy || selected.terminal || !authorized || !current()) {
       return;
     }
     final epoch = _epoch;
@@ -189,7 +196,13 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
           session.accessToken,
         ).cancelJob(selected);
       });
-      if (valid()) job = result;
+      if (valid()) {
+        this.job = result;
+        jobs = List.unmodifiable([
+          result,
+          ...jobs.where((item) => item.installationId != result.installationId),
+        ]);
+      }
     } catch (error) {
       if (valid()) {
         failure = error is LarenorServerException

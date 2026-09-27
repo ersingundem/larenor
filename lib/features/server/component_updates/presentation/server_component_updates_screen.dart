@@ -58,7 +58,7 @@ final class _ServerComponentUpdatesScreenState
   }
 
   void _updatesChanged() {
-    final pending = _updates.job != null && !_updates.job!.terminal;
+    final pending = _updates.jobs.any((item) => !item.terminal);
     if (!pending || !_active) {
       _jobPoll?.cancel();
       _jobPoll = null;
@@ -261,9 +261,10 @@ final class _ServerComponentUpdatesScreenState
     final confirmed =
         _updates.confirmation?.installationId == installed.installationId &&
         _updates.confirmation?.reviewDigest == review.reviewDigest;
-    final job = _updates.job?.installationId == installed.installationId
-        ? _updates.job
-        : null;
+    final matchingJobs = _updates.jobs
+        .where((item) => item.installationId == installed.installationId)
+        .toList(growable: false);
+    final job = matchingJobs.isEmpty ? null : matchingJobs.first;
     return SettingsSection(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       header: Text('${_serviceName(release.serviceId)} ${release.version}'),
@@ -324,7 +325,9 @@ final class _ServerComponentUpdatesScreenState
               key: ValueKey('server-component-update-cancel-${job.updateId}'),
               onPressed: _updates.busy || job.cancelRequested
                   ? null
-                  : () => unawaited(_updates.cancelJob(current: _capture())),
+                  : () => unawaited(
+                      _updates.cancelJob(job: job, current: _capture()),
+                    ),
               child: Text(
                 job.cancelRequested
                     ? l10n.serverComponentUpdatesCancelRequested
