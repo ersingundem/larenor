@@ -152,7 +152,7 @@ class MainActivity : FlutterActivity() {
         kioskPeripherals?.onNewIntent(intent)
     }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        kioskPeripherals?.onKeyEvent(event)
+        if (kioskPeripherals?.onKeyEvent(event) == true) return true
         return super.dispatchKeyEvent(event)
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")

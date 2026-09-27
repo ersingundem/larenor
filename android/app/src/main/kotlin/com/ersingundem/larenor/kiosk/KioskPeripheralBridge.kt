@@ -23,6 +23,7 @@ import android.speech.tts.TextToSpeech
 import android.util.Base64
 import android.view.InputDevice
 import android.view.KeyEvent
+import android.hardware.input.InputManager
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -46,6 +47,7 @@ class KioskPeripheralBridge(
     private val nfc = NfcAdapter.getDefaultAdapter(activity)
     private val bluetooth =
         (activity.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+    private val inputManager = activity.getSystemService(Context.INPUT_SERVICE) as InputManager
     private var disposed = false
     private var resumed = false
     private var focused = false
@@ -56,8 +58,16 @@ class KioskPeripheralBridge(
     private var bleScan: ScanCallback? = null
     private val sequences = mutableMapOf<String, Int>()
     private val duplicateDigests = mutableMapOf<String, Pair<String, Long>>()
+    private val inputDevices = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = Unit
+        override fun onInputDeviceChanged(deviceId: Int) = retireMissingUsbReader()
+        override fun onInputDeviceRemoved(deviceId: Int) = retireMissingUsbReader()
+    }
 
-    init { channel.setMethodCallHandler(this) }
+    init {
+        channel.setMethodCallHandler(this)
+        inputManager.registerInputDeviceListener(inputDevices, handler)
+    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (disposed) {
@@ -106,15 +116,15 @@ class KioskPeripheralBridge(
         finish(current, "ndef:$encoded")
     }
 
-    fun onKeyEvent(event: KeyEvent) {
-        val current = pending ?: return
-        if (current.providerId != USB_PROVIDER || !current.current()) return
-        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return
-        val device = InputDevice.getDevice(event.deviceId) ?: return
-        if (!device.isExternal || device.sources and InputDevice.SOURCE_KEYBOARD == 0) return
+    fun onKeyEvent(event: KeyEvent): Boolean {
+        val current = pending ?: return false
+        if (current.providerId != USB_PROVIDER || !current.current()) return false
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
+        val device = InputDevice.getDevice(event.deviceId) ?: return false
+        if (!device.isExternal || device.sources and InputDevice.SOURCE_KEYBOARD == 0) return false
         if (event.isAltPressed || event.isCtrlPressed || event.isMetaPressed) {
             cancelPending("invalid_input")
-            return
+            return true
         }
         when (event.keyCode) {
             KeyEvent.KEYCODE_ESCAPE -> cancelPending("cancelled")
@@ -130,6 +140,7 @@ class KioskPeripheralBridge(
                 }
             }
         }
+        return true
     }
 
     private fun requestPermission(arguments: Any?, result: MethodChannel.Result) {
@@ -292,11 +303,7 @@ class KioskPeripheralBridge(
         val blePermission = if (blePermissionGranted()) "granted" else "unknown"
         val bleConnected = bleSupported && blePermission == "granted" && bluetooth?.isEnabled == true
         val usbSupported = manager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)
-        val externalKeyboard = InputDevice.getDeviceIds().any { id ->
-            InputDevice.getDevice(id)?.let { device ->
-                device.isExternal && device.sources and InputDevice.SOURCE_KEYBOARD != 0
-            } == true
-        }
+        val externalKeyboard = externalKeyboardConnected()
         val ttsSupported = manager.queryIntentServices(
             Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
             0,
@@ -377,6 +384,18 @@ class KioskPeripheralBridge(
     private fun blePermissionGranted() =
         blePermissions().all { activity.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
+    private fun externalKeyboardConnected() = InputDevice.getDeviceIds().any { id ->
+        InputDevice.getDevice(id)?.let { device ->
+            device.isExternal && device.sources and InputDevice.SOURCE_KEYBOARD != 0
+        } == true
+    }
+
+    private fun retireMissingUsbReader() {
+        if (pending?.providerId == USB_PROVIDER && !externalKeyboardConnected()) {
+            cancelPending("disconnected")
+        }
+    }
+
     private fun cancelPending(reason: String) {
         val previous = pending ?: return
         pending = null
@@ -390,6 +409,7 @@ class KioskPeripheralBridge(
         if (disposed) return
         disposed = true
         retire()
+        inputManager.unregisterInputDeviceListener(inputDevices)
         channel.setMethodCallHandler(null)
     }
 
