@@ -19,6 +19,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
   String? failure;
   ServerComponentUpdateInventory? inventory;
   ServerComponentUpdateCommand? confirmation;
+  ServerComponentUpdateJob? job;
 
   bool get authorized =>
       account.isCurrent(_accountEpoch) &&
@@ -36,6 +37,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     failure = null;
     inventory = null;
     confirmation = null;
+    job = null;
     _emit();
   }
 
@@ -49,9 +51,19 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     try {
       final value = await account.withSession((api, session) async {
         if (!valid()) throw const LarenorServerException('cancelled');
-        return ServerComponentUpdatesApi(api, session.accessToken).inventory();
+        final updates = ServerComponentUpdatesApi(api, session.accessToken);
+        final nextInventory = await updates.inventory();
+        if (!valid()) throw const LarenorServerException('cancelled');
+        final currentConfirmation = confirmation;
+        final nextJob = currentConfirmation == null
+            ? null
+            : await updates.getJob(currentConfirmation.updateId);
+        return (inventory: nextInventory, job: nextJob);
       });
-      if (valid()) inventory = value;
+      if (valid()) {
+        inventory = value.inventory;
+        job = value.job;
+      }
     } catch (error) {
       if (valid()) {
         failure = error is LarenorServerException
@@ -121,12 +133,57 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     try {
       final result = await account.withSession((api, session) async {
         if (!valid()) throw const LarenorServerException('cancelled');
+        final updates = ServerComponentUpdatesApi(api, session.accessToken);
+        final command = await updates.confirm(
+          installed: installed,
+          review: review,
+          preference: preference,
+        );
+        if (!valid()) throw const LarenorServerException('cancelled');
+        return (command: command, job: await updates.getJob(command.updateId));
+      });
+      if (valid()) {
+        confirmation = result.command;
+        job = result.job;
+      }
+    } catch (error) {
+      if (valid()) {
+        failure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _epoch) {
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> cancelJob({required bool Function() current}) async {
+    final selected = job;
+    if (_disposed ||
+        busy ||
+        selected == null ||
+        selected.terminal ||
+        !authorized ||
+        !current()) {
+      return;
+    }
+    final epoch = _epoch;
+    bool valid() => !_disposed && epoch == _epoch && authorized && current();
+    busy = true;
+    failure = null;
+    _emit();
+    try {
+      final result = await account.withSession((api, session) async {
+        if (!valid()) throw const LarenorServerException('cancelled');
         return ServerComponentUpdatesApi(
           api,
           session.accessToken,
-        ).confirm(installed: installed, review: review, preference: preference);
+        ).cancelJob(selected);
       });
-      if (valid()) confirmation = result;
+      if (valid()) job = result;
     } catch (error) {
       if (valid()) {
         failure = error is LarenorServerException

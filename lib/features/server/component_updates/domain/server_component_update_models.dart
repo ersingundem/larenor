@@ -508,6 +508,110 @@ final class ServerComponentUpdateCommand {
   final String commandDigest;
 }
 
+const serverComponentUpdateJobStates = {
+  'queued',
+  'validating',
+  'ready',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'needs_attention',
+};
+
+final class ServerComponentUpdateJob {
+  const ServerComponentUpdateJob({
+    required this.updateId,
+    required this.installationId,
+    required this.serviceId,
+    required this.revision,
+    required this.state,
+    required this.cancelRequested,
+    required this.errorCode,
+    required this.sourceDigest,
+    required this.reviewDigest,
+    required this.targetManifestDigest,
+    required this.commandDigest,
+    required this.createdAtMs,
+    required this.updatedAtMs,
+  });
+
+  factory ServerComponentUpdateJob.fromJson(Object? raw) {
+    final json = _object(raw, {
+      'schemaVersion',
+      'updateId',
+      'installationId',
+      'serviceId',
+      'revision',
+      'state',
+      'cancelRequested',
+      'errorCode',
+      'sourceDigest',
+      'reviewDigest',
+      'targetManifestDigest',
+      'commandDigest',
+      'createdAtMs',
+      'updatedAtMs',
+    });
+    final revision = json['revision'];
+    final state = json['state'];
+    final createdAtMs = json['createdAtMs'];
+    final updatedAtMs = json['updatedAtMs'];
+    final errorCode = json['errorCode'];
+    if (json['schemaVersion'] != 1 ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 0x7fffffffffffffff ||
+        state is! String ||
+        !serverComponentUpdateJobStates.contains(state) ||
+        json['cancelRequested'] is! bool ||
+        errorCode != null &&
+            (errorCode is! String ||
+                !RegExp(r'^[a-z][a-z0-9_]{2,63}$').hasMatch(errorCode)) ||
+        createdAtMs is! int ||
+        createdAtMs < 0 ||
+        updatedAtMs is! int ||
+        updatedAtMs < createdAtMs) {
+      _invalid();
+    }
+    return ServerComponentUpdateJob(
+      updateId: _identity(json['updateId']),
+      installationId: _identity(json['installationId']),
+      serviceId: _string(
+        json['serviceId'],
+        RegExp(r'^[a-z][a-z0-9_]{0,63}$'),
+        max: 64,
+      ),
+      revision: revision,
+      state: state,
+      cancelRequested: json['cancelRequested'] as bool,
+      errorCode: errorCode as String?,
+      sourceDigest: _digest(json['sourceDigest']),
+      reviewDigest: _digest(json['reviewDigest']),
+      targetManifestDigest: _digest(json['targetManifestDigest']),
+      commandDigest: _digest(json['commandDigest']),
+      createdAtMs: createdAtMs,
+      updatedAtMs: updatedAtMs,
+    );
+  }
+
+  final String updateId;
+  final String installationId;
+  final String serviceId;
+  final int revision;
+  final String state;
+  final bool cancelRequested;
+  final String? errorCode;
+  final String sourceDigest;
+  final String reviewDigest;
+  final String targetManifestDigest;
+  final String commandDigest;
+  final int createdAtMs;
+  final int updatedAtMs;
+
+  bool get terminal => {'succeeded', 'failed', 'cancelled'}.contains(state);
+}
+
 final class ServerComponentUpdateInventory {
   const ServerComponentUpdateInventory({
     required this.coreId,

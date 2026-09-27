@@ -241,11 +241,16 @@ final class _ServerComponentUpdatesScreenState
     final confirmed =
         _updates.confirmation?.installationId == installed.installationId &&
         _updates.confirmation?.reviewDigest == review.reviewDigest;
+    final job = _updates.job?.installationId == installed.installationId
+        ? _updates.job
+        : null;
     return SettingsSection(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       header: Text('${_serviceName(release.serviceId)} ${release.version}'),
       footer: Text(
-        confirmed
+        job != null
+            ? '${l10n.serverComponentUpdatesJob}: ${_jobStatus(l10n, job)}'
+            : confirmed
             ? l10n.serverComponentUpdatesConfirmationSaved
             : l10n.serverComponentUpdatesApplyUnavailable,
       ),
@@ -290,6 +295,21 @@ final class _ServerComponentUpdatesScreenState
                       _confirmUpdate(l10n, installed, review, preference),
                     ),
               child: Text(l10n.serverComponentUpdatesConfirmAction),
+            ),
+          ),
+        if (job != null && !job.terminal)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: CupertinoButton(
+              key: ValueKey('server-component-update-cancel-${job.updateId}'),
+              onPressed: _updates.busy || job.cancelRequested
+                  ? null
+                  : () => unawaited(_updates.cancelJob(current: _capture())),
+              child: Text(
+                job.cancelRequested
+                    ? l10n.serverComponentUpdatesCancelRequested
+                    : l10n.serverComponentUpdatesCancel,
+              ),
             ),
           ),
       ],
@@ -475,6 +495,18 @@ final class _ServerComponentUpdatesScreenState
         ? l10n.serverComponentUpdatesPermissionsNone
         : changes.join('\n');
   }
+
+  String _jobStatus(AppLocalizations l10n, ServerComponentUpdateJob job) =>
+      switch (job.state) {
+        'queued' => l10n.serverComponentUpdatesJobQueued,
+        'validating' => l10n.serverComponentUpdatesJobValidating,
+        'ready' => l10n.serverComponentUpdatesJobReady,
+        'running' => l10n.serverComponentUpdatesJobRunning,
+        'succeeded' => l10n.serverComponentUpdatesJobSucceeded,
+        'failed' => l10n.serverComponentUpdatesJobFailed,
+        'cancelled' => l10n.serverComponentUpdatesJobCancelled,
+        _ => l10n.serverComponentUpdatesJobNeedsAttention,
+      };
 
   String _serviceName(String id) => switch (id) {
     'music_assistant' => 'Music Assistant',

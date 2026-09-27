@@ -59,4 +59,24 @@ final class ServerComponentUpdatesApi {
       },
     ),
   );
+
+  Future<ServerComponentUpdateJob> getJob(String updateId) async =>
+      ServerComponentUpdateJob.fromJson(
+        await api.request(
+          'GET',
+          '/admin/component-updates/jobs/$updateId',
+          token: token,
+        ),
+      );
+
+  Future<ServerComponentUpdateJob> cancelJob(
+    ServerComponentUpdateJob current,
+  ) async => ServerComponentUpdateJob.fromJson(
+    await api.request(
+      'POST',
+      '/admin/component-updates/jobs/${current.updateId}/cancel',
+      token: token,
+      body: {'schemaVersion': 1, 'expectedRevision': current.revision},
+    ),
+  );
 }

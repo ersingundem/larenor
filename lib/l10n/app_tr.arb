@@ -3989,5 +3989,16 @@
   "serverComponentUpdatesConfirmAction": "İncele ve onayla",
   "serverComponentUpdatesConfirmTitle": "Bileşen güncellemesini onayla",
   "serverComponentUpdatesConfirmMessage": "Bu işlem burada gösterilen exact kaynak, inceleme, izin ve geri dönüş gereksinimleri için beş dakikalık bir onay kaydeder.",
-  "serverComponentUpdatesConfirmationSaved": "Exact inceleme onayı beş dakika için kaydedildi. Herhangi bir değişiklikten önce izole worker bunu yeniden doğrulamalıdır."
+  "serverComponentUpdatesConfirmationSaved": "Exact inceleme onayı beş dakika için kaydedildi. Herhangi bir değişiklikten önce izole worker bunu yeniden doğrulamalıdır.",
+  "serverComponentUpdatesJob": "Güncelleme işi",
+  "serverComponentUpdatesJobQueued": "Sırada",
+  "serverComponentUpdatesJobValidating": "Exact kaynak doğrulanıyor",
+  "serverComponentUpdatesJobReady": "İzole yürütmeye hazır",
+  "serverComponentUpdatesJobRunning": "Güncelleme uygulanıyor",
+  "serverComponentUpdatesJobSucceeded": "Güncellendi",
+  "serverComponentUpdatesJobFailed": "Başarısız",
+  "serverComponentUpdatesJobCancelled": "İptal edildi",
+  "serverComponentUpdatesJobNeedsAttention": "İnceleme gerekiyor",
+  "serverComponentUpdatesCancel": "Güncellemeyi iptal et",
+  "serverComponentUpdatesCancelRequested": "İptal istendi"
 }

@@ -4342,5 +4342,16 @@
   "serverComponentUpdatesConfirmAction": "Review and confirm",
   "serverComponentUpdatesConfirmTitle": "Confirm component update",
   "serverComponentUpdatesConfirmMessage": "This records a five-minute confirmation for the exact source, review, permissions, and rollback requirements shown here.",
-  "serverComponentUpdatesConfirmationSaved": "The exact review confirmation was recorded for five minutes. The isolated worker must still revalidate it before any change."
+  "serverComponentUpdatesConfirmationSaved": "The exact review confirmation was recorded for five minutes. The isolated worker must still revalidate it before any change.",
+  "serverComponentUpdatesJob": "Update job",
+  "serverComponentUpdatesJobQueued": "Queued",
+  "serverComponentUpdatesJobValidating": "Validating exact source",
+  "serverComponentUpdatesJobReady": "Ready for isolated execution",
+  "serverComponentUpdatesJobRunning": "Applying update",
+  "serverComponentUpdatesJobSucceeded": "Updated",
+  "serverComponentUpdatesJobFailed": "Failed",
+  "serverComponentUpdatesJobCancelled": "Cancelled",
+  "serverComponentUpdatesJobNeedsAttention": "Needs attention",
+  "serverComponentUpdatesCancel": "Cancel update",
+  "serverComponentUpdatesCancelRequested": "Cancellation requested"
 }
