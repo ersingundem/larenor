@@ -42,7 +42,9 @@ final class IngredientDeductionController extends ChangeNotifier {
   bool _matches(IngredientDeductionReceipt value) {
     if (value.idempotencyKey != preview.idempotencyKey ||
         value.accountId != preview.accountId ||
-        value.pantryRevision != preview.expectedPantryRevision + 1 ||
+        value.pantryRevision != preview.expectedPantryRevision + 1 &&
+            value.pantryRevision !=
+                preview.expectedPantryRevision + preview.items.length ||
         value.applied.length != preview.items.length) {
       return false;
     }
@@ -50,7 +52,8 @@ final class IngredientDeductionController extends ChangeNotifier {
       final expected = preview.items[index];
       final actual = value.applied[index];
       if (actual.stockItemId != expected.stockItemId ||
-          actual.quantityMicros != expected.quantityMicros) {
+          actual.quantityMicros != expected.quantityMicros ||
+          actual.unit != expected.unit) {
         return false;
       }
     }

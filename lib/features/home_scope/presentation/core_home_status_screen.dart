@@ -30,6 +30,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(homeSessionControllerProvider)!;
     final l10n = AppLocalizations.of(context);
+    final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
     final interaction = AppInteractionScope.maybeOf(context);
     final epoch = interaction?.epoch;
     bool current() =>
@@ -342,6 +343,24 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                         ? null
                         : () {
                             if (current()) context.push('/weekly-menu');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-cooking-entry'),
+                    buttonKey: const ValueKey('core-home-cooking-action'),
+                    title: Text(
+                      isTurkish ? 'Pişirme asistanı' : 'Cooking assistant',
+                    ),
+                    additionalInfo: Text(
+                      isTurkish
+                          ? 'Adımlar, kalıcı zamanlayıcılar ve onaylı kiler düşümü'
+                          : 'Steps, durable timers and confirmed pantry deductions',
+                    ),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/cooking');
                           },
                   ),
                 if (controller.account.context != null)

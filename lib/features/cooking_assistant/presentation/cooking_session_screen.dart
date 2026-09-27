@@ -10,6 +10,10 @@ final class CookingAssistantStrings {
     required this.next,
     required this.step,
     required this.stale,
+    required this.cancel,
+    required this.cancelled,
+    required this.unavailable,
+    required this.invalidResponse,
   });
 
   static const en = CookingAssistantStrings(
@@ -17,18 +21,30 @@ final class CookingAssistantStrings {
     next: 'Next step',
     step: 'Step',
     stale: 'Account or session changed. Reopen this cooking session.',
+    cancel: 'End cooking session',
+    cancelled: 'This cooking session has ended.',
+    unavailable: 'The cooking session could not be updated. Try again.',
+    invalidResponse: 'The server response was rejected. Reopen the session.',
   );
   static const tr = CookingAssistantStrings(
     previous: 'Önceki adım',
     next: 'Sonraki adım',
     step: 'Adım',
     stale: 'Hesap veya oturum değişti. Bu pişirme oturumunu yeniden açın.',
+    cancel: 'Pişirme oturumunu bitir',
+    cancelled: 'Bu pişirme oturumu sona erdi.',
+    unavailable: 'Pişirme oturumu güncellenemedi. Yeniden deneyin.',
+    invalidResponse: 'Sunucu yanıtı reddedildi. Oturumu yeniden açın.',
   );
 
   final String previous;
   final String next;
   final String step;
   final String stale;
+  final String cancel;
+  final String cancelled;
+  final String unavailable;
+  final String invalidResponse;
   String stepProgress(int current, int total) => '$step $current / $total';
 }
 
@@ -76,7 +92,6 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
   @override
   void dispose() {
     widget.controller.removeListener(_changed);
-    widget.controller.retire();
     super.dispose();
   }
 
@@ -85,9 +100,12 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
     final controller = widget.controller;
     final session = controller.value;
     final strings = widget.strings;
-    final canPrevious = !controller.busy && session.currentStep > 0;
+    final canPrevious =
+        !controller.busy && !session.cancelled && session.currentStep > 0;
     final canNext =
-        !controller.busy && session.currentStep + 1 < session.steps.length;
+        !controller.busy &&
+        !session.cancelled &&
+        session.currentStep + 1 < session.steps.length;
     return FocusableActionDetector(
       autofocus: true,
       shortcuts: const {
@@ -126,6 +144,15 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
                           session.title,
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value:
+                              (session.currentStep + 1) / session.steps.length,
+                          semanticsLabel: strings.stepProgress(
+                            session.currentStep + 1,
+                            session.steps.length,
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           strings.stepProgress(
@@ -138,10 +165,28 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
                           session.steps[session.currentStep],
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                        if (controller.failure ==
-                            CookingSessionFailure.staleAuthority) ...[
+                        if (session.cancelled) ...[
                           const SizedBox(height: 16),
-                          Text(strings.stale, key: const Key('cooking-stale')),
+                          Text(
+                            strings.cancelled,
+                            key: const Key('cooking-cancelled'),
+                          ),
+                        ] else if (controller.failure case final failure?) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            switch (failure) {
+                              CookingSessionFailure.staleAuthority =>
+                                strings.stale,
+                              CookingSessionFailure.unavailable =>
+                                strings.unavailable,
+                              CookingSessionFailure.invalidResponse =>
+                                strings.invalidResponse,
+                            },
+                            key: const Key('cooking-failure'),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -152,7 +197,10 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
                   height: horizontal ? 0 : 24,
                 ),
                 ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: horizontal ? 280 : 0),
+                  constraints: BoxConstraints(
+                    minWidth: horizontal ? 280 : 0,
+                    maxWidth: horizontal ? 360 : constraints.maxWidth - 48,
+                  ),
                   child: Wrap(
                     spacing: 16,
                     runSpacing: 16,
@@ -163,11 +211,35 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
                         label: strings.previous,
                         excludeSemantics: true,
                         child: SizedBox(
-                          height: 48,
-                          child: FilledButton.tonal(
-                            key: const Key('cooking-previous'),
-                            onPressed: canPrevious ? controller.previous : null,
-                            child: Text(strings.previous),
+                          width: horizontal ? 360 : constraints.maxWidth - 48,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: FilledButton.tonal(
+                              key: const Key('cooking-previous'),
+                              onPressed: canPrevious
+                                  ? controller.previous
+                                  : null,
+                              child: Text(strings.previous),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Semantics(
+                        button: true,
+                        label: strings.cancel,
+                        excludeSemantics: true,
+                        child: SizedBox(
+                          width: horizontal ? 360 : constraints.maxWidth - 48,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: OutlinedButton.icon(
+                              key: const Key('cooking-cancel'),
+                              onPressed: controller.busy || session.cancelled
+                                  ? null
+                                  : controller.cancel,
+                              icon: const Icon(Icons.stop_circle_outlined),
+                              label: Text(strings.cancel),
+                            ),
                           ),
                         ),
                       ),
@@ -176,11 +248,14 @@ class _CookingSessionScreenState extends State<CookingSessionScreen> {
                         label: strings.next,
                         excludeSemantics: true,
                         child: SizedBox(
-                          height: 48,
-                          child: FilledButton(
-                            key: const Key('cooking-next'),
-                            onPressed: canNext ? controller.next : null,
-                            child: Text(strings.next),
+                          width: horizontal ? 360 : constraints.maxWidth - 48,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: FilledButton(
+                              key: const Key('cooking-next'),
+                              onPressed: canNext ? controller.next : null,
+                              child: Text(strings.next),
+                            ),
                           ),
                         ),
                       ),

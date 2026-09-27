@@ -22,6 +22,15 @@ abstract interface class CookingTimerStore {
   Future<void> write(CookingTimer timer, {required int expectedRevision});
 }
 
+abstract interface class MutableCookingTimerStore implements CookingTimerStore {
+  Future<void> remove(
+    String accountId,
+    String recipeSessionId,
+    String timerId, {
+    required int expectedRevision,
+  });
+}
+
 abstract interface class CookingTimerNotifications {
   /// Implementations must deduplicate [idempotencyKey] durably.
   Future<void> finished({
@@ -40,6 +49,7 @@ final class CookingTimersController extends ChangeNotifier {
     required this.authority,
     required this.isCurrent,
     this.maximumTimers = 8,
+    this.maximumDuration = const Duration(days: 7),
   }) : _anchorWall = clock.wallNow,
        _anchorMonotonic = clock.monotonicNow;
 
@@ -49,12 +59,15 @@ final class CookingTimersController extends ChangeNotifier {
   final CookingTimerAuthority authority;
   final bool Function() isCurrent;
   final int maximumTimers;
+  final Duration maximumDuration;
   final Duration _anchorWall;
   final Duration _anchorMonotonic;
   final List<CookingTimer> _timers = [];
   int _operation = 0;
   int _identifier = 0;
   bool _retired = false;
+  bool busy = false;
+  bool _resuming = false;
   int restoreCount = 0;
   CookingTimerFailure? failure;
 
@@ -92,7 +105,9 @@ final class CookingTimersController extends ChangeNotifier {
       failure = CookingTimerFailure.staleAuthority;
       return;
     }
+    if (busy) return;
     final operation = ++_operation;
+    busy = true;
     try {
       final values = await store.read(
         authority.accountId,
@@ -115,10 +130,15 @@ final class CookingTimersController extends ChangeNotifier {
       restoreCount++;
       failure = null;
       notifyListeners();
-      await resume();
+      await resume(allowBusy: true);
     } catch (_) {
       if (operation == _operation && _current()) {
         failure = CookingTimerFailure.unavailable;
+        notifyListeners();
+      }
+    } finally {
+      if (operation == _operation && !_retired) {
+        busy = false;
         notifyListeners();
       }
     }
@@ -132,10 +152,12 @@ final class CookingTimersController extends ChangeNotifier {
       failure = CookingTimerFailure.staleAuthority;
       return false;
     }
+    if (busy) return false;
     final normalized = label.trim();
     if (normalized.isEmpty ||
         normalized.length > 100 ||
-        duration <= Duration.zero) {
+        duration <= Duration.zero ||
+        duration > maximumDuration) {
       return false;
     }
     if (_timers.length >= maximumTimers) {
@@ -143,6 +165,7 @@ final class CookingTimersController extends ChangeNotifier {
       return false;
     }
     final operation = ++_operation;
+    busy = true;
     final value = CookingTimer(
       id: 'timer-${_estimatedWall.inMicroseconds}-${_identifier++}',
       accountId: authority.accountId,
@@ -170,48 +193,59 @@ final class CookingTimersController extends ChangeNotifier {
         notifyListeners();
       }
       return false;
+    } finally {
+      if (operation == _operation && !_retired) {
+        busy = false;
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> resume() async {
+  Future<void> resume({bool allowBusy = false}) async {
     if (!_current()) {
       failure = CookingTimerFailure.staleAuthority;
       return;
     }
+    if (_resuming || busy && !allowBusy) return;
+    _resuming = true;
     final expired = _timers
         .where((timer) => remaining(timer) == Duration.zero && !timer.notified)
         .toList(growable: false);
-    for (final timer in expired) {
-      if (!_current()) {
-        failure = CookingTimerFailure.staleAuthority;
-        return;
-      }
-      try {
-        await notifications.finished(
-          idempotencyKey:
-              'cooking:${authority.accountId}:${authority.recipeSessionId}:${timer.id}:finished-v1',
-          label: timer.label,
-        );
+    try {
+      for (final timer in expired) {
         if (!_current()) {
           failure = CookingTimerFailure.staleAuthority;
           return;
         }
-        final updated = timer.copyWith(
-          revision: timer.revision + 1,
-          notified: true,
-        );
-        await store.write(updated, expectedRevision: timer.revision);
-        if (!_current()) {
-          failure = CookingTimerFailure.staleAuthority;
+        try {
+          await notifications.finished(
+            idempotencyKey:
+                'cooking:${authority.accountId}:${authority.recipeSessionId}:${timer.id}:finished-v1',
+            label: timer.label,
+          );
+          if (!_current()) {
+            failure = CookingTimerFailure.staleAuthority;
+            return;
+          }
+          final updated = timer.copyWith(
+            revision: timer.revision + 1,
+            notified: true,
+          );
+          await store.write(updated, expectedRevision: timer.revision);
+          if (!_current()) {
+            failure = CookingTimerFailure.staleAuthority;
+            return;
+          }
+          _replace(updated);
+        } catch (_) {
+          if (_current()) failure = CookingTimerFailure.unavailable;
           return;
         }
-        _replace(updated);
-      } catch (_) {
-        if (_current()) failure = CookingTimerFailure.unavailable;
-        return;
       }
+      notifyListeners();
+    } finally {
+      _resuming = false;
     }
-    notifyListeners();
   }
 
   Future<bool> acknowledge(String id) async {
@@ -219,11 +253,13 @@ final class CookingTimersController extends ChangeNotifier {
       failure = CookingTimerFailure.staleAuthority;
       return false;
     }
+    if (busy) return false;
     final index = _timers.indexWhere((value) => value.id == id);
     if (index < 0 || remaining(_timers[index]) > Duration.zero) return false;
     final timer = _timers[index];
     if (timer.acknowledged) return true;
     final operation = ++_operation;
+    busy = true;
     final updated = timer.copyWith(
       revision: timer.revision + 1,
       acknowledged: true,
@@ -244,6 +280,56 @@ final class CookingTimersController extends ChangeNotifier {
         notifyListeners();
       }
       return false;
+    } finally {
+      if (operation == _operation && !_retired) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> cancel(String id) async {
+    if (!_current()) {
+      failure = CookingTimerFailure.staleAuthority;
+      return false;
+    }
+    if (busy) return false;
+    final mutable = store;
+    if (mutable is! MutableCookingTimerStore) {
+      failure = CookingTimerFailure.unavailable;
+      notifyListeners();
+      return false;
+    }
+    final index = _timers.indexWhere((timer) => timer.id == id);
+    if (index < 0) return false;
+    final timer = _timers[index];
+    final operation = ++_operation;
+    busy = true;
+    failure = null;
+    notifyListeners();
+    try {
+      await mutable.remove(
+        authority.accountId,
+        authority.recipeSessionId,
+        timer.id,
+        expectedRevision: timer.revision,
+      );
+      if (operation != _operation || !_current()) {
+        failure = CookingTimerFailure.staleAuthority;
+        return false;
+      }
+      _timers.removeWhere((value) => value.id == timer.id);
+      return true;
+    } catch (_) {
+      failure = operation == _operation && _current()
+          ? CookingTimerFailure.unavailable
+          : CookingTimerFailure.staleAuthority;
+      return false;
+    } finally {
+      if (operation == _operation && !_retired) {
+        busy = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -256,6 +342,8 @@ final class CookingTimersController extends ChangeNotifier {
     if (_retired) return;
     _retired = true;
     _operation++;
+    busy = false;
+    _resuming = false;
     failure = CookingTimerFailure.staleAuthority;
     notifyListeners();
   }

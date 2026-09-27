@@ -42,6 +42,7 @@ import '../features/media/archive_health/presentation/core_media_archive_health_
 import '../features/server/music_manager/presentation/server_music_manager_screen.dart';
 import '../features/wellbeing/presentation/wellbeing_gate.dart';
 import '../features/camera_search/presentation/camera_search_route.dart';
+import '../features/cooking_assistant/presentation/cooking_assistant_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
         GoRoute(path: '/inventory', builder: (_, _) => const InventoryRoute()),
         GoRoute(path: '/pantry', builder: (_, _) => const PantryStockRoute()),
+        GoRoute(
+          path: '/cooking',
+          builder: (_, _) => const CookingAssistantRoute(),
+        ),
         GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
         GoRoute(
           path: '/weekly-menu',

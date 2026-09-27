@@ -12,6 +12,14 @@ abstract interface class CookingSessionGateway {
   });
 }
 
+abstract interface class CookingSessionLifecycleGateway
+    implements CookingSessionGateway {
+  Future<CookingSession> cancel({
+    required String sessionId,
+    required int expectedRevision,
+  });
+}
+
 enum CookingSessionFailure { unavailable, staleAuthority, invalidResponse }
 
 final class CookingSessionController extends ChangeNotifier {
@@ -44,8 +52,60 @@ final class CookingSessionController extends ChangeNotifier {
   Future<bool> next() => _move(_value.currentStep + 1);
   Future<bool> previous() => _move(_value.currentStep - 1);
 
+  Future<bool> cancel() async {
+    if (!_hasAuthority() || busy || _value.cancelled) return false;
+    final lifecycle = gateway;
+    if (lifecycle is! CookingSessionLifecycleGateway) {
+      failure = CookingSessionFailure.unavailable;
+      notifyListeners();
+      return false;
+    }
+    final operation = ++_epoch;
+    final original = _value;
+    busy = true;
+    failure = null;
+    notifyListeners();
+    try {
+      final result = await lifecycle.cancel(
+        sessionId: original.id,
+        expectedRevision: original.revision,
+      );
+      if (operation != _epoch || !_hasAuthority()) {
+        failure = CookingSessionFailure.staleAuthority;
+        return false;
+      }
+      if (result.id != original.id ||
+          result.accountId != original.accountId ||
+          result.recipeId != original.recipeId ||
+          result.recipeRevision != original.recipeRevision ||
+          !listEquals(result.steps, original.steps) ||
+          result.currentStep != original.currentStep ||
+          result.revision != original.revision + 1 ||
+          !result.cancelled) {
+        failure = CookingSessionFailure.invalidResponse;
+        return false;
+      }
+      _value = result;
+      return true;
+    } catch (_) {
+      failure = operation == _epoch && _hasAuthority()
+          ? CookingSessionFailure.unavailable
+          : CookingSessionFailure.staleAuthority;
+      return false;
+    } finally {
+      if (operation == _epoch && !_retired) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<bool> _move(int step) async {
-    if (!_hasAuthority() || busy || step < 0 || step >= _value.steps.length) {
+    if (!_hasAuthority() ||
+        busy ||
+        _value.cancelled ||
+        step < 0 ||
+        step >= _value.steps.length) {
       return false;
     }
     final operation = ++_epoch;

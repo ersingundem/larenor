@@ -8,7 +8,8 @@ import 'cooking_timers_controller.dart';
 
 typedef CookingTimerPreferencesLoader = Future<SharedPreferences> Function();
 
-final class SharedPreferencesCookingTimerStore implements CookingTimerStore {
+final class SharedPreferencesCookingTimerStore
+    implements MutableCookingTimerStore {
   SharedPreferencesCookingTimerStore({
     CookingTimerPreferencesLoader? preferences,
   }) : _preferences = preferences ?? SharedPreferences.getInstance;
@@ -115,6 +116,31 @@ final class SharedPreferencesCookingTimerStore implements CookingTimerStore {
     });
     if (!await (await _preferences()).setString(
       _key(timer.accountId, timer.recipeSessionId),
+      document,
+    )) {
+      throw StateError('cooking_timer_storage_unavailable');
+    }
+  }
+
+  @override
+  Future<void> remove(
+    String accountId,
+    String recipeSessionId,
+    String timerId, {
+    required int expectedRevision,
+  }) async {
+    final values = await read(accountId, recipeSessionId);
+    final index = values.indexWhere((value) => value.id == timerId);
+    if (index < 0 || values[index].revision != expectedRevision) {
+      throw StateError('cooking_timer_revision_conflict');
+    }
+    final updated = List<CookingTimer>.of(values)..removeAt(index);
+    final document = jsonEncode({
+      'schemaVersion': 1,
+      'timers': updated.map(_encode).toList(growable: false),
+    });
+    if (!await (await _preferences()).setString(
+      _key(accountId, recipeSessionId),
       document,
     )) {
       throw StateError('cooking_timer_storage_unavailable');
