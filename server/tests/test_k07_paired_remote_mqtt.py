@@ -68,10 +68,15 @@ def test_pairing_identity_scope_revoke_and_secret_free_inventory(server):
     assert discovery.json()["commandRetainAllowed"] is False
     assert [item["kind"] for item in discovery.json()["sensors"]] == [
         "battery",
+        "charging",
         "network",
         "app_version",
+        "app_build",
         "app_foreground",
         "kiosk_state",
+        "memory_used_mb",
+        "memory_limit_mb",
+        "process_uptime_seconds",
     ]
     assert discovery.json()["commandTopic"] == (
         f"larenor/{pairing['id']}/command"

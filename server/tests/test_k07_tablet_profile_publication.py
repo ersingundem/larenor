@@ -251,7 +251,7 @@ def test_tablet_fleet_schema_one_migrates_to_profile_storage():
 
     assert connection.execute(
         "SELECT value FROM metadata WHERE key='tablet_fleet_schema'"
-    ).fetchone()["value"] == "2"
+    ).fetchone()["value"] == "3"
     names = {
         row["name"]
         for row in connection.execute(
@@ -259,3 +259,4 @@ def test_tablet_fleet_schema_one_migrates_to_profile_storage():
         ).fetchall()
     }
     assert "managed_tablet_profiles" in names
+    assert "managed_tablet_profile_history" in names
