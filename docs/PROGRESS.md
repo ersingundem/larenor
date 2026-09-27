@@ -2875,6 +2875,15 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — F11 uygulandı, F12 başladı:** Paketli mini eklenti yalnız mevcut
+  Core/ev kapsamındaki `home.resource_count.read` yeteneğini çalıştırıyor. Ağ,
+  host dosyaları, anahtarlar, host yönetimi, keyfi kod ve evler arası erişim
+  kapalı; CPU/bellek/çıktı bütçeleri, HMAC doğrulamalı sınırlı journal ve
+  durdurma sonrası yürütme reddi görünür Client akışına bağlandı (`7af0d3e4`,
+  `2e10d86d`). F11 son test/inceleme/exact-head CI tablosuna taşındı; F12
+  yetkili MCP kapısı aktif geliştirmeye alındı. Kabul sayaçları kanıtlar gelene
+  kadar **37/125** ve **3/63** olarak korunuyor.
+
 - **27 Eylül — F01 uygulandı, F11 başladı:** Sürümlü izinli eylem kataloğu yalnız
   tam ifadeleri şema doğrulamalı otomasyon taslağına çeviriyor; hedef, adımlar,
   yan etkiler ve süre görünür. Ham döküm saklanmıyor, prompt enjeksiyonu
