@@ -5125,7 +5125,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5149,7 +5149,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tablet oyun yayınında Sunshine uyumlu host capability, güvenli eşleme, oynatma/girdi yaşam döngüsü ve kopuş davranışı geliştiriliyor."
+      "reason": "Kurulu Moonlight için gerçek Android capability/launch, exact provider-revision receipt, Core Sunshine host görünümü ve foreground/late-response kapıları uygulandı; Flutter 17/17, focused analyze, Android üretim derlemesi ve F60 Kotlin testi geçti. Fiziksel yayın/giriş/gecikme/kopuş ile tam CI bekliyor."
     },
     {
       "id": "G11",
