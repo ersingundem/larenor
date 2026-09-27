@@ -152,7 +152,9 @@ class ComponentUpdateRollbackStore:
         captured = []
         try:
             pairs = self._sources(update_id, sources)
-            leases = self._engine.acquire(pairs, update_id, deadline)
+            leases = self._engine.acquire(
+                pairs, update_id, deadline, namespace="update"
+            )
             for lease in leases:
                 byte_length, sha256 = self._engine.capture_rollback(lease, deadline)
                 captured.append(
@@ -181,7 +183,9 @@ class ComponentUpdateRollbackStore:
         try:
             pairs = self._sources(update_id, sources, receipts)
             ordered = tuple(pair[1] for pair in pairs)
-            leases = self._engine.acquire(pairs, update_id, deadline)
+            leases = self._engine.acquire(
+                pairs, update_id, deadline, namespace="update"
+            )
             recovered = []
             for lease, target in zip(leases, ordered, strict=True):
                 rollback = (target.byte_length, target.sha256)

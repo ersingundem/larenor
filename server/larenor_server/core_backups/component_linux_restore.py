@@ -488,11 +488,13 @@ class LinuxDirectoryRestoreEngine:
         self._system = selected
 
     @staticmethod
-    def _names(operation_id, index):
-        prefix = f".larenor-restore-{operation_id}-{index:03d}"
+    def _names(operation_id, index, namespace):
+        if namespace not in {"restore", "update"}:
+            raise ComponentRestorePlanError()
+        prefix = f".larenor-{namespace}-{operation_id}-{index:03d}"
         return prefix, f"{prefix}.rollback", f"{prefix}.trash"
 
-    def acquire(self, pairs, operation_id, deadline):
+    def acquire(self, pairs, operation_id, deadline, *, namespace="restore"):
         leases = []
         try:
             if (
@@ -501,6 +503,7 @@ class LinuxDirectoryRestoreEngine:
                 or type(operation_id) is not str
                 or len(operation_id) != 32
                 or any(char not in "0123456789abcdef" for char in operation_id)
+                or namespace not in {"restore", "update"}
             ):
                 raise ComponentRestorePlanError()
             for index, pair in enumerate(pairs):
@@ -544,7 +547,7 @@ class LinuxDirectoryRestoreEngine:
                     ):
                         raise ComponentRestorePlanError()
                     stage_name, rollback_name, trash_name = self._names(
-                        operation_id, index
+                        operation_id, index, namespace
                     )
                     leases.append(
                         LinuxRestoreFileLease(
