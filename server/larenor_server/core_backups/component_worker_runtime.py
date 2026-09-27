@@ -290,6 +290,51 @@ class PackagedComponentSnapshotBoundary:
         with self._effects.locked():
             return self._effects.clear_rollback(record.command.updateId, record.state)
 
+    @staticmethod
+    def _cleanup_retired_container(engine, record, *, verify_current):
+        """Remove only the exact stopped predecessor of a committed update."""
+        try:
+            if (
+                record.state != "committed"
+                or record.new_container_id is None
+                or type(verify_current) is not bool
+            ):
+                raise DockerWorkerError()
+            if verify_current:
+                current = engine.inspect_container(record.new_container_id)
+                if (
+                    not managed_container_matches(current, record.binding)
+                    or type(current.get("State")) is not dict
+                    or current["State"].get("Running") is not True
+                    or current["State"].get("Paused") is not False
+                    or current["State"].get("Restarting") is not False
+                    or current["State"].get("Dead") is not False
+                ):
+                    raise DockerWorkerError()
+            retired = engine.inspect_container(record.old_container_id)
+            if retired is None:
+                return True
+            state = retired.get("State")
+            if (
+                retired.get("Name")
+                != "/larenor-retired-" + record.command.updateId
+                or type(state) is not dict
+                or state.get("Status") != "exited"
+                or state.get("Running") is not False
+                or state.get("Paused") is not False
+                or state.get("Restarting") is not False
+                or state.get("Dead") is not False
+            ):
+                raise DockerWorkerError()
+            engine.remove_container(record.old_container_id)
+            if engine.inspect_container(record.old_container_id) is not None:
+                raise DockerWorkerError()
+            return True
+        except DockerWorkerError:
+            raise
+        except Exception:
+            raise DockerWorkerError() from None
+
     def _rollback_update(self, engine, preparation, record, rollback_lease=None):
         """Best-effort exact rollback; uncertainty remains operator-visible."""
         recovered_lease = None
@@ -386,6 +431,11 @@ class PackagedComponentSnapshotBoundary:
         try:
             with self._effects.locked():
                 records = self._effects.records()
+            latest_committed = {
+                record.command.installationId: record.sequence
+                for record in records
+                if record.state == "committed"
+            }
             for record in records:
                 if time.monotonic() >= deadline:
                     raise ComponentWorkerRuntimeError("worker_unavailable")
@@ -408,6 +458,23 @@ class PackagedComponentSnapshotBoundary:
                     self._rollback_update(engine, preparation, record)
                 elif record.state in {"committed", "rolled_back"}:
                     self._clear_terminal_rollback(record, deadline)
+                    if record.state == "committed":
+                        engine = UnixDockerEngine(
+                            self._endpoint.path,
+                            timeout=min(
+                                30, max(0.1, deadline - time.monotonic())
+                            ),
+                            socket_uid=self._endpoint.owner_uid,
+                            peer_uid=self._peer_uid,
+                        )
+                        self._cleanup_retired_container(
+                            engine,
+                            record,
+                            verify_current=(
+                                latest_committed[record.command.installationId]
+                                == record.sequence
+                            ),
+                        )
             return True
         except ComponentWorkerRuntimeError:
             raise
@@ -459,8 +526,23 @@ class PackagedComponentSnapshotBoundary:
                 if existing.state == "committed":
                     try:
                         self._authority.accept_committed_update(command)
-                        self._clear_terminal_rollback(existing, deadline)
-                    except (ComponentInstallationAuthorityError, ComponentUpdateRollbackError):
+                        existing = self._clear_terminal_rollback(existing, deadline)
+                        engine = UnixDockerEngine(
+                            self._endpoint.path,
+                            timeout=min(
+                                30, max(0.1, deadline - time.monotonic())
+                            ),
+                            socket_uid=self._endpoint.owner_uid,
+                            peer_uid=self._peer_uid,
+                        )
+                        self._cleanup_retired_container(
+                            engine, existing, verify_current=True
+                        )
+                    except (
+                        ComponentInstallationAuthorityError,
+                        ComponentUpdateRollbackError,
+                        DockerWorkerError,
+                    ):
                         return self._effect_result(
                             command, "needs_attention", "container_state_unknown"
                         )
@@ -590,7 +672,7 @@ class PackagedComponentSnapshotBoundary:
                 ):
                     raise DockerWorkerError()
                 with self._effects.locked():
-                    self._effects.transition(
+                    record = self._effects.transition(
                         command.updateId,
                         "mutating",
                         "committed",
@@ -614,6 +696,16 @@ class PackagedComponentSnapshotBoundary:
                         return self._effect_result(
                             command, "needs_attention", "rollback_required"
                         )
+                try:
+                    with self._effects.locked():
+                        record = self._effects.get(command.updateId)
+                    self._cleanup_retired_container(
+                        engine, record, verify_current=True
+                    )
+                except DockerWorkerError:
+                    return self._effect_result(
+                        command, "needs_attention", "container_state_unknown"
+                    )
                 return self._effect_result(command, "succeeded", "component_updated")
             except BaseException as error:
                 if isinstance(error, (KeyboardInterrupt, SystemExit)):
