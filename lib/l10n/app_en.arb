@@ -4658,5 +4658,11 @@
   "serverEvidenceDiagnosticRepair": "Repair guidance",
   "serverEvidenceDiagnosticPreview": "Create repair preview",
   "serverEvidenceDiagnosticPreviewOnly": "This is an authorization-bound preview. It cannot execute a repair.",
-  "serverEvidenceDiagnosticNotApplied": "Preview only · requires a separate explicit execution path · not applied"
+  "serverEvidenceDiagnosticNotApplied": "Preview only · requires a separate explicit execution path · not applied",
+  "serverTabletFleetProfileHistory": "Profile history",
+  "serverTabletFleetProfileHistoryEmpty": "No archived profile is available.",
+  "serverTabletFleetHistoryLoaded": "Profile history was verified by Core.",
+  "serverTabletFleetRestoreRevision": "Restore revision {revision}",
+  "@serverTabletFleetRestoreRevision": {"placeholders": {"revision": {"type": "int"}}},
+  "serverTabletFleetRestoreVerified": "The archived profile was restored as a new revision and verified."
 }

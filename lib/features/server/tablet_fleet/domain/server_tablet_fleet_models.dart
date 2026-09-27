@@ -348,6 +348,70 @@ final class ManagedTabletProfilePublication {
       'ManagedTabletProfilePublication(device: $deviceId, revision: $revision)';
 }
 
+final class ManagedTabletProfileHistoryEntry {
+  const ManagedTabletProfileHistoryEntry._({
+    required this.revision,
+    required this.digest,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.archivedAt,
+  });
+
+  factory ManagedTabletProfileHistoryEntry.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'revision',
+      'digest',
+      'createdAt',
+      'updatedAt',
+      'archivedAt',
+    });
+    final digest = json['digest'];
+    if (digest is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final created = _time(json['createdAt']);
+    final updated = _time(json['updatedAt']);
+    final archived = _time(json['archivedAt']);
+    if (updated < created || archived < updated) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ManagedTabletProfileHistoryEntry._(
+      revision: _revision(json['revision']),
+      digest: digest,
+      createdAt: created,
+      updatedAt: updated,
+      archivedAt: archived,
+    );
+  }
+
+  final int revision;
+  final String digest;
+  final double createdAt, updatedAt, archivedAt;
+}
+
+final class ManagedTabletProfileHistory {
+  const ManagedTabletProfileHistory(this.deviceId, this.entries);
+
+  factory ManagedTabletProfileHistory.fromJson(Object? value) {
+    final json = _closed(value, const {'schemaVersion', 'deviceId', 'entries'});
+    final raw = json['entries'];
+    if (json['schemaVersion'] != 1 || raw is! List || raw.length > 32) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final entries = raw.map(ManagedTabletProfileHistoryEntry.fromJson).toList();
+    if (entries.map((item) => item.revision).toSet().length != entries.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ManagedTabletProfileHistory(
+      _identity(json['deviceId']),
+      List.unmodifiable(entries),
+    );
+  }
+
+  final String deviceId;
+  final List<ManagedTabletProfileHistoryEntry> entries;
+}
+
 enum KioskRolloutDeviceState {
   current,
   ready,

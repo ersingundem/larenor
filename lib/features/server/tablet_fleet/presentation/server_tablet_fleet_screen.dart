@@ -149,6 +149,8 @@ class _ServerTabletFleetScreenState
     return switch (_fleet.failure) {
       null => switch (_fleet.announcement) {
         'profile_updated' => l10n.serverTabletFleetProfileVerified,
+        'profile_history_loaded' => l10n.serverTabletFleetHistoryLoaded,
+        'profile_restored' => l10n.serverTabletFleetRestoreVerified,
         'tablet_revoked' => l10n.serverTabletFleetRevokedVerified,
         'command_verified' => l10n.serverTabletFleetCommandVerified,
         'rollout_preview_verified' => l10n.serverTabletFleetRolloutVerified,
@@ -262,6 +264,7 @@ class _ServerTabletFleetScreenState
     final active = tablet.state == TabletFleetState.active;
     final owner = tablet.mode == TabletManagementMode.deviceOwner;
     final receipt = _fleet.latestCommands[tablet.id];
+    final history = _fleet.profileHistories[tablet.id];
     return SettingsSection(
       key: ValueKey('tablet-card-${tablet.id}'),
       header: Text(tablet.name),
@@ -314,6 +317,40 @@ class _ServerTabletFleetScreenState
                 )
               : null,
         ),
+        SettingsActionTile(
+          buttonKey: ValueKey('tablet-profile-history-${tablet.id}'),
+          leading: const Icon(CupertinoIcons.clock),
+          title: Text(l10n.serverTabletFleetProfileHistory),
+          onTap: enabled && active
+              ? () => _fleet.loadProfileHistory(
+                  tablet,
+                  current: () => mounted && _active,
+                )
+              : null,
+        ),
+        if (history != null && history.isEmpty)
+          CupertinoListTile(
+            title: Text(l10n.serverTabletFleetProfileHistoryEmpty),
+          ),
+        if (history != null)
+          for (final entry in history)
+            SettingsActionTile(
+              buttonKey: ValueKey(
+                'tablet-profile-restore-${tablet.id}-${entry.revision}',
+              ),
+              leading: const Icon(CupertinoIcons.arrow_counterclockwise),
+              title: Text(
+                l10n.serverTabletFleetRestoreRevision(entry.revision),
+              ),
+              additionalInfo: Text(entry.digest.substring(0, 8)),
+              onTap: enabled && active
+                  ? () => _fleet.restoreProfile(
+                      tablet,
+                      entry,
+                      current: () => mounted && _active,
+                    )
+                  : null,
+            ),
         SettingsActionTile(
           buttonKey: ValueKey('tablet-refresh-${tablet.id}'),
           leading: const Icon(CupertinoIcons.refresh_circled),

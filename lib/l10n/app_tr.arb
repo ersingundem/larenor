@@ -4305,5 +4305,11 @@
   "serverEvidenceDiagnosticRepair": "Onarım rehberi",
   "serverEvidenceDiagnosticPreview": "Onarım önizlemesi oluştur",
   "serverEvidenceDiagnosticPreviewOnly": "Bu yetkiye bağlı bir önizlemedir. Onarım çalıştıramaz.",
-  "serverEvidenceDiagnosticNotApplied": "Yalnız önizleme · ayrı açık yürütme yolu gerekir · uygulanmadı"
+  "serverEvidenceDiagnosticNotApplied": "Yalnız önizleme · ayrı açık yürütme yolu gerekir · uygulanmadı",
+  "serverTabletFleetProfileHistory": "Profil geçmişi",
+  "serverTabletFleetProfileHistoryEmpty": "Arşivlenmiş profil yok.",
+  "serverTabletFleetHistoryLoaded": "Profil geçmişi Core tarafından doğrulandı.",
+  "serverTabletFleetRestoreRevision": "{revision}. revizyonu geri yükle",
+  "@serverTabletFleetRestoreRevision": {"placeholders": {"revision": {"type": "int"}}},
+  "serverTabletFleetRestoreVerified": "Arşivlenmiş profil yeni bir revizyon olarak geri yüklendi ve doğrulandı."
 }

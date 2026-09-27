@@ -167,6 +167,68 @@ class ServerTabletFleetApi {
     return publication;
   }
 
+  Future<ManagedTabletProfileHistory> profileHistory(
+    ManagedTablet tablet,
+  ) async {
+    if (tablet.context != context) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final history = ManagedTabletProfileHistory.fromJson(
+      await api.request(
+        'GET',
+        '$_root/${_id(tablet.id)}/profile-history',
+        token: token,
+      ),
+    );
+    if (history.deviceId != tablet.id ||
+        history.entries.any(
+          (entry) => entry.revision >= tablet.desiredProfileRevision,
+        )) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return history;
+  }
+
+  Future<({ManagedTablet tablet, ManagedTabletProfilePublication publication})>
+  restoreProfile(
+    ManagedTablet tablet,
+    ManagedTabletProfileHistoryEntry source,
+  ) async {
+    if (tablet.context != context ||
+        tablet.state != TabletFleetState.active ||
+        source.revision >= tablet.desiredProfileRevision ||
+        tablet.desiredProfileRevision >= 9223372036854775807) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final publication = ManagedTabletProfilePublication.fromJson(
+      await api.request(
+        'POST',
+        '$_root/${_id(tablet.id)}/profile-publication/restore',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'expectedDeviceRevision': tablet.revision,
+          'expectedProfileRevision': tablet.desiredProfileRevision,
+          'sourceRevision': source.revision,
+        },
+      ),
+    );
+    if (publication.deviceId != tablet.id ||
+        publication.deviceRevision != tablet.revision + 1 ||
+        publication.revision != tablet.desiredProfileRevision + 1 ||
+        publication.digest != source.digest) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final readback = await _find(tablet.id);
+    if (readback.revision != publication.deviceRevision ||
+        readback.desiredProfileRevision != publication.revision ||
+        readback.appliedProfileRevision != tablet.appliedProfileRevision ||
+        readback.state != TabletFleetState.active) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return (tablet: readback, publication: publication);
+  }
+
   Future<({ManagedTablet tablet, ManagedTabletProfilePublication publication})>
   publishProfile({
     required ManagedTablet tablet,

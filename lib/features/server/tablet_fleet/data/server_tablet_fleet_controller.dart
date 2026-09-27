@@ -50,6 +50,8 @@ class ServerTabletFleetController extends ChangeNotifier {
   String? announcement;
   List<ManagedTablet> tablets = const [];
   Map<String, ManagedTabletCommand> latestCommands = const {};
+  Map<String, List<ManagedTabletProfileHistoryEntry>> profileHistories =
+      const {};
   KioskProfileRolloutPreview? rolloutPreview;
   _PendingTabletIssue? _uncertainIssue;
 
@@ -97,6 +99,7 @@ class ServerTabletFleetController extends ChangeNotifier {
     announcement = null;
     tablets = const [];
     latestCommands = const {};
+    profileHistories = const {};
     rolloutPreview = null;
     _uncertainIssue = null;
     _emit();
@@ -159,6 +162,51 @@ class ServerTabletFleetController extends ChangeNotifier {
     }
     return api.updateProfile(tablet, tablet.desiredProfileRevision + 1);
   }, announcementCode: 'profile_updated');
+
+  Future<void> loadProfileHistory(
+    ManagedTablet tablet, {
+    required bool Function() current,
+  }) => _run(current, (api, valid) async {
+    final history = await api.profileHistory(tablet);
+    if (!valid()) return;
+    profileHistories = Map.unmodifiable({
+      ...profileHistories,
+      tablet.id: history.entries,
+    });
+    announcement = 'profile_history_loaded';
+  });
+
+  Future<void> restoreProfile(
+    ManagedTablet tablet,
+    ManagedTabletProfileHistoryEntry source, {
+    required bool Function() current,
+  }) async {
+    final epoch = _epoch;
+    await _run(
+      current,
+      (api, valid) async {
+        rolloutPreview = null;
+        final result = await api.restoreProfile(tablet, source);
+        if (!valid()) return;
+        final old = tablets.where((item) => item.id == tablet.id).toList();
+        if (old.length != 1 || !old.single.sameAuthority(result.tablet)) {
+          throw const LarenorServerException('invalid_response');
+        }
+        tablets = List.unmodifiable(
+          tablets.map(
+            (item) => item.id == result.tablet.id ? result.tablet : item,
+          ),
+        );
+        profileHistories = Map.unmodifiable({
+          ...profileHistories,
+          tablet.id: (await api.profileHistory(result.tablet)).entries,
+        });
+        announcement = 'profile_restored';
+      },
+      mutation: true,
+      expectedEpoch: epoch,
+    );
+  }
 
   Future<void> previewRollout({
     required int rolloutPercent,
@@ -356,6 +404,7 @@ class ServerTabletFleetController extends ChangeNotifier {
       }.contains(failure)) {
         tablets = const [];
         latestCommands = const {};
+        profileHistories = const {};
         rolloutPreview = null;
       }
     } finally {
