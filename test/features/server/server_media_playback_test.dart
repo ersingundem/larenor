@@ -55,6 +55,7 @@ Map<String, Object?> _intentJson() => {
       'available': true,
       'currentItemId': null,
       'positionSeconds': 0,
+      'qualityObservation': null,
     },
   ],
 };
