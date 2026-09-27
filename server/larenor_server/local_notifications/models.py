@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
+from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision, Snapshot
 
 
 IdempotencyKey = str
@@ -58,6 +58,52 @@ class Subscription(FrozenModel):
 
 class SubscriptionResponse(FrozenModel):
     subscription: Subscription
+
+
+class RegisterDeliveryLease(FrozenModel):
+    schemaVersion: Literal[1]
+    leaseId: Identity
+    credential: str = Field(
+        min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"
+    )
+    credentialFingerprint: Snapshot
+    expectedSubscriptionRevision: Revision
+    expiresAt: float
+
+    _version = field_validator("schemaVersion", mode="before")(
+        RegisterSubscription.integer_version.__func__
+    )
+
+
+class RenewDeliveryLease(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Revision
+    expectedSubscriptionRevision: Revision
+    expiresAt: float
+
+    _version = field_validator("schemaVersion", mode="before")(
+        RegisterSubscription.integer_version.__func__
+    )
+
+
+class DeliveryLeaseRef(HomeScope):
+    kind: Literal["local_notification_delivery_lease"]
+    id: Identity
+
+
+class DeliveryLease(FrozenModel):
+    schemaVersion: Literal[1]
+    ref: DeliveryLeaseRef
+    subscriptionId: Identity
+    subscriptionRevision: Revision
+    revision: Revision
+    credentialFingerprint: Snapshot
+    state: Literal["active", "revoked", "expired"]
+    expiresAt: float
+
+
+class DeliveryLeaseResponse(FrozenModel):
+    lease: DeliveryLease
 
 
 class CreateNotification(FrozenModel):
@@ -119,6 +165,22 @@ class NotificationPage(FrozenModel):
     scope: HomeScope
     subscriptionRevision: Revision
     events: list[Notification] = Field(max_length=100)
+    nextAfter: int | None
+
+
+class DeliveryNotification(FrozenModel):
+    id: Identity
+    sequence: int = Field(ge=1, le=2**63 - 1)
+    sensitivity: Sensitivity
+    publicProjection: PublicProjection
+
+
+class DeliveryNotificationPage(FrozenModel):
+    schemaVersion: Literal[1]
+    scope: HomeScope
+    leaseRevision: Revision
+    subscriptionRevision: Revision
+    events: list[DeliveryNotification] = Field(max_length=50)
     nextAfter: int | None
 
 

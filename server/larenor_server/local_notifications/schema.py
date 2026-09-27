@@ -4,10 +4,11 @@ from ..errors import StartupError
 
 
 MAX_SUBSCRIPTIONS = 256
+MAX_DELIVERY_LEASES = 256
 MAX_EVENTS = 10000
 MAX_DELIVERIES = 50000
 
-TABLES = {
+V1_TABLES = {
     "local_notification_subscriptions": """CREATE TABLE local_notification_subscriptions (
         id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, family_id TEXT NOT NULL,
         revision INTEGER NOT NULL CHECK(revision > 0),
@@ -28,6 +29,28 @@ TABLES = {
         FOREIGN KEY(subscription_id) REFERENCES local_notification_subscriptions(id) ON DELETE CASCADE,
         FOREIGN KEY(sequence) REFERENCES local_notification_events(sequence) ON DELETE CASCADE)""",
 }
+
+TABLES = {
+    **V1_TABLES,
+    "local_notification_delivery_leases": """CREATE TABLE local_notification_delivery_leases (
+        id TEXT PRIMARY KEY, subscription_id TEXT NOT NULL UNIQUE,
+        owner_id TEXT NOT NULL, family_id TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK(revision > 0),
+        credential_hash TEXT NOT NULL, credential_fingerprint TEXT NOT NULL,
+        subscription_revision INTEGER NOT NULL CHECK(subscription_revision > 0),
+        state TEXT NOT NULL CHECK(state IN ('active','revoked')),
+        requested_expires_at REAL NOT NULL, expires_at REAL NOT NULL,
+        created_at REAL NOT NULL, envelope_tag TEXT NOT NULL,
+        FOREIGN KEY(subscription_id) REFERENCES local_notification_subscriptions(id) ON DELETE CASCADE)""",
+}
+
+
+def _matches(actual, expected):
+    return set(actual) == set(expected) and all(
+        row["type"] == "table"
+        and " ".join(row["sql"].split()) == " ".join(expected[name].split())
+        for name, row in actual.items()
+    )
 
 
 def migrate_local_notifications(connection: sqlite3.Connection) -> None:
@@ -51,18 +74,26 @@ def migrate_local_notifications(connection: sqlite3.Connection) -> None:
                 raise ValueError("unmarked_local_notification_storage")
             for statement in TABLES.values():
                 connection.execute(statement)
-            connection.execute("INSERT INTO metadata VALUES('local_notification_schema','1')")
+            connection.execute("INSERT INTO metadata VALUES('local_notification_schema','2')")
             return
-        if marker["value"] != "1" or set(actual) != set(TABLES) or any(
-            row["type"] != "table"
-            or " ".join(row["sql"].split()) != " ".join(TABLES[name].split())
-            for name, row in actual.items()
-        ):
+        if marker["value"] == "1":
+            if not _matches(actual, V1_TABLES):
+                raise ValueError("invalid_local_notification_storage")
+            connection.execute(TABLES["local_notification_delivery_leases"])
+            connection.execute(
+                "UPDATE metadata SET value='2' WHERE key='local_notification_schema'"
+            )
+            actual["local_notification_delivery_leases"] = connection.execute(
+                "SELECT name,type,tbl_name,sql FROM sqlite_master "
+                "WHERE name='local_notification_delivery_leases'"
+            ).fetchone()
+        if marker["value"] not in {"1", "2"} or not _matches(actual, TABLES):
             raise ValueError("invalid_local_notification_storage")
         expected_indexes = {
             "local_notification_subscriptions": 1,
             "local_notification_events": 2,
             "local_notification_acks": 1,
+            "local_notification_delivery_leases": 2,
         }
         for table, count in expected_indexes.items():
             indexes = connection.execute(f"PRAGMA index_list({table})").fetchall()
