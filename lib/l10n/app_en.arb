@@ -1749,7 +1749,7 @@
   "serverMusicProviderSetupOptional": "Optional",
   "serverMusicProviderSetupEnabled": "Enabled",
   "serverMusicProviderSetupSubmit": "Continue setup",
-  "serverMusicProviderSetupIncomplete": "Complete every required field before continuing.",
+  "serverMusicProviderSetupIncomplete": "Complete every required field with a valid value before continuing.",
   "serverMusicProviderSetupRefresh": "Refresh status",
   "serverMusicProviderSetupRetry": "Retry exact step",
   "serverMusicProviderSetupCancel": "Cancel setup",

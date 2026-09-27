@@ -1418,7 +1418,7 @@
   "serverMusicProviderSetupOptional": "İsteğe bağlı",
   "serverMusicProviderSetupEnabled": "Etkin",
   "serverMusicProviderSetupSubmit": "Kuruluma devam et",
-  "serverMusicProviderSetupIncomplete": "Devam etmeden önce tüm zorunlu alanları doldur.",
+  "serverMusicProviderSetupIncomplete": "Devam etmeden önce tüm zorunlu alanları geçerli bir değerle doldur.",
   "serverMusicProviderSetupRefresh": "Durumu yenile",
   "serverMusicProviderSetupRetry": "Tam adımı yeniden dene",
   "serverMusicProviderSetupCancel": "Kurulumu iptal et",
