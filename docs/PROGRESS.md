@@ -1,13 +1,13 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 35/125 kuyruk işi ve 1/63 seçili özellik kabul edildi. F31'in daha önce tamamlanan exact ürün/test/review/CI kanıtı, son bağımlılığı B3 de kapandığı için kuyrukta kabul edildi. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 36/125 kuyruk işi ve 2/63 seçili özellik kabul edildi. F31 ve F06'nın daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K12 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ██████░░░░░░░░░░░░░░  35/125 iş (%28,0; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██████░░░░░░░░░░░░░░  36/125 iş (%28,8; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
-Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  1/63 kabul edildi (%1,6)
+Yeni 63 özellik     █░░░░░░░░░░░░░░░░░░░  2/63 kabul edildi (%3,2)
 ```
 
 Bu sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak toplam sürenin
@@ -52,6 +52,26 @@ için dar analiz temizdi. Bağımsız final P1/P2 incelemesi blocker bulmadı. K
 **35/125 (%28,0)** ve **1/63 (%1,6)** kalır. Fiziksel process-death/DeX/uzun
 bekleme `MANUAL.KIOSK` altında ayrıdır.
 [TDD ve kabul kanıtı](testing/k12-watchdog-local-usage-foundation.tdd.md).
+
+### 27 Eylül F06 atfedilebilir işlem açıklaması yazılım kabulü
+
+F06'nın exact `2169dd6fd9e3a8b3274413040f2b575600e38540` kaynağı kullanıcı,
+kural, servis, komut ve sonucu aynı iz kimliği altında gösteriyor; legacy ve
+`unknown` olaylarda zaman yakınlığından neden üretmiyor. Gerçek loopback
+Client→izole Core yolu, ev/kullanıcı yetkisi, bozuk cursor/attribution,
+iptal/geç cevap ve limit sınırlarını kapalı davranışla doğruladı. Exact kaynakta
+odaklı Server **12/12**, Client model/UI/HTTP **36/36** geçti; kayıtlı birleşik
+regresyon Server **450/450** ve Client `core_ha` **252/252** idi. Bağımsız
+saldırgan inceleme açık P1/P2 bulmadı.
+
+Android Build [`35527450313`](https://github.com/ersingundem/larenor/actions/runs/35527450313),
+Security [`35527450077`](https://github.com/ersingundem/larenor/actions/runs/35527450077)
+ve Server Container [`35527450252`](https://github.com/ersingundem/larenor/actions/runs/35527450252)
+aynı exact SHA'da başarılıydı. B0, B5 ve B3 bağımlılıkları artık tamamlandığı
+için F06 `done`; sayaç **36/125 (%28,8)** ve seçili özellik kabulü
+**2/63 (%3,2)** oldu. Dış ankora dayalı genel journal bütünlüğü F20'de, gerçek
+servis/tablet koşulları MANUAL kapılarında açık kalır.
+[Kabul incelemesi](f06-attribution-acceptance-review-2026-09-20.md).
 
 ### 24 Eylül S09.3 yazılım kabulü
 

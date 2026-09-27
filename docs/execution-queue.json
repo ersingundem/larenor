@@ -3210,7 +3210,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Bunu kim, neden yaptı?",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B0",
         "B5",
@@ -3231,8 +3231,49 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/f06-attribution-acceptance-review-2026-09-20.md",
+          "commit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact accepted source passed 12 focused Server and 36 Client model, UI and isolated-Core HTTP tests; recorded combined regressions passed 450 Server and 252 Client core_ha tests."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/f06-attribution-acceptance-review-2026-09-20.md",
+          "commit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent adversarial attribution, authority, legacy/unknown, cursor, late-authority and secret-boundary review found no P1/P2 blocker."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35527450313",
+          "commit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Android Build passed Flutter and Server shards, static analysis, debug APK and API 35 emulator journey."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35527450077",
+          "commit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Security dependency, platform-policy and secret scans passed."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35527450252",
+          "commit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Server Container image build and server verification passed."
+        }
+      ],
+      "completionCommit": "2169dd6fd9e3a8b3274413040f2b575600e38540",
       "reason": null
     },
     {

@@ -1,8 +1,9 @@
 # F06 atfedilebilir işlem açıklaması — kabul incelemesi
 
-**İncelenen taban:** `67261f690f74b813ed22b65237999d9dca9e1cef`
-**Karar tarihi:** 20 Eylül 2026
-**Karar:** Kod dilimi yerel incelemeden geçti; F06 henüz kabul edilmedi.
+**İncelenen ve kabul edilen exact kaynak:** `2169dd6fd9e3a8b3274413040f2b575600e38540`
+**İlk inceleme:** 20 Eylül 2026
+**Kapanış:** 27 Eylül 2026
+**Karar:** F06 yazılım kapısı exact test, bağımsız inceleme ve CI kanıtıyla kabul edildi.
 
 Bu belge `docs/execution-queue.json` içindeki F06 kapsamını ve kabul metnini,
 uygulama ile testlerden bağımsız olarak yeniden eşler. Kod PR'ı kuyruk kaydını
@@ -26,11 +27,12 @@ head'i doğrulamadan kapanış commit'i atılamaz.
    endpointi gerçek `IOClient`, oturum, ev kapsamı ve activity controller
    üzerinden rule/direct/unknown geçmişini okur; offline retain edilen kaydı
    stale yapar ve geç cevap otorite değişiminden sonra yayınlanmaz.
-3. **Exact kaynak incelemesi ve CI — bekliyor.** Kod, sözleşme, EN/TR tablet
-   klavye/TalkBack yüzeyi ve gizli veri sınırı bağımsız diff incelemesinden
-   geçmeli; aynı PR head'inde Android analiz/test/E2E, Server testleri ve
-   güvenlik kapıları yeşil olmalıdır. Fiziksel Home Assistant cihaz sonucu
-   yazılım kabulü sayılmaz ve ilgili `MANUAL.*` kaydında ayrı kalır.
+3. **Exact kaynak incelemesi ve CI — PASS.** Kod, sözleşme, EN/TR tablet
+   klavye/TalkBack yüzeyi ve gizli veri sınırı bağımsız saldırgan incelemeden
+   P1/P2 olmadan geçti. Android Build `35527450313`, Security `35527450077`
+   ve Server Container `35527450252` aynı exact kaynakta başarılı oldu.
+   Fiziksel Home Assistant cihaz sonucu yazılım kabulü sayılmaz ve ilgili
+   `MANUAL.*` kaydında ayrı kalır.
 
 ## Yerel kanıt
 
@@ -109,13 +111,15 @@ bağladı:
   bu projection'a girmez.
 
 Bu inceleme F20 bütünlük genişletmesini veya fiziksel Home Assistant kabulünü
-F06 yazılım kanıtı saymaz. Kuyruk durumu ve sayaçlar değişmedi.
-İnceleme sonrası dört F06 Server dosyası yeniden **12/12**, Client
+F06 yazılım kanıtı saymaz. İlk inceleme sırasında kuyruk durumu ve sayaçlar
+değişmedi. İnceleme sonrası dört F06 Server dosyası yeniden **12/12**, Client
 model/UI/izole Core HTTP paketi yeniden **36/36 PASS** verdi.
 
-## Korunan karar sınırı
+## Kapanış kararı
 
-`F06.status` değeri `pending`, `evidence` boş ve `completionCommit` null kalır.
-Kuyruk sayacı mevcut main değeri olan **17/125 (%13,6)**, seçili özellik sayacı
-**0/63** olarak korunur. Exact PR CI kanıtlandıktan sonra ayrı kapanış
-incelemesi F06'yı kabul edebilir.
+Exact kaynak `2169dd6fd9e3a8b3274413040f2b575600e38540`, yukarıdaki test ve
+bağımsız inceleme kanıtlarıyla birlikte üç zorunlu CI işini geçti. B0, B5 ve B3
+bağımlılıkları da tamamlandığı için `F06.status` değeri `done`, completion
+commit bu exact SHA ve kanıt kayıtları tamamlanmış olarak yazıldı. Dış ankora
+dayalı genel journal bütünlüğü F20'de; gerçek servis ve tablet kabulü ilgili
+`MANUAL.*` kayıtlarında açık kalır.
