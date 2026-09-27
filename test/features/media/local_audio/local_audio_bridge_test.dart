@@ -106,10 +106,21 @@ void main() {
       final source = calls.first.arguments as Map;
       expect(
         source.keys,
-        unorderedEquals(['id', 'uri', 'mimeType', 'title', 'artist', 'album']),
+        unorderedEquals([
+          'id',
+          'uri',
+          'mimeType',
+          'title',
+          'artist',
+          'album',
+          'mediaKind',
+          'initialPositionMs',
+        ]),
       );
       expect(source['id'], 'station-one');
       expect(source['title'], 'Station');
+      expect(source['mediaKind'], 'music');
+      expect(source['initialPositionMs'], 0);
       expect(calls[3].arguments, 4200);
       expect(calls.last.arguments, isNull);
       expect(
