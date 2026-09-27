@@ -2576,7 +2576,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kimliksiz opt-in yaklaşma ile ambient uyandırma üretimde tamamlandı; kişisel kamera görünümü, on-device eşleme ve yanlış eşleşmede fail-closed akışı henüz açık."
+      "reason": "Kimliksiz opt-in yaklaşma/ambient uyandırma ve açık kullanıcı işlemiyle çalışan, yalnız foreground ön kamera görünümü tamamlandı; cihaz içi yüz profili kayıt/silme, GMS gerektirmeyen paketli model, lisans/donanım-performans değerlendirmesi ve yanlış/belirsiz eşleşmede fail-closed kişisel görünüm önerisi henüz açık."
     },
     {
       "id": "KIOSK",
