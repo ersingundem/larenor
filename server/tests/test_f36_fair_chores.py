@@ -44,6 +44,7 @@ def test_completion_rotates_current_members_and_repeats_from_real_local_completi
         interval_days=1,
         due_at=due.timestamp(),
     )
+    task = task.task
     assert task.assignee_id == "ada"
 
     completed_at = datetime(2026, 3, 28, 11, tzinfo=timezone.utc).timestamp()
@@ -81,6 +82,7 @@ def test_authority_revision_and_departed_member_fail_closed(tmp_path):
         due_at=1_800_000_000,
     )
 
+    task = task.task
     with pytest.raises(ApiError, match="not_found"):
         chores.get(principal("ada"), task.id, core_id="core-a", home_id="home-b")
     with pytest.raises(ApiError, match="forbidden"):
@@ -136,6 +138,7 @@ def test_completion_is_idempotent_and_history_detects_restart_tamper(tmp_path):
         interval_days=2,
         due_at=1_800_000_000,
     )
+    task = task.task
     first = chores.complete(
         principal("ada"),
         task.id,
