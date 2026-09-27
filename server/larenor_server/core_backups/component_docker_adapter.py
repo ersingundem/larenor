@@ -72,6 +72,17 @@ def _state(value, paused):
     )
 
 
+def _stopped_state(value):
+    return (
+        type(value) is dict
+        and value.get("Status") == "exited"
+        and value.get("Running") is False
+        and value.get("Paused") is False
+        and value.get("Restarting") is False
+        and value.get("Dead") is False
+    )
+
+
 class UnixDockerComponentSnapshotAdapter:
     """Join installed journals to exact live Docker and filesystem identities."""
 
@@ -311,9 +322,16 @@ class UnixDockerComponentSnapshotAdapter:
                 raise ComponentDockerAdapterError() from None
         return dispatched["value"]
 
-    def _load_sources(self, deadline, *, allow_paused):
+    def _load_sources(self, deadline, *, allow_paused, allow_stopped=frozenset()):
         try:
+            if type(allow_stopped) is not frozenset or any(
+                type(item) is not str for item in allow_stopped
+            ):
+                raise ComponentDockerAdapterError()
             receipts = self._authority.snapshot()
+            known = {item.container_id for item in receipts}
+            if not allow_stopped.issubset(known):
+                raise ComponentDockerAdapterError()
             selected = []
             paused = []
             paths = set()
@@ -326,6 +344,8 @@ class UnixDockerComponentSnapshotAdapter:
                     is_paused = False
                 elif allow_paused and _state(state, True):
                     is_paused = True
+                elif receipt.container_id in allow_stopped and _stopped_state(state):
+                    is_paused = False
                 else:
                     raise ComponentDockerAdapterError()
                 if is_paused:
@@ -373,6 +393,17 @@ class UnixDockerComponentSnapshotAdapter:
     def restore_sources(self, deadline):
         """Read exact running/paused sources for authenticated recovery."""
         return self._load_sources(deadline, allow_paused=True)
+
+    def recovery_sources(self, container_id, deadline):
+        """Read all exact sources while one journal-owned container is stopped."""
+        result, paused = self._load_sources(
+            deadline,
+            allow_paused=False,
+            allow_stopped=frozenset({container_id}),
+        )
+        if paused:
+            raise ComponentDockerAdapterError()
+        return result
 
     def adopt_restore_pauses(self, container_ids, deadline):
         """Adopt only exact paused effects after a durable journal was verified."""

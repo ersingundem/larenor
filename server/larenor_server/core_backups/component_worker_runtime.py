@@ -209,13 +209,19 @@ class PackagedComponentSnapshotBoundary:
             code=code,
         )
 
-    def _rollback_sources(self, service_id, volume_ids, deadline):
+    def _rollback_sources(
+        self, service_id, volume_ids, deadline, *, stopped_container_id=None
+    ):
         adapter = UnixDockerComponentSnapshotAdapter(
             self._endpoint,
             self._authority,
             peer_uid=self._peer_uid,
         )
-        sources = adapter.sources(deadline)
+        sources = (
+            adapter.sources(deadline)
+            if stopped_container_id is None
+            else adapter.recovery_sources(stopped_container_id, deadline)
+        )
         selected = tuple(
             item
             for item in sources
@@ -286,6 +292,7 @@ class PackagedComponentSnapshotBoundary:
 
     def _rollback_update(self, engine, preparation, record, rollback_lease=None):
         """Best-effort exact rollback; uncertainty remains operator-visible."""
+        recovered_lease = None
         try:
             if record.new_container_id is not None:
                 new = engine.inspect_container(record.new_container_id)
@@ -305,6 +312,25 @@ class PackagedComponentSnapshotBoundary:
                 old = engine.inspect_container(record.old_container_id)
             if old is None or old.get("Name") != "/" + canonical:
                 raise DockerWorkerError()
+            pristine = (
+                record.new_container_id is None
+                and old.get("Name") == "/" + canonical
+                and old["State"].get("Running") is True
+            )
+            if rollback_lease is None and record.rollback and not pristine:
+                _adapter, sources = self._rollback_sources(
+                    record.command.serviceId,
+                    {item.volume_id for item in record.rollback},
+                    time.monotonic() + 30,
+                    stopped_container_id=record.old_container_id,
+                )
+                recovered_lease = self._rollbacks.recover(
+                    record.command.updateId,
+                    sources,
+                    record.rollback,
+                    time.monotonic() + 30,
+                )
+                rollback_lease = recovered_lease
             if rollback_lease is not None:
                 rollback_lease.restore(time.monotonic() + 30)
             if old["State"].get("Running") is not True:
@@ -331,6 +357,10 @@ class PackagedComponentSnapshotBoundary:
                         )
                 except Exception:
                     rollback_lease.close()
+            elif rolled_back.rollback:
+                rolled_back = self._clear_terminal_rollback(
+                    rolled_back, time.monotonic() + 30
+                )
             return rolled_back
         except BaseException as error:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
@@ -347,7 +377,44 @@ class PackagedComponentSnapshotBoundary:
                         )
             except Exception:
                 pass
+            if recovered_lease is not None:
+                recovered_lease.close()
             return None
+
+    def recover_updates(self, deadline):
+        """Resolve crash-left prepared/mutating effects before serving IPC."""
+        try:
+            with self._effects.locked():
+                records = self._effects.records()
+            for record in records:
+                if time.monotonic() >= deadline:
+                    raise ComponentWorkerRuntimeError("worker_unavailable")
+                if record.state == "prepared":
+                    with self._effects.locked():
+                        record = self._effects.transition(
+                            record.command.updateId, "prepared", "rolled_back"
+                        )
+                    self._clear_terminal_rollback(record, deadline)
+                elif record.state == "mutating":
+                    preparation = self._authority.prepare_update(
+                        record.command, load_catalog()
+                    )
+                    engine = UnixDockerEngine(
+                        self._endpoint.path,
+                        timeout=min(30, max(0.1, deadline - time.monotonic())),
+                        socket_uid=self._endpoint.owner_uid,
+                        peer_uid=self._peer_uid,
+                    )
+                    self._rollback_update(engine, preparation, record)
+                elif record.state in {"committed", "rolled_back"}:
+                    self._clear_terminal_rollback(record, deadline)
+            return True
+        except ComponentWorkerRuntimeError:
+            raise
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise ComponentWorkerRuntimeError("worker_unavailable") from None
 
     def execute_update(self, command, deadline):
         """Pull, replace and rollback one exact confirmed managed component."""
@@ -366,14 +433,29 @@ class PackagedComponentSnapshotBoundary:
                 if existing is not None:
                     if existing.command != command:
                         raise ValueError()
-                    if existing.state == "mutating":
-                        existing = self._effects.transition(
-                            command.updateId,
-                            "mutating",
-                            "needs_attention",
-                            new_container_id=existing.new_container_id,
-                        )
             if existing is not None:
+                if existing.state == "mutating":
+                    preparation = self._authority.prepare_update(
+                        command, load_catalog()
+                    )
+                    engine = UnixDockerEngine(
+                        self._endpoint.path,
+                        timeout=min(30, max(0.1, deadline - time.monotonic())),
+                        socket_uid=self._endpoint.owner_uid,
+                        peer_uid=self._peer_uid,
+                    )
+                    rolled_back = self._rollback_update(
+                        engine, preparation, existing
+                    )
+                    return self._effect_result(
+                        command,
+                        "failed" if rolled_back is not None else "needs_attention",
+                        (
+                            "component_update_failed"
+                            if rolled_back is not None
+                            else "rollback_required"
+                        ),
+                    )
                 if existing.state == "committed":
                     try:
                         self._authority.accept_committed_update(command)
@@ -668,6 +750,7 @@ def build_runtime(
             effects,
             peer_uid=docker_peer_uid,
         )
+        provider.recover_updates(time.monotonic() + 300)
         server = ComponentSnapshotWorkerServer(
             config.socket_path,
             provider,

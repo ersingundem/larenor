@@ -506,3 +506,10 @@ class ComponentUpdateEffectJournal:
             "ORDER BY sequence"
         ).fetchall()
         return tuple(self._decode(row) for row in rows)
+
+    def records(self):
+        self._locked()
+        rows = self._database.execute(
+            "SELECT * FROM component_update_effects ORDER BY sequence"
+        ).fetchall()
+        return tuple(self._decode(row) for row in rows)
