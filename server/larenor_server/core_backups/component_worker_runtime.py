@@ -284,9 +284,10 @@ class PackagedComponentSnapshotBoundary:
                 record.command.updateId, sources, record.rollback, deadline
             )
             lease.discard(deadline)
-        except ComponentUpdateRollbackError:
+        except Exception:
             if lease is not None:
                 lease.close()
+            return record
         with self._effects.locked():
             return self._effects.clear_rollback(record.command.updateId, record.state)
 
@@ -457,8 +458,8 @@ class PackagedComponentSnapshotBoundary:
                     )
                     self._rollback_update(engine, preparation, record)
                 elif record.state in {"committed", "rolled_back"}:
-                    self._clear_terminal_rollback(record, deadline)
-                    if record.state == "committed":
+                    record = self._clear_terminal_rollback(record, deadline)
+                    if record.state == "committed" and not record.rollback:
                         engine = UnixDockerEngine(
                             self._endpoint.path,
                             timeout=min(
@@ -527,6 +528,10 @@ class PackagedComponentSnapshotBoundary:
                     try:
                         self._authority.accept_committed_update(command)
                         existing = self._clear_terminal_rollback(existing, deadline)
+                        if existing.rollback:
+                            return self._effect_result(
+                                command, "needs_attention", "rollback_required"
+                            )
                         engine = UnixDockerEngine(
                             self._endpoint.path,
                             timeout=min(
