@@ -203,6 +203,16 @@ class PutComponentReleasePreference(FrozenModel):
     requireUpstreamSignature: StrictBool
 
 
+class ConfirmComponentUpdateRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedSourceDigest: Digest
+    expectedReviewDigest: Digest
+    expectedPreferenceRevision: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    approvePermissionAdditions: StrictBool
+    approveManualReview: StrictBool
+    approveRollbackSnapshot: StrictBool
+
+
 UpdateBlocker = Literal[
     "same_release",
     "origin_changed",
@@ -240,6 +250,33 @@ class ComponentUpdateReview(FrozenModel):
             raise ValueError("invalid_update_review")
         if "execution_worker_unavailable" not in self.blockers:
             raise ValueError("invalid_update_review")
+        return self
+
+
+class ComponentUpdateCommand(FrozenModel):
+    schemaVersion: Literal[1]
+    updateId: Identity
+    coreId: Identity
+    homeId: Identity
+    installationId: Identity
+    serviceId: ServiceId
+    sourceDigest: Digest
+    reviewDigest: Digest
+    preferenceRevision: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    targetManifestDigest: Digest
+    rollbackSnapshotRequired: StrictBool
+    issuedAtMs: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    expiresAtMs: Annotated[int, Field(ge=1, le=2**63 - 1)]
+    commandDigest: Digest
+    state: Literal["confirmed"]
+
+    @model_validator(mode="after")
+    def bounded_confirmation(self):
+        if (
+            self.expiresAtMs <= self.issuedAtMs
+            or self.expiresAtMs - self.issuedAtMs > 5 * 60 * 1000
+        ):
+            raise ValueError("invalid_component_update_command")
         return self
 
 
@@ -539,6 +576,105 @@ def verify_installed_update_source(
         return validated
     except (ValueError, TypeError, AttributeError, RecursionError):
         raise ComponentUpdateError("installed_component_untrusted") from None
+
+
+def build_update_command(
+    *,
+    context: ContextResponse,
+    update_id: str,
+    issued_at_ms: int,
+    source: InstalledComponentUpdateSource,
+    review: ComponentUpdateReview,
+    preference: ComponentReleasePreference,
+    request: ConfirmComponentUpdateRequest,
+) -> ComponentUpdateCommand:
+    """Bind one explicit admin confirmation to one exact verified review."""
+    try:
+        context = _validated(context, ContextResponse)
+        source = verify_installed_update_source(source)
+        review = _validated(review, ComponentUpdateReview)
+        preference = _validated(preference, ComponentReleasePreference)
+        request = _validated(request, ConfirmComponentUpdateRequest)
+        if (
+            type(update_id) is not str
+            or not _INSTALLATION_ID.fullmatch(update_id)
+            or type(issued_at_ms) is not int
+            or type(issued_at_ms) is bool
+            or not 0 <= issued_at_ms <= 2**63 - 1 - 5 * 60 * 1000
+        ):
+            raise ValueError("component_update_command_identity")
+        if (
+            source.installationId != review.installationId
+            or source.current != review.current
+            or source.current.serviceId != preference.serviceId
+            or context.coreId != review.coreId
+            or context.homeId != review.homeId
+            or context.coreId != preference.coreId
+            or context.homeId != preference.homeId
+            or request.expectedSourceDigest != source.sourceDigest
+            or request.expectedReviewDigest != review.reviewDigest
+            or request.expectedPreferenceRevision != preference.revision
+        ):
+            raise ValueError("component_update_command_stale")
+        permitted = {
+            "execution_worker_unavailable",
+            "migration_snapshot_required",
+            "manual_approval_required",
+        }
+        if not set(review.blockers).issubset(permitted):
+            raise ValueError("component_update_command_blocked")
+        if (
+            review.permissions.added
+            and not request.approvePermissionAdditions
+            or "manual_approval_required" in review.blockers
+            and not request.approveManualReview
+            or review.migration.rollbackSnapshotRequired
+            and not request.approveRollbackSnapshot
+            or preference.mode == "disabled"
+            or review.current.build.manifestDigest
+            == review.target.build.manifestDigest
+        ):
+            raise ValueError("component_update_command_approval")
+        base = dict(
+            schemaVersion=1,
+            updateId=update_id,
+            coreId=context.coreId,
+            homeId=context.homeId,
+            installationId=source.installationId,
+            serviceId=source.current.serviceId,
+            sourceDigest=source.sourceDigest,
+            reviewDigest=review.reviewDigest,
+            preferenceRevision=preference.revision,
+            targetManifestDigest=review.target.build.manifestDigest,
+            rollbackSnapshotRequired=review.migration.rollbackSnapshotRequired,
+            issuedAtMs=issued_at_ms,
+            expiresAtMs=issued_at_ms + 5 * 60 * 1000,
+            commandDigest="0" * 64,
+            state="confirmed",
+        )
+        provisional = ComponentUpdateCommand(**base)
+        payload = provisional.model_dump(mode="json")
+        payload["commandDigest"] = None
+        digest = hashlib.sha256(_canonical(payload)).hexdigest()
+        return ComponentUpdateCommand(**(base | {"commandDigest": digest}))
+    except ComponentUpdateError:
+        raise
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        raise ComponentUpdateError("component_update_confirmation_invalid") from None
+
+
+def verify_update_command(value: ComponentUpdateCommand) -> ComponentUpdateCommand:
+    """Strictly revalidate a command and its digest at every process boundary."""
+    try:
+        validated = _validated(value, ComponentUpdateCommand)
+        payload = validated.model_dump(mode="json")
+        payload["commandDigest"] = None
+        expected = hashlib.sha256(_canonical(payload)).hexdigest()
+        if not secrets.compare_digest(validated.commandDigest, expected):
+            raise ValueError("component_update_command_digest")
+        return validated
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        raise ComponentUpdateError("component_update_confirmation_invalid") from None
 
 
 def build_update_review(
