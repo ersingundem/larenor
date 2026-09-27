@@ -4836,7 +4836,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
