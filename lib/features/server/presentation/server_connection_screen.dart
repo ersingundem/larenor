@@ -16,6 +16,7 @@ import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
+import '../component_updates/presentation/server_component_updates_screen.dart';
 import '../core_backups/presentation/server_core_backups_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
@@ -563,6 +564,36 @@ class _ServerConnectionScreenState
                         if (!session.user.mustChangePassword)
                           SettingsSection(
                             children: [
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-component-updates',
+                                  ),
+                                  leading: const Icon(
+                                    CupertinoIcons.arrow_down_circle,
+                                  ),
+                                  title: Text(l10n.serverComponentUpdatesTitle),
+                                  additionalInfo: Text(
+                                    l10n.serverComponentUpdatesEntryHint,
+                                  ),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  const ServerComponentUpdatesScreen(),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
                               if (session.user.canAdminister)
                                 SettingsActionTile(
                                   buttonKey: const ValueKey(
