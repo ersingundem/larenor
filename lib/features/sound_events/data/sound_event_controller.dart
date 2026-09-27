@@ -14,6 +14,23 @@ abstract interface class SoundEventApi {
   );
 }
 
+abstract interface class SoundEventControlApi implements SoundEventApi {
+  Future<SoundEventPolicyReceipt> updatePolicy(
+    SoundEventAuthority expected,
+    SoundEventSnapshot current, {
+    required bool notificationsEnabled,
+    required bool barkEnabled,
+    required bool noiseEnabled,
+    required DateTime? mutedUntil,
+  });
+  Future<SoundEventFeedbackReceipt> feedback(
+    SoundEventAuthority expected,
+    SoundEventSnapshot current,
+    SoundEventItem event,
+    String classification,
+  );
+}
+
 enum SoundEventViewState { idle, loading, ready, busy, verified, failed, stale }
 
 final class SoundEventController extends ChangeNotifier {
@@ -48,6 +65,7 @@ final class SoundEventController extends ChangeNotifier {
       _current() &&
       state != SoundEventViewState.loading &&
       state != SoundEventViewState.busy;
+  bool get canControl => api is SoundEventControlApi;
 
   List<SoundEventItem> get visibleEvents => List.unmodifiable(
     (snapshot?.events ?? const <SoundEventItem>[]).where((event) {
@@ -156,6 +174,114 @@ final class SoundEventController extends ChangeNotifier {
       state = SoundEventViewState.failed;
     }
     if (!_disposed) notifyListeners();
+  }
+
+  Future<void> updatePolicy({
+    required bool notificationsEnabled,
+    required bool barkEnabled,
+    required bool noiseEnabled,
+    required DateTime? mutedUntil,
+  }) async {
+    final before = snapshot;
+    final normalizedMute = mutedUntil == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            mutedUntil.toUtc().millisecondsSinceEpoch,
+            isUtc: true,
+          );
+    final control = api;
+    if (!canAct || before == null || control is! SoundEventControlApi) return;
+    final operation = ++_epoch;
+    state = SoundEventViewState.busy;
+    notifyListeners();
+    try {
+      final receipt = await control.updatePolicy(
+        authority,
+        before,
+        notificationsEnabled: notificationsEnabled,
+        barkEnabled: barkEnabled,
+        noiseEnabled: noiseEnabled,
+        mutedUntil: normalizedMute,
+      );
+      if (!_operationCurrent(operation)) return _stale();
+      if (!receipt.exactFor(authority, before)) {
+        state = SoundEventViewState.failed;
+        notifyListeners();
+        return;
+      }
+      await _readback(operation, receipt.repositoryRevision, (value) {
+        return value.policy.revision == receipt.policy.revision &&
+            value.policy.notificationsEnabled == notificationsEnabled &&
+            value.policy.barkEnabled == barkEnabled &&
+            value.policy.noiseEnabled == noiseEnabled &&
+            value.policy.mutedUntil == normalizedMute;
+      });
+    } catch (_) {
+      if (!_operationCurrent(operation)) return _stale();
+      snapshot = null;
+      state = SoundEventViewState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> markFeedback(SoundEventItem event, String classification) async {
+    final before = snapshot;
+    final control = api;
+    if (!canAct ||
+        before == null ||
+        control is! SoundEventControlApi ||
+        !before.events.any((candidate) => identical(candidate, event))) {
+      return;
+    }
+    final operation = ++_epoch;
+    state = SoundEventViewState.busy;
+    notifyListeners();
+    try {
+      final receipt = await control.feedback(
+        authority,
+        before,
+        event,
+        classification,
+      );
+      if (!_operationCurrent(operation)) return _stale();
+      if (!receipt.exactFor(authority, before, event, classification)) {
+        state = SoundEventViewState.failed;
+        notifyListeners();
+        return;
+      }
+      await _readback(operation, receipt.repositoryRevision, (value) {
+        final matches = value.events.where(
+          (candidate) => candidate.eventId == event.eventId,
+        );
+        return matches.length == 1 &&
+            matches.single.eventRevision == receipt.eventRevision &&
+            matches.single.feedback == classification;
+      });
+    } catch (_) {
+      if (!_operationCurrent(operation)) return _stale();
+      snapshot = null;
+      state = SoundEventViewState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _readback(
+    int operation,
+    int repositoryRevision,
+    bool Function(SoundEventSnapshot value) verify,
+  ) async {
+    final nextAuthority = authority.withRepositoryRevision(repositoryRevision);
+    final readback = await api.load(nextAuthority, filter);
+    if (!_operationCurrent(operation)) return _stale();
+    if (!readback.coherentFor(nextAuthority, _clock().toUtc()) ||
+        !verify(readback)) {
+      snapshot = null;
+      state = SoundEventViewState.failed;
+      return;
+    }
+    authority = nextAuthority;
+    snapshot = readback;
+    state = SoundEventViewState.verified;
   }
 
   @override

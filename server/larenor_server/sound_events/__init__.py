@@ -10,10 +10,16 @@ from .models import (
     SoundEventAcknowledgementRequest,
     SoundEventAuthority,
     SoundEventClientAuthority,
+    SoundEventFeedbackReceipt,
+    SoundEventFeedbackRequest,
+    SoundEventNotificationPolicy,
+    SoundEventPolicyReceipt,
+    SoundEventPolicyRequest,
     SoundEventRecord,
     SoundEventSnapshot,
     SoundIngestResult,
     SoundObservation,
+    SoundSourceStatus,
 )
 
 __all__ = [
@@ -26,9 +32,15 @@ __all__ = [
     "SoundEventAcknowledgementRequest",
     "SoundEventAuthority",
     "SoundEventClientAuthority",
+    "SoundEventFeedbackReceipt",
+    "SoundEventFeedbackRequest",
+    "SoundEventNotificationPolicy",
+    "SoundEventPolicyReceipt",
+    "SoundEventPolicyRequest",
     "SoundEventEngine",
     "SoundEventRecord",
     "SoundEventSnapshot",
     "SoundIngestResult",
     "SoundObservation",
+    "SoundSourceStatus",
 ]

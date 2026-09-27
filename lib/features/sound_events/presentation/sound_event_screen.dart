@@ -35,6 +35,36 @@ final class _Strings {
   String get noise => tr ? 'Diğer ses' : 'Other noise';
   String get unread => tr ? 'Yeni' : 'New';
   String get reviewed => tr ? 'İncelendi' : 'Reviewed';
+  String get sourceReady => tr ? 'Kaynak güncel' : 'Source is current';
+  String get sourceUnavailable =>
+      tr ? 'Ses olay kaynağı kullanılamıyor' : 'Sound event source unavailable';
+  String get sourceStale =>
+      tr ? 'Kaynak verisi güncel değil' : 'Source data is not current';
+  String get noQuietProof => tr
+      ? 'Olay olmaması ortamın sessiz olduğunu kanıtlamaz.'
+      : 'No event does not prove that the room is quiet.';
+  String get notificationPolicy =>
+      tr ? 'Bildirim ilkesi' : 'Notification policy';
+  String get notifications => tr ? 'Bildirimler' : 'Notifications';
+  String get barkNotifications =>
+      tr ? 'Havlama bildirimleri' : 'Bark notifications';
+  String get noiseNotifications =>
+      tr ? 'Gürültü bildirimleri' : 'Noise notifications';
+  String get muteOneHour => tr ? '1 saat sessize al' : 'Mute for 1 hour';
+  String get unmute => tr ? 'Sessizi kaldır' : 'Unmute';
+  String get muted => tr ? 'Bildirimler sessizde' : 'Notifications muted';
+  String get sourceClipsNever => tr
+      ? 'Kaynak ses klipleri saklanmaz.'
+      : 'Source sound clips are never retained.';
+  String get falseAlarm => tr ? 'Yanlış alarm' : 'False alarm';
+  String get confirmedEvent => tr ? 'Doğrulandı' : 'Confirmed';
+  String get notificationEligible =>
+      tr ? 'Bildirim için uygun' : 'Eligible for notification';
+  String get notificationSuppressed =>
+      tr ? 'Bildirim bastırıldı' : 'Notification suppressed';
+  String duration(Duration value) => tr
+      ? '${(value.inMilliseconds / 1000).toStringAsFixed(1)} sn'
+      : '${(value.inMilliseconds / 1000).toStringAsFixed(1)} sec';
 }
 
 class SoundEventScreen extends StatefulWidget {
@@ -129,6 +159,8 @@ class _SoundEventScreenState extends State<SoundEventScreen> {
             header: Text(strings.privacy),
             children: [
               _LiveStatus(controller: controller, strings: strings),
+              if (controller.snapshot case final snapshot?)
+                _SourceStatus(status: snapshot.sourceStatus, strings: strings),
               _Filters(controller: controller, strings: strings),
               if (controller.state == SoundEventViewState.failed ||
                   controller.state == SoundEventViewState.stale)
@@ -160,6 +192,12 @@ class _SoundEventScreenState extends State<SoundEventScreen> {
                           strings: strings,
                           enabled: controller.canAct && !event.acknowledged,
                           onAcknowledge: () => _confirm(event),
+                          feedbackEnabled:
+                              controller.canAct && controller.canControl,
+                          onFalseAlarm: () =>
+                              controller.markFeedback(event, 'false_alarm'),
+                          onConfirmEvent: () =>
+                              controller.markFeedback(event, 'confirmed'),
                         ),
                       ),
                   ],
@@ -167,9 +205,162 @@ class _SoundEventScreenState extends State<SoundEventScreen> {
               },
             ),
           ),
+        if (controller.snapshot case final snapshot?)
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Text(strings.notificationPolicy),
+              footer: Text(strings.sourceClipsNever),
+              children: [
+                _PolicyControls(
+                  controller: controller,
+                  policy: snapshot.policy,
+                  strings: strings,
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
+}
+
+class _SourceStatus extends StatelessWidget {
+  const _SourceStatus({required this.status, required this.strings});
+  final SoundSourceStatus status;
+  final _Strings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = switch (status.state) {
+      'ready' when status.current => strings.sourceReady,
+      'unavailable' => strings.sourceUnavailable,
+      _ => strings.sourceStale,
+    };
+    return Padding(
+      key: const ValueKey('sound-event-source-status'),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                status.current
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.exclamationmark_triangle,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(statusText)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strings.noQuietProof,
+            style: TextStyle(
+              color: CupertinoColors.secondaryLabel.resolveFrom(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicyControls extends StatelessWidget {
+  const _PolicyControls({
+    required this.controller,
+    required this.policy,
+    required this.strings,
+  });
+  final SoundEventController controller;
+  final SoundEventPolicy policy;
+  final _Strings strings;
+
+  bool get _enabled => controller.canAct && controller.canControl;
+
+  void _update({
+    bool? notifications,
+    bool? bark,
+    bool? noise,
+    DateTime? mute,
+    bool keepMute = true,
+  }) {
+    controller.updatePolicy(
+      notificationsEnabled: notifications ?? policy.notificationsEnabled,
+      barkEnabled: bark ?? policy.barkEnabled,
+      noiseEnabled: noise ?? policy.noiseEnabled,
+      mutedUntil: keepMute ? policy.mutedUntil : mute,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      _PolicySwitch(
+        key: const ValueKey('sound-event-notifications-toggle'),
+        label: strings.notifications,
+        value: policy.notificationsEnabled,
+        enabled: _enabled,
+        onChanged: (value) => _update(notifications: value),
+      ),
+      _PolicySwitch(
+        label: strings.barkNotifications,
+        value: policy.barkEnabled,
+        enabled: _enabled && policy.notificationsEnabled,
+        onChanged: (value) => _update(bark: value),
+      ),
+      _PolicySwitch(
+        label: strings.noiseNotifications,
+        value: policy.noiseEnabled,
+        enabled: _enabled && policy.notificationsEnabled,
+        onChanged: (value) => _update(noise: value),
+      ),
+      SettingsActionTile(
+        buttonKey: const ValueKey('sound-event-mute-toggle'),
+        leading: Icon(
+          policy.muted ? CupertinoIcons.bell_slash_fill : CupertinoIcons.bell,
+        ),
+        title: Text(policy.muted ? strings.unmute : strings.muteOneHour),
+        additionalInfo: policy.muted ? Text(strings.muted) : null,
+        onTap: !_enabled
+            ? null
+            : () {
+                if (policy.muted) {
+                  _update(keepMute: false);
+                } else {
+                  _update(
+                    mute: DateTime.now().toUtc().add(const Duration(hours: 1)),
+                    keepMute: false,
+                  );
+                }
+              },
+      ),
+    ],
+  );
+}
+
+class _PolicySwitch extends StatelessWidget {
+  const _PolicySwitch({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+  final String label;
+  final bool value, enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        CupertinoSwitch(value: value, onChanged: enabled ? onChanged : null),
+      ],
+    ),
+  );
 }
 
 class _Filters extends StatelessWidget {
@@ -276,11 +467,16 @@ class _EventCard extends StatelessWidget {
     required this.strings,
     required this.enabled,
     required this.onAcknowledge,
+    required this.feedbackEnabled,
+    required this.onFalseAlarm,
+    required this.onConfirmEvent,
   });
   final SoundEventItem event;
   final _Strings strings;
   final bool enabled;
   final VoidCallback onAcknowledge;
+  final bool feedbackEnabled;
+  final VoidCallback onFalseAlarm, onConfirmEvent;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(8),
@@ -297,15 +493,51 @@ class _EventCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '${(event.confidence * 100).round()}% · ${event.roomId.substring(0, 8)}',
+                '${(event.confidence * 100).round()}% · ${strings.duration(event.duration)} · ${event.roomId.substring(0, 8)}',
               ),
               const SizedBox(height: 8),
               Text(
                 event.automationVerified ? strings.verified : strings.failed,
               ),
+              const SizedBox(height: 8),
+              Text(
+                event.notificationEligible
+                    ? strings.notificationEligible
+                    : strings.notificationSuppressed,
+              ),
+              if (event.feedback case final feedback?) ...[
+                const SizedBox(height: 8),
+                Text(
+                  feedback == 'false_alarm'
+                      ? strings.falseAlarm
+                      : strings.confirmedEvent,
+                ),
+              ],
             ],
           ),
         ),
+        if (event.feedback == null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: CupertinoButton(
+                    key: const ValueKey('sound-event-false-alarm'),
+                    onPressed: feedbackEnabled ? onFalseAlarm : null,
+                    child: Text(strings.falseAlarm),
+                  ),
+                ),
+                Expanded(
+                  child: CupertinoButton(
+                    key: const ValueKey('sound-event-confirm-event'),
+                    onPressed: feedbackEnabled ? onConfirmEvent : null,
+                    child: Text(strings.confirmedEvent),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (!event.acknowledged)
           Semantics(
             key: const ValueKey('sound-event-acknowledge'),

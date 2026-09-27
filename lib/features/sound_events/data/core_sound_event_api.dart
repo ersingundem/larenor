@@ -6,7 +6,7 @@ import '../../server/domain/server_models.dart';
 import '../domain/sound_event_models.dart';
 import 'sound_event_controller.dart';
 
-final class CoreSoundEventApi implements SoundEventApi {
+final class CoreSoundEventApi implements SoundEventControlApi {
   CoreSoundEventApi({
     required this.account,
     required this.isCurrent,
@@ -126,7 +126,7 @@ final class CoreSoundEventApi implements SoundEventApi {
         'expectedEventRevision': event.eventRevision,
       },
     );
-    final value = _map(raw, {
+    final value = _map(raw, const {
       'schemaVersion',
       'requestId',
       'eventId',
@@ -163,16 +163,148 @@ final class CoreSoundEventApi implements SoundEventApi {
     );
   });
 
-  SoundEventSnapshot _decodeSnapshot(Object? raw, ServerSession session) {
-    final value = _map(raw, const {
-      'schemaVersion',
-      'authority',
-      'repositoryRevision',
-      'events',
-    });
-    if (_integer(value['schemaVersion']) != 1) {
+  @override
+  Future<SoundEventPolicyReceipt> updatePolicy(
+    SoundEventAuthority expected,
+    SoundEventSnapshot current, {
+    required bool notificationsEnabled,
+    required bool barkEnabled,
+    required bool noiseEnabled,
+    required DateTime? mutedUntil,
+  }) => _bound((api, session) async {
+    if (current.authority != expected) {
+      throw const LarenorServerException('cancelled');
+    }
+    final requestId = _requestId();
+    final muteMs = mutedUntil?.toUtc().millisecondsSinceEpoch;
+    final value = _map(
+      await api.request(
+        'PUT',
+        '${_root(session.context!)}/policy',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': requestId,
+          'expectedRepositoryRevision': current.repositoryRevision,
+          'expectedPolicyRevision': current.policy.revision,
+          'notificationsEnabled': notificationsEnabled,
+          'barkEnabled': barkEnabled,
+          'noiseEnabled': noiseEnabled,
+          'mutedUntilMs': muteMs,
+          'sourceClipRetention': 'never',
+        },
+      ),
+      const {
+        'schemaVersion',
+        'requestId',
+        'accountId',
+        'sessionFamilyId',
+        'repositoryRevision',
+        'policy',
+      },
+    );
+    final policy = _decodePolicy(value['policy']);
+    if (_integer(value['schemaVersion']) != 1 ||
+        _identity(value['requestId']) != requestId ||
+        _identity(value['accountId']) != expected.accountId ||
+        _identity(value['sessionFamilyId']) != expected.sessionFamilyId ||
+        _integer(value['repositoryRevision']) !=
+            current.repositoryRevision + 1 ||
+        policy.revision != current.policy.revision + 1 ||
+        policy.notificationsEnabled != notificationsEnabled ||
+        policy.barkEnabled != barkEnabled ||
+        policy.noiseEnabled != noiseEnabled ||
+        policy.mutedUntil?.millisecondsSinceEpoch != muteMs) {
       throw const LarenorServerException('invalid_response');
     }
+    return SoundEventPolicyReceipt(
+      requestId: requestId,
+      accountId: expected.accountId,
+      sessionFamilyId: expected.sessionFamilyId,
+      repositoryRevision: _integer(value['repositoryRevision']),
+      policy: policy,
+    );
+  });
+
+  @override
+  Future<SoundEventFeedbackReceipt> feedback(
+    SoundEventAuthority expected,
+    SoundEventSnapshot current,
+    SoundEventItem event,
+    String classification,
+  ) => _bound((api, session) async {
+    if (current.authority != expected ||
+        !current.events.any((candidate) => identical(candidate, event)) ||
+        !const {'false_alarm', 'confirmed'}.contains(classification)) {
+      throw const LarenorServerException('cancelled');
+    }
+    final requestId = _requestId();
+    final value = _map(
+      await api.request(
+        'POST',
+        '${_root(session.context!)}/${event.eventId}/feedback',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': requestId,
+          'expectedRepositoryRevision': current.repositoryRevision,
+          'expectedEventRevision': event.eventRevision,
+          'classification': classification,
+        },
+      ),
+      const {
+        'schemaVersion',
+        'requestId',
+        'eventId',
+        'accountId',
+        'sessionFamilyId',
+        'repositoryRevision',
+        'eventRevision',
+        'classification',
+      },
+    );
+    if (_integer(value['schemaVersion']) != 1 ||
+        _identity(value['requestId']) != requestId ||
+        _identity(value['eventId']) != event.eventId ||
+        _identity(value['accountId']) != expected.accountId ||
+        _identity(value['sessionFamilyId']) != expected.sessionFamilyId ||
+        _integer(value['repositoryRevision']) !=
+            current.repositoryRevision + 1 ||
+        _integer(value['eventRevision']) != event.eventRevision + 1 ||
+        value['classification'] != classification) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return SoundEventFeedbackReceipt(
+      requestId: requestId,
+      eventId: event.eventId,
+      accountId: expected.accountId,
+      sessionFamilyId: expected.sessionFamilyId,
+      repositoryRevision: _integer(value['repositoryRevision']),
+      eventRevision: _integer(value['eventRevision']),
+      classification: classification,
+    );
+  });
+
+  SoundEventSnapshot _decodeSnapshot(Object? raw, ServerSession session) {
+    final loose = serverObject(raw);
+    final version = _integer(loose['schemaVersion']);
+    final value = switch (version) {
+      1 => _map(loose, const {
+        'schemaVersion',
+        'authority',
+        'repositoryRevision',
+        'events',
+      }),
+      2 => _map(loose, const {
+        'schemaVersion',
+        'authority',
+        'repositoryRevision',
+        'policy',
+        'sourceStatus',
+        'events',
+      }),
+      _ => throw const LarenorServerException('invalid_response'),
+    };
     final context = session.context!;
     final auth = _map(value['authority'], const {
       'schemaVersion',
@@ -207,45 +339,7 @@ final class CoreSoundEventApi implements SoundEventApi {
     if (list is! List || list.length > 100) {
       throw const LarenorServerException('invalid_response');
     }
-    final events = list
-        .map((rawEvent) {
-          final event = _map(rawEvent, const {
-            'schemaVersion',
-            'eventId',
-            'roomId',
-            'deviceId',
-            'className',
-            'confidence',
-            'observedAtMs',
-            'retentionExpiresAtMs',
-            'eventRevision',
-            'acknowledged',
-            'automationVerified',
-          });
-          final confidence = event['confidence'];
-          if (_integer(event['schemaVersion']) != 1 ||
-              confidence is! num ||
-              !confidence.isFinite ||
-              confidence < 0 ||
-              confidence > 1 ||
-              event['acknowledged'] is! bool ||
-              event['automationVerified'] is! bool) {
-            throw const LarenorServerException('invalid_response');
-          }
-          return SoundEventItem(
-            eventId: _identity(event['eventId']),
-            roomId: _identity(event['roomId']),
-            deviceId: _identity(event['deviceId']),
-            className: _text(event['className'], 48),
-            confidence: confidence.toDouble(),
-            observedAt: _time(event['observedAtMs']),
-            retentionExpiresAt: _time(event['retentionExpiresAtMs']),
-            eventRevision: _integer(event['eventRevision']),
-            acknowledged: event['acknowledged'] as bool,
-            automationVerified: event['automationVerified'] as bool,
-          );
-        })
-        .toList(growable: false);
+    final events = list.map(_decodeEvent).toList(growable: false);
     final revision = _integer(value['repositoryRevision']);
     if (revision != authority.repositoryRevision) {
       throw const LarenorServerException('invalid_response');
@@ -254,7 +348,155 @@ final class CoreSoundEventApi implements SoundEventApi {
       authority: authority,
       repositoryRevision: revision,
       events: events,
+      policy: version == 2
+          ? _decodePolicy(value['policy'])
+          : const SoundEventPolicy.disabled(),
+      sourceStatus: version == 2
+          ? _decodeSourceStatus(value['sourceStatus'])
+          : const SoundSourceStatus.unavailable(),
     );
+  }
+
+  SoundEventItem _decodeEvent(Object? raw) {
+    final loose = serverObject(raw);
+    const oldKeys = {
+      'schemaVersion',
+      'eventId',
+      'roomId',
+      'deviceId',
+      'className',
+      'confidence',
+      'observedAtMs',
+      'retentionExpiresAtMs',
+      'eventRevision',
+      'acknowledged',
+      'automationVerified',
+    };
+    const newKeys = {
+      ...oldKeys,
+      'durationMs',
+      'feedback',
+      'notificationEligible',
+    };
+    final modern = loose.containsKey('durationMs');
+    final event = _map(loose, modern ? newKeys : oldKeys);
+    final confidence = event['confidence'];
+    final className = event['className'];
+    final feedback = modern ? event['feedback'] : null;
+    if (_integer(event['schemaVersion']) != 1 ||
+        confidence is! num ||
+        !confidence.isFinite ||
+        confidence < 0 ||
+        confidence > 1 ||
+        (className != 'bark' && className != 'noise') ||
+        event['acknowledged'] is! bool ||
+        event['automationVerified'] is! bool ||
+        (modern && event['notificationEligible'] is! bool) ||
+        (feedback != null &&
+            feedback != 'false_alarm' &&
+            feedback != 'confirmed')) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final duration = modern ? _integer(event['durationMs']) : 1000;
+    if (duration < 100 || duration > 60000) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return SoundEventItem(
+      eventId: _identity(event['eventId']),
+      roomId: _identity(event['roomId']),
+      deviceId: _identity(event['deviceId']),
+      className: className as String,
+      confidence: confidence.toDouble(),
+      observedAt: _time(event['observedAtMs']),
+      retentionExpiresAt: _time(event['retentionExpiresAtMs']),
+      eventRevision: _integer(event['eventRevision']),
+      acknowledged: event['acknowledged'] as bool,
+      automationVerified: event['automationVerified'] as bool,
+      duration: Duration(milliseconds: duration),
+      feedback: feedback as String?,
+      notificationEligible: modern && event['notificationEligible'] as bool,
+    );
+  }
+
+  SoundEventPolicy _decodePolicy(Object? raw) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'revision',
+      'notificationsEnabled',
+      'barkEnabled',
+      'noiseEnabled',
+      'mutedUntilMs',
+      'sourceClipRetention',
+    });
+    if (_integer(value['schemaVersion']) != 1 ||
+        value['notificationsEnabled'] is! bool ||
+        value['barkEnabled'] is! bool ||
+        value['noiseEnabled'] is! bool ||
+        value['sourceClipRetention'] != 'never' ||
+        (value['mutedUntilMs'] != null && value['mutedUntilMs'] is! int)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return SoundEventPolicy(
+      revision: _integer(value['revision']),
+      notificationsEnabled: value['notificationsEnabled'] as bool,
+      barkEnabled: value['barkEnabled'] as bool,
+      noiseEnabled: value['noiseEnabled'] as bool,
+      mutedUntil: value['mutedUntilMs'] == null
+          ? null
+          : _time(value['mutedUntilMs']),
+      sourceClipRetention: 'never',
+    );
+  }
+
+  SoundSourceStatus _decodeSourceStatus(Object? raw) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'state',
+      'capabilityRevision',
+      'providerRevision',
+      'modelRevision',
+      'lastObservationAtMs',
+      'freshnessDeadlineMs',
+      'silenceProven',
+      'clipAvailable',
+    });
+    final state = value['state'];
+    if (_integer(value['schemaVersion']) != 1 ||
+        !const {'ready', 'degraded', 'stale', 'unavailable'}.contains(state) ||
+        value['silenceProven'] != false ||
+        value['clipAvailable'] is! bool) {
+      throw const LarenorServerException('invalid_response');
+    }
+    int? revision(String key) =>
+        value[key] == null ? null : _integer(value[key]);
+    DateTime? time(String key) => value[key] == null ? null : _time(value[key]);
+    final result = SoundSourceStatus(
+      state: state as String,
+      capabilityRevision: revision('capabilityRevision'),
+      providerRevision: revision('providerRevision'),
+      modelRevision: revision('modelRevision'),
+      lastObservationAt: time('lastObservationAtMs'),
+      freshnessDeadline: time('freshnessDeadlineMs'),
+      silenceProven: false,
+      clipAvailable: value['clipAvailable'] as bool,
+    );
+    final revisions = [
+      result.capabilityRevision,
+      result.providerRevision,
+      result.modelRevision,
+    ];
+    if (result.state == 'unavailable') {
+      if (revisions.any((item) => item != null) ||
+          result.lastObservationAt != null ||
+          result.freshnessDeadline != null ||
+          result.clipAvailable) {
+        throw const LarenorServerException('invalid_response');
+      }
+    } else if (revisions.any((item) => item == null) ||
+        result.freshnessDeadline == null) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return result;
   }
 }
 
@@ -280,15 +522,9 @@ int _integer(Object? value) {
   return value;
 }
 
-String _text(Object? value, int max) {
-  if (value is! String ||
-      value.trim().isEmpty ||
-      value.length > max ||
-      value.contains(RegExp(r'[\u0000-\u001f\u007f]'))) {
+DateTime _time(Object? value) {
+  if (value is! int || value < 0 || value > 0x7fffffffffffffff) {
     throw const LarenorServerException('invalid_response');
   }
-  return value;
+  return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
 }
-
-DateTime _time(Object? value) =>
-    DateTime.fromMillisecondsSinceEpoch(_integer(value), isUtc: true);

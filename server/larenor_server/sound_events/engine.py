@@ -270,6 +270,17 @@ class SoundEventEngine:
                 return self._remember(
                     observation, self._degraded("provider_unavailable")
                 )
+            if (observation.className not in binding.allowedClasses
+                    or observation.durationMs > binding.maxEventDurationMs):
+                raise ApiError("forbidden", 403)
+            now = self._clock()
+            if (observation.observedAtMs > now + 5_000
+                    or now - observation.observedAtMs
+                    > binding.observationMaxAgeMs):
+                self._append_audit("suppressed", observation)
+                return self._remember(
+                    observation, self._degraded("observation_stale")
+                )
 
             key = self._binding_tuple(binding) + (observation.className,)
             state = self._detectors.setdefault(key, _DetectorState())
@@ -323,6 +334,7 @@ class SoundEventEngine:
                 consentRevision=observation.consentRevision,
                 className=observation.className,
                 confidence=observation.confidence,
+                durationMs=observation.durationMs,
                 observedAtMs=observation.observedAtMs,
                 evidenceDigest=observation.evidenceDigest,
                 retentionExpiresAtMs=expires,

@@ -8,6 +8,7 @@ from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
 
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
+SoundClass = Literal["bark", "noise"]
 
 
 def _safe_label(value: str) -> str:
@@ -61,7 +62,13 @@ class SoundClassifierBinding(FrozenModel):
     policyRevision: Revision
     consentRevision: Revision
     consentGranted: bool
+    allowedClasses: list[SoundClass] = Field(
+        default_factory=lambda: ["bark", "noise"], min_length=1, max_length=2
+    )
     retentionSeconds: int = Field(ge=60, le=7 * 24 * 60 * 60)
+    maxEventDurationMs: int = Field(default=30_000, ge=100, le=60_000)
+    observationMaxAgeMs: int = Field(default=30_000, ge=1_000, le=5 * 60_000)
+    rawAudioRetention: Literal["never"] = "never"
     triggerConfidence: Confidence
     releaseConfidence: Confidence
     consecutiveTriggerCount: int = Field(ge=1, le=10)
@@ -70,7 +77,8 @@ class SoundClassifierBinding(FrozenModel):
 
     @model_validator(mode="after")
     def valid_hysteresis(self):
-        if self.releaseConfidence >= self.triggerConfidence:
+        if (self.releaseConfidence >= self.triggerConfidence
+                or len(set(self.allowedClasses)) != len(self.allowedClasses)):
             raise ValueError("invalid_hysteresis")
         return self
 
@@ -91,13 +99,11 @@ class SoundObservation(FrozenModel):
     providerRevision: Revision
     policyRevision: Revision
     consentRevision: Revision
-    className: str = Field(min_length=1, max_length=48)
+    className: SoundClass
     confidence: Confidence
+    durationMs: int = Field(default=1_000, ge=100, le=60_000)
     observedAtMs: TimestampMs
     evidenceDigest: Snapshot
-
-    _class_name = field_validator("className")(_safe_label)
-
 
 class SoundEvent(FrozenModel):
     schemaVersion: Literal[1]
@@ -113,15 +119,13 @@ class SoundEvent(FrozenModel):
     providerRevision: Revision
     policyRevision: Revision
     consentRevision: Revision
-    className: str = Field(min_length=1, max_length=48)
+    className: SoundClass
     confidence: Confidence
+    durationMs: int = Field(default=1_000, ge=100, le=60_000)
     observedAtMs: TimestampMs
     evidenceDigest: Snapshot
     retentionExpiresAtMs: TimestampMs
     automationVerified: bool
-
-    _class_name = field_validator("className")(_safe_label)
-
 
 class AutomationSoundTrigger(FrozenModel):
     schemaVersion: Literal[1]
@@ -137,15 +141,13 @@ class AutomationSoundTrigger(FrozenModel):
     providerRevision: Revision
     policyRevision: Revision
     consentRevision: Revision
-    className: str = Field(min_length=1, max_length=48)
+    className: SoundClass
     confidence: Confidence
+    durationMs: int = Field(default=1_000, ge=100, le=60_000)
     observedAtMs: TimestampMs
     evidenceDigest: Snapshot
     auditSequence: int = Field(ge=1, le=10_000)
     auditHead: Snapshot
-
-    _class_name = field_validator("className")(_safe_label)
-
 
 class AutomationReceipt(FrozenModel):
     schemaVersion: Literal[1]
@@ -175,6 +177,7 @@ class SoundIngestResult(FrozenModel):
             "provider_unavailable",
             "automation_unavailable",
             "automation_unverified",
+            "observation_stale",
         ]
         | None
     )
@@ -196,6 +199,7 @@ class SoundIngestResult(FrozenModel):
         elif self.event is None and self.reason not in {
             "provider_unavailable",
             "automation_unavailable",
+            "observation_stale",
         }:
             raise ValueError("invalid_result")
         return self
@@ -218,21 +222,64 @@ class SoundEventRecord(FrozenModel):
     eventId: Identity
     roomId: Identity
     deviceId: Identity
-    className: str = Field(min_length=1, max_length=48)
+    className: SoundClass
     confidence: Confidence
+    durationMs: int = Field(ge=100, le=60_000)
     observedAtMs: TimestampMs
     retentionExpiresAtMs: TimestampMs
     eventRevision: Revision
     acknowledged: bool
     automationVerified: bool
+    feedback: Literal["false_alarm", "confirmed"] | None
+    notificationEligible: bool
 
-    _class_name = field_validator("className")(_safe_label)
+
+class SoundEventNotificationPolicy(FrozenModel):
+    schemaVersion: Literal[1]
+    revision: Revision
+    notificationsEnabled: bool
+    barkEnabled: bool
+    noiseEnabled: bool
+    mutedUntilMs: TimestampMs | None
+    sourceClipRetention: Literal["never"]
+
+
+class SoundSourceStatus(FrozenModel):
+    schemaVersion: Literal[1]
+    state: Literal["ready", "degraded", "stale", "unavailable"]
+    capabilityRevision: Revision | None
+    providerRevision: Revision | None
+    modelRevision: Revision | None
+    lastObservationAtMs: TimestampMs | None
+    freshnessDeadlineMs: TimestampMs | None
+    silenceProven: Literal[False]
+    clipAvailable: bool
+
+    @model_validator(mode="after")
+    def coherent_status(self):
+        revisions = (
+            self.capabilityRevision,
+            self.providerRevision,
+            self.modelRevision,
+        )
+        if self.state == "unavailable":
+            if (any(item is not None for item in revisions)
+                    or self.lastObservationAtMs is not None
+                    or self.freshnessDeadlineMs is not None
+                    or self.clipAvailable):
+                raise ValueError("invalid_source_status")
+        elif (any(item is None for item in revisions)
+                or self.freshnessDeadlineMs is None):
+            raise ValueError("invalid_source_status")
+        return self
 
 
 class SoundEventSnapshot(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     authority: SoundEventClientAuthority
     repositoryRevision: Revision
+    policy: SoundEventNotificationPolicy
+    sourceStatus: SoundSourceStatus
     events: list[SoundEventRecord] = Field(max_length=100)
 
     @model_validator(mode="after")
@@ -260,3 +307,43 @@ class SoundEventAcknowledgement(FrozenModel):
     repositoryRevision: Revision
     eventRevision: Revision
     acknowledged: Literal[True]
+
+
+class SoundEventPolicyRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedRepositoryRevision: Revision
+    expectedPolicyRevision: Revision
+    notificationsEnabled: bool
+    barkEnabled: bool
+    noiseEnabled: bool
+    mutedUntilMs: TimestampMs | None
+    sourceClipRetention: Literal["never"]
+
+
+class SoundEventPolicyReceipt(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    accountId: Identity
+    sessionFamilyId: Identity
+    repositoryRevision: Revision
+    policy: SoundEventNotificationPolicy
+
+
+class SoundEventFeedbackRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedRepositoryRevision: Revision
+    expectedEventRevision: Revision
+    classification: Literal["false_alarm", "confirmed"]
+
+
+class SoundEventFeedbackReceipt(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    eventId: Identity
+    accountId: Identity
+    sessionFamilyId: Identity
+    repositoryRevision: Revision
+    eventRevision: Revision
+    classification: Literal["false_alarm", "confirmed"]

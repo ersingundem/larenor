@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 
@@ -10,13 +10,17 @@ from ..models import ErrorResponse
 from .models import (
     SoundEventAcknowledgement,
     SoundEventAcknowledgementRequest,
+    SoundEventFeedbackReceipt,
+    SoundEventFeedbackRequest,
+    SoundEventPolicyReceipt,
+    SoundEventPolicyRequest,
     SoundEventSnapshot,
 )
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 Limit = Annotated[int, Query(ge=1, le=100)]
-SafeClass = Annotated[str, Query(min_length=1, max_length=48)]
+SafeClass = Literal["bark", "noise"]
 router = APIRouter(
     tags=["Sound events"],
     responses={
@@ -62,3 +66,28 @@ def acknowledge(
     core: Core,
 ):
     return core.sound_events.acknowledge(actor, core_id, home_id, event_id, body)
+
+
+@router.put(ROOT + "/policy", response_model=SoundEventPolicyReceipt)
+def update_policy(
+    core_id: Identity,
+    home_id: Identity,
+    body: SoundEventPolicyRequest,
+    actor: Ready,
+    core: Core,
+):
+    return core.sound_events.update_policy(actor, core_id, home_id, body)
+
+
+@router.post(
+    ROOT + "/{event_id}/feedback", response_model=SoundEventFeedbackReceipt
+)
+def feedback(
+    core_id: Identity,
+    home_id: Identity,
+    event_id: Identity,
+    body: SoundEventFeedbackRequest,
+    actor: Ready,
+    core: Core,
+):
+    return core.sound_events.feedback(actor, core_id, home_id, event_id, body)
