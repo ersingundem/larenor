@@ -60,6 +60,7 @@ from .media_preferences.schema import migrate_jellyfin_track_preferences
 from .media_preferences.service import JellyfinTrackPreferenceService
 from .media_language_preferences.schema import migrate_media_language_preferences
 from .media_language_preferences.service import MediaLanguagePreferenceService
+from .playback_quality.service import PlaybackQualityService
 from .meal_plans.repository import MealPlanRepository
 from .meal_plans.schema import migrate_meal_plans
 from .mesh_center.runtime import build_mesh_center_gateway
@@ -498,6 +499,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.media_language_preferences.validate_storage()
+            self.playback_quality = PlaybackQualityService(
+                self.db, self.auth, settings, self.context
+            )
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context
             )
