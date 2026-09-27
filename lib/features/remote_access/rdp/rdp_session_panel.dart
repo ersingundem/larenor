@@ -495,7 +495,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(l.rdpClipboardOff),
+                              Text(switch (_settings.clipboardMode) {
+                                RdpClipboardMode.disabled => l.rdpClipboardOff,
+                                RdpClipboardMode.clientToRemote =>
+                                  l.rdpClipboardClientToRemote,
+                                RdpClipboardMode.bidirectional =>
+                                  l.rdpClipboardBidirectional,
+                              }),
                               Text(l.rdpAudioOff),
                               Text(l.rdpFilesOff),
                               const SizedBox(height: 8),
