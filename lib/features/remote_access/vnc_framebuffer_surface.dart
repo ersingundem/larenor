@@ -218,6 +218,55 @@ class VncBridgeSurfaceSink implements VncSurfaceSink {
   Future<void> cancel() => session.retire();
 }
 
+/// Owns the single native-frame subscription for one framebuffer controller.
+/// Native backpressure permits only one unacknowledged frame, so delivery is
+/// deliberately serial and any malformed/stale event retires both sides.
+class VncFramebufferPump {
+  VncFramebufferPump({required this.session, required this.controller}) {
+    _subscription = session.frames.listen(
+      _offer,
+      onError: (_) => unawaited(retire()),
+      onDone: () => unawaited(retire()),
+      cancelOnError: true,
+    );
+  }
+
+  final VncBridgeSession session;
+  final VncFramebufferController controller;
+  StreamSubscription<VncFrameNotice>? _subscription;
+  bool _retired = false;
+
+  void _offer(VncFrameNotice notice) {
+    if (_retired) {
+      notice.dispose();
+      return;
+    }
+    VncRawFrame? frame;
+    try {
+      frame = VncRawFrame.fromNotice(notice);
+      unawaited(
+        controller.offer(frame).catchError((Object _) async {
+          await retire();
+        }),
+      );
+    } catch (_) {
+      frame?.dispose();
+      notice.dispose();
+      unawaited(retire());
+    }
+  }
+
+  Future<void> retire() async {
+    if (_retired) return;
+    _retired = true;
+    final subscription = _subscription;
+    _subscription = null;
+    await subscription?.cancel();
+    await controller.retire();
+    await session.retire();
+  }
+}
+
 enum VncSurfacePhase { active, retired, failed }
 
 class VncFramebufferController extends ChangeNotifier {
