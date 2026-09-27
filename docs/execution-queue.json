@@ -4004,7 +4004,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Jenerik ve kapanış atlama",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4028,7 +4028,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Jellyfin MediaSegments kaynak işaretlerini yalnız izole Core adaptörü üzerinden sürümlü ve bounded sözleşmeyle okuyup Intro/Outro zaman aralıklarını doğrulayan, yanlış veya eksik işarette fail-closed kalan ve oynatıcıda yalnız açık kullanıcı eylemiyle atlayan üretim akışı uygulanıyor. Otomatik atlama ve gerçek eklenti/sürüm kabulü bu dilimde iddia edilmeyecek."
     },
     {
       "id": "F21",
