@@ -9,6 +9,8 @@ import stat
 import uuid
 
 from .admin.service import AdminService
+from .automation_trials.schema import migrate_automation_trials
+from .automation_trials.service import AutomationTrialService
 from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
 from .ai_memory.schema import migrate_ai_memory
@@ -400,6 +402,7 @@ class CoreServices:
                 migrate_ai_memory(connection)
                 migrate_evidence_diagnostics(connection)
                 migrate_habit_anomalies(connection)
+                migrate_automation_trials(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -562,6 +565,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.habit_anomalies.validate_storage()
+            self.automation_trials = AutomationTrialService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.automation_trials.validate_storage()
             self.rule_arbitration = RuleArbitrationService(
                 self.db, self.auth, settings, key, self.context
             )

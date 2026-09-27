@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from .admin.api import router as admin_router
+from .automation_trials.api import router as automation_trials_router
 from .ai_resources.api import router as ai_resources_router
 from .ai_memory.api import router as ai_memory_router
 from .evidence_diagnostics.api import router as evidence_diagnostics_router
@@ -401,6 +402,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(ai_memory_router, prefix="/api/v1")
     app.include_router(evidence_diagnostics_router, prefix="/api/v1")
     app.include_router(habit_anomalies_router, prefix="/api/v1")
+    app.include_router(automation_trials_router, prefix="/api/v1")
     app.include_router(rule_arbitration_router, prefix="/api/v1")
     app.include_router(capability_evidence_router, prefix="/api/v1")
     app.include_router(kiosk_remote_router, prefix="/api/v1")
