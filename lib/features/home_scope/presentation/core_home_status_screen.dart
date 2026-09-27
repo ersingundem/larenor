@@ -171,6 +171,26 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             }
                           },
                   ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-live-tv-entry'),
+                    buttonKey: const ValueKey('core-home-live-tv-action'),
+                    title: Text(
+                      isTurkish
+                          ? 'Canlı TV ve kayıtlar'
+                          : 'Live TV & recordings',
+                    ),
+                    additionalInfo: Text(
+                      isTurkish
+                          ? 'Program rehberini izle, çakışmaları gör ve güvenli kayıt planla'
+                          : 'Browse the guide, see conflicts, and schedule safe recordings',
+                    ),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/media/live-tv');
+                          },
+                  ),
                 if (controller.account.context != null &&
                     controller.account.session?.user.canAdminister == true)
                   SettingsActionTile(

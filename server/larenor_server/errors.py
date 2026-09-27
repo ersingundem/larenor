@@ -13,6 +13,21 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'live_tv_schema_unsupported': 'The live television schema is unsupported.',
+    'live_tv_storage_invalid': 'Live television storage is invalid.',
+    'live_tv_source_unavailable': 'The live television source is unavailable.',
+    'live_tv_recorder_unavailable': 'The live television recorder is unavailable.',
+    'live_tv_recorder_invalid': 'The live television recorder returned an invalid receipt.',
+    'live_tv_epg_stale': 'The live television guide is stale.',
+    'live_tv_source_changed': 'The live television source changed.',
+    'live_tv_programme_unavailable': 'The programme is unavailable.',
+    'live_tv_recording_conflict': 'All tuners are occupied for that time.',
+    'live_tv_recording_limit_reached': 'The recording limit was reached.',
+    'live_tv_quota_exceeded': 'The recording storage quota would be exceeded.',
+    'live_tv_authority_changed': 'The recording authority changed.',
+    'live_tv_recording_changed': 'The recording changed.',
+    'live_tv_recording_inactive': 'The recording is no longer active.',
+    'live_tv_restart_limit_reached': 'The recording restart limit was reached.',
     'personal_channel_schema_unsupported': 'This personal channel schema is not supported.',
     'personal_channel_storage_invalid': 'The personal channel schedule could not be verified.',
     'personal_channel_authority_changed': 'The personal channel media authority changed. Refresh it first.',

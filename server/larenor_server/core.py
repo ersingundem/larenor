@@ -68,6 +68,8 @@ from .cooking.schema import migrate_cooking_sessions
 from .cooking.service import CookingSessionStore
 from .personal_channels.schema import migrate_personal_channels
 from .personal_channels.service import PersonalChannelService
+from .live_tv.schema import migrate_live_tv
+from .live_tv.service import LiveTvService
 from .pantry_stock.schema import migrate_pantry_stock
 from .pantry_stock.service import PantryStockService
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
@@ -235,6 +237,8 @@ class CoreServices:
         ev_charge_provider=None,
         ev_charge_charger=None,
         camera_profile_provider=None,
+        live_tv_provider=None,
+        live_tv_recorder=None,
         power_budget_provider=None,
         legacy_remote_provider=None,
         power_recovery_executor=None,
@@ -254,6 +258,8 @@ class CoreServices:
         self._ev_charge_provider = ev_charge_provider
         self._ev_charge_charger = ev_charge_charger
         self._camera_profile_provider = camera_profile_provider
+        self._live_tv_provider = live_tv_provider
+        self._live_tv_recorder = live_tv_recorder
         self._power_budget_provider = power_budget_provider
         self._legacy_remote_provider = legacy_remote_provider
         self._power_recovery_executor = power_recovery_executor
@@ -407,6 +413,7 @@ class CoreServices:
                 migrate_inventory(connection, key, self.context)
                 migrate_cooking_sessions(connection)
                 migrate_personal_channels(connection)
+                migrate_live_tv(connection)
                 migrate_pantry_stock(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_jellyfin_track_preferences(connection)
@@ -991,6 +998,11 @@ class CoreServices:
                 self.media_playback,
             )
             self.personal_channels.validate_storage()
+            self.live_tv = LiveTvService(
+                self.db, self.auth, settings, self.context,
+                self._live_tv_provider, self._live_tv_recorder,
+            )
+            self.live_tv.validate_storage()
             self.watch_parties = WatchPartyService(
                 self.db, self.auth, settings, key, self.context,
                 self.media_playback,
