@@ -234,6 +234,15 @@ class KioskRemoteService:
             "availabilityTopic": prefix + "/availability",
             "commandTopic": prefix + "/command",
             "ackTopic": prefix + "/ack",
+            "remoteView": {
+                "modes": ["appSurface"],
+                "frameTopic": prefix + "/remote_view/frame",
+                "receiptTopic": prefix + "/remote_view/receipt",
+                "retained": False,
+                "maxFrameBytes": 393216,
+                "maxFramesPerSecond": 1,
+                "localConfirmationRequired": True,
+            },
             "sensors": [
                 {"kind": kind, "stateTopic": prefix + "/sensor/" + kind + "/state", "retained": True}
                 for kind in (

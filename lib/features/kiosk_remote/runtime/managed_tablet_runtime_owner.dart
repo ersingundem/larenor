@@ -59,6 +59,54 @@ final class ManagedTabletRuntimeOwner {
     return _schedule(generation);
   }
 
+  Future<ManagedTabletTelemetry> readRemoteViewTelemetry() {
+    final runtime = _runtime;
+    if (_disposed || !_foreground || runtime == null) {
+      return Future<ManagedTabletTelemetry>.error(
+        StateError('remote_view_transport_unavailable'),
+      );
+    }
+    return runtime.readRemoteViewTelemetry();
+  }
+
+  Future<void> publishRemoteViewFrame({
+    required String requestId,
+    required int sequence,
+    required DateTime capturedAt,
+    required List<int> pngBytes,
+  }) {
+    final runtime = _runtime;
+    if (_disposed || !_foreground || runtime == null) {
+      return Future<void>.error(
+        StateError('remote_view_transport_unavailable'),
+      );
+    }
+    return runtime.publishRemoteViewFrame(
+      requestId: requestId,
+      sequence: sequence,
+      capturedAt: capturedAt,
+      pngBytes: pngBytes,
+    );
+  }
+
+  Future<void> publishRemoteViewReceipt({
+    required String requestId,
+    required String status,
+    required String reasonCode,
+  }) {
+    final runtime = _runtime;
+    if (_disposed || !_foreground || runtime == null) {
+      return Future<void>.error(
+        StateError('remote_view_transport_unavailable'),
+      );
+    }
+    return runtime.publishRemoteViewReceipt(
+      requestId: requestId,
+      receiptStatus: status,
+      reasonCode: reasonCode,
+    );
+  }
+
   Future<void> enroll(
     ManagedTabletBinding binding,
     ManagedTabletEnrollment enrollment, {

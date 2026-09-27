@@ -19,6 +19,9 @@ enum ManagedTabletMqttStatus {
 
 enum ManagedTabletCommandResult { succeeded, denied, failed, unsupported }
 
+const managedTabletRemoteViewMaxFrameBytes = 393216;
+const _managedTabletRemoteViewMaxEnvelopeBytes = 530000;
+
 abstract interface class ManagedTabletCommandExecutor {
   Future<ManagedTabletCommandResult> execute(String kind);
 }
@@ -416,6 +419,127 @@ final class ManagedTabletMqttRuntime {
     } on _RetiredMqttGeneration {
       return;
     }
+  }
+
+  Future<ManagedTabletTelemetry> readRemoteViewTelemetry() async {
+    final generation = _generation;
+    final current = await _current('read', generation);
+    if (current == null || status != ManagedTabletMqttStatus.connected) {
+      throw StateError('remote_view_transport_unavailable');
+    }
+    final snapshot = await telemetry();
+    snapshot.values();
+    final after = await _current('read', generation);
+    if (after == null || after.pairingId != current.pairingId) {
+      throw StateError('remote_view_authority_retired');
+    }
+    return snapshot;
+  }
+
+  Future<void> publishRemoteViewFrame({
+    required String requestId,
+    required int sequence,
+    required DateTime capturedAt,
+    required List<int> pngBytes,
+  }) async {
+    final generation = _generation;
+    final current = await _current('read', generation);
+    if (current == null || status != ManagedTabletMqttStatus.connected) {
+      throw StateError('remote_view_transport_unavailable');
+    }
+    final captured = capturedAt.toUtc();
+    final currentTime = now().toUtc();
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        sequence < 1 ||
+        sequence > 0x7fffffff ||
+        pngBytes.isEmpty ||
+        pngBytes.length > managedTabletRemoteViewMaxFrameBytes ||
+        captured.isAfter(currentTime.add(const Duration(seconds: 5))) ||
+        captured.isBefore(currentTime.subtract(const Duration(seconds: 30))) ||
+        pngBytes.length < 8 ||
+        pngBytes[0] != 0x89 ||
+        pngBytes[1] != 0x50 ||
+        pngBytes[2] != 0x4e ||
+        pngBytes[3] != 0x47 ||
+        pngBytes[4] != 0x0d ||
+        pngBytes[5] != 0x0a ||
+        pngBytes[6] != 0x1a ||
+        pngBytes[7] != 0x0a) {
+      throw StateError('invalid_remote_view_frame');
+    }
+    final payload = utf8.encode(
+      jsonEncode({
+        'schemaVersion': 1,
+        'requestId': requestId,
+        'sequence': sequence,
+        'deviceId': current.deviceId,
+        'capturedAt': captured.toIso8601String(),
+        'mimeType': 'image/png',
+        'sha256': sha256.convert(pngBytes).toString(),
+        'payload': base64Encode(pngBytes),
+      }),
+    );
+    if (payload.length > _managedTabletRemoteViewMaxEnvelopeBytes) {
+      throw StateError('remote_view_frame_too_large');
+    }
+    final authorized = await _current('read', generation);
+    if (authorized == null ||
+        authorized.pairingId != current.pairingId ||
+        authorized.deviceId != current.deviceId ||
+        authorized.revision != current.revision) {
+      throw StateError('remote_view_authority_retired');
+    }
+    await broker.publish(
+      '${authorized.topicPrefix}/remote_view/frame',
+      payload,
+      retained: false,
+    );
+    _assertGeneration(generation);
+  }
+
+  Future<void> publishRemoteViewReceipt({
+    required String requestId,
+    required String receiptStatus,
+    required String reasonCode,
+  }) async {
+    final generation = _generation;
+    final current = await _current('read', generation);
+    if (current == null || status != ManagedTabletMqttStatus.connected) {
+      throw StateError('remote_view_transport_unavailable');
+    }
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        !const {
+          'active',
+          'retired',
+          'unconfirmed',
+          'denied',
+        }.contains(receiptStatus) ||
+        !RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(reasonCode)) {
+      throw StateError('invalid_remote_view_receipt');
+    }
+    final authorized = await _current('read', generation);
+    if (authorized == null ||
+        authorized.pairingId != current.pairingId ||
+        authorized.deviceId != current.deviceId ||
+        authorized.revision != current.revision) {
+      throw StateError('remote_view_authority_retired');
+    }
+    await broker.publish(
+      '${authorized.topicPrefix}/remote_view/receipt',
+      utf8.encode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'requestId': requestId,
+          'deviceId': authorized.deviceId,
+          'mode': 'appSurface',
+          'status': receiptStatus,
+          'reasonCode': reasonCode,
+          'observedAt': now().toUtc().toIso8601String(),
+        }),
+      ),
+      retained: false,
+    );
+    _assertGeneration(generation);
   }
 
   Future<void> retire() async {

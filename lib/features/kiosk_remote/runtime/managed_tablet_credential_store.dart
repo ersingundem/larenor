@@ -316,6 +316,7 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
       'availabilityTopic',
       'commandTopic',
       'ackTopic',
+      'remoteView',
       'sensors',
     };
     if (raw is! Map<String, dynamic> ||
@@ -330,6 +331,22 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
         raw['availabilityTopic'] != '${enrollment.topicPrefix}/availability' ||
         raw['commandTopic'] != '${enrollment.topicPrefix}/command' ||
         raw['ackTopic'] != '${enrollment.topicPrefix}/ack') {
+      throw const FormatException('invalid_managed_tablet_discovery');
+    }
+    final remoteView = raw['remoteView'];
+    if (remoteView is! Map<String, dynamic> ||
+        remoteView.length != 7 ||
+        remoteView['modes'] is! List ||
+        (remoteView['modes'] as List).length != 1 ||
+        (remoteView['modes'] as List).single != 'appSurface' ||
+        remoteView['frameTopic'] !=
+            '${enrollment.topicPrefix}/remote_view/frame' ||
+        remoteView['receiptTopic'] !=
+            '${enrollment.topicPrefix}/remote_view/receipt' ||
+        remoteView['retained'] != false ||
+        remoteView['maxFrameBytes'] != 393216 ||
+        remoteView['maxFramesPerSecond'] != 1 ||
+        remoteView['localConfirmationRequired'] != true) {
       throw const FormatException('invalid_managed_tablet_discovery');
     }
     final sensors = raw['sensors'];
