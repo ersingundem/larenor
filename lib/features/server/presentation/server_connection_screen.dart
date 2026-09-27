@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/home_session_controller.dart';
 import '../../home_scope/presentation/home_source_screen.dart';
+import '../../home_scope/presentation/server_home_profiles_screen.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
@@ -408,6 +409,29 @@ class _ServerConnectionScreenState
                                         ),
                                       );
                                     })
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      if (_account.profiles.isNotEmpty)
+                        SettingsSection(
+                          children: [
+                            SettingsActionTile(
+                              buttonKey: const ValueKey('server-home-profiles'),
+                              leading: const Icon(CupertinoIcons.house),
+                              title: Text(l10n.serverHomesTitle),
+                              additionalInfo: Text(
+                                l10n.serverHomesCount(_account.profiles.length),
+                              ),
+                              onTap: _active && !_account.working
+                                  ? _callback(
+                                      () => Navigator.of(context).push<void>(
+                                        CupertinoPageRoute(
+                                          builder: (_) =>
+                                              const ServerHomeProfilesScreen(),
+                                        ),
+                                      ),
+                                    )
                                   : null,
                             ),
                           ],

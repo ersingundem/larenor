@@ -4203,5 +4203,19 @@
   "serverPowerRecoveryCheckpoint": "Core veritabanını checkpoint et",
   "serverPowerRecoveryShutdownTarget": "Hedefi kapat",
   "serverPowerRecoveryStartTarget": "Hedefi aç",
-  "serverPowerRecoveryReleaseWork": "Yeni işleri serbest bırak"
+  "serverPowerRecoveryReleaseWork": "Yeni işleri serbest bırak",
+  "serverHomesTitle": "Evler ve Core'lar",
+  "serverHomesIntro": "Her ev bağımsız bir Core oturumu tutar. Ev değişiminde seçilen Core doğrulanmadan önce mevcut ev çalışma alanı kapatılır.",
+  "serverHomesCount": "{count} kayıtlı ev",
+  "@serverHomesCount": {"placeholders": {"count": {"type": "int"}}},
+  "serverHomesActive": "Etkin ev",
+  "serverHomesSwitch": "Bu eve geç",
+  "serverHomesRename": "Adını değiştir",
+  "serverHomesRemove": "Evi kaldır",
+  "serverHomesRenameTitle": "Evin adını değiştir",
+  "serverHomesName": "Ev adı",
+  "serverHomesRemoveTitle": "Kayıtlı ev kaldırılsın mı?",
+  "serverHomesRemoveHint": "{name} bu cihazdan kaldırılacak ve oturumunu iptal etme denenecek.",
+  "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
+  "serverHomesOperationFailed": "Kayıtlı ev işlemi tamamlanamadı."
 }

@@ -513,6 +513,48 @@ class ServerAccountController extends ChangeNotifier {
     }
   }
 
+  Future<void> beginAddProfile() async {
+    if (_disposed || _working || _refreshing != null) return;
+    final previousRegistry = ServerHomeRegistry(
+      activeProfileId: _activeProfileId,
+      profiles: _profiles,
+    );
+    final previous = _pendingSession ?? _session;
+    final generation = ++_generation;
+    _api?.close();
+    _api = null;
+    _session = null;
+    _pendingSession = null;
+    _candidateSaved = false;
+    _refreshing = null;
+    _mutationInFlight = false;
+    _working = true;
+    _initialized = true;
+    _failure = null;
+    _emit();
+    try {
+      await _persistRegistry(
+        ServerHomeRegistry(
+          activeProfileId: null,
+          profiles: previousRegistry.profiles,
+        ),
+        generation,
+      );
+    } catch (error) {
+      if (isCurrent(generation)) {
+        _adoptRegistry(previousRegistry);
+        _session = previous;
+        _api = previous == null ? null : _factory(previous.endpoint);
+        _failure = _safeCode(error);
+      }
+    } finally {
+      if (isCurrent(generation)) {
+        _working = false;
+        _emit();
+      }
+    }
+  }
+
   Future<void> renameProfile(String profileId, String label) async {
     if (_disposed || _working || _refreshing != null) return;
     final normalized = label.trim();

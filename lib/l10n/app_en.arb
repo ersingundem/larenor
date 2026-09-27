@@ -4556,5 +4556,19 @@
   "serverPowerRecoveryCheckpoint": "Checkpoint the Core database",
   "serverPowerRecoveryShutdownTarget": "Shut down target",
   "serverPowerRecoveryStartTarget": "Start target",
-  "serverPowerRecoveryReleaseWork": "Release new work"
+  "serverPowerRecoveryReleaseWork": "Release new work",
+  "serverHomesTitle": "Homes and Cores",
+  "serverHomesIntro": "Each home keeps an independent Core session. Switching retires the current home runtime before the selected Core is verified.",
+  "serverHomesCount": "{count} saved homes",
+  "@serverHomesCount": {"placeholders": {"count": {"type": "int"}}},
+  "serverHomesActive": "Active home",
+  "serverHomesSwitch": "Switch to this home",
+  "serverHomesRename": "Rename",
+  "serverHomesRemove": "Remove home",
+  "serverHomesRenameTitle": "Rename home",
+  "serverHomesName": "Home name",
+  "serverHomesRemoveTitle": "Remove saved home?",
+  "serverHomesRemoveHint": "{name} will be removed from this device and its session revocation will be attempted.",
+  "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
+  "serverHomesOperationFailed": "The saved home operation could not be completed."
 }
