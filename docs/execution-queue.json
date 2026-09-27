@@ -3972,7 +3972,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Oynatma kalitesi danışmanı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3997,7 +3997,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut Jellyfin oynatıcı manuel bitrate tavanı ve direct-play/transcode sonucunu taşıyor. Şimdi codec/bitrate/ağ/alıcı kanıtını sürümlü ve bounded bir danışman görünümünde birleştirip eksik telemetriyi açık durum olarak gösterecek üretim akışı tamamlanıyor."
+      "reason": "Jellyfin kaynak kararı ile codec/bitrate/çözünürlük/HDR kanıtı, Android decoder/ekran/ağ bağlantı tahmini ve uzak Jellyfin oturum gözlemi sürümlü, bounded ve fail-closed sözleşmelerle tamamlandı. Core yalnız direct play/remux/transcode tavsiyesi verir; eksik telemetriyi açık gap olarak döndürür, ölçülmüş ağ hızı veya fiziksel alıcı kabulü iddia etmez ve kaliteyi otomatik değiştirmez. Testler kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Jellyfin/Android alıcı E2E, bağımsız inceleme, exact-head CI ve fiziksel codec/HDR/ağ kabulü henüz tamamlanmadı."
     },
     {
       "id": "F25",

@@ -17,6 +17,26 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 27 Eylül F26 oynatma kalitesi danışmanı — uygulama tamamlandı, test bekliyor
+
+F26 tek çalışma dalında tamamlandı. Yerel Jellyfin oynatıcı kaynak codec'i,
+bit hızı, çözünürlük, HDR aralığı ve sunucunun direct play/remux/transcode
+kararını sürümlü kanıta dönüştürüyor. Android alıcı köprüsü decoder MIME
+türlerini, ekran çözünürlüğü/HDR türlerini ve NetworkCapabilities bağlantı
+tahminini bounded bir snapshot olarak bildiriyor; bu ağ değeri ölçülmüş aktarım
+hızı sayılmıyor. Core danışmanı hesap/oturum/ev yetkisini doğruluyor, eksik
+telemetriyi açık gap kodlarıyla döndürüyor ve yalnız öneri üretiyor; oynatma
+kalitesini otomatik değiştirmiyor. Uzak Jellyfin hedeflerinde de güncel oturumun
+PlayMethod, kaynak ve transcoding gözlemi aynı hedef revision'ına bağlandı.
+
+`969d1d1c`–`ed530197` arasındaki dilimler odaklı Flutter analyze, Python import/
+py_compile ve Android `compileDebugKotlin` kapılarından geçti. Kullanıcının
+kararı gereği özellik testleri son toplu doğrulama evresine bırakıldı. Bu yüzden
+F26 kuyrukta **uygulama tamamlandı · test bekliyor** durumunda; sayaçlar
+**37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek Jellyfin/Android
+alıcı E2E, bağımsız inceleme, exact-head CI ve fiziksel codec/HDR/ağ kabulü
+açık kalıyor.
+
 ### 27 Eylül F31 haftalık menü yazılım kabulü
 
 F31'in exact `4f9e03516248a64c630f58abadb9b9e8efe589dd` kaynağı porsiyon ve
