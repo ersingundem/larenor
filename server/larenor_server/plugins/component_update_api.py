@@ -11,9 +11,11 @@ from ..dependencies import require_admin
 from ..models import ErrorResponse
 from .component_update_service import ComponentUpdateService
 from .component_updates import (
+    CancelComponentUpdateJobRequest,
     ComponentReleasePreference,
     ComponentUpdateCommand,
     ComponentUpdateInventory,
+    ComponentUpdateJob,
     ConfirmComponentUpdateRequest,
     PutComponentReleasePreference,
 )
@@ -67,6 +69,29 @@ def build_component_update_router(service: ComponentUpdateService) -> APIRouter:
             service.confirm,
             principal,
             installation_id,
+            body,
+        )
+
+    @router.get(
+        "/jobs/{update_id}",
+        response_model=ComponentUpdateJob,
+    )
+    async def get_job(update_id: Identity, principal: Admin):
+        return await run_in_threadpool(service.get_job, principal, update_id)
+
+    @router.post(
+        "/jobs/{update_id}/cancel",
+        response_model=ComponentUpdateJob,
+    )
+    async def cancel_job(
+        update_id: Identity,
+        body: CancelComponentUpdateJobRequest,
+        principal: Admin,
+    ):
+        return await run_in_threadpool(
+            service.cancel_job,
+            principal,
+            update_id,
             body,
         )
 

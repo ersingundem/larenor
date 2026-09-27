@@ -17,13 +17,14 @@ from .component_updates import (
 class ComponentUpdateService:
     """Join private worker receipts with the packaged target catalog."""
 
-    def __init__(self, boundary, context, preferences, confirmations):
+    def __init__(self, boundary, context, preferences, confirmations, jobs):
         if type(context) is not ContextResponse:
             raise ValueError("invalid_component_update_configuration")
         self._boundary = boundary
         self._context = context
         self._preferences = preferences
         self._confirmations = confirmations
+        self._jobs = jobs
 
     def inventory(self, actor):
         try:
@@ -114,9 +115,20 @@ class ComponentUpdateService:
                 raise ValueError("component_update_worker_unavailable")
             if validate(command, time.monotonic() + 5) != command:
                 raise ValueError("component_update_worker_mismatch")
-            return command
         except BaseException as error:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
             self._confirmations.discard_unvalidated(command)
             raise ApiError("component_update_worker_unavailable", 503) from None
+        try:
+            self._jobs.enqueue(actor, command)
+        except BaseException:
+            self._confirmations.discard_unvalidated(command)
+            raise
+        return command
+
+    def get_job(self, actor, update_id):
+        return self._jobs.get(actor, update_id)
+
+    def cancel_job(self, actor, update_id, body):
+        return self._jobs.cancel(actor, update_id, body)

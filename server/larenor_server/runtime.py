@@ -122,6 +122,7 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
             app.state.core.context,
             app.state.core.component_update_preferences,
             app.state.core.component_update_confirmations,
+            app.state.core.component_update_jobs,
         )
         app.include_router(
             build_component_update_router(component_updates),
