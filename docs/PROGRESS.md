@@ -2875,6 +2875,14 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — F07 uygulandı:** Hesap/ev yalıtımlı alışkanlık gözlemleri,
+  sınırlı zaman serisi, tazelik ve asgari örnek/zaman aralığı kapıları, robust
+  MAD tabanı, açık `unknown` sonucu, model sürümü ve normal/yanlış alarm geri
+  bildirimi Core ile görünür Client ekranına bağlandı (`c59e96cf`, `c491b748`).
+  F07 aktif geliştirme tablosundan çıkarılıp son test/inceleme/exact-head CI
+  tablosuna taşındı. Kabul sayaçları bu kanıtlar gelene kadar bilinçli olarak
+  **37/125** ve **3/63** kaldı.
+
 - **27 Eylül — tek dal geliştirme:** K13 yönetilen profil dağıtımı, F04 kural
   hakemi, F09 süreli AI hafızası ve F10 kanıta dayalı teşhis Core ve görünür
   Client akışlarıyla uygulandı. Her dilim

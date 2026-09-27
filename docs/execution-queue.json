@@ -3736,7 +3736,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Evin alışılmış düzeninden sapmalar",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3760,7 +3760,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal tesliminde evin alışılmış düzeninden sapmaları ölçülebilir, açıklanabilir ve kullanıcı tarafından yönetilebilir hale getiren Core ve Client akışı uygulanıyor."
+      "reason": "Hesap/ev yalıtımlı sınırlı gözlem serisi, tazelik ve asgari örnek/zaman aralığı kapısı, robust MAD tabanı, açık unknown sonucu, model sürümü ve normal/yanlış alarm geri bildirimi Core ve görünür Client akışına bağlandı (c59e96cf, c491b748). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
     },
     {
       "id": "F10",
