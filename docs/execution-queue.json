@@ -2946,7 +2946,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Yönetilen profil dağıtımı ve filo bağı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "K07",
         "K12",
@@ -2968,7 +2968,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal tesliminde yönetilen profil yayınlama/geri alma, Android doğrulama ve güvenli dağıtım hattı uygulanıyor."
+      "reason": "İmzalı sürümlü profil, dry-run/canary dağıtımı, Device Owner yetkili kurulum, bounded geçmiş ve monoton revizyonlu restore Core ve Client akışına bağlandı (84cecaea, 59e3358d, 59b3e9d5, 9ca5383a). Özellik testleri, bağımsız inceleme, exact-head CI ve gerçek DPC/OEM cihaz kabulü son doğrulama kapısında bekliyor."
     },
     {
       "id": "POC",
@@ -3578,7 +3578,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Çakışan kurallar hakemi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3603,7 +3603,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal paralel tesliminde Core çakışma hakemi uygulanıyor; aynı cihaz önceliği, süreli sahiplik, manuel müdahale ve gözlem-only dış HA yazmaları kapsamda."
+      "reason": "Öncelik, süreli sahiplik, manuel müdahale, idempotent etki bileti ve observed-only dış HA kaydı Core hakemine eklendi; gerçek Home Assistant kural/manuel yazma yolu hakeme bağlandı (329274e7, 2dba87da). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
     },
     {
       "id": "F02",
@@ -3705,7 +3705,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Görülebilir, süreli AI hafızası",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3729,7 +3729,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal paralel tesliminde süreli AI hafızası uygulanıyor; kaynak/kullanıcı/süre görünürlüğü, ev-hesap yalıtımı, tombstone ve indeks/önbellek unutması kapsamda."
+      "reason": "Hesap/ev yalıtımlı süreli hafıza, kaynak/kullanıcı/süre görünürlüğü, düzeltme/unutma, indeks/önbellek temizliği ve tombstone korumalı yedek restore Core ve Client akışına bağlandı (e1a85bde, 9f60e2e9). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
     },
     {
       "id": "F07",
@@ -3767,7 +3767,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Kanıta dayalı arıza yardımcısı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3791,7 +3791,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal paralel tesliminde kanıta dayalı arıza yardımcısı uygulanıyor; ölçüm kaynakları, redaction, açık belirsizlik ve ayrı yetkili onarım önizlemesi kapsamda."
+      "reason": "Kaynak/ölçüm/olay bağlı teşhis, açık bilinmeyenler, redaction, salt okunur öneriler ve yürütmesiz ayrı onarım önizlemesi Core ve Client akışına bağlandı (f505bfcf, 87188975). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
     },
     {
       "id": "G05",

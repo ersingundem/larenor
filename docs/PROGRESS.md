@@ -2875,6 +2875,16 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — tek dal geliştirme:** K13 yönetilen profil dağıtımı, F04 kural
+  hakemi, F09 süreli AI hafızası ve F10 kanıta dayalı teşhis Core ve görünür
+  Client akışlarıyla uygulandı. Her dilim
+  `codex/project-completion-100` dalına ayrı commit olarak gönderildi. Bu dört
+  iş artık aktif geliştirme tablosunda değildir; özellik testleri, bağımsız
+  inceleme ve exact-head CI son toplu doğrulama aşamasına bırakıldığı için
+  `implemented` durumunda, “Tamamlanan ve test/CI bekleyen işler” tablosundadır.
+  Kanıtla kabul sayaçları bilinçli olarak **37/125** ve **3/63** kaldı; gerçek
+  DPC/OEM cihaz kabulü ayrıca `MANUAL.KIOSK` kapısında açıktır.
+
 - **19:42:** Kullanıcının sürekli devam talimatıyla kalan adımların kalıcı
   yürütme kuyruğu hazırlanıyor; mevcut takip 15 dakikalık geliştirme devamına
   genişletildi, günlük debug APK temizliği aynı sınırlarla korundu.
