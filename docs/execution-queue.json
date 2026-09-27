@@ -2891,7 +2891,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "QR/NFC/BLE/USB/TTS/print seçili çevre birimleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "K03.remaining",
         "K08"
@@ -2912,7 +2912,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Android çevre birimi köprüsü mevcut katı inceleme sözleşmesine bağlanıyor; NFC/USB giriş durumu ile mevcut TTS/print yetenekleri ayrı ve GMS’siz ilan edilecek, hazır olmayan QR/BLE sağlayıcıları fail-closed kalacak."
+      "reason": "QR kamera, NFC NDEF, BLE reklamı ve harici USB HID girdileri bağımsız yerel seçim/izin/yetenek durumlarıyla yalnız açık kullanıcı isteğinden sonra sınırlı inceleme zarfına bağlandı; TTS ve kullanıcı onaylı PDF yazdırma K08 çalışanları ayrı yetenekler olarak ilan ediliyor. GMS gerekmiyor; rota/odak/yaşam döngüsü kaybı, izin reddi, kablo çıkarma, zaman aşımı, bozuk/aşırı veri ve iki saniyelik yinelenen tarama fail-closed. Hiçbir tarama URL, komut veya JavaScript olarak yürütülmüyor. Özellik testleri, bağımsız inceleme, exact-head CI ve gerçek GMS’siz tablet/QR/NFC/BLE/USB/TTS/yazıcı kabulü son doğrulama kapısında bekliyor."
     },
     {
       "id": "K12",
