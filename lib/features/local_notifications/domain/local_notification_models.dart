@@ -337,6 +337,7 @@ abstract final class LocalNotificationRoutePolicy {
       '/settings',
       '/wellbeing',
       '/inventory',
+      '/workflows',
     };
     if (roots.contains(target)) return target;
     if (target.startsWith('/media/') ||

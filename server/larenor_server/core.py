@@ -614,7 +614,7 @@ class CoreServices:
             self.home_assistant.validate_storage()
             self.home_workflows = HomeWorkflowService(
                 self.db, self.auth, settings, key,
-                self.home_resources, self.home_assistant,
+                self.home_resources, self.home_assistant, self.local_notifications,
             )
             self.home_workflows.validate_storage()
             self.home_workflows.recover_incomplete()

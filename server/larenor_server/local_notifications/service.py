@@ -206,6 +206,62 @@ class LocalNotificationService:
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise ApiError("notification_storage_unavailable", 503) from None
 
+    def _append(self, connection, body, *, now=None):
+        now = float(self.settings.clock()) if now is None else now
+        recipient = connection.execute(
+            "SELECT * FROM users WHERE id=?", (body.recipientUserId,)
+        ).fetchone()
+        if recipient is None or recipient["disabled"] or recipient["must_change_password"]:
+            raise ApiError("not_found", 404)
+        packed = body.model_dump()
+        tag = self._event_tag(body.recipientUserId, body.idempotencyKey, packed)
+        old = connection.execute(
+            "SELECT * FROM local_notification_events "
+            "WHERE recipient_id=? AND idempotency_key=?",
+            (body.recipientUserId, body.idempotencyKey),
+        ).fetchone()
+        if old is not None:
+            self._validate_event(old)
+            if not hmac.compare_digest(old["envelope_tag"], tag):
+                raise ApiError("notification_event_conflict", 409)
+            return {"notification": self._public_event(old, body, False)}
+        if (
+            connection.execute(
+                "SELECT COUNT(*) FROM local_notification_events"
+            ).fetchone()[0]
+            >= schema.MAX_EVENTS
+        ):
+            raise ApiError("notification_limit_reached", 409)
+        event_id, nonce = uuid.uuid4().hex, secrets.token_bytes(12)
+        cursor = connection.execute(
+            "INSERT INTO local_notification_events(id,recipient_id,idempotency_key,"
+            "envelope_tag,nonce,ciphertext,created_at) VALUES(?,?,?,?,?,x'',?)",
+            (event_id, body.recipientUserId, body.idempotencyKey, tag, nonce, now),
+        )
+        sequence = cursor.lastrowid
+        row = {
+            "sequence": sequence,
+            "id": event_id,
+            "recipient_id": body.recipientUserId,
+            "idempotency_key": body.idempotencyKey,
+            "envelope_tag": tag,
+            "nonce": nonce,
+            "created_at": now,
+        }
+        plain = body.model_dump_json().encode("utf-8")
+        ciphertext = self._cipher.encrypt(nonce, plain, self._event_aad(row))
+        connection.execute(
+            "UPDATE local_notification_events SET ciphertext=? WHERE sequence=?",
+            (ciphertext, sequence),
+        )
+        row["ciphertext"] = ciphertext
+        return {"notification": self._public_event(row, body, False)}
+
+    def append_internal(self, connection, value):
+        """Append from a trusted producer inside its existing DB transaction."""
+        body = CreateNotification.model_validate(value)
+        return self._append(connection, body)
+
     def enqueue(self, actor, core_id, home_id, value):
         body = CreateNotification.model_validate(value)
         now = float(self.settings.clock())
@@ -214,40 +270,7 @@ class LocalNotificationService:
                 user = self._current_actor(connection, actor)
                 if user["role"] != "admin":
                     raise ApiError("forbidden", 403)
-                recipient = connection.execute(
-                    "SELECT * FROM users WHERE id=?", (body.recipientUserId,)
-                ).fetchone()
-                if recipient is None or recipient["disabled"] or recipient["must_change_password"]:
-                    raise ApiError("not_found", 404)
-                packed = body.model_dump()
-                tag = self._event_tag(body.recipientUserId, body.idempotencyKey, packed)
-                old = connection.execute(
-                    "SELECT * FROM local_notification_events WHERE recipient_id=? AND idempotency_key=?",
-                    (body.recipientUserId, body.idempotencyKey),
-                ).fetchone()
-                if old is not None:
-                    self._validate_event(old)
-                    if not hmac.compare_digest(old["envelope_tag"], tag):
-                        raise ApiError("notification_event_conflict", 409)
-                    return {"notification": self._public_event(old, body, False)}
-                if connection.execute("SELECT COUNT(*) FROM local_notification_events").fetchone()[0] >= schema.MAX_EVENTS:
-                    raise ApiError("notification_limit_reached", 409)
-                event_id, nonce = uuid.uuid4().hex, secrets.token_bytes(12)
-                cursor = connection.execute(
-                    "INSERT INTO local_notification_events(id,recipient_id,idempotency_key,envelope_tag,nonce,ciphertext,created_at) "
-                    "VALUES(?,?,?,?,?,x'',?)",
-                    (event_id, body.recipientUserId, body.idempotencyKey, tag, nonce, now),
-                )
-                sequence = cursor.lastrowid
-                row = {"sequence": sequence, "id": event_id, "recipient_id": body.recipientUserId,
-                       "idempotency_key": body.idempotencyKey, "envelope_tag": tag,
-                       "nonce": nonce, "created_at": now}
-                plain = body.model_dump_json().encode("utf-8")
-                ciphertext = self._cipher.encrypt(nonce, plain, self._event_aad(row))
-                connection.execute("UPDATE local_notification_events SET ciphertext=? WHERE sequence=?",
-                                   (ciphertext, sequence))
-                row["ciphertext"] = ciphertext
-                return {"notification": self._public_event(row, body, False)}
+                return self._append(connection, body, now=now)
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise ApiError("notification_storage_unavailable", 503) from None
 

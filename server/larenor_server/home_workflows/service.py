@@ -28,9 +28,20 @@ from .models import (
 
 
 class HomeWorkflowService:
-    def __init__(self, db, auth, settings, key, resources, home_assistant):
+    _NOTIFICATION_BODIES = {
+        "waiting_decision": "A home workflow is waiting for your decision.",
+        "reconciliation_required": "A home workflow needs reconciliation.",
+        "failed": "A home workflow failed.",
+        "timed_out": "A home workflow timed out.",
+        "completed": "A home workflow completed.",
+    }
+
+    def __init__(
+        self, db, auth, settings, key, resources, home_assistant, notification_writer
+    ):
         self.db, self.auth, self.settings = db, auth, settings
         self.resources, self.home_assistant = resources, home_assistant
+        self.notification_writer = notification_writer
         self.scope = HomeScope.model_validate(resources.scope.model_dump())
         self._key, self._cipher = key, AESGCM(key)
         self._lock = RLock()
@@ -104,6 +115,26 @@ class HomeWorkflowService:
                 row["reconciliation_result"], row["cancel_requested"],
                 row["deadline_at"], row["created_at"], row["updated_at"], nonce, cipher,
             ),
+        )
+
+    def _notify(self, connection, row, payload):
+        body = self._NOTIFICATION_BODIES.get(row["state"])
+        if body is None:
+            return
+        self.notification_writer.append_internal(
+            connection,
+            {
+                "schemaVersion": 1,
+                "recipientUserId": row["actor_id"],
+                "idempotencyKey": (
+                    f"workflow:{row['id']}:{row['revision']}:{row['state']}"
+                ),
+                "category": "home_workflow",
+                "sensitivity": "private",
+                "title": payload.request.title,
+                "body": body,
+                "target": "/workflows",
+            },
         )
 
     def _find(self, connection, workflow_id):
@@ -284,6 +315,7 @@ class HomeWorkflowService:
                 "updated_at": now,
             }
             self._save(connection, row, payload)
+            self._notify(connection, row, payload)
             return {"schemaVersion": 1, "workflow": self._public(row, payload)}
 
     def _operation(self, row, payload, operation_id, kind, expected, decision=None):
@@ -320,6 +352,8 @@ class HomeWorkflowService:
             )
             payload = self._append_operation(payload, operation)
         self._save(connection, value, payload)
+        if value["state"] != row["state"]:
+            self._notify(connection, value, payload)
         return value, payload
 
     def decide(self, actor, core_id, home_id, workflow_id, body, *, cancelled=lambda: False):
