@@ -4331,5 +4331,12 @@
   "serverComponentUpdatesMigrationRollback": "A bound rollback snapshot is required before applying this update.",
   "serverComponentUpdatesApplyUnavailable": "Applying updates remains disabled until the isolated worker revalidates this exact review.",
   "serverComponentUpdatesEmpty": "No catalog-managed component is installed.",
-  "serverComponentUpdatesWorkerUnavailable": "The isolated component worker is unavailable. Nothing was changed."
+  "serverComponentUpdatesWorkerUnavailable": "The isolated component worker is unavailable. Nothing was changed.",
+  "serverComponentUpdatesPreference": "Release preference",
+  "serverComponentUpdatesStableOnly": "Stable",
+  "serverComponentUpdatesManualReview": "Review",
+  "serverComponentUpdatesDisabled": "Off",
+  "serverComponentUpdatesRequireSignature": "Require upstream signature",
+  "serverComponentUpdatesRequireSignatureHint": "Unsigned catalog releases stay blocked when this is on.",
+  "serverComponentUpdatesChanged": "The release preference changed elsewhere. Refresh and review it again."
 }

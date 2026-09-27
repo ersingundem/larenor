@@ -3978,5 +3978,12 @@
   "serverComponentUpdatesMigrationRollback": "Bu güncelleme uygulanmadan önce bağlı bir geri dönüş anlık görüntüsü gerekli.",
   "serverComponentUpdatesApplyUnavailable": "İzole worker bu exact incelemeyi yeniden doğrulayana kadar güncelleme uygulama kapalı kalır.",
   "serverComponentUpdatesEmpty": "Katalogla yönetilen kurulu bileşen yok.",
-  "serverComponentUpdatesWorkerUnavailable": "İzole bileşen worker'ına ulaşılamıyor. Hiçbir şey değiştirilmedi."
+  "serverComponentUpdatesWorkerUnavailable": "İzole bileşen worker'ına ulaşılamıyor. Hiçbir şey değiştirilmedi.",
+  "serverComponentUpdatesPreference": "Yayın tercihi",
+  "serverComponentUpdatesStableOnly": "Kararlı",
+  "serverComponentUpdatesManualReview": "İncele",
+  "serverComponentUpdatesDisabled": "Kapalı",
+  "serverComponentUpdatesRequireSignature": "Upstream imzasını zorunlu tut",
+  "serverComponentUpdatesRequireSignatureHint": "Bu açıkken imzasız katalog sürümleri engelli kalır.",
+  "serverComponentUpdatesChanged": "Yayın tercihi başka bir yerde değişti. Yenileyip yeniden inceleyin."
 }

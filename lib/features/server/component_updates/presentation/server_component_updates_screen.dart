@@ -189,14 +189,14 @@ final class _ServerComponentUpdatesScreenState
                         padding: const EdgeInsets.all(20),
                         child: Semantics(
                           liveRegion: true,
-                          child: Text(
-                            _updates.failure ==
-                                        'component_update_worker_unavailable' ||
-                                    _updates.failure ==
-                                        'component_update_unavailable'
-                                ? l10n.serverComponentUpdatesWorkerUnavailable
-                                : l10n.serverFailureConnection,
-                          ),
+                          child: Text(switch (_updates.failure) {
+                            'component_update_worker_unavailable' ||
+                            'component_update_unavailable' =>
+                              l10n.serverComponentUpdatesWorkerUnavailable,
+                            'revision_conflict' =>
+                              l10n.serverComponentUpdatesChanged,
+                            _ => l10n.serverFailureConnection,
+                          }),
                         ),
                       ),
                     if (inventory != null && inventory.installed.isEmpty)
@@ -214,6 +214,7 @@ final class _ServerComponentUpdatesScreenState
                           l10n,
                           inventory.installed[index],
                           inventory.reviews[index],
+                          inventory.preferences[index],
                         ),
                   ],
                 ),
@@ -229,6 +230,7 @@ final class _ServerComponentUpdatesScreenState
     AppLocalizations l10n,
     ServerInstalledComponentUpdate installed,
     ServerComponentUpdateReview review,
+    ServerComponentReleasePreference preference,
   ) {
     final release = installed.release;
     final status = review.isCurrent
@@ -239,6 +241,8 @@ final class _ServerComponentUpdatesScreenState
       header: Text('${_serviceName(release.serviceId)} ${release.version}'),
       footer: Text(l10n.serverComponentUpdatesApplyUnavailable),
       children: [
+        _preferenceControl(l10n, preference),
+        _signatureControl(l10n, preference),
         _valueRow(l10n.serverComponentUpdatesCurrent, status),
         _valueRow(l10n.serverComponentUpdatesPublisher, release.publisher),
         _valueRow(l10n.serverComponentUpdatesSource, release.repository),
@@ -267,6 +271,107 @@ final class _ServerComponentUpdatesScreenState
       ],
     );
   }
+
+  Widget _preferenceControl(
+    AppLocalizations l10n,
+    ServerComponentReleasePreference preference,
+  ) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.serverComponentUpdatesPreference, style: AppText.headline),
+        const SizedBox(height: 10),
+        IgnorePointer(
+          ignoring: _updates.busy,
+          child: Opacity(
+            opacity: _updates.busy ? 0.5 : 1,
+            child: SizedBox(
+              width: double.infinity,
+              child: CupertinoSlidingSegmentedControl<String>(
+                groupValue: preference.mode,
+                children: {
+                  'stable_only': Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(l10n.serverComponentUpdatesStableOnly),
+                  ),
+                  'manual_review': Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(l10n.serverComponentUpdatesManualReview),
+                  ),
+                  'disabled': Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(l10n.serverComponentUpdatesDisabled),
+                  ),
+                },
+                onValueChanged: (mode) {
+                  if (_updates.busy ||
+                      mode == null ||
+                      mode == preference.mode) {
+                    return;
+                  }
+                  unawaited(
+                    _updates.updatePreference(
+                      preference: preference,
+                      mode: mode,
+                      requireUpstreamSignature:
+                          preference.requireUpstreamSignature,
+                      current: _capture(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _signatureControl(
+    AppLocalizations l10n,
+    ServerComponentReleasePreference preference,
+  ) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.serverComponentUpdatesRequireSignature,
+                style: AppText.headline,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.serverComponentUpdatesRequireSignatureHint,
+                style: AppText.footnote.copyWith(
+                  color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        CupertinoSwitch(
+          value: preference.requireUpstreamSignature,
+          onChanged: _updates.busy
+              ? null
+              : (required) {
+                  unawaited(
+                    _updates.updatePreference(
+                      preference: preference,
+                      mode: preference.mode,
+                      requireUpstreamSignature: required,
+                      current: _capture(),
+                    ),
+                  );
+                },
+        ),
+      ],
+    ),
+  );
 
   Widget _valueRow(String label, String value, {bool warning = false}) =>
       Padding(
