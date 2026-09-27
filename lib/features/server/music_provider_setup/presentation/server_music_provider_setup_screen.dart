@@ -143,7 +143,7 @@ class _ServerMusicProviderSetupScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final current = _capture();
       if (!current()) return;
-      if (_controller.setup != null) {
+      if (_controller.setup != null || _controller.createOutcomeUnknown) {
         unawaited(_controller.refresh(current: current));
       }
     });
@@ -625,11 +625,22 @@ class _ServerMusicProviderSetupScreenState
                 ),
               ),
             if (_controller.createOutcomeUnknown)
-              Semantics(
-                liveRegion: true,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(l.serverMusicProviderSetupUnknownCreate),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(l.serverMusicProviderSetupUnknownCreate),
+                    ),
+                    const SizedBox(height: 8),
+                    _button(
+                      'refresh-create',
+                      l.serverMusicProviderSetupRefresh,
+                      _active && !_controller.busy ? _refresh : null,
+                    ),
+                  ],
                 ),
               ),
             if (_controller.needsRefresh)

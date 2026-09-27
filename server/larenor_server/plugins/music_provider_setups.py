@@ -258,9 +258,78 @@ class MusicProviderSetupManagement:
     def get(self, actor, identifier):
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self._assert_admin(connection, actor)
+            actor_revision = self._assert_admin(connection, actor)
             row = self._find(connection, identifier)
+            if (row['actor_id'] != actor.id
+                    or row['actor_revision'] != actor_revision
+                    or row['family_id'] != actor.family_id):
+                raise ApiError('not_found', 404)
+            self._readiness(connection, row['installation_id'],
+                            row['installation_revision'])
             return {'setup': self._public(row, self._decode(row))}
+
+    def _owned_installation_setups(self, connection, actor, actor_revision,
+                                   installation_id, installation_revision):
+        self._identity(installation_id)
+        rows = connection.execute(
+            'SELECT * FROM music_provider_setups '
+            'WHERE actor_id=? AND actor_revision=? AND family_id=? '
+            'AND installation_id=? AND installation_revision=? '
+            'ORDER BY sequence DESC LIMIT ?',
+            (actor.id, actor_revision, actor.family_id, installation_id,
+             installation_revision, MAX_SETUPS + 1)).fetchall()
+        if len(rows) > MAX_SETUPS:
+            raise ApiError('music_provider_setup_storage_unavailable', 503)
+        result = []
+        for row in rows:
+            stored = self._decode(row)
+            request = stored.request
+            if (request.installationId != installation_id
+                    or request.expectedInstallationRevision
+                    != installation_revision):
+                raise ApiError('music_provider_setup_storage_unavailable', 503)
+            result.append((row, stored))
+        return result
+
+    def get_by_request(self, actor, installation_id, installation_revision,
+                       request_id):
+        self._identity(request_id)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            actor_revision = self._assert_admin(connection, actor)
+            self._readiness(connection, installation_id,
+                            installation_revision)
+            matches = [
+                item for item in self._owned_installation_setups(
+                    connection, actor, actor_revision, installation_id,
+                    installation_revision)
+                if item[1].request.requestId == request_id
+            ]
+            if not matches:
+                raise ApiError('not_found', 404)
+            if len(matches) != 1:
+                raise ApiError('music_provider_setup_conflict', 409)
+            row, stored = matches[0]
+            return {'setup': self._public(row, stored)}
+
+    def get_active(self, actor, installation_id, installation_revision):
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            actor_revision = self._assert_admin(connection, actor)
+            self._readiness(connection, installation_id,
+                            installation_revision)
+            active = [
+                item for item in self._owned_installation_setups(
+                    connection, actor, actor_revision, installation_id,
+                    installation_revision)
+                if item[1].status not in {'ready', 'cancelled'}
+            ]
+            if len(active) > 1:
+                raise ApiError('music_provider_setup_conflict', 409)
+            if not active:
+                return {'setup': None}
+            row, stored = active[0]
+            return {'setup': self._public(row, stored)}
 
     def _gate_locked(self, connection, row):
         current = connection.execute(

@@ -36,6 +36,58 @@ final class ServerMusicProviderSetupApi {
     return value;
   }
 
+  Future<ServerMusicProviderSetup> getByRequest({
+    required String installationId,
+    required int installationRevision,
+    required String requestId,
+  }) async {
+    _id(installationId);
+    _revision(installationRevision);
+    _id(requestId);
+    final value = _setup(
+      await api.request(
+        'GET',
+        '$root/installations/$installationId/revisions/'
+            '$installationRevision/requests/$requestId',
+        token: token,
+      ),
+    );
+    if (value.installationId != installationId ||
+        value.installationRevision != installationRevision ||
+        value.requestId != requestId) {
+      _invalidResponse();
+    }
+    return value;
+  }
+
+  Future<ServerMusicProviderSetup?> active({
+    required String installationId,
+    required int installationRevision,
+  }) async {
+    _id(installationId);
+    _revision(installationRevision);
+    final response = _exact(
+      await api.request(
+        'GET',
+        '$root/installations/$installationId/revisions/'
+            '$installationRevision/active',
+        token: token,
+      ),
+      {'setup'},
+    );
+    if (response['setup'] == null) return null;
+    final value = ServerMusicProviderSetup.fromJson(response['setup']);
+    if (value.installationId != installationId ||
+        value.installationRevision != installationRevision ||
+        {
+          ServerMusicProviderSetupState.ready,
+          ServerMusicProviderSetupState.cancelled,
+        }.contains(value.state)) {
+      _invalidResponse();
+    }
+    return value;
+  }
+
   Future<ServerMusicProviderSetup> submit({
     required ServerMusicProviderSetup previous,
     required ServerMusicProviderSetupSubmission submission,
@@ -138,6 +190,10 @@ final class ServerMusicProviderSetupApi {
 
   void _id(String value) {
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(value)) _invalidRequest();
+  }
+
+  void _revision(int value) {
+    if (value < 1 || value > 0x7ffffffffffffffe) _invalidRequest();
   }
 
   Never _invalidRequest() =>

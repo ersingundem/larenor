@@ -2,14 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from ..admin.models import ObjectId
+from ..admin.models import ObjectId, Revision
 from ..auth import Principal
 from ..dependencies import get_core, require_admin
 from ..models import ErrorResponse
 from .music_provider_setup_models import (
+    ActiveMusicProviderSetupResponse, ContinueMusicProviderSetupRequest,
     CreateMusicProviderSetupRequest, MusicProviderSetupCapabilities,
-    ContinueMusicProviderSetupRequest, MusicProviderSetupResponse,
-    SubmitMusicProviderSetupRequest,
+    MusicProviderSetupResponse, SubmitMusicProviderSetupRequest,
 )
 
 
@@ -30,6 +30,26 @@ def capabilities(core: Core, actor: Admin):
 @router.post('', response_model=MusicProviderSetupResponse, status_code=201)
 def create(body: CreateMusicProviderSetupRequest, core: Core, actor: Admin):
     return core.music_provider_setups.create(actor, body)
+
+
+@router.get(
+    '/installations/{installation_id}/revisions/{installation_revision}/requests/{request_id}',
+    response_model=MusicProviderSetupResponse,
+)
+def get_by_request(installation_id: ObjectId, installation_revision: Revision,
+                   request_id: ObjectId, core: Core, actor: Admin):
+    return core.music_provider_setups.get_by_request(
+        actor, installation_id, installation_revision, request_id)
+
+
+@router.get(
+    '/installations/{installation_id}/revisions/{installation_revision}/active',
+    response_model=ActiveMusicProviderSetupResponse,
+)
+def get_active(installation_id: ObjectId, installation_revision: Revision,
+               core: Core, actor: Admin):
+    return core.music_provider_setups.get_active(
+        actor, installation_id, installation_revision)
 
 
 @router.get('/{identifier}', response_model=MusicProviderSetupResponse)

@@ -30,6 +30,8 @@ final class ServerMusicProviderSetupController extends ChangeNotifier {
   final String Function() _requestId;
   int _epoch = 0;
   bool _disposed = false;
+  String? _createRequestId;
+  ServerMusicProviderDomain? _createDomain;
 
   bool busy = false;
   bool needsRefresh = false;
@@ -97,12 +99,26 @@ final class ServerMusicProviderSetupController extends ChangeNotifier {
     failure = null;
     capabilities = null;
     setup = null;
+    _createRequestId = null;
+    _createDomain = null;
     _emit();
   }
 
   Future<void> loadCapabilities({required bool Function() current}) async {
-    await _read(current, (api) => api.capabilities(), (value) {
-      capabilities = value;
+    await _run(current, (api, valid) async {
+      final available = await api.capabilities();
+      final active = await api.active(
+        installationId: installationId,
+        installationRevision: installationRevision,
+      );
+      if (!valid()) return;
+      capabilities = available;
+      if (setup == null && active != null) {
+        setup = active;
+        _createRequestId = active.requestId;
+        _createDomain = active.domain;
+        createOutcomeUnknown = false;
+      }
     });
   }
 
@@ -111,21 +127,30 @@ final class ServerMusicProviderSetupController extends ChangeNotifier {
     required bool Function() current,
   }) async {
     if (!canCreate || !_authorized || !current()) return;
+    final requestId = _requestId();
+    _createRequestId = requestId;
+    _createDomain = domain;
     final intent = ServerMusicProviderSetupIntent(
-      requestId: _requestId(),
+      requestId: requestId,
       installationId: installationId,
       installationRevision: installationRevision,
       domain: domain,
     );
     await _run(current, (api, valid) async {
       final value = await api.create(intent);
-      if (valid()) setup = value;
+      if (valid()) {
+        setup = value;
+        createOutcomeUnknown = false;
+      }
     }, createMutation: true);
   }
 
   Future<void> refresh({required bool Function() current}) async {
     final previous = setup;
-    if (previous == null) return;
+    if (previous == null) {
+      if (_createRequestId != null) await _readCreate(current);
+      return;
+    }
     await _read(current, (api) => api.get(previous.id, previous: previous), (
       value,
     ) {
@@ -219,9 +244,8 @@ final class ServerMusicProviderSetupController extends ChangeNotifier {
           : 'connection_failed';
       failure = code;
       if (createMutation && _unknownOutcomeCodes.contains(code)) {
-        // The create request ID is idempotent, but the public API has no
-        // request-ID lookup. Do not issue a second POST from this route.
         createOutcomeUnknown = true;
+        await _reconcileCreate(valid);
       } else if (mutation != null && _readbackCodes.contains(code)) {
         await _reconcile(mutation, valid);
       }
@@ -230,6 +254,51 @@ final class ServerMusicProviderSetupController extends ChangeNotifier {
         busy = false;
         _emit();
       }
+    }
+  }
+
+  Future<void> _readCreate(bool Function() current) async {
+    await _read(current, (api) => _createReadback(api), (value) {
+      setup = value;
+      createOutcomeUnknown = false;
+      reconciled = true;
+    });
+  }
+
+  Future<ServerMusicProviderSetup> _createReadback(
+    ServerMusicProviderSetupApi api,
+  ) async {
+    final requestId = _createRequestId;
+    final domain = _createDomain;
+    if (requestId == null || domain == null) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final value = await api.getByRequest(
+      installationId: installationId,
+      installationRevision: installationRevision,
+      requestId: requestId,
+    );
+    if (value.domain != domain) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return value;
+  }
+
+  Future<void> _reconcileCreate(bool Function() valid) async {
+    try {
+      await account.withSession((raw, session) async {
+        final value = await _createReadback(
+          ServerMusicProviderSetupApi(raw, session.accessToken),
+        );
+        if (!valid()) return;
+        setup = value;
+        createOutcomeUnknown = false;
+        reconciled = true;
+        failure = null;
+      });
+    } catch (_) {
+      // The exact request may not be visible yet. Keep create locked and let
+      // the user repeat this GET readback; never repeat the POST.
     }
   }
 

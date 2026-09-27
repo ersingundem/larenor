@@ -150,6 +150,10 @@ class MusicProviderSetupResponse(StrictModel):
     setup: MusicProviderSetup
 
 
+class ActiveMusicProviderSetupResponse(StrictModel):
+    setup: MusicProviderSetup | None
+
+
 class SubmitMusicProviderSetupRequest(StrictModel):
     expectedRevision: Revision
     stepId: str = Field(min_length=1, max_length=80)
