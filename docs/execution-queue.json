@@ -3350,7 +3350,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Yedekleri silmeye kapalı kurtarma hedefi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3373,7 +3373,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "F16 üzerine günlük yazma kimliği ile silme/saklama-kurtarma yetkisini ayıran sürümlü append-only uzak hedef sözleşmesi tek çalışma dalında uygulanıyor; özellik testleri final toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "F18",

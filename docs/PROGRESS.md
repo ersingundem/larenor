@@ -17,6 +17,16 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 27 Eylül F17 silinemez kurtarma hedefi — uygulama başladı
+
+F17 için aktif dilim, günlük yedek kimliğini yalnız yeni şifreli nesne eklemeye
+yetkili kılan ve saklama/kurtarma yönetimini ayrı otoriteye bağlayan sürümlü
+hedef sözleşmesidir. İlk commit; kapalı hedef türleri, revision kontrollü politika,
+append-only yükleme makbuzu, kota görünümü ve hiçbir silme API'si bulunmayan
+yazma yolunu kuracaktır. Client'ta korunan tarih aralığı ve geri dönüş noktaları
+sonraki bağımsız committe bağlanacak. F17 kabul edilmedi; sayaçlar **37/125
+(%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+
 ### 27 Eylül F16 otomatik kurtarma tatbikatı — uygulama tamamlandı, test bekliyor
 
 F16 tek çalışma dalında tamamlandı. Core; sürümlü istek/iş/makbuz sözleşmesi,
