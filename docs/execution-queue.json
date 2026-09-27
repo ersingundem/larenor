@@ -3837,7 +3837,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Yetkili MCP kapısı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3862,14 +3862,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kullanıcı ve istemciye bağlı araç grantı, kısa süreli iptal edilebilir token ve yazma önizleme/sonuç kapısı uygulanıyor."
+      "reason": "Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor."
     },
     {
       "id": "F14",
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3894,7 +3894,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Dar süreli destek yetkisi, görünür oturum, elle iptal, log maskeleme ve yetki yükseltme reddi uygulanıyor."
     },
     {
       "id": "F19",
