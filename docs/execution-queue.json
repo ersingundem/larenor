@@ -3319,7 +3319,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Otomatik kurtarma tatbikatı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3343,7 +3343,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Fresh Core yedeğini üretim etkileri yapısal olarak kapalı disposable ortamda sınayan sürümlü iş/receipt, durable history ve elle çalıştırma akışı tek çalışma dalında uygulanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "F17",
@@ -5290,7 +5290,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız VNC uzak ekran",
-      "status": "in_progress",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -5317,7 +5317,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut VNC/RFB güvenli oturum ve tablet görüntü/girdi akışı tek çalışma dalında kabul ölçütlerine göre incelenip eksik ürün davranışları tamamlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Flutter/native framebuffer byte ownership, bounded single-frame ACK pump ve ürün yüzeyi 723138aa, cb2023a5 ve 3213b4e6 ile bağlandı. Gerçek Android TLS/RFB backend, güvenli ilk sertifika keşfi, VNC auth, IME/touchpad/zoom/resize ve gerçek host kabulü açık; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "FINAL",

@@ -12,7 +12,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 7 | 0 | 0 | 1 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 1 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 0 | 0 |
@@ -21,7 +21,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 0 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 1 | 0 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F61 | Bağımsız VNC uzak ekran | Çalışılıyor | — |
+| F16 | Otomatik kurtarma tatbikatı | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,25 +37,25 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F16 | Otomatik kurtarma tatbikatı | Başlanabilir | — |
-| 2 | F53 | Evdeki tabletleri tek yerden yönetme | Başlanabilir | — |
-| 3 | F08 | Yapay zekâ kaynak yöneticisi | Başlanabilir | — |
-| 4 | F04 | Çakışan kurallar hakemi | Başlanabilir | — |
-| 5 | F11 | Sınırlı yetkili mini eklentiler | Başlanabilir | — |
-| 6 | F12 | Yetkili MCP kapısı | Başlanabilir | — |
-| 7 | F14 | Süreli destek oturumu | Başlanabilir | — |
-| 8 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
-| 9 | F23 | Canlı TV ve kayıt merkezi | Başlanabilir | — |
-| 10 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 11 | F33 | Büyük ekran pişirme asistanı | Başlanabilir | — |
-| 12 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
-| 13 | F37 | Ortak ev masrafları | Başlanabilir | — |
-| 14 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
-| 15 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
-| 16 | F43 | Evdeyken kamera kayıt profili | Başlanabilir | — |
-| 17 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 18 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 19 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 1 | F53 | Evdeki tabletleri tek yerden yönetme | Başlanabilir | — |
+| 2 | F08 | Yapay zekâ kaynak yöneticisi | Başlanabilir | — |
+| 3 | F04 | Çakışan kurallar hakemi | Başlanabilir | — |
+| 4 | F11 | Sınırlı yetkili mini eklentiler | Başlanabilir | — |
+| 5 | F12 | Yetkili MCP kapısı | Başlanabilir | — |
+| 6 | F14 | Süreli destek oturumu | Başlanabilir | — |
+| 7 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 8 | F23 | Canlı TV ve kayıt merkezi | Başlanabilir | — |
+| 9 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 10 | F33 | Büyük ekran pişirme asistanı | Başlanabilir | — |
+| 11 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
+| 12 | F37 | Ortak ev masrafları | Başlanabilir | — |
+| 13 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
+| 14 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
+| 15 | F43 | Evdeyken kamera kayıt profili | Başlanabilir | — |
+| 16 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
+| 17 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 18 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 19 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
 | 20 | K13 | Yönetilen profil dağıtımı ve filo bağı | Bağımlılık bekliyor | F53 |
 | 21 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Bağımlılık bekliyor | F16 |
 | 22 | F18 | Elektrik kesintisinde düzenli kapanış | Bağımlılık bekliyor | F16 |
