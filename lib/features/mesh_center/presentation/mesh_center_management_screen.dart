@@ -40,6 +40,28 @@ final class _MeshStrings {
   String get unreachable => tr ? 'Erişilemiyor' : 'Unreachable';
   String get signed => tr ? 'İmza doğrulandı' : 'Signature verified';
   String get noUpdate => tr ? 'Güvenli güncelleme yok' : 'No safe update';
+  String get backup => tr ? 'Koordinatör yedeği' : 'Coordinator backup';
+  String get noBackup => tr
+      ? 'Doğrulanmış koordinatör yedeği yok'
+      : 'No verified coordinator backup';
+  String backupReady(DateTime value, bool restorable) {
+    final local = value.toLocal();
+    final stamp =
+        '${local.year.toString().padLeft(4, '0')}-'
+        '${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    if (tr) {
+      return restorable
+          ? 'Şifreli ve doğrulanmış · geri yüklenebilir · $stamp'
+          : 'Şifreli ve doğrulanmış · geri yükleme desteği yok · $stamp';
+    }
+    return restorable
+        ? 'Encrypted and verified · restorable · $stamp'
+        : 'Encrypted and verified · restore unsupported · $stamp';
+  }
+
   String update(String version) =>
       tr ? '$version sürümüne güncelle' : 'Update to $version';
   String get confirmTitle =>
@@ -170,6 +192,20 @@ class _MeshCenterManagementScreenState
               _LiveStatus(controller: controller, strings: strings),
               if (snapshot != null)
                 _TopologyStatus(snapshot: snapshot, strings: strings),
+              if (snapshot != null)
+                SettingsActionTile(
+                  leading: const Icon(CupertinoIcons.archivebox),
+                  title: Text(strings.backup),
+                  onTap: null,
+                  additionalInfo: Text(
+                    snapshot.coordinatorBackup == null
+                        ? strings.noBackup
+                        : strings.backupReady(
+                            snapshot.coordinatorBackup!.capturedAt,
+                            snapshot.coordinatorBackup!.restorable,
+                          ),
+                  ),
+                ),
               if (controller.state == MeshCenterManagementState.failed ||
                   controller.state == MeshCenterManagementState.stale)
                 SettingsActionTile(

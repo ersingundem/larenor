@@ -213,6 +213,31 @@ final class MeshClientDevice {
 }
 
 @immutable
+final class MeshCoordinatorBackup {
+  const MeshCoordinatorBackup({
+    required this.backupId,
+    required this.coordinatorRevision,
+    required this.providerRevision,
+    required this.capturedAt,
+    required this.encrypted,
+    required this.integrityVerified,
+    required this.restorable,
+  });
+
+  final String backupId, coordinatorRevision, providerRevision;
+  final DateTime capturedAt;
+  final bool encrypted, integrityVerified, restorable;
+
+  bool isCoherentAt(DateTime now) =>
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(backupId) &&
+      coordinatorRevision.isNotEmpty &&
+      providerRevision.isNotEmpty &&
+      !capturedAt.isAfter(now) &&
+      encrypted &&
+      integrityVerified;
+}
+
+@immutable
 final class MeshCenterSnapshot {
   MeshCenterSnapshot({
     required this.authority,
@@ -230,6 +255,7 @@ final class MeshCenterSnapshot {
     required this.borderRouterCount,
     required this.offlineBorderRouterCount,
     required List<MeshClientDevice> devices,
+    this.coordinatorBackup,
   }) : devices = List.unmodifiable(devices);
 
   final MeshClientAuthority authority;
@@ -238,6 +264,7 @@ final class MeshCenterSnapshot {
   final String coordinatorRevision;
   final String interferenceRevision;
   final DateTime capturedAt;
+  final MeshCoordinatorBackup? coordinatorBackup;
   final MeshHealthState health;
   final bool coordinatorOnline;
   final int channel;
@@ -271,6 +298,7 @@ final class MeshCenterSnapshot {
         borderRouterCount <= 32 &&
         offlineBorderRouterCount >= 0 &&
         offlineBorderRouterCount <= borderRouterCount &&
+        (coordinatorBackup == null || coordinatorBackup!.isCoherentAt(now)) &&
         devices.length <= 1024 &&
         ids.length == devices.length &&
         devices.every((item) => item.isCoherentAt(now));

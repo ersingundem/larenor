@@ -2,6 +2,7 @@
 
 from ..errors import ApiError
 from .models import (
+    CoordinatorBackupStatus,
     MeshCenterSnapshot,
     MeshConfirmRequest,
     MeshPreviewRequest,
@@ -17,7 +18,14 @@ class MeshCenterHttpGateway:
     def _snapshot(self, actor, core_id, home_id):
         try:
             raw = self._resolve_snapshot(actor)
-            authority, topology, interference, catalog = raw
+            if not isinstance(raw, (tuple, list)) or len(raw) not in (4, 5):
+                raise ValueError("invalid_mesh_snapshot")
+            authority, topology, interference, catalog = raw[:4]
+            backup = (
+                None
+                if len(raw) == 4 or raw[4] is None
+                else CoordinatorBackupStatus.model_validate(raw[4])
+            )
             health = self._health.observe(authority, topology, interference)
             catalog = self._updates.validate_catalog(catalog)
             snapshot = MeshCenterSnapshot(
@@ -27,6 +35,7 @@ class MeshCenterHttpGateway:
                 interference=interference,
                 catalog=catalog,
                 health=health,
+                coordinatorBackup=backup,
             )
         except ApiError:
             raise

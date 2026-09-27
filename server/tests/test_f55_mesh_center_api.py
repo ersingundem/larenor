@@ -1,5 +1,6 @@
 from conftest import auth, ready
 from larenor_server.mesh_center import (
+    CoordinatorBackupStatus,
     FirmwareUpdateManager,
     FirmwareUpdateReadback,
     MeshCenterHttpGateway,
@@ -42,6 +43,20 @@ def configured(server):
     )
     private, public = signing_key()
     catalog = signed_catalog(private)
+    backup = CoordinatorBackupStatus(
+        schemaVersion=1,
+        backupId="b" * 32,
+        coreId=context.coreId,
+        homeId=context.homeId,
+        coordinatorNodeId=current_topology.coordinator.nodeId,
+        coordinatorRevision=current_topology.coordinator.revision,
+        providerRevision=current_topology.coordinator.providerRevision,
+        capturedAtMs=1_990_000,
+        artifactSha256="a" * 64,
+        encrypted=True,
+        integrityVerified=True,
+        restorable=True,
+    )
     calls = []
 
     def worker(command):
@@ -94,6 +109,7 @@ def configured(server):
             current_topology,
             current_interference,
             catalog,
+            backup,
         ),
     )
     root = f"/api/v1/admin/mesh-center/{context.coreId}/{context.homeId}"
@@ -108,6 +124,8 @@ def test_authenticated_snapshot_preview_confirm_and_readback_are_exact(server):
     snapshot = client.get(root, headers=auth(pair))
     assert snapshot.status_code == 200
     assert snapshot.json()["snapshot"]["health"]["readOnly"] is True
+    assert snapshot.json()["snapshot"]["coordinatorBackup"]["backupId"] == "b" * 32
+    assert snapshot.json()["snapshot"]["coordinatorBackup"]["restorable"] is True
 
     body = {
         "schemaVersion": 1,
@@ -163,11 +181,12 @@ def test_snapshot_rejects_catalog_without_the_exact_vendor_signature(server):
     gateway = client.app.state.mesh_center_gateway
     original = gateway._resolve_snapshot
     tampered = lambda actor: (
-        lambda authority, topology, interference, catalog: (
+        lambda authority, topology, interference, catalog, backup: (
             authority,
             topology,
             interference,
             catalog.model_copy(update={"signature": "0" * 128}),
+            backup,
         )
     )(*original(actor))
     gateway._resolve_snapshot = tampered

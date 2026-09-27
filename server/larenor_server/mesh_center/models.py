@@ -41,6 +41,25 @@ class MeshAuthority(FrozenModel):
     canUpdateMesh: bool
 
 
+class CoordinatorBackupStatus(FrozenModel):
+    """Provider-verified coordinator backup metadata; never carries backup bytes."""
+
+    schemaVersion: Literal[1]
+    backupId: Identity
+    coreId: Identity
+    homeId: Identity
+    coordinatorNodeId: Identity
+    coordinatorRevision: Revision
+    providerRevision: Revision
+    capturedAtMs: TimestampMs
+    artifactSha256: str = Field(
+        min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
+    )
+    encrypted: bool
+    integrityVerified: bool
+    restorable: bool
+
+
 class CoordinatorNode(FrozenModel):
     schemaVersion: Literal[1]
     nodeId: Identity
@@ -306,6 +325,7 @@ class MeshCenterSnapshot(FrozenModel):
     interference: InterferenceSnapshot
     catalog: FirmwareCatalog
     health: MeshHealthReport
+    coordinatorBackup: CoordinatorBackupStatus | None = None
 
     @model_validator(mode="after")
     def coherent_scope(self):
@@ -329,6 +349,23 @@ class MeshCenterSnapshot(FrozenModel):
             != (
                 self.authority.coreId,
                 self.authority.homeId,
+            )
+            or (
+                self.coordinatorBackup is not None
+                and (
+                    self.coordinatorBackup.coreId,
+                    self.coordinatorBackup.homeId,
+                    self.coordinatorBackup.coordinatorNodeId,
+                    self.coordinatorBackup.coordinatorRevision,
+                    self.coordinatorBackup.providerRevision,
+                )
+                != (
+                    self.authority.coreId,
+                    self.authority.homeId,
+                    self.topology.coordinator.nodeId,
+                    self.topology.coordinator.revision,
+                    self.topology.coordinator.providerRevision,
+                )
             )
         ):
             raise ValueError("mesh_scope_mismatch")

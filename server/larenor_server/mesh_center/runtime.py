@@ -13,7 +13,9 @@ from .store import FirmwareUpdateStore
 class MeshCenterProvider(Protocol):
     """Minimal provider contract; transports remain outside the API process."""
 
-    def snapshot(self, actor): ...
+    def snapshot(self, actor):
+        """Return authority, topology, interference, catalog and optional backup metadata."""
+        ...
 
     def authority(self, account_id: str): ...
 

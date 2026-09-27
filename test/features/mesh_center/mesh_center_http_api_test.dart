@@ -178,6 +178,20 @@ Map<String, dynamic> get _snapshot => {
   'interference': _interference,
   'catalog': _catalog,
   'health': _health,
+  'coordinatorBackup': {
+    'schemaVersion': 1,
+    'backupId': 'd' * 32,
+    'coreId': core,
+    'homeId': home,
+    'coordinatorNodeId': coordinator,
+    'coordinatorRevision': 13,
+    'providerRevision': 14,
+    'capturedAtMs': _now - 2000,
+    'artifactSha256': digest,
+    'encrypted': true,
+    'integrityVerified': true,
+    'restorable': true,
+  },
 };
 
 Map<String, dynamic> _preview(String requestId) => {
@@ -299,6 +313,8 @@ void main() {
     );
     final initial = await api.bootstrap();
     final snapshot = await api.load(initial.authority);
+    expect(snapshot.coordinatorBackup?.restorable, isTrue);
+    expect(snapshot.coordinatorBackup?.integrityVerified, isTrue);
     final device = snapshot.devices.single;
     final offer = device.update!;
     final preview = await api.preview(

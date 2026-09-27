@@ -154,13 +154,14 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     Map<String, dynamic> value,
     ServerSession session,
   ) {
-    _exact(value, const {
+    _exact(value, {
       'schemaVersion',
       'authority',
       'topology',
       'interference',
       'catalog',
       'health',
+      if (value.containsKey('coordinatorBackup')) 'coordinatorBackup',
     });
     if (_integer(value['schemaVersion'], min: 1, max: 1) != 1) {
       throw const LarenorServerException('invalid_response');
@@ -195,6 +196,14 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     final catalog = serverObject(value['catalog']);
     final health = serverObject(value['health']);
     final coordinator = serverObject(topology['coordinator']);
+    final rawBackup = value['coordinatorBackup'];
+    final backup = rawBackup == null
+        ? null
+        : _decodeBackup(
+            serverObject(rawBackup),
+            context: context,
+            coordinator: coordinator,
+          );
     final entries = _objects(catalog['entries']);
     final expiresAt = _time(catalog['expiresAtMs']);
     final devices = _objects(topology['devices']).map((raw) {
@@ -305,6 +314,7 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
       ),
       borderRouterCount: borderRouters.length,
       offlineBorderRouterCount: offlineRouters.length,
+      coordinatorBackup: backup,
       devices: devices,
     );
     if (!snapshot.isCoherentAt(DateTime.now())) {
@@ -313,6 +323,44 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     _topology = Map.unmodifiable(topology);
     _catalog = Map.unmodifiable(catalog);
     return snapshot;
+  }
+
+  MeshCoordinatorBackup _decodeBackup(
+    Map<String, dynamic> value, {
+    required ServerContext context,
+    required Map<String, dynamic> coordinator,
+  }) {
+    _exact(value, const {
+      'schemaVersion',
+      'backupId',
+      'coreId',
+      'homeId',
+      'coordinatorNodeId',
+      'coordinatorRevision',
+      'providerRevision',
+      'capturedAtMs',
+      'artifactSha256',
+      'encrypted',
+      'integrityVerified',
+      'restorable',
+    });
+    if (_integer(value['schemaVersion'], min: 1, max: 1) != 1 ||
+        _identity(value['coreId']) != context.coreId ||
+        _identity(value['homeId']) != context.homeId ||
+        _identity(value['coordinatorNodeId']) !=
+            _identity(coordinator['nodeId'])) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _digest(value['artifactSha256']);
+    return MeshCoordinatorBackup(
+      backupId: _identity(value['backupId']),
+      coordinatorRevision: '${_integer(value['coordinatorRevision'], min: 1)}',
+      providerRevision: '${_integer(value['providerRevision'], min: 1)}',
+      capturedAt: _time(value['capturedAtMs']),
+      encrypted: _boolean(value['encrypted']),
+      integrityVerified: _boolean(value['integrityVerified']),
+      restorable: _boolean(value['restorable']),
+    );
   }
 
   Future<MeshCenterSnapshot> _refresh(MeshClientAuthority expected) =>
