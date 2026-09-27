@@ -34,6 +34,7 @@ final class _ServerComponentUpdatesScreenState
   bool _loaded = false;
   bool _pinReady = false;
   bool _wasCurrent = true;
+  Timer? _jobPoll;
 
   bool get _active =>
       !_expired &&
@@ -52,7 +53,20 @@ final class _ServerComponentUpdatesScreenState
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
     _updates = ServerComponentUpdatesController(_account);
+    _updates.addListener(_updatesChanged);
     _account.addListener(_accountChanged);
+  }
+
+  void _updatesChanged() {
+    final pending = _updates.job != null && !_updates.job!.terminal;
+    if (!pending || !_active) {
+      _jobPoll?.cancel();
+      _jobPoll = null;
+      return;
+    }
+    _jobPoll ??= Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_active && !_updates.busy) unawaited(_load());
+    });
   }
 
   void _accountChanged() {
@@ -89,6 +103,8 @@ final class _ServerComponentUpdatesScreenState
   void _expire() {
     if (!mounted || _expired) return;
     _expired = true;
+    _jobPoll?.cancel();
+    _jobPoll = null;
     sessionGeneration++;
     _updates.invalidate();
   }
@@ -97,6 +113,8 @@ final class _ServerComponentUpdatesScreenState
   void dispose() {
     _account.removeListener(_accountChanged);
     _ticker?.removeListener(_visibilityChanged);
+    _jobPoll?.cancel();
+    _updates.removeListener(_updatesChanged);
     _updates.dispose();
     super.dispose();
   }
