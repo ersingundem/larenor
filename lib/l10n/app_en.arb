@@ -4570,5 +4570,11 @@
   "serverHomesRemoveTitle": "Remove saved home?",
   "serverHomesRemoveHint": "{name} will be removed from this device and its session revocation will be attempted.",
   "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
-  "serverHomesOperationFailed": "The saved home operation could not be completed."
+  "serverHomesOperationFailed": "The saved home operation could not be completed.",
+  "serverHomesRecoveryTarget": "Recovery target for this Core",
+  "serverHomesHandoff": "Authorize cross-home handoff",
+  "serverHomesHandoffTitle": "Choose the destination home",
+  "serverHomesHandoffHint": "Larenor verifies the source and destination with their own Core sessions. No token or cached data is shared between homes.",
+  "serverHomesHandoffVerified": "{source} and {target} were independently authorized.",
+  "@serverHomesHandoffVerified": {"placeholders": {"source": {"type": "String"}, "target": {"type": "String"}}}
 }

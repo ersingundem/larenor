@@ -10,6 +10,7 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../server/data/server_account_controller.dart';
+import '../../server/core_backups/presentation/server_core_backups_screen.dart';
 import '../../server/domain/server_home_registry.dart';
 import '../../server/providers/server_providers.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -27,6 +28,7 @@ class _ServerHomeProfilesScreenState
   late final ServerAccountController _account;
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true, _pinReady = false, _expired = false;
+  String? _notice;
 
   bool get _active =>
       !_expired &&
@@ -84,6 +86,7 @@ class _ServerHomeProfilesScreenState
     if (!_active || _account.working) return;
     final current = _capture();
     final l10n = AppLocalizations.of(context);
+    final navigator = Navigator.of(context);
     final action = await showCupertinoModalPopup<_ProfileAction>(
       context: context,
       builder: (context) => CupertinoActionSheet(
@@ -96,6 +99,19 @@ class _ServerHomeProfilesScreenState
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, _ProfileAction.activate),
               child: Text(l10n.serverHomesSwitch),
+            ),
+          if (_account.activeProfileId == profile.profileId &&
+              profile.session.user.canAdminister)
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.pop(context, _ProfileAction.recoveryTarget),
+              child: Text(l10n.serverHomesRecoveryTarget),
+            ),
+          if (_account.activeProfileId == profile.profileId &&
+              _account.profiles.length > 1)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, _ProfileAction.handoff),
+              child: Text(l10n.serverHomesHandoff),
             ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, _ProfileAction.rename),
@@ -121,6 +137,52 @@ class _ServerHomeProfilesScreenState
         await _rename(profile);
       case _ProfileAction.remove:
         await _remove(profile);
+      case _ProfileAction.recoveryTarget:
+        await navigator.push<void>(
+          CupertinoPageRoute(builder: (_) => const ServerCoreBackupsScreen()),
+        );
+      case _ProfileAction.handoff:
+        await _verifyHandoff(profile);
+    }
+  }
+
+  Future<void> _verifyHandoff(ServerHomeProfile source) async {
+    final current = _capture();
+    final l10n = AppLocalizations.of(context);
+    final targets = _account.profiles
+        .where((item) => item.profileId != source.profileId)
+        .toList(growable: false);
+    final target = await showCupertinoModalPopup<ServerHomeProfile>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(l10n.serverHomesHandoffTitle),
+        message: Text(l10n.serverHomesHandoffHint),
+        actions: [
+          for (final item in targets)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, item),
+              child: Text(item.label),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
+    if (!current() || target == null) return;
+    try {
+      await _account.verifyCrossHomeAuthorization(target.profileId);
+      if (current()) {
+        setState(
+          () => _notice = l10n.serverHomesHandoffVerified(
+            source.label,
+            target.label,
+          ),
+        );
+      }
+    } catch (_) {
+      if (current()) setState(() => _notice = null);
     }
   }
 
@@ -260,6 +322,11 @@ class _ServerHomeProfilesScreenState
                       ],
                     ),
                     if (_account.working) const CupertinoActivityIndicator(),
+                    if (_notice != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(_notice!),
+                      ),
                     if (_account.failure != null)
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -276,4 +343,4 @@ class _ServerHomeProfilesScreenState
   }
 }
 
-enum _ProfileAction { activate, rename, remove }
+enum _ProfileAction { activate, recoveryTarget, handoff, rename, remove }

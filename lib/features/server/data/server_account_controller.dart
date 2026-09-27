@@ -637,6 +637,82 @@ class ServerAccountController extends ChangeNotifier {
     }
   }
 
+  /// Verifies both saved Core authorities without changing the active home.
+  /// A later cross-home operation may use this gate, but it must never reuse
+  /// the active Core token for the destination Core.
+  Future<void> verifyCrossHomeAuthorization(String targetProfileId) async {
+    if (_disposed || _working || _refreshing != null) return;
+    final sourceMatches = _profiles.where(
+      (item) => item.profileId == _activeProfileId,
+    );
+    final targetMatches = _profiles.where(
+      (item) => item.profileId == targetProfileId,
+    );
+    if (sourceMatches.length != 1 ||
+        targetMatches.length != 1 ||
+        targetProfileId == _activeProfileId) {
+      throw const LarenorServerException('invalid_profile');
+    }
+    final source = sourceMatches.single.session;
+    final target = targetMatches.single.session;
+    final sourceContext = source.context;
+    final targetContext = target.context;
+    if (sourceContext == null ||
+        targetContext == null ||
+        source.authMutationPending ||
+        target.authMutationPending ||
+        source.user.mustChangePassword ||
+        target.user.mustChangePassword ||
+        source.expiresSoon(_clock()) ||
+        target.expiresSoon(_clock()) ||
+        sourceContext.coreId == targetContext.coreId &&
+            sourceContext.homeId == targetContext.homeId) {
+      throw const LarenorServerException('independent_authorization_required');
+    }
+    final generation = _generation;
+    final sourceApi = _factory(source.endpoint);
+    final targetApi = _factory(target.endpoint);
+    _working = true;
+    _failure = null;
+    _emit();
+
+    Future<void> verify(
+      LarenorServerApi api,
+      ServerSession expected,
+      ServerContext expectedContext,
+    ) async {
+      final user = await api.me(expected.accessToken);
+      _check(generation);
+      final context = await api.context(expected.accessToken);
+      _check(generation);
+      if (user.id != expected.user.id ||
+          context.coreId != expectedContext.coreId ||
+          context.homeId != expectedContext.homeId) {
+        throw const LarenorServerException(
+          'independent_authorization_required',
+        );
+      }
+    }
+
+    try {
+      await Future.wait([
+        verify(sourceApi, source, sourceContext),
+        verify(targetApi, target, targetContext),
+      ]);
+      _check(generation);
+    } catch (error) {
+      if (isCurrent(generation)) _failure = _safeCode(error);
+      rethrow;
+    } finally {
+      sourceApi.close();
+      targetApi.close();
+      if (isCurrent(generation)) {
+        _working = false;
+        _emit();
+      }
+    }
+  }
+
   Future<void> signOut() async {
     if (_disposed) return;
     var old = _pendingSession ?? _session;

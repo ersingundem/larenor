@@ -4217,5 +4217,11 @@
   "serverHomesRemoveTitle": "Kayıtlı ev kaldırılsın mı?",
   "serverHomesRemoveHint": "{name} bu cihazdan kaldırılacak ve oturumunu iptal etme denenecek.",
   "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
-  "serverHomesOperationFailed": "Kayıtlı ev işlemi tamamlanamadı."
+  "serverHomesOperationFailed": "Kayıtlı ev işlemi tamamlanamadı.",
+  "serverHomesRecoveryTarget": "Bu Core için kurtarma hedefi",
+  "serverHomesHandoff": "Evler arası aktarımı yetkilendir",
+  "serverHomesHandoffTitle": "Hedef evi seçin",
+  "serverHomesHandoffHint": "Larenor kaynak ve hedefi kendi Core oturumlarıyla ayrı ayrı doğrular. Evler arasında token veya önbellek paylaşılmaz.",
+  "serverHomesHandoffVerified": "{source} ve {target} ayrı ayrı yetkilendirildi.",
+  "@serverHomesHandoffVerified": {"placeholders": {"source": {"type": "String"}, "target": {"type": "String"}}}
 }
