@@ -628,7 +628,11 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.core_backups = CoreBackupContract(
-                self.db, self.auth, settings, encryption_key=key
+                self.db,
+                self.auth,
+                settings,
+                context=self.context,
+                encryption_key=key,
             )
             self.power_recovery = PowerRecoveryService(
                 self.db,

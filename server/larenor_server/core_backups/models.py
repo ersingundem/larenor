@@ -11,6 +11,7 @@ MAX_COMPONENT_BYTES = 256 * 1024 * 1024
 
 Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 SnapshotId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+BackupIdentity = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
 SafeVersion = Annotated[
     str, StringConstraints(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.+-]+$")
 ]
@@ -125,6 +126,9 @@ class BackupManifest(StrictModel):
     componentSchemaVersions: dict[str, int] = Field(max_length=128)
     components: list[ComponentBackup] = Field(default_factory=list, max_length=128)
     consistencyBoundary: BackupConsistencyBoundary | None = None
+    sourceCoreId: BackupIdentity | None = None
+    sourceHomeId: BackupIdentity | None = None
+    restoreMode: Literal["replacement"] | None = None
     resources: list[BackupResource] = Field(min_length=4, max_length=133)
 
     @model_validator(mode="before")
@@ -134,13 +138,23 @@ class BackupManifest(StrictModel):
             return value
         version = value.get("contractVersion")
         component_fields = {"components", "consistencyBoundary"}
-        present = component_fields.intersection(value)
-        if version == 1 and present:
+        identity_fields = {"sourceCoreId", "sourceHomeId", "restoreMode"}
+        component_present = component_fields.intersection(value)
+        identity_present = identity_fields.intersection(value)
+        if version == 1 and (component_present or identity_present):
             raise ValueError("legacy_contract_has_component_fields")
         if version == 2 and (
-            present != component_fields or value.get("consistencyBoundary") is None
+            component_present != component_fields
+            or value.get("consistencyBoundary") is None
+            or identity_present
         ):
             raise ValueError("component_contract_fields_required")
+        if version == 3 and (
+            component_present != component_fields
+            or value.get("consistencyBoundary") is None
+            or identity_present != identity_fields
+        ):
+            raise ValueError("replacement_identity_fields_required")
         return value
 
     @field_validator("componentSchemaVersions", mode="before")

@@ -82,6 +82,7 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
                 app.state.core.auth,
                 settings,
                 component_boundary=component_backup_boundary,
+                context=app.state.core.context,
             )
         private_directory(publisher_file.parent)
         created = False

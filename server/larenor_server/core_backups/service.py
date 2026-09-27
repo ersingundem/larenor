@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from ..auth import AuthService, Principal
 from ..config import Settings
+from ..context import ContextResponse
 from ..database import Database
 from ..errors import ApiError, StartupError
 from ..files import checked_path, private_read
@@ -385,10 +386,14 @@ class CoreBackupContract:
         settings: Settings,
         *,
         component_boundary=None,
+        context: ContextResponse | None = None,
         encryption_key: bytes | None = None,
         monotonic=time.monotonic,
     ):
         self.db, self.auth, self.settings = db, auth, settings
+        if context is not None and type(context) is not ContextResponse:
+            raise TypeError("invalid_backup_context")
+        self.context = context
         self._component_boundary = component_boundary or _NoComponents()
         self._monotonic = monotonic
         self._export_lock = threading.Lock()
@@ -695,7 +700,7 @@ class CoreBackupContract:
             key=lambda item: item.id,
         )
         manifest = BackupManifest(
-            contractVersion=2,
+            contractVersion=3 if self.context is not None else 2,
             snapshotId=capture_generation or secrets.token_hex(16),
             createdAt=int(self.settings.clock()),
             coreVersion=server_version(),
@@ -706,6 +711,9 @@ class CoreBackupContract:
                 mode="core_write_lock_and_component_quiescence",
                 maxDurationSeconds=COMPONENT_QUIESCENCE_SECONDS,
             ),
+            sourceCoreId=None if self.context is None else self.context.coreId,
+            sourceHomeId=None if self.context is None else self.context.homeId,
+            restoreMode=None if self.context is None else "replacement",
             resources=resources,
         )
         return BackupCapture(manifest=manifest, payloads=payloads)
@@ -754,7 +762,7 @@ class CoreBackupContract:
 
     def validate_restore(self, manifest: BackupManifest):
         reasons = []
-        if manifest.contractVersion not in (1, 2):
+        if manifest.contractVersion not in (1, 2, 3):
             reasons.append("unsupported_contract_version")
         with self.db.connection() as connection:
             try:

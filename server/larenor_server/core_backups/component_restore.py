@@ -377,7 +377,7 @@ def _capture_resources(capture):
     _validate_payload_contract(capture)
     manifest = capture.manifest
     if (
-        manifest.contractVersion != 2
+        manifest.contractVersion not in (2, 3)
         or manifest.consistencyBoundary is None
         or manifest.consistencyBoundary.mode
         != "core_write_lock_and_component_quiescence"

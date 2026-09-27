@@ -220,7 +220,7 @@ def _worker_topology(settings: Settings) -> dict[str, bool]:
 def _validate_capture(capture, settings: Settings, *, allow_components=False) -> None:
     manifest = capture.manifest
     if (
-        manifest.contractVersion not in (1, 2)
+        manifest.contractVersion not in (1, 2, 3)
         or manifest.coreVersion != server_version()
         or manifest.databaseSchemaVersion != _EXPECTED_SCHEMA
     ):
@@ -357,7 +357,7 @@ def restore_empty(
                 stage_dir / "larenor.sqlite3",
                 capture.payloads["core-database"],
             )
-            if capture.manifest.contractVersion == 2:
+            if capture.manifest.contractVersion >= 2:
                 private_create(
                     stage_dir / "family-board.sqlite3",
                     capture.payloads["family-board"],
@@ -385,7 +385,7 @@ def restore_empty(
             key = private_read(stage_key, 32)
             family_board = (
                 private_read(stage_dir / "family-board.sqlite3", MAX_FAMILY_BOARD_BYTES)
-                if capture.manifest.contractVersion == 2
+                if capture.manifest.contractVersion >= 2
                 else None
             )
         except Exception:

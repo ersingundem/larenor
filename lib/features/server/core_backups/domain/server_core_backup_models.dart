@@ -199,6 +199,9 @@ final class CoreBackupManifest {
     required this.componentSchemaVersions,
     required this.components,
     required this.consistencyBoundary,
+    required this.sourceCoreId,
+    required this.sourceHomeId,
+    required this.restoreMode,
     required this.resources,
   });
 
@@ -214,6 +217,12 @@ final class CoreBackupManifest {
       'resources',
     };
     const componentKeys = {...legacyKeys, 'components', 'consistencyBoundary'};
+    const replacementKeys = {
+      ...componentKeys,
+      'sourceCoreId',
+      'sourceHomeId',
+      'restoreMode',
+    };
     final snapshot = json['snapshotId'];
     final created = json['createdAt'];
     final coreVersion = json['coreVersion'];
@@ -228,11 +237,22 @@ final class CoreBackupManifest {
         contractVersion == 2 &&
         json.length == componentKeys.length &&
         json.keys.every(componentKeys.contains);
+    final hasReplacementContract =
+        contractVersion == 3 &&
+        json.length == replacementKeys.length &&
+        json.keys.every(replacementKeys.contains);
+    final sourceCoreId = json['sourceCoreId'];
+    final sourceHomeId = json['sourceHomeId'];
+    final restoreMode = json['restoreMode'];
     final rawManagedComponents = json['components'];
     final rawBoundary = json['consistencyBoundary'];
     final rawResources = json['resources'];
-    if ((!hasLegacyContract && !hasComponentContract) ||
-        (contractVersion != 1 && contractVersion != 2) ||
+    if ((!hasLegacyContract &&
+            !hasComponentContract &&
+            !hasReplacementContract) ||
+        (contractVersion != 1 &&
+            contractVersion != 2 &&
+            contractVersion != 3) ||
         snapshot is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(snapshot) ||
         created is! int ||
@@ -246,14 +266,23 @@ final class CoreBackupManifest {
         rawComponents is! Map ||
         rawComponents.length > 128 ||
         rawResources is! List ||
-        rawResources.length < (contractVersion == 2 ? 5 : 4) ||
+        rawResources.length < (contractVersion >= 2 ? 5 : 4) ||
         rawResources.length > 133 ||
-        (hasComponentContract && rawManagedComponents is! List) ||
-        (hasComponentContract && rawManagedComponents.length > 128) ||
-        (hasComponentContract && rawBoundary == null)) {
+        ((hasComponentContract || hasReplacementContract) &&
+            rawManagedComponents is! List) ||
+        ((hasComponentContract || hasReplacementContract) &&
+            rawManagedComponents.length > 128) ||
+        ((hasComponentContract || hasReplacementContract) &&
+            rawBoundary == null) ||
+        (hasReplacementContract &&
+            (sourceCoreId is! String ||
+                !RegExp(r'^[0-9a-f]{32}$').hasMatch(sourceCoreId) ||
+                sourceHomeId is! String ||
+                !RegExp(r'^[0-9a-f]{32}$').hasMatch(sourceHomeId) ||
+                restoreMode != 'replacement'))) {
       throw const LarenorServerException('invalid_response');
     }
-    final managedComponents = hasComponentContract
+    final managedComponents = hasComponentContract || hasReplacementContract
         ? (rawManagedComponents! as List)
               .map(CoreBackupComponent.fromJson)
               .toList()
@@ -286,7 +315,7 @@ final class CoreBackupManifest {
     };
     final versionedExpected = {
       ...expected,
-      if (contractVersion == 2)
+      if (contractVersion >= 2)
         'family-board': CoreBackupResourceKind.familyBoard,
       for (final component in managedComponents)
         for (final id in component.volumeResourceIds)
@@ -322,13 +351,13 @@ final class CoreBackupManifest {
     if (volumeIds.toSet().length != volumeIds.length ||
         resourcesById['vault-key']!.byteLength != 32 ||
         resourcesById['core-database']!.byteLength > _maxCoreDatabaseBytes ||
-        (contractVersion == 2 &&
+        (contractVersion >= 2 &&
             resourcesById['family-board']!.byteLength > _maxFamilyBoardBytes) ||
         componentBytes > _maxComponentBytes ||
         versions['component-index'] != (contractVersion == 1 ? '1' : '2') ||
         versions['core-configuration'] != '1' ||
         versions['core-database'] != '$databaseVersion' ||
-        (contractVersion == 2 && versions['family-board'] != '1') ||
+        (contractVersion >= 2 && versions['family-board'] != '1') ||
         versions['vault-key'] != 'aes256-v1' ||
         volumeIds.any((id) => versions[id] != 'component-v1')) {
       throw const LarenorServerException('invalid_response');
@@ -342,6 +371,9 @@ final class CoreBackupManifest {
       componentSchemaVersions: Map.unmodifiable(components),
       components: List.unmodifiable(managedComponents),
       consistencyBoundary: boundary,
+      sourceCoreId: sourceCoreId as String?,
+      sourceHomeId: sourceHomeId as String?,
+      restoreMode: restoreMode as String?,
       resources: List.unmodifiable(resources),
     );
   }
@@ -354,6 +386,9 @@ final class CoreBackupManifest {
   final Map<String, int> componentSchemaVersions;
   final List<CoreBackupComponent> components;
   final CoreBackupConsistencyBoundary? consistencyBoundary;
+  final String? sourceCoreId;
+  final String? sourceHomeId;
+  final String? restoreMode;
   final List<CoreBackupResource> resources;
   int get totalBytes =>
       resources.fold(0, (total, item) => total + item.byteLength);
@@ -365,9 +400,14 @@ final class CoreBackupManifest {
     'coreVersion': coreVersion,
     'databaseSchemaVersion': databaseSchemaVersion,
     'componentSchemaVersions': Map<String, int>.of(componentSchemaVersions),
-    if (contractVersion == 2) ...{
+    if (contractVersion >= 2) ...{
       'components': components.map((item) => item.toJson()).toList(),
       'consistencyBoundary': consistencyBoundary!.toJson(),
+    },
+    if (contractVersion == 3) ...{
+      'sourceCoreId': sourceCoreId,
+      'sourceHomeId': sourceHomeId,
+      'restoreMode': restoreMode,
     },
     'resources': resources.map((item) => item.toJson()).toList(),
   };
