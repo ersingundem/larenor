@@ -88,11 +88,25 @@ def create_server(*, version=None, reply=None):
                             if not read(connection):
                                 continue
                             value = response(VERSION) if version is None else version
-                            value(connection) if callable(value) else connection.sendall(value)
+                            if callable(value):
+                                try:
+                                    value(connection)
+                                except Exception as error:
+                                    failures.append(error)
+                                    return
+                            else:
+                                connection.sendall(value)
                             if not read(connection):
                                 continue
                             value = ack_response() if reply is None else reply
-                            value(connection) if callable(value) else connection.sendall(value)
+                            if callable(value):
+                                try:
+                                    value(connection)
+                                except Exception as error:
+                                    failures.append(error)
+                                    return
+                            else:
+                                connection.sendall(value)
                         finally:
                             with connection_lock:
                                 active.remove(connection)
