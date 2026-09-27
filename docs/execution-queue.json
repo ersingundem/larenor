@@ -3972,7 +3972,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Oynatma kalitesi danışmanı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3997,7 +3997,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut Jellyfin oynatıcı manuel bitrate tavanı ve direct-play/transcode sonucunu taşıyor. Şimdi codec/bitrate/ağ/alıcı kanıtını sürümlü ve bounded bir danışman görünümünde birleştirip eksik telemetriyi açık durum olarak gösterecek üretim akışı tamamlanıyor."
     },
     {
       "id": "F25",
