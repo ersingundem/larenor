@@ -342,28 +342,43 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     const keys = {
       'schemaVersion',
       'batteryPercent',
+      'charging',
       'network',
       'appVersion',
+      'appBuild',
       'appForeground',
       'kioskState',
+      'memoryUsedMb',
+      'memoryLimitMb',
+      'processUptimeSeconds',
     };
     if (raw is! Map ||
         raw.keys.toSet().difference(keys).isNotEmpty ||
         keys.difference(raw.keys.toSet()).isNotEmpty ||
-        raw['schemaVersion'] != 1 ||
+        raw['schemaVersion'] != 2 ||
         raw['batteryPercent'] is! int ||
+        raw['charging'] is! bool ||
         raw['network'] is! String ||
         raw['appVersion'] is! String ||
+        raw['appBuild'] is! int ||
         raw['appForeground'] is! bool ||
-        raw['kioskState'] is! String) {
+        raw['kioskState'] is! String ||
+        raw['memoryUsedMb'] is! int ||
+        raw['memoryLimitMb'] is! int ||
+        raw['processUptimeSeconds'] is! int) {
       throw const FormatException('invalid_native_tablet_snapshot');
     }
     final telemetry = ManagedTabletTelemetry(
       batteryPercent: raw['batteryPercent'] as int,
+      charging: raw['charging'] as bool,
       network: raw['network'] as String,
       appVersion: raw['appVersion'] as String,
+      appBuild: raw['appBuild'] as int,
       appForeground: raw['appForeground'] as bool,
       kioskState: raw['kioskState'] as String,
+      memoryUsedMb: raw['memoryUsedMb'] as int,
+      memoryLimitMb: raw['memoryLimitMb'] as int,
+      processUptimeSeconds: raw['processUptimeSeconds'] as int,
     );
     if (!telemetry.appForeground ||
         !const {

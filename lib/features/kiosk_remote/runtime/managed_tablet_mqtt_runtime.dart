@@ -80,14 +80,20 @@ final class ManagedTabletPairingCredential {
 final class ManagedTabletTelemetry {
   const ManagedTabletTelemetry({
     required this.batteryPercent,
+    required this.charging,
     required this.network,
     required this.appVersion,
+    required this.appBuild,
     required this.appForeground,
     required this.kioskState,
+    required this.memoryUsedMb,
+    required this.memoryLimitMb,
+    required this.processUptimeSeconds,
   });
 
-  final int batteryPercent;
-  final bool appForeground;
+  final int batteryPercent, appBuild;
+  final int memoryUsedMb, memoryLimitMb, processUptimeSeconds;
+  final bool charging, appForeground;
   final String network, appVersion, kioskState;
 
   Map<String, Object> values() {
@@ -102,16 +108,30 @@ final class ManagedTabletTelemetry {
         }.contains(network) ||
         appVersion.isEmpty ||
         appVersion.length > 64 ||
+        !RegExp(r'^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$').hasMatch(appVersion) ||
+        appBuild < 1 ||
+        appBuild > 0x7fffffff ||
         kioskState.isEmpty ||
-        kioskState.length > 64) {
+        kioskState.length > 64 ||
+        memoryUsedMb < 0 ||
+        memoryLimitMb < 1 ||
+        memoryLimitMb > 1024 * 1024 ||
+        memoryUsedMb > memoryLimitMb ||
+        processUptimeSeconds < 0 ||
+        processUptimeSeconds > 0x7fffffff) {
       throw StateError('invalid_tablet_telemetry');
     }
     return {
       'battery': batteryPercent,
+      'charging': charging,
       'network': network,
       'app_version': appVersion,
+      'app_build': appBuild,
       'app_foreground': appForeground,
       'kiosk_state': kioskState,
+      'memory_used_mb': memoryUsedMb,
+      'memory_limit_mb': memoryLimitMb,
+      'process_uptime_seconds': processUptimeSeconds,
     };
   }
 }

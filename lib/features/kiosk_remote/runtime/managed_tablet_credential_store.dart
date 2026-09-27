@@ -335,10 +335,15 @@ final class CoreManagedTabletAuthority implements ManagedTabletCoreAuthority {
     final sensors = raw['sensors'];
     const expected = {
       'battery',
+      'charging',
       'network',
       'app_version',
+      'app_build',
       'app_foreground',
       'kiosk_state',
+      'memory_used_mb',
+      'memory_limit_mb',
+      'process_uptime_seconds',
     };
     if (sensors is! List || sensors.length != expected.length) {
       throw const FormatException('invalid_managed_tablet_discovery');
