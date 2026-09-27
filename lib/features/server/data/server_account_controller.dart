@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/server_home_registry.dart';
 import '../domain/server_models.dart';
 import 'larenor_server_api.dart';
 import 'server_session_store.dart';
@@ -25,6 +26,8 @@ class ServerAccountController extends ChangeNotifier {
   LarenorServerApi? _api;
   ServerSession? _session;
   ServerSession? _pendingSession;
+  List<ServerHomeProfile> _profiles = const [];
+  String? _activeProfileId;
   bool _candidateSaved = false;
   bool _disposed = false;
   bool _working = false;
@@ -37,6 +40,8 @@ class ServerAccountController extends ChangeNotifier {
 
   ServerSession? get session => _session;
   ServerContext? get context => _session?.context;
+  List<ServerHomeProfile> get profiles => _profiles;
+  String? get activeProfileId => _activeProfileId;
   bool get hasPendingContext => _pendingSession != null;
   bool get working => _working;
   bool get initialized => _initialized;
@@ -46,6 +51,50 @@ class ServerAccountController extends ChangeNotifier {
 
   void _emit() {
     if (!_disposed) notifyListeners();
+  }
+
+  void _adoptRegistry(ServerHomeRegistry registry) {
+    _profiles = registry.profiles;
+    _activeProfileId = registry.activeProfileId;
+  }
+
+  Future<ServerSession?> _readStored(int generation) async {
+    final store = _store;
+    if (store is ServerHomeRegistryPersistence) {
+      final registry = await (store as ServerHomeRegistryPersistence)
+          .readRegistry();
+      _check(generation);
+      _adoptRegistry(registry);
+      return registry.activeProfile?.session;
+    }
+    return store.read();
+  }
+
+  Future<void> _refreshRegistry(int generation) async {
+    final store = _store;
+    if (store is! ServerHomeRegistryPersistence) return;
+    final registry = await (store as ServerHomeRegistryPersistence)
+        .readRegistry();
+    _check(generation);
+    _adoptRegistry(registry);
+  }
+
+  Future<void> _persistRegistry(ServerHomeRegistry registry, int generation) {
+    final store = _store;
+    if (store is! ServerHomeRegistryPersistence) {
+      return Future.error(const LarenorServerException('profiles_unavailable'));
+    }
+    final operation = _writes.then((_) async {
+      _check(generation);
+      await (store as ServerHomeRegistryPersistence).writeRegistry(registry);
+      _check(generation);
+      _adoptRegistry(registry);
+    });
+    _writes = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
   }
 
   Future<void> initialize() async {
@@ -58,7 +107,7 @@ class ServerAccountController extends ChangeNotifier {
     var mutationStarted = false;
     var retryable = false;
     try {
-      final stored = await _store.read();
+      final stored = await _readStored(generation);
       _check(generation);
       if (stored == null) return;
       if (stored.authMutationPending) {
@@ -358,6 +407,194 @@ class ServerAccountController extends ChangeNotifier {
     }
   }
 
+  Future<void> activateProfile(String profileId) async {
+    if (_disposed || _working || _refreshing != null) return;
+    final matches = _profiles.where((item) => item.profileId == profileId);
+    if (matches.length != 1) {
+      throw const LarenorServerException('invalid_profile');
+    }
+    if (_activeProfileId == profileId && _session != null) return;
+    final previousRegistry = ServerHomeRegistry(
+      activeProfileId: _activeProfileId,
+      profiles: _profiles,
+    );
+    final generation = ++_generation;
+    _api?.close();
+    _api = null;
+    _session = null;
+    _pendingSession = null;
+    _candidateSaved = false;
+    _refreshing = null;
+    _mutationInFlight = false;
+    _working = true;
+    _initialized = false;
+    _failure = null;
+    _emit();
+    var selectionSaved = false;
+    var mutationStarted = false;
+    var retryable = false;
+    try {
+      await _persistRegistry(
+        ServerHomeRegistry(
+          activeProfileId: profileId,
+          profiles: previousRegistry.profiles,
+        ),
+        generation,
+      );
+      selectionSaved = true;
+      final stored = _profiles
+          .singleWhere((item) => item.profileId == profileId)
+          .session;
+      if (stored.authMutationPending) {
+        await _reject(
+          const LarenorServerException('invalid_session'),
+          generation,
+          preserveStored: true,
+        );
+        return;
+      }
+      final api = _factory(stored.endpoint);
+      _api = api;
+      ServerSession? fresh;
+      if (!stored.expiresSoon(_clock())) {
+        try {
+          fresh = stored.withUser(await api.me(stored.accessToken));
+        } on LarenorServerException catch (error) {
+          if (error.code != 'unauthorized') rethrow;
+        }
+      } else {
+        await api.health();
+      }
+      if (fresh == null) {
+        mutationStarted = true;
+        _mutationInFlight = true;
+        await _persist(stored.withAuthMutationPending(), generation);
+        _check(generation);
+        fresh = await api.refresh(stored.refreshToken);
+      }
+      _checkIdentity(stored, fresh);
+      await _accept(fresh, generation);
+    } catch (error) {
+      if (isCurrent(generation)) {
+        if (!selectionSaved) {
+          _adoptRegistry(previousRegistry);
+          final previous = previousRegistry.activeProfile?.session;
+          _session = previous;
+          _api = previous == null ? null : _factory(previous.endpoint);
+          _failure = _safeCode(error);
+        } else {
+          retryable =
+              _pendingSession == null &&
+              !mutationStarted &&
+              {
+                'connection_failed',
+                'timeout',
+                'server_error',
+                'rate_limited',
+              }.contains(_safeCode(error));
+          if (_pendingSession != null) {
+            await _contextFailure(error, generation);
+          } else if (retryable) {
+            _api?.close();
+            _api = null;
+            _failure = _safeCode(error);
+          } else {
+            await _reject(error, generation, preserveStored: mutationStarted);
+          }
+        }
+      }
+    } finally {
+      if (isCurrent(generation)) {
+        _mutationInFlight = false;
+        _initialized = !retryable;
+        _working = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> renameProfile(String profileId, String label) async {
+    if (_disposed || _working || _refreshing != null) return;
+    final normalized = label.trim();
+    if (label != normalized ||
+        normalized.isEmpty ||
+        normalized.length > 80 ||
+        normalized.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const LarenorServerException('invalid_profile');
+    }
+    if (!_profiles.any((item) => item.profileId == profileId)) {
+      throw const LarenorServerException('invalid_profile');
+    }
+    final generation = _generation;
+    _working = true;
+    _failure = null;
+    _emit();
+    try {
+      await _persistRegistry(
+        ServerHomeRegistry(
+          activeProfileId: _activeProfileId,
+          profiles: [
+            for (final profile in _profiles)
+              profile.profileId == profileId
+                  ? profile.withLabel(normalized)
+                  : profile,
+          ],
+        ),
+        generation,
+      );
+    } catch (error) {
+      if (isCurrent(generation)) _failure = _safeCode(error);
+    } finally {
+      if (isCurrent(generation)) {
+        _working = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> removeProfile(String profileId) async {
+    if (_disposed || _working || _refreshing != null) return;
+    final matches = _profiles.where((item) => item.profileId == profileId);
+    if (matches.length != 1) {
+      throw const LarenorServerException('invalid_profile');
+    }
+    if (_activeProfileId == profileId) {
+      await signOut();
+      return;
+    }
+    final removed = matches.single;
+    final generation = _generation;
+    _working = true;
+    _failure = null;
+    _emit();
+    try {
+      await _persistRegistry(
+        ServerHomeRegistry(
+          activeProfileId: _activeProfileId,
+          profiles: _profiles
+              .where((item) => item.profileId != profileId)
+              .toList(growable: false),
+        ),
+        generation,
+      );
+      final api = _factory(removed.session.endpoint);
+      try {
+        await api.logout(removed.session);
+      } catch (_) {
+        if (isCurrent(generation)) _failure = 'logout_not_confirmed';
+      } finally {
+        api.close();
+      }
+    } catch (error) {
+      if (isCurrent(generation)) _failure = _safeCode(error);
+    } finally {
+      if (isCurrent(generation)) {
+        _working = false;
+        _emit();
+      }
+    }
+  }
+
   Future<void> signOut() async {
     if (_disposed) return;
     var old = _pendingSession ?? _session;
@@ -501,6 +738,7 @@ class ServerAccountController extends ChangeNotifier {
     final operation = _writes.then((_) async {
       _check(generation);
       await _store.write(value);
+      await _refreshRegistry(generation);
     });
     _writes = operation.then<void>(
       (_) {},
@@ -543,6 +781,7 @@ class ServerAccountController extends ChangeNotifier {
       // process can be retired; preserve an honest storage failure for the UI.
       try {
         await _store.write(null);
+        await _refreshRegistry(generation);
       } catch (_) {
         storageFailed = true;
       }
@@ -589,6 +828,8 @@ class ServerAccountController extends ChangeNotifier {
     _api?.close();
     _session = null;
     _pendingSession = null;
+    _profiles = const [];
+    _activeProfileId = null;
     super.dispose();
   }
 }
