@@ -789,8 +789,8 @@ def build_update_review(
 ) -> ComponentUpdateReview:
     """Compare a durable current identity with one packaged target release.
 
-    Execution is exposed only when a worker exists and no rollback snapshot is
-    required. Confirmation still revalidates the exact digest in the worker.
+    Execution is exposed only when a worker exists. Schema changes remain an
+    explicit approval because the worker must capture a rollback snapshot.
     """
     try:
         context = _validated(context, ContextResponse)
@@ -822,9 +822,9 @@ def build_update_review(
             state="snapshot_required" if current_schema != target_schema else "not_required",
         )
 
-        apply_available = execution_available and not migration.rollbackSnapshotRequired
+        apply_available = execution_available
         blockers: set[UpdateBlocker] = set()
-        if not apply_available:
+        if not execution_available:
             blockers.add("execution_worker_unavailable")
         if current.build.manifestDigest == target.build.manifestDigest:
             blockers.add("same_release")
