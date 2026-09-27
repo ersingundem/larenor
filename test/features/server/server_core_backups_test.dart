@@ -95,6 +95,23 @@ Map<String, dynamic> readyPlan() => {
   'manifest': backupManifest(),
 };
 
+Map<String, dynamic> disabledDrillSchedule() => {
+  'schedule': {
+    'contractVersion': 1,
+    'revision': 0,
+    'enabled': false,
+    'intervalDays': 30,
+    'nextRunAt': null,
+  },
+};
+
+Map<String, dynamic> emptyDrillHistory() => {
+  'drills': <Object?>[],
+  'nextBefore': null,
+};
+
+Map<String, dynamic> emptyImmutableTarget() => {'target': null};
+
 Map<String, dynamic> manifestWithResourceLength(String id, int byteLength) => {
   ...backupManifest(),
   'resources': [
@@ -155,6 +172,18 @@ final class BackupFixture extends AdminFixture {
       if (request.method == 'GET' &&
           request.url.path.endsWith('/admin/backups/plan')) {
         return pending?.future ?? json(response);
+      }
+      if (request.method == 'GET' &&
+          request.url.path.endsWith('/admin/backups/drill-schedule')) {
+        return json(disabledDrillSchedule());
+      }
+      if (request.method == 'GET' &&
+          request.url.path.endsWith('/admin/backups/drills')) {
+        return json(emptyDrillHistory());
+      }
+      if (request.method == 'GET' &&
+          request.url.path.endsWith('/admin/backups/immutable-target')) {
+        return json(emptyImmutableTarget());
       }
       if (request.method == 'POST' &&
           request.url.path.endsWith('/admin/backups/export')) {
@@ -596,11 +625,22 @@ void main() {
 
       await controller.load(current: () => true);
       expect(controller.plan?.ready, isTrue);
-      expect(fixture.adminCalls.single.method, 'GET');
+      expect(fixture.adminCalls, hasLength(4));
+      expect(fixture.adminCalls.every((call) => call.method == 'GET'), isTrue);
+      expect(fixture.adminCalls.map((call) => call.url.path), [
+        '/prefix/api/v1/admin/backups/plan',
+        '/prefix/api/v1/admin/backups/drill-schedule',
+        '/prefix/api/v1/admin/backups/drills',
+        '/prefix/api/v1/admin/backups/immutable-target',
+      ]);
       expect(fixture.mutations, isEmpty);
       expect(
-        fixture.adminCalls.single.headers['authorization'],
-        'Bearer synthetic_admin_access_12345',
+        fixture.adminCalls.every(
+          (call) =>
+              call.headers['authorization'] ==
+              'Bearer synthetic_admin_access_12345',
+        ),
+        isTrue,
       );
 
       fixture.response = {...readyPlan(), 'status': 'invalid'};
@@ -687,7 +727,16 @@ void main() {
     await firstLoad.timeout(const Duration(seconds: 1));
     expect(secondRequest.abortSeen.isCompleted, isFalse);
 
+    var nextRequest = client.nextRequest();
     secondRequest.completeJson(readyPlan());
+    final scheduleRequest = await nextRequest;
+    nextRequest = client.nextRequest();
+    scheduleRequest.completeJson(disabledDrillSchedule());
+    final drillsRequest = await nextRequest;
+    nextRequest = client.nextRequest();
+    drillsRequest.completeJson(emptyDrillHistory());
+    final targetRequest = await nextRequest;
+    targetRequest.completeJson(emptyImmutableTarget());
     await secondLoad.timeout(const Duration(seconds: 1));
     expect(controller.plan?.ready, isTrue);
   });
