@@ -146,6 +146,8 @@ from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
 from .workshop.schema import migrate_workshop
 from .workshop.service import WorkshopService
+from .watch_parties.schema import migrate_watch_parties
+from .watch_parties.service import WatchPartyService
 from .core_backups.service import CoreBackupContract
 from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
@@ -414,6 +416,7 @@ class CoreServices:
                 migrate_media_archive_weekly_trends(connection)
                 migrate_media_flow(connection)
                 migrate_media_playback(connection)
+                migrate_watch_parties(connection)
                 migrate_proxmox_power(connection, key)
                 migrate_keenetic_commands(
                     connection,
@@ -861,6 +864,11 @@ class CoreServices:
                 context=self.context,
             )
             self.media_playback.validate_storage()
+            self.watch_parties = WatchPartyService(
+                self.db, self.auth, settings, key, self.context,
+                self.media_playback,
+            )
+            self.watch_parties.validate_storage()
             self.media_rows = MediaRowsManagement(
                 self.auth,
                 settings,
