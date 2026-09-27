@@ -2557,7 +2557,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "İsteğe bağlı yaklaşma ve kişisel kamera görünümü",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B5"
       ],
@@ -2576,7 +2576,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Kimliksiz opt-in yaklaşma ile ambient uyandırma üretimde tamamlandı; kişisel kamera görünümü, on-device eşleme ve yanlış eşleşmede fail-closed akışı henüz açık."
     },
     {
       "id": "KIOSK",
