@@ -17,6 +17,7 @@ import '../../data/legacy_jellyfin_track_preferences_controller.dart';
 import '../../data/legacy_jellyfin_track_preferences_preview.dart';
 import '../../data/models/jellyfin_item.dart';
 import '../../domain/jellyfin_track_preferences.dart';
+import '../../domain/playback_quality_advisor.dart';
 import '../legacy_jellyfin_track_preferences_migration_card.dart';
 import '../../providers/jellyfin_providers.dart';
 import '../../../../server/providers/server_providers.dart';
@@ -221,6 +222,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   int _preferredAudioEpoch = -1;
   int _preferredSubtitleEpoch = -1;
   bool _preferenceSaveFailed = false;
+  PlaybackQualityEvidence? _qualityEvidence;
 
   bool _loading = true;
   String? _error;
@@ -390,6 +392,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       setState(() {
         _sourceEpoch++;
         _preferredTracks = null;
+        _qualityEvidence = source.qualityEvidence;
         _tracks = const Tracks();
         _currentTrack = const Track();
       });
@@ -853,6 +856,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     final l10n = AppLocalizations.of(context);
     return _pick<_QualityOption>(
       title: l10n.jellyfinPlayerQualityTitle,
+      message: _qualityAdvisorMessage(l10n),
       options: _qualityOptions,
       label: (option) => Text(
         option.maxBitrate == null
@@ -866,6 +870,37 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       apply: (option, generation) =>
           _changeQuality(option.maxBitrate, generation),
     );
+  }
+
+  String _qualityAdvisorMessage(AppLocalizations l10n) {
+    final evidence = _qualityEvidence;
+    if (evidence == null) return l10n.jellyfinQualityAdvisorUnavailable;
+    final method = switch (evidence.method) {
+      PlaybackDeliveryMethod.directPlay =>
+        l10n.jellyfinQualityAdvisorDirectPlay,
+      PlaybackDeliveryMethod.remux => l10n.jellyfinQualityAdvisorRemux,
+      PlaybackDeliveryMethod.transcode => l10n.jellyfinQualityAdvisorTranscode,
+    };
+    String value(String? input) =>
+        input == null ? l10n.commonUnknown : input.toUpperCase();
+    String bitrate(int? input) => input == null
+        ? l10n.commonUnknown
+        : '${(input / 1000000).toStringAsFixed(input >= 10000000 ? 0 : 1)} Mbps';
+    final reason = evidence.reasons.isEmpty
+        ? l10n.jellyfinQualityAdvisorReasonUnknown
+        : evidence.reasons.join(', ');
+    return [
+      l10n.jellyfinQualityAdvisorPath(method),
+      l10n.jellyfinQualityAdvisorEvidence(
+        value(evidence.sourceContainer),
+        value(evidence.videoCodec),
+        value(evidence.audioCodec),
+        bitrate(evidence.sourceBitrate),
+      ),
+      l10n.jellyfinQualityAdvisorReason(reason),
+      l10n.jellyfinQualityAdvisorNetworkUnknown,
+      l10n.jellyfinQualityAdvisorReceiver,
+    ].join('\n');
   }
 
   String _trackLabel(

@@ -7,6 +7,7 @@ import '../../../health/data/health_monitor.dart';
 
 import '../../data/media_api_exception.dart';
 import '../../casting/domain/remote_playback_models.dart';
+import '../domain/playback_quality_advisor.dart';
 import 'jellyfin_config.dart';
 import 'jellyfin_device_profile.dart';
 import 'models/jellyfin_item.dart';
@@ -17,12 +18,14 @@ class JellyfinPlaybackSource {
     required this.mediaSourceId,
     required this.playSessionId,
     required this.isTranscoding,
+    this.qualityEvidence,
   });
 
   final String streamUrl;
   final String mediaSourceId;
   final String playSessionId;
   final bool isTranscoding;
+  final PlaybackQualityEvidence? qualityEvidence;
 }
 
 /// Thin hand-rolled client over Jellyfin's REST API — a Dart package
@@ -429,11 +432,22 @@ class JellyfinClient {
             'api_key': config.accessToken,
           }).toString();
 
+    PlaybackQualityEvidence? qualityEvidence;
+    try {
+      qualityEvidence = PlaybackQualityEvidence.fromJellyfinSource(
+        source,
+        requestedMaxBitrate: maxStreamingBitrate,
+      );
+    } on FormatException {
+      // Playback can proceed, but malformed optional telemetry is never shown.
+      qualityEvidence = null;
+    }
     return JellyfinPlaybackSource(
       streamUrl: streamUrl,
       mediaSourceId: mediaSourceId,
       playSessionId: playSessionId,
       isTranscoding: transcodingUrl != null,
+      qualityEvidence: qualityEvidence,
     );
   }
 
