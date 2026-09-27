@@ -4385,7 +4385,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "QR etiketli ev envanteri",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B0",
         "B5",
@@ -4406,8 +4406,41 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f34-software-closure-2026-09-27.md",
+          "commit": "9295ee46aef97816e166c657caa75019c4e8ee9f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact inventory Client, tablet, printable label share and real loopback TCP/HTTP isolated-Core package passed 29/29 tests across stable identity, encrypted catalog, authority, malformed or foreign QR, pagination and cursor boundaries."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f34-software-closure-2026-09-27.md",
+          "commit": "9295ee46aef97816e166c657caa75019c4e8ee9f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent final review found no remaining P1/P2 issue in Server authority, late-response retirement, scanner ownership, share lifecycle or secret projection."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35873820006",
+          "commit": "9295ee46aef97816e166c657caa75019c4e8ee9f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Android Build passed Flutter and Server shards, static analysis, debug APK and emulator journey."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35873818998",
+          "commit": "9295ee46aef97816e166c657caa75019c4e8ee9f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Security dependency, platform-policy and secret scans passed."
+        }
+      ],
+      "completionCommit": "9295ee46aef97816e166c657caa75019c4e8ee9f",
       "reason": null
     },
     {
