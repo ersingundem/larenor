@@ -258,9 +258,7 @@ class WatchPartyService:
         encoded = body.model_dump_json()
         request_hash = hashlib.sha256(encoded.encode()).hexdigest()
         with self.db.transaction() as connection:
-            user = self._actor(connection, actor)
-            if user["revision"] != body.expectedAccountRevision:
-                raise ApiError("watch_party_authority_changed", 409)
+            self._actor(connection, actor)
             existing = connection.execute(
                 "SELECT * FROM watch_party_rooms WHERE create_request_id=?",
                 (body.requestId,)).fetchone()

@@ -23,7 +23,6 @@ class Versioned(StrictModel):
 
 class CreateWatchPartyRequest(PrepareMediaPlaybackIntentRequest):
     schemaVersion: Literal[1] = 1
-    expectedAccountRevision: Revision
     expiresAt: int = Field(ge=1, le=253402300799)
     toleranceMs: int = Field(default=1500, ge=250, le=5000)
 

@@ -4,6 +4,7 @@ import '../../../../../core/idle_prevention.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -26,6 +27,8 @@ import '../../../playback_quality/domain/core_playback_quality_advice.dart';
 import '../../../playback_quality/providers/playback_quality_providers.dart';
 import '../../../../server/media_segments/data/server_media_segment_controller.dart';
 import '../../../../server/media_segments/domain/server_media_segment_models.dart';
+import '../../../../server/watch_parties/data/server_watch_party_controller.dart';
+import '../../../../server/watch_parties/domain/server_watch_party_models.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
@@ -93,6 +96,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   late final VideoController _controller = VideoController(_player);
   late final CorePlaybackQualityController _coreQuality;
   late final ServerMediaSegmentController _mediaSegments;
+  late final ServerWatchPartyController _watchParty;
 
   JellyfinClient? _client;
   LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
@@ -110,6 +114,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   int? _dragInteraction;
   int? _seekInteraction;
   Duration? _seekDraft;
+  Timer? _watchPartyTimer;
+  int _watchPartyRoundTripMs = 0;
+  bool _applyingWatchPartyDirective = false;
 
   @override
   void didChangeDependencies() {
@@ -208,6 +215,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       unawaited(_reporter?.stop(_position));
       _reporter = null;
       _mediaSegments.retire();
+      _watchParty.retire();
       _ignoreFailure(_player.stop);
       _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
       _loading = false;
@@ -259,6 +267,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _mediaSegments = ServerMediaSegmentController(
       ref.read(serverAccountControllerProvider),
     )..addListener(_mediaSegmentsChanged);
+    _watchParty = ServerWatchPartyController(
+      ref.read(serverAccountControllerProvider),
+    )..addListener(_watchPartyChanged);
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
@@ -276,6 +287,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       unawaited(_reporter?.stop(_position));
       _reporter = null;
       _mediaSegments.retire();
+      _watchParty.retire();
       _ignoreFailure(_player.stop);
       if (mounted) {
         setState(() {
@@ -295,6 +307,19 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   void _mediaSegmentsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _watchPartyChanged() {
+    if (_watchParty.snapshot == null) {
+      _watchPartyTimer?.cancel();
+      _watchPartyTimer = null;
+    } else {
+      _watchPartyTimer ??= Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => unawaited(_watchPartyTick()),
+      );
+    }
     if (mounted) setState(() {});
   }
 
@@ -546,7 +571,231 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         current.end != expected.end) {
       return;
     }
-    await _ignoreFailure(() => _player.seek(current.end));
+    await _seekAndBroadcast(current.end);
+  }
+
+  bool get _watchPartyRouteCurrent =>
+      mounted &&
+      _foreground &&
+      !_opening &&
+      !_loading &&
+      _error == null &&
+      _client != null &&
+      _reporter != null;
+
+  bool get _watchPartyLeader {
+    final snapshot = _watchParty.snapshot;
+    final account = ref.read(serverAccountControllerProvider).session?.user.id;
+    return snapshot != null && account == snapshot.leaderAccountId;
+  }
+
+  Future<void> _watchPartyTick() async {
+    final snapshot = _watchParty.snapshot;
+    final family = ref
+        .read(serverAccountControllerProvider)
+        .session
+        ?.sessionFamilyId;
+    if (snapshot == null ||
+        family == null ||
+        _watchParty.busy ||
+        !_watchPartyRouteCurrent) {
+      return;
+    }
+    if (_watchParty.failure == 'watch_party_authority_changed') {
+      await _watchParty.refresh(current: () => _watchPartyRouteCurrent);
+      return;
+    }
+    final stopwatch = Stopwatch()..start();
+    await _watchParty.report(
+      target: ServerWatchPartyTarget(
+        targetId: family,
+        targetRevision: _sourceEpoch + 1,
+        canSeek: true,
+        canPause: true,
+      ),
+      playback: ServerWatchPartyPlayback(
+        state: _opening
+            ? ServerWatchPartyPlaybackState.buffering
+            : _playing
+            ? ServerWatchPartyPlaybackState.playing
+            : ServerWatchPartyPlaybackState.paused,
+        positionMs: _position.inMilliseconds,
+        measuredRoundTripMs: _watchPartyRoundTripMs,
+      ),
+      current: () => _watchPartyRouteCurrent,
+    );
+    stopwatch.stop();
+    _watchPartyRoundTripMs = stopwatch.elapsedMilliseconds.clamp(0, 10000);
+    await _applyWatchPartyDirective();
+  }
+
+  Future<void> _applyWatchPartyDirective() async {
+    final directive = _watchParty.snapshot?.directive;
+    if (directive == null ||
+        directive.action == ServerWatchPartyDirectiveAction.none ||
+        directive.action == ServerWatchPartyDirectiveAction.unsupported ||
+        _applyingWatchPartyDirective ||
+        !_watchPartyRouteCurrent) {
+      return;
+    }
+    _applyingWatchPartyDirective = true;
+    try {
+      switch (directive.action) {
+        case ServerWatchPartyDirectiveAction.pause:
+          await _ignoreFailure(_player.pause);
+          break;
+        case ServerWatchPartyDirectiveAction.play:
+        case ServerWatchPartyDirectiveAction.seekAndPlay:
+          await _ignoreFailure(
+            () => _player.seek(Duration(milliseconds: directive.positionMs)),
+          );
+          if (_watchPartyRouteCurrent) await _ignoreFailure(_player.play);
+        case ServerWatchPartyDirectiveAction.none:
+        case ServerWatchPartyDirectiveAction.unsupported:
+          break;
+      }
+    } finally {
+      _applyingWatchPartyDirective = false;
+    }
+  }
+
+  Future<void> _broadcastWatchPartyCommand(
+    String action,
+    Duration position,
+  ) async {
+    if (!_watchPartyLeader || !_watchPartyRouteCurrent) return;
+    await _watchParty.command(
+      action: action,
+      position: position,
+      current: () => _watchPartyRouteCurrent,
+    );
+  }
+
+  Future<void> _seekAndBroadcast(Duration position) async {
+    await _ignoreFailure(() => _player.seek(position));
+    await _broadcastWatchPartyCommand(_playing ? 'seek' : 'pause', position);
+  }
+
+  Future<void> _createWatchParty() async {
+    await _watchParty.createCurrentItem(
+      widget.item.id,
+      current: () => _watchPartyRouteCurrent,
+    );
+    final value = _watchParty.invitation?.value;
+    if (value != null) {
+      await Clipboard.setData(ClipboardData(text: value));
+    }
+  }
+
+  Future<void> _joinWatchParty() async {
+    final controller = TextEditingController();
+    final value = await showCupertinoDialog<String>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(AppLocalizations.of(context).jellyfinWatchPartyJoin),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: controller,
+            autocorrect: false,
+            placeholder: AppLocalizations.of(context).jellyfinWatchPartyCode,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(AppLocalizations.of(context).commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: Text(AppLocalizations.of(context).jellyfinWatchPartyJoin),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value.trim().isEmpty || !_watchPartyRouteCurrent) {
+      return;
+    }
+    await _watchParty.join(
+      value,
+      itemId: widget.item.id,
+      current: () => _watchPartyRouteCurrent,
+    );
+  }
+
+  Future<void> _showWatchPartySheet() async {
+    final snapshot = _watchParty.snapshot;
+    final l10n = AppLocalizations.of(context);
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.jellyfinWatchPartyTitle),
+        message: snapshot == null
+            ? Text(l10n.jellyfinWatchPartyHint)
+            : Text(
+                l10n.jellyfinWatchPartyStatus(
+                  snapshot.participants.where((item) => item.connected).length,
+                  snapshot.toleranceMs,
+                ),
+              ),
+        actions: snapshot == null
+            ? [
+                CupertinoActionSheetAction(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(_createWatchParty());
+                  },
+                  child: Text(l10n.jellyfinWatchPartyCreate),
+                ),
+                CupertinoActionSheetAction(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(_joinWatchParty());
+                  },
+                  child: Text(l10n.jellyfinWatchPartyJoin),
+                ),
+              ]
+            : [
+                if (_watchParty.invitation != null)
+                  CupertinoActionSheetAction(
+                    onPressed: () {
+                      Clipboard.setData(
+                        ClipboardData(text: _watchParty.invitation!.value),
+                      );
+                      Navigator.of(sheetContext).pop();
+                    },
+                    child: Text(l10n.jellyfinWatchPartyCopyCode),
+                  ),
+                CupertinoActionSheetAction(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _watchParty.refresh(
+                        current: () => _watchPartyRouteCurrent,
+                      ),
+                    );
+                  },
+                  child: Text(l10n.commonRefresh),
+                ),
+                CupertinoActionSheetAction(
+                  isDestructiveAction: true,
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _watchParty.leave(current: () => _watchPartyRouteCurrent),
+                    );
+                  },
+                  child: Text(l10n.jellyfinWatchPartyLeave),
+                ),
+              ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadCoreQualityAdvice(
@@ -767,8 +1016,10 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     }
   }
 
-  void _togglePlaying() {
-    _ignoreFailure(_player.playOrPause);
+  Future<void> _togglePlaying() async {
+    final action = _playing ? 'pause' : 'play';
+    await _ignoreFailure(_player.playOrPause);
+    await _broadcastWatchPartyCommand(action, _position);
     _scheduleHideControls();
   }
 
@@ -777,7 +1028,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     final clamped = target < Duration.zero
         ? Duration.zero
         : (target > _duration ? _duration : target);
-    _ignoreFailure(() => _player.seek(clamped));
+    unawaited(_seekAndBroadcast(clamped));
   }
 
   void _toggleControls() {
@@ -1161,6 +1412,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _coreQuality.dispose();
     _mediaSegments.removeListener(_mediaSegmentsChanged);
     _mediaSegments.dispose();
+    _watchPartyTimer?.cancel();
+    _watchParty.removeListener(_watchPartyChanged);
+    _watchParty.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();
@@ -1416,6 +1670,21 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                   ),
                 ),
               ),
+              CupertinoButton(
+                key: const ValueKey('jellyfin-player-watch-party'),
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+                onPressed: _interactionAction(
+                  () => unawaited(_showWatchPartySheet()),
+                ),
+                child: Icon(
+                  _watchParty.snapshot == null
+                      ? CupertinoIcons.person_2
+                      : CupertinoIcons.person_2_fill,
+                  color: CupertinoColors.white,
+                  semanticLabel: l10n.jellyfinWatchPartyTitle,
+                ),
+              ),
               if (_tracks.subtitle.isNotEmpty)
                 CupertinoButton(
                   key: const ValueKey('jellyfin-player-subtitles'),
@@ -1529,8 +1798,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                                 _seekInteraction = null;
                                 _seekDraft = null;
                               });
-                              _ignoreFailure(
-                                () => _player.seek(
+                              unawaited(
+                                _seekAndBroadcast(
                                   Duration(
                                     seconds: value.clamp(0, maxSeconds).round(),
                                   ),
@@ -1552,7 +1821,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                 key: const ValueKey('jellyfin-player-toggle'),
                 minimumSize: const Size(48, 48),
                 padding: EdgeInsets.zero,
-                onPressed: _interactionAction(_togglePlaying),
+                onPressed: _interactionAction(
+                  () => unawaited(_togglePlaying()),
+                ),
                 child: Icon(
                   _playing
                       ? CupertinoIcons.pause_fill

@@ -4418,5 +4418,19 @@
   "serverComponentUpdatesJobCancelled": "Cancelled",
   "serverComponentUpdatesJobNeedsAttention": "Needs attention",
   "serverComponentUpdatesCancel": "Cancel update",
-  "serverComponentUpdatesCancelRequested": "Cancellation requested"
+  "serverComponentUpdatesCancelRequested": "Cancellation requested",
+  "jellyfinWatchPartyTitle": "Watch together",
+  "jellyfinWatchPartyHint": "Create a private room or join with a shared code. Playback changes stay bound to the current room and media revisions.",
+  "jellyfinWatchPartyCreate": "Create room",
+  "jellyfinWatchPartyJoin": "Join room",
+  "jellyfinWatchPartyCode": "Invitation code",
+  "jellyfinWatchPartyCopyCode": "Copy invitation code",
+  "jellyfinWatchPartyLeave": "Leave room",
+  "jellyfinWatchPartyStatus": "{count} connected · ±{tolerance} ms sync window",
+  "@jellyfinWatchPartyStatus": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "tolerance": {"type": "int"}
+    }
+  }
 }

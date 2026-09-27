@@ -4065,5 +4065,19 @@
   "serverComponentUpdatesJobCancelled": "İptal edildi",
   "serverComponentUpdatesJobNeedsAttention": "İnceleme gerekiyor",
   "serverComponentUpdatesCancel": "Güncellemeyi iptal et",
-  "serverComponentUpdatesCancelRequested": "İptal istendi"
+  "serverComponentUpdatesCancelRequested": "İptal istendi",
+  "jellyfinWatchPartyTitle": "Birlikte izle",
+  "jellyfinWatchPartyHint": "Özel bir oda oluşturun veya paylaşılan kodla katılın. Oynatma değişiklikleri güncel oda ve medya revizyonlarına bağlı kalır.",
+  "jellyfinWatchPartyCreate": "Oda oluştur",
+  "jellyfinWatchPartyJoin": "Odaya katıl",
+  "jellyfinWatchPartyCode": "Davet kodu",
+  "jellyfinWatchPartyCopyCode": "Davet kodunu kopyala",
+  "jellyfinWatchPartyLeave": "Odadan ayrıl",
+  "jellyfinWatchPartyStatus": "{count} bağlı · ±{tolerance} ms senkron aralığı",
+  "@jellyfinWatchPartyStatus": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "tolerance": {"type": "int"}
+    }
+  }
 }
