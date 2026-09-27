@@ -11,12 +11,14 @@ class ServerMusicLongformCard extends StatelessWidget {
     required this.failure,
     required this.busy,
     required this.onRetry,
+    required this.onOpen,
   });
 
   final ServerMusicLongformCatalog? catalog;
   final String? failure;
   final bool busy;
   final VoidCallback? onRetry;
+  final ValueChanged<ServerMusicLongformItem>? onOpen;
 
   String _duration(double seconds) {
     final minutes = (seconds / 60).floor();
@@ -83,6 +85,7 @@ class ServerMusicLongformCard extends StatelessWidget {
                 key: ValueKey('music-longform-item-$index'),
                 item: items[index],
                 duration: _duration,
+                onOpen: onOpen,
               ),
             ],
           ],
@@ -93,10 +96,16 @@ class ServerMusicLongformCard extends StatelessWidget {
 }
 
 class _LongformItem extends StatelessWidget {
-  const _LongformItem({super.key, required this.item, required this.duration});
+  const _LongformItem({
+    super.key,
+    required this.item,
+    required this.duration,
+    required this.onOpen,
+  });
 
   final ServerMusicLongformItem item;
   final String Function(double) duration;
+  final ValueChanged<ServerMusicLongformItem>? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -114,52 +123,64 @@ class _LongformItem extends StatelessWidget {
     return Semantics(
       container: true,
       label: '${item.name}. ${details.join('. ')}',
+      button: onOpen != null,
       child: ExcludeSemantics(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: CupertinoColors.tertiarySystemGroupedBackground.resolveFrom(
-              context,
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: onOpen == null ? null : () => onOpen!(item),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: CupertinoColors.tertiarySystemGroupedBackground
+                  .resolveFrom(context),
+              borderRadius: BorderRadius.circular(14),
             ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                item.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.headline,
-              ),
-              const SizedBox(height: 8),
-              Text(details.first),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: LayoutBuilder(
-                  builder: (context, constraints) => Stack(
-                    children: [
-                      Container(
-                        height: 10,
-                        color: CupertinoColors.systemGrey5.resolveFrom(context),
-                      ),
-                      Container(
-                        width: constraints.maxWidth * item.progress,
-                        height: 10,
-                        color: CupertinoColors.activeBlue.resolveFrom(context),
-                      ),
-                    ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.headline,
+                ),
+                const SizedBox(height: 8),
+                Text(details.first),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Stack(
+                      children: [
+                        Container(
+                          height: 10,
+                          color: CupertinoColors.systemGrey5.resolveFrom(
+                            context,
+                          ),
+                        ),
+                        Container(
+                          width: constraints.maxWidth * item.progress,
+                          height: 10,
+                          color: CupertinoColors.activeBlue.resolveFrom(
+                            context,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(details[1]),
-              if (chapter != null) ...[
-                const SizedBox(height: 4),
-                Text(details[2], maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                Text(details[1]),
+                if (chapter != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    details[2],
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -41,7 +41,7 @@ class ServerLongformSessionApi {
     DateTime? sleepTimerEndsAt,
     bool takeover = false,
   }) async {
-    if (!session.matches(manager, item) ||
+    if (!session.sameMedia(manager, item) ||
         positionSeconds < 0 ||
         !positionSeconds.isFinite ||
         positionSeconds > item.durationSeconds ||

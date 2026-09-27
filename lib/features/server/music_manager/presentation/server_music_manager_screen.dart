@@ -18,6 +18,7 @@ import '../data/legacy_music_player_mapping.dart';
 import '../data/server_music_manager_controller.dart';
 import '../domain/server_music_manager_models.dart';
 import 'server_music_longform_card.dart';
+import 'server_longform_session_screen.dart';
 
 class ServerMusicManagerScreen extends ConsumerStatefulWidget {
   const ServerMusicManagerScreen({
@@ -152,6 +153,23 @@ class _ServerMusicManagerScreenState
   void _loadLongform() {
     final current = _capture();
     if (current()) unawaited(_controller.loadInProgress(current: current));
+  }
+
+  Future<void> _openLongform(ServerMusicLongformItem item) async {
+    final current = _capture();
+    final manager = _controller.manager;
+    if (!current() || manager == null || !_controller.verified) return;
+    await Navigator.of(context).push<void>(
+      CupertinoPageRoute(
+        builder: (_) => ServerLongformSessionScreen(
+          account: _account,
+          manager: manager,
+          item: item,
+          initialReceiverId: _controller.selectedReceiverId,
+        ),
+      ),
+    );
+    if (current()) _verify();
   }
 
   Future<void> _manageProviders(ServerMusicManager manager) async {
@@ -623,6 +641,9 @@ class _ServerMusicManagerScreenState
           busy: _controller.longformBusy,
           onRetry: _active && _controller.verified && !_controller.longformBusy
               ? _loadLongform
+              : null,
+          onOpen: _active && _controller.verified && !_controller.longformBusy
+              ? (item) => unawaited(_openLongform(item))
               : null,
         ),
       ),

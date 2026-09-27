@@ -248,11 +248,22 @@ bool _validQuery(String value) =>
     value == value.trim() &&
     !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
 
-bool _validMediaUri(String value) =>
-    value.isNotEmpty &&
-    value.length <= 2048 &&
-    RegExp(r'^(?:spotify|apple_music|ytmusic|library)://[^\s]+$')
-        .hasMatch(value);
+bool _validMediaUri(String value) {
+  if (value.isEmpty || value.length > 2048) return false;
+  final match = RegExp(r'^([a-z][a-z0-9_]{0,63})://[^\s?#@]+$')
+      .firstMatch(value);
+  return match != null &&
+      !const {
+        'content',
+        'data',
+        'file',
+        'ftp',
+        'http',
+        'https',
+        'javascript',
+      }.contains(match.group(1)) &&
+      !value.codeUnits.any((unit) => unit < 33 || unit == 127);
+}
 
 void _requireCurrent(bool Function() current) {
   try {

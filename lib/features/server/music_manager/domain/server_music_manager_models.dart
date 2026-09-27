@@ -308,11 +308,7 @@ class ServerMusicQueue {
   };
 }
 
-bool _validUri(Object? value) =>
-    value is String &&
-    value.length <= 2048 &&
-    RegExp(r'^(?:spotify|apple_music|ytmusic|library)://[^\s]+$')
-        .hasMatch(value);
+bool _validUri(Object? value) => value is String && _validLongformUri(value);
 
 class ServerMusicManager {
   const ServerMusicManager._({

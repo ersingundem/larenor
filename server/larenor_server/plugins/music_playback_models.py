@@ -9,6 +9,17 @@ from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
 
 
+def _safe_media_uri(value):
+    match = (re.fullmatch(r'([a-z][a-z0-9_]{0,63})://[^\s]+', value)
+             if type(value) is str and 0 < len(value) <= 2048 else None)
+    return (match is not None
+            and match.group(1) not in {
+                'content', 'data', 'file', 'ftp', 'http', 'https',
+                'javascript'}
+            and not any(char in value for char in ('?', '#', '@'))
+            and not any(ord(char) < 33 or ord(char) == 127 for char in value))
+
+
 PlaybackOperation = Literal[
     'play', 'pause', 'seek', 'stop', 'next', 'previous', 'volume', 'mute',
     'queue_add', 'queue_replace', 'queue_clear',
@@ -84,9 +95,7 @@ class VerifiedMusicQueue(StrictModel):
     @field_validator('currentItemUri')
     @classmethod
     def safe_uri(cls, value):
-        if (value is not None and re.fullmatch(
-                r'(?:spotify|apple_music|ytmusic|library)://[^\s]+', value)
-                is None):
+        if value is not None and not _safe_media_uri(value):
             raise ValueError('invalid_music_queue_readback')
         return value
 
@@ -189,10 +198,7 @@ class MusicPlaybackCommandRequest(StrictModel):
                            r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value)
                        is None for value in (
                            self.expectedProvider, self.expectedQueueId))
-                or any(type(uri) is not str or not 0 < len(uri) <= 2048
-               or re.fullmatch(r'(?:spotify|apple_music|ytmusic|library)://[^\s]+',
-                               uri) is None
-               for uri in self.mediaUris)):
+                or any(not _safe_media_uri(uri) for uri in self.mediaUris)):
             raise ValueError('invalid_music_playback_command')
         return self
 

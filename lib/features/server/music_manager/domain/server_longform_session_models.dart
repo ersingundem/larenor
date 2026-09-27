@@ -211,15 +211,19 @@ class ServerLongformSession {
 
   double get progress => positionSeconds / durationSeconds;
 
-  bool matches(ServerMusicManager manager, ServerMusicLongformItem item) =>
+  bool sameMedia(ServerMusicManager manager, ServerMusicLongformItem item) =>
       installationId == manager.installationId &&
-      installationRevision == manager.installationRevision &&
-      coreRevision == manager.coreRevision &&
-      managerRevision == manager.revision &&
       providerInstanceId == item.providerInstanceId &&
       mediaUri == item.uri &&
       mediaType == item.mediaType &&
       durationSeconds == item.durationSeconds;
+
+  bool matches(ServerMusicManager manager, ServerMusicLongformItem item) =>
+      sameMedia(manager, item) &&
+      installationRevision == manager.installationRevision &&
+      coreRevision == manager.coreRevision &&
+      managerRevision == manager.revision &&
+      title == item.name;
 }
 
 String _choice(Object? value, Set<String> allowed) {
