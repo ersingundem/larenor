@@ -82,6 +82,7 @@ Map<String, Object?> detailArchiveJson({
         ? <Object?>[]
         : [
             {
+              'candidateId': '1' * 64,
               'kind': 'duplicate',
               'source': 'jellyfin',
               'title': 'The Matrix duplicate',
@@ -102,6 +103,7 @@ Map<String, Object?> detailArchiveJson({
               'actionAvailable': false,
             },
             {
+              'candidateId': '2' * 64,
               'kind': 'duplicate',
               'source': 'jellyfin',
               'title': 'Home video lower-quality',
@@ -122,6 +124,7 @@ Map<String, Object?> detailArchiveJson({
               'actionAvailable': false,
             },
             {
+              'candidateId': '3' * 64,
               'kind': 'transcode',
               'source': 'jellyfin',
               'title': 'Home video',
@@ -142,6 +145,7 @@ Map<String, Object?> detailArchiveJson({
               'actionAvailable': false,
             },
             {
+              'candidateId': '4' * 64,
               'kind': 'retention',
               'source': 'qbittorrent',
               'title': 'The Matrix download',
