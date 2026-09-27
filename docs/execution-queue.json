@@ -4543,7 +4543,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Aile anıları ve fotoğraf araması",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4568,7 +4568,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Immich tabanlı aile anısı araması, albüm yetkisi, bütünlük/revision bağlı seçim, silme/reconcile ve doğrulanmış restore akışı geliştiriliyor."
+      "reason": "Uygulama 0bca44df ile tamamlandı: private Immich binding, albüm yetkisi, encrypted store, bütünlük/revision bağlı arama-seçim, edit/reconcile/delete ve fail-closed Core/Flutter akışı hazır; focused 23 server testi ve Flutter analyze geçti, tam CI/son kabul bekliyor."
     },
     {
       "id": "F39",
@@ -4767,7 +4767,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4792,7 +4792,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Havlama ve gürültü olaylarında gerçek kaynak/capability, güven-tazelik, bildirim/sessize alma ve exact authority akışı geliştiriliyor."
     },
     {
       "id": "G09",
