@@ -4035,7 +4035,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Birlikte senkron film izleme",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4059,7 +4059,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "İlk üretim dilimi, mevcut sürümlü Jellyfin playback hedeflerini kullanarak Core-owned izleme odası, açık lider yetkisi ve bounded katılımcı durumunu kuracak. Senkron komutlar yalnız güncel oda/katılımcı/target revision'larına bağlanacak; farklı alıcı yetenekleri veya ölçülmemiş fiziksel gecikme uyumlu sayılmayacak."
     },
     {
       "id": "F22",
