@@ -64,6 +64,45 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     }
   }
 
+  Future<void> updatePreference({
+    required ServerComponentReleasePreference preference,
+    required String mode,
+    required bool requireUpstreamSignature,
+    required bool Function() current,
+  }) async {
+    if (_disposed || busy || !authorized || !current()) return;
+    final epoch = _epoch;
+    bool valid() => !_disposed && epoch == _epoch && authorized && current();
+    busy = true;
+    failure = null;
+    _emit();
+    try {
+      final value = await account.withSession((api, session) async {
+        if (!valid()) throw const LarenorServerException('cancelled');
+        final updates = ServerComponentUpdatesApi(api, session.accessToken);
+        await updates.putPreference(
+          current: preference,
+          mode: mode,
+          requireUpstreamSignature: requireUpstreamSignature,
+        );
+        if (!valid()) throw const LarenorServerException('cancelled');
+        return updates.inventory();
+      });
+      if (valid()) inventory = value;
+    } catch (error) {
+      if (valid()) {
+        failure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _epoch) {
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
   void _emit() {
     if (!_disposed) notifyListeners();
   }

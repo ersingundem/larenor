@@ -120,6 +120,7 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
         component_updates = ComponentUpdateService(
             component_backup_boundary,
             app.state.core.context,
+            app.state.core.component_update_preferences,
         )
         app.include_router(
             build_component_update_router(component_updates),

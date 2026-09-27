@@ -38,6 +38,7 @@ PermissionKey = Annotated[
         pattern=r"^[a-z][a-z0-9_]*(?::[A-Za-z0-9._/:@=-]+)+$",
     ),
 ]
+ReleasePreferenceMode = Literal["stable_only", "manual_review", "disabled"]
 
 
 class ComponentUpdateError(ValueError):
@@ -171,6 +172,7 @@ class ComponentUpdatePolicy(FrozenModel):
     ] = Field(min_length=1, max_length=8)
     allowedPermissionAdditions: tuple[PermissionKey, ...] = Field(max_length=64)
     requireUpstreamSignature: StrictBool
+    releasePreference: ReleasePreferenceMode
 
     @model_validator(mode="after")
     def sorted_unique_policy(self):
@@ -184,6 +186,23 @@ class ComponentUpdatePolicy(FrozenModel):
         return self
 
 
+class ComponentReleasePreference(FrozenModel):
+    schemaVersion: Literal[1]
+    coreId: Identity
+    homeId: Identity
+    serviceId: ServiceId
+    revision: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    mode: ReleasePreferenceMode
+    requireUpstreamSignature: StrictBool
+
+
+class PutComponentReleasePreference(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Annotated[int, Field(ge=0, le=2**63 - 2)]
+    mode: ReleasePreferenceMode
+    requireUpstreamSignature: StrictBool
+
+
 UpdateBlocker = Literal[
     "same_release",
     "origin_changed",
@@ -193,6 +212,8 @@ UpdateBlocker = Literal[
     "upstream_signature_required",
     "permission_addition_not_allowed",
     "migration_snapshot_required",
+    "manual_approval_required",
+    "updates_disabled",
     "execution_worker_unavailable",
 ]
 
@@ -207,7 +228,7 @@ class ComponentUpdateReview(FrozenModel):
     target: ComponentReleaseIdentity
     permissions: ComponentPermissionChanges
     migration: ComponentMigrationPlan
-    blockers: tuple[UpdateBlocker, ...] = Field(min_length=1, max_length=9)
+    blockers: tuple[UpdateBlocker, ...] = Field(min_length=1, max_length=10)
     approvalRequired: StrictBool
     applyAvailable: Literal[False]
 
@@ -215,7 +236,7 @@ class ComponentUpdateReview(FrozenModel):
     def coherent_review(self):
         if tuple(sorted(set(self.blockers))) != self.blockers:
             raise ValueError("invalid_update_review")
-        if self.approvalRequired is not bool(self.permissions.added):
+        if self.permissions.added and not self.approvalRequired:
             raise ValueError("invalid_update_review")
         if "execution_worker_unavailable" not in self.blockers:
             raise ValueError("invalid_update_review")
@@ -228,11 +249,13 @@ class ComponentUpdateInventory(FrozenModel):
     homeId: Identity
     installed: tuple[InstalledComponentUpdateSource, ...] = Field(max_length=6)
     reviews: tuple[ComponentUpdateReview, ...] = Field(max_length=6)
+    preferences: tuple[ComponentReleasePreference, ...] = Field(max_length=6)
 
     @model_validator(mode="after")
     def coherent_inventory(self):
         installed_ids = tuple(item.installationId for item in self.installed)
         review_ids = tuple(item.installationId for item in self.reviews)
+        preference_services = tuple(item.serviceId for item in self.preferences)
         if (
             tuple(
                 sorted(
@@ -249,9 +272,15 @@ class ComponentUpdateInventory(FrozenModel):
             )
             != self.reviews
             or installed_ids != review_ids
+            or preference_services
+            != tuple(item.current.serviceId for item in self.installed)
             or any(
                 item.coreId != self.coreId or item.homeId != self.homeId
                 for item in self.reviews
+            )
+            or any(
+                item.coreId != self.coreId or item.homeId != self.homeId
+                for item in self.preferences
             )
         ):
             raise ValueError("invalid_update_inventory")
@@ -511,6 +540,14 @@ def build_update_review(
             blockers.add("permission_addition_not_allowed")
         if migration.rollbackSnapshotRequired:
             blockers.add("migration_snapshot_required")
+        manual_approval = (
+            policy.releasePreference == "manual_review"
+            and current.build.manifestDigest != target.build.manifestDigest
+        )
+        if manual_approval:
+            blockers.add("manual_approval_required")
+        if policy.releasePreference == "disabled":
+            blockers.add("updates_disabled")
 
         base = dict(
             schemaVersion=1,
@@ -523,7 +560,7 @@ def build_update_review(
             permissions=permissions,
             migration=migration,
             blockers=tuple(sorted(blockers)),
-            approvalRequired=bool(added),
+            approvalRequired=bool(added) or manual_approval,
             applyAvailable=False,
         )
         provisional = ComponentUpdateReview(**base)

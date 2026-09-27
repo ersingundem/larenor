@@ -43,6 +43,64 @@ List<String> _strings(Object? value, RegExp pattern, {int max = 64}) {
 }
 
 final _permission = RegExp(r'^[a-z][a-z0-9_]*(?::[A-Za-z0-9._/:@=-]+)+$');
+const serverComponentReleasePreferenceModes = {
+  'stable_only',
+  'manual_review',
+  'disabled',
+};
+
+final class ServerComponentReleasePreference {
+  const ServerComponentReleasePreference({
+    required this.coreId,
+    required this.homeId,
+    required this.serviceId,
+    required this.revision,
+    required this.mode,
+    required this.requireUpstreamSignature,
+  });
+
+  factory ServerComponentReleasePreference.fromJson(Object? raw) {
+    final json = _object(raw, {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'serviceId',
+      'revision',
+      'mode',
+      'requireUpstreamSignature',
+    });
+    final revision = json['revision'];
+    final mode = json['mode'];
+    if (json['schemaVersion'] != 1 ||
+        revision is! int ||
+        revision < 0 ||
+        revision > 0x7fffffffffffffff ||
+        mode is! String ||
+        !serverComponentReleasePreferenceModes.contains(mode) ||
+        json['requireUpstreamSignature'] is! bool) {
+      _invalid();
+    }
+    return ServerComponentReleasePreference(
+      coreId: _identity(json['coreId']),
+      homeId: _identity(json['homeId']),
+      serviceId: _string(
+        json['serviceId'],
+        RegExp(r'^[a-z][a-z0-9_]{0,63}$'),
+        max: 64,
+      ),
+      revision: revision,
+      mode: mode,
+      requireUpstreamSignature: json['requireUpstreamSignature'] as bool,
+    );
+  }
+
+  final String coreId;
+  final String homeId;
+  final String serviceId;
+  final int revision;
+  final String mode;
+  final bool requireUpstreamSignature;
+}
 
 final class ServerComponentSignature {
   const ServerComponentSignature({
@@ -335,7 +393,7 @@ final class ServerComponentUpdateReview {
       retainedPermissions: _strings(permissions['retained'], _permission),
       migrationRequired: migration['migrationRequired'] as bool,
       rollbackSnapshotRequired: migration['rollbackSnapshotRequired'] as bool,
-      blockers: _strings(json['blockers'], blockerPattern, max: 9),
+      blockers: _strings(json['blockers'], blockerPattern, max: 10),
       approvalRequired: json['approvalRequired'] as bool,
       applyAvailable: json['applyAvailable'] as bool,
     );
@@ -363,6 +421,7 @@ final class ServerComponentUpdateInventory {
     required this.homeId,
     required this.installed,
     required this.reviews,
+    required this.preferences,
   });
 
   factory ServerComponentUpdateInventory.fromJson(Object? raw) {
@@ -372,12 +431,15 @@ final class ServerComponentUpdateInventory {
       'homeId',
       'installed',
       'reviews',
+      'preferences',
     });
     if (json['schemaVersion'] != 1 ||
         json['installed'] is! List ||
         json['reviews'] is! List ||
+        json['preferences'] is! List ||
         (json['installed'] as List).length > 6 ||
-        (json['reviews'] as List).length > 6) {
+        (json['reviews'] as List).length > 6 ||
+        (json['preferences'] as List).length > 6) {
       _invalid();
     }
     final installed = (json['installed'] as List)
@@ -386,20 +448,31 @@ final class ServerComponentUpdateInventory {
     final reviews = (json['reviews'] as List)
         .map(ServerComponentUpdateReview.fromJson)
         .toList(growable: false);
+    final preferences = (json['preferences'] as List)
+        .map(ServerComponentReleasePreference.fromJson)
+        .toList(growable: false);
+    final coreId = _identity(json['coreId']);
+    final homeId = _identity(json['homeId']);
     if (installed.length != reviews.length ||
+        installed.length != preferences.length ||
         installed.asMap().entries.any(
           (entry) =>
-              entry.value.installationId != reviews[entry.key].installationId,
+              entry.value.installationId != reviews[entry.key].installationId ||
+              entry.value.release.serviceId !=
+                  preferences[entry.key].serviceId ||
+              preferences[entry.key].coreId != coreId ||
+              preferences[entry.key].homeId != homeId,
         ) ||
         installed.map((item) => item.installationId).toSet().length !=
             installed.length) {
       _invalid();
     }
     return ServerComponentUpdateInventory(
-      coreId: _identity(json['coreId']),
-      homeId: _identity(json['homeId']),
+      coreId: coreId,
+      homeId: homeId,
       installed: List.unmodifiable(installed),
       reviews: List.unmodifiable(reviews),
+      preferences: List.unmodifiable(preferences),
     );
   }
 
@@ -407,4 +480,5 @@ final class ServerComponentUpdateInventory {
   final String homeId;
   final List<ServerInstalledComponentUpdate> installed;
   final List<ServerComponentUpdateReview> reviews;
+  final List<ServerComponentReleasePreference> preferences;
 }

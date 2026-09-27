@@ -16,13 +16,14 @@ from .component_updates import (
 class ComponentUpdateService:
     """Join private worker receipts with the packaged target catalog."""
 
-    def __init__(self, boundary, context):
+    def __init__(self, boundary, context, preferences):
         if type(context) is not ContextResponse:
             raise ValueError("invalid_component_update_configuration")
         self._boundary = boundary
         self._context = context
+        self._preferences = preferences
 
-    def inventory(self):
+    def inventory(self, actor):
         try:
             reader = getattr(self._boundary, "update_sources", None)
             if not callable(reader):
@@ -42,8 +43,12 @@ class ComponentUpdateService:
             entries = {
                 item.manifest.serviceId: item for item in catalog.entries
             }
+            preferences = self._preferences.list(
+                actor,
+                (source.current.serviceId for source in sources),
+            )
             reviews = []
-            for source in sources:
+            for source, preference in zip(sources, preferences, strict=True):
                 entry = entries.get(source.current.serviceId)
                 if entry is None:
                     raise ValueError("missing_target")
@@ -54,7 +59,8 @@ class ComponentUpdateService:
                     allowedTargetManifestDigests=(entry.manifestDigest,),
                     allowedTargetVersions=(entry.manifest.version,),
                     allowedPermissionAdditions=(),
-                    requireUpstreamSignature=False,
+                    requireUpstreamSignature=preference.requireUpstreamSignature,
+                    releasePreference=preference.mode,
                 )
                 reviews.append(
                     build_update_review(
@@ -74,8 +80,12 @@ class ComponentUpdateService:
                 homeId=self._context.homeId,
                 installed=sources,
                 reviews=tuple(reviews),
+                preferences=preferences,
             )
         except ApiError:
             raise
         except Exception:
             raise ApiError("component_update_unavailable", 503) from None
+
+    def put_preference(self, actor, service_id, body):
+        return self._preferences.put(actor, service_id, body)
