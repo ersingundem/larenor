@@ -35,4 +35,28 @@ final class ServerComponentUpdatesApi {
       ),
     );
   }
+
+  Future<ServerComponentUpdateCommand> confirm({
+    required ServerInstalledComponentUpdate installed,
+    required ServerComponentUpdateReview review,
+    required ServerComponentReleasePreference preference,
+  }) async => ServerComponentUpdateCommand.fromJson(
+    await api.request(
+      'POST',
+      '/admin/component-updates/installations/'
+          '${installed.installationId}/confirm',
+      token: token,
+      body: {
+        'schemaVersion': 1,
+        'expectedSourceDigest': installed.sourceDigest,
+        'expectedReviewDigest': review.reviewDigest,
+        'expectedPreferenceRevision': preference.revision,
+        'approvePermissionAdditions': review.addedPermissions.isNotEmpty,
+        'approveManualReview': review.blockers.contains(
+          'manual_approval_required',
+        ),
+        'approveRollbackSnapshot': review.rollbackSnapshotRequired,
+      },
+    ),
+  );
 }

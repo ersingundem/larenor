@@ -18,6 +18,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
   bool busy = false;
   String? failure;
   ServerComponentUpdateInventory? inventory;
+  ServerComponentUpdateCommand? confirmation;
 
   bool get authorized =>
       account.isCurrent(_accountEpoch) &&
@@ -34,6 +35,7 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     busy = false;
     failure = null;
     inventory = null;
+    confirmation = null;
     _emit();
   }
 
@@ -89,6 +91,42 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
         return updates.inventory();
       });
       if (valid()) inventory = value;
+    } catch (error) {
+      if (valid()) {
+        failure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == _epoch) {
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> confirmUpdate({
+    required ServerInstalledComponentUpdate installed,
+    required ServerComponentUpdateReview review,
+    required ServerComponentReleasePreference preference,
+    required bool Function() current,
+  }) async {
+    if (_disposed || busy || !authorized || !current()) return;
+    final epoch = _epoch;
+    bool valid() => !_disposed && epoch == _epoch && authorized && current();
+    busy = true;
+    failure = null;
+    confirmation = null;
+    _emit();
+    try {
+      final result = await account.withSession((api, session) async {
+        if (!valid()) throw const LarenorServerException('cancelled');
+        return ServerComponentUpdatesApi(
+          api,
+          session.accessToken,
+        ).confirm(installed: installed, review: review, preference: preference);
+      });
+      if (valid()) confirmation = result;
     } catch (error) {
       if (valid()) {
         failure = error is LarenorServerException

@@ -4338,5 +4338,9 @@
   "serverComponentUpdatesDisabled": "Off",
   "serverComponentUpdatesRequireSignature": "Require upstream signature",
   "serverComponentUpdatesRequireSignatureHint": "Unsigned catalog releases stay blocked when this is on.",
-  "serverComponentUpdatesChanged": "The release preference changed elsewhere. Refresh and review it again."
+  "serverComponentUpdatesChanged": "The component update changed elsewhere. Refresh and review it again.",
+  "serverComponentUpdatesConfirmAction": "Review and confirm",
+  "serverComponentUpdatesConfirmTitle": "Confirm component update",
+  "serverComponentUpdatesConfirmMessage": "This records a five-minute confirmation for the exact source, review, permissions, and rollback requirements shown here.",
+  "serverComponentUpdatesConfirmationSaved": "The exact review confirmation was recorded for five minutes. The isolated worker must still revalidate it before any change."
 }

@@ -413,6 +413,99 @@ final class ServerComponentUpdateReview {
   final bool applyAvailable;
 
   bool get isCurrent => blockers.contains('same_release');
+
+  bool get canConfirm {
+    const permitted = {
+      'execution_worker_unavailable',
+      'migration_snapshot_required',
+      'manual_approval_required',
+    };
+    return current.manifestDigest != target.manifestDigest &&
+        blockers.every(permitted.contains);
+  }
+}
+
+final class ServerComponentUpdateCommand {
+  const ServerComponentUpdateCommand({
+    required this.updateId,
+    required this.installationId,
+    required this.serviceId,
+    required this.sourceDigest,
+    required this.reviewDigest,
+    required this.preferenceRevision,
+    required this.targetManifestDigest,
+    required this.rollbackSnapshotRequired,
+    required this.issuedAtMs,
+    required this.expiresAtMs,
+    required this.commandDigest,
+  });
+
+  factory ServerComponentUpdateCommand.fromJson(Object? raw) {
+    final json = _object(raw, {
+      'schemaVersion',
+      'updateId',
+      'coreId',
+      'homeId',
+      'installationId',
+      'serviceId',
+      'sourceDigest',
+      'reviewDigest',
+      'preferenceRevision',
+      'targetManifestDigest',
+      'rollbackSnapshotRequired',
+      'issuedAtMs',
+      'expiresAtMs',
+      'commandDigest',
+      'state',
+    });
+    final preferenceRevision = json['preferenceRevision'];
+    final issuedAtMs = json['issuedAtMs'];
+    final expiresAtMs = json['expiresAtMs'];
+    if (json['schemaVersion'] != 1 ||
+        json['state'] != 'confirmed' ||
+        preferenceRevision is! int ||
+        preferenceRevision < 0 ||
+        preferenceRevision > 0x7fffffffffffffff ||
+        issuedAtMs is! int ||
+        issuedAtMs < 0 ||
+        expiresAtMs is! int ||
+        expiresAtMs <= issuedAtMs ||
+        expiresAtMs - issuedAtMs > 5 * 60 * 1000 ||
+        json['rollbackSnapshotRequired'] is! bool) {
+      _invalid();
+    }
+    _identity(json['coreId']);
+    _identity(json['homeId']);
+    return ServerComponentUpdateCommand(
+      updateId: _identity(json['updateId']),
+      installationId: _identity(json['installationId']),
+      serviceId: _string(
+        json['serviceId'],
+        RegExp(r'^[a-z][a-z0-9_]{0,63}$'),
+        max: 64,
+      ),
+      sourceDigest: _digest(json['sourceDigest']),
+      reviewDigest: _digest(json['reviewDigest']),
+      preferenceRevision: preferenceRevision,
+      targetManifestDigest: _digest(json['targetManifestDigest']),
+      rollbackSnapshotRequired: json['rollbackSnapshotRequired'] as bool,
+      issuedAtMs: issuedAtMs,
+      expiresAtMs: expiresAtMs,
+      commandDigest: _digest(json['commandDigest']),
+    );
+  }
+
+  final String updateId;
+  final String installationId;
+  final String serviceId;
+  final String sourceDigest;
+  final String reviewDigest;
+  final int preferenceRevision;
+  final String targetManifestDigest;
+  final bool rollbackSnapshotRequired;
+  final int issuedAtMs;
+  final int expiresAtMs;
+  final String commandDigest;
 }
 
 final class ServerComponentUpdateInventory {

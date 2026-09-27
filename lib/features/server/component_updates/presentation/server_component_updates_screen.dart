@@ -193,7 +193,9 @@ final class _ServerComponentUpdatesScreenState
                             'component_update_worker_unavailable' ||
                             'component_update_unavailable' =>
                               l10n.serverComponentUpdatesWorkerUnavailable,
-                            'revision_conflict' =>
+                            'revision_conflict' ||
+                            'component_update_conflict' ||
+                            'component_update_already_confirmed' =>
                               l10n.serverComponentUpdatesChanged,
                             _ => l10n.serverFailureConnection,
                           }),
@@ -236,10 +238,17 @@ final class _ServerComponentUpdatesScreenState
     final status = review.isCurrent
         ? l10n.serverComponentUpdatesCurrent
         : l10n.serverComponentUpdatesBlocked;
+    final confirmed =
+        _updates.confirmation?.installationId == installed.installationId &&
+        _updates.confirmation?.reviewDigest == review.reviewDigest;
     return SettingsSection(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       header: Text('${_serviceName(release.serviceId)} ${release.version}'),
-      footer: Text(l10n.serverComponentUpdatesApplyUnavailable),
+      footer: Text(
+        confirmed
+            ? l10n.serverComponentUpdatesConfirmationSaved
+            : l10n.serverComponentUpdatesApplyUnavailable,
+      ),
       children: [
         _preferenceControl(l10n, preference),
         _signatureControl(l10n, preference),
@@ -268,7 +277,59 @@ final class _ServerComponentUpdatesScreenState
         ),
         _valueRow('Manifest SHA-256', _short(release.manifestDigest)),
         _valueRow('Image SHA-256', _short(release.imageDigest)),
+        if (review.canConfirm && preference.mode != 'disabled')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: CupertinoButton.filled(
+              key: ValueKey(
+                'server-component-update-confirm-${installed.installationId}',
+              ),
+              onPressed: _updates.busy || confirmed
+                  ? null
+                  : () => unawaited(
+                      _confirmUpdate(l10n, installed, review, preference),
+                    ),
+              child: Text(l10n.serverComponentUpdatesConfirmAction),
+            ),
+          ),
       ],
+    );
+  }
+
+  Future<void> _confirmUpdate(
+    AppLocalizations l10n,
+    ServerInstalledComponentUpdate installed,
+    ServerComponentUpdateReview review,
+    ServerComponentReleasePreference preference,
+  ) async {
+    if (!_active || _updates.busy || !review.canConfirm) return;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(l10n.serverComponentUpdatesConfirmTitle),
+        content: Text(
+          '${l10n.serverComponentUpdatesConfirmMessage}\n\n'
+          '${_serviceName(review.target.serviceId)} ${review.target.version}',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.serverComponentUpdatesConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !_active) return;
+    await _updates.confirmUpdate(
+      installed: installed,
+      review: review,
+      preference: preference,
+      current: _capture(),
     );
   }
 
