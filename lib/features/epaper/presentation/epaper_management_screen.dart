@@ -48,6 +48,24 @@ final class _EpaperStrings {
   String get notStored => tr ? 'Kayıtlı değil' : 'Not stored';
   String get reachable => tr ? 'Erişilebilir' : 'Reachable';
   String get unreachable => tr ? 'Erişilemiyor' : 'Unreachable';
+  String get capabilityUnknown =>
+      tr ? 'Köprü kabiliyeti doğrulanmadı' : 'Bridge capability unverified';
+  String battery(int value) => tr ? 'Pil %$value' : 'Battery $value%';
+  String lastSeen(DateTime value) {
+    final local = value.toLocal();
+    final stamp =
+        '${local.day.toString().padLeft(2, '0')}.'
+        '${local.month.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    return tr ? 'Son temas $stamp' : 'Last seen $stamp';
+  }
+
+  String capability(EpaperDeviceStatus device) =>
+      '${device.width}×${device.height} · ${device.supportedColors.join('/')}';
+  String get offlineRetention => tr
+      ? 'Bağlantı kesilirse cihaz son görüntüyü koruyabilir; uzaktan silme doğrulanamaz.'
+      : 'When offline, the display may retain its last image; remote erasure cannot be verified.';
   String trust(EpaperSnapshotTrust value) => switch (value) {
     EpaperSnapshotTrust.empty => tr ? 'Görüntü yok' : 'No snapshot',
     EpaperSnapshotTrust.pending => tr ? 'Bekliyor' : 'Pending',
@@ -367,11 +385,38 @@ class _DeviceSection extends StatelessWidget {
                   icon: CupertinoIcons.clock,
                   label: strings.trust(device.snapshotTrust),
                 ),
+                if (device.capabilityVerified &&
+                    device.width > 0 &&
+                    device.height > 0)
+                  _Evidence(
+                    icon: CupertinoIcons.rectangle_expand_vertical,
+                    label: strings.capability(device),
+                  )
+                else
+                  _Evidence(
+                    icon: CupertinoIcons.question_circle,
+                    label: strings.capabilityUnknown,
+                  ),
+                if (device.batteryPercent case final battery?)
+                  _Evidence(
+                    icon: CupertinoIcons.battery_25,
+                    label: strings.battery(battery),
+                  ),
+                if (device.lastSeenAt case final lastSeen?)
+                  _Evidence(
+                    icon: CupertinoIcons.clock,
+                    label: strings.lastSeen(lastSeen),
+                  ),
               ],
             ),
           ),
         ),
       ),
+      if (!device.reachable && device.retainsLastImageOffline)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          child: Text(strings.offlineRetention),
+        ),
       _EpaperPreview(device: device, strings: strings),
       SettingsActionTile(
         buttonKey: ValueKey('epaper-refresh-${device.deviceId}'),

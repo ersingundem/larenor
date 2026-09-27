@@ -88,6 +88,14 @@ void main() {
     'policyRevision': '5',
     'stored': true,
     'reachable': true,
+    'connectivity': 'online',
+    'capabilityVerified': true,
+    'batteryPercent': 70,
+    'lastSeenAtMs': DateTime.utc(2029).millisecondsSinceEpoch,
+    'width': 800,
+    'height': 480,
+    'supportedColors': ['black', 'white', 'red'],
+    'retainsLastImageOffline': true,
     'snapshotTrust': trust,
     'snapshotDigest': '1' * 64,
     'verifiedDigest': null,
@@ -157,7 +165,11 @@ void main() {
             LarenorServerApi(endpoint: value, client: client),
       );
       addTearDown(api.close);
-      expect((await api.list(api.authority)).single.deviceId, deviceId);
+      final loaded = (await api.list(api.authority)).single;
+      expect(loaded.deviceId, deviceId);
+      expect(loaded.capabilityVerified, isTrue);
+      expect(loaded.batteryPercent, 70);
+      expect(loaded.supportedColors, ['black', 'white', 'red']);
       final preview = await api.preview(
         api.authority,
         deviceId: deviceId,

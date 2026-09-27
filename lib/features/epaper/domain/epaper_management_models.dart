@@ -105,6 +105,14 @@ final class EpaperDeviceStatus {
     required this.snapshotDigest,
     required this.verifiedDigest,
     required this.expiresAt,
+    this.connectivity = 'unknown',
+    this.capabilityVerified = false,
+    this.batteryPercent,
+    this.lastSeenAt,
+    this.width = 0,
+    this.height = 0,
+    this.supportedColors = const <String>[],
+    this.retainsLastImageOffline = true,
   });
 
   final EpaperClientAuthority authority;
@@ -121,6 +129,12 @@ final class EpaperDeviceStatus {
   final String? snapshotDigest;
   final String? verifiedDigest;
   final DateTime expiresAt;
+  final String connectivity;
+  final bool capabilityVerified, retainsLastImageOffline;
+  final int? batteryPercent;
+  final int width, height;
+  final DateTime? lastSeenAt;
+  final List<String> supportedColors;
 
   factory EpaperDeviceStatus.fromJson(Map<String, dynamic> json) =>
       EpaperDeviceStatus(
@@ -136,6 +150,22 @@ final class EpaperDeviceStatus {
         policyRevision: json['policyRevision'] as String,
         stored: json['stored'] as bool,
         reachable: json['reachable'] as bool,
+        connectivity: json['connectivity'] as String? ?? 'unknown',
+        capabilityVerified: json['capabilityVerified'] as bool? ?? false,
+        batteryPercent: json['batteryPercent'] as int?,
+        lastSeenAt: json['lastSeenAtMs'] is int
+            ? DateTime.fromMillisecondsSinceEpoch(
+                json['lastSeenAtMs'] as int,
+                isUtc: true,
+              )
+            : null,
+        width: json['width'] as int? ?? 0,
+        height: json['height'] as int? ?? 0,
+        supportedColors: List<String>.unmodifiable(
+          (json['supportedColors'] as List? ?? const <Object>[]).cast<String>(),
+        ),
+        retainsLastImageOffline:
+            json['retainsLastImageOffline'] as bool? ?? true,
         snapshotTrust: EpaperSnapshotTrust.values.byName(
           json['snapshotTrust'] as String,
         ),
@@ -163,6 +193,14 @@ final class EpaperDeviceStatus {
     policyRevision: policyRevision,
     stored: stored,
     reachable: reachable,
+    connectivity: connectivity,
+    capabilityVerified: capabilityVerified,
+    batteryPercent: batteryPercent,
+    lastSeenAt: lastSeenAt,
+    width: width,
+    height: height,
+    supportedColors: supportedColors,
+    retainsLastImageOffline: retainsLastImageOffline,
     snapshotTrust: snapshotTrust ?? this.snapshotTrust,
     snapshotDigest: snapshotDigest ?? this.snapshotDigest,
     verifiedDigest: verifiedDigest ?? this.verifiedDigest,
@@ -178,6 +216,18 @@ final class EpaperDeviceStatus {
         layoutRevision.isEmpty ||
         dataRevision.isEmpty ||
         policyRevision.isEmpty) {
+      return false;
+    }
+    if (!const {'online', 'offline', 'unknown'}.contains(connectivity) ||
+        (batteryPercent != null &&
+            (batteryPercent! < 0 || batteryPercent! > 100)) ||
+        (lastSeenAt != null && lastSeenAt!.isAfter(now)) ||
+        width < 0 ||
+        width > 2048 ||
+        height < 0 ||
+        height > 2048 ||
+        supportedColors.length > 4 ||
+        supportedColors.toSet().length != supportedColors.length) {
       return false;
     }
     final digest = RegExp(r'^[a-f0-9]{64}$');

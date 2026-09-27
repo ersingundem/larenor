@@ -107,6 +107,12 @@ def test_persistent_mapping_authenticated_management_and_bounded_poll(server):
     assert mapped.status_code == 200
     assert mapped.json()["snapshotTrust"] == "pending"
     assert mapped.json()["reachable"] is True
+    assert mapped.json()["capabilityVerified"] is True
+    assert mapped.json()["batteryPercent"] == 82
+    assert mapped.json()["width"] == 800
+    assert mapped.json()["height"] == 480
+    assert mapped.json()["supportedColors"] == ["black", "white", "red"]
+    assert mapped.json()["retainsLastImageOffline"] is True
 
     listed = client.post(
         f"/api/v1/epaper/{context.coreId}/{context.homeId}/devices",
