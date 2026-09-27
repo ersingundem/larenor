@@ -5094,7 +5094,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5118,7 +5118,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "3D yazıcı ve atölye merkezinde gerçek OctoPrint capability, iş/ısı/durum izleme ve güvenli pause/cancel akışı geliştiriliyor."
+      "reason": "Gerçek OctoPrint/Moonraker provider capability, tek seferlik pause/cancel dispatch, exact iş durumu readback ve kayıp ACK sonrası no-replay sonucu uygulandı; server 16 focused test, Flutter 15/15, analyze, provider dispatch/replay smoke ve compile geçti. Fiziksel yazıcı kabulü ile tam CI bekliyor."
     },
     {
       "id": "F60",
