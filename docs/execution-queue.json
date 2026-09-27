@@ -2837,7 +2837,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Cihaz bilgisi ve kontrollü uzaktan görünüm",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "K07"
       ],
@@ -2857,7 +2857,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sınırlı read-only cihaz ölçümü ve açık kullanıcı onaylı uygulama görünümü/MediaProjection ayrımı tek dalda uygulanıyor; hassas ekran ve onay sonlandırma sınırları kodlanacak."
+      "reason": "Sınırlı Android cihaz ölçümü eşleştirilmiş MQTT telemetrisiyle yayımlanıyor. Yerel kullanıcı onaylı uygulama görünümü yalnız hassas olmayan cihaz bilgisi RepaintBoundary yüzeyini, saniyede en fazla bir kalıcı olmayan ve boyutu sınırlı PNG kare olarak güncel eşleştirmeye gönderiyor; route, uygulama yaşam döngüsü veya eşleştirme yetkisi değişince yayın fail-closed duruyor. PIN, kimlik bilgisi, iletişim kutusu ve gizli ekranlar yakalama yüzeyinin dışında; tam cihaz MediaProjection ayrı ve desteklenmeyen bir yetenek olarak açıkça gösteriliyor. Gerçek broker/tablet ve son test/CI kanıtı bekliyor."
     },
     {
       "id": "K10",

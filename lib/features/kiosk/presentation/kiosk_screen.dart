@@ -11,6 +11,7 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import 'kiosk_hid_scan_screen.dart';
+import 'kiosk_controlled_view_screen.dart';
 import '../domain/kiosk_models.dart';
 import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
@@ -323,6 +324,26 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                   ),
                   SettingsSection(
                     children: [
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('kiosk-controlled-view-open'),
+                        leading: const Icon(
+                          CupertinoIcons.rectangle_on_rectangle,
+                        ),
+                        title: Text(l.kioskControlledViewTitle),
+                        additionalInfo: Text(l.kioskControlledViewEntryHint),
+                        onTap: _current(sessionGeneration)
+                            ? () {
+                                final generation = sessionGeneration;
+                                if (!_current(generation)) return;
+                                Navigator.of(context).push(
+                                  CupertinoPageRoute<void>(
+                                    builder: (_) =>
+                                        const KioskControlledViewScreen(),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
                       SettingsActionTile(
                         buttonKey: const ValueKey('kiosk-sensors-open'),
                         leading: const Icon(CupertinoIcons.waveform_path),
