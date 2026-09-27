@@ -2557,7 +2557,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "İsteğe bağlı yaklaşma ve kişisel kamera görünümü",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B5"
       ],
@@ -2576,7 +2576,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kimliksiz opt-in yaklaşma/ambient uyandırma, açık kullanıcı işlemiyle çalışan yalnız foreground ön kamera görünümü ve GMS indirmesi gerektirmeyen paketli yüz algılayıcısının sürüm/lisans/donanım yetenek görünümü tamamlandı; cihaz içi yüz profili kayıt/silme, kimlik eşleştirme, performans değerlendirmesi ve yanlış/belirsiz eşleşmede fail-closed kişisel görünüm önerisi henüz açık."
+      "reason": "Kimliksiz opt-in yaklaşma/ambient uyandırma, yalnız foreground ön kamera, GMS indirmesi gerektirmeyen paketli yüz algılayıcı yetenek görünümü, Keystore korumalı yerel profil kayıt/doğrulanmış silme ve yanlış/düşük güvenli/birden çok yüzde genel görünüme fail-closed düşen kişiselleştirme eşleştirmesi tamamlandı; testler, bağımsız inceleme, exact-head CI ve gerçek cihazda izin/kamera meşgul/termal/batarya/performans kabulü son doğrulama kapısında bekliyor."
     },
     {
       "id": "KIOSK",
