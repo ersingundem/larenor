@@ -3148,7 +3148,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Doğrulanabilir bileşen güncellemeleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3172,7 +3172,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut Client APK ve Core release zincirinin köken, imza, digest, sürüm politikası, iptal/geç cevap ve veritabanı geçişi geri dönüş boşlukları tek dalda kapatılıyor."
+      "reason": "Doğrulanmış köken/imza/digest/sürüm ve izin politikası; kalıcı onay/iş/işçi sözleşmesi; Client inceleme ve iptal akışı; şema değişiklikleri için kalıcı rollback arşivi, çökme uzlaştırması ve güvenli konteyner kapanışı tamamlandı. Testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı; bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
     },
     {
       "id": "F20",
