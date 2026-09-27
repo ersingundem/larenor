@@ -7,12 +7,13 @@ const accountId = '33333333333333333333333333333333';
 const sessionId = '44444444444444444444444444444444';
 
 Map<String, dynamic> authority({int revision = 7}) => {
-  'schemaVersion': 1,
+  'schemaVersion': 2,
   'coreId': coreId,
   'homeId': homeId,
   'accountId': accountId,
   'sessionId': sessionId,
   'membersRevision': revision,
+  'canManage': false,
 };
 
 void main() {
@@ -48,12 +49,19 @@ void main() {
 
   test('task parser rejects extra fields and malformed identities', () {
     final value = {
+      'schemaVersion': 2,
       'id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       'title': 'Water plants',
       'revision': 2,
       'assigneeId': accountId,
       'assigneeLabel': 'Ada',
       'dueAt': 1788609600.0,
+      'timezone': 'UTC',
+      'intervalDays': 1,
+      'memberOrder': [
+        {'schemaVersion': 1, 'id': accountId, 'label': 'Ada'},
+      ],
+      'permissions': {'complete': true, 'defer': true, 'skip': true},
     };
     final task = FairChoreTask.fromJson(value);
     expect(task.assigneeLabel, 'Ada');
