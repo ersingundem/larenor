@@ -33,7 +33,7 @@ from .models import (
     BackupResource,
     ComponentBackup,
 )
-from .drill_service import RecoveryDrillManagement
+from .drill_service import RecoveryDrillAuthority, RecoveryDrillManagement
 
 _ACTIVE = (
     ("bounded_transfer_receipts", "state='accepted'", "active_bounded_transfer"),
@@ -390,7 +390,14 @@ class CoreBackupContract:
         self._component_boundary = component_boundary or _NoComponents()
         self._monotonic = monotonic
         self._export_lock = threading.Lock()
-        self.drills = RecoveryDrillManagement(db, auth, settings)
+        from .drill_runner import IsolatedRecoveryDrillRunner
+
+        self.drills = RecoveryDrillManagement(
+            db,
+            auth,
+            settings,
+            IsolatedRecoveryDrillRunner(self),
+        )
         self.drills.validate_storage()
 
     @staticmethod
@@ -581,10 +588,10 @@ class CoreBackupContract:
         except sqlite3.Error:
             raise ApiError("server_unavailable", 503) from None
 
-    def capture(self, actor: Principal) -> BackupCapture:
+    def _capture(self, authorize) -> BackupCapture:
         with self.db.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self.auth.assert_current(connection, actor)
+            authorize(connection)
             blockers = self._blockers(connection, self.settings.clock())
             if blockers:
                 connection.rollback()
@@ -692,6 +699,33 @@ class CoreBackupContract:
             resources=resources,
         )
         return BackupCapture(manifest=manifest, payloads=payloads)
+
+    def capture(self, actor: Principal) -> BackupCapture:
+        return self._capture(lambda connection: self.auth.assert_current(connection, actor))
+
+    def capture_for_drill(self, authority: RecoveryDrillAuthority) -> BackupCapture:
+        if type(authority) is not RecoveryDrillAuthority:
+            raise ApiError("forbidden", 403)
+
+        def authorize(connection):
+            row = connection.execute(
+                "SELECT u.revision,u.role,u.disabled,u.must_change_password,"
+                "f.revoked_at,f.expires_at FROM users u JOIN session_families f "
+                "ON f.user_id=u.id WHERE u.id=? AND f.id=?",
+                (authority.actor_id, authority.family_id),
+            ).fetchone()
+            if (
+                row is None
+                or row["revision"] != authority.actor_revision
+                or row["role"] != "admin"
+                or row["disabled"]
+                or row["must_change_password"]
+                or row["revoked_at"] is not None
+                or row["expires_at"] <= self.settings.clock()
+            ):
+                raise ApiError("forbidden", 403)
+
+        return self._capture(authorize)
 
     def plan(self, actor: Principal):
         if not self._export_lock.acquire(blocking=False):
