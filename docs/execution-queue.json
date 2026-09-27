@@ -3901,7 +3901,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Birden fazla ev, bağımsız Core",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3928,7 +3928,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek Core/ev Server sınırı korunarak Client tarafında sürümlü çoklu ev kasası, güvenli aktif profil değişimi, tam runtime remount, ev kapsamlı cache/search yalıtımı, restore kimlik çakışması ve ayrı çift yetkili evler arası hareket dilimleri uygulanıyor."
+      "reason": "Sürümlü ve 16 profille sınırlı Secure Storage çoklu ev kasası, legacy oturum geçişi, gecikmiş callbackleri emekli eden güvenli Core değişimi, kimliğe göre tam ProviderScope remount, Core/ev/hesap kapsamlı medya önbellekleri, pasif güncel runtime araması, kaynak kimliğini koruyan v3 replacement restore ve mevcut profili atomik yeniden bağlama, iki Core oturumunu ayrı ayrı doğrulayan evler arası yetki kapısı ve etkin Core başına F17 kurtarma hedefi bağlantısı f49d783c, 7a1c3485, 68894e05, ef26d9bb, 61b648ad, bbc49a36 ve 01bee407 ile uygulandı. Python compile, l10n üretimi ve odaklı Flutter analyze temiz; özellik testleri, bağımsız inceleme, iki izole gerçek Core E2E ve exact-head CI final toplu doğrulama evresinde açık."
     },
     {
       "id": "G06",
