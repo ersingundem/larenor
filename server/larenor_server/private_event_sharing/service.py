@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import sqlite3
@@ -21,6 +22,7 @@ MAX_COMMAND_BYTES = 32_768
 MAX_SHARES = 256
 MAX_EVENTS = 1_024
 MAX_EXPORT = 256
+MAX_MEDIA_BYTES = 64 * 1024 * 1024
 MAX_ACCESS_SECONDS = 7 * 24 * 60 * 60
 MASK_TYPES = {"face", "license_plate"}
 METADATA_TYPES = {"device_serial", "gps", "camera_name", "network_address"}
@@ -33,10 +35,42 @@ def _canonical(value: object) -> bytes:
     ).encode()
 
 
-def transformation_proof(key: bytes, value: dict) -> str:
+def _transformation_authority(authority: "EventShareAuthority") -> dict:
+    return {
+        "coreId": authority.core_id,
+        "homeId": authority.home_id,
+        "accountId": authority.account_id,
+        "sessionId": authority.session_id,
+        "coreRevision": authority.core_revision,
+        "homeRevision": authority.home_revision,
+        "accountRevision": authority.account_revision,
+        "membersRevision": authority.members_revision,
+        "cameraId": authority.camera_id,
+        "cameraRevision": authority.camera_revision,
+        "eventId": authority.event_id,
+        "eventRevision": authority.event_revision,
+        "sessionRevision": authority.session_revision,
+        "shareRevision": authority.share_revision,
+    }
+
+
+def transformation_proof(
+    key: bytes,
+    value: dict,
+    *,
+    authority: "EventShareAuthority | None" = None,
+) -> str:
     if not isinstance(key, bytes) or len(key) != 32 or not isinstance(value, dict):
         raise ValueError("invalid_transformation_proof_input")
-    payload = {name: item for name, item in value.items() if name != "proof"}
+    transformation = {name: item for name, item in value.items() if name != "proof"}
+    payload: object = transformation
+    if authority is not None:
+        if not isinstance(authority, EventShareAuthority):
+            raise ValueError("invalid_transformation_proof_input")
+        payload = {
+            "authority": _transformation_authority(authority),
+            "transformation": transformation,
+        }
     return hmac.new(
         key,
         b"larenor-private-event-transform-v1\0" + _canonical(payload),
@@ -61,6 +95,20 @@ def _digest(value: object) -> bool:
         isinstance(value, str)
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _safe_text(value: object, maximum: int) -> bool:
+    return (
+        isinstance(value, str)
+        and value == value.strip()
+        and 1 <= len(value) <= maximum
+        and not any(
+            ord(character) < 32
+            or ord(character) == 127
+            or 0xD800 <= ord(character) <= 0xDFFF
+            for character in value
+        )
     )
 
 
@@ -124,7 +172,16 @@ class EventShareConsent:
     revision: int
     granted_by: str
     recipient_id: str
+    core_id: str
+    home_id: str
+    camera_id: str
     event_id: str
+    core_revision: int
+    home_revision: int
+    account_revision: int
+    members_revision: int
+    camera_revision: int
+    event_revision: int
     purpose: str
     accepted_at: float
     expires_at: float
@@ -140,14 +197,29 @@ class EventShareConsent:
                     self.id,
                     self.granted_by,
                     self.recipient_id,
+                    self.core_id,
+                    self.home_id,
+                    self.camera_id,
                     self.event_id,
                 )
             )
-            or not _revision(self.revision)
-            or not isinstance(self.purpose, str)
-            or not 1 <= len(self.purpose) <= 200
+            or any(
+                not _revision(item)
+                for item in (
+                    self.revision,
+                    self.core_revision,
+                    self.home_revision,
+                    self.account_revision,
+                    self.members_revision,
+                    self.camera_revision,
+                    self.event_revision,
+                )
+            )
+            or not _safe_text(self.purpose, 200)
             or type(self.accepted_at) not in (int, float)
             or type(self.expires_at) not in (int, float)
+            or not math.isfinite(self.accepted_at)
+            or not math.isfinite(self.expires_at)
             or self.accepted_at >= self.expires_at
             or self.access_mode not in ACCESS_MODES
             or not isinstance(self.required_masks, tuple)
@@ -189,6 +261,59 @@ class EventShareReceipt:
     access_token: str
 
 
+@dataclass(frozen=True)
+class EventShareDownload:
+    share_id: str
+    artifact_id: str
+    digest: str
+    expires_at: float
+    content: bytes
+
+
+def prepare_transformation(
+    key: bytes,
+    *,
+    authority: EventShareAuthority,
+    source: bytes,
+    output: bytes,
+    output_artifact_id: str,
+    pipeline_id: str,
+    pipeline_revision: int,
+    masks: tuple[str, ...],
+    removed_metadata: tuple[str, ...],
+) -> dict:
+    """Bind real input/output bytes to a redaction preview without retaining source."""
+    if (
+        not isinstance(authority, EventShareAuthority)
+        or not isinstance(source, bytes)
+        or not isinstance(output, bytes)
+        or not 1 <= len(source) <= MAX_MEDIA_BYTES
+        or not 1 <= len(output) <= MAX_MEDIA_BYTES
+        or source == output
+        or not _identifier(output_artifact_id)
+        or not _identifier(pipeline_id)
+        or not _revision(pipeline_revision)
+        or not isinstance(masks, tuple)
+        or not isinstance(removed_metadata, tuple)
+        or len(set(masks)) != len(masks)
+        or len(set(removed_metadata)) != len(removed_metadata)
+        or not set(masks).issubset(MASK_TYPES)
+        or not set(removed_metadata).issubset(METADATA_TYPES)
+    ):
+        raise ValueError("invalid_transformation_preview")
+    value = {
+        "sourceDigest": hashlib.sha256(source).hexdigest(),
+        "outputDigest": hashlib.sha256(output).hexdigest(),
+        "outputArtifactId": output_artifact_id,
+        "pipelineId": pipeline_id,
+        "pipelineRevision": pipeline_revision,
+        "masks": sorted(masks),
+        "removedMetadata": sorted(removed_metadata),
+    }
+    value["proof"] = transformation_proof(key, value, authority=authority)
+    return value
+
+
 class PrivateEventShareStore:
     def __init__(
         self,
@@ -213,6 +338,9 @@ class PrivateEventShareStore:
         self._audit_key = audit_key
         self._transformation_key = transformation_key
         self._clock = clock
+
+    def prepare_transformation(self, **values) -> dict:
+        return prepare_transformation(self._transformation_key, **values)
 
     def _fingerprint(self, domain: bytes, value: bytes) -> str:
         return hmac.new(
@@ -543,15 +671,43 @@ class PrivateEventShareStore:
             "consentRevision": consent.revision,
             "recipientId": consent.recipient_id,
             "purpose": consent.purpose,
-            "expiresAt": consent.expires_at,
             "accessMode": consent.access_mode,
         }
+        requested_expiry = value["expiresAt"]
         if (
             consent.granted_by != actor.id
-            or consent.event_id != authority.event_id
+            or (
+                consent.core_id,
+                consent.home_id,
+                consent.camera_id,
+                consent.event_id,
+                consent.core_revision,
+                consent.home_revision,
+                consent.account_revision,
+                consent.members_revision,
+                consent.camera_revision,
+                consent.event_revision,
+            )
+            != (
+                authority.core_id,
+                authority.home_id,
+                authority.camera_id,
+                authority.event_id,
+                authority.core_revision,
+                authority.home_revision,
+                authority.account_revision,
+                authority.members_revision,
+                authority.camera_revision,
+                authority.event_revision,
+            )
             or consent.accepted_at > now
             or consent.expires_at <= now
             or consent.expires_at - now > MAX_ACCESS_SECONDS
+            or type(requested_expiry) not in (int, float)
+            or not math.isfinite(requested_expiry)
+            or requested_expiry <= now
+            or requested_expiry > consent.expires_at
+            or requested_expiry - now > MAX_ACCESS_SECONDS
             or any(
                 value.get(key) != expected for key, expected in consent_expected.items()
             )
@@ -593,7 +749,12 @@ class PrivateEventShareStore:
             or not set(consent.required_metadata).issubset(metadata)
             or not isinstance(proof, str)
             or not hmac.compare_digest(
-                proof, transformation_proof(self._transformation_key, transformation)
+                proof,
+                transformation_proof(
+                    self._transformation_key,
+                    transformation,
+                    authority=authority,
+                ),
             )
         ):
             raise ApiError("transformation_unverified", 409)
@@ -633,7 +794,7 @@ class PrivateEventShareStore:
                 "recipient_id": consent.recipient_id,
                 "purpose": consent.purpose,
                 "access_mode": consent.access_mode,
-                "expires_at": consent.expires_at,
+                "expires_at": requested_expiry,
                 "source_digest": transformation["sourceDigest"],
                 "output_artifact_id": transformation["outputArtifactId"],
                 "output_digest": transformation["outputDigest"],
@@ -699,6 +860,8 @@ class PrivateEventShareStore:
             raise ApiError("share_unavailable", 404)
         token_hash = self._fingerprint(b"token", access_token.encode())
         timestamp = self._clock() if now is None else now
+        if type(timestamp) not in (int, float) or not math.isfinite(timestamp):
+            raise ApiError("share_unavailable", 404)
         with self.database.transaction() as connection:
             row = connection.execute(
                 "SELECT * FROM private_event_shares WHERE token_hash=?", (token_hash,)
@@ -713,7 +876,6 @@ class PrivateEventShareStore:
                 or share.recipient_id != recipient_id
                 or share.revoked_at is not None
                 or share.expires_at <= timestamp
-                or (share.access_mode == "one_time" and share.consumed_at is not None)
             ):
                 raise ApiError("share_unavailable", 404)
             request_hash = self._fingerprint(
@@ -724,9 +886,14 @@ class PrivateEventShareStore:
                 if (
                     replay["action"] != "redeemed"
                     or replay["recipient_id"] != recipient_id
+                    or not hmac.compare_digest(
+                        replay["request_hash"], request_hash
+                    )
                 ):
                     raise ApiError("share_unavailable", 404)
             else:
+                if share.access_mode == "one_time" and share.consumed_at is not None:
+                    raise ApiError("share_unavailable", 404)
                 state = self._state(connection, scope)
                 if state is None or state["event_count"] >= MAX_EVENTS:
                     raise ApiError("share_unavailable", 404)
@@ -749,6 +916,90 @@ class PrivateEventShareStore:
                 "outputDigest": share.output_digest,
                 "expiresAt": share.expires_at,
             }
+
+    def redeem_download(
+        self,
+        *,
+        recipient_id: str,
+        access_token: str,
+        access_id: str,
+        artifact_reader: Callable[[str, int], bytes],
+        now: float | None = None,
+        max_bytes: int = MAX_MEDIA_BYTES,
+    ) -> EventShareDownload:
+        if (
+            not callable(artifact_reader)
+            or type(max_bytes) is not int
+            or not 1 <= max_bytes <= MAX_MEDIA_BYTES
+            or not _identifier(recipient_id)
+            or not _identifier(access_id)
+            or not isinstance(access_token, str)
+        ):
+            raise ApiError("share_unavailable", 404)
+        timestamp = self._clock() if now is None else now
+        if type(timestamp) not in (int, float) or not math.isfinite(timestamp):
+            raise ApiError("share_unavailable", 404)
+        token_hash = self._fingerprint(b"token", access_token.encode())
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM private_event_shares WHERE token_hash=?", (token_hash,)
+            ).fetchone()
+            if row is None:
+                raise ApiError("share_unavailable", 404)
+            scope = row["core_id"], row["home_id"], row["camera_id"], row["event_id"]
+            _, shares = self._verified(connection, scope)
+            share, token = shares[row["id"]]
+            request_hash = self._fingerprint(
+                b"access", _canonical([recipient_id, access_id, row["id"]])
+            )
+            replay = self._find_event(connection, scope, access_id)
+            if (
+                not hmac.compare_digest(token, access_token)
+                or share.recipient_id != recipient_id
+                or share.revoked_at is not None
+                or share.expires_at <= timestamp
+                or (
+                    replay is not None
+                    and (
+                        replay["action"] != "redeemed"
+                        or replay["recipient_id"] != recipient_id
+                        or not hmac.compare_digest(
+                            replay["request_hash"], request_hash
+                        )
+                    )
+                )
+                or (
+                    replay is None
+                    and share.access_mode == "one_time"
+                    and share.consumed_at is not None
+                )
+            ):
+                raise ApiError("share_unavailable", 404)
+        try:
+            content = artifact_reader(share.output_artifact_id, max_bytes)
+        except Exception:
+            raise ApiError("share_unavailable", 404) from None
+        if (
+            not isinstance(content, bytes)
+            or not 1 <= len(content) <= max_bytes
+            or not hmac.compare_digest(
+                hashlib.sha256(content).hexdigest(), share.output_digest
+            )
+        ):
+            raise ApiError("share_unavailable", 404)
+        grant = self.redeem(
+            recipient_id=recipient_id,
+            access_token=access_token,
+            access_id=access_id,
+            now=timestamp,
+        )
+        return EventShareDownload(
+            share_id=grant["shareId"],
+            artifact_id=grant["outputArtifactId"],
+            digest=grant["outputDigest"],
+            expires_at=grant["expiresAt"],
+            content=content,
+        )
 
     def revoke(
         self,
@@ -888,3 +1139,57 @@ class PrivateEventShareStore:
                 }
             finally:
                 connection.rollback()
+
+    def access_audit(
+        self, actor: Principal, *, authority: EventShareAuthority, limit: int
+    ) -> dict:
+        self._authorize(actor, authority, write=False)
+        if type(limit) is not int or not 1 <= limit <= MAX_EXPORT:
+            raise ApiError("invalid_request", 400)
+        scope = self._scope(authority)
+        with self.database.connection() as connection:
+            rows, shares = self._verified(connection, scope)
+            state = self._state(connection, scope)
+            current = authority.share_revision if state is None else state["revision"]
+            if current != authority.share_revision:
+                raise ApiError("authority_changed", 409)
+            owned = {
+                share_id
+                for share_id, pair in shares.items()
+                if actor.role == "admin" or pair[0].owner_id == actor.id
+            }
+            visible = [row for row in rows if row["share_id"] in owned]
+            selected = visible[-limit:]
+            return {
+                "schemaVersion": 1,
+                "shareRevision": current,
+                "truncated": len(visible) > limit,
+                "events": [
+                    {
+                        "auditId": row["audit_id"],
+                        "action": row["action"],
+                        "actorId": row["actor_id"],
+                        "recipientId": row["recipient_id"],
+                        "shareId": row["share_id"],
+                        "shareRevision": row["share_revision"],
+                        "occurredAt": row["occurred_at"],
+                    }
+                    for row in selected
+                ],
+            }
+
+    def validate_storage(self) -> None:
+        with self.database.connection() as connection:
+            scopes = {
+                tuple(row)
+                for table in (
+                    "private_event_shares",
+                    "private_event_share_events",
+                    "private_event_share_state",
+                )
+                for row in connection.execute(
+                    f"SELECT DISTINCT core_id,home_id,camera_id,event_id FROM {table}"
+                ).fetchall()
+            }
+            for scope in scopes:
+                self._verified(connection, scope)

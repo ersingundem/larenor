@@ -142,12 +142,14 @@ class CameraSearchScreen extends StatefulWidget {
     required this.strings,
     required this.filter,
     required this.cameraNames,
+    required this.onShare,
   });
 
   final CameraSearchController controller;
   final CameraSearchStrings strings;
   final CameraSearchFilter filter;
   final Map<String, String> cameraNames;
+  final ValueChanged<CameraSearchEvidence>? onShare;
 
   @override
   State<CameraSearchScreen> createState() => _CameraSearchScreenState();
@@ -386,6 +388,9 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
                           widget.strings.camera,
                       strings: widget.strings,
                       onReport: controller.busy ? null : () => _report(result),
+                      onShare: controller.busy || widget.onShare == null
+                          ? null
+                          : () => widget.onShare!(result.evidence),
                     ),
                   ),
               ],
@@ -448,11 +453,13 @@ class _ResultCard extends StatelessWidget {
     required this.cameraName,
     required this.strings,
     required this.onReport,
+    required this.onShare,
   });
   final CameraSearchMatch result;
   final String cameraName;
   final CameraSearchStrings strings;
   final VoidCallback? onReport;
+  final VoidCallback? onShare;
 
   String _time(DateTime value) {
     final local = value.toLocal();
@@ -505,11 +512,23 @@ class _ResultCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          CupertinoButton(
-            key: ValueKey('camera-report-${result.evidence.clipId}'),
-            padding: EdgeInsets.zero,
-            onPressed: onReport,
-            child: Text(strings.reportIncorrect),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              CupertinoButton(
+                key: ValueKey('camera-share-${result.evidence.clipId}'),
+                padding: EdgeInsets.zero,
+                onPressed: onShare,
+                child: const Text('Private share'),
+              ),
+              CupertinoButton(
+                key: ValueKey('camera-report-${result.evidence.clipId}'),
+                padding: EdgeInsets.zero,
+                onPressed: onReport,
+                child: Text(strings.reportIncorrect),
+              ),
+            ],
           ),
         ],
       ),

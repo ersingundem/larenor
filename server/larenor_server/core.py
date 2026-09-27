@@ -226,6 +226,11 @@ from .legacy_remote.schema import migrate_legacy_remote
 from .legacy_remote.runtime import build_legacy_remote_gateway
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
+from .private_event_sharing import (
+    PrivateEventShareService,
+    PrivateEventShareStore,
+    migrate_private_event_sharing,
+)
 from .vault import VaultService
 
 
@@ -258,6 +263,11 @@ class CoreServices:
         family_memory_connection_provider=None,
         family_memory_authority_provider=None,
         family_memory_policy_provider=None,
+        private_event_share_authority_resolver=None,
+        private_event_share_consent_resolver=None,
+        private_event_share_event_reader=None,
+        private_event_share_redaction_worker=None,
+        private_event_share_artifact_reader=None,
     ):
         self.settings = settings
         self._blob_provider = blob_provider
@@ -284,6 +294,13 @@ class CoreServices:
         self._family_memory_connection_provider = family_memory_connection_provider
         self._family_memory_authority_provider = family_memory_authority_provider
         self._family_memory_policy_provider = family_memory_policy_provider
+        self._private_event_share_authority_resolver = (
+            private_event_share_authority_resolver
+        )
+        self._private_event_share_consent_resolver = private_event_share_consent_resolver
+        self._private_event_share_event_reader = private_event_share_event_reader
+        self._private_event_share_redaction_worker = private_event_share_redaction_worker
+        self._private_event_share_artifact_reader = private_event_share_artifact_reader
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -337,6 +354,10 @@ class CoreServices:
     @staticmethod
     def _family_memory_policy_unavailable(_actor, _service_id, _revision):
         raise ApiError("memory_policy_unavailable", 503)
+
+    @staticmethod
+    def _private_event_share_provider_unavailable(*_args):
+        raise ApiError("share_unavailable", 503)
 
     def _initialize(self) -> None:
         settings = self.settings
@@ -511,6 +532,7 @@ class CoreServices:
                 migrate_kiosk_remote(connection)
                 migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
+                migrate_private_event_sharing(connection)
                 migrate_services(connection)
                 migrate_core_audit(connection, key, self.context)
                 migrate_workshop(connection)
@@ -682,6 +704,42 @@ class CoreServices:
             self.camera_visual_sensors = CameraVisualSensorService(
                 self.db, self.auth, settings, key, self.context)
             self.camera_visual_sensors.validate_storage()
+            self.private_event_share_store = PrivateEventShareStore(
+                self.db,
+                encryption_key=hmac.new(
+                    key,
+                    b"larenor-private-event-share-encryption-v1",
+                    hashlib.sha256,
+                ).digest(),
+                audit_key=hmac.new(
+                    key,
+                    b"larenor-private-event-share-audit-v1",
+                    hashlib.sha256,
+                ).digest(),
+                transformation_key=hmac.new(
+                    key,
+                    b"larenor-private-event-share-transformation-v1",
+                    hashlib.sha256,
+                ).digest(),
+                clock=settings.clock,
+            )
+            unavailable = self._private_event_share_provider_unavailable
+            self.private_event_sharing = PrivateEventShareService(
+                self.private_event_share_store,
+                authority_resolver=(
+                    self._private_event_share_authority_resolver or unavailable
+                ),
+                consent_resolver=(
+                    self._private_event_share_consent_resolver or unavailable
+                ),
+                event_reader=self._private_event_share_event_reader or unavailable,
+                redaction_worker=(
+                    self._private_event_share_redaction_worker or unavailable
+                ),
+                artifact_reader=(
+                    self._private_event_share_artifact_reader or unavailable
+                ),
+            )
             self.sound_events = SoundEventRepository(
                 settings.data_dir / "sound-events.db",
                 key,

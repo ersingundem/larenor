@@ -116,6 +116,7 @@ from .camera_search.api import (
     router as camera_search_router,
 )
 from .camera_visual_sensors.api import router as camera_visual_sensor_router
+from .private_event_sharing.api import router as private_event_sharing_router
 from .sound_events.api import router as sound_events_router
 from .watch_parties.api import router as watch_parties_router
 from .offline_media.api import router as offline_media_router
@@ -155,6 +156,11 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                family_memory_connection_provider=None,
                family_memory_authority_provider=None,
                family_memory_policy_provider=None,
+               private_event_share_authority_resolver=None,
+               private_event_share_consent_resolver=None,
+               private_event_share_event_reader=None,
+               private_event_share_redaction_worker=None,
+               private_event_share_artifact_reader=None,
                camera_search_runtime: CameraSearchRuntime | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
@@ -303,7 +309,14 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         power_recovery_executor=power_recovery_executor,
         family_memory_connection_provider=family_memory_connection_provider,
         family_memory_authority_provider=family_memory_authority_provider,
-        family_memory_policy_provider=family_memory_policy_provider)
+        family_memory_policy_provider=family_memory_policy_provider,
+        private_event_share_authority_resolver=(
+            private_event_share_authority_resolver
+        ),
+        private_event_share_consent_resolver=private_event_share_consent_resolver,
+        private_event_share_event_reader=private_event_share_event_reader,
+        private_event_share_redaction_worker=private_event_share_redaction_worker,
+        private_event_share_artifact_reader=private_event_share_artifact_reader)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -465,6 +478,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(game_streaming_router, prefix="/api/v1")
     app.include_router(camera_search_router, prefix="/api/v1")
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
+    app.include_router(private_event_sharing_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(home_workflows_router, prefix="/api/v1")

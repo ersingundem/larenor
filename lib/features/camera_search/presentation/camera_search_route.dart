@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
@@ -10,6 +11,7 @@ import '../../../core/home_source_store.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../server/domain/server_models.dart';
+import '../../private_event_sharing/presentation/private_event_share_route.dart';
 import '../data/camera_search_api.dart';
 import '../data/camera_search_controller.dart';
 import '../domain/camera_search_models.dart';
@@ -93,6 +95,27 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   }
 
   bool get _current => _currentFor(_session);
+
+  String _commandId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  void _share(CameraSearchEvidence evidence) {
+    if (!_current) return;
+    Navigator.of(context).push<void>(
+      CupertinoPageRoute(
+        builder: (_) => PrivateEventShareRoute(
+          cameraId: evidence.cameraId,
+          eventId: evidence.eventId,
+          commandIds: _commandId,
+        ),
+      ),
+    );
+  }
 
   void _retireRuntime() {
     _api?.retire();
@@ -260,6 +283,7 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
           for (var index = 0; index < searchContext.cameraIds.length; index++)
             searchContext.cameraIds[index]: '${strings.camera} ${index + 1}',
         },
+        onShare: _share,
       );
     }
     _schedule();
