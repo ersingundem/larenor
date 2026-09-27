@@ -6,9 +6,11 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.view.Display
-import android.view.Gravity
 import android.view.WindowManager
-import android.widget.TextView
+import io.flutter.FlutterInjector
+import io.flutter.embedding.android.FlutterView
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -231,31 +233,62 @@ private data class DisplaySignature(
     }
 }
 
-/** A secret-free placeholder until the isolated Flutter renderer is attached. */
+/** A plugin-free Flutter renderer that cannot inherit the primary session. */
 private class RoutePresentation(
     context: Context,
     display: Display,
     private val routeId: String,
     secure: Boolean,
 ) : Presentation(context, display) {
+    private var engine: FlutterEngine? = null
+    private var flutterView: FlutterView? = null
+
     init {
+        window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         if (secure) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(TextView(context).apply {
-            gravity = Gravity.CENTER
-            textSize = 24f
-            text = when (routeId) {
-                "dashboard.overview" -> "Larenor · Dashboard"
-                "media.now-playing" -> "Larenor · Media"
-                else -> "Larenor"
-            }
-        })
+        setOnDismissListener { releaseRenderer() }
+        val loader = FlutterInjector.instance().flutterLoader()
+        val isolatedEngine = FlutterEngine(context, null, false)
+        val view = FlutterView(context)
+        view.attachToFlutterEngine(isolatedEngine)
+        engine = isolatedEngine
+        flutterView = view
+        setContentView(view)
+        isolatedEngine.dartExecutor.executeDartEntrypoint(
+            DartExecutor.DartEntrypoint(
+                loader.findAppBundlePath(),
+                "dualDisplayMain",
+            ),
+            listOf(routeId),
+        )
+    }
+
+    override fun onStart() {
+        super.onStart()
+        engine?.lifecycleChannel?.appIsResumed()
+        engine?.lifecycleChannel?.noWindowsAreFocused()
+    }
+
+    override fun onStop() {
+        engine?.lifecycleChannel?.appIsPaused()
+        super.onStop()
+    }
+
+    private fun releaseRenderer() {
+        val ownedEngine = engine ?: return
+        engine = null
+        flutterView?.detachFromFlutterEngine()
+        flutterView = null
+        ownedEngine.lifecycleChannel.appIsDetached()
+        ownedEngine.destroy()
     }
 
     fun dismissSafely() {
+        releaseRenderer()
         try {
             dismiss()
         } catch (_: RuntimeException) {
