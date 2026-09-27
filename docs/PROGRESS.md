@@ -2875,6 +2875,14 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — F03 uygulandı, F01 başladı:** F02 deneme haftasının sürümlü
+  tarihsel olayları önerilen kural sürümüyle deterministik yeniden oynatılıyor;
+  eski/yeni karar farkı ve girdi parmak izi gösteriliyor. Eksik geçmiş
+  `unknown`; adaptör ve canlı kuyruk yazmaları sabit sıfır (`a8f8c662`). F03
+  son test/inceleme/exact-head CI tablosuna taşındı ve bağımlılıkları açılan
+  F01 şema doğrulamalı otomasyon taslağı aktif geliştirmeye alındı. Kabul
+  sayaçları **37/125** ve **3/63** olarak korunuyor.
+
 - **27 Eylül — F02 uygulandı, F03 başladı:** IANA saat diliminde yedi yerel
   takvim günü, DST UTC süre/fold görünürlüğü, gerçek ve sentetik olaylar,
   öncelik/zaman penceresine göre tetiklenen-bastırılan kararlar ve her katmanda
