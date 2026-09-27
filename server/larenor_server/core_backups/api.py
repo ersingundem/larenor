@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from ..auth import Principal
 from ..dependencies import get_core, require_admin
@@ -10,6 +10,13 @@ from .models import (
     BackupPlanResponse,
     RestoreValidationRequest,
     RestoreValidationResponse,
+)
+from .drill_models import (
+    CancelRecoveryDrillRequest,
+    CreateRecoveryDrillRequest,
+    ObjectId,
+    RecoveryDrillResponse,
+    RecoveryDrillsResponse,
 )
 
 Core = Annotated[object, Depends(get_core)]
@@ -60,3 +67,33 @@ def export(body: BackupExportRequest, core: Core, actor: Admin):
             "X-Larenor-Capture-Generation": publication.capture_generation,
         },
     )
+
+
+@router.post("/drills", response_model=RecoveryDrillResponse, status_code=201)
+def create_drill(body: CreateRecoveryDrillRequest, core: Core, actor: Admin):
+    return core.core_backups.drills.create(actor, body)
+
+
+@router.get("/drills", response_model=RecoveryDrillsResponse)
+def list_drills(
+    core: Core,
+    actor: Admin,
+    before: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    limit: Annotated[int, Query(ge=1, le=20)] = 20,
+):
+    return core.core_backups.drills.list(actor, before=before, limit=limit)
+
+
+@router.get("/drills/{drill_id}", response_model=RecoveryDrillResponse)
+def get_drill(drill_id: ObjectId, core: Core, actor: Admin):
+    return core.core_backups.drills.get(actor, drill_id)
+
+
+@router.post("/drills/{drill_id}/cancel", response_model=RecoveryDrillResponse)
+def cancel_drill(
+    drill_id: ObjectId,
+    body: CancelRecoveryDrillRequest,
+    core: Core,
+    actor: Admin,
+):
+    return core.core_backups.drills.cancel(actor, drill_id, body)

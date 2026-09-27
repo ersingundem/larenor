@@ -21,6 +21,7 @@ from .component_egress.storage import migrate as migrate_component_egress
 from .config import Settings
 from .context import migrate_context
 from .core_backups.service import CoreBackupContract
+from .core_backups.drill_schema import migrate_core_recovery_drills
 from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
 from .errors import StartupError
@@ -368,6 +369,7 @@ class CoreServices:
                 migrate_bounded_transfers(connection)
                 migrate_bounded_transfer_events(connection, key)
                 migrate_bounded_blobs(connection)
+                migrate_core_recovery_drills(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_meal_plans(connection)
                 migrate_personal_profiles(connection)

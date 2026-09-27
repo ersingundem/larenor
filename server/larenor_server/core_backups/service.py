@@ -33,6 +33,7 @@ from .models import (
     BackupResource,
     ComponentBackup,
 )
+from .drill_service import RecoveryDrillManagement
 
 _ACTIVE = (
     ("bounded_transfer_receipts", "state='accepted'", "active_bounded_transfer"),
@@ -389,6 +390,8 @@ class CoreBackupContract:
         self._component_boundary = component_boundary or _NoComponents()
         self._monotonic = monotonic
         self._export_lock = threading.Lock()
+        self.drills = RecoveryDrillManagement(db, auth, settings)
+        self.drills.validate_storage()
 
     @staticmethod
     def _catalog_components():
