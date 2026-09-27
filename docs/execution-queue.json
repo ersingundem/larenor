@@ -3941,7 +3941,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Akıllı altyazı ve dil tercihleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3965,7 +3965,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Core-owned kişi başına ses/altyazı tercihleri ve yalnız gerçekten mevcut Jellyfin izlerini seçen oynatıcı eşlemesi hazır. Şimdi açık kullanıcı onayı, bounded Bazarr edinme kotası, belirsiz mutasyonda yeniden denememe ve salt-okunur doğrulamayla eksik altyazı akışı tamamlanıyor."
     },
     {
       "id": "F26",
