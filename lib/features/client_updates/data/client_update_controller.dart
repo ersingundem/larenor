@@ -199,7 +199,7 @@ class ClientUpdateController extends ChangeNotifier {
       final installed = await _api.snapshot();
       _check(epoch);
       _snapshot = installed;
-      if (!installed.canRequestPackageInstalls) {
+      if (!installed.deviceOwner && !installed.canRequestPackageInstalls) {
         throw const ClientUpdateException(
           ClientUpdateFailure.installPermission,
         );
@@ -213,13 +213,21 @@ class ClientUpdateController extends ChangeNotifier {
       _phase = ClientUpdatePhase.installing;
       dispatched = true;
       notifyListeners();
-      final outcome = await _api.install(
-        _sessionId,
-        staged,
-        interactionEpoch: installed.interactionEpoch,
-      );
+      final outcome = installed.deviceOwner
+          ? await _api.installManaged(
+              _sessionId,
+              staged,
+              interactionEpoch: installed.interactionEpoch,
+            )
+          : await _api.install(
+              _sessionId,
+              staged,
+              interactionEpoch: installed.interactionEpoch,
+            );
       if (!_disposed && source.isCurrent()) {
-        _phase = ClientUpdatePhase.systemPromptOpened;
+        _phase = outcome == ClientInstallOutcome.systemPromptOpened
+            ? ClientUpdatePhase.systemPromptOpened
+            : ClientUpdatePhase.installing;
       }
       return outcome;
     } catch (e) {

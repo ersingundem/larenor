@@ -23,6 +23,7 @@ class ClientUpdaterBridge(private val activity: Activity, messenger: BinaryMesse
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
     private val verifier = AndroidApkVerifier(activity)
+    private val managedInstaller = ManagedClientInstaller(activity)
     private val coordinator = UpdateCoordinator(File(activity.cacheDir, "client_updates"), this)
     private val downloader = UpdateDownloader()
     private var sink: EventChannel.EventSink? = null
@@ -61,6 +62,7 @@ class ClientUpdaterBridge(private val activity: Activity, messenger: BinaryMesse
                         "versionCode" to installed.versionCode, "versionName" to installed.versionName,
                         "certificateSha256" to installed.certificates.toList(), "sdkInt" to installed.sdkInt,
                         "canRequestPackageInstalls" to activity.packageManager.canRequestPackageInstalls(),
+                        "deviceOwner" to managedInstaller.available(),
                         "resumed" to resumed, "focused" to activity.window.decorView.hasWindowFocus(), "interactionEpoch" to interactionEpoch))
                 }
                 "activateSession", "invalidate", "cancel" -> {
@@ -110,6 +112,26 @@ class ClientUpdaterBridge(private val activity: Activity, messenger: BinaryMesse
                                     activity.startActivity(intent)
                                     // The OS dialog opening does not prove installation succeeded.
                                     result.success(mapOf("outcome" to "systemPromptOpened"))
+                                } catch (e: Exception) { coordinator.failed(work); error(result, e) }
+                            }
+                        } catch (e: Exception) { coordinator.failed(work); handler.post { error(result, e) } }
+                    }
+                }
+                "installManaged" -> {
+                    val raw = args(call.arguments, 3); requireInteraction(raw)
+                    if (!managedInstaller.available()) throw UpdateFailure("permission")
+                    val work = coordinator.beginInstall(string(raw, "sessionId"), string(raw, "id"))
+                    executor.execute {
+                        try {
+                            verifier.verifyHash(work.file, work.release, work.cancellation)
+                            coordinator.verify(work)
+                            handler.post {
+                                try {
+                                    if (!managedInstaller.available()) throw UpdateFailure("permission")
+                                    val file = coordinator.consumeInstall(work)
+                                    val sessionId = managedInstaller.submit(file, work.release)
+                                    file.delete()
+                                    result.success(mapOf("outcome" to "managedInstallSubmitted", "sessionId" to sessionId))
                                 } catch (e: Exception) { coordinator.failed(work); error(result, e) }
                             }
                         } catch (e: Exception) { coordinator.failed(work); handler.post { error(result, e) } }

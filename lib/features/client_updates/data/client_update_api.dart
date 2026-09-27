@@ -24,6 +24,11 @@ abstract class ClientUpdateApi {
     StagedClientUpdate staged, {
     required int interactionEpoch,
   });
+  Future<ClientInstallOutcome> installManaged(
+    String sessionId,
+    StagedClientUpdate staged, {
+    required int interactionEpoch,
+  }) => throw const ClientUpdateException(ClientUpdateFailure.unsupported);
   Future<void> openInstallPermission(
     String sessionId, {
     required int interactionEpoch,
@@ -129,6 +134,27 @@ class AndroidClientUpdateApi extends ClientUpdateApi {
       throw const ClientUpdateException(ClientUpdateFailure.unavailable);
     }
     return ClientInstallOutcome.systemPromptOpened;
+  }
+
+  @override
+  Future<ClientInstallOutcome> installManaged(
+    String sessionId,
+    StagedClientUpdate staged, {
+    required int interactionEpoch,
+  }) async {
+    final raw = await _call('installManaged', {
+      'sessionId': sessionId,
+      'id': staged.id,
+      'interactionEpoch': interactionEpoch,
+    }, const Duration(minutes: 2));
+    if (raw is! Map ||
+        raw.length != 2 ||
+        raw['outcome'] != 'managedInstallSubmitted' ||
+        raw['sessionId'] is! int ||
+        (raw['sessionId'] as int) < 0) {
+      throw const ClientUpdateException(ClientUpdateFailure.unavailable);
+    }
+    return ClientInstallOutcome.managedInstallSubmitted;
   }
 
   @override

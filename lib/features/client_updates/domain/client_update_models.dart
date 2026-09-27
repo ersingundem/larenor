@@ -131,6 +131,7 @@ class InstalledClientSnapshot {
       certificateSha256 = const {},
       sdkInt = 0,
       canRequestPackageInstalls = false,
+      deviceOwner = false,
       resumed = false,
       focused = false,
       interactionEpoch = 0;
@@ -140,18 +141,23 @@ class InstalledClientSnapshot {
     required Set<String> certificates,
     required this.sdkInt,
     required this.canRequestPackageInstalls,
+    required this.deviceOwner,
     required this.resumed,
     required this.focused,
     required this.interactionEpoch,
   }) : supported = true,
        certificateSha256 = Set.unmodifiable(certificates);
-  final bool supported, canRequestPackageInstalls, resumed, focused;
+  final bool supported,
+      canRequestPackageInstalls,
+      deviceOwner,
+      resumed,
+      focused;
   final int versionCode, sdkInt, interactionEpoch;
   final String versionName;
   final Set<String> certificateSha256;
   factory InstalledClientSnapshot.fromChannel(Object? raw) {
     if (raw is! Map ||
-        raw.length != 10 ||
+        raw.length != 11 ||
         raw['supported'] != true ||
         raw['applicationId'] != ClientRelease.applicationId) {
       _invalid();
@@ -169,6 +175,7 @@ class InstalledClientSnapshot {
       certificates: certs.cast<String>().map((v) => v.toLowerCase()).toSet(),
       sdkInt: _int(raw, 'sdkInt', 26, 100),
       canRequestPackageInstalls: _bool(raw, 'canRequestPackageInstalls'),
+      deviceOwner: _bool(raw, 'deviceOwner'),
       resumed: _bool(raw, 'resumed'),
       focused: _bool(raw, 'focused'),
       interactionEpoch: _int(raw, 'interactionEpoch', 0, 9007199254740991),
@@ -232,4 +239,4 @@ class ClientUpdateProgress {
   }
 }
 
-enum ClientInstallOutcome { systemPromptOpened }
+enum ClientInstallOutcome { systemPromptOpened, managedInstallSubmitted }
