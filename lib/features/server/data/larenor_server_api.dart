@@ -944,6 +944,7 @@ class LarenorServerApi {
                 'ha_binding_changed',
                 'ha_preview_invalid',
                 'ha_command_conflict',
+                'idempotency_conflict',
                 'ha_migration_changed',
                 'ha_migration_preview_invalid',
                 'proxmox_binding_changed',

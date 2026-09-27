@@ -309,6 +309,7 @@ class CoreHaController extends ChangeNotifier {
           'ha_binding_changed',
           'ha_preview_invalid',
           'ha_command_conflict',
+          'idempotency_conflict',
         }.contains(failure);
         uncertain = write && !definite;
         if (write && definite && pendingCommandId != null) {

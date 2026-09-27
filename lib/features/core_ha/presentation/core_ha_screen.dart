@@ -124,7 +124,7 @@ class _ViewState extends ConsumerState<_View> {
     'ha_projection_unsupported' => l.coreHaUnsupported,
     'ha_binding_changed' || 'revision_conflict' => l.coreHaChanged,
     'ha_preview_invalid' => l.coreHaPreviewExpired,
-    'ha_command_conflict' => l.coreHaCommandConflict,
+    'ha_command_conflict' || 'idempotency_conflict' => l.coreHaCommandConflict,
     'invalid_request' => l.coreHaInvalidEntity,
     _ => l.coreHaError,
   };

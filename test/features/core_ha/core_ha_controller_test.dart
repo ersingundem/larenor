@@ -105,10 +105,10 @@ void main() {
       await h.mount(tester, admin: false);
       final c = h.list!;
       h.reply = (_) async => jsonResponse({
-        'error': {'code': 'ha_binding_changed'},
+        'error': {'code': 'idempotency_conflict'},
       }, 409);
       await c.command(CoreHaCommandAction.turnOff, isCurrent: () => true);
-      expect(c.failure, 'ha_binding_changed');
+      expect(c.failure, 'idempotency_conflict');
       expect(c.uncertain, isFalse);
       expect(c.pendingCommandId, isNull);
       h.reply = null;

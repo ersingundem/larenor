@@ -475,7 +475,7 @@ void main() {
           action: CoreHaCommandAction.turnOn,
           snapshot: commandSnapshot,
         ),
-        throwsA(failure('ha_command_conflict')),
+        throwsA(failure('idempotency_conflict')),
       );
       for (final pair in [
         ('upstreamUnauthorized', 'ha_upstream_unauthorized'),
