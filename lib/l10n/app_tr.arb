@@ -1914,6 +1914,8 @@
   "serverTabletFleetRolloutIntro": "İmzalı profili güncel tablet ve sürüm revizyonlarıyla karşılaştırın. Bu deneme uygulama kurmaz veya cihazı değiştirmez.",
   "serverTabletFleetRolloutPreview": "%10 kademeli dağıtımı önizle",
   "serverTabletFleetRolloutVerified": "Core, hiçbir tableti değiştirmeden dağıtım önizlemesini doğruladı.",
+  "serverTabletFleetRolloutApply": "Profili hazır kademe tabletlerine yayınla",
+  "serverTabletFleetRolloutApplied": "Core, doğrulanan profili seçili kademe tabletlerine yayınladı.",
   "serverTabletFleetRolloutRelease": "Larenor {version} ({code}) · sertifika {certificate}",
   "@serverTabletFleetRolloutRelease": {"placeholders":{"version":{"type":"String"},"code":{"type":"int"},"certificate":{"type":"String"}}},
   "serverTabletFleetRolloutCounts": "Hazır {ready} · bekletilen {deferred} · uygulama güncellemesi {updates} · güncel {current}",

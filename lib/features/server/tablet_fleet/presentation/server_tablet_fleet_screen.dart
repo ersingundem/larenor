@@ -152,6 +152,7 @@ class _ServerTabletFleetScreenState
         'tablet_revoked' => l10n.serverTabletFleetRevokedVerified,
         'command_verified' => l10n.serverTabletFleetCommandVerified,
         'rollout_preview_verified' => l10n.serverTabletFleetRolloutVerified,
+        'rollout_applied' => l10n.serverTabletFleetRolloutApplied,
         _ => '',
       },
       'tablet_device_changed' ||
@@ -411,6 +412,14 @@ class _ServerTabletFleetScreenState
                 count(KioskRolloutDeviceState.current),
               ),
             ),
+          ),
+          SettingsActionTile(
+            buttonKey: const ValueKey('tablet-rollout-apply'),
+            leading: const Icon(CupertinoIcons.check_mark_circled),
+            title: Text(l10n.serverTabletFleetRolloutApply),
+            onTap: enabled && count(KioskRolloutDeviceState.ready) > 0
+                ? () => _fleet.applyRollout(current: () => mounted && _active)
+                : null,
           ),
         ],
       ],

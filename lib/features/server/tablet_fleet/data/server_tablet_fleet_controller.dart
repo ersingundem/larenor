@@ -185,6 +185,51 @@ class ServerTabletFleetController extends ChangeNotifier {
     }, expectedEpoch: epoch);
   }
 
+  Future<void> applyRollout({required bool Function() current}) async {
+    final preview = rolloutPreview;
+    if (preview == null || busy || needsRefresh) return;
+    final ready = preview.devices
+        .where((device) => device.state == KioskRolloutDeviceState.ready)
+        .toList();
+    if (ready.isEmpty) return;
+    final epoch = _epoch;
+    await _run(
+      current,
+      (api, valid) async {
+        var updated = [...tablets];
+        for (final target in ready) {
+          if (!valid()) return;
+          final matches = updated
+              .where((item) => item.id == target.deviceId)
+              .toList();
+          if (matches.length != 1 ||
+              matches.single.revision != target.deviceRevision ||
+              matches.single.desiredProfileRevision !=
+                  target.desiredProfileRevision) {
+            throw const LarenorServerException('tablet_device_changed');
+          }
+          final applied = await api.publishProfile(
+            tablet: matches.single,
+            profileRevision: preview.profileRevision,
+            fullscreen: true,
+            idleTimeoutSeconds: 300,
+          );
+          if (!valid()) return;
+          updated = [
+            for (final tablet in updated)
+              if (tablet.id == applied.tablet.id) applied.tablet else tablet,
+          ];
+          tablets = List.unmodifiable(updated);
+          _emit();
+        }
+        rolloutPreview = null;
+        announcement = 'rollout_applied';
+      },
+      mutation: true,
+      expectedEpoch: epoch,
+    );
+  }
+
   Future<void> revoke(
     ManagedTablet tablet, {
     required bool Function() current,

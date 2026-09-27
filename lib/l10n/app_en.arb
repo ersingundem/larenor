@@ -2245,6 +2245,8 @@
   "serverTabletFleetRolloutIntro": "Preview a signed profile against current tablet and release revisions. This dry-run does not install an app or change a device.",
   "serverTabletFleetRolloutPreview": "Preview 10% canary rollout",
   "serverTabletFleetRolloutVerified": "Core verified the rollout preview without changing a tablet.",
+  "serverTabletFleetRolloutApply": "Publish profile to ready canary tablets",
+  "serverTabletFleetRolloutApplied": "Core published the verified profile to the selected canary tablets.",
   "serverTabletFleetRolloutRelease": "Larenor {version} ({code}) · certificate {certificate}",
   "@serverTabletFleetRolloutRelease": {"placeholders":{"version":{"type":"String"},"code":{"type":"int"},"certificate":{"type":"String"}}},
   "serverTabletFleetRolloutCounts": "Ready {ready} · deferred {deferred} · app update {updates} · current {current}",
