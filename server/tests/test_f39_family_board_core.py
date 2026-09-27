@@ -100,6 +100,7 @@ def test_bounded_card_and_drawing_contract_exact_scope_and_revision(board):
         "boardRevision",
         "auditHead",
         "elements",
+        "permissions",
     }
 
     with pytest.raises(ValueError):
