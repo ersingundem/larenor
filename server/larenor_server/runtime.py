@@ -118,16 +118,20 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
             poll_seconds=beta_poll,
         )
         app.include_router(build_release_router(releases, beta=beta_releases), prefix="/api/v1")
+        update_boundary = component_backup_boundary if all(
+            callable(getattr(component_backup_boundary, method, None))
+            for method in ("update_sources", "validate_update", "execute_update")
+        ) else None
         component_updates = ComponentUpdateService(
-            component_backup_boundary,
+            update_boundary,
             app.state.core.context,
             app.state.core.component_update_preferences,
             app.state.core.component_update_confirmations,
             app.state.core.component_update_jobs,
         )
-        if component_backup_boundary is not None:
+        if update_boundary is not None:
             app.state.core.component_update_jobs.bind_backend(
-                component_backup_boundary
+                update_boundary
             )
         app.include_router(
             build_component_update_router(component_updates),
