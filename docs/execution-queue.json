@@ -4161,7 +4161,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4185,7 +4185,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut provider-bound uzun biçim katalog ve ilerleme dilimini bölüm seçimi, kalıcı yer imi, uyku zamanlayıcısı, revision-safe oturum ilerlemesi ve Android MediaSession arka plan oynatmayla tamamlayan üretim dilimi geliştiriliyor."
+      "reason": "Provider-bound uzun içerik katalog ve ilerleme dilimi; revision-safe oturum, açık takeover, bölüm seçimi, kalıcı yer imi, uyku sayacı durumu, güvenli Music Assistant kuyruk oynatması ve Android MediaSession arka plan/başlangıç konumu desteğiyle tamamlandı. Özellik testleri kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Client→Core→Music Assistant E2E, bağımsız inceleme, exact-head CI ve fiziksel alıcı doğrulaması henüz tamamlanmadı."
     },
     {
       "id": "F29",

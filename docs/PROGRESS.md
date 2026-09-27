@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `debdbc5a` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26 ve F27 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `bf3fa24a` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27 ve F28 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,29 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F28 sesli kitap ve podcast merkezi — uygulama tamamlandı, test bekliyor
+
+F28 tek çalışma dalında tamamlandı. Core, Music Assistant'ın güncel provider
+otoritesindeki yarım kalmış sesli kitap ve podcast bölümleri için hesap,
+oturum ailesi, kurulum, Core ve manager revision'larına bağlı kalıcı dinleme
+oturumu tutuyor. Her yazma revision CAS ile korunuyor; başka oturum ailesindeki
+dinleme yalnız açık devralmayla değiştirilebiliyor. Konum, oynatma durumu, en
+fazla 64 yer imi ve 60 saniye–24 saat arası uyku sayacı HMAC etiketli depoda
+tutuluyor ve her güncellemede güncel katalog öğesiyle yeniden doğrulanıyor.
+
+Client, dinlemeye devam kartından açılan merkezde doğrulanmış alıcı seçimi,
+kuyruğa güvenli provider URI'si gönderme, kaldığı konuma seek, oynatma,
+duraklatma, bölüm seçimi, yer imi ve uyku sayacı akışlarını sunuyor. Android
+LocalAudio MediaSession sesli kitap/podcast metadata türünü, başlangıç konumunu,
+arka planda devamı ve gerçek zamanlı uyku sayacını destekliyor. `db93800e`,
+`4aa40499`, `a5c67d28` ve `bf3fa24a` dilimleri Python py_compile/import,
+Android debug Kotlin compile, Flutter l10n üretimi, odaklı Flutter analyze ve
+diff kapılarından geçti. Kullanıcının kararı gereği özellik testleri son toplu
+doğrulama evresine bırakıldı. F28 **uygulama tamamlandı · test bekliyor**;
+sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek
+Client→Core→Music Assistant E2E, sağlayıcı/format matrisi, arka plan uyku sayacı
+ve fiziksel alıcı davranışı, bağımsız inceleme ve exact-head CI açık kalıyor.
 
 ### 27 Eylül F27 seyahat için çevrimdışı medya — uygulama tamamlandı, test bekliyor
 
