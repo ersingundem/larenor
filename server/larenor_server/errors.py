@@ -13,6 +13,13 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'power_recovery_held': 'New heavy work is paused while orderly power recovery is active.',
+    'power_recovery_active': 'Finish the active power recovery run before changing its policy.',
+    'power_recovery_unconfigured': 'Configure an orderly power recovery policy first.',
+    'invalid_ups_token': 'The UPS event source could not be authenticated.',
+    'power_event_stale': 'The UPS event is stale, out of order, or belongs to another policy revision.',
+    'power_restore_not_stable': 'Wait until utility power is stable before retrying restoration.',
+    'power_shutdown_no_longer_required': 'Utility power returned; do not retry an unfinished shutdown step.',
     'irrigation_provider_unavailable': 'The irrigation provider is unavailable.',
     'irrigation_capability_unverified': 'The irrigation control capability is not verified.',
     'energy_provider_unavailable': 'The energy provider is unavailable.',

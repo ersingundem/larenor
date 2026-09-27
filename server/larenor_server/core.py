@@ -23,6 +23,8 @@ from .context import migrate_context
 from .core_backups.service import CoreBackupContract
 from .core_backups.drill_schema import migrate_core_recovery_drills
 from .core_backups.immutable_schema import migrate_immutable_backup_target
+from .power_recovery.schema import migrate_power_recovery
+from .power_recovery.service import PowerRecoveryService
 from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
 from .errors import StartupError
@@ -211,6 +213,7 @@ class CoreServices:
         camera_profile_provider=None,
         power_budget_provider=None,
         legacy_remote_provider=None,
+        power_recovery_executor=None,
     ):
         self.settings = settings
         self._blob_provider = blob_provider
@@ -229,6 +232,7 @@ class CoreServices:
         self._camera_profile_provider = camera_profile_provider
         self._power_budget_provider = power_budget_provider
         self._legacy_remote_provider = legacy_remote_provider
+        self._power_recovery_executor = power_recovery_executor
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -372,6 +376,7 @@ class CoreServices:
                 migrate_bounded_blobs(connection)
                 migrate_core_recovery_drills(connection)
                 migrate_immutable_backup_target(connection)
+                migrate_power_recovery(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_meal_plans(connection)
                 migrate_personal_profiles(connection)
@@ -624,6 +629,13 @@ class CoreServices:
             )
             self.core_backups = CoreBackupContract(
                 self.db, self.auth, settings, encryption_key=key
+            )
+            self.power_recovery = PowerRecoveryService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                executor=self._power_recovery_executor,
             )
             self.services = ServiceManagement(
                 self.db, self.auth, settings, key, self.context

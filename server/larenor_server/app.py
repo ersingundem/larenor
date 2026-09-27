@@ -104,6 +104,7 @@ from .sound_events.api import router as sound_events_router
 from .watch_parties.api import router as watch_parties_router
 from .offline_media.api import router as offline_media_router
 from .longform_sessions.api import router as longform_sessions_router
+from .power_recovery.api import router as power_recovery_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -130,6 +131,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                camera_profile_provider=None,
                power_budget_provider=None,
                legacy_remote_provider=None,
+               power_recovery_executor=None,
                camera_search_runtime: CameraSearchRuntime | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
@@ -140,7 +142,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         async def dispatch(manager, failure_code):
             while not stop.is_set():
                 try:
-                    await asyncio.to_thread(manager.tick)
+                    recovery = application.state.core.power_recovery
+                    if manager is recovery or not recovery.gate_held():
+                        await asyncio.to_thread(manager.tick)
                 except Exception:
                     # Persisted jobs remain recoverable. Never log payloads,
                     # storage exceptions or host paths from the worker.
@@ -188,6 +192,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         immutable_backup_task = asyncio.create_task(dispatch(
             immutable_backups, "immutable_backup_dispatch_unavailable"
         ))
+        power_recovery = application.state.core.power_recovery
+        power_recovery_task = asyncio.create_task(dispatch(
+            power_recovery, "power_recovery_dispatch_unavailable"
+        ))
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
@@ -199,6 +207,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.component_update_dispatcher = component_update_task
         application.state.recovery_drill_dispatcher = recovery_drill_task
         application.state.immutable_backup_dispatcher = immutable_backup_task
+        application.state.power_recovery_dispatcher = power_recovery_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -234,6 +243,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
             if recovery_drill_task is not None:
                 await recovery_drill_task
             await immutable_backup_task
+            await power_recovery_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -255,7 +265,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         ev_charge_charger=ev_charge_charger,
         camera_profile_provider=camera_profile_provider,
         power_budget_provider=power_budget_provider,
-        legacy_remote_provider=legacy_remote_provider)
+        legacy_remote_provider=legacy_remote_provider,
+        power_recovery_executor=power_recovery_executor)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -267,6 +278,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_provider_setup_dispatcher = None
     app.state.component_update_dispatcher = None
     app.state.recovery_drill_dispatcher = None
+    app.state.power_recovery_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.irrigation_gateway = app.state.core.irrigation
     app.state.camera_profile_gateway = app.state.core.camera_profiles
@@ -274,6 +286,14 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
     app.state.camera_search_runtime = camera_search_runtime
     app.add_middleware(SafeBoundaryMiddleware)
+
+    @app.middleware("http")
+    async def power_recovery_gate(request, call_next):
+        if not app.state.core.power_recovery.allows_request(
+            request.method, request.url.path
+        ):
+            return JSONResponse(error_body("power_recovery_held"), status_code=503)
+        return await call_next(request)
 
     @app.exception_handler(ApiError)
     async def api_error(_request, error):
@@ -376,6 +396,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(kiosk_remote_router, prefix="/api/v1")
     app.include_router(workshop_router, prefix="/api/v1")
     app.include_router(core_backups_router, prefix="/api/v1")
+    app.include_router(power_recovery_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(irrigation_router, prefix="/api/v1")
     app.include_router(energy_priorities_router, prefix="/api/v1")
