@@ -4767,7 +4767,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4792,7 +4792,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Havlama ve gürültü olaylarında gerçek kaynak/capability, güven-tazelik, bildirim/sessize alma ve exact authority akışı geliştiriliyor."
+      "reason": "Havlama ve gürültü olayları strict source capability, consent, sınıf/süre/tazelik, sessize alma, bildirim politikası ve yanlış alarm geri bildirimiyle uygulandı; 6 sunucu ve 9 Flutter testi ile focused analyze geçti, tam CI ve gerçek classifier/bildirim provider kabulü bekliyor."
     },
     {
       "id": "G09",
@@ -4967,7 +4967,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4993,7 +4993,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Zigbee/Thread ağ ve güncelleme merkezinde gerçek coordinator/border-router kaynakları, cihaz sağlığı, kontrollü güncelleme ve güvenli geri dönüş akışı geliştiriliyor."
+      "reason": "Zigbee/Thread merkezi gerçek provider sınırı, salt okunur sağlık, imzalı Zigbee OTA, exact readback ve doğrulanmış koordinatör yedek durumu ile uygulandı; 9 sunucu ve 8 Flutter testi ile focused analyze geçti, tam CI bekliyor."
     },
     {
       "id": "F56",
@@ -5062,7 +5062,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5087,7 +5087,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "E-paper mini ev ekranlarında gerçek cihaz capability, düşük bant genişlikli içerik planlama, çevrimdışı güvenli durum ve doğrulanmış teslim akışı geliştiriliyor."
     },
     {
       "id": "F59",
