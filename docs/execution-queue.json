@@ -4192,7 +4192,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Parti DJ'i ve ortak şarkı oylaması",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4216,14 +4216,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "F23 özellik dilimi gönderildikten sonra başlatıldı; Music Assistant kuyruğuna bağlı revision-safe oda, kullanıcı başına öneri/oy sınırı, skip quorum, heartbeat/ayrılma ve explicit host onayı geliştiriliyor."
+      "reason": "Uygulama commit 36675791: revision-safe Music Assistant Party DJ odaları, exact katalog doğrulaması, kullanıcı başına öneri/oy sınırı, bağlı katılımcı skip quorum, host onayı ve güvenli dismiss, durable effect reconciliation, 224/240/256 journal rezervleri, scope bağlı secure recovery ve exact create/join/effect replay eklendi. Focused Flutter analyze, Python py_compile, 11 endpoint/6 tablo/18 sütun restart smoke, kapalı oda restart smoke, concurrency/lifecycle/capacity smokes ve üç turlu bağımsız P0-P2 inceleme temiz; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
     },
     {
       "id": "F30",
       "kind": "task",
       "parent": "G06",
       "title": "Medya arşivi sağlık ve yer tasarrufu",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4249,7 +4249,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "F29 uygulama dilimi uzak dala gönderildikten sonra başlatıldı. Mevcut read-only medya arşivi sağlık projeksiyonu üzerinde sürümlü action authority, kanıt bağlı preview/confirm, Unmanic staging, korunan orijinal, ortak byte kotası, durable job/cancel/reconcile ve ayrı cleanup-confirm akışı geliştiriliyor; otomatik silme yok."
     },
     {
       "id": "G07",
