@@ -3869,7 +3869,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3894,7 +3894,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Dar süreli destek yetkisi, görünür oturum, elle iptal, log maskeleme ve yetki yükseltme reddi uygulanıyor."
+      "reason": "Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık."
     },
     {
       "id": "F19",
@@ -4066,7 +4066,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4355,7 +4355,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Büyük ekran pişirme asistanı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4642,7 +4642,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Evdeyken kamera kayıt profili",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
