@@ -213,10 +213,13 @@ void main() {
       transport.frames.add({
         ..._binding(),
         'sessionId': '11111111-1111-4111-8111-111111111111',
+        'schemaVersion': 1,
         'sequence': 1,
         'width': 1280,
         'height': 800,
-        'byteLength': 4096000,
+        'stride': 5120,
+        'pixelFormat': 'rgba8888',
+        'pixels': Uint8List(4096000),
       });
       await Future<void>.delayed(Duration.zero);
       expect(session.pendingFrame?.sequence, 1);
@@ -225,10 +228,13 @@ void main() {
       transport.frames.add({
         ..._binding(),
         'sessionId': '11111111-1111-4111-8111-111111111111',
+        'schemaVersion': 1,
         'sequence': 3,
         'width': 1280,
         'height': 800,
-        'byteLength': 4096000,
+        'stride': 5120,
+        'pixelFormat': 'rgba8888',
+        'pixels': Uint8List(4096000),
       });
       await Future<void>.delayed(Duration.zero);
       expect(session.phase, VncBridgePhase.retired);

@@ -44,6 +44,7 @@ class RdpNativeBridge(
     private var focused = true
     private var disposed = false
     private var requestId: String? = null
+    private var networkBusy = false
     @Volatile private var session: RdpFreeRdpSession? = null
 
     init {
@@ -113,32 +114,40 @@ class RdpNativeBridge(
 
     private fun inspect(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
+        if (networkBusy) fail("busy")
         val value = map(raw, setOf("targetHost", "targetPort", "username"))
         val host = safeHost(value["targetHost"])
         val port = integer(value["targetPort"], 1, 65535)
         val username = safeText(value["username"], 0, 128)
-        worker.execute {
-            try {
-                if (!adapter.capabilities().canConnect) fail("engineUnavailable")
-                val evidence = (runtime ?: fail("engineUnavailable")).inspect(host, port, username)
-                main.post {
-                    if (!foreground()) error(result, "staleSession") else result.success(mapOf(
-                        "tls" to (evidence.minimumTlsProtocol == "TLSv1.2"),
-                        "requiresNla" to evidence.nla,
-                        "certificateFingerprint" to evidence.certificateFingerprint,
-                    ))
+        networkBusy = true
+        try {
+            worker.execute {
+                try {
+                    if (!adapter.capabilities().canConnect) fail("engineUnavailable")
+                    val evidence = (runtime ?: fail("engineUnavailable")).inspect(host, port, username)
+                    main.post {
+                        networkBusy = false
+                        if (!foreground()) error(result, "staleSession") else result.success(mapOf(
+                            "tls" to (evidence.minimumTlsProtocol == "TLSv1.2"),
+                            "requiresNla" to evidence.nla,
+                            "certificateFingerprint" to evidence.certificateFingerprint,
+                        ))
+                    }
+                } catch (failure: RdpNativeFailure) {
+                    main.post { networkBusy = false; error(result, failure.code) }
+                } catch (_: Exception) {
+                    main.post { networkBusy = false; error(result, "connectionFailed") }
                 }
-            } catch (failure: RdpNativeFailure) {
-                main.post { error(result, failure.code) }
-            } catch (_: Exception) {
-                main.post { error(result, "connectionFailed") }
             }
+        } catch (error: RuntimeException) {
+            networkBusy = false
+            throw error
         }
     }
 
     private fun open(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
-        if (session != null) fail("busy")
+        if (session != null || networkBusy) fail("busy")
         val value = map(raw, setOf("request", "requestId", "password", "gatewayPassword"))
         val id = value["requestId"] as? String ?: fail("invalidRequest")
         if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
@@ -150,29 +159,37 @@ class RdpNativeBridge(
         val gateway = decode(gatewayBytes, true)
         passwordBytes.fill(0)
         gatewayBytes.fill(0)
-        worker.execute {
-            try {
-                val secrets = RdpNativeSecrets.take(password, gateway.takeIf { request.gateway != null })
-                if (request.gateway == null) gateway.fill('\u0000')
-                val observer = Observer(id)
-                val opened = adapter.open(request, secrets, observer) as RdpFreeRdpSession
-                session = opened
-                observer.flush()
-                main.post {
-                    if (!foreground() || requestId != id) {
-                        opened.close()
-                        error(result, "staleSession")
-                    } else {
-                        result.success(null)
+        networkBusy = true
+        try {
+            worker.execute {
+                try {
+                    val secrets = RdpNativeSecrets.take(password, gateway.takeIf { request.gateway != null })
+                    if (request.gateway == null) gateway.fill('\u0000')
+                    val observer = Observer(id)
+                    val opened = adapter.open(request, secrets, observer) as RdpFreeRdpSession
+                    session = opened
+                    observer.flush()
+                    main.post {
+                        networkBusy = false
+                        if (!foreground() || requestId != id) {
+                            opened.close()
+                            error(result, "staleSession")
+                        } else {
+                            result.success(null)
+                        }
                     }
+                } catch (failure: RdpNativeFailure) {
+                    password.fill('\u0000'); gateway.fill('\u0000')
+                    main.post { networkBusy = false; error(result, failure.code) }
+                } catch (_: Exception) {
+                    password.fill('\u0000'); gateway.fill('\u0000')
+                    main.post { networkBusy = false; error(result, "connectionFailed") }
                 }
-            } catch (failure: RdpNativeFailure) {
-                password.fill('\u0000'); gateway.fill('\u0000')
-                main.post { error(result, failure.code) }
-            } catch (_: Exception) {
-                password.fill('\u0000'); gateway.fill('\u0000')
-                main.post { error(result, "connectionFailed") }
             }
+        } catch (error: RuntimeException) {
+            networkBusy = false
+            password.fill('\u0000'); gateway.fill('\u0000')
+            throw error
         }
     }
 

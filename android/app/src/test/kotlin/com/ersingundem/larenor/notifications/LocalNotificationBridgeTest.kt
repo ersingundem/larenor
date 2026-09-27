@@ -169,10 +169,23 @@ class LocalNotificationBridgeTest {
         try {
             assertNotNull(manager.getNotificationChannel(LocalNotificationBridge.CHANNEL_ID))
             assertNull(manager.getNotificationChannel("larenor_local_notifications_v0"))
+            // A reboot without a provisioned background lease is normal. Seed a
+            // truncated sealed record so the receiver exercises its bounded
+            // recovery path instead of reviving a stale credential.
+            activity.get().getSharedPreferences(
+                "larenor_local_notification_delivery_store_v1",
+                Context.MODE_PRIVATE,
+            ).edit().putString("ciphertext", "invalid").commit()
             LocalNotificationBootReceiver().onReceive(activity.get(), Intent(Intent.ACTION_BOOT_COMPLETED))
-            assertEquals(true, (messenger.call("probe").value as Map<*, *>)["recoveryRequired"])
+            assertEquals(
+                true,
+                ((messenger.call("probe").value as Map<*, *>)["recovery"] as Map<*, *>)["required"],
+            )
             bridge.setResumed(true)
-            assertEquals(false, (messenger.call("bind", bind()).value as Map<*, *>)["recoveryRequired"])
+            assertEquals(
+                false,
+                ((messenger.call("bind", bind()).value as Map<*, *>)["recovery"] as Map<*, *>)["required"],
+            )
             assertNull(messenger.call("openPowerSettings").error)
             val launched = Shadows.shadowOf(activity.get()).nextStartedActivity
             assertNotEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, launched.action)

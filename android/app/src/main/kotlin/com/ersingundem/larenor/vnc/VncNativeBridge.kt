@@ -122,6 +122,7 @@ class VncNativeBridge(
     private var binding: VncBridgeBinding? = null
     private var session: VncNativeSession? = null
     private var request: VncNativeRequest? = null
+    private var networkBusy = false
     private var lastInputSequence = 0L
     private var nextFrameSequence = 1L
     private var pendingFrameSequence: Long? = null
@@ -191,6 +192,7 @@ class VncNativeBridge(
 
     private fun open(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
+        if (networkBusy) failBridge("busy")
         val value = bridgeMap(raw, setOf(
             "binding", "request", "expectedEngineRevision", "password",
         ))
@@ -212,19 +214,27 @@ class VncNativeBridge(
             if (!production) {
                 finishOpen(adapter.open(parsedRequest, secrets, expectedRevision), parsedRequest, requestedBinding, result)
             } else {
-                worker.execute {
-                    try {
-                        val opened = adapter.open(parsedRequest, secrets, expectedRevision)
-                        main.post {
-                            try { finishOpen(opened, parsedRequest, requestedBinding, result) }
-                            catch (failure: VncNativeFailure) { opened.close(); error(result, failure.code) }
-                            catch (_: Exception) { opened.close(); error(result, "connectionFailed") }
+                networkBusy = true
+                try {
+                    worker.execute {
+                        try {
+                            val opened = adapter.open(parsedRequest, secrets, expectedRevision)
+                            main.post {
+                                networkBusy = false
+                                try { finishOpen(opened, parsedRequest, requestedBinding, result) }
+                                catch (failure: VncNativeFailure) { opened.close(); error(result, failure.code) }
+                                catch (_: Exception) { opened.close(); error(result, "connectionFailed") }
+                            }
+                        } catch (failure: VncNativeFailure) {
+                            main.post { networkBusy = false; error(result, failure.code) }
+                        } catch (_: Exception) {
+                            main.post { networkBusy = false; error(result, "connectionFailed") }
                         }
-                    } catch (failure: VncNativeFailure) {
-                        main.post { error(result, failure.code) }
-                    } catch (_: Exception) {
-                        main.post { error(result, "connectionFailed") }
                     }
+                } catch (error: RuntimeException) {
+                    networkBusy = false
+                    secrets.close()
+                    throw error
                 }
             }
         } finally {
@@ -252,6 +262,7 @@ class VncNativeBridge(
 
     private fun inspect(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
+        if (networkBusy) failBridge("busy")
         val value = bridgeMap(raw, setOf("targetHost", "targetPort"))
         val request = VncNativeRequest.parse(mapOf(
             "schemaVersion" to 1,
@@ -271,19 +282,26 @@ class VncNativeBridge(
             "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to false),
         ))
         if (!production) failBridge("engineUnavailable")
-        worker.execute {
-            try {
-                val pin = adapter.inspect(request.directTargetHost, request.directTargetPort)
-                main.post {
-                    if (!disposed && resumed && windowFocused) {
-                        result.success(mapOf("tls" to true, "spkiFingerprint" to pin))
-                    } else error(result, "staleSession")
+        networkBusy = true
+        try {
+            worker.execute {
+                try {
+                    val pin = adapter.inspect(request.directTargetHost, request.directTargetPort)
+                    main.post {
+                        networkBusy = false
+                        if (!disposed && resumed && windowFocused) {
+                            result.success(mapOf("tls" to true, "spkiFingerprint" to pin))
+                        } else error(result, "staleSession")
+                    }
+                } catch (failure: VncNativeFailure) {
+                    main.post { networkBusy = false; error(result, failure.code) }
+                } catch (_: Exception) {
+                    main.post { networkBusy = false; error(result, "connectionFailed") }
                 }
-            } catch (failure: VncNativeFailure) {
-                main.post { error(result, failure.code) }
-            } catch (_: Exception) {
-                main.post { error(result, "connectionFailed") }
             }
+        } catch (error: RuntimeException) {
+            networkBusy = false
+            throw error
         }
     }
 

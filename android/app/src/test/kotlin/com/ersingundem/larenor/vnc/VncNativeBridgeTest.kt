@@ -1,24 +1,39 @@
 package com.ersingundem.larenor.vnc
 
+import android.app.Application
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.nio.ByteBuffer
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class VncNativeBridgeTest {
-    private class Session : VncNativeInputSession {
+    private class Session : VncNativeInputSession, VncNativeFrameSession {
         var closes = 0
         var lastInput: Map<String, Any>? = null
         override fun input(sequence: Long, event: Map<String, Any>): Boolean {
             lastInput = event
             return true
         }
+        override fun acknowledgeFrame(sequence: Long) = sequence > 0
+        override fun resize(width: Int, height: Int) = width > 0 && height > 0
         override fun close() { closes++ }
     }
 
@@ -112,29 +127,68 @@ class VncNativeBridgeTest {
     )
 
     @Test
-    fun actualMethodChannelDefaultsUnavailableAndDetachesWithoutNetwork() {
+    fun actualMethodChannelAdvertisesPackagedBackendAndDetachesWithoutNetwork() {
         val messenger = Messenger()
         val bridge = VncNativeBridge(messenger = messenger)
         assertEquals(setOf(VncNativeBridge.METHODS, VncNativeBridge.EVENTS), messenger.handlers.keys)
         val capabilities = Result()
         bridge.onMethodCall(MethodCall("capabilities", null), capabilities)
-        assertEquals("unavailable", (capabilities.value as Map<*, *>)["availability"])
-        bridge.setResumed(true)
-        val active = Result()
-        bridge.onMethodCall(MethodCall("activate", binding()), active)
-        assertNull(active.error)
-        val password = "secret".encodeToByteArray()
-        val open = Result()
-        bridge.onMethodCall(MethodCall("open", mapOf(
-            "binding" to binding(), "request" to request(),
-            "expectedEngineRevision" to null, "password" to password,
-        )), open)
-        assertEquals("engineUnavailable", open.error)
-        assertEquals("Native VNC unavailable", open.message)
-        assertNull(open.details)
-        assertTrue(password.all { it == 0.toByte() })
+        val raw = capabilities.value as Map<*, *>
+        assertEquals("available", raw["availability"])
+        assertEquals("android-rfb-vencrypt-1", raw["engineRevision"])
         bridge.dispose()
         assertTrue(messenger.handlers.values.all { it == null })
+    }
+
+    @Test
+    fun productionOpenAllowsOnlyOneNetworkJobAndZeroizesCallerPassword() {
+        val address = NetworkInterface.getNetworkInterfaces().toList()
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .first { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isLinkLocalAddress && !it.isMulticastAddress }
+        val server = ServerSocket(0, 1, address)
+        val accepted = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val accepts = AtomicInteger()
+        val serverWorker = Executors.newSingleThreadExecutor()
+        serverWorker.execute {
+            server.accept().use {
+                accepts.incrementAndGet()
+                accepted.countDown()
+                release.await(2, TimeUnit.SECONDS)
+            }
+        }
+        val bridge = VncNativeBridge(Messenger())
+        try {
+            bridge.setResumed(true)
+            bridge.onMethodCall(MethodCall("activate", binding()), Result())
+            val localRequest = request().toMutableMap().apply {
+                this["targetHost"] = address.hostAddress
+                this["targetPort"] = server.localPort
+                this["framebuffer"] = mapOf("encoding" to "raw", "pixelFormat" to "trueColor32")
+            }
+            val password = "secret".encodeToByteArray()
+            val opening = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "binding" to binding(), "request" to localRequest,
+                "expectedEngineRevision" to "android-rfb-vencrypt-1", "password" to password,
+            )), opening)
+            assertTrue(accepted.await(1, TimeUnit.SECONDS))
+            assertTrue(password.all { it == 0.toByte() })
+
+            val competing = Result()
+            bridge.onMethodCall(MethodCall("inspect", mapOf(
+                "targetHost" to address.hostAddress, "targetPort" to server.localPort,
+            )), competing)
+            assertEquals("busy", competing.error)
+            assertEquals(1, accepts.get())
+            assertNull(opening.value)
+        } finally {
+            release.countDown()
+            server.close()
+            serverWorker.shutdownNow()
+            bridge.dispose()
+        }
     }
 
     @Test
@@ -157,18 +211,19 @@ class VncNativeBridgeTest {
         )), opened)
         assertNull(opened.error)
         assertTrue(password.all { it == 0.toByte() })
-        assertTrue(bridge.publishFrame(binding(), 1, 1280, 800, 4_096_000))
-        assertFalse(bridge.publishFrame(binding(), 2, 1280, 800, 4_096_000))
+        assertTrue(bridge.publishFrame(binding(), 1, 1280, 800, ByteArray(4_096_000)))
+        assertFalse(bridge.publishFrame(binding(), 2, 1280, 800, ByteArray(4_096_000)))
         assertEquals(1, sink.values.size)
         val frame = sink.values.single() as Map<*, *>
         assertEquals(1L, frame["sequence"])
-        assertFalse(frame.keys.any { it in setOf("pixels", "targetHost", "password") })
+        assertEquals(4_096_000, (frame["pixels"] as ByteArray).size)
+        assertFalse(frame.keys.any { it in setOf("targetHost", "password") })
         val ack = Result()
         bridge.onMethodCall(MethodCall("ackFrame", mapOf(
             "binding" to binding(), "sequence" to 1L,
         )), ack)
         assertNull(ack.error)
-        assertFalse(bridge.publishFrame(binding(), 3, 1280, 800, 4_096_000))
+        assertFalse(bridge.publishFrame(binding(), 3, 1280, 800, ByteArray(4_096_000)))
         val afterGap = Result()
         bridge.onMethodCall(MethodCall("input", mapOf(
             "binding" to binding(), "sequence" to 1L,

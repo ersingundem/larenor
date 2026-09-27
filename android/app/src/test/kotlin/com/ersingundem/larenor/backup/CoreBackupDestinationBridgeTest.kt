@@ -389,6 +389,38 @@ class CoreBackupDestinationBridgeTest {
         } finally { bridge.dispose() }
     }
 
+    @Test fun activeSessionAllowsOnlyOneQueuedIoOperation() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = Host()
+        val bridge = CoreBackupDestinationBridge(activity, Messenger(), host)
+        try {
+            val session = "b".repeat(32)
+            val uri = Uri.parse("content://documents/bounded-queue")
+            val opened = open(bridge, host, session, uri)
+            val handle = (opened.value as Map<*, *>)["handle"] as String
+            host.output.writeStarted = CountDownLatch(1)
+            host.output.writeGate = CountDownLatch(1)
+
+            val first = Result()
+            bridge.onMethodCall(MethodCall("append", args(
+                session, handle, mapOf("bytes" to byteArrayOf(1, 2, 3)),
+            )), first)
+            assertTrue(host.output.writeStarted!!.await(1, TimeUnit.SECONDS))
+
+            val second = Result()
+            bridge.onMethodCall(MethodCall("append", args(
+                session, handle, mapOf("bytes" to byteArrayOf(4, 5, 6)),
+            )), second)
+            assertEquals("busy", second.code)
+            assertArrayEquals(byteArrayOf(), host.output.bytes.toByteArray())
+
+            host.output.writeGate!!.countDown()
+            await(first)
+            assertNull(first.code)
+            assertArrayEquals(byteArrayOf(1, 2, 3), host.output.bytes.toByteArray())
+        } finally { bridge.dispose() }
+    }
+
     @Test fun disposeDuringGatedOpenAndLatePickerDeleteExactlyOnceWithoutCrash() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val host = Host()

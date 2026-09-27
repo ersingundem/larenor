@@ -81,7 +81,13 @@ class CoreBackupDestinationBridge internal constructor(
         val output: CoreBackupOutput,
         val digest: MessageDigest = MessageDigest.getInstance("SHA-256"),
         var bytes: Long = 0,
-    ) { @Volatile var retired: Boolean = false }
+    ) {
+        @Volatile var retired: Boolean = false
+        // Method-channel callers must not be able to grow the serial executor
+        // queue with retained backup chunks. Flutter awaits each operation, but
+        // the native boundary still enforces one owned I/O job at a time.
+        var operationPending: Boolean = false
+    }
 
     private val channel = MethodChannel(messenger, CHANNEL)
     private val main = Handler(Looper.getMainLooper())
@@ -206,6 +212,8 @@ class CoreBackupDestinationBridge internal constructor(
             retireActive(delete = true)
             return fail(result, "invalid_request")
         }
+        if (current.operationPending) return fail(result, "busy")
+        current.operationPending = true
         io.execute {
             if (current.retired || active !== current) {
                 main.post { fail(result, "expired") }
@@ -218,7 +226,10 @@ class CoreBackupDestinationBridge internal constructor(
                 current.bytes += bytes.size
                 main.post {
                     if (current.retired || active !== current) fail(result, "expired")
-                    else result.success(null)
+                    else {
+                        current.operationPending = false
+                        result.success(null)
+                    }
                 }
             } catch (_: IllegalArgumentException) {
                 main.post {
@@ -243,6 +254,8 @@ class CoreBackupDestinationBridge internal constructor(
             retireActive(delete = true)
             return fail(result, "invalid_request")
         }
+        if (current.operationPending) return fail(result, "busy")
+        current.operationPending = true
         io.execute {
             if (current.retired || active !== current) {
                 main.post { fail(result, "expired") }

@@ -47,7 +47,7 @@ class ClientUpdaterBridgeTest {
             bridge.setResumed(true)
             assertNull(call("activateSession", mapOf("sessionId" to "synthetic-session-one")).code)
             val first = call("snapshot").value as Map<*, *>
-            assertEquals(10, first.size); assertEquals(true, first["supported"])
+            assertEquals(11, first.size); assertEquals(true, first["supported"])
             bridge.setResumed(false); bridge.setResumed(true)
             val stale = mapOf("sessionId" to "synthetic-session-one", "interactionEpoch" to first["interactionEpoch"])
             assertEquals("expired", call("openInstallPermission", stale).code)

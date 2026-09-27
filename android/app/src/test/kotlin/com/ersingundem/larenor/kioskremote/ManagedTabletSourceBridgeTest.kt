@@ -45,7 +45,18 @@ class ManagedTabletSourceBridgeTest {
         var lockResult = ManagedTabletNativeCommandResult.succeeded
         override fun read(appForeground: Boolean): ManagedTabletNativeSnapshot {
             reads += 1
-            return ManagedTabletNativeSnapshot(73, "wifi", "1.2.3+45", appForeground, "locked")
+            return ManagedTabletNativeSnapshot(
+                batteryPercent = 73,
+                charging = true,
+                network = "wifi",
+                appVersion = "1.2.3",
+                appBuild = 45,
+                appForeground = appForeground,
+                kioskState = "locked",
+                memoryUsedMb = 128,
+                memoryLimitMb = 512,
+                processUptimeSeconds = 90,
+            )
         }
         override fun lockKiosk(): ManagedTabletNativeCommandResult {
             locks += 1
@@ -123,7 +134,15 @@ class ManagedTabletSourceBridgeTest {
             val snapshot = Result()
             bridge.onMethodCall(MethodCall("snapshot", mapOf("sessionId" to "a".repeat(32))), snapshot)
             val map = snapshot.value as Map<*, *>
-            assertEquals(setOf("schemaVersion", "batteryPercent", "network", "appVersion", "appForeground", "kioskState"), map.keys)
+            assertEquals(
+                setOf(
+                    "schemaVersion", "batteryPercent", "charging", "network", "appVersion",
+                    "appBuild", "appForeground", "kioskState", "memoryUsedMb", "memoryLimitMb",
+                    "processUptimeSeconds",
+                ),
+                map.keys,
+            )
+            assertEquals(2, map["schemaVersion"])
             assertEquals(true, map["appForeground"])
             assertFalse(map.toString().contains("token", ignoreCase = true))
             assertFalse(map.toString().contains("://"))
@@ -195,6 +214,7 @@ class ManagedTabletSourceBridgeTest {
             activity.get().sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).apply {
                 putExtra(BatteryManager.EXTRA_LEVEL, 37)
                 putExtra(BatteryManager.EXTRA_SCALE, 50)
+                putExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_DISCHARGING)
             })
 
             val snapshot = AndroidManagedTabletSnapshotHost(activity.get()).read(appForeground = true)
@@ -205,7 +225,11 @@ class ManagedTabletSourceBridgeTest {
             assertTrue(snapshot.appForeground)
             assertEquals("none", snapshot.kioskState)
             assertEquals(
-                setOf("schemaVersion", "batteryPercent", "network", "appVersion", "appForeground", "kioskState"),
+                setOf(
+                    "schemaVersion", "batteryPercent", "charging", "network", "appVersion",
+                    "appBuild", "appForeground", "kioskState", "memoryUsedMb", "memoryLimitMb",
+                    "processUptimeSeconds",
+                ),
                 snapshot.toWire().keys,
             )
             assertEquals(
