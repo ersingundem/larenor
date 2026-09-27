@@ -16,6 +16,7 @@ import '../data/kiosk_controller.dart';
 import '../providers/kiosk_providers.dart';
 import 'kiosk_quick_action_bar.dart';
 import 'kiosk_sensor_screen.dart';
+import '../../personal_camera/presentation/personal_camera_screen.dart';
 
 String _actionLabel(AppLocalizations l, KioskAction a) => switch (a) {
   KioskAction.allowApp => l.kioskAllow,
@@ -334,6 +335,24 @@ class _KioskScreenState extends MediaSessionState<KioskScreen> {
                                 Navigator.of(context).push(
                                   CupertinoPageRoute<void>(
                                     builder: (_) => const KioskSensorScreen(),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                      SettingsActionTile(
+                        buttonKey: const ValueKey('personal-camera-open-route'),
+                        leading: const Icon(CupertinoIcons.camera_viewfinder),
+                        title: Text(l.personalCameraTitle),
+                        additionalInfo: Text(l.personalCameraEntryHint),
+                        onTap: _current(sessionGeneration)
+                            ? () {
+                                final generation = sessionGeneration;
+                                if (!_current(generation)) return;
+                                Navigator.of(context).push(
+                                  CupertinoPageRoute<void>(
+                                    builder: (_) =>
+                                        const PersonalCameraScreen(),
                                   ),
                                 );
                               }

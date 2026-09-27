@@ -24,6 +24,7 @@ import com.ersingundem.larenor.webpanel.WebPanelNativeEffectBridge
 import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
 import com.ersingundem.larenor.backup.CoreBackupSourceBridge
+import com.ersingundem.larenor.camera.PersonalCameraBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -46,6 +47,7 @@ class MainActivity : FlutterActivity() {
     private var managedTabletSource: ManagedTabletSourceBridge? = null
     private var coreBackupDestination: CoreBackupDestinationBridge? = null
     private var coreBackupSource: CoreBackupSourceBridge? = null
+    private var personalCamera: PersonalCameraBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -70,6 +72,11 @@ class MainActivity : FlutterActivity() {
         managedTabletSource = ManagedTabletSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupDestination = CoreBackupDestinationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreBackupSource = CoreBackupSourceBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        personalCamera = PersonalCameraBridge(
+            this,
+            flutterEngine.dartExecutor.binaryMessenger,
+            flutterEngine.renderer,
+        )
     }
     override fun onResume() {
         super.onResume()
@@ -87,6 +94,7 @@ class MainActivity : FlutterActivity() {
         gameStreamNative?.setResumed(true)
         managedTabletSource?.setResumed(true)
         webPanelNativeEffects?.setResumed(true)
+        personalCamera?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -103,6 +111,7 @@ class MainActivity : FlutterActivity() {
         gameStreamNative?.setResumed(false)
         managedTabletSource?.setResumed(false)
         webPanelNativeEffects?.setResumed(false)
+        personalCamera?.setResumed(false)
         super.onPause()
     }
     override fun onStop() {
@@ -121,6 +130,7 @@ class MainActivity : FlutterActivity() {
         localNotifications?.windowChanged()
         dualDisplay?.setWindowFocused(hasFocus)
         gameStreamNative?.setWindowFocused(hasFocus)
+        personalCamera?.setWindowFocused(hasFocus)
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -143,6 +153,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (personalCamera?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
@@ -153,6 +164,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        personalCamera?.dispose()
+        personalCamera = null
         coreBackupSource?.dispose()
         coreBackupSource = null
         coreBackupDestination?.dispose()

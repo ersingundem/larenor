@@ -123,6 +123,9 @@ dependencies {
     implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.webkit:webkit:1.15.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
+    // CameraX preview only: PRODUCT.CAMERA has no analyzer, capture or recorder.
+    implementation("androidx.camera:camera-camera2:1.6.1")
+    implementation("androidx.camera:camera-lifecycle:1.6.1")
     // Official stable AndroidX release; keep all Media3 modules in lockstep.
     val media3Version = "1.11.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
