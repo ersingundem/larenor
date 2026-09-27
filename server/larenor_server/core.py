@@ -78,6 +78,8 @@ from .local_notifications.schema import migrate_local_notifications
 from .local_notifications.service import LocalNotificationService
 from .mini_plugins.schema import migrate_mini_plugins
 from .mini_plugins.service import MiniPluginService
+from .mcp_gateway.schema import migrate_mcp_gateway
+from .mcp_gateway.service import McpGatewayService
 from .media_preferences.schema import migrate_jellyfin_track_preferences
 from .media_preferences.service import JellyfinTrackPreferenceService
 from .media_language_preferences.schema import migrate_media_language_preferences
@@ -409,6 +411,7 @@ class CoreServices:
                 migrate_automation_trials(connection)
                 migrate_automation_drafts(connection)
                 migrate_mini_plugins(connection)
+                migrate_mcp_gateway(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -757,6 +760,10 @@ class CoreServices:
                 self.home_resources, settings, key
             )
             self.mini_plugins.validate_storage()
+            self.mcp_gateway = McpGatewayService(
+                self.home_resources, settings, key
+            )
+            self.mcp_gateway.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services
             )
