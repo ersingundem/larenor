@@ -4836,7 +4836,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4860,14 +4860,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Taze sayaç/tarife revizyonu, kritik yük koruması, öncelikli ve hold-until salınım önlemeli bounded planlama ile HMAC zincirli preview/command/readback temeli önceki commitlerde hazırdı. 421554ea, salt okunur sağlayıcıları koruyarak yalnız açık manuel capability ve cihaz başına doğrulanmış iletişim kaybı davranışı için önizleme→açık kullanıcı onayı→tek uygulama→readback yolunu açtı; aynı önizlemenin ikinci farklı komutla tekrarı kapanır ve belirsiz sonuç körlemesine yeniden gönderilmez. Manuel endpoint smoke’u verified ve tekrar 409 verdi; mevcut 5 F48 testi ile dar Flutter analizi temiz. Gerçek sayaç/uyumlu şarj yükü E2E, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
     },
     {
       "id": "F46",
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
