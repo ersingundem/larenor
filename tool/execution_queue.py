@@ -319,7 +319,7 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
         pending = [node for node in tasks if node['status'] == 'pending']
         ready = [node for node in pending if not model.blockers(node['id'])]
         blocked = [node for node in pending if model.blockers(node['id'])]
-        upcoming = (ready + blocked)[:20]
+        upcoming = ready + blocked
         lines.extend([
             '',
             'Şu anda çalışılanlar',
@@ -337,7 +337,7 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
             lines.append('| — | Aktif iş yok | — | — |')
         lines.extend([
             '',
-            'Sıradaki 20 iş',
+            'Bekleyen tüm işler',
             '',
             'Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla gösterilir.',
             '',
