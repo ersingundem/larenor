@@ -15,6 +15,7 @@ import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_frontend_screen.dart';
 import 'package:larenor/features/kiosk/data/kiosk_usage_repository.dart';
 import 'package:larenor/features/kiosk/domain/kiosk_watchdog.dart';
+import 'package:larenor/features/kiosk/presentation/kiosk_maintenance_screen.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_native_bridge.dart';
@@ -1009,6 +1010,46 @@ void main() {
     expect(h.platform.controllers, hasLength(2));
     await h.close(tester);
   });
+
+  testWidgets(
+    'exhausted durable recovery opens safe maintenance without a renderer',
+    (tester) async {
+      final h = Harness();
+      final now = DateTime.utc(2026, 9, 23).millisecondsSinceEpoch;
+      h._attemptStore.value = jsonEncode({
+        'version': 1,
+        'attempts': [now - 3000, now - 2000, now - 1000],
+      });
+      await h.mount(tester);
+      h.platform.controllers.single.delegate.resourceError(
+        const WebResourceError(
+          errorCode: -1,
+          description: 'private renderer payload',
+          isForMainFrame: true,
+        ),
+      );
+      await tester.pump();
+
+      await h.panel.currentState!.restart();
+      await tester.pump();
+
+      expect(h.platform.controllers, hasLength(1));
+      expect(find.textContaining('private renderer payload'), findsNothing);
+      expect(
+        (await h.usage.read()).count(KioskUsageEvent.recoveryBlocked),
+        1,
+      );
+      final maintenance = find.byKey(
+        const ValueKey('web-panel-open-maintenance'),
+      );
+      expect(maintenance, findsOneWidget);
+
+      await tester.tap(maintenance);
+      await tester.pumpAndSettle();
+      expect(find.byType(KioskMaintenanceScreen), findsOneWidget);
+      await h.close(tester);
+    },
+  );
 
   testWidgets(
     'replacing renderer monitor revokes the stale monitor generation',
