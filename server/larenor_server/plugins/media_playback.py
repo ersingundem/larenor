@@ -14,7 +14,12 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackReceipt,
     MediaPlaybackWorkerResult,
+    MediaSegmentsAuthority,
+    MediaSegmentsReadback,
+    MediaSegmentsRequest,
+    MediaSegmentsResponse,
     PrepareMediaPlaybackIntentRequest,
+    PrivateJellyfinMediaSegmentsAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
     PrivateMediaPlaybackAction,
@@ -102,11 +107,31 @@ class MediaPlaybackWorkerProvider:
             raise ValueError('media_playback_authority_changed')
         return result
 
+    def read_media_segments(self, authority, *, request_id, deadline, gate):
+        reader = getattr(self.backend, 'read_media_segments', None)
+        if not callable(reader):
+            raise ValueError('media_playback_worker_unavailable')
+        private = self.bootstraps.playback_private(
+            authority.installationId, authority.installationRevision)
+        retained = lambda: self._retained(
+            authority.installationId, authority.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = reader(
+            PrivateJellyfinMediaSegmentsAuthority(
+                requestId=request_id, authority=authority, plan=private.plan,
+                apiKey=private.api_key),
+            deadline=deadline, gate=retained)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
+
 
 class MediaPlaybackManagement:
-    def __init__(self, db, auth, settings, archive, backend=None):
+    def __init__(self, db, auth, settings, archive, backend=None, context=None):
         self.db, self.auth, self.settings = db, auth, settings
-        self.archive, self.backend = archive, backend
+        self.archive, self.backend, self.context = archive, backend, context
 
     def validate_storage(self):
         try:
@@ -190,11 +215,16 @@ class MediaPlaybackManagement:
             mediaKey=item.mediaKey,
         )
 
-    def _gate(self, actor, authority):
+    def _gate(self, actor, authority, actor_revision=None):
         try:
             with self.db.connection() as connection:
                 self.auth.assert_current(connection, actor)
-                if actor.must_change_password:
+                row = connection.execute(
+                    'SELECT revision FROM users WHERE id=?',
+                    (actor.id,)).fetchone()
+                if (actor.must_change_password or row is None
+                        or actor_revision is not None
+                        and row['revision'] != actor_revision):
                     return False
             class Body:
                 installationId = authority.installationId
@@ -225,6 +255,61 @@ class MediaPlaybackManagement:
             raise
         except Exception:  # noqa: BLE001 - private worker errors stay private
             raise ApiError('media_playback_worker_unavailable', 503) from None
+
+    def _actor_revision(self, actor):
+        with self.db.connection() as connection:
+            self.auth.assert_current(connection, actor)
+            row = connection.execute(
+                'SELECT revision FROM users WHERE id=?',
+                (actor.id,)).fetchone()
+            if row is None or actor.must_change_password:
+                raise ApiError('invalid_session', 401)
+            return row['revision']
+
+    def segments(self, actor, body):
+        if type(body) is not MediaSegmentsRequest or self.context is None:
+            raise ApiError('invalid_request')
+        actor_revision = self._actor_revision(actor)
+        authority = self._catalog(actor, body)
+        if self.backend is None:
+            raise ApiError('media_playback_worker_unavailable', 503)
+        deadline = time.monotonic() + 5
+        gate = lambda: (
+            time.monotonic() < deadline
+            and self._gate(actor, authority, actor_revision))
+        try:
+            result = self.backend.read_media_segments(
+                authority, request_id=body.requestId,
+                deadline=deadline, gate=gate)
+            if type(result) is not MediaSegmentsReadback or gate() is not True:
+                raise ValueError()
+            readback = MediaSegmentsReadback.model_validate(
+                result.model_dump(mode='python'))
+        except ApiError:
+            raise
+        except Exception:  # noqa: BLE001 - private worker errors stay private
+            raise ApiError('media_playback_worker_unavailable', 503) from None
+        if self._actor_revision(actor) != actor_revision:
+            raise ApiError('media_playback_authority_changed', 409)
+        public = MediaSegmentsAuthority(
+            schemaVersion=1,
+            coreId=self.context.coreId,
+            homeId=self.context.homeId,
+            accountId=actor.id,
+            accountRevision=actor_revision,
+            sessionFamilyId=actor.family_id,
+            installationId=authority.installationId,
+            installationRevision=authority.installationRevision,
+            snapshotRevision=authority.snapshotRevision,
+            jellyfinServiceRevision=authority.jellyfinServiceRevision,
+            itemId=authority.itemId,
+            mediaKey=authority.mediaKey,
+        )
+        response = MediaSegmentsResponse(
+            schemaVersion=1, requestId=body.requestId, authority=public,
+            supported=readback.supported, reason=readback.reason,
+            segments=readback.segments)
+        return response.model_dump(mode='python')
 
     def prepare(self, actor, body):
         if type(body) is not PrepareMediaPlaybackIntentRequest:

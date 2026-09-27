@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
+from ..home_resources.models import HomeScope
 from ..models import StrictModel
 from .stack_plan import MediaStackPlan
 
@@ -15,6 +16,12 @@ _MEDIA_KEY = re.compile(
     r'[0-9]{1,4}:[0-9]{1,5})\Z'
 )
 _QUALITY_TOKEN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}\Z')
+
+
+def _exact_schema_version(value):
+    if type(value) is not int:
+        raise ValueError('invalid_media_segments_schema')
+    return value
 
 
 class MediaPlaybackSourceStreamEvidence(StrictModel):
@@ -155,6 +162,97 @@ class MediaPlaybackReceiptResponse(StrictModel):
     receipt: MediaPlaybackReceipt
 
 
+class MediaSegmentsRequest(PrepareMediaPlaybackIntentRequest):
+    schemaVersion: Literal[1] = 1
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+
+class MediaSegment(StrictModel):
+    schemaVersion: Literal[1] = 1
+    kind: Literal['intro', 'outro']
+    startSeconds: int = Field(ge=0, le=8_640_000)
+    endSeconds: int = Field(ge=1, le=8_640_000)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if self.startSeconds >= self.endSeconds:
+            raise ValueError('invalid_media_segment')
+        return self
+
+
+class MediaSegmentsReadback(StrictModel):
+    schemaVersion: Literal[1] = 1
+    supported: bool
+    reason: Literal[
+        'available', 'endpoint_unsupported', 'contract_unsupported',
+        'no_segments',
+    ]
+    segments: list[MediaSegment] = Field(max_length=8)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if ((self.supported and self.reason not in {'available', 'no_segments'})
+                or (not self.supported and self.reason not in {
+                    'endpoint_unsupported', 'contract_unsupported'})
+                or (self.reason == 'available') != bool(self.segments)
+                or self.reason == 'no_segments' and self.segments
+                or not self.supported and self.segments
+                or any(previous.endSeconds > current.startSeconds
+                       for previous, current in zip(
+                           self.segments, self.segments[1:]))):
+            raise ValueError('invalid_media_segments_readback')
+        return self
+
+
+class MediaSegmentsAuthority(HomeScope):
+    accountId: ObjectId
+    accountRevision: Revision
+    sessionFamilyId: ObjectId
+    installationId: ObjectId
+    installationRevision: Revision
+    snapshotRevision: Revision
+    jellyfinServiceRevision: Revision
+    itemId: ObjectId
+    mediaKey: str = Field(min_length=1, max_length=96)
+
+    @field_validator('mediaKey')
+    @classmethod
+    def media_key(cls, value):
+        if _MEDIA_KEY.fullmatch(value) is None:
+            raise ValueError('invalid_media_playback_item')
+        return value
+
+
+class MediaSegmentsResponse(StrictModel):
+    schemaVersion: Literal[1] = 1
+    requestId: ObjectId
+    authority: MediaSegmentsAuthority
+    supported: bool
+    reason: Literal[
+        'available', 'endpoint_unsupported', 'contract_unsupported',
+        'no_segments',
+    ]
+    segments: list[MediaSegment] = Field(max_length=8)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        MediaSegmentsReadback(
+            supported=self.supported, reason=self.reason,
+            segments=self.segments)
+        return self
+
+
 class PrivateMediaPlaybackAuthority(StrictModel):
     installationId: ObjectId
     installationRevision: Revision
@@ -195,3 +293,14 @@ class PrivateJellyfinPlaybackAction(StrictModel):
     action: PrivateMediaPlaybackAction
     plan: MediaStackPlan = Field(repr=False)
     apiKey: str = Field(min_length=32, max_length=128, repr=False)
+
+
+class PrivateJellyfinMediaSegmentsAuthority(StrictModel):
+    schemaVersion: Literal[1] = 1
+    requestId: ObjectId
+    authority: PrivateMediaPlaybackAuthority
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)

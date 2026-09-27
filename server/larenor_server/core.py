@@ -858,6 +858,7 @@ class CoreServices:
                  and callable(getattr(
                      installation_backend, 'execute_media_playback', None))
                  else None),
+                context=self.context,
             )
             self.media_playback.validate_storage()
             self.media_rows = MediaRowsManagement(

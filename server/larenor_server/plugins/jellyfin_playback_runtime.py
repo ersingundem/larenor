@@ -21,6 +21,8 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
+    MediaSegment,
+    MediaSegmentsReadback,
     PrivateMediaPlaybackAction,
 )
 
@@ -28,6 +30,10 @@ from .media_playback_models import (
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _API_KEY = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 _QUALITY_TOKEN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}\Z')
+_GUID = re.compile(
+    r'(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\Z')
+_SEGMENT_TYPES = {'Unknown', 'Intro', 'Outro', 'Recap', 'Preview', 'Commercial'}
 _BASE_AUTH = ('MediaBrowser Client="Larenor%20Core", Device="Larenor%20Core", '
               'DeviceId="{device}", Version="0.1.0", Token={token}')
 
@@ -95,6 +101,35 @@ class JellyfinPlaybackProtocol:
                 socket.timeout):
             raise JellyfinPlaybackRuntimeError(
                 uncertain_effect=effect and attempted) from None
+        finally:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _segment_request(connection, path, authorization, deadline):
+        reader = _StartupReader(connection, deadline)
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError()
+            connection.settimeout(remaining)
+            connection.sendall(_request_bytes(
+                'GET', path, 'jellyfin', {
+                    'Accept': 'application/json',
+                    'Authorization': authorization,
+                }, None,
+            ))
+            status, body, closed = _response(reader, 65536)
+            if status not in {200, 400, 404} or closed is not True:
+                raise ValueError()
+            if reader.receive(1) != b'':
+                raise ValueError()
+            return status, body
+        except (OSError, ValueError, TypeError, ProbeTransportError,
+                socket.timeout):
+            raise JellyfinPlaybackRuntimeError() from None
         finally:
             try:
                 connection.close()
@@ -327,6 +362,85 @@ class JellyfinPlaybackProtocol:
                 JellyfinPlaybackRuntimeError):
             raise JellyfinPlaybackRuntimeError(
                 'jellyfin_playback_readback_changed') from None
+
+    @staticmethod
+    def _guid(value):
+        if type(value) is not str or _GUID.fullmatch(value) is None:
+            raise ValueError()
+        return value.replace('-', '').lower()
+
+    @classmethod
+    def _segments(cls, body, item_id):
+        raw = _json(body)
+        if (type(raw) is not dict or set(raw) != {
+                'Items', 'TotalRecordCount', 'StartIndex'}
+                or type(raw['Items']) is not list
+                or len(raw['Items']) > 32
+                or type(raw['TotalRecordCount']) is not int
+                or type(raw['TotalRecordCount']) is bool
+                or raw['TotalRecordCount'] != len(raw['Items'])
+                or type(raw['StartIndex']) is not int
+                or type(raw['StartIndex']) is bool
+                or raw['StartIndex'] != 0):
+            raise ValueError()
+        selected = []
+        seen_ids = set()
+        for value in raw['Items']:
+            if (type(value) is not dict or set(value) != {
+                    'Id', 'ItemId', 'Type', 'StartTicks', 'EndTicks'}
+                    or cls._guid(value['ItemId']) != item_id
+                    or type(value['Type']) is not str
+                    or value['Type'] not in _SEGMENT_TYPES
+                    or type(value['StartTicks']) is not int
+                    or type(value['StartTicks']) is bool
+                    or type(value['EndTicks']) is not int
+                    or type(value['EndTicks']) is bool
+                    or not 0 <= value['StartTicks'] <= 86_400_000_000_000
+                    or not 0 <= value['EndTicks'] <= 86_400_000_000_000):
+                raise ValueError()
+            segment_id = cls._guid(value['Id'])
+            if segment_id in seen_ids:
+                raise ValueError()
+            seen_ids.add(segment_id)
+            if value['Type'] not in {'Intro', 'Outro'}:
+                continue
+            start = value['StartTicks'] // 10_000_000
+            end = value['EndTicks'] // 10_000_000
+            if start >= end:
+                raise ValueError()
+            selected.append(MediaSegment(
+                kind=value['Type'].lower(), startSeconds=start,
+                endSeconds=end))
+        selected.sort(key=lambda item: (
+            item.startSeconds, item.endSeconds, item.kind))
+        if (len(selected) > 8
+                or any(previous.endSeconds > current.startSeconds
+                       for previous, current in zip(selected, selected[1:]))):
+            raise ValueError()
+        return MediaSegmentsReadback(
+            supported=True,
+            reason='available' if selected else 'no_segments',
+            segments=selected)
+
+    def read_segments(self, connection, *, api_key, installation_id, item_id,
+                      deadline):
+        self._inputs(api_key, installation_id, deadline)
+        if type(item_id) is not str or _ID.fullmatch(item_id) is None:
+            raise JellyfinPlaybackRuntimeError(
+                'invalid_jellyfin_playback_request')
+        authorization = _BASE_AUTH.format(
+            device=installation_id, token=api_key)
+        status, body = self._segment_request(
+            connection, f'/MediaSegments/{item_id}', authorization, deadline)
+        if status in {400, 404}:
+            return MediaSegmentsReadback(
+                supported=False, reason='endpoint_unsupported', segments=[])
+        try:
+            return self._segments(body, item_id)
+        except (ValueError, TypeError, ValidationError, JellyfinStartupError,
+                JellyfinPlaybackRuntimeError):
+            return MediaSegmentsReadback(
+                supported=False, reason='contract_unsupported', segments=[])
 
     def execute(self, connections, action, *, api_key, deadline, gate):
         if (type(action) is not PrivateMediaPlaybackAction

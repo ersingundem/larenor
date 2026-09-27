@@ -452,6 +452,8 @@
   "jellyfinPlayerSubtitlesButton": "Subtitles",
   "jellyfinPlayerAudioButton": "Audio",
   "jellyfinPlayerQualityButton": "Quality",
+  "jellyfinPlayerSkipIntro": "Skip Intro",
+  "jellyfinPlayerSkipOutro": "Skip Outro",
   "jellyfinPlayerSubtitlesTitle": "Subtitles",
   "jellyfinPlayerSubtitlesOff": "Off",
   "jellyfinPlayerAudioTitle": "Audio Track",

@@ -187,6 +187,62 @@ final class ServerMediaCatalogApi {
     );
   }
 
+  /// Resolves one opaque Jellyfin item against the exact target revisions read
+  /// immediately beforehand. The caller must discard this page when [current]
+  /// retires; no provider-id inference or direct-service fallback is used.
+  Future<ServerMediaCatalogPage> resolveVerifiedTarget({
+    required ServerMediaCatalogTarget target,
+    required String itemId,
+    bool Function()? current,
+  }) async {
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(itemId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    _requireCurrent(current);
+    final requestId = _requestId();
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    try {
+      final response = _object(
+        await api.request(
+          'POST',
+          '/media/catalog/resolve',
+          token: token,
+          body: {
+            'requestId': requestId,
+            'installationId': target.installationId,
+            'expectedInstallationRevision': target.installationRevision,
+            'expectedSnapshotRevision': target.snapshotRevision,
+            'itemId': itemId,
+          },
+        ),
+        {'requestId', 'catalog'},
+      );
+      _requireCurrent(current);
+      if (response['requestId'] != requestId) throw const FormatException();
+      final page = ServerMediaCatalogPage.fromJson(
+        response['catalog'],
+        operation: ServerMediaCatalogOperation.browse,
+        mediaKind: null,
+      );
+      if (page.installationId != target.installationId ||
+          page.installationRevision != target.installationRevision ||
+          page.snapshotRevision != target.snapshotRevision ||
+          page.jellyfinServiceRevision != target.jellyfinServiceRevision ||
+          page.offset != 0 ||
+          page.nextOffset != null ||
+          page.total != 1 ||
+          page.items.length != 1 ||
+          page.items.single.itemId != itemId) {
+        throw const FormatException();
+      }
+      return page;
+    } on FormatException {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
   Future<ServerMediaCatalogPage> search({
     required String installationId,
     required int expectedInstallationRevision,

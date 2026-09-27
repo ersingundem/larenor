@@ -24,6 +24,8 @@ import '../../../playback_quality/data/core_playback_quality_controller.dart';
 import '../../../playback_quality/data/core_playback_quality_request_adapter.dart';
 import '../../../playback_quality/domain/core_playback_quality_advice.dart';
 import '../../../playback_quality/providers/playback_quality_providers.dart';
+import '../../../../server/media_segments/data/server_media_segment_controller.dart';
+import '../../../../server/media_segments/domain/server_media_segment_models.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
@@ -90,6 +92,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   late final Player _player;
   late final VideoController _controller = VideoController(_player);
   late final CorePlaybackQualityController _coreQuality;
+  late final ServerMediaSegmentController _mediaSegments;
 
   JellyfinClient? _client;
   LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
@@ -204,6 +207,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _progressPoller.stop();
       unawaited(_reporter?.stop(_position));
       _reporter = null;
+      _mediaSegments.retire();
       _ignoreFailure(_player.stop);
       _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
       _loading = false;
@@ -252,6 +256,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _coreQuality = CorePlaybackQualityController(
       ref.read(serverAccountControllerProvider),
     )..addListener(_qualityAdviceChanged);
+    _mediaSegments = ServerMediaSegmentController(
+      ref.read(serverAccountControllerProvider),
+    )..addListener(_mediaSegmentsChanged);
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
@@ -268,6 +275,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _progressPoller.stop();
       unawaited(_reporter?.stop(_position));
       _reporter = null;
+      _mediaSegments.retire();
       _ignoreFailure(_player.stop);
       if (mounted) {
         setState(() {
@@ -283,6 +291,10 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   void _qualityAdviceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _mediaSegmentsChanged() {
     if (mounted) setState(() {});
   }
 
@@ -403,8 +415,12 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _trackSub?.cancel();
       _trackSub = null;
       _coreQuality.retire();
+      _mediaSegments.retire();
       setState(() {
         _sourceEpoch++;
+        _position = startPosition;
+        _duration = Duration.zero;
+        _seekDraft = null;
         _preferredTracks = null;
         _qualityEvidence = source.qualityEvidence;
         _coreQualityRequest = null;
@@ -449,6 +465,15 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _reporter = reporter;
       await reporter.start(startPosition);
       if (!current()) return false;
+      unawaited(
+        _loadMediaSegments(
+          itemId: widget.item.id,
+          itemEpoch: generation,
+          sourceEpoch: sourceEpoch,
+          client: client,
+          reporter: reporter,
+        ),
+      );
 
       _positionSub?.cancel();
       _positionSub = _player.stream.position.listen((position) {
@@ -478,6 +503,50 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     } finally {
       _opening = false;
     }
+  }
+
+  Future<void> _loadMediaSegments({
+    required String itemId,
+    required int itemEpoch,
+    required int sourceEpoch,
+    required JellyfinClient client,
+    required PlaybackReporter reporter,
+  }) => _mediaSegments.loadCurrentItem(
+    itemId,
+    sourceEpoch: sourceEpoch,
+    itemEpoch: itemEpoch,
+    current: () =>
+        mounted &&
+        _foreground &&
+        widget.item.id == itemId &&
+        itemEpoch == _generation &&
+        sourceEpoch == _sourceEpoch &&
+        identical(_client, client) &&
+        identical(ref.read(jellyfinClientProvider), client) &&
+        identical(_reporter, reporter),
+  );
+
+  ServerMediaSegment? get _activeMediaSegment {
+    final result = _mediaSegments.result;
+    if (result == null ||
+        !result.isCurrent(sourceEpoch: _sourceEpoch, itemEpoch: _generation) ||
+        _duration <= Duration.zero) {
+      return null;
+    }
+    final segment = result.segmentAt(_position);
+    if (segment == null || segment.end > _duration) return null;
+    return segment;
+  }
+
+  Future<void> _skipMediaSegment(ServerMediaSegment expected) async {
+    final current = _activeMediaSegment;
+    if (current == null ||
+        current.kind != expected.kind ||
+        current.start != expected.start ||
+        current.end != expected.end) {
+      return;
+    }
+    await _ignoreFailure(() => _player.seek(current.end));
   }
 
   Future<void> _loadCoreQualityAdvice(
@@ -1090,6 +1159,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _legacyMigration?.dispose();
     _coreQuality.removeListener(_qualityAdviceChanged);
     _coreQuality.dispose();
+    _mediaSegments.removeListener(_mediaSegmentsChanged);
+    _mediaSegments.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();
@@ -1110,6 +1181,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   Widget _buildPage(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final activeSegment = _activeMediaSegment;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.black,
       navigationBar: _loading || _error != null
@@ -1225,8 +1297,49 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                   ),
                 if (_controlsVisible) _buildTopBar(l10n),
                 if (_controlsVisible) _buildBottomBar(l10n),
+                if (activeSegment != null)
+                  _buildSkipSegmentButton(activeSegment, l10n),
               ],
             ),
+    );
+  }
+
+  Widget _buildSkipSegmentButton(
+    ServerMediaSegment segment,
+    AppLocalizations l10n,
+  ) {
+    final label = switch (segment.kind) {
+      ServerMediaSegmentKind.intro => l10n.jellyfinPlayerSkipIntro,
+      ServerMediaSegmentKind.outro => l10n.jellyfinPlayerSkipOutro,
+    };
+    return Positioned(
+      right: 16,
+      bottom: _controlsVisible ? 104 : 16,
+      child: SafeArea(
+        top: false,
+        left: false,
+        child: Semantics(
+          button: true,
+          label: label,
+          child: CupertinoButton(
+            key: ValueKey('jellyfin-player-skip-${segment.kind.name}'),
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            color: CupertinoColors.black.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(22),
+            onPressed: _interactionAction(
+              () => unawaited(_skipMediaSegment(segment)),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

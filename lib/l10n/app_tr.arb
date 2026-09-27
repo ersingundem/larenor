@@ -291,6 +291,8 @@
   "jellyfinPlayerSubtitlesButton": "Altyazı",
   "jellyfinPlayerAudioButton": "Ses",
   "jellyfinPlayerQualityButton": "Kalite",
+  "jellyfinPlayerSkipIntro": "Jeneriği atla",
+  "jellyfinPlayerSkipOutro": "Kapanışı atla",
   "jellyfinPlayerSubtitlesTitle": "Altyazılar",
   "jellyfinPlayerSubtitlesOff": "Kapalı",
   "jellyfinPlayerAudioTitle": "Ses Parçası",

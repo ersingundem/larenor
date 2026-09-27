@@ -34,6 +34,8 @@ from .media_flow_models import MediaFlowObservation, validate_media_key
 from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackWorkerResult,
+    MediaSegmentsReadback,
+    PrivateJellyfinMediaSegmentsAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
 )
@@ -105,7 +107,9 @@ def _wire_jellyfin_playback(value=None, error=None):
             'uncertainEffect': error.uncertain_effect,
             'value': None,
         }
-    if type(value) not in (MediaPlaybackReadback, MediaPlaybackWorkerResult):
+    if type(value) not in (
+            MediaPlaybackReadback, MediaPlaybackWorkerResult,
+            MediaSegmentsReadback):
         raise InstallationIPCError('invalid_worker_result')
     return {
         'state': 'succeeded',
@@ -988,6 +992,11 @@ class InstallationWorkerClient:
             'jellyfin_playback_read', authority, MediaPlaybackReadback,
             deadline, gate)
 
+    def read_media_segments(self, authority, *, deadline, gate):
+        return self._jellyfin_playback_exchange(
+            'jellyfin_media_segments_read', authority,
+            MediaSegmentsReadback, deadline, gate)
+
     def execute_media_playback(self, action, *, deadline, gate):
         return self._jellyfin_playback_exchange(
             'jellyfin_playback_execute', action, MediaPlaybackWorkerResult,
@@ -1032,6 +1041,7 @@ class InstallationWorkerClient:
                                      gate):
         now = time.monotonic()
         if (type(private) not in (PrivateJellyfinPlaybackAuthority,
+                                 PrivateJellyfinMediaSegmentsAuthority,
                                  PrivateJellyfinPlaybackAction)
                 or type(deadline) not in (int, float)
                 or type(deadline) is bool or not math.isfinite(deadline)
@@ -1545,6 +1555,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
             except Exception:
                 raise PreflightIPCError('invalid_request') from None
         if operation in {'jellyfin_playback_read',
+                         'jellyfin_media_segments_read',
                          'jellyfin_playback_execute'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'private'}
@@ -1554,11 +1565,16 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 raw = json.dumps(
                     request['private'], sort_keys=True, separators=(',', ':'),
                     allow_nan=False)
-                reading = operation == 'jellyfin_playback_read'
-                private = (PrivateJellyfinPlaybackAuthority
-                           if reading else PrivateJellyfinPlaybackAction
-                           ).model_validate_json(raw)
-                method = ('read_media_playback' if reading
+                reading = operation != 'jellyfin_playback_execute'
+                private_model = (
+                    PrivateJellyfinMediaSegmentsAuthority
+                    if operation == 'jellyfin_media_segments_read'
+                    else PrivateJellyfinPlaybackAuthority
+                    if reading else PrivateJellyfinPlaybackAction)
+                private = private_model.model_validate_json(raw)
+                method = ('read_media_segments'
+                          if operation == 'jellyfin_media_segments_read'
+                          else 'read_media_playback' if reading
                           else 'execute_media_playback')
                 timed = getattr(self.backend, method + '_with_deadline', None)
                 try:
@@ -1568,7 +1584,9 @@ class InstallationWorkerServer(PreflightWorkerServer):
                                   gate=lambda: time.monotonic() < deadline))
                 except JellyfinPlaybackExecutionError as error:
                     return _wire_jellyfin_playback(error=error)
-                expected = (MediaPlaybackReadback if reading
+                expected = (MediaSegmentsReadback
+                            if operation == 'jellyfin_media_segments_read'
+                            else MediaPlaybackReadback if reading
                             else MediaPlaybackWorkerResult)
                 if time.monotonic() >= deadline or type(result) is not expected:
                     raise ValueError()

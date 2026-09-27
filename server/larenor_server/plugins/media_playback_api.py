@@ -9,6 +9,8 @@ from .media_playback_models import (
     MediaPlaybackCommandRequest,
     MediaPlaybackIntentResponse,
     MediaPlaybackReceiptResponse,
+    MediaSegmentsRequest,
+    MediaSegmentsResponse,
     PrepareMediaPlaybackIntentRequest,
 )
 
@@ -25,6 +27,11 @@ router = APIRouter(
 @router.post('/intents', response_model=MediaPlaybackIntentResponse)
 def prepare(body: PrepareMediaPlaybackIntentRequest, core: Core, actor: Ready):
     return core.media_playback.prepare(actor, body)
+
+
+@router.post('/segments', response_model=MediaSegmentsResponse)
+def segments(body: MediaSegmentsRequest, core: Core, actor: Ready):
+    return core.media_playback.segments(actor, body)
 
 
 @router.post('/commands', response_model=MediaPlaybackReceiptResponse,
