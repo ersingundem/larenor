@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/irrigation_budget_models.dart';
@@ -7,7 +9,17 @@ abstract interface class IrrigationBudgetApi {
   void retire();
 }
 
-final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
+abstract interface class IrrigationControlApi {
+  Future<IrrigationControlPreview> preview(IrrigationBudgetSnapshot snapshot);
+  Future<IrrigationControlReceipt> confirm(IrrigationControlPreview preview);
+  Future<IrrigationStopReceipt> stop(
+    IrrigationBudgetSnapshot snapshot,
+    List<String> zoneIds,
+  );
+}
+
+final class CoreIrrigationBudgetApi
+    implements IrrigationBudgetApi, IrrigationControlApi {
   CoreIrrigationBudgetApi({
     required this.account,
     required this.routeId,
@@ -73,6 +85,68 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
     return _decode(_object(response['snapshot']), session);
   });
 
+  Future<T> _post<T>(
+    String path,
+    Map<String, Object?> body,
+    T Function(Map<String, dynamic>) decode,
+  ) => account.withSession((api, session) async {
+    _check();
+    if (!session.user.canAdminister || session.context == null) {
+      throw const LarenorServerException('forbidden');
+    }
+    _session ??= session;
+    if (!identical(_session, session) || !identical(account.session, session)) {
+      retire();
+      throw const LarenorServerException('cancelled');
+    }
+    final response = _object(
+      await api.request('POST', path, token: session.accessToken, body: body),
+    );
+    _check();
+    if (!identical(_session, session) || !identical(account.session, session)) {
+      retire();
+      throw const LarenorServerException('cancelled');
+    }
+    return decode(response);
+  });
+
+  @override
+  Future<IrrigationControlPreview> preview(IrrigationBudgetSnapshot snapshot) =>
+      _post('/admin/irrigation-budget/preview', {
+        'schemaVersion': 1,
+        'requestId': _requestId(),
+        'expectedPlanId': snapshot.planId,
+        'expectedPolicyRevision': snapshot.authority.policyRevision,
+        'expectedBudgetRevision': snapshot.authority.budgetRevision,
+      }, _decodePreview);
+
+  @override
+  Future<IrrigationControlReceipt> confirm(IrrigationControlPreview preview) =>
+      _post('/admin/irrigation-budget/confirm', {
+        'schemaVersion': 1,
+        'previewId': preview.previewId,
+        'confirmToken': preview.confirmToken,
+      }, _decodeReceipt);
+
+  @override
+  Future<IrrigationStopReceipt> stop(
+    IrrigationBudgetSnapshot snapshot,
+    List<String> zoneIds,
+  ) => _post('/admin/irrigation-budget/stop', {
+    'schemaVersion': 1,
+    'requestId': _requestId(),
+    'expectedPolicyRevision': snapshot.authority.policyRevision,
+    'zoneIds': zoneIds,
+  }, _decodeStopReceipt);
+
+  static String _requestId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
   IrrigationBudgetSnapshot _decode(
     Map<String, dynamic> raw,
     ServerSession session,
@@ -92,7 +166,7 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
       'commandEndpointAvailable',
     });
     if (_int(raw['schemaVersion']) != 1 ||
-        raw['commandEndpointAvailable'] != false) {
+        raw['commandEndpointAvailable'] is! bool) {
       _invalid();
     }
     final authorityRaw = _object(raw['authority']);
@@ -200,6 +274,13 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
     final daily = _bounded(budget['dailyLimitMl'], 0, 10000000000);
     final used = _bounded(budget['usedMl'], 0, daily);
     final planned = _bounded(budget['plannedMl'], 0, daily - used);
+    final capability = _oneOf(raw['controlCapability'], const {
+      'read_only',
+      'manual_required',
+      'verified_control',
+    });
+    final commandAvailable = raw['commandEndpointAvailable']! as bool;
+    if (commandAvailable != (capability == 'verified_control')) _invalid();
     return IrrigationBudgetSnapshot(
       authority: authority,
       planId: _identity(raw['planId']),
@@ -217,13 +298,261 @@ final class CoreIrrigationBudgetApi implements IrrigationBudgetApi {
         0,
         0x7fffffffffffffff,
       ),
-      controlCapability: _oneOf(raw['controlCapability'], const {
-        'read_only',
-        'manual_required',
-      }),
-      commandEndpointAvailable: false,
+      controlCapability: capability,
+      commandEndpointAvailable: commandAvailable,
       zones: List.unmodifiable(zones),
     );
+  }
+
+  IrrigationControlPreview _decodePreview(Map<String, dynamic> response) {
+    _keys(response, const {'schemaVersion', 'preview'});
+    if (_int(response['schemaVersion']) != 1) _invalid();
+    final raw = _object(response['preview']);
+    _keys(raw, const {
+      'schemaVersion',
+      'previewId',
+      'confirmToken',
+      'requestId',
+      'planId',
+      'policyRevision',
+      'expiresAtMs',
+      'commandCount',
+    });
+    if (_int(raw['schemaVersion']) != 1) _invalid();
+    final token = _text(raw['confirmToken'], 43);
+    if (token.length != 43 || !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
+      _invalid();
+    }
+    return IrrigationControlPreview(
+      previewId: _identity(raw['previewId']),
+      confirmToken: token,
+      requestId: _identity(raw['requestId']),
+      planId: _identity(raw['planId']),
+      policyRevision: _positive(raw['policyRevision']),
+      expiresAtMs: _bounded(raw['expiresAtMs'], 0, 0x7fffffffffffffff),
+      commandCount: _bounded(raw['commandCount'], 1, 32),
+    );
+  }
+
+  IrrigationControlReceipt _decodeReceipt(Map<String, dynamic> response) {
+    _keys(response, const {'schemaVersion', 'receipt'});
+    if (_int(response['schemaVersion']) != 1) _invalid();
+    final raw = _object(response['receipt']);
+    _keys(raw, const {
+      'schemaVersion',
+      'requestId',
+      'planId',
+      'status',
+      'results',
+      'completedAtMs',
+    });
+    if (_int(raw['schemaVersion']) != 1) _invalid();
+    final status = _oneOf(raw['status'], const {
+      'applied',
+      'partial',
+      'failed',
+      'unknown',
+    });
+    final results = _decodeResults(raw['results'], stop: false);
+    final states = results.map((value) => value.status).toSet();
+    final expected = states.length > 1
+        ? 'partial'
+        : states.single == 'applied'
+        ? 'applied'
+        : states.single;
+    if (status != expected) _invalid();
+    return IrrigationControlReceipt(
+      requestId: _identity(raw['requestId']),
+      planId: _identity(raw['planId']),
+      status: status,
+      completedAtMs: _bounded(raw['completedAtMs'], 0, 0x7fffffffffffffff),
+      results: results,
+    );
+  }
+
+  IrrigationStopReceipt _decodeStopReceipt(Map<String, dynamic> response) {
+    _keys(response, const {'schemaVersion', 'receipt'});
+    if (_int(response['schemaVersion']) != 1) _invalid();
+    final raw = _object(response['receipt']);
+    _keys(raw, const {
+      'schemaVersion',
+      'requestId',
+      'status',
+      'results',
+      'completedAtMs',
+    });
+    if (_int(raw['schemaVersion']) != 1) _invalid();
+    final status = _oneOf(raw['status'], const {
+      'stopped',
+      'partial',
+      'failed',
+      'unknown',
+    });
+    final results = _decodeResults(raw['results'], stop: true);
+    final states = results.map((value) => value.status).toSet();
+    final expected = states.length > 1
+        ? 'partial'
+        : states.single == 'stopped'
+        ? 'stopped'
+        : states.single;
+    if (status != expected) _invalid();
+    return IrrigationStopReceipt(
+      requestId: _identity(raw['requestId']),
+      status: status,
+      completedAtMs: _bounded(raw['completedAtMs'], 0, 0x7fffffffffffffff),
+      results: results,
+    );
+  }
+
+  List<IrrigationCommandResult> _decodeResults(
+    Object? value, {
+    required bool stop,
+  }) {
+    if (value is! List || value.isEmpty || value.length > 32) _invalid();
+    final seen = <String>{};
+    return List.unmodifiable(
+      value.map((item) {
+        final raw = _object(item);
+        _keys(raw, const {
+          'schemaVersion',
+          'commandId',
+          'zoneId',
+          'status',
+          'code',
+          'readback',
+        });
+        if (_int(raw['schemaVersion']) != 1) _invalid();
+        final commandId = _identity(raw['commandId']);
+        final zoneId = _identity(raw['zoneId']);
+        if (!seen.add(zoneId)) _invalid();
+        final readback = raw['readback'];
+        if (readback != null) {
+          _validateReadback(
+            _object(readback),
+            stop: stop,
+            commandId: commandId,
+            zoneId: zoneId,
+          );
+        }
+        final status = _oneOf(
+          raw['status'],
+          stop
+              ? const {'stopped', 'failed', 'unknown'}
+              : const {'applied', 'failed', 'unknown'},
+        );
+        final code = _oneOf(
+          raw['code'],
+          stop
+              ? const {
+                  'stopped',
+                  'readback_mismatch',
+                  'flow_still_active',
+                  'worker_ack_unknown',
+                }
+              : const {
+                  'applied',
+                  'flow_not_verified',
+                  'flow_out_of_bounds',
+                  'readback_mismatch',
+                  'worker_ack_unknown',
+                  'cancelled_before_start',
+                  'cancelled_safe_stop',
+                  'safe_stop_failed',
+                },
+        );
+        if ((status == 'applied') != (code == 'applied') ||
+            (status == 'stopped') != (code == 'stopped') ||
+            ((code == 'applied' || code == 'stopped') && readback == null) ||
+            (code == 'worker_ack_unknown' && readback != null)) {
+          _invalid();
+        }
+        return IrrigationCommandResult(
+          zoneId: zoneId,
+          status: status,
+          code: code,
+        );
+      }),
+    );
+  }
+
+  void _validateReadback(
+    Map<String, dynamic> raw, {
+    required bool stop,
+    required String commandId,
+    required String zoneId,
+  }) {
+    _keys(
+      raw,
+      stop
+          ? const {
+              'schemaVersion',
+              'commandId',
+              'zone',
+              'stateRevision',
+              'valveOpen',
+              'flowActive',
+              'observedAtMs',
+            }
+          : const {
+              'schemaVersion',
+              'commandId',
+              'zone',
+              'stateRevision',
+              'valveOpen',
+              'deliveredMl',
+              'flowVerified',
+              'observedAtMs',
+            },
+    );
+    if (_int(raw['schemaVersion']) != 1 ||
+        _identity(raw['commandId']) != commandId ||
+        raw['valveOpen'] is! bool ||
+        (stop && raw['flowActive'] is! bool) ||
+        (!stop && raw['flowVerified'] is! bool)) {
+      _invalid();
+    }
+    _positive(raw['stateRevision']);
+    _bounded(raw['observedAtMs'], 0, 0x7fffffffffffffff);
+    if (!stop) _bounded(raw['deliveredMl'], 0, 10000000000);
+    final zone = _object(raw['zone']);
+    _keys(zone, const {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'zoneId',
+      'zoneRevision',
+      'areaId',
+      'areaRevision',
+      'valveServiceId',
+      'valveServiceRevision',
+      'valveBindingId',
+      'valveBindingRevision',
+      'flowMlPerMinute',
+      'maxDurationSeconds',
+    });
+    if (_int(zone['schemaVersion']) != 1 ||
+        _identity(zone['zoneId']) != zoneId) {
+      _invalid();
+    }
+    for (final key in const [
+      'coreId',
+      'homeId',
+      'areaId',
+      'valveServiceId',
+      'valveBindingId',
+    ]) {
+      _identity(zone[key]);
+    }
+    for (final key in const [
+      'zoneRevision',
+      'areaRevision',
+      'valveServiceRevision',
+      'valveBindingRevision',
+    ]) {
+      _positive(zone[key]);
+    }
+    _bounded(zone['flowMlPerMinute'], 1, 1000000);
+    _bounded(zone['maxDurationSeconds'], 1, 7200);
   }
 
   static Never _invalid() =>

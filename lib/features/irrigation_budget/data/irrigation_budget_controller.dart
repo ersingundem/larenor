@@ -13,6 +13,16 @@ final class IrrigationBudgetController extends ChangeNotifier {
   bool _interactive = true, _disposed = false;
   IrrigationBudgetViewState state = IrrigationBudgetViewState.idle;
   IrrigationBudgetSnapshot? snapshot;
+  IrrigationControlPreview? preview;
+  IrrigationControlReceipt? receipt;
+  IrrigationStopReceipt? stopReceipt;
+  bool controlBusy = false;
+  String? controlError;
+
+  IrrigationControlApi? get _control =>
+      api is IrrigationControlApi ? api as IrrigationControlApi : null;
+  bool get canControl =>
+      snapshot?.commandEndpointAvailable == true && _control != null;
 
   bool _current() {
     try {
@@ -24,6 +34,8 @@ final class IrrigationBudgetController extends ChangeNotifier {
 
   void _stale() {
     snapshot = null;
+    preview = null;
+    controlBusy = false;
     state = IrrigationBudgetViewState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -57,6 +69,80 @@ final class IrrigationBudgetController extends ChangeNotifier {
       if (operation != _epoch || !_current()) return _stale();
       state = IrrigationBudgetViewState.failed;
     }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> createPreview() async {
+    final current = snapshot, control = _control;
+    if (!_current() || current == null || control == null || !canControl) {
+      return;
+    }
+    final operation = ++_epoch;
+    controlBusy = true;
+    controlError = null;
+    preview = null;
+    notifyListeners();
+    try {
+      final value = await control.preview(current);
+      if (operation != _epoch || !_current()) return _stale();
+      if (value.planId != current.planId ||
+          value.policyRevision != current.authority.policyRevision) {
+        throw StateError('irrigation_preview_changed');
+      }
+      preview = value;
+    } catch (_) {
+      if (operation != _epoch || !_current()) return _stale();
+      controlError = 'preview_failed';
+    }
+    controlBusy = false;
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> confirmPreview() async {
+    final current = preview, control = _control;
+    if (!_current() || current == null || control == null) return;
+    final operation = ++_epoch;
+    controlBusy = true;
+    controlError = null;
+    notifyListeners();
+    try {
+      final value = await control.confirm(current);
+      if (operation != _epoch || !_current()) return _stale();
+      if (value.requestId != current.requestId ||
+          value.planId != current.planId) {
+        throw StateError('irrigation_receipt_changed');
+      }
+      receipt = value;
+      preview = null;
+    } catch (_) {
+      if (operation != _epoch || !_current()) return _stale();
+      controlError = 'confirm_failed';
+    }
+    controlBusy = false;
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> safeStop() async {
+    final current = snapshot, control = _control;
+    if (!_current() || current == null || control == null || !canControl) {
+      return;
+    }
+    final operation = ++_epoch;
+    controlBusy = true;
+    controlError = null;
+    notifyListeners();
+    try {
+      final value = await control.stop(
+        current,
+        current.zones.map((zone) => zone.zoneId).toList(growable: false),
+      );
+      if (operation != _epoch || !_current()) return _stale();
+      stopReceipt = value;
+    } catch (_) {
+      if (operation != _epoch || !_current()) return _stale();
+      controlError = 'stop_failed';
+    }
+    controlBusy = false;
     if (!_disposed) notifyListeners();
   }
 

@@ -13,11 +13,17 @@ from .models import (
     IrrigationPolicy,
     IrrigationPreview,
     IrrigationReceipt,
+    IrrigationStopReceipt,
+    IrrigationStopResult,
     ValveCommandResult,
     ValveReadback,
     ValveWorkerCommand,
+    ValveStopCommand,
     WorkerValveReadback,
+    WorkerValveStopReadback,
 )
+
+MAX_VALVE_READBACK_AGE_MS = 30_000
 
 
 def _hash(value):
@@ -56,6 +62,7 @@ class IrrigationCoordinator:
         self._resolve_plan = planResolver
         self._limit = maxReceipts
         self._previews, self._receipts = {}, {}
+        self._stop_receipts = {}
         self._request_previews = {}
         self._lock = threading.Lock()
 
@@ -142,6 +149,7 @@ class IrrigationCoordinator:
                 (item.coreId, item.homeId, item.zone)
                 != (plan.coreId, plan.homeId, planned[zone_id].zone)
                 or item.observedAtMs > nowMs
+                or nowMs - item.observedAtMs > MAX_VALVE_READBACK_AGE_MS
                 or item.valveOpen
             ):
                 raise ApiError("revision_conflict", 409)
@@ -198,7 +206,17 @@ class IrrigationCoordinator:
                 commandCount=len(planned),
             )
 
-    def confirm(self, rawAuthority, previewId, confirmToken, *, nowMs, worker):
+    def confirm(
+        self,
+        rawAuthority,
+        previewId,
+        confirmToken,
+        *,
+        nowMs,
+        worker,
+        cancelled=lambda: False,
+        stopWorker=None,
+    ):
         with self._lock:
             stored = self._previews.get(previewId)
             if (
@@ -225,6 +243,47 @@ class IrrigationCoordinator:
             }
             observed = {item.zone.zoneId: item for item in stored.readbacks}
             results = []
+
+            def cancelled_result(command, item, before, result=None):
+                stop_ok = False
+                if stopWorker is not None:
+                    stop_command = ValveStopCommand(
+                        schemaVersion=1,
+                        commandId=hashlib.sha256(
+                            (command.commandId + "stop").encode("ascii")
+                        ).hexdigest()[:32],
+                        requestId=stored.request_id,
+                        actorAccountId=authority.accountId,
+                        zone=item.zone,
+                        expectedStateRevision=max(
+                            before.stateRevision,
+                            before.stateRevision if result is None
+                            else result.stateRevision,
+                        ),
+                    )
+                    try:
+                        stopped = WorkerValveStopReadback.model_validate(
+                            stopWorker(stop_command)
+                        )
+                        stop_ok = (
+                            stopped.commandId == stop_command.commandId
+                            and stopped.zone == stop_command.zone
+                            and stopped.stateRevision
+                            > stop_command.expectedStateRevision
+                            and not stopped.valveOpen
+                            and not stopped.flowActive
+                        )
+                    except Exception:  # noqa: BLE001 -- fail closed.
+                        stop_ok = False
+                return ValveCommandResult(
+                    schemaVersion=1,
+                    commandId=command.commandId,
+                    zoneId=item.zone.zoneId,
+                    status="failed" if stop_ok else "unknown",
+                    code="cancelled_safe_stop" if stop_ok else "safe_stop_failed",
+                    readback=result,
+                )
+
             for zone_id in sorted(planned):
                 item, before = planned[zone_id], observed[zone_id]
                 command_id = hashlib.sha256(
@@ -242,9 +301,24 @@ class IrrigationCoordinator:
                     durationSeconds=item.durationSeconds,
                     expectedWaterMl=item.estimatedWaterMl,
                 )
+                if cancelled():
+                    results.append(
+                        ValveCommandResult(
+                            schemaVersion=1,
+                            commandId=command_id,
+                            zoneId=zone_id,
+                            status="failed",
+                            code="cancelled_before_start",
+                            readback=None,
+                        )
+                    )
+                    continue
                 try:
                     raw_result = worker(command)
                 except Exception:  # noqa: BLE001 -- external state must fail closed.
+                    if cancelled():
+                        results.append(cancelled_result(command, item, before))
+                        continue
                     results.append(
                         ValveCommandResult(
                             schemaVersion=1,
@@ -269,6 +343,9 @@ class IrrigationCoordinator:
                             readback=None,
                         )
                     )
+                    continue
+                if cancelled():
+                    results.append(cancelled_result(command, item, before, result))
                     continue
                 exact = (
                     result.commandId == command_id
@@ -331,3 +408,142 @@ class IrrigationCoordinator:
             )
             self._receipts[stored.request_id] = receipt
             return receipt
+
+    def stop(
+        self,
+        rawAuthority,
+        rawPolicy,
+        rawReadbacks,
+        zoneIds,
+        *,
+        requestId,
+        nowMs,
+        worker,
+    ):
+        authority = self._authority_only(rawAuthority)
+        try:
+            policy = IrrigationPolicy.model_validate(rawPolicy)
+            current = IrrigationPolicy.model_validate(
+                self._resolve_policy(policy.policyId)
+            )
+            readbacks = tuple(
+                ValveReadback.model_validate(value) for value in rawReadbacks
+            )
+            if (
+                current != policy
+                or not policy.active
+                or not isinstance(requestId, str)
+                or len(requestId) != 32
+                or any(value not in "0123456789abcdef" for value in requestId)
+                or type(nowMs) is not int
+                or nowMs < 0
+            ):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ApiError("revision_conflict", 409) from None
+        zones = {item.zoneId: item for item in policy.zones}
+        requested = tuple(sorted(zoneIds))
+        fingerprint = _hash({
+            "authority": authority.model_dump(mode="json"),
+            "policy": policy.model_dump(mode="json"),
+            "zones": requested,
+        })
+        observed = {item.zone.zoneId: item for item in readbacks}
+        if (
+            not requested
+            or len(requested) != len(set(requested))
+            or any(zone_id not in zones for zone_id in requested)
+            or set(observed) != set(requested)
+            or any(
+                (item.coreId, item.homeId, item.zone)
+                != (policy.coreId, policy.homeId, zones[zone_id])
+                or item.observedAtMs > nowMs
+                or nowMs - item.observedAtMs > MAX_VALVE_READBACK_AGE_MS
+                for zone_id, item in observed.items()
+            )
+        ):
+            raise ApiError("revision_conflict", 409)
+        with self._lock:
+            old = self._stop_receipts.get(requestId)
+            if old is not None:
+                if old[0] != fingerprint:
+                    raise ApiError("idempotency_conflict", 409)
+                return old[1]
+            if len(self._stop_receipts) >= self._limit:
+                raise ApiError("irrigation_stop_limit", 429)
+            results = []
+            for zone_id in requested:
+                before = observed[zone_id]
+                command_id = hashlib.sha256(
+                    (requestId + zone_id + "stop").encode("ascii")
+                ).hexdigest()[:32]
+                command = ValveStopCommand(
+                    schemaVersion=1,
+                    commandId=command_id,
+                    requestId=requestId,
+                    actorAccountId=authority.accountId,
+                    zone=zones[zone_id],
+                    expectedStateRevision=before.stateRevision,
+                )
+                try:
+                    readback = WorkerValveStopReadback.model_validate(worker(command))
+                except Exception:  # noqa: BLE001 -- lost acknowledgement is unknown.
+                    results.append(IrrigationStopResult(
+                        schemaVersion=1, commandId=command_id, zoneId=zone_id,
+                        status="unknown", code="worker_ack_unknown", readback=None,
+                    ))
+                    continue
+                exact = (
+                    readback.commandId == command.commandId
+                    and readback.zone == command.zone
+                    and readback.stateRevision > before.stateRevision
+                    and readback.observedAtMs >= before.observedAtMs
+                    and not readback.valveOpen
+                )
+                code = (
+                    "readback_mismatch" if not exact
+                    else "flow_still_active" if readback.flowActive
+                    else "stopped"
+                )
+                results.append(IrrigationStopResult(
+                    schemaVersion=1, commandId=command_id, zoneId=zone_id,
+                    status="stopped" if code == "stopped" else "failed",
+                    code=code, readback=readback,
+                ))
+            states = {item.status for item in results}
+            status = (
+                "stopped" if states == {"stopped"}
+                else "partial" if len(states) > 1
+                else next(iter(states))
+            )
+            receipt = IrrigationStopReceipt(
+                schemaVersion=1, requestId=requestId, status=status,
+                results=results, completedAtMs=nowMs,
+            )
+            self._audit.append(
+                kind="stop", policyId=policy.policyId,
+                policyRevision=policy.policyRevision,
+                actorAccountId=authority.accountId, requestId=requestId,
+                status=status,
+                payloadHash=_hash(receipt.model_dump(mode="json")), atMs=nowMs,
+            )
+            self._stop_receipts[requestId] = (fingerprint, receipt)
+            return receipt
+
+    def _authority_only(self, rawAuthority):
+        try:
+            authority = IrrigationAuthority.model_validate(rawAuthority)
+            current = IrrigationAuthority.model_validate(
+                self._resolve_authority(authority.accountId)
+            )
+        except Exception:
+            raise ApiError("forbidden", 403) from None
+        if current != authority:
+            raise ApiError("revision_conflict", 409)
+        if (
+            not authority.active
+            or authority.role != "admin"
+            or not authority.canManageIrrigation
+        ):
+            raise ApiError("forbidden", 403)
+        return authority

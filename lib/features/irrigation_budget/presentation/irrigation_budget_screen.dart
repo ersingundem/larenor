@@ -71,6 +71,10 @@ class _IrrigationBudgetScreenState extends State<IrrigationBudgetScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Summary(snapshot: snapshot),
+                  if (snapshot.commandEndpointAvailable) ...[
+                    const SizedBox(height: 16),
+                    _ControlCard(controller: controller, snapshot: snapshot),
+                  ],
                   const SizedBox(height: 16),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -94,6 +98,128 @@ class _IrrigationBudgetScreenState extends State<IrrigationBudgetScreen> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _ControlText {
+  const _ControlText({
+    required this.title,
+    required this.boundary,
+    required this.preview,
+    required this.confirm,
+    required this.stop,
+    required this.previewReady,
+    required this.result,
+    required this.failed,
+  });
+  final String title, boundary, preview, confirm, stop;
+  final String previewReady, result, failed;
+}
+
+_ControlText _controlText(BuildContext context) =>
+    Localizations.localeOf(context).languageCode == 'tr'
+    ? const _ControlText(
+        title: 'Doğrulanmış sulama kontrolü',
+        boundary: 'Planı inceleyin, sonra ayrıca onaylayın. Acil durdurma tüm bölgelerde kapalı vana ve durmuş akış kanıtı ister.',
+        preview: 'Kontrol önizlemesi oluştur',
+        confirm: 'Sulamayı onayla',
+        stop: 'Tüm vanaları güvenle durdur',
+        previewReady: 'Önizleme hazır',
+        result: 'Sonuç',
+        failed: 'Kontrol isteği doğrulanamadı. Durumu yenileyin.',
+      )
+    : const _ControlText(
+        title: 'Verified irrigation control',
+        boundary: 'Review the plan, then confirm separately. Emergency stop requires closed-valve and stopped-flow evidence for every zone.',
+        preview: 'Create control preview',
+        confirm: 'Confirm watering',
+        stop: 'Safely stop all valves',
+        previewReady: 'Preview ready',
+        result: 'Result',
+        failed:
+            'The control request could not be verified. Refresh the status.',
+      );
+
+class _ControlCard extends StatelessWidget {
+  const _ControlCard({required this.controller, required this.snapshot});
+  final IrrigationBudgetController controller;
+  final IrrigationBudgetSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _controlText(context);
+    final preview = controller.preview;
+    final result = controller.stopReceipt?.status ?? controller.receipt?.status;
+    return _Card(
+      label: text.title,
+      children: [
+        Text(
+          text.title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(text.boundary),
+        if (controller.controlBusy) ...[
+          const SizedBox(height: 12),
+          const Center(child: CupertinoActivityIndicator()),
+        ],
+        if (controller.controlError != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            text.failed,
+            style: const TextStyle(color: CupertinoColors.systemRed),
+          ),
+        ],
+        if (preview != null) ...[
+          const SizedBox(height: 12),
+          Text('${text.previewReady}: ${preview.commandCount}'),
+          Text(
+            DateTime.fromMillisecondsSinceEpoch(
+              preview.expiresAtMs,
+              isUtc: true,
+            ).toIso8601String(),
+          ),
+        ],
+        if (result != null) ...[
+          const SizedBox(height: 12),
+          Text('${text.result}: $result'),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: CupertinoButton.filled(
+            key: const ValueKey('irrigation-control-preview'),
+            onPressed: controller.controlBusy || preview != null
+                ? null
+                : controller.createPreview,
+            child: Text(text.preview),
+          ),
+        ),
+        if (preview != null) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton.filled(
+              key: const ValueKey('irrigation-control-confirm'),
+              onPressed: controller.controlBusy
+                  ? null
+                  : controller.confirmPreview,
+              child: Text(text.confirm),
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: CupertinoButton(
+            key: const ValueKey('irrigation-control-stop'),
+            color: CupertinoColors.systemRed,
+            onPressed: controller.controlBusy ? null : controller.safeStop,
+            child: Text(text.stop),
+          ),
+        ),
       ],
     );
   }

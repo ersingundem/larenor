@@ -88,6 +88,62 @@ final class IrrigationBudgetSnapshot {
       authority.isBounded &&
       zones.isNotEmpty &&
       const {'available', 'stale'}.contains(forecastStatus) &&
-      const {'read_only', 'manual_required'}.contains(controlCapability) &&
-      !commandEndpointAvailable;
+      const {
+        'read_only',
+        'manual_required',
+        'verified_control',
+      }.contains(controlCapability) &&
+      commandEndpointAvailable == (controlCapability == 'verified_control');
+}
+
+@immutable
+final class IrrigationControlPreview {
+  const IrrigationControlPreview({
+    required this.previewId,
+    required this.confirmToken,
+    required this.requestId,
+    required this.planId,
+    required this.policyRevision,
+    required this.expiresAtMs,
+    required this.commandCount,
+  });
+  final String previewId, confirmToken, requestId, planId;
+  final int policyRevision, expiresAtMs, commandCount;
+}
+
+@immutable
+final class IrrigationCommandResult {
+  const IrrigationCommandResult({
+    required this.zoneId,
+    required this.status,
+    required this.code,
+  });
+  final String zoneId, status, code;
+}
+
+@immutable
+final class IrrigationControlReceipt {
+  const IrrigationControlReceipt({
+    required this.requestId,
+    required this.planId,
+    required this.status,
+    required this.completedAtMs,
+    required this.results,
+  });
+  final String requestId, planId, status;
+  final int completedAtMs;
+  final List<IrrigationCommandResult> results;
+}
+
+@immutable
+final class IrrigationStopReceipt {
+  const IrrigationStopReceipt({
+    required this.requestId,
+    required this.status,
+    required this.completedAtMs,
+    required this.results,
+  });
+  final String requestId, status;
+  final int completedAtMs;
+  final List<IrrigationCommandResult> results;
 }

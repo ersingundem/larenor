@@ -252,6 +252,73 @@ class IrrigationPreview(FrozenModel):
     commandCount: int = Field(ge=1, le=32)
 
 
+class IrrigationPreviewRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedPlanId: Identity
+    expectedPolicyRevision: Revision
+    expectedBudgetRevision: Revision
+
+
+class IrrigationConfirmRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    previewId: Identity
+    confirmToken: str = Field(
+        min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"
+    )
+
+
+class IrrigationStopRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedPolicyRevision: Revision
+    zoneIds: list[Identity] = Field(min_length=1, max_length=32)
+
+    @model_validator(mode="after")
+    def unique_zones(self):
+        if len(self.zoneIds) != len(set(self.zoneIds)):
+            raise ValueError("duplicate_zone")
+        return self
+
+
+class ValveStopCommand(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    requestId: Identity
+    actorAccountId: Identity
+    zone: IrrigationZone
+    expectedStateRevision: Revision
+
+
+class WorkerValveStopReadback(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    zone: IrrigationZone
+    stateRevision: Revision
+    valveOpen: bool
+    flowActive: bool
+    observedAtMs: TimestampMs
+
+
+class IrrigationStopResult(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    zoneId: Identity
+    status: Literal["stopped", "failed", "unknown"]
+    code: Literal[
+        "stopped", "readback_mismatch", "flow_still_active", "worker_ack_unknown"
+    ]
+    readback: WorkerValveStopReadback | None
+
+
+class IrrigationStopReceipt(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    status: Literal["stopped", "partial", "failed", "unknown"]
+    results: list[IrrigationStopResult] = Field(min_length=1, max_length=32)
+    completedAtMs: TimestampMs
+
+
 class ValveCommandResult(FrozenModel):
     schemaVersion: Literal[1]
     commandId: Identity
@@ -263,6 +330,9 @@ class ValveCommandResult(FrozenModel):
         "flow_out_of_bounds",
         "readback_mismatch",
         "worker_ack_unknown",
+        "cancelled_before_start",
+        "cancelled_safe_stop",
+        "safe_stop_failed",
     ]
     readback: WorkerValveReadback | None
 
@@ -279,7 +349,7 @@ class IrrigationReceipt(FrozenModel):
 class IrrigationAuditEvent(FrozenModel):
     schemaVersion: Literal[1]
     sequence: int = Field(ge=1, le=16_384)
-    kind: Literal["plan", "preview", "result"]
+    kind: Literal["plan", "preview", "result", "stop"]
     coreId: Identity
     homeId: Identity
     policyId: Identity
