@@ -85,28 +85,32 @@ void main() {
           await tester.tap(verify);
           await tester.pumpAndSettle();
 
-          expect(find.text('Living room HomePod'), findsWidgets);
-          expect(find.text('Kitchen Cast'), findsOneWidget);
-          expect(find.text('Office AirPlay'), findsOneWidget);
           final receiver = find.byKey(
             const ValueKey('music-manager-receiver-homepod-living'),
           );
           final kitchen = find.byKey(
             const ValueKey('music-manager-receiver-cast-kitchen'),
           );
-          await tester.scrollUntilVisible(
-            kitchen,
-            300,
-            scrollable: find.byType(Scrollable).first,
+          final office = find.byKey(
+            const ValueKey('music-manager-receiver-airplay-office'),
           );
-          await tester.tap(kitchen);
-          await tester.pump();
-          await tester.scrollUntilVisible(
-            receiver,
-            300,
-            scrollable: find.byType(Scrollable).first,
+          final scrollable = find.byType(CustomScrollView);
+          await tester.dragUntilVisible(
+            kitchen,
+            scrollable,
+            const Offset(0, -300),
           );
           await tester.pumpAndSettle();
+          expect(find.text('Kitchen Cast'), findsOneWidget);
+          await tester.tap(kitchen);
+          await tester.pump();
+          await tester.dragUntilVisible(
+            receiver,
+            scrollable,
+            const Offset(0, 300),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Living room HomePod'), findsWidgets);
           expect(tester.getRect(receiver).height, greaterThanOrEqualTo(48));
           expect(tester.getSemantics(receiver).flagsCollection.isButton, true);
           await tester.tap(receiver);
@@ -115,13 +119,20 @@ void main() {
             tester.getSemantics(receiver).flagsCollection.isSelected,
             Tristate.isTrue,
           );
+          await tester.dragUntilVisible(
+            office,
+            scrollable,
+            const Offset(0, -300),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Office AirPlay'), findsOneWidget);
           final migration = find.byKey(
             const ValueKey('music-manager-migrate-legacy'),
           );
-          await tester.scrollUntilVisible(
+          await tester.dragUntilVisible(
             migration,
-            300,
-            scrollable: find.byType(Scrollable).first,
+            scrollable,
+            const Offset(0, -300),
           );
           await tester.pumpAndSettle();
           expect(tester.getRect(migration).height, greaterThanOrEqualTo(48));
@@ -129,10 +140,10 @@ void main() {
           final heading = find.byKey(
             const ValueKey('music-manager-playback-heading'),
           );
-          await tester.scrollUntilVisible(
+          await tester.dragUntilVisible(
             heading,
-            300,
-            scrollable: find.byType(Scrollable).first,
+            scrollable,
+            const Offset(0, -300),
           );
           await tester.pumpAndSettle();
           expect(tester.getSemantics(heading).flagsCollection.isHeader, true);
