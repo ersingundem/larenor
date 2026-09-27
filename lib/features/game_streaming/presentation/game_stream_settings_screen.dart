@@ -43,6 +43,7 @@ class _GameStreamSettingsScreenState
   CoreGameStreamHosts? _hosts;
   String? _error;
   String? _hostsError;
+  bool _providerError = false;
   bool _openingProvider = false;
 
   @override
@@ -113,6 +114,7 @@ class _GameStreamSettingsScreenState
       _hosts = null;
       _error = null;
       _hostsError = null;
+      _providerError = false;
     }
   }
 
@@ -140,6 +142,7 @@ class _GameStreamSettingsScreenState
       _loading = true;
       _error = null;
       _hostsError = null;
+      _providerError = false;
     });
     AndroidGameStreamCapabilities? capabilities;
     CoreGameStreamHosts? hosts;
@@ -197,7 +200,7 @@ class _GameStreamSettingsScreenState
     final generation = _generation;
     setState(() {
       _openingProvider = true;
-      _error = null;
+      _providerError = false;
     });
     try {
       final launch = await providerPort.openProvider();
@@ -208,7 +211,7 @@ class _GameStreamSettingsScreenState
         return;
       }
     } catch (_) {
-      if (_current(generation)) _error = 'provider_launch_failed';
+      if (_current(generation)) _providerError = true;
     } finally {
       if (_current(generation)) {
         setState(() => _openingProvider = false);
@@ -321,6 +324,43 @@ class _GameStreamSettingsScreenState
                 ),
                 onTap: providerReady ? () => unawaited(_openProvider()) : null,
               ),
+            if (_providerError)
+              Semantics(
+                key: const ValueKey('game-stream-provider-error'),
+                container: true,
+                liveRegion: true,
+                label: copy.providerLaunchFailed,
+                child: ExcludeSemantics(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      16,
+                      10,
+                      16,
+                      14,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          CupertinoIcons.exclamationmark_circle_fill,
+                          color: CupertinoColors.systemRed.resolveFrom(context),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            copy.providerLaunchFailed,
+                            style: TextStyle(
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         SettingsSection(
@@ -427,6 +467,7 @@ final class _GameStreamCopy {
     required this.hostReadFailed,
     required this.signInForHosts,
     required this.noHosts,
+    required this.providerLaunchFailed,
   });
 
   final String openProvider;
@@ -440,6 +481,7 @@ final class _GameStreamCopy {
   final String hostReadFailed;
   final String signInForHosts;
   final String noHosts;
+  final String providerLaunchFailed;
 
   static _GameStreamCopy of(BuildContext context) =>
       Localizations.localeOf(context).languageCode == 'tr' ? tr : en;
@@ -462,6 +504,7 @@ final class _GameStreamCopy {
     signInForHosts:
         'Bilgisayarları görmek için geçerli bir Core oturumu gerekir.',
     noHosts: 'Henüz yapılandırılmış bir oyun bilgisayarı yok.',
+    providerLaunchFailed: 'Moonlight açılamadı. Uygulamanın kurulu ve kullanılabilir olduğunu denetleyip tekrar deneyin.',
   );
 
   static const en = _GameStreamCopy(
@@ -481,5 +524,6 @@ final class _GameStreamCopy {
     hostReadFailed: 'Computer records could not be read from Core.',
     signInForHosts: 'A current Core session is required to show computers.',
     noHosts: 'No game computer has been configured yet.',
+    providerLaunchFailed: 'Moonlight could not be opened. Check that the app is installed and available, then try again.',
   );
 }

@@ -127,6 +127,18 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                   ),
                 if (controller.account.context != null)
                   SettingsActionTile(
+                    key: const ValueKey('core-home-floor-plan-entry'),
+                    buttonKey: const ValueKey('core-home-floor-plan-action'),
+                    title: Text(l10n.floorPlanTitle),
+                    additionalInfo: Text(l10n.floorPlanAccessibleRooms),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/floor-plan');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
                     key: const ValueKey('core-home-search-entry'),
                     buttonKey: const ValueKey('core-home-search-action'),
                     title: Text(l10n.navigationSearchTitle),

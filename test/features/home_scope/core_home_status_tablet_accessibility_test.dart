@@ -6,6 +6,7 @@ import 'package:larenor/features/home_scope/presentation/core_home_status_screen
 import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
 import 'package:larenor/features/home_documents/presentation/home_documents_route.dart';
 import 'package:larenor/features/camera_search/presentation/camera_search_route.dart';
+import 'package:larenor/features/floor_plan/presentation/floor_plan_route.dart';
 import 'package:larenor/features/server/media_catalog/presentation/server_media_catalog_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/service_root_scaffold.dart';
@@ -64,6 +65,16 @@ void main() {
             expect(
               tester.getSemantics(presence).flagsCollection.isButton,
               isTrue,
+            );
+            final floorPlan = find.byKey(
+              const ValueKey('core-home-floor-plan-action'),
+            );
+            await reveal(floorPlan);
+            expect(floorPlan, findsOneWidget);
+            expect(tester.getRect(floorPlan).height, greaterThanOrEqualTo(48));
+            expect(
+              tester.getSemantics(floorPlan).label,
+              contains(l10n.floorPlanTitle),
             );
             final documents = find.byKey(
               const ValueKey('core-home-documents-action'),
@@ -167,6 +178,7 @@ void main() {
               action,
               inventory,
               presence,
+              floorPlan,
               documents,
               reservations,
               catalog,
@@ -176,6 +188,12 @@ void main() {
               await reveal(target);
               expect(target, findsOneWidget);
             }
+            await reveal(floorPlan);
+            await tester.tap(floorPlan);
+            await flush(tester);
+            expect(find.byType(FloorPlanRoute), findsOneWidget);
+            harness.router(tester).pop();
+            await flush(tester);
             await reveal(cameraSearch);
             await tester.tap(cameraSearch);
             await flush(tester);

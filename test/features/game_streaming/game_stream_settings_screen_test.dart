@@ -34,6 +34,25 @@ final class _CapabilitiesPort implements GameStreamCapabilityPort {
   }
 }
 
+final class _FailingProviderPort
+    implements GameStreamCapabilityPort, GameStreamProviderPort {
+  @override
+  Future<AndroidGameStreamCapabilities> capabilities() => Future.value(
+    const AndroidGameStreamCapabilities(
+      available: true,
+      engineRevision: 'moonlight-1202',
+      intents: {},
+      provider: 'moonlight',
+      handoffOnly: true,
+      inputKinds: {'touch', 'gamepad'},
+    ),
+  );
+
+  @override
+  Future<AndroidGameStreamProviderLaunch> openProvider() =>
+      Future.error(const GameStreamException('provider_launch_failed'));
+}
+
 Future<AppInteractionController> _mount(
   WidgetTester tester, {
   required Widget child,
@@ -219,4 +238,33 @@ void main() {
     expect(find.text(l10n.gameStreamingNotChecked), findsOneWidget);
     expect(port.calls, 1);
   });
+
+  testWidgets(
+    'provider launch failure stays separate from verified capability',
+    (tester) async {
+      await _mount(
+        tester,
+        language: 'en',
+        width: 600,
+        child: GameStreamSettingsScreen(
+          port: _FailingProviderPort(),
+          gateCurrent: () => true,
+        ),
+      );
+      final screen = find.byType(GameStreamSettingsScreen);
+      final l10n = AppLocalizations.of(tester.element(screen));
+      expect(find.text(l10n.gameStreamingAvailable), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('game-stream-open-provider')));
+      await tester.pumpAndSettle();
+      final error = find.byKey(const ValueKey('game-stream-provider-error'));
+      expect(error, findsOneWidget);
+      expect(tester.getSemantics(error).flagsCollection.isLiveRegion, isTrue);
+      expect(
+        tester.getSemantics(error).label,
+        contains('Moonlight could not be opened'),
+      );
+      expect(find.text(l10n.gameStreamingAvailable), findsOneWidget);
+      expect(find.text(l10n.gameStreamingError), findsNothing);
+    },
+  );
 }
