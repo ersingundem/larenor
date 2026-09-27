@@ -342,6 +342,28 @@
   "bazarrEpisodesMissingHeader": "ALTYAZISI EKSİK BÖLÜMLER",
   "bazarrLoadSectionError": "{section} yüklenemedi: {error}",
   "bazarrMissingSubtitlesLabel": "Altyazı eksik",
+  "bazarrSearchBudget": "Bu oturum için {maximum} altyazı aramasından {remaining} tanesi kaldı",
+  "@bazarrSearchBudget": {
+    "placeholders": {
+      "remaining": {"type": "int"},
+      "maximum": {"type": "int"}
+    }
+  },
+  "bazarrPreferredSubtitle": "Tercih edilen altyazı: {language}",
+  "@bazarrPreferredSubtitle": {
+    "placeholders": {"language": {"type": "String"}}
+  },
+  "bazarrSearchConsentTitle": "{language} altyazısı aransın mı?",
+  "@bazarrSearchConsentTitle": {
+    "placeholders": {"language": {"type": "String"}}
+  },
+  "bazarrSearchConsentBody": "Bazarr yapılandırılmış sağlayıcılarda arama yapacak. Bu işlem bir oturum araması kullanır ve sağlayıcı kotasını tüketebilir.",
+  "bazarrSearchConfirmed": "Bazarr yenilemesiyle kullanılabilir olduğu doğrulandı",
+  "bazarrSearchAccepted": "Arama kabul edildi; kullanılabilirlik henüz doğrulanmadı",
+  "bazarrSearchRejected": "Bazarr bu aramayı reddetti",
+  "bazarrSearchUncertain": "Sonuç bilinmiyor; başka işlem yapmadan önce yenileyin",
+  "bazarrSearchAlreadyUsed": "Bu arama bu oturumda daha önce gönderildi",
+  "bazarrSearchQuotaReached": "Oturum arama sınırına ulaşıldı",
   "prowlarrApiKeyHint": "API anahtarınızı Prowlarr'da Ayarlar → Genel altında bulabilirsiniz.",
   "prowlarrNoIndexersConfigured": "Yapılandırılmış indeksleyici yok",
   "qbittorrentNoTorrents": "Torrent yok",

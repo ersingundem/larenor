@@ -6,7 +6,9 @@ import '../../../../core/direct_home_access.dart';
 import '../../../health/data/integration_health.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../data/bazarr_client.dart';
+import '../data/bazarr_subtitle_acquisition.dart';
 import '../data/models/bazarr_wanted_item.dart';
+import '../domain/bazarr_subtitle_request.dart';
 import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
@@ -65,6 +67,8 @@ class _BazarrWantedScaffold extends ConsumerStatefulWidget {
 
 class _BazarrWantedScaffoldState
     extends MediaSessionState<_BazarrWantedScaffold> {
+  final _budget = BazarrSubtitleRequestBudget();
+
   bool _current(int generation, Object movies, Object episodes) =>
       sessionCurrent(generation) &&
       TickerMode.valuesOf(context).enabled &&
@@ -77,6 +81,9 @@ class _BazarrWantedScaffoldState
     watchMediaAccount(IntegrationId.bazarr, bazarrConnectionProvider);
     final moviesAsync = ref.watch(bazarrMissingMoviesProvider);
     final episodesAsync = ref.watch(bazarrMissingEpisodesProvider);
+    final preferredSubtitle = ref
+        .watch(bazarrPreferredSubtitleLanguageProvider)
+        .value;
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
 
@@ -98,6 +105,19 @@ class _BazarrWantedScaffoldState
               child: const Text('Bazarr'),
             ),
             children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 20, 4),
+                child: Text(
+                  l10n.bazarrSearchBudget(_budget.remaining, _budget.maximum),
+                  key: const ValueKey('bazarr-search-budget'),
+                  style: CupertinoTheme.of(context).textTheme.textStyle
+                      .copyWith(
+                        color: CupertinoColors.secondaryLabel.resolveFrom(
+                          context,
+                        ),
+                      ),
+                ),
+              ),
               SettingsActionTile(
                 buttonKey: const ValueKey('bazarr-home-refresh'),
                 leading: const Icon(CupertinoIcons.refresh),
@@ -115,6 +135,11 @@ class _BazarrWantedScaffoldState
               onChanged: refresh,
               sourceCurrent: () =>
                   _current(generation, moviesAsync, episodesAsync),
+              preferredSubtitle: preferredSubtitle,
+              budget: _budget,
+              onBudgetChanged: () {
+                if (mounted) setState(() {});
+              },
             ),
             _WantedSection(
               title: l10n.bazarrEpisodesMissingHeader,
@@ -122,6 +147,11 @@ class _BazarrWantedScaffoldState
               onChanged: refresh,
               sourceCurrent: () =>
                   _current(generation, moviesAsync, episodesAsync),
+              preferredSubtitle: preferredSubtitle,
+              budget: _budget,
+              onBudgetChanged: () {
+                if (mounted) setState(() {});
+              },
             ),
           ]),
         ),
@@ -136,12 +166,18 @@ class _WantedSection extends ConsumerWidget {
     required this.itemsAsync,
     required this.onChanged,
     required this.sourceCurrent,
+    required this.preferredSubtitle,
+    required this.budget,
+    required this.onBudgetChanged,
   });
 
   final String title;
   final AsyncValue<List<BazarrWantedItem>> itemsAsync;
   final VoidCallback onChanged;
   final bool Function() sourceCurrent;
+  final String? preferredSubtitle;
+  final BazarrSubtitleRequestBudget budget;
+  final VoidCallback onBudgetChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -165,9 +201,13 @@ class _WantedSection extends ConsumerWidget {
           children: [
             for (final item in items)
               _WantedRow(
+                key: ValueKey('bazarr-wanted-${item.identityKey}'),
                 item: item,
                 onChanged: onChanged,
                 sourceCurrent: sourceCurrent,
+                preferredSubtitle: preferredSubtitle,
+                budget: budget,
+                onBudgetChanged: onBudgetChanged,
               ),
           ],
         );
@@ -178,14 +218,21 @@ class _WantedSection extends ConsumerWidget {
 
 class _WantedRow extends ConsumerStatefulWidget {
   const _WantedRow({
+    super.key,
     required this.item,
     required this.onChanged,
     required this.sourceCurrent,
+    required this.preferredSubtitle,
+    required this.budget,
+    required this.onBudgetChanged,
   });
 
   final BazarrWantedItem item;
   final VoidCallback onChanged;
   final bool Function() sourceCurrent;
+  final String? preferredSubtitle;
+  final BazarrSubtitleRequestBudget budget;
+  final VoidCallback onBudgetChanged;
 
   @override
   ConsumerState<_WantedRow> createState() => _WantedRowState();
@@ -193,6 +240,9 @@ class _WantedRow extends ConsumerStatefulWidget {
 
 class _WantedRowState extends MediaSessionState<_WantedRow> {
   Object? _searchLease;
+  BazarrSubtitleAcquisitionStatus? _result;
+  bool _alreadyUsed = false;
+  bool _quotaReached = false;
 
   bool _current(int generation, BazarrClient client) =>
       sessionCurrent(generation) &&
@@ -201,38 +251,113 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
       ModalRoute.of(context)?.isCurrent == true &&
       identical(ref.read(bazarrClientProvider), client);
 
-  Future<void> _searchFirstMissing(BazarrClient client, int generation) async {
-    final language = widget.item.missingLanguages.firstOrNull;
+  BazarrMissingLanguage? get _language {
+    final preferred = widget.preferredSubtitle;
+    if (preferred != null && preferred != 'off') {
+      try {
+        final expected = BazarrMissingLanguage.normalizeCode(preferred);
+        for (final language in widget.item.missingLanguages) {
+          final actual = BazarrMissingLanguage.normalizeCode(language.code);
+          if (actual == expected ||
+              actual.split('-').first == expected.split('-').first) {
+            return language;
+          }
+        }
+      } on FormatException {
+        // Core and provider inputs remain untrusted at this boundary.
+      }
+    }
+    return widget.item.missingLanguages.firstOrNull;
+  }
+
+  Future<bool> _confirm(BazarrMissingLanguage language) async {
+    final l10n = AppLocalizations.of(context);
+    return await showCupertinoDialog<bool>(
+          context: context,
+          builder: (dialogContext) => CupertinoAlertDialog(
+            title: Text(l10n.bazarrSearchConsentTitle(language.label)),
+            content: Text(l10n.bazarrSearchConsentBody),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(l10n.commonCancel),
+              ),
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(l10n.commonSearch),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _searchPreferred(BazarrClient client, int generation) async {
+    final language = _language;
     if (_searchLease != null ||
         !_current(generation, client) ||
         language == null) {
       return;
     }
 
-    final lease = Object();
-    setState(() => _searchLease = lease);
+    BazarrSubtitleRequest request;
     try {
-      if (widget.item.isMovie) {
-        await client.searchMovieSubtitle(
-          radarrId: widget.item.radarrId!,
-          language: language.code,
-        );
-      } else if (widget.item.seriesId != null &&
-          widget.item.episodeId != null) {
-        await client.searchEpisodeSubtitle(
-          seriesId: widget.item.seriesId!,
-          episodeId: widget.item.episodeId!,
-          language: language.code,
-        );
-      }
-      if (_current(generation, client)) widget.onChanged();
-    } catch (_) {
-      // Row simply won't update; user can retry.
-    } finally {
-      if (mounted && identical(_searchLease, lease)) {
-        setState(() => _searchLease = null);
-      }
+      request = BazarrSubtitleRequest.fromWanted(widget.item, language);
+    } on FormatException {
+      return;
     }
+    if (!await _confirm(language) || !_current(generation, client)) return;
+    if (widget.budget.wasReserved(request)) {
+      setState(() {
+        _alreadyUsed = true;
+        _quotaReached = false;
+      });
+      return;
+    }
+    if (!widget.budget.reserve(request)) {
+      setState(() {
+        _alreadyUsed = false;
+        _quotaReached = true;
+      });
+      return;
+    }
+    widget.onBudgetChanged();
+
+    final lease = Object();
+    setState(() {
+      _searchLease = lease;
+      _result = null;
+      _alreadyUsed = false;
+      _quotaReached = false;
+    });
+    final result = await BazarrSubtitleAcquisition(client).acquire(request);
+    if (_current(generation, client) && identical(_searchLease, lease)) {
+      setState(() {
+        _searchLease = null;
+        _result = result.status;
+      });
+      if (const {
+        BazarrSubtitleAcquisitionStatus.confirmed,
+        BazarrSubtitleAcquisitionStatus.accepted,
+      }.contains(result.status)) {
+        widget.onChanged();
+      }
+    } else if (mounted && identical(_searchLease, lease)) {
+      setState(() => _searchLease = null);
+    }
+  }
+
+  String? _status(AppLocalizations l10n) {
+    if (_alreadyUsed) return l10n.bazarrSearchAlreadyUsed;
+    if (_quotaReached) return l10n.bazarrSearchQuotaReached;
+    return switch (_result) {
+      BazarrSubtitleAcquisitionStatus.confirmed => l10n.bazarrSearchConfirmed,
+      BazarrSubtitleAcquisitionStatus.accepted => l10n.bazarrSearchAccepted,
+      BazarrSubtitleAcquisitionStatus.rejected => l10n.bazarrSearchRejected,
+      BazarrSubtitleAcquisitionStatus.uncertain => l10n.bazarrSearchUncertain,
+      null => null,
+    };
   }
 
   @override
@@ -244,6 +369,9 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
         setState(() {
           sessionGeneration++;
           _searchLease = null;
+          _result = null;
+          _alreadyUsed = false;
+          _quotaReached = false;
         });
       }
     });
@@ -251,6 +379,25 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
     final languages = widget.item.missingLanguages
         .map((l) => l.label)
         .join(', ');
+    final language = _language;
+    BazarrSubtitleRequest? request;
+    if (language != null) {
+      try {
+        request = BazarrSubtitleRequest.fromWanted(widget.item, language);
+      } on FormatException {
+        request = null;
+      }
+    }
+    final reserved = request != null && widget.budget.wasReserved(request);
+    final exhausted = widget.budget.remaining == 0;
+    final status =
+        _status(l10n) ??
+        (reserved
+            ? l10n.bazarrSearchAlreadyUsed
+            : exhausted
+            ? l10n.bazarrSearchQuotaReached
+            : null);
+    final preferred = widget.preferredSubtitle;
     final actionKey = widget.item.isMovie
         ? ValueKey('bazarr-wanted-movie-${widget.item.radarrId}-search')
         : ValueKey(
@@ -269,16 +416,25 @@ class _WantedRowState extends MediaSessionState<_WantedRow> {
           Text(
             languages.isEmpty ? l10n.bazarrMissingSubtitlesLabel : languages,
           ),
-          Text(l10n.commonSearch),
+          if (preferred != null &&
+              preferred != 'off' &&
+              language != null &&
+              language.code.split('-').first == preferred.split('-').first)
+            Text(l10n.bazarrPreferredSubtitle(language.label)),
+          Text(status ?? l10n.commonSearch),
         ],
       ),
       onTap:
           _searchLease != null ||
               client == null ||
-              widget.item.missingLanguages.isEmpty ||
+              language == null ||
+              request == null ||
+              reserved ||
+              exhausted ||
+              _result != null ||
               !_current(generation, client)
           ? null
-          : () => _searchFirstMissing(client, generation),
+          : () => _searchPreferred(client, generation),
     );
   }
 }

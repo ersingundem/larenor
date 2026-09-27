@@ -6,6 +6,8 @@ import '../data/bazarr_client.dart';
 import '../data/bazarr_config.dart';
 import '../data/bazarr_credentials_store.dart';
 import '../data/models/bazarr_wanted_item.dart';
+import '../../jellyfin/data/jellyfin_track_preferences_store.dart';
+import '../../jellyfin/providers/jellyfin_providers.dart';
 
 part 'bazarr_providers.g.dart';
 
@@ -138,4 +140,23 @@ Future<List<BazarrWantedItem>> bazarrMissingEpisodes(Ref ref) async {
   final client = ref.watch(bazarrClientProvider);
   if (client == null) return [];
   return client.getMissingEpisodeSubtitles();
+}
+
+/// The current Core account's preference, scoped to the exact live Jellyfin
+/// source. Bazarr remains usable when either source is unavailable.
+@riverpod
+Future<String?> bazarrPreferredSubtitleLanguage(Ref ref) async {
+  final client = ref.watch(jellyfinClientProvider);
+  if (client == null) return null;
+  final store = ref.watch(jellyfinTrackPreferencesStoreProvider);
+  bool current() =>
+      ref.mounted && identical(ref.read(jellyfinClientProvider), client);
+  try {
+    return (await store.read(
+      client.config,
+      isCurrent: current,
+    ))?.subtitleLanguage;
+  } catch (_) {
+    return null;
+  }
 }

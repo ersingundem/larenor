@@ -569,6 +569,28 @@
     }
   },
   "bazarrMissingSubtitlesLabel": "Missing subtitles",
+  "bazarrSearchBudget": "{remaining} of {maximum} subtitle searches remain for this session",
+  "@bazarrSearchBudget": {
+    "placeholders": {
+      "remaining": {"type": "int"},
+      "maximum": {"type": "int"}
+    }
+  },
+  "bazarrPreferredSubtitle": "Preferred subtitle: {language}",
+  "@bazarrPreferredSubtitle": {
+    "placeholders": {"language": {"type": "String"}}
+  },
+  "bazarrSearchConsentTitle": "Search for {language} subtitles?",
+  "@bazarrSearchConsentTitle": {
+    "placeholders": {"language": {"type": "String"}}
+  },
+  "bazarrSearchConsentBody": "Bazarr will search its configured providers. This uses one session search and may consume provider quota.",
+  "bazarrSearchConfirmed": "Available after verified Bazarr refresh",
+  "bazarrSearchAccepted": "Search accepted; availability is not confirmed yet",
+  "bazarrSearchRejected": "Bazarr rejected this search",
+  "bazarrSearchUncertain": "Result unknown; refresh before taking another action",
+  "bazarrSearchAlreadyUsed": "This exact search was already sent in this session",
+  "bazarrSearchQuotaReached": "Session search limit reached",
   "prowlarrApiKeyHint": "Find your API key in Prowlarr under Settings → General.",
   "prowlarrNoIndexersConfigured": "No indexers configured",
   "qbittorrentNoTorrents": "No torrents",
