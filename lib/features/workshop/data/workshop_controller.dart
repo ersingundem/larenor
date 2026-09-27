@@ -152,7 +152,7 @@ final class WorkshopController extends ChangeNotifier {
           !_current() ||
           receipt.printerId != printer.id ||
           receipt.action != preview.action ||
-          receipt.effect != WorkshopIntentEffect.notDispatched ||
+          receipt.effect == WorkshopIntentEffect.unknown ||
           !receipt.authority.matches(printer)) {
         if (!_retired) _failure = WorkshopFailure.actionUncertain;
         return false;

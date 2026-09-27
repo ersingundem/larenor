@@ -170,7 +170,20 @@ final class WorkshopApi implements WorkshopGateway {
             retained.authority.materialRevision !=
                 submitted.authority.materialRevision ||
             retained.authority.safetyRevision !=
-                submitted.authority.safetyRevision) {
+                submitted.authority.safetyRevision ||
+            retained.execution?.commandId != submitted.execution?.commandId ||
+            retained.execution?.status != submitted.execution?.status ||
+            retained.execution?.code != submitted.execution?.code ||
+            retained.execution?.providerRevision !=
+                submitted.execution?.providerRevision ||
+            retained.execution?.readback?.commandId !=
+                submitted.execution?.readback?.commandId ||
+            retained.execution?.readback?.jobRevision !=
+                submitted.execution?.readback?.jobRevision ||
+            retained.execution?.readback?.jobState !=
+                submitted.execution?.readback?.jobState ||
+            retained.execution?.readback?.observedAt !=
+                submitted.execution?.readback?.observedAt) {
           throw const LarenorServerException('invalid_response');
         }
         return retained;

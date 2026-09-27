@@ -17,6 +17,9 @@ from .models import (
     PreviewIntent,
     RegisterPrinter,
     UpdatePrinterState,
+    WorkshopCommand,
+    WorkshopCommandReadback,
+    WorkshopProviderCapability,
     safe_label,
 )
 
@@ -44,9 +47,10 @@ class _Pending:
 class WorkshopService:
     """No-execution authority for monitored printers and reviewed intents."""
 
-    def __init__(self, db, auth, settings, key, context, services):
+    def __init__(self, db, auth, settings, key, context, services, provider=None):
         self.db, self.auth, self.settings = db, auth, settings
         self._key, self.services = key, services
+        self.provider = provider
         self.scope = HomeScope.model_validate(context.model_dump())
         self._previews: dict[str, _Pending] = {}
         self._lock = threading.RLock()
@@ -111,6 +115,20 @@ class WorkshopService:
         ).encode("ascii")
         return hmac.new(
             self._key, b"larenor-workshop-intent-v1\0" + encoded,
+            hashlib.sha256,
+        ).hexdigest()
+
+    def _effect_tag(self, row):
+        fields = [
+            self.scope.coreId, self.scope.homeId, row["intent_id"],
+            row["command_id"], row["status"], row["code"],
+            row["provider_revision"], row["readback_json"], row["created_at"],
+        ]
+        encoded = json.dumps(
+            fields, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        return hmac.new(
+            self._key, b"larenor-workshop-effect-v1\0" + encoded,
             hashlib.sha256,
         ).hexdigest()
 
@@ -187,6 +205,39 @@ class WorkshopService:
             raise ValueError("invalid_workshop_intent")
         return row
 
+    def _validate_effect(self, row):
+        if (
+            row is None
+            or any(not isinstance(row[name], str) for name in (
+                "intent_id", "command_id", "status", "code", "envelope_tag",
+            ))
+            or any(_IDENTITY.fullmatch(row[name]) is None for name in (
+                "intent_id", "command_id",
+            ))
+            or row["status"] not in {"applied", "unknown"}
+            or row["code"] not in {
+                "applied", "readback_mismatch", "worker_ack_unknown",
+            }
+            or type(row["provider_revision"]) is not int
+            or not 1 <= row["provider_revision"] <= 2**63 - 1
+            or row["readback_json"] is not None
+            and not isinstance(row["readback_json"], str)
+            or not self._finite(row["created_at"])
+            or _DIGEST.fullmatch(row["envelope_tag"]) is None
+            or not hmac.compare_digest(row["envelope_tag"], self._effect_tag(row))
+        ):
+            raise ValueError("invalid_workshop_effect")
+        readback = None
+        if row["readback_json"] is not None:
+            readback = WorkshopCommandReadback.model_validate_json(
+                row["readback_json"]
+            )
+        if (row["status"] == "applied") != (row["code"] == "applied"):
+            raise ValueError("invalid_workshop_effect")
+        if row["code"] == "worker_ack_unknown" and readback is not None:
+            raise ValueError("invalid_workshop_effect")
+        return row, readback
+
     def _binding(self, connection, service_id, revision):
         try:
             return self.services._workshop_connection(
@@ -194,6 +245,29 @@ class WorkshopService:
             )
         except ApiError:
             raise ApiError("workshop_binding_changed", 409) from None
+
+    def _capability(self, actor, binding, printer_id, action, now):
+        if self.provider is None:
+            return None
+        resolver = getattr(self.provider, "capability", None)
+        executor = getattr(self.provider, "execute", None)
+        if not callable(resolver) or not callable(executor):
+            raise ApiError("workshop_provider_unavailable", 503)
+        try:
+            capability = WorkshopProviderCapability.model_validate(
+                resolver(actor, binding, printer_id)
+            )
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("workshop_provider_unavailable", 503) from None
+        if (
+            capability.observedAt > now + 5
+            or now - capability.observedAt > _SAFETY_TTL_SECONDS
+            or action not in capability.supportedActions
+        ):
+            raise ApiError("workshop_provider_unverified", 409)
+        return capability
 
     def _printer(self, connection, printer_id, *, expected=None):
         row = connection.execute(
@@ -451,8 +525,11 @@ class WorkshopService:
                     row = self._printer(
                         connection, printer_id, expected=body.expectedPrinterRevision
                     )
-                    self._binding(connection, row["service_id"], body.expectedServiceRevision)
+                    binding = self._binding(
+                        connection, row["service_id"], body.expectedServiceRevision
+                    )
                     self._assert_commandable(row, body, now)
+                    self._capability(actor, binding, printer_id, body.action, now)
                     old = connection.execute(
                         "SELECT * FROM workshop_intents WHERE printer_id=? AND request_key=?",
                         (printer_id, body.requestKey),
@@ -496,9 +573,9 @@ class WorkshopService:
         except (ValueError, sqlite3.Error):
             raise ApiError("workshop_storage_unavailable", 503) from None
 
-    def _public_intent(self, row):
+    def _public_intent(self, row, effect=None):
         self._validate_intent(row)
-        return {
+        value = {
             "schemaVersion": 1,
             "id": row["id"],
             "sequence": row["sequence"],
@@ -518,10 +595,124 @@ class WorkshopService:
             },
             "createdAt": row["created_at"],
         }
+        if effect is not None:
+            effect, readback = self._validate_effect(effect)
+            if effect["intent_id"] != row["id"]:
+                raise ValueError("invalid_workshop_effect")
+            value["schemaVersion"] = 2
+            value["effect"] = effect["status"]
+            value["execution"] = {
+                "commandId": effect["command_id"],
+                "status": effect["status"],
+                "code": effect["code"],
+                "providerRevision": effect["provider_revision"],
+                "readback": (
+                    None if readback is None else readback.model_dump(mode="json")
+                ),
+            }
+        return value
+
+    def _effect(self, connection, intent_id):
+        row = connection.execute(
+            "SELECT * FROM workshop_effects WHERE intent_id=?", (intent_id,)
+        ).fetchone()
+        if row is not None:
+            self._validate_effect(row)
+        return row
+
+    def _insert_pending_effect(self, connection, intent_id, command, now):
+        connection.execute(
+            "INSERT INTO workshop_effects "
+            "(intent_id,command_id,status,code,provider_revision,readback_json,"
+            "created_at,envelope_tag) VALUES(?,?,'unknown','worker_ack_unknown',?,NULL,?,'')",
+            (intent_id, command.commandId, command.providerRevision, now),
+        )
+        row = connection.execute(
+            "SELECT * FROM workshop_effects WHERE intent_id=?", (intent_id,)
+        ).fetchone()
+        if row is None or row["envelope_tag"] != "":
+            raise ValueError("invalid_workshop_effect")
+
+    def _seal_pending_effect(self, connection, intent_id):
+        row = connection.execute(
+            "SELECT * FROM workshop_effects WHERE intent_id=?", (intent_id,)
+        ).fetchone()
+        if row is None or row["envelope_tag"] != "":
+            raise ValueError("invalid_workshop_effect")
+        connection.execute(
+            "UPDATE workshop_effects SET envelope_tag=? WHERE intent_id=?",
+            (self._effect_tag(row), intent_id),
+        )
+        return self._effect(connection, intent_id)
+
+    def _finish_effect(self, intent_id, command, raw_readback):
+        now = float(self.settings.clock())
+        readback = None
+        status, code = "unknown", "worker_ack_unknown"
+        if raw_readback is not None:
+            try:
+                readback = WorkshopCommandReadback.model_validate(raw_readback)
+                expected_state = (
+                    readback.jobState == "paused"
+                    if command.action == "pause"
+                    else readback.jobState in {"idle", "completed"}
+                )
+                exact = all((
+                    readback.commandId == command.commandId,
+                    readback.printerId == command.printerId,
+                    readback.action == command.action,
+                    readback.providerRevision == command.providerRevision,
+                    readback.jobRevision > command.expectedJobRevision,
+                    readback.connectivity == "online",
+                    readback.observedAt <= now + 5,
+                    now - readback.observedAt <= _SAFETY_TTL_SECONDS,
+                    expected_state,
+                ))
+                status, code = (
+                    ("applied", "applied")
+                    if exact else ("unknown", "readback_mismatch")
+                )
+            except Exception:
+                readback = None
+                status, code = "unknown", "worker_ack_unknown"
+        encoded = (
+            None if readback is None else json.dumps(
+                readback.model_dump(mode="json"),
+                sort_keys=True, separators=(",", ":"), allow_nan=False,
+            )
+        )
+        with self.db.transaction() as connection:
+            row = self._effect(connection, intent_id)
+            if row is None or row["command_id"] != command.commandId:
+                raise ApiError("workshop_storage_unavailable", 503)
+            changed = dict(row)
+            changed.update(status=status, code=code, readback_json=encoded)
+            connection.execute(
+                "UPDATE workshop_effects SET status=?,code=?,readback_json=?,"
+                "envelope_tag=? WHERE intent_id=? AND command_id=?",
+                (
+                    status, code, encoded, self._effect_tag(changed), intent_id,
+                    command.commandId,
+                ),
+            )
+            return self._effect(connection, intent_id)
+
+    def _dispatch(self, actor, binding, intent, command):
+        raw_readback = None
+        try:
+            raw_readback = self.provider.execute(
+                actor, binding, command.model_dump(mode="json")
+            )
+        except Exception:
+            # The command may have reached the printer. Never retry implicitly.
+            raw_readback = None
+        effect = self._finish_effect(intent["id"], command, raw_readback)
+        return {"receipt": self._public_intent(intent, effect)}
 
     def confirm(self, actor, core_id, home_id, printer_id, preview_id, value):
         body = ConfirmIntent.model_validate(value)
         now = float(self.settings.clock())
+        dispatch = None
         try:
             with self._lock:
                 self._prune_previews(now)
@@ -537,33 +728,37 @@ class WorkshopService:
                     or not hmac.compare_digest(pending.token_hash, supplied)
                 ):
                     raise ApiError("workshop_preview_invalid", 409)
-                command = PreviewIntent.model_validate(pending.body)
+                command_body = PreviewIntent.model_validate(pending.body)
                 if not hmac.compare_digest(
-                    pending.request_hash, self._request_hash(command)
+                    pending.request_hash, self._request_hash(command_body)
                 ):
                     raise ApiError("workshop_preview_invalid", 409)
                 with self._transaction(actor, core_id, home_id, write=True) as connection:
                     self._actor(connection, actor)
                     old = connection.execute(
                         "SELECT * FROM workshop_intents WHERE printer_id=? AND request_key=?",
-                        (printer_id, command.requestKey),
+                        (printer_id, command_body.requestKey),
                     ).fetchone()
                     if old is not None:
                         self._validate_intent(old)
-                        if not self._intent_matches(old, command):
+                        if not self._intent_matches(old, command_body):
                             raise ApiError("workshop_intent_conflict", 409)
-                        # A retained receipt is authoritative after a lost HTTP ACK.
-                        # Rechecking live safety here would hide the committed result;
-                        # returning it does not dispatch or repeat an effect.
-                        return {"receipt": self._public_intent(old)}
+                        effect = self._effect(connection, old["id"])
+                        # A retained result is authoritative after a lost ACK. A
+                        # legacy not-dispatched receipt is never upgraded by retry.
+                        return {"receipt": self._public_intent(old, effect)}
                     row = self._printer(
                         connection, printer_id,
-                        expected=command.expectedPrinterRevision,
+                        expected=command_body.expectedPrinterRevision,
                     )
-                    self._binding(
-                        connection, row["service_id"], command.expectedServiceRevision
+                    binding = self._binding(
+                        connection, row["service_id"],
+                        command_body.expectedServiceRevision,
                     )
-                    self._assert_commandable(row, command, now)
+                    self._assert_commandable(row, command_body, now)
+                    capability = self._capability(
+                        actor, binding, printer_id, command_body.action, now
+                    )
                     if connection.execute(
                         "SELECT COUNT(*) FROM workshop_intents"
                     ).fetchone()[0] >= schema.MAX_INTENTS:
@@ -576,25 +771,50 @@ class WorkshopService:
                         "state,effect,created_at,envelope_tag) "
                         "VALUES(?,?,?,?,?,?,?,?,?,?,'recorded','notDispatched',?,'')",
                         (
-                            intent_id, printer_id, actor.id, command.requestKey,
-                            command.action, command.expectedPrinterRevision,
-                            command.expectedServiceRevision, command.expectedJobRevision,
-                            command.expectedMaterialRevision, command.expectedSafetyRevision,
-                            now,
+                            intent_id, printer_id, actor.id, command_body.requestKey,
+                            command_body.action, command_body.expectedPrinterRevision,
+                            command_body.expectedServiceRevision,
+                            command_body.expectedJobRevision,
+                            command_body.expectedMaterialRevision,
+                            command_body.expectedSafetyRevision, now,
                         ),
                     )
                     saved = connection.execute(
                         "SELECT * FROM workshop_intents WHERE id=?", (intent_id,)
                     ).fetchone()
-                    tag = self._intent_tag(saved)
                     connection.execute(
                         "UPDATE workshop_intents SET envelope_tag=? WHERE id=?",
-                        (tag, intent_id),
+                        (self._intent_tag(saved), intent_id),
                     )
                     saved = connection.execute(
                         "SELECT * FROM workshop_intents WHERE id=?", (intent_id,)
                     ).fetchone()
-                    return {"receipt": self._public_intent(saved)}
+                    if capability is not None:
+                        command = WorkshopCommand(
+                            schemaVersion=1,
+                            commandId=uuid.uuid4().hex,
+                            actorId=actor.id,
+                            printerId=printer_id,
+                            serviceId=row["service_id"],
+                            serviceRevision=command_body.expectedServiceRevision,
+                            providerRevision=capability.providerRevision,
+                            expectedJobRevision=command_body.expectedJobRevision,
+                            action=command_body.action,
+                        )
+                        self._insert_pending_effect(
+                            connection, intent_id, command, now
+                        )
+                        effect = self._seal_pending_effect(connection, intent_id)
+                        dispatch = (binding, saved, command)
+                        response = {
+                            "receipt": self._public_intent(saved, effect)
+                        }
+                    else:
+                        response = {"receipt": self._public_intent(saved)}
+                if dispatch is not None:
+                    binding, saved, command = dispatch
+                    return self._dispatch(actor, binding, saved, command)
+                return response
         except ApiError:
             raise
         except (ValueError, sqlite3.Error):
@@ -614,7 +834,9 @@ class WorkshopService:
                     (printer_id, limit),
                 ).fetchall()
                 return {"schemaVersion": 1, "intents": [
-                    self._public_intent(row) for row in reversed(rows)
+                    self._public_intent(
+                        row, self._effect(connection, row["id"])
+                    ) for row in reversed(rows)
                 ]}
         except ApiError:
             raise
@@ -630,14 +852,22 @@ class WorkshopService:
                 intents = connection.execute(
                     "SELECT * FROM workshop_intents ORDER BY sequence"
                 ).fetchall()
+                effects = connection.execute(
+                    "SELECT * FROM workshop_effects ORDER BY intent_id"
+                ).fetchall()
                 if len(printers) > schema.MAX_PRINTERS or len(intents) > schema.MAX_INTENTS:
                     raise ValueError("workshop_limit")
                 printer_ids = {row["id"] for row in printers}
+                intent_ids = {row["id"] for row in intents}
                 for row in printers:
                     self._validate_printer(row)
                 for row in intents:
                     self._validate_intent(row)
                     if row["printer_id"] not in printer_ids:
                         raise ValueError("orphan_workshop_intent")
+                for row in effects:
+                    self._validate_effect(row)
+                    if row["intent_id"] not in intent_ids:
+                        raise ValueError("orphan_workshop_effect")
         except (ValueError, sqlite3.Error):
             raise StartupError("workshop_storage_invalid") from None

@@ -179,15 +179,16 @@ class IntentAuthority(StrictModel):
 
 
 class IntentReceipt(StrictModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[1, 2]
     id: Identity
     sequence: int = Field(ge=1, le=2**63 - 1)
     printerRef: PrinterRef
     action: PrinterAction
     state: Literal["recorded"]
-    effect: Literal["notDispatched"]
+    effect: Literal["notDispatched", "applied", "unknown"]
     authority: IntentAuthority
     createdAt: float
+    execution: "WorkshopExecutionView | None" = None
 
 
 class IntentResponse(StrictModel):
@@ -197,3 +198,49 @@ class IntentResponse(StrictModel):
 class IntentList(StrictModel):
     schemaVersion: Literal[1]
     intents: list[IntentReceipt] = Field(max_length=100)
+
+
+class WorkshopProviderCapability(Versioned):
+    providerRevision: Revision
+    supportedActions: list[PrinterAction] = Field(min_length=1, max_length=2)
+    observedAt: float
+
+    _observed = field_validator("observedAt", mode="before")(finite)
+
+    @model_validator(mode="after")
+    def unique_actions(self):
+        if len(set(self.supportedActions)) != len(self.supportedActions):
+            raise ValueError("duplicate_action")
+        return self
+
+
+class WorkshopCommand(Versioned):
+    commandId: Identity
+    actorId: Identity
+    printerId: Identity
+    serviceId: Identity
+    serviceRevision: Revision
+    providerRevision: Revision
+    expectedJobRevision: Revision
+    action: PrinterAction
+
+
+class WorkshopCommandReadback(Versioned):
+    commandId: Identity
+    printerId: Identity
+    action: PrinterAction
+    providerRevision: Revision
+    jobRevision: Revision
+    jobState: JobState
+    connectivity: Literal["online", "offline"]
+    observedAt: float
+
+    _observed = field_validator("observedAt", mode="before")(finite)
+
+
+class WorkshopExecutionView(StrictModel):
+    commandId: Identity
+    status: Literal["applied", "unknown"]
+    code: Literal["applied", "readback_mismatch", "worker_ack_unknown"]
+    providerRevision: Revision
+    readback: WorkshopCommandReadback | None

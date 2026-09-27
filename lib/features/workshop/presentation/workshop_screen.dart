@@ -35,6 +35,7 @@ final class WorkshopStrings {
     required this.confirm,
     required this.dismiss,
     required this.intentRecorded,
+    required this.actionApplied,
     required this.locked,
   });
 
@@ -43,7 +44,7 @@ final class WorkshopStrings {
   final String thermalWarning, thermalRunaway, filamentLow, filamentRunout;
   final String doorOpen, emergency, progress, material;
   final String previewPause, previewCancel, confirmTitle, confirmBody;
-  final String confirm, dismiss, intentRecorded;
+  final String confirm, dismiss, intentRecorded, actionApplied;
   final String locked;
 
   static const en = WorkshopStrings(
@@ -68,10 +69,11 @@ final class WorkshopStrings {
     previewPause: 'Review pause request',
     previewCancel: 'Review cancel request',
     confirmTitle: 'Confirm printer request',
-    confirmBody: 'Larenor records this bounded request for the current verified printer state. It does not retry an uncertain request.',
+    confirmBody: 'Larenor sends this bounded request once for the current verified printer state and requires an exact printer readback. An uncertain request is never retried automatically.',
     confirm: 'Confirm request',
     dismiss: 'Not now',
     intentRecorded: 'Request recorded. Delivery has not been claimed.',
+    actionApplied: 'Printer confirmed the requested state.',
     locked: 'Unlock Settings and verify an administrator Core session to manage workshop printers.',
   );
 
@@ -97,10 +99,11 @@ final class WorkshopStrings {
     previewPause: 'Duraklatma isteğini incele',
     previewCancel: 'İptal isteğini incele',
     confirmTitle: 'Yazıcı isteğini onayla',
-    confirmBody: 'Larenor bu sınırlı isteği doğrulanmış güncel yazıcı durumu için kaydeder. Sonucu belirsiz bir isteği otomatik tekrarlamaz.',
+    confirmBody: 'Larenor bu sınırlı isteği doğrulanmış güncel yazıcı durumu için bir kez gönderir ve yazıcıdan kesin durum geri bildirimi ister. Sonucu belirsiz bir isteği otomatik tekrarlamaz.',
     confirm: 'İsteği onayla',
     dismiss: 'Şimdi değil',
     intentRecorded: 'İstek kaydedildi. İletildiği iddia edilmedi.',
+    actionApplied: 'Yazıcı istenen durumu doğruladı.',
     locked: 'Atölye yazıcılarını yönetmek için Ayarlar kilidini açın ve yönetici Core oturumunu doğrulayın.',
   );
 }
@@ -269,7 +272,9 @@ class _WorkshopScreenState extends State<WorkshopScreen>
             child: Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                widget.strings.intentRecorded,
+                controller.lastReceipt!.effect == WorkshopIntentEffect.applied
+                    ? widget.strings.actionApplied
+                    : widget.strings.intentRecorded,
                 style: AppText.headline,
               ),
             ),

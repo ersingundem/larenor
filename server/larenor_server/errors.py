@@ -105,6 +105,8 @@ MESSAGES = {
     'workshop_intent_conflict': 'This printer request key belongs to a different intent.',
     'workshop_limit_reached': 'The workshop record limit has been reached.',
     'workshop_storage_unavailable': 'The workshop state is unavailable.',
+    'workshop_provider_unavailable': 'The verified printer provider is unavailable.',
+    'workshop_provider_unverified': 'The printer provider capability is stale or does not allow this action.',
     'visual_sensor_limit_reached': 'The camera visual sensor limit has been reached.',
     'visual_sensor_storage_unavailable': 'The camera visual sensor state is unavailable.',
     'sound_event_integrity_failed': 'The sound event history could not be verified.',

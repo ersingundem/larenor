@@ -72,7 +72,9 @@ enum WorkshopEmergency { clear, triggered }
 
 enum WorkshopFreshness { current, stale }
 
-enum WorkshopIntentEffect { notDispatched }
+enum WorkshopIntentEffect { notDispatched, applied, unknown }
+
+enum WorkshopExecutionCode { applied, readbackMismatch, workerAckUnknown }
 
 T _enum<T>({required Object? value, required Map<String, T> values}) =>
     values[value] ?? _invalid();
@@ -440,6 +442,7 @@ final class WorkshopIntentReceipt {
     required this.effect,
     required this.authority,
     required this.createdAt,
+    this.execution,
   });
 
   factory WorkshopIntentReceipt.fromJson(
@@ -449,7 +452,10 @@ final class WorkshopIntentReceipt {
     required WorkshopAction action,
   }) {
     final wrapper = _closed(json, {'receipt'});
-    final value = _closed(wrapper['receipt'], {
+    final rawValue = serverObject(wrapper['receipt']);
+    final version = rawValue['schemaVersion'];
+    if (version != 1 && version != 2) _invalid();
+    final value = _closed(rawValue, {
       'schemaVersion',
       'id',
       'sequence',
@@ -459,6 +465,7 @@ final class WorkshopIntentReceipt {
       'effect',
       'authority',
       'createdAt',
+      if (version == 2) 'execution',
     });
     final ref = _closed(value['printerRef'], {
       'schemaVersion',
@@ -475,11 +482,79 @@ final class WorkshopIntentReceipt {
       'safetyRevision',
     });
     _scope(ref, context, 'workshop_printer');
-    if (value['schemaVersion'] != 1 ||
-        ref['id'] != printerId ||
+    final effect = _enum(
+      value: value['effect'],
+      values: const {
+        'notDispatched': WorkshopIntentEffect.notDispatched,
+        'applied': WorkshopIntentEffect.applied,
+        'unknown': WorkshopIntentEffect.unknown,
+      },
+    );
+    WorkshopExecution? execution;
+    if (version == 2) {
+      final raw = _closed(value['execution'], {
+        'commandId',
+        'status',
+        'code',
+        'providerRevision',
+        'readback',
+      });
+      final status = _enum(
+        value: raw['status'],
+        values: const {
+          'applied': WorkshopIntentEffect.applied,
+          'unknown': WorkshopIntentEffect.unknown,
+        },
+      );
+      final code = _enum(
+        value: raw['code'],
+        values: const {
+          'applied': WorkshopExecutionCode.applied,
+          'readback_mismatch': WorkshopExecutionCode.readbackMismatch,
+          'worker_ack_unknown': WorkshopExecutionCode.workerAckUnknown,
+        },
+      );
+      final readback = raw['readback'] == null
+          ? null
+          : WorkshopCommandReadback.fromJson(
+              raw['readback'],
+              printerId,
+              action,
+            );
+      if (status != effect ||
+          (status == WorkshopIntentEffect.applied) !=
+              (code == WorkshopExecutionCode.applied) ||
+          (code == WorkshopExecutionCode.workerAckUnknown &&
+              readback != null)) {
+        _invalid();
+      }
+      execution = WorkshopExecution(
+        commandId: _identity(raw['commandId']),
+        status: status,
+        code: code,
+        providerRevision: _revision(raw['providerRevision']),
+        readback: readback,
+      );
+      if (readback != null &&
+          (readback.commandId != execution.commandId ||
+              readback.providerRevision != execution.providerRevision)) {
+        _invalid();
+      }
+      if (effect == WorkshopIntentEffect.applied &&
+          (readback == null ||
+              readback.connectivity != WorkshopConnectivity.online ||
+              (action == WorkshopAction.pause
+                  ? readback.jobState != WorkshopJobState.paused
+                  : readback.jobState != WorkshopJobState.idle &&
+                        readback.jobState != WorkshopJobState.completed))) {
+        _invalid();
+      }
+    }
+    if (ref['id'] != printerId ||
         value['action'] != action.name ||
         value['state'] != 'recorded' ||
-        value['effect'] != 'notDispatched') {
+        (version == 1 && effect != WorkshopIntentEffect.notDispatched) ||
+        (version == 2 && execution == null)) {
       _invalid();
     }
     return WorkshopIntentReceipt(
@@ -487,7 +562,7 @@ final class WorkshopIntentReceipt {
       sequence: _revision(value['sequence']),
       printerId: printerId,
       action: action,
-      effect: WorkshopIntentEffect.notDispatched,
+      effect: effect,
       authority: WorkshopIntentAuthority(
         printerRevision: _revision(authority['printerRevision']),
         serviceRevision: _revision(authority['serviceRevision']),
@@ -496,6 +571,7 @@ final class WorkshopIntentReceipt {
         safetyRevision: _revision(authority['safetyRevision']),
       ),
       createdAt: _time(value['createdAt']),
+      execution: execution,
     );
   }
 
@@ -505,6 +581,92 @@ final class WorkshopIntentReceipt {
   final WorkshopIntentEffect effect;
   final WorkshopIntentAuthority authority;
   final DateTime createdAt;
+  final WorkshopExecution? execution;
+}
+
+@immutable
+final class WorkshopCommandReadback {
+  const WorkshopCommandReadback({
+    required this.commandId,
+    required this.printerId,
+    required this.action,
+    required this.providerRevision,
+    required this.jobRevision,
+    required this.jobState,
+    required this.connectivity,
+    required this.observedAt,
+  });
+
+  factory WorkshopCommandReadback.fromJson(
+    Object? json,
+    String printerId,
+    WorkshopAction action,
+  ) {
+    final value = _closed(json, {
+      'schemaVersion',
+      'commandId',
+      'printerId',
+      'action',
+      'providerRevision',
+      'jobRevision',
+      'jobState',
+      'connectivity',
+      'observedAt',
+    });
+    if (value['schemaVersion'] != 1 ||
+        value['printerId'] != printerId ||
+        value['action'] != action.name) {
+      _invalid();
+    }
+    return WorkshopCommandReadback(
+      commandId: _identity(value['commandId']),
+      printerId: _identity(value['printerId']),
+      action: action,
+      providerRevision: _revision(value['providerRevision']),
+      jobRevision: _revision(value['jobRevision']),
+      jobState: _enum(
+        value: value['jobState'],
+        values: const {
+          'idle': WorkshopJobState.idle,
+          'printing': WorkshopJobState.printing,
+          'paused': WorkshopJobState.paused,
+          'completed': WorkshopJobState.completed,
+          'error': WorkshopJobState.error,
+        },
+      ),
+      connectivity: _enum(
+        value: value['connectivity'],
+        values: const {
+          'online': WorkshopConnectivity.online,
+          'offline': WorkshopConnectivity.offline,
+        },
+      ),
+      observedAt: _time(value['observedAt']),
+    );
+  }
+
+  final String commandId, printerId;
+  final WorkshopAction action;
+  final int providerRevision, jobRevision;
+  final WorkshopJobState jobState;
+  final WorkshopConnectivity connectivity;
+  final DateTime observedAt;
+}
+
+@immutable
+final class WorkshopExecution {
+  const WorkshopExecution({
+    required this.commandId,
+    required this.status,
+    required this.code,
+    required this.providerRevision,
+    required this.readback,
+  });
+  final String commandId;
+  final WorkshopIntentEffect status;
+  final WorkshopExecutionCode code;
+  final int providerRevision;
+  final WorkshopCommandReadback? readback;
 }
 
 /// The deliberately small Client boundary for the F59 workshop surface.

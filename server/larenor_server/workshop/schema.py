@@ -50,6 +50,16 @@ TABLES = {
         envelope_tag TEXT NOT NULL,
         UNIQUE(printer_id,request_key),
         FOREIGN KEY(printer_id) REFERENCES workshop_printers(id) ON DELETE CASCADE)""",
+    "workshop_effects": """CREATE TABLE workshop_effects (
+        intent_id TEXT PRIMARY KEY,
+        command_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL CHECK(status IN ('applied','unknown')),
+        code TEXT NOT NULL CHECK(code IN ('applied','readback_mismatch','worker_ack_unknown')),
+        provider_revision INTEGER NOT NULL CHECK(provider_revision > 0),
+        readback_json TEXT,
+        created_at REAL NOT NULL,
+        envelope_tag TEXT NOT NULL,
+        FOREIGN KEY(intent_id) REFERENCES workshop_intents(id) ON DELETE CASCADE)""",
 }
 
 
@@ -75,16 +85,38 @@ def migrate_workshop(connection: sqlite3.Connection) -> None:
             for statement in TABLES.values():
                 connection.execute(statement)
             connection.execute(
-                "INSERT INTO metadata VALUES('workshop_schema','1')"
+                "INSERT INTO metadata VALUES('workshop_schema','2')"
             )
             return
-        if marker["value"] != "1" or set(actual) != set(TABLES) or any(
+        if marker["value"] == "1":
+            if "workshop_effects" in actual:
+                raise ValueError("invalid_workshop")
+            connection.execute(TABLES["workshop_effects"])
+            connection.execute(
+                "UPDATE metadata SET value='2' WHERE key='workshop_schema'"
+            )
+            rows = connection.execute(
+                "SELECT name,type,tbl_name,sql FROM sqlite_master "
+                "WHERE name GLOB 'workshop_*' OR tbl_name GLOB 'workshop_*'"
+            ).fetchall()
+            actual = {row["name"]: row for row in rows}
+            implicit = {
+                name: row for name, row in list(actual.items())
+                if row["type"] == "index" and row["sql"] is None
+            }
+            for name in implicit:
+                actual.pop(name)
+        if marker["value"] not in {"1", "2"} or set(actual) != set(TABLES) or any(
             row["type"] != "table"
             or " ".join(row["sql"].split()) != " ".join(TABLES[name].split())
             for name, row in actual.items()
         ):
             raise ValueError("invalid_workshop")
-        expected_indexes = {"workshop_printers": 1, "workshop_intents": 2}
+        expected_indexes = {
+            "workshop_printers": 1,
+            "workshop_intents": 2,
+            "workshop_effects": 2,
+        }
         for table, count in expected_indexes.items():
             indexes = connection.execute(f"PRAGMA index_list({table})").fetchall()
             if len(indexes) != count or any(
