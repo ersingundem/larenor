@@ -4736,7 +4736,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kameradan görsel sensörler",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4760,7 +4760,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kameradan görsel sensörlerde sürümlü model, güven/veri tazeliği, yanlış/eksik kare sınırları ve gerçek kaynak entegrasyonu geliştiriliyor."
+      "reason": "Kamera görsel sensörleri sürümlü metadata gözlemi, model/capability/güven/tazelik, yanlış kare ve restart-safe HMAC checkpoint ile uygulandı; 9 sunucu ve 13 Flutter testi ile focused analyze geçti, tam CI bekliyor."
     },
     {
       "id": "F45",
@@ -4805,7 +4805,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4829,7 +4829,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Oda konforu ve havalandırma planında ayrı sensör/iklim kaynakları, pencere ve eksik veri sınırları ile güvenli manuel müdahale akışı geliştiriliyor."
     },
     {
       "id": "F48",
@@ -4898,7 +4898,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4922,14 +4922,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Güneş ve ev bataryası önceliklerinde gerçek enerji kaynağı, inverter capability, tahmin güveni ve güvenli plan uygulaması geliştiriliyor."
+      "reason": "Güneş ve ev bataryası öncelikleri güncel tahmin ufku, zamanlanmış plan, inverter capability ve yalnız güncel slot için güvenli preview ile uygulandı; 6 sunucu ve 8 Flutter testi ile focused analyze geçti, tam CI bekliyor."
     },
     {
       "id": "F49",
       "kind": "task",
       "parent": "G09",
       "title": "Bahçe sulama ve su bütçesi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4954,7 +4954,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Bahçe sulama ve su bütçesinde gerçek controller/valve/flow capability, preview-confirm, günlük kota ve bağlantı kesilmesinde güvenli durdurma geliştiriliyor."
     },
     {
       "id": "G10",
