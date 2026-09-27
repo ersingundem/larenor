@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
@@ -120,20 +121,32 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
   Future<void> _confirm() async {
     final accepted = await showCupertinoDialog<bool>(
       context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(widget.strings.confirmTitle),
-        content: Text(widget.strings.confirmBody),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(widget.strings.cancel),
+      builder: (dialogContext) => CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.enter): () =>
+              Navigator.pop(dialogContext, true),
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              Navigator.pop(dialogContext, false),
+        },
+        child: Focus(
+          key: const ValueKey('ev-charge-confirm-dialog-focus'),
+          autofocus: true,
+          child: CupertinoAlertDialog(
+            title: Text(widget.strings.confirmTitle),
+            content: Text(widget.strings.confirmBody),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(widget.strings.cancel),
+              ),
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(widget.strings.confirm),
+              ),
+            ],
           ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(widget.strings.confirm),
-          ),
-        ],
+        ),
       ),
     );
     if (accepted == true && mounted) await widget.controller.confirm();

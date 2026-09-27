@@ -146,6 +146,14 @@ void main() {
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
+    final dialogFocus = find.byKey(
+      const ValueKey('ev-charge-confirm-dialog-focus'),
+    );
+    expect(dialogFocus, findsOneWidget);
+    final dynamic dialogFocusState = tester.state(dialogFocus);
+    expect(dialogFocusState.focusNode.hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
     expect(gateway.confirms, 1);
     expect(find.text(EvChargingStrings.en.uncertain), findsOneWidget);
   });
