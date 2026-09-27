@@ -22,6 +22,7 @@ import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
 import '../media_recovery/presentation/server_media_recovery_screen.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
+import '../power_recovery/presentation/server_power_recovery_screen.dart';
 import '../providers/server_providers.dart';
 import '../services/presentation/server_services_screen.dart';
 import '../tablet_fleet/presentation/server_tablet_fleet_screen.dart';
@@ -646,6 +647,34 @@ class _ServerConnectionScreenState
                                             CupertinoPageRoute(
                                               builder: (_) =>
                                                   const ServerMediaRecoveryScreen(),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-power-recovery',
+                                  ),
+                                  leading: const Icon(CupertinoIcons.bolt),
+                                  title: Text(l10n.serverPowerRecoveryTitle),
+                                  additionalInfo: Text(
+                                    l10n.serverPowerRecoveryEntryHint,
+                                  ),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  const ServerPowerRecoveryScreen(),
                                             ),
                                           );
                                         })
