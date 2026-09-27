@@ -28,6 +28,7 @@ from .models import (
 
 MAX_DOCUMENTS = 512
 MAX_RECEIPTS = 2048
+MAX_LIBRARY_BLOB_BYTES = 64 * 1024 * 1024
 
 
 def _synchronized(method):
@@ -161,6 +162,11 @@ class HomeDocumentLibrary:
                 reminder_days=tuple(days),
                 library_revision=raw["libraryRevision"],
             )
+        if (
+            sum(record.document.blob.contentLength for record in documents.values())
+            > MAX_LIBRARY_BLOB_BYTES
+        ):
+            raise ValueError("home_document_quota_exceeded")
         receipts = {}
         for raw in value["receipts"]:
             if type(raw) is not dict or set(raw) != {
@@ -271,6 +277,11 @@ class HomeDocumentLibrary:
             raise ApiError("revision_conflict", 409)
         if len(self._documents) >= MAX_DOCUMENTS:
             raise ApiError("revision_conflict", 409)
+        referenced_bytes = sum(
+            record.document.blob.contentLength for record in self._documents.values()
+        )
+        if referenced_bytes + command.blob.contentLength > MAX_LIBRARY_BLOB_BYTES:
+            raise ApiError("payload_too_large", 413)
         self._references(actor, command)
         timestamp = self._clock()
         if type(timestamp) not in (int, float) or not math.isfinite(timestamp) or timestamp < 0:
@@ -390,7 +401,21 @@ class HomeDocumentLibrary:
             record.document
             for record in self._documents.values()
             if self._visible(actor, record)
-            and (not needle or needle in record.document.title.casefold())
+            and (
+                not needle
+                or needle
+                in "\n".join(
+                    filter(
+                        None,
+                        (
+                            record.document.title,
+                            record.document.kind,
+                            record.document.inventoryItemId,
+                            record.document.warranty.confirmedDate,
+                        ),
+                    )
+                ).casefold()
+            )
         ]
         items.sort(key=lambda item: (item.title.casefold(), item.ref.id))
         return DocumentPage(
@@ -401,13 +426,17 @@ class HomeDocumentLibrary:
         )
 
     @_synchronized
-    def due(self, actor, *, today):
+    def reminders(self, actor, today, *, limit=100):
         actor = DocumentActor.model_validate(actor)
         try:
             current = date.fromisoformat(today)
         except (TypeError, ValueError):
             raise ApiError("invalid_request") from None
-        if current.isoformat() != today:
+        if (
+            current.isoformat() != today
+            or type(limit) is not int
+            or not 1 <= limit <= 100
+        ):
             raise ApiError("invalid_request")
         reminders = []
         for record in self._documents.values():
@@ -436,6 +465,11 @@ class HomeDocumentLibrary:
         return WarrantyReminderPage(
             schemaVersion=1,
             authority=self._authority(actor, projected=True),
-            items=reminders[:100],
-            hasMore=len(reminders) > 100,
+            items=reminders[:limit],
+            hasMore=len(reminders) > limit,
         )
+
+    def due(self, actor, *, today):
+        """Compatibility alias for the original reducer-only contract."""
+
+        return self.reminders(actor, today, limit=100)

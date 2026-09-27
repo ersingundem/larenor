@@ -1,4 +1,5 @@
 import '../../home_resources/data/core_bounded_download_api.dart';
+import '../../home_resources/data/core_bounded_download_file_access.dart';
 import '../../home_resources/data/core_bounded_upload_file_access.dart';
 import '../../home_resources/data/home_resources_api.dart';
 import '../../home_resources/domain/home_resource_models.dart';
@@ -8,7 +9,8 @@ import '../../server/domain/server_models.dart';
 import 'home_document_controller.dart';
 import '../domain/home_document_models.dart';
 
-final class HomeDocumentApi implements HomeDocumentGateway {
+final class HomeDocumentApi
+    implements HomeDocumentGateway, HomeDocumentDownloadGateway {
   const HomeDocumentApi(
     this._api,
     this._token,
@@ -16,6 +18,7 @@ final class HomeDocumentApi implements HomeDocumentGateway {
     this._accountId, {
     required this.isCurrent,
     this.uploadAdapter,
+    this.downloadAdapter,
   });
 
   final LarenorServerApi _api;
@@ -24,6 +27,7 @@ final class HomeDocumentApi implements HomeDocumentGateway {
   final String _accountId;
   final bool Function() isCurrent;
   final CoreHomeDocumentUploadAdapter? uploadAdapter;
+  final CoreHomeDocumentDownloadAdapter? downloadAdapter;
   String get _root => '/home-documents/${_context.coreId}/${_context.homeId}';
 
   void _active() {
@@ -97,6 +101,19 @@ final class HomeDocumentApi implements HomeDocumentGateway {
         expectedAccountRevision: expectedAccountRevision,
       ),
     );
+  }
+
+  @override
+  Future<bool> downloadDocument(HomeDocumentReadback readback) {
+    final adapter = downloadAdapter;
+    if (adapter == null) {
+      throw const LarenorServerException('server_unavailable');
+    }
+    if (readback.authority.context != _context ||
+        readback.authority.accountId != _accountId) {
+      throw const LarenorServerException('cancelled');
+    }
+    return _guard(() => adapter.download(readback));
   }
 
   @override
@@ -255,21 +272,108 @@ final class CoreHomeDocumentUploadAdapter {
   }
 }
 
+/// Downloads only an exact, authorized document revision and publishes bytes
+/// after the bounded stream, descriptor, digest, length and media type agree.
+final class CoreHomeDocumentDownloadAdapter {
+  const CoreHomeDocumentDownloadAdapter({
+    required this.resources,
+    required this.bounded,
+    required this.files,
+    required this.token,
+    required this.isCurrent,
+  });
+
+  final HomeResourcesApi resources;
+  final CoreBoundedDownloadApi bounded;
+  final CoreBoundedDownloadFileAccess files;
+  final String token;
+  final bool Function() isCurrent;
+
+  void _active() {
+    if (!isCurrent()) throw const LarenorServerException('cancelled');
+  }
+
+  Future<HomeResourceRecord> _resolve(
+    String resourceId,
+    int expectedAccountRevision,
+  ) async {
+    HomeResourceRecord? target;
+    String? after, snapshot;
+    do {
+      final page = await resources.list(
+        after: after,
+        snapshot: snapshot,
+        limit: 100,
+      );
+      _active();
+      if (page.userRevision != expectedAccountRevision ||
+          snapshot != null && page.snapshot != snapshot) {
+        throw const LarenorServerException('revision_conflict');
+      }
+      snapshot ??= page.snapshot;
+      for (final entry in page.entries) {
+        if (entry.id != resourceId) continue;
+        if (target != null || entry.kind != HomeResourceKind.resource) {
+          throw const LarenorServerException('forbidden');
+        }
+        target = entry;
+      }
+      after = page.nextAfter;
+    } while (after != null);
+    return target ?? (throw const LarenorServerException('not_found'));
+  }
+
+  Future<bool> download(HomeDocumentReadback readback) async {
+    _active();
+    final document = readback.document;
+    final expected = document.blob;
+    final target = await _resolve(
+      expected.resourceId,
+      readback.authority.accountRevision,
+    );
+    final descriptor = await bounded.descriptor(token: token, target: target);
+    _active();
+    if (descriptor.resourceId != expected.resourceId ||
+        descriptor.serviceRevision != expected.serviceRevision ||
+        descriptor.contentLength != expected.contentLength ||
+        descriptor.sha256 != expected.sha256 ||
+        descriptor.contentType != expected.contentType) {
+      throw const LarenorServerException('revision_conflict');
+    }
+    final blob = await bounded.download(
+      token: token,
+      target: target,
+      expectedUserRevision: readback.authority.accountRevision,
+      expectedServiceRevision: expected.serviceRevision,
+    );
+    _active();
+    if (!descriptor.authenticatesBlob(blob)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final saved = await files.publish(blob, expected.resourceId);
+    _active();
+    return saved;
+  }
+}
+
 typedef HomeDocumentBoundedApiFactory = CoreBoundedDownloadApi Function(
   ServerEndpoint endpoint,
 );
 
 /// Route-owned account adapter. Every operation refreshes the account first,
 /// then rejects endpoint, Core/home, generation, route or lifecycle drift.
-final class HomeDocumentAccountGateway implements HomeDocumentGateway {
+final class HomeDocumentAccountGateway
+    implements HomeDocumentGateway, HomeDocumentDownloadGateway {
   HomeDocumentAccountGateway({
     required this.account,
     required this.context,
     required this.isCurrent,
     required this.files,
+    CoreBoundedDownloadFileAccess? downloadFiles,
     ServerApiFactory? apiFactory,
     HomeDocumentBoundedApiFactory? boundedApiFactory,
-  }) : _generation = account.generation,
+  }) : downloadFiles = downloadFiles ?? CoreBoundedDownloadFileAccess(),
+       _generation = account.generation,
        _endpoint = account.session!.endpoint,
        _api =
            (apiFactory ?? ((endpoint) => LarenorServerApi(endpoint: endpoint)))(
@@ -285,6 +389,7 @@ final class HomeDocumentAccountGateway implements HomeDocumentGateway {
   final ServerContext context;
   final bool Function() isCurrent;
   final CoreBoundedUploadFileAccess files;
+  final CoreBoundedDownloadFileAccess downloadFiles;
   final int _generation;
   final ServerEndpoint _endpoint;
   final LarenorServerApi _api;
@@ -318,6 +423,13 @@ final class HomeDocumentAccountGateway implements HomeDocumentGateway {
         token: session.accessToken,
         isCurrent: isCurrent,
       ),
+      downloadAdapter: CoreHomeDocumentDownloadAdapter(
+        resources: resources,
+        bounded: _bounded,
+        files: downloadFiles,
+        token: session.accessToken,
+        isCurrent: isCurrent,
+      ),
     );
   }
 
@@ -328,6 +440,10 @@ final class HomeDocumentAccountGateway implements HomeDocumentGateway {
   @override
   Future<HomeDocumentReadback> readDocument(String documentId) async =>
       (await _authorized()).readDocument(documentId);
+
+  @override
+  Future<bool> downloadDocument(HomeDocumentReadback readback) async =>
+      (await _authorized()).downloadDocument(readback);
 
   @override
   Future<HomeWarrantyReminderPage> reminders(String today) async =>

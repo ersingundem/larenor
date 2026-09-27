@@ -27,10 +27,12 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
   final _inventory = TextEditingController();
   final _resource = TextEditingController();
   final _warranty = TextEditingController();
+  final _search = TextEditingController();
   final _titleFocus = FocusNode();
   final _inventoryFocus = FocusNode();
   final _resourceFocus = FocusNode();
   final _warrantyFocus = FocusNode();
+  final _searchFocus = FocusNode();
   final _readers = <String>{};
   HomeDocumentUploadEvidence? _seenUpload;
   HomeDocumentKind _kind = HomeDocumentKind.invoice;
@@ -103,10 +105,12 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
     _inventory.dispose();
     _resource.dispose();
     _warranty.dispose();
+    _search.dispose();
     _titleFocus.dispose();
     _inventoryFocus.dispose();
     _resourceFocus.dispose();
     _warrantyFocus.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -240,6 +244,9 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
               _Notice(
                 '${copy.ocrSuggestion}: ${candidate.extractedDate} · ${(candidate.confidencePermille / 10).toStringAsFixed(0)}%',
               ),
+            ] else ...[
+              const SizedBox(height: 8),
+              _Notice(copy.ocrUnavailable),
             ],
           ],
           const SizedBox(height: 12),
@@ -395,6 +402,19 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
                 ],
               ),
               const SizedBox(height: 8),
+              CupertinoSearchTextField(
+                key: const ValueKey('home-doc-search'),
+                controller: _search,
+                focusNode: _searchFocus,
+                placeholder: copy.search,
+                onSubmitted: (value) =>
+                    widget.controller.load(query: value.trim()),
+                onSuffixTap: () {
+                  _search.clear();
+                  widget.controller.load();
+                },
+              ),
+              const SizedBox(height: 8),
               if (recent != null && !items.any((item) => item.id == recent.id))
                 Semantics(
                   liveRegion: true,
@@ -403,7 +423,15 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
               if (items.isEmpty)
                 Text(copy.empty)
               else
-                ...items.map((item) => _DocumentRow(item: item, copy: copy)),
+                ...items.map(
+                  (item) => _DocumentRow(
+                    item: item,
+                    copy: copy,
+                    enabled: widget.controller.canDownload,
+                    saved: widget.controller.downloadedDocumentId == item.id,
+                    onDownload: () => widget.controller.download(item.id),
+                  ),
+                ),
             ],
           ),
         ),
@@ -483,9 +511,17 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
 }
 
 class _DocumentRow extends StatelessWidget {
-  const _DocumentRow({required this.item, required this.copy});
+  const _DocumentRow({
+    required this.item,
+    required this.copy,
+    required this.enabled,
+    required this.saved,
+    required this.onDownload,
+  });
   final HomeDocument item;
   final _Copy copy;
+  final bool enabled, saved;
+  final VoidCallback onDownload;
   @override
   Widget build(BuildContext context) => Semantics(
     container: true,
@@ -516,6 +552,19 @@ class _DocumentRow extends StatelessWidget {
                   item.warranty.confirmedDate == null)
                 Text(copy.ocrUnconfirmed),
             ],
+          ),
+          const SizedBox(height: 8),
+          Semantics(
+            button: true,
+            enabled: enabled,
+            label: '${copy.download}: ${item.title}',
+            child: CupertinoButton(
+              key: ValueKey('home-doc-download-${item.id}'),
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              onPressed: enabled ? onDownload : null,
+              child: Text(saved ? copy.downloaded : copy.download),
+            ),
           ),
         ],
       ),
@@ -571,6 +620,9 @@ class _Copy {
   String get uploaded => tr ? 'Yüklendi' : 'Uploaded';
   String get ocrSuggestion =>
       tr ? 'OCR önerisi, henüz onaylı değil' : 'OCR suggestion, not confirmed';
+  String get ocrUnavailable => tr
+      ? 'OCR kanıtı sağlanmadı; garanti tarihini elle girip doğrulayın.'
+      : 'OCR evidence is unavailable; enter and confirm the warranty date manually.';
   String get documentTitle => tr ? 'Belge başlığı' : 'Document title';
   String get documentKind => tr ? 'Belge türü' : 'Document type';
   String kind(HomeDocumentKind value) => switch (value) {
@@ -592,7 +644,10 @@ class _Copy {
   String get publish => tr ? 'Belgeyi kaydet' : 'Save document';
   String get saved => tr ? 'Kaydedildi' : 'Saved';
   String get library => tr ? 'Yetkili belgeler' : 'Authorized documents';
+  String get search => tr ? 'Belge ara' : 'Search documents';
   String get refresh => tr ? 'Belgeleri yenile' : 'Refresh documents';
+  String get download => tr ? 'Güvenli indir' : 'Secure download';
+  String get downloaded => tr ? 'Güvenle kaydedildi' : 'Saved securely';
   String get empty => tr ? 'Görülebilir belge yok.' : 'No visible documents.';
   String get reminders => tr ? 'Garanti hatırlatmaları' : 'Warranty reminders';
   String get noReminders =>

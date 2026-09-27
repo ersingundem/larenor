@@ -238,4 +238,6 @@ class HomeDocumentRepository:
         self.auth.rate_limit([("home_document_read", principal.id, 120)])
         with self._lock:
             self._sync()
-            return self._library.reminders(self._actor(principal), today, limit=limit)
+            return self._library.reminders(
+                self._actor(principal), today, limit=limit
+            )

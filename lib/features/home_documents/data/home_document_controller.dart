@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../home_resources/data/core_bounded_download_api.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/home_document_models.dart';
 
@@ -21,6 +22,10 @@ abstract interface class HomeDocumentGateway {
     required String requestId,
     required String confirmedDate,
   });
+}
+
+abstract interface class HomeDocumentDownloadGateway {
+  Future<bool> downloadDocument(HomeDocumentReadback readback);
 }
 
 enum HomeDocumentFailure {
@@ -59,6 +64,7 @@ final class HomeDocumentController extends ChangeNotifier {
   HomeDocument? recentlyPublished;
   HomeWarrantyReminderPage? reminderPage;
   HomeDocumentUploadEvidence? upload;
+  String? downloadedDocumentId;
 
   bool _current() {
     try {
@@ -70,6 +76,11 @@ final class HomeDocumentController extends ChangeNotifier {
 
   bool get canUpload => isAdmin && !busy && _current() && page != null;
   bool get canPublish => canUpload && upload != null;
+  bool get canDownload =>
+      !busy &&
+      _current() &&
+      page != null &&
+      gateway is HomeDocumentDownloadGateway;
 
   void _clear(HomeDocumentFailure next) {
     busy = false;
@@ -77,6 +88,7 @@ final class HomeDocumentController extends ChangeNotifier {
     recentlyPublished = null;
     reminderPage = null;
     upload = null;
+    downloadedDocumentId = null;
     _family = null;
     failure = next;
   }
@@ -91,21 +103,25 @@ final class HomeDocumentController extends ChangeNotifier {
   }
 
   HomeDocumentFailure _map(Object error) =>
-      error is LarenorServerException &&
-          {
-            'connection_failed',
-            'timeout',
-            'server_unavailable',
-          }.contains(error.code)
+      (error is LarenorServerException ||
+              error is CoreBoundedDownloadException) &&
+          {'connection_failed', 'timeout', 'server_unavailable'}.contains(
+            error is LarenorServerException
+                ? error.code
+                : (error as CoreBoundedDownloadException).code,
+          )
       ? HomeDocumentFailure.offline
-      : error is LarenorServerException &&
-            {
-              'forbidden',
-              'unauthorized',
-              'revision_conflict',
-            }.contains(error.code)
+      : (error is LarenorServerException ||
+                error is CoreBoundedDownloadException) &&
+            {'forbidden', 'unauthorized', 'revision_conflict'}.contains(
+              error is LarenorServerException
+                  ? error.code
+                  : (error as CoreBoundedDownloadException).code,
+            )
       ? HomeDocumentFailure.rejected
-      : error is LarenorServerException && error.code == 'invalid_request'
+      : (error is LarenorServerException && error.code == 'invalid_request') ||
+            (error is CoreBoundedDownloadException &&
+                error.code == 'invalid_request')
       ? HomeDocumentFailure.invalidInput
       : HomeDocumentFailure.invalidResponse;
 
@@ -150,6 +166,55 @@ final class HomeDocumentController extends ChangeNotifier {
       recentlyPublished = null;
       reminderPage = reminders;
       upload = null;
+      downloadedDocumentId = null;
+    } catch (error) {
+      if (!_current() || operation != _epoch) return _stale(operation);
+      _clear(_map(error));
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> download(String documentId) async {
+    final base = page;
+    if (busy ||
+        base == null ||
+        !_current() ||
+        gateway is! HomeDocumentDownloadGateway ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(documentId)) {
+      return;
+    }
+    final downloader = gateway as HomeDocumentDownloadGateway;
+    final visible = base.items.where((item) => item.id == documentId).toList();
+    if (visible.length != 1) return;
+    final expected = visible.single;
+    final operation = ++_epoch;
+    busy = true;
+    failure = null;
+    downloadedDocumentId = null;
+    notifyListeners();
+    try {
+      final exact = await gateway.readDocument(documentId);
+      if (!_current() || operation != _epoch) return _stale(operation);
+      final actual = exact.document;
+      if (!_authority(exact.authority) ||
+          !base.authority.sameSession(exact.authority) ||
+          base.authority.libraryRevision != exact.authority.libraryRevision ||
+          actual.id != expected.id ||
+          actual.revision != expected.revision ||
+          actual.blob.resourceId != expected.blob.resourceId ||
+          actual.blob.serviceRevision != expected.blob.serviceRevision ||
+          actual.blob.contentLength != expected.blob.contentLength ||
+          actual.blob.sha256 != expected.blob.sha256 ||
+          actual.blob.contentType != expected.blob.contentType) {
+        throw const LarenorServerException('revision_conflict');
+      }
+      final saved = await downloader.downloadDocument(exact);
+      if (!_current() || operation != _epoch) return _stale(operation);
+      if (saved) downloadedDocumentId = documentId;
     } catch (error) {
       if (!_current() || operation != _epoch) return _stale(operation);
       _clear(_map(error));
