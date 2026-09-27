@@ -25,6 +25,12 @@ abstract interface class LegacyRemoteManagementApi {
     LegacyRemoteAuthority authority, {
     required String requestId,
   });
+
+  Future<LegacyRemoteLearningResult> learn(
+    LegacyRemoteAuthority authority, {
+    required LegacyRemoteDevice device,
+    required LegacyRemoteCommandKey key,
+  });
 }
 
 /// Authenticated, route-owned bridge to the F56 Core HTTP contract.
@@ -308,5 +314,65 @@ final class CoreLegacyRemoteManagementApi implements LegacyRemoteManagementApi {
     );
     _previews.remove(requestId);
     return value;
+  });
+
+  @override
+  Future<LegacyRemoteLearningResult> learn(
+    LegacyRemoteAuthority authority, {
+    required LegacyRemoteDevice device,
+    required LegacyRemoteCommandKey key,
+  }) => _bound((api, session) async {
+    if (_catalog?.authority != authority ||
+        !_currentDevice(device).canDispatch) {
+      throw const LarenorServerException('cancelled');
+    }
+    final requestId = _requestId();
+    final body = {
+      'schemaVersion': 1,
+      'authority': authority.toCoreJson(),
+      'requestId': requestId,
+      'deviceId': device.deviceId,
+      'expectedDeviceRevision': device.deviceRevision,
+      'providerId': device.providerId,
+      'expectedProviderRevision': device.providerRevision,
+      'bridgeId': device.bridgeId,
+      'expectedBridgeRevision': device.bridgeRevision,
+      'profileId': device.profileId,
+      'expectedProfileRevision': device.profileRevision,
+      'codeSetId': device.codeSetId,
+      'expectedCodeSetRevision': device.codeSetRevision,
+      'commandKey': legacyRemoteCommandWire(key),
+    };
+    final response = await api.request(
+      'POST',
+      '${_base(session.context!)}/learnings',
+      token: session.accessToken,
+      body: body,
+    );
+    final first = LegacyRemoteLearningResult.fromJson(
+      _envelope(response, 'learning'),
+      requestId: requestId,
+      device: device,
+      key: key,
+    );
+    final readback = await api.request(
+      'GET',
+      '${_base(session.context!)}/learnings/$requestId',
+      token: session.accessToken,
+    );
+    final verified = LegacyRemoteLearningResult.fromJson(
+      _envelope(readback, 'learning'),
+      requestId: requestId,
+      device: device,
+      key: key,
+    );
+    if (first.status != verified.status ||
+        first.learningVerified != verified.learningVerified ||
+        first.bindingId != verified.bindingId ||
+        first.profileRevision != verified.profileRevision ||
+        first.codeSetRevision != verified.codeSetRevision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return verified;
   });
 }

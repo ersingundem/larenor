@@ -6,6 +6,8 @@ enum LegacyRemoteProvider { homeAssistant, isolatedBridge }
 
 enum LegacyRemoteDispatchStatus { dispatched, uncertain }
 
+enum LegacyRemoteLearningStatus { learned, uncertain }
+
 enum LegacyRemoteCommandKey {
   powerToggle,
   powerOn,
@@ -807,4 +809,145 @@ final class LegacyRemoteCommandResult {
 
   @override
   String toString() => 'LegacyRemoteCommandResult($status, redacted)';
+}
+
+@immutable
+final class LegacyRemoteLearningResult {
+  const LegacyRemoteLearningResult({
+    required this.requestId,
+    required this.device,
+    required this.key,
+    required this.status,
+    required this.learningVerified,
+    required this.bindingId,
+    required this.profileRevision,
+    required this.codeSetRevision,
+  });
+
+  factory LegacyRemoteLearningResult.fromJson(
+    Object? json, {
+    required String requestId,
+    required LegacyRemoteDevice device,
+    required LegacyRemoteCommandKey key,
+  }) {
+    final value = _object(json);
+    return _closed(
+      value,
+      const {
+        'schemaVersion',
+        'requestId',
+        'status',
+        'reason',
+        'learningVerified',
+        'receipt',
+      },
+      () {
+        if (value['schemaVersion'] != 1 || value['requestId'] != requestId) {
+          return _invalid();
+        }
+        final status = switch (value['status']) {
+          'learned' => LegacyRemoteLearningStatus.learned,
+          'uncertain' => LegacyRemoteLearningStatus.uncertain,
+          _ => _invalid(),
+        };
+        if (status == LegacyRemoteLearningStatus.uncertain) {
+          if (value['learningVerified'] != false ||
+              value['receipt'] != null ||
+              !{'lost_ack', 'readback_mismatch'}.contains(value['reason'])) {
+            return _invalid();
+          }
+          return LegacyRemoteLearningResult(
+            requestId: requestId,
+            device: device,
+            key: key,
+            status: status,
+            learningVerified: false,
+            bindingId: null,
+            profileRevision: null,
+            codeSetRevision: null,
+          );
+        }
+        if (value['learningVerified'] != true || value['reason'] != null) {
+          return _invalid();
+        }
+        final receipt = _object(value['receipt']);
+        const keys = {
+          'schemaVersion',
+          'requestId',
+          'coreId',
+          'homeId',
+          'providerId',
+          'providerRevision',
+          'bridgeId',
+          'bridgeRevision',
+          'deviceId',
+          'deviceRevision',
+          'profileId',
+          'previousProfileRevision',
+          'profileRevision',
+          'codeSetId',
+          'previousCodeSetRevision',
+          'codeSetRevision',
+          'bindingId',
+          'key',
+          'status',
+        };
+        if (receipt.length != keys.length ||
+            !receipt.keys.every(keys.contains)) {
+          return _invalid();
+        }
+        final profileRevision = _revision(receipt['profileRevision']);
+        final codeSetRevision = _revision(receipt['codeSetRevision']);
+        if (receipt['schemaVersion'] != 1 ||
+            receipt['requestId'] != requestId ||
+            receipt['coreId'] != device.authority.coreId ||
+            receipt['homeId'] != device.authority.homeId ||
+            receipt['providerId'] != device.providerId ||
+            receipt['providerRevision'] != device.providerRevision ||
+            receipt['bridgeId'] != device.bridgeId ||
+            receipt['bridgeRevision'] != device.bridgeRevision ||
+            receipt['deviceId'] != device.deviceId ||
+            receipt['deviceRevision'] != device.deviceRevision ||
+            receipt['profileId'] != device.profileId ||
+            receipt['previousProfileRevision'] != device.profileRevision ||
+            receipt['codeSetId'] != device.codeSetId ||
+            receipt['previousCodeSetRevision'] != device.codeSetRevision ||
+            receipt['key'] != legacyRemoteCommandWire(key) ||
+            receipt['status'] != 'learned' ||
+            profileRevision <= device.profileRevision ||
+            codeSetRevision <= device.codeSetRevision) {
+          return _invalid();
+        }
+        return LegacyRemoteLearningResult(
+          requestId: requestId,
+          device: device,
+          key: key,
+          status: status,
+          learningVerified: true,
+          bindingId: _identity(receipt['bindingId']),
+          profileRevision: profileRevision,
+          codeSetRevision: codeSetRevision,
+        );
+      },
+    );
+  }
+
+  final String requestId;
+  final LegacyRemoteDevice device;
+  final LegacyRemoteCommandKey key;
+  final LegacyRemoteLearningStatus status;
+  final bool learningVerified;
+  final String? bindingId;
+  final int? profileRevision;
+  final int? codeSetRevision;
+
+  bool get verified =>
+      status == LegacyRemoteLearningStatus.learned &&
+      learningVerified &&
+      bindingId != null &&
+      profileRevision != null &&
+      codeSetRevision != null;
+
+  @override
+  String toString() => 'LegacyRemoteLearningResult($status, redacted)';
 }

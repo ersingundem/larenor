@@ -29,6 +29,9 @@ final class _RemoteStrings {
       : 'Account, session, or route changed. State was cleared.';
   String get delivered =>
       tr ? 'Sinyal teslimi doğrulandı.' : 'Signal delivery verified.';
+  String get learned => tr
+      ? 'Öğrenilen tuş kalıcı olarak doğrulandı.'
+      : 'The learned button was durably verified.';
   String get deviceUnverified =>
       tr ? 'Cihaz durumu doğrulanmadı' : 'Device state not verified';
   String get retry => tr ? 'Tekrar yükle' : 'Reload';
@@ -46,6 +49,13 @@ final class _RemoteStrings {
       : 'The “$command” signal will be sent to $device. This confirms signal delivery only.';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Gönder' : 'Send';
+  String get learn => tr ? 'Tuş öğren' : 'Learn a button';
+  String get chooseKey => tr ? 'Öğrenilecek tuş' : 'Button to learn';
+  String get learnTitle => tr ? 'Sinyali öğren?' : 'Learn this signal?';
+  String learnBody(String command, String device) => tr
+      ? 'Orijinal kumandayı $device köprüsüne doğrultun. “$command” tuşuna bastıktan sonra Öğren ile başlatın. Bu işlem cihazın fiziksel durumunu değiştirmez veya doğrulamaz.'
+      : 'Point the original remote at the $device bridge. Press “$command”, then start Learn. This does not change or verify the appliance state.';
+  String get startLearning => tr ? 'Öğren' : 'Learn';
   String command(LegacyRemoteCommandKey key) => switch (key) {
     LegacyRemoteCommandKey.powerToggle => tr ? 'Güç' : 'Power',
     LegacyRemoteCommandKey.powerOn => tr ? 'Aç' : 'Power on',
@@ -188,6 +198,57 @@ class _LegacyRemoteManagementScreenState
     );
   }
 
+  Future<void> _learn(LegacyRemoteDevice device) async {
+    final epoch = _viewEpoch;
+    final strings = _RemoteStrings.of(context);
+    final key = await showCupertinoModalPopup<LegacyRemoteCommandKey>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(strings.chooseKey),
+        actions: [
+          for (final value in LegacyRemoteCommandKey.values)
+            CupertinoActionSheetAction(
+              key: ValueKey(
+                'legacy-remote-learn-${device.deviceId}-${value.name}',
+              ),
+              onPressed: () => Navigator.of(sheetContext).pop(value),
+              child: Text(strings.command(value)),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(strings.cancel),
+        ),
+      ),
+    );
+    if (!mounted || epoch != _viewEpoch || key == null) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(strings.learnTitle),
+        content: Text(strings.learnBody(strings.command(key), device.name)),
+        actions: [
+          _DialogAction(
+            key: const ValueKey('legacy-remote-learn-cancel-action'),
+            label: strings.cancel,
+            onPressed: () => Navigator.of(dialogContext).pop(),
+          ),
+          _DialogAction(
+            key: const ValueKey('legacy-remote-learn-confirm-action'),
+            label: strings.startLearning,
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              if (mounted && epoch == _viewEpoch) {
+                widget.controller.learn(device, key);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = _RemoteStrings.of(context);
@@ -231,6 +292,7 @@ class _LegacyRemoteManagementScreenState
                           strings: strings,
                           enabled: controller.canAct && device.canDispatch,
                           onCommand: _request,
+                          onLearn: _learn,
                         ),
                       ),
                   ],
@@ -261,6 +323,12 @@ class _LiveStatus extends StatelessWidget {
         CupertinoIcons.lock_shield,
         strings.stale,
       ),
+      LegacyRemoteManagementState.verified
+          when controller.lastLearning != null =>
+        (
+          CupertinoIcons.checkmark_shield,
+          '${strings.learned} ${strings.deviceUnverified}.',
+        ),
       LegacyRemoteManagementState.verified => (
         CupertinoIcons.checkmark_circle,
         '${strings.delivered} ${strings.deviceUnverified}.',
@@ -305,12 +373,14 @@ class _DeviceSection extends StatelessWidget {
     required this.strings,
     required this.enabled,
     required this.onCommand,
+    required this.onLearn,
   });
   final LegacyRemoteDevice device;
   final _RemoteStrings strings;
   final bool enabled;
   final void Function(LegacyRemoteDevice, LegacyRemoteCommandDefinition)
   onCommand;
+  final void Function(LegacyRemoteDevice) onLearn;
 
   @override
   Widget build(BuildContext context) => SettingsSection(
@@ -358,6 +428,13 @@ class _DeviceSection extends StatelessWidget {
             ),
           ),
         ),
+      ),
+      SettingsActionTile(
+        buttonKey: ValueKey('legacy-remote-learn-${device.deviceId}'),
+        title: Text(strings.learn),
+        additionalInfo: Text(strings.deviceUnverified),
+        leading: const Icon(CupertinoIcons.waveform_path),
+        onTap: enabled ? () => onLearn(device) : null,
       ),
       for (final command in device.commands)
         SettingsActionTile(

@@ -35,6 +35,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
   LegacyRemoteManagementState state = LegacyRemoteManagementState.idle;
   LegacyRemoteCommandPreview? pendingPreview;
   LegacyRemoteCommandResult? lastResult;
+  LegacyRemoteLearningResult? lastLearning;
   List<LegacyRemoteDevice> get devices => List.unmodifiable(_devices);
 
   bool _current() {
@@ -60,6 +61,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     _devices.clear();
     pendingPreview = null;
     lastResult = null;
+    lastLearning = null;
     state = LegacyRemoteManagementState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -81,6 +83,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     final operation = ++_epoch;
     pendingPreview = null;
     lastResult = null;
+    lastLearning = null;
     state = LegacyRemoteManagementState.loading;
     notifyListeners();
     try {
@@ -204,6 +207,53 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> learn(
+    LegacyRemoteDevice device,
+    LegacyRemoteCommandKey key,
+  ) async {
+    if (!canAct ||
+        (state != LegacyRemoteManagementState.ready &&
+            state != LegacyRemoteManagementState.verified) ||
+        !_devices.contains(device) ||
+        !device.canDispatch) {
+      return;
+    }
+    final operation = ++_epoch;
+    pendingPreview = null;
+    lastResult = null;
+    lastLearning = null;
+    state = LegacyRemoteManagementState.busy;
+    notifyListeners();
+    try {
+      final result = await api.learn(authority, device: device, key: key);
+      if (_obsoleteOrStale(operation)) return;
+      if (!result.verified ||
+          !identical(result.device, device) ||
+          result.key != key) {
+        state = LegacyRemoteManagementState.failed;
+      } else {
+        lastLearning = result;
+        final refreshed = await api.list(authority);
+        if (_obsoleteOrStale(operation)) return;
+        if (refreshed.length > 100 ||
+            refreshed.any(
+              (item) => item.authority != authority || !item.isCoherent,
+            )) {
+          state = LegacyRemoteManagementState.failed;
+        } else {
+          _devices
+            ..clear()
+            ..addAll(refreshed);
+          state = LegacyRemoteManagementState.verified;
+        }
+      }
+    } catch (_) {
+      if (_obsoleteOrStale(operation)) return;
+      state = LegacyRemoteManagementState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -211,6 +261,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     _devices.clear();
     pendingPreview = null;
     lastResult = null;
+    lastLearning = null;
     super.dispose();
   }
 }
