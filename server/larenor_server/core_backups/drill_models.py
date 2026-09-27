@@ -94,6 +94,7 @@ class RecoveryDrill(StrictModel):
     requestId: ObjectId
     contractVersion: Literal[1]
     mode: Literal["isolated_full_restore"]
+    trigger: Literal["manual", "monthly"]
     scope: list[DrillResource] = Field(min_length=5, max_length=5)
     deadlineSeconds: Annotated[int, Field(ge=60, le=3600)]
     revision: Annotated[int, Field(ge=1, le=2**63 - 2)]
@@ -129,3 +130,26 @@ class RecoveryDrillResponse(StrictModel):
 class RecoveryDrillsResponse(StrictModel):
     drills: list[RecoveryDrill] = Field(max_length=20)
     nextBefore: Annotated[int, Field(ge=1, le=2**63 - 1)] | None
+
+
+class UpdateRecoveryDrillScheduleRequest(StrictModel):
+    expectedRevision: Annotated[int, Field(ge=0, le=2**63 - 2)]
+    enabled: bool
+
+
+class RecoveryDrillSchedule(StrictModel):
+    contractVersion: Literal[1]
+    revision: Annotated[int, Field(ge=0, le=2**63 - 2)]
+    enabled: bool
+    intervalDays: Literal[30]
+    nextRunAt: Annotated[int, Field(ge=0, le=253402300799)] | None
+
+    @model_validator(mode="after")
+    def coherent_schedule(self):
+        if self.enabled != (self.nextRunAt is not None):
+            raise ValueError("invalid_drill_schedule")
+        return self
+
+
+class RecoveryDrillScheduleResponse(StrictModel):
+    schedule: RecoveryDrillSchedule

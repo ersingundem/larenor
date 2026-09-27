@@ -17,10 +17,13 @@ from .drill_models import (
     RecoveryDrill,
     RecoveryDrillExecution,
     RecoveryDrillReceipt,
+    RecoveryDrillSchedule,
+    UpdateRecoveryDrillScheduleRequest,
 )
 
 
 MAX_DRILLS = 64
+SCHEDULE_SECONDS = 30 * 24 * 60 * 60
 SCOPE = [
     "coreDatabase",
     "vaultKey",
@@ -36,6 +39,7 @@ class RecoveryDrillAuthority:
     actor_id: str
     actor_revision: int
     family_id: str
+    scheduled: bool
 
 
 class RecoveryDrillBackend:
@@ -100,6 +104,7 @@ class RecoveryDrillManagement:
                 requestId=row["request_id"],
                 contractVersion=1,
                 mode="isolated_full_restore",
+                trigger="monthly" if row["scheduled"] else "manual",
                 scope=SCOPE,
                 deadlineSeconds=row["deadline_seconds"],
                 revision=row["revision"],
@@ -142,8 +147,80 @@ class RecoveryDrillManagement:
                     active += row["state"] in {"queued", "running"}
                 if active > 1:
                     raise ValueError("too_many_active_drills")
+                schedule = connection.execute(
+                    "SELECT * FROM core_recovery_drill_schedule WHERE id=1"
+                ).fetchone()
+                if schedule is not None:
+                    self._schedule(schedule)
         except (ApiError, sqlite3.Error, TypeError, ValueError):
             raise StartupError("invalid_core_recovery_drills_storage") from None
+
+    @staticmethod
+    def _schedule(row):
+        try:
+            return RecoveryDrillSchedule(
+                contractVersion=1,
+                revision=0 if row is None else row["revision"],
+                enabled=False if row is None else bool(row["enabled"]),
+                intervalDays=30,
+                nextRunAt=None if row is None else row["next_run_at"],
+            )
+        except (TypeError, ValidationError, ValueError):
+            raise ApiError("recovery_drill_storage_unavailable", 503) from None
+
+    def get_schedule(self, actor):
+        with self.db.connection() as connection:
+            connection.execute("BEGIN")
+            self._assert_admin(connection, actor)
+            row = connection.execute(
+                "SELECT * FROM core_recovery_drill_schedule WHERE id=1"
+            ).fetchone()
+            return {"schedule": self._schedule(row)}
+
+    def update_schedule(self, actor, body):
+        body = self._body(body, UpdateRecoveryDrillScheduleRequest)
+        with self.db.transaction() as connection:
+            actor_revision = self._assert_admin(connection, actor)
+            current = connection.execute(
+                "SELECT * FROM core_recovery_drill_schedule WHERE id=1"
+            ).fetchone()
+            revision = 0 if current is None else current["revision"]
+            if revision != body.expectedRevision:
+                raise ApiError("revision_conflict", 409)
+            now = int(self.settings.clock())
+            next_run = now + SCHEDULE_SECONDS if body.enabled else None
+            if current is None:
+                connection.execute(
+                    "INSERT INTO core_recovery_drill_schedule("
+                    "id,revision,enabled,next_run_at,actor_id,actor_revision,"
+                    "family_id,updated_at) VALUES(1,1,?,?,?,?,?,?)",
+                    (
+                        int(body.enabled),
+                        next_run,
+                        actor.id,
+                        actor_revision,
+                        actor.family_id,
+                        now,
+                    ),
+                )
+            else:
+                connection.execute(
+                    "UPDATE core_recovery_drill_schedule SET revision=revision+1,"
+                    "enabled=?,next_run_at=?,actor_id=?,actor_revision=?,"
+                    "family_id=?,updated_at=? WHERE id=1",
+                    (
+                        int(body.enabled),
+                        next_run,
+                        actor.id,
+                        actor_revision,
+                        actor.family_id,
+                        now,
+                    ),
+                )
+            saved = connection.execute(
+                "SELECT * FROM core_recovery_drill_schedule WHERE id=1"
+            ).fetchone()
+            return {"schedule": self._schedule(saved)}
 
     def create(self, actor, body):
         body = self._body(body, CreateRecoveryDrillRequest)
@@ -186,8 +263,8 @@ class RecoveryDrillManagement:
             connection.execute(
                 "INSERT INTO core_recovery_drills("
                 "id,sequence,revision,actor_id,actor_revision,family_id,request_id,"
-                "request_hash,deadline_seconds,state,cancel_requested,created_at,"
-                "updated_at,receipt_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
+                "request_hash,deadline_seconds,scheduled,state,cancel_requested,created_at,"
+                "updated_at,receipt_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
                 (
                     identifier,
                     sequence,
@@ -198,6 +275,7 @@ class RecoveryDrillManagement:
                     body.requestId,
                     digest,
                     body.deadlineSeconds,
+                    0,
                     "queued",
                     0,
                     now,
@@ -280,13 +358,16 @@ class RecoveryDrillManagement:
             "ON f.user_id=u.id WHERE u.id=? AND f.id=?",
             (row["actor_id"], row["family_id"]),
         ).fetchone()
-        return bool(
+        account_valid = bool(
             current
             and current["revision"] == row["actor_revision"]
             and current["role"] == "admin"
             and not current["disabled"]
             and not current["must_change_password"]
-            and current["revoked_at"] is None
+        )
+        return account_valid and bool(
+            row["scheduled"]
+            or current["revoked_at"] is None
             and current["expires_at"] > self.settings.clock()
         )
 
@@ -372,12 +453,76 @@ class RecoveryDrillManagement:
 
         return Lease(self)
 
+    def _enqueue_due(self, connection):
+        now = int(self.settings.clock())
+        schedule = connection.execute(
+            "SELECT * FROM core_recovery_drill_schedule "
+            "WHERE id=1 AND enabled=1 AND next_run_at<=?",
+            (now,),
+        ).fetchone()
+        if schedule is None or connection.execute(
+            "SELECT 1 FROM core_recovery_drills "
+            "WHERE state IN ('queued','running') LIMIT 1"
+        ).fetchone():
+            return
+        request = CreateRecoveryDrillRequest(
+            contractVersion=1,
+            requestId=uuid.uuid4().hex,
+            mode="isolated_full_restore",
+            deadlineSeconds=3600,
+        )
+        count = connection.execute(
+            "SELECT COUNT(*) FROM core_recovery_drills"
+        ).fetchone()[0]
+        if count >= MAX_DRILLS:
+            connection.execute(
+                "DELETE FROM core_recovery_drills WHERE id IN ("
+                "SELECT id FROM core_recovery_drills "
+                "WHERE state IN ('succeeded','failed','cancelled') "
+                "ORDER BY sequence LIMIT ?)",
+                (count - MAX_DRILLS + 1,),
+            )
+        sequence = connection.execute(
+            "SELECT COALESCE(MAX(sequence),0)+1 FROM core_recovery_drills"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO core_recovery_drills("
+            "id,sequence,revision,actor_id,actor_revision,family_id,request_id,"
+            "request_hash,deadline_seconds,scheduled,state,cancel_requested,created_at,"
+            "updated_at,receipt_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
+            (
+                uuid.uuid4().hex,
+                sequence,
+                1,
+                schedule["actor_id"],
+                schedule["actor_revision"],
+                schedule["family_id"],
+                request.requestId,
+                _request_hash(request),
+                request.deadlineSeconds,
+                1,
+                "queued",
+                0,
+                now,
+                now,
+            ),
+        )
+        next_run = schedule["next_run_at"]
+        while next_run <= now:
+            next_run += SCHEDULE_SECONDS
+        connection.execute(
+            "UPDATE core_recovery_drill_schedule SET revision=revision+1,"
+            "next_run_at=?,updated_at=? WHERE id=1",
+            (next_run, now),
+        )
+
     def tick(self):
         """Advance one read-only drill; an interrupted run is safe to repeat."""
         with self._dispatch_lock() as acquired:
             if not acquired:
                 return None
             with self.db.transaction() as connection:
+                self._enqueue_due(connection)
                 row = connection.execute(
                     "SELECT * FROM core_recovery_drills "
                     "WHERE state IN ('running','queued') "
@@ -431,6 +576,7 @@ class RecoveryDrillManagement:
                     actor_id=row["actor_id"],
                     actor_revision=row["actor_revision"],
                     family_id=row["family_id"],
+                    scheduled=bool(row["scheduled"]),
                 )
                 identifier = row["id"]
                 remaining = max(0.0, expires_at - self.settings.clock())

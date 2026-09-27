@@ -17,6 +17,8 @@ from .drill_models import (
     ObjectId,
     RecoveryDrillResponse,
     RecoveryDrillsResponse,
+    RecoveryDrillScheduleResponse,
+    UpdateRecoveryDrillScheduleRequest,
 )
 
 Core = Annotated[object, Depends(get_core)]
@@ -97,3 +99,17 @@ def cancel_drill(
     actor: Admin,
 ):
     return core.core_backups.drills.cancel(actor, drill_id, body)
+
+
+@router.get("/drill-schedule", response_model=RecoveryDrillScheduleResponse)
+def get_drill_schedule(core: Core, actor: Admin):
+    return core.core_backups.drills.get_schedule(actor)
+
+
+@router.put("/drill-schedule", response_model=RecoveryDrillScheduleResponse)
+def update_drill_schedule(
+    body: UpdateRecoveryDrillScheduleRequest,
+    core: Core,
+    actor: Admin,
+):
+    return core.core_backups.drills.update_schedule(actor, body)

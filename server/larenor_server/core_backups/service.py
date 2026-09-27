@@ -720,8 +720,11 @@ class CoreBackupContract:
                 or row["role"] != "admin"
                 or row["disabled"]
                 or row["must_change_password"]
-                or row["revoked_at"] is not None
-                or row["expires_at"] <= self.settings.clock()
+                or not authority.scheduled
+                and (
+                    row["revoked_at"] is not None
+                    or row["expires_at"] <= self.settings.clock()
+                )
             ):
                 raise ApiError("forbidden", 403)
 
