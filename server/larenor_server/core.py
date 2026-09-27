@@ -11,6 +11,8 @@ import uuid
 from .admin.service import AdminService
 from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
+from .rule_arbitration.schema import migrate_rule_arbitration
+from .rule_arbitration.service import RuleArbitrationService
 from .auth import AuthService
 from .bounded_transfer.blob_schema import migrate as migrate_bounded_blobs
 from .bounded_transfer.events import migrate as migrate_bounded_transfer_events
@@ -389,6 +391,7 @@ class CoreServices:
                 migrate_media_language_preferences(connection)
                 migrate_tablet_fleet(connection)
                 migrate_ai_resources(connection)
+                migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
@@ -538,6 +541,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.ai_resources.validate_storage()
+            self.rule_arbitration = RuleArbitrationService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.rule_arbitration.validate_storage()
             self.capability_evidence = CapabilityEvidenceService(
                 self.db, self.auth, settings, key, self.context
             )
