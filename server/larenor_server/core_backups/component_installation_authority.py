@@ -8,9 +8,13 @@ import threading
 import time
 
 from ..plugins.component_updates import (
+    ComponentUpdateCommand,
     ComponentUpdateError,
     installed_update_source,
+    verify_installed_update_source,
+    verify_update_command,
 )
+from ..plugins.image_resources import ImageObservation, _ImageBinding, image_binding
 from ..plugins.managed_container import (
     JellyfinBindingBuilder,
     ManagedImageProof,
@@ -20,11 +24,16 @@ from ..plugins.managed_container import (
     ManagedWorkerJournal,
     VerifiedJellyfinResources,
 )
+from ..plugins.resource_models import ResourcePreparationPlan, WorkerPolicyBinding
+from ..plugins.resource_plan import build_resource_plan
+from ..plugins.stack_plan import MediaStackPlan, build_media_stack_plan
 from ..plugins.volume_create_journal import (
     VolumeCreateIntent,
     VolumeCreateJournal,
 )
+from ..plugins.volume_plan import VolumeStoragePlan, build_volume_plan
 from ..plugins.models import Catalog, CatalogEntry
+from ..context import ContextResponse
 from .component_snapshot_provider import ComponentVolumeSource
 
 
@@ -118,6 +127,22 @@ class InstalledComponentReceipt:
 
     def __repr__(self):
         return "InstalledComponentReceipt(<private>)"
+
+
+@dataclass(frozen=True, repr=False)
+class ComponentUpdatePreparation:
+    command: ComponentUpdateCommand
+    current: InstalledComponentReceipt
+    stack: MediaStackPlan = field(repr=False)
+    catalog: Catalog = field(repr=False)
+    policy: WorkerPolicyBinding = field(repr=False)
+    resource_plan: ResourcePreparationPlan = field(repr=False)
+    volume_plan: VolumeStoragePlan = field(repr=False)
+    intents: tuple = field(repr=False)
+    image: _ImageBinding = field(repr=False)
+
+    def __repr__(self):
+        return "ComponentUpdatePreparation(<private>)"
 
 
 class DurableComponentInstallationAuthority:
@@ -368,6 +393,241 @@ class DurableComponentInstallationAuthority:
             ):
                 raise ComponentInstallationAuthorityError()
         return result
+
+    def prepare_update(self, command, catalog):
+        """Derive one target image proposal from the current durable install."""
+        if not self._mutex.acquire(blocking=False):
+            raise ComponentInstallationAuthorityError()
+        try:
+            command = verify_update_command(command)
+            if type(catalog) is not Catalog:
+                raise ComponentInstallationAuthorityError()
+            catalog = Catalog.model_validate_json(catalog.model_dump_json())
+            receipts = self._read()
+            matches = tuple(
+                item
+                for item in receipts
+                if item.installation_id == command.installationId
+                and item.service_id == command.serviceId
+            )
+            if len(matches) != 1:
+                raise ComponentInstallationAuthorityError()
+            current = matches[0]
+            source = verify_installed_update_source(
+                installed_update_source(
+                    installation_id=current.installation_id,
+                    service_id=current.service_id,
+                    service_version=current.service_version,
+                    config_schema_version=current.config_schema_version,
+                    data_schema_version=current.data_schema_version,
+                    platform=current.installed.binding.platform,
+                    observed_image_config_digest=current.installed.binding.image_id,
+                    catalog_entry=current.catalog_entry,
+                    recorded_catalog_digest=current.catalog_digest,
+                )
+            )
+            if source.sourceDigest != command.sourceDigest:
+                raise ComponentInstallationAuthorityError()
+            with self._volumes.locked():
+                intents = self._volumes.intents()
+            retained_sources = tuple(
+                item.intent.binding.source for item in current.volumes
+            )
+            if (
+                not retained_sources
+                or any(item != retained_sources[0] for item in retained_sources[1:])
+            ):
+                raise ComponentInstallationAuthorityError()
+            retained = retained_sources[0]
+            if (
+                type(retained) is not tuple
+                or len(retained) != 4
+                or type(retained[1]) is not MediaStackPlan
+                or type(retained[3]) is not WorkerPolicyBinding
+            ):
+                raise ComponentInstallationAuthorityError()
+            old_stack = retained[1]
+            context = ContextResponse(
+                schemaVersion=1,
+                coreId=old_stack.coreId,
+                homeId=old_stack.homeId,
+            )
+            stack = build_media_stack_plan(
+                catalog,
+                old_stack.settings,
+                old_stack.platform,
+                context,
+                old_stack.preparationId,
+            )
+            policy = WorkerPolicyBinding.model_validate_json(
+                retained[3].model_dump_json()
+            )
+            resource_plan = build_resource_plan(stack, catalog, policy)
+            volume_plan = build_volume_plan(stack, catalog, policy)
+            component = next(
+                item
+                for item in stack.components
+                if item.serviceId == command.serviceId
+            )
+            if (
+                component.installationId != command.installationId
+                or component.plan.manifestDigest != command.targetManifestDigest
+            ):
+                raise ComponentInstallationAuthorityError()
+            mounted = {item.name for item in current.installed.binding.mounts}
+            selected_intents = tuple(
+                item
+                for item in intents
+                if item.binding.resource.name in mounted
+            )
+            expected_volumes = tuple(
+                item for item in volume_plan.resources if item.name in mounted
+            )
+            if (
+                len(selected_intents) != len(mounted)
+                or len(expected_volumes) != len(mounted)
+            ):
+                raise ComponentInstallationAuthorityError()
+            by_name = {
+                item.binding.resource.name: item for item in selected_intents
+            }
+            for expected in expected_volumes:
+                actual = by_name.get(expected.name)
+                if actual is None:
+                    raise ComponentInstallationAuthorityError()
+                old = actual.binding.resource.model_dump(mode="json")
+                target = expected.model_dump(mode="json")
+                old.pop("childPlanHash", None)
+                target.pop("childPlanHash", None)
+                if (
+                    old != target
+                    or actual.receipt.state != "observed_requires_bootstrap"
+                    or actual.receipt.revision < 3
+                ):
+                    raise ComponentInstallationAuthorityError()
+            image_resource = next(
+                item
+                for item in resource_plan.resources
+                if item.kind == "ensure_image"
+                and item.serviceId == command.serviceId
+            )
+            return ComponentUpdatePreparation(
+                command,
+                current,
+                stack,
+                catalog,
+                policy,
+                resource_plan,
+                volume_plan,
+                selected_intents,
+                image_binding(
+                    resource_plan,
+                    stack,
+                    catalog,
+                    policy,
+                    image_resource.resourceId,
+                ),
+            )
+        except ComponentInstallationAuthorityError:
+            raise
+        except Exception:
+            raise ComponentInstallationAuthorityError() from None
+        finally:
+            self._mutex.release()
+
+    def update_binding(self, preparation, image):
+        """Build the exact target container from retained resource receipts."""
+        try:
+            if (
+                type(preparation) is not ComponentUpdatePreparation
+                or type(image) is not ImageObservation
+                or image.image_id != preparation.image.config_digest
+            ):
+                raise ComponentInstallationAuthorityError()
+            service_id = preparation.command.serviceId
+            current = preparation.current
+            by_name = {
+                item.binding.resource.name: item
+                for item in preparation.intents
+            }
+
+            def proof(resource_plan, volume_plan, component):
+                if (
+                    resource_plan != preparation.resource_plan
+                    or volume_plan != preparation.volume_plan
+                    or component.serviceId != service_id
+                ):
+                    raise ComponentInstallationAuthorityError()
+                image_resource = next(
+                    item
+                    for item in resource_plan.resources
+                    if item.kind == "ensure_image" and item.serviceId == service_id
+                )
+                expected_volumes = tuple(
+                    item
+                    for item in volume_plan.resources
+                    if item.name in {mount.name for mount in current.installed.binding.mounts}
+                )
+                volume_proofs = []
+                for expected in expected_volumes:
+                    intent = by_name.get(expected.name)
+                    if intent is None:
+                        raise ComponentInstallationAuthorityError()
+                    volume_proofs.append(
+                        ManagedVolumeProof(
+                            expected.resourceId,
+                            expected.operationId,
+                            intent.receipt.revision,
+                            intent.binding.journal_id,
+                            intent.binding.ownership_nonce,
+                            expected.name,
+                            expected.target,
+                            True,
+                        )
+                    )
+                network = resource_plan.resources[-1]
+                return VerifiedJellyfinResources(
+                    stack_plan_hash=resource_plan.stackPlanHash,
+                    resource_plan_hash=resource_plan.planHash,
+                    volume_plan_hash=volume_plan.planHash,
+                    worker_policy_digest=resource_plan.workerPolicyDigest,
+                    image=ManagedImageProof(
+                        image_resource.resourceId,
+                        3,
+                        image.image_id,
+                        image.configuration,
+                    ),
+                    volumes=tuple(volume_proofs),
+                    network=ManagedNetworkProof(
+                        network.resourceId,
+                        network.operationId,
+                        3,
+                        "0" * 32,
+                        "1" * 32,
+                        network.name,
+                        current.installed.binding.network_id,
+                    ),
+                )
+
+            binding = JellyfinBindingBuilder(
+                preparation.catalog,
+                preparation.policy,
+                current.installed.journal_id,
+                proof,
+                service_id=service_id,
+            )(preparation.stack)
+            if (
+                binding.name != current.installed.binding.name
+                or binding.network_id != current.installed.binding.network_id
+                or {item.name for item in binding.mounts}
+                != {item.name for item in current.installed.binding.mounts}
+            ):
+                raise ComponentInstallationAuthorityError()
+            return binding
+        except ComponentInstallationAuthorityError:
+            raise
+        except Exception:
+            raise ComponentInstallationAuthorityError() from None
 
     def update_sources(self):
         """Return display-safe F15 identities only for current live receipts."""
