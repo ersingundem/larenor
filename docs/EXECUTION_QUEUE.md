@@ -20,8 +20,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G07 — Aile ve ev yaşamı | 10 | 2 | 1 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 0 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 0 | 0 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 0 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 0 | 1 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F56 | Eski cihazlar için akıllı kumanda | Çalışılıyor | — |
+| F63 | SSH terminal, SFTP ve güvenli tüneller | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,57 +37,56 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F63 | SSH terminal, SFTP ve güvenli tüneller | Başlanabilir | — |
-| 2 | F62 | Bağımsız RDP uzak masaüstü | Başlanabilir | — |
-| 3 | K13 | Yönetilen profil dağıtımı ve filo bağı | Bağımlılık bekliyor | K12, F53 |
-| 4 | F16 | Otomatik kurtarma tatbikatı | Bağımlılık bekliyor | F05 |
-| 5 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Bağımlılık bekliyor | F16 |
-| 6 | F18 | Elektrik kesintisinde düzenli kapanış | Bağımlılık bekliyor | F05, F16 |
-| 7 | F53 | Evdeki tabletleri tek yerden yönetme | Bağımlılık bekliyor | F54, F13 |
-| 8 | F08 | Yapay zekâ kaynak yöneticisi | Bağımlılık bekliyor | F05 |
-| 9 | F04 | Çakışan kurallar hakemi | Bağımlılık bekliyor | F05 |
-| 10 | F02 | Otomasyonun deneme haftası | Bağımlılık bekliyor | F04 |
-| 11 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
-| 12 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03, F04 |
-| 13 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08, F20 |
-| 14 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
-| 15 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
-| 16 | F11 | Sınırlı yetkili mini eklentiler | Bağımlılık bekliyor | F13, F15, F20, F05 |
-| 17 | F12 | Yetkili MCP kapısı | Bağımlılık bekliyor | F13, F20 |
-| 18 | F14 | Süreli destek oturumu | Bağımlılık bekliyor | F13, F20, F54 |
-| 19 | F19 | Birden fazla ev, bağımsız Core | Bağımlılık bekliyor | F16, F20, F54 |
-| 20 | F22 | Kendi televizyon kanalların | Bağımlılık bekliyor | F05 |
-| 21 | F23 | Canlı TV ve kayıt merkezi | Bağımlılık bekliyor | F05 |
-| 22 | F29 | Parti DJ'i ve ortak şarkı oylaması | Bağımlılık bekliyor | F54 |
-| 23 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F16, F05, F08 |
-| 24 | F33 | Büyük ekran pişirme asistanı | Bağımlılık bekliyor | F32 |
-| 25 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F05, F08 |
-| 26 | F36 | Adil ev işi paylaşımı | Bağımlılık bekliyor | F05, F54 |
-| 27 | F37 | Ortak ev masrafları | Bağımlılık bekliyor | F20 |
-| 28 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08, F16, F13 |
-| 29 | F39 | Canlı aile panosu ve beyaz tahta | Bağımlılık bekliyor | F54 |
-| 30 | F40 | Ortak kaynak rezervasyonu | Bağımlılık bekliyor | F05, F54 |
-| 31 | F43 | Evdeyken kamera kayıt profili | Bağımlılık bekliyor | F13, F20 |
-| 32 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43, F20 |
-| 33 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43, F08 |
-| 34 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43, F08 |
-| 35 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43, F54, F08 |
-| 36 | F50 | Oda konforu ve havalandırma planı | Bağımlılık bekliyor | F04 |
-| 37 | F48 | Ev güç bütçesi | Bağımlılık bekliyor | F04 |
-| 38 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48, F05 |
-| 39 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
-| 40 | F49 | Bahçe sulama ve su bütçesi | Bağımlılık bekliyor | F04, F05, F54 |
-| 41 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Bağımlılık bekliyor | F15, F16 |
-| 42 | F57 | Oda düzeyinde yerel varlık algısı | Bağımlılık bekliyor | F13 |
-| 43 | F58 | E-paper mini ev ekranları | Bağımlılık bekliyor | F53, F54 |
-| 44 | F59 | 3D yazıcı ve atölye merkezi | Bağımlılık bekliyor | F05, F54 |
-| 45 | F60 | Tablette ev bilgisayarından oyun yayını | Bağımlılık bekliyor | F13 |
-| 46 | F61 | Bağımsız VNC uzak ekran | Bağımlılık bekliyor | F63 |
-| 47 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G01, G02, G03, G04, G05, G06, G07, G08, G09, G10, G11 |
-| 48 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 49 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 50 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 51 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F62 | Bağımsız RDP uzak masaüstü | Başlanabilir | — |
+| 2 | K13 | Yönetilen profil dağıtımı ve filo bağı | Bağımlılık bekliyor | K12, F53 |
+| 3 | F16 | Otomatik kurtarma tatbikatı | Bağımlılık bekliyor | F05 |
+| 4 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Bağımlılık bekliyor | F16 |
+| 5 | F18 | Elektrik kesintisinde düzenli kapanış | Bağımlılık bekliyor | F05, F16 |
+| 6 | F53 | Evdeki tabletleri tek yerden yönetme | Bağımlılık bekliyor | F54, F13 |
+| 7 | F08 | Yapay zekâ kaynak yöneticisi | Bağımlılık bekliyor | F05 |
+| 8 | F04 | Çakışan kurallar hakemi | Bağımlılık bekliyor | F05 |
+| 9 | F02 | Otomasyonun deneme haftası | Bağımlılık bekliyor | F04 |
+| 10 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
+| 11 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03, F04 |
+| 12 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08, F20 |
+| 13 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
+| 14 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
+| 15 | F11 | Sınırlı yetkili mini eklentiler | Bağımlılık bekliyor | F13, F15, F20, F05 |
+| 16 | F12 | Yetkili MCP kapısı | Bağımlılık bekliyor | F13, F20 |
+| 17 | F14 | Süreli destek oturumu | Bağımlılık bekliyor | F13, F20, F54 |
+| 18 | F19 | Birden fazla ev, bağımsız Core | Bağımlılık bekliyor | F16, F20, F54 |
+| 19 | F22 | Kendi televizyon kanalların | Bağımlılık bekliyor | F05 |
+| 20 | F23 | Canlı TV ve kayıt merkezi | Bağımlılık bekliyor | F05 |
+| 21 | F29 | Parti DJ'i ve ortak şarkı oylaması | Bağımlılık bekliyor | F54 |
+| 22 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F16, F05, F08 |
+| 23 | F33 | Büyük ekran pişirme asistanı | Bağımlılık bekliyor | F32 |
+| 24 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F05, F08 |
+| 25 | F36 | Adil ev işi paylaşımı | Bağımlılık bekliyor | F05, F54 |
+| 26 | F37 | Ortak ev masrafları | Bağımlılık bekliyor | F20 |
+| 27 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08, F16, F13 |
+| 28 | F39 | Canlı aile panosu ve beyaz tahta | Bağımlılık bekliyor | F54 |
+| 29 | F40 | Ortak kaynak rezervasyonu | Bağımlılık bekliyor | F05, F54 |
+| 30 | F43 | Evdeyken kamera kayıt profili | Bağımlılık bekliyor | F13, F20 |
+| 31 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43, F20 |
+| 32 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43, F08 |
+| 33 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43, F08 |
+| 34 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43, F54, F08 |
+| 35 | F50 | Oda konforu ve havalandırma planı | Bağımlılık bekliyor | F04 |
+| 36 | F48 | Ev güç bütçesi | Bağımlılık bekliyor | F04 |
+| 37 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48, F05 |
+| 38 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
+| 39 | F49 | Bahçe sulama ve su bütçesi | Bağımlılık bekliyor | F04, F05, F54 |
+| 40 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Bağımlılık bekliyor | F15, F16 |
+| 41 | F57 | Oda düzeyinde yerel varlık algısı | Bağımlılık bekliyor | F13 |
+| 42 | F58 | E-paper mini ev ekranları | Bağımlılık bekliyor | F53, F54 |
+| 43 | F59 | 3D yazıcı ve atölye merkezi | Bağımlılık bekliyor | F05, F54 |
+| 44 | F60 | Tablette ev bilgisayarından oyun yayını | Bağımlılık bekliyor | F13 |
+| 45 | F61 | Bağımsız VNC uzak ekran | Bağımlılık bekliyor | F63 |
+| 46 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G01, G02, G03, G04, G05, G06, G07, G08, G09, G10, G11 |
+| 47 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 48 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 49 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 50 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Tamamlanan ve test/CI bekleyen işler
 
@@ -151,3 +150,4 @@ Tamamlanan ve test/CI bekleyen işler
 | F27 | Seyahat için çevrimdışı medya | Uygulama tamamlandı · test bekliyor | — |
 | F28 | Sesli kitap ve podcast merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
+| F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |

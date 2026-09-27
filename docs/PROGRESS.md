@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `5360be61` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28 ve F32 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `1a8d1707` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32 ve F56 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,29 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F56 eski cihaz akıllı kumandası — uygulama tamamlandı, test bekliyor
+
+F56 tek çalışma dalında tamamlandı. Core; hesap, oturum ailesi, Core/ev,
+sağlayıcı, köprü, cihaz, profil ve kod seti revision'larına bağlı, şifreli ve
+sürümlü bir kumanda kataloğu tutuyor. Allowlist dışındaki komutlar reddediliyor;
+komut önce exact önizleme ve kullanıcı onayı alıyor, teslim sonucu kalıcı
+makbuzla yeniden okunuyor ve belirsiz sonuç otomatik tekrarlanmıyor. Yeni
+öğrenme sözleşmesi ham IR sinyalini Larenor'a taşımadan sağlayıcı sınırında
+tuşu kaydediyor; profil ve kod seti revision'larının monoton ilerlemesini ve
+kalıcı makbuz eşleşmesini şart koşuyor.
+
+Tablet Client, kumanda tuşlarını erişilebilir Apple tarzı bölümlerde gösteriyor,
+öğrenilecek tuşu seçtiriyor ve orijinal kumandayı köprüye yöneltme adımını açık
+onayla başlatıyor. Başarı yalnız öğrenme makbuzunun POST ve GET readback
+sonuçları birebir eşleşip yenilenen katalogda görünmesinden sonra gösteriliyor;
+sinyal teslimi hiçbir yerde cihazın fiziksel durumu olarak sunulmuyor.
+`3ccf6ad4` ve `1a8d1707` dilimleri Python py_compile/import/rota smoke, odaklı
+Flutter analyze ve diff kapılarından geçti. Kullanıcının kararı gereği özellik
+testleri son toplu doğrulama evresine bırakıldı. F56 **uygulama tamamlandı ·
+test bekliyor**; sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak
+değişmedi. Gerçek Client→Core→IR köprüsü E2E, geç/bozuk/iptal ve limit paketi,
+bağımsız inceleme, fiziksel donanım kabulü ve exact-head CI açık kalıyor.
 
 ### 27 Eylül F32 dolap stoğu ve son kullanma — uygulama tamamlandı, test bekliyor
 

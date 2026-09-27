@@ -5000,7 +5000,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Eski cihazlar için akıllı kumanda",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5024,7 +5024,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut legacy remote Core temeli, öğrenme ve komut makbuzu olan tablet akıllı kumanda akışına bağlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Sürümlü ve şifreli Core kumanda kataloğu, güvenli önizleme/onay/kalıcı komut makbuzu ile sağlayıcı içinde kalan IR tuş öğrenme ve durable readback tablet akışına bağlandı. Kullanıcının kararı gereği özellik testleri, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
     },
     {
       "id": "F57",
@@ -5224,7 +5224,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "SSH terminal, SFTP ve güvenli tüneller",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5250,7 +5250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut SSH, SFTP ve tünel motorları tek çalışma dalında uçtan uca ürün akışına bağlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "F62",
