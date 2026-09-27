@@ -348,6 +348,7 @@ class ComponentUpdateEffectResult(FrozenModel):
             "failed": {
                 "worker_unavailable",
                 "image_unavailable",
+                "component_update_failed",
                 "rollback_unavailable",
             },
             "needs_attention": {

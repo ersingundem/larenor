@@ -35,6 +35,7 @@ from ..plugins.volume_plan import VolumeStoragePlan, build_volume_plan
 from ..plugins.models import Catalog, CatalogEntry
 from ..context import ContextResponse
 from .component_snapshot_provider import ComponentVolumeSource
+from .component_update_effects import ComponentUpdateEffectJournal
 
 
 _VOLUME_ID = re.compile(r"[a-z][a-z0-9-]{0,127}\Z")
@@ -148,14 +149,17 @@ class ComponentUpdatePreparation:
 class DurableComponentInstallationAuthority:
     """Join exact terminal container and volume receipts under both locks."""
 
-    def __init__(self, containers, volumes):
+    def __init__(self, containers, volumes, effects=None):
         if (
             type(containers) is not ManagedWorkerJournal
             or type(volumes) is not VolumeCreateJournal
+            or effects is not None
+            and type(effects) is not ComponentUpdateEffectJournal
         ):
             raise ComponentInstallationAuthorityError()
         self._containers = containers
         self._volumes = volumes
+        self._effects = effects
         self._mutex = threading.Lock()
         self._expected = None
         self._sources = None
@@ -392,7 +396,110 @@ class DurableComponentInstallationAuthority:
                 or len(resources) != len(set(resources))
             ):
                 raise ComponentInstallationAuthorityError()
+        if self._effects is not None:
+            result = self._updated_receipts(result)
         return result
+
+    def _updated_receipts(self, receipts):
+        """Overlay exact committed replacement receipts in journal order."""
+        try:
+            with self._effects.locked():
+                updates = self._effects.committed()
+            selected = {item.installation_id: item for item in receipts}
+            if len(selected) != len(receipts):
+                raise ComponentInstallationAuthorityError()
+            for update in updates:
+                current = selected.get(update.command.installationId)
+                if (
+                    current is None
+                    or current.service_id != update.command.serviceId
+                    or current.container_id != update.old_container_id
+                    or update.new_container_id is None
+                ):
+                    raise ComponentInstallationAuthorityError()
+                source = verify_installed_update_source(
+                    installed_update_source(
+                        installation_id=current.installation_id,
+                        service_id=current.service_id,
+                        service_version=current.service_version,
+                        config_schema_version=current.config_schema_version,
+                        data_schema_version=current.data_schema_version,
+                        platform=current.installed.binding.platform,
+                        observed_image_config_digest=current.installed.binding.image_id,
+                        catalog_entry=current.catalog_entry,
+                        recorded_catalog_digest=current.catalog_digest,
+                    )
+                )
+                if source.sourceDigest != update.command.sourceDigest:
+                    raise ComponentInstallationAuthorityError()
+                stack = MediaStackPlan.model_validate(update.source[0])
+                catalog = Catalog.model_validate(update.source[1])
+                policy = WorkerPolicyBinding.model_validate(update.source[2])
+                resource_plan = build_resource_plan(stack, catalog, policy)
+                volume_plan = build_volume_plan(stack, catalog, policy)
+                entry = next(
+                    item
+                    for item in catalog.entries
+                    if item.manifest.serviceId == current.service_id
+                    and item.manifestDigest
+                    == update.command.targetManifestDigest
+                )
+                component = next(
+                    item
+                    for item in stack.components
+                    if item.serviceId == current.service_id
+                )
+                image_resource = next(
+                    item
+                    for item in resource_plan.resources
+                    if item.kind == "ensure_image"
+                    and item.serviceId == current.service_id
+                )
+                binding = update.binding
+                labels = binding.labels
+                if (
+                    component.installationId != current.installation_id
+                    or component.plan.manifestDigest != entry.manifestDigest
+                    or binding.name != current.installed.binding.name
+                    or binding.network_id != current.installed.binding.network_id
+                    or {item.name for item in binding.mounts}
+                    != {item.name for item in current.installed.binding.mounts}
+                    or binding.image_id != image_resource.image.configDigest
+                    or labels["org.larenor.worker-journal"]
+                    != current.installed.journal_id
+                    or labels["org.larenor.installation"]
+                    != current.installation_id
+                    or labels["org.larenor.catalog"] != catalog.digest
+                    or labels["org.larenor.manifest"] != entry.manifestDigest
+                    or volume_plan.preparationId != stack.preparationId
+                ):
+                    raise ComponentInstallationAuthorityError()
+                installed = ManagedInstalledContainer(
+                    current.installed.journal_id,
+                    update.command.updateId,
+                    current.installation_id,
+                    update.new_container_id,
+                    update.command.commandDigest[:32],
+                    update.command.commandDigest[32:],
+                    binding,
+                )
+                selected[current.installation_id] = InstalledComponentReceipt(
+                    current.service_id,
+                    current.installation_id,
+                    update.new_container_id,
+                    entry.manifest.version,
+                    entry.manifest.configSchemaVersion,
+                    entry.manifest.dataSchemaVersion,
+                    catalog.digest,
+                    entry,
+                    installed,
+                    current.volumes,
+                )
+            return tuple(sorted(selected.values(), key=lambda item: item.service_id))
+        except ComponentInstallationAuthorityError:
+            raise
+        except Exception:
+            raise ComponentInstallationAuthorityError() from None
 
     def prepare_update(self, command, catalog):
         """Derive one target image proposal from the current durable install."""
@@ -628,6 +735,32 @@ class DurableComponentInstallationAuthority:
             raise
         except Exception:
             raise ComponentInstallationAuthorityError() from None
+
+    def accept_committed_update(self, command):
+        """Rotate snapshot authority only after the committed overlay verifies."""
+        if not self._mutex.acquire(blocking=False):
+            raise ComponentInstallationAuthorityError()
+        try:
+            command = verify_update_command(command)
+            matches = tuple(
+                item
+                for item in self._read()
+                if item.installation_id == command.installationId
+                and item.service_id == command.serviceId
+                and item.catalog_entry.manifestDigest
+                == command.targetManifestDigest
+            )
+            if len(matches) != 1:
+                raise ComponentInstallationAuthorityError()
+            self._expected = None
+            self._sources = None
+            return matches[0]
+        except ComponentInstallationAuthorityError:
+            raise
+        except Exception:
+            raise ComponentInstallationAuthorityError() from None
+        finally:
+            self._mutex.release()
 
     def update_sources(self):
         """Return display-safe F15 identities only for current live receipts."""

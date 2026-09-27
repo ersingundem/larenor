@@ -332,6 +332,23 @@ class UnixDockerEngine:
         _require(response.status != 409, "engine_conflict")
         _require(response.status == 204, "engine_unavailable")
 
+    def restore_managed_container(self, identity, managed_name):
+        """Restore one exact retired container to its canonical managed name."""
+        _require(
+            type(identity) is str
+            and _CONTAINER_ID.fullmatch(identity) is not None
+            and type(managed_name) is str
+            and _NAME.fullmatch(managed_name) is not None,
+            "invalid_command",
+        )
+        response = self._exchange(
+            "POST",
+            "/containers/" + identity + "/rename?"
+            + urlencode({"name": managed_name}),
+        )
+        _require(response.status != 409, "engine_conflict")
+        _require(response.status == 204, "engine_unavailable")
+
     def remove_container(self, identity):
         """Remove one exact stopped container without volume deletion."""
         _require(

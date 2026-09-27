@@ -15,14 +15,18 @@ from ..plugins.docker_probe import DockerEndpoint
 from ..plugins.catalog import load_catalog
 from ..plugins.component_updates import (
     ComponentUpdateCommand,
+    ComponentUpdateEffectResult,
     release_identity,
     verify_installed_update_source,
     verify_update_command,
 )
-from ..plugins.managed_container import ManagedWorkerJournal
+from ..plugins.image_resources import ImagePullLimits, ImageResourceError, UnixImageEngine
+from ..plugins.managed_container import ManagedWorkerJournal, managed_container_matches
+from ..plugins.worker import DockerWorkerError, UnixDockerEngine
 from ..plugins.volume_create_journal import VolumeCreateJournal
 from .component_docker_adapter import UnixDockerComponentSnapshotAdapter
 from .component_installation_authority import (
+    ComponentInstallationAuthorityError,
     DurableComponentInstallationAuthority,
 )
 from .component_isolated_capture import (
@@ -34,6 +38,7 @@ from .component_linux_capture_preflight import (
     LinuxBtrfsCapturePreflight,
 )
 from .component_worker_server import ComponentSnapshotWorkerServer
+from .component_update_effects import ComponentUpdateEffectJournal
 
 
 class ComponentWorkerRuntimeError(RuntimeError):
@@ -109,10 +114,13 @@ class ComponentWorkerRuntimeConfig:
 class PackagedComponentSnapshotBoundary:
     """Build one exact Docker/provider generation for each worker request."""
 
-    def __init__(self, endpoint, authority, capture, *, peer_uid=None):
+    def __init__(self, endpoint, authority, capture, effects, *, peer_uid=None):
+        if type(effects) is not ComponentUpdateEffectJournal:
+            raise ComponentWorkerRuntimeError()
         self._endpoint = endpoint
         self._authority = authority
         self._capture = capture
+        self._effects = effects
         self._peer_uid = peer_uid
 
     def update_sources(self, deadline):
@@ -181,6 +189,255 @@ class PackagedComponentSnapshotBoundary:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
             raise ComponentWorkerRuntimeError("worker_unavailable") from None
+
+    @staticmethod
+    def _effect_result(command, state, code):
+        return ComponentUpdateEffectResult(
+            schemaVersion=1,
+            updateId=command.updateId,
+            installationId=command.installationId,
+            serviceId=command.serviceId,
+            commandDigest=command.commandDigest,
+            sourceDigest=command.sourceDigest,
+            targetManifestDigest=command.targetManifestDigest,
+            state=state,
+            code=code,
+        )
+
+    def _rollback_update(self, engine, preparation, record):
+        """Best-effort exact rollback; uncertainty remains operator-visible."""
+        try:
+            if record.new_container_id is not None:
+                new = engine.inspect_container(record.new_container_id)
+                if new is not None:
+                    state = new.get("State")
+                    if type(state) is not dict:
+                        raise DockerWorkerError()
+                    if state.get("Running") is True:
+                        engine.stop_container(record.new_container_id)
+                    engine.remove_container(record.new_container_id)
+            old = engine.inspect_container(record.old_container_id)
+            if old is None or type(old.get("State")) is not dict:
+                raise DockerWorkerError()
+            canonical = preparation.current.installed.binding.name
+            if old.get("Name") == "/larenor-retired-" + preparation.command.updateId:
+                engine.restore_managed_container(record.old_container_id, canonical)
+                old = engine.inspect_container(record.old_container_id)
+            if old is None or old.get("Name") != "/" + canonical:
+                raise DockerWorkerError()
+            if old["State"].get("Running") is not True:
+                engine.start_container(record.old_container_id)
+                old = engine.inspect_container(record.old_container_id)
+            if (
+                not managed_container_matches(old, preparation.current.installed.binding)
+                or old["State"].get("Running") is not True
+            ):
+                raise DockerWorkerError()
+            with self._effects.locked():
+                return self._effects.transition(
+                    record.command.updateId,
+                    "mutating",
+                    "rolled_back",
+                    new_container_id=record.new_container_id,
+                )
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            try:
+                with self._effects.locked():
+                    current = self._effects.get(record.command.updateId)
+                    if current is not None and current.state == "mutating":
+                        self._effects.transition(
+                            record.command.updateId,
+                            "mutating",
+                            "needs_attention",
+                            new_container_id=current.new_container_id,
+                        )
+            except Exception:
+                pass
+            return None
+
+    def execute_update(self, command, deadline):
+        """Pull, replace and rollback one exact confirmed managed component."""
+        try:
+            now = time.monotonic()
+            if (
+                type(deadline) not in (int, float)
+                or type(deadline) is bool
+                or not now < deadline <= now + 300
+            ):
+                raise ValueError()
+            command = verify_update_command(command)
+            with self._effects.locked():
+                existing = self._effects.get(command.updateId)
+                if existing is not None:
+                    if existing.command != command:
+                        raise ValueError()
+                    if existing.state == "mutating":
+                        existing = self._effects.transition(
+                            command.updateId,
+                            "mutating",
+                            "needs_attention",
+                            new_container_id=existing.new_container_id,
+                        )
+            if existing is not None:
+                if existing.state == "committed":
+                    try:
+                        self._authority.accept_committed_update(command)
+                    except ComponentInstallationAuthorityError:
+                        return self._effect_result(
+                            command,
+                            "needs_attention",
+                            "container_state_unknown",
+                        )
+                    return self._effect_result(
+                        command, "succeeded", "component_updated"
+                    )
+                if existing.state == "rolled_back":
+                    return self._effect_result(
+                        command, "failed", "component_update_failed"
+                    )
+                if existing.state == "needs_attention":
+                    return self._effect_result(
+                        command,
+                        "needs_attention",
+                        "worker_response_unknown",
+                    )
+            command = self.validate_update(command, min(deadline, now + 5))
+            if command.rollbackSnapshotRequired:
+                return self._effect_result(command, "failed", "rollback_unavailable")
+            preparation = self._authority.prepare_update(command, load_catalog())
+            remaining = deadline - time.monotonic()
+            image_engine = UnixImageEngine(
+                self._endpoint,
+                limits=ImagePullLimits(
+                    total_seconds=max(0.1, min(300, remaining)),
+                    idle_seconds=max(0.1, min(30, remaining)),
+                ),
+                peer_uid=self._peer_uid,
+            )
+            image = image_engine.inspect(preparation.image)
+            if image is None:
+                image_engine.pull(preparation.image)
+                image = image_engine.inspect(preparation.image)
+            if image is None:
+                return self._effect_result(command, "failed", "image_unavailable")
+            binding = self._authority.update_binding(preparation, image)
+            command = self.validate_update(
+                command, min(deadline, time.monotonic() + 5)
+            )
+            source = (
+                preparation.stack.model_dump(mode="json"),
+                preparation.catalog.model_dump(mode="json"),
+                preparation.policy.model_dump(mode="json"),
+            )
+            with self._effects.locked():
+                record = self._effects.prepare(
+                    command,
+                    preparation.current.container_id,
+                    binding,
+                    source,
+                )
+                if record.state == "committed":
+                    return self._effect_result(
+                        command, "succeeded", "component_updated"
+                    )
+                if record.state == "rolled_back":
+                    return self._effect_result(
+                        command, "failed", "component_update_failed"
+                    )
+                if record.state != "prepared":
+                    if record.state == "mutating":
+                        self._effects.transition(
+                            command.updateId,
+                            "mutating",
+                            "needs_attention",
+                            new_container_id=record.new_container_id,
+                        )
+                    return self._effect_result(
+                        command, "needs_attention", "worker_response_unknown"
+                    )
+                record = self._effects.transition(
+                    command.updateId, "prepared", "mutating"
+                )
+            engine = UnixDockerEngine(
+                self._endpoint.path,
+                timeout=min(30, max(0.1, deadline - time.monotonic())),
+                socket_uid=self._endpoint.owner_uid,
+                peer_uid=self._peer_uid,
+            )
+            try:
+                old = engine.inspect_container(record.old_container_id)
+                if (
+                    not managed_container_matches(
+                        old, preparation.current.installed.binding
+                    )
+                    or old["State"].get("Running") is not True
+                ):
+                    raise DockerWorkerError()
+                engine.stop_container(record.old_container_id)
+                engine.rename_managed_container(
+                    record.old_container_id,
+                    "larenor-retired-" + command.updateId,
+                )
+                new_container_id = engine.create_managed_container(binding)
+                with self._effects.locked():
+                    record = self._effects.transition(
+                        command.updateId,
+                        "mutating",
+                        "mutating",
+                        new_container_id=new_container_id,
+                    )
+                engine.start_container(new_container_id)
+                observed = engine.inspect_container(new_container_id)
+                if (
+                    not managed_container_matches(observed, binding)
+                    or observed["State"].get("Running") is not True
+                ):
+                    raise DockerWorkerError()
+                with self._effects.locked():
+                    self._effects.transition(
+                        command.updateId,
+                        "mutating",
+                        "committed",
+                        new_container_id=new_container_id,
+                    )
+                try:
+                    self._authority.accept_committed_update(command)
+                except ComponentInstallationAuthorityError:
+                    return self._effect_result(
+                        command, "needs_attention", "container_state_unknown"
+                    )
+                return self._effect_result(command, "succeeded", "component_updated")
+            except BaseException as error:
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                rolled_back = self._rollback_update(engine, preparation, record)
+                return self._effect_result(
+                    command,
+                    "failed" if rolled_back is not None else "needs_attention",
+                    (
+                        "component_update_failed"
+                        if rolled_back is not None
+                        else "rollback_required"
+                    ),
+                )
+        except ImageResourceError:
+            return self._effect_result(command, "failed", "image_unavailable")
+        except ComponentInstallationAuthorityError:
+            return self._effect_result(
+                command, "needs_attention", "container_state_unknown"
+            )
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            try:
+                command = verify_update_command(command)
+                return self._effect_result(
+                    command, "needs_attention", "container_state_unknown"
+                )
+            except Exception:
+                raise ComponentWorkerRuntimeError("worker_unavailable") from None
 
     @contextmanager
     def quiesce(self, deadline):
@@ -257,8 +514,13 @@ def build_runtime(
         containers = resources.enter_context(
             ManagedWorkerJournal(config.container_journal)
         )
+        effects = resources.enter_context(
+            ComponentUpdateEffectJournal(config.container_journal)
+        )
         volumes = resources.enter_context(VolumeCreateJournal(config.volume_journal))
-        authority = DurableComponentInstallationAuthority(containers, volumes)
+        authority = DurableComponentInstallationAuthority(
+            containers, volumes, effects
+        )
         capture = LinuxCowCaptureEngine(
             config.capture_root,
             config.capture_journal,
@@ -274,6 +536,7 @@ def build_runtime(
             endpoint,
             authority,
             capture,
+            effects,
             peer_uid=docker_peer_uid,
         )
         server = ComponentSnapshotWorkerServer(
