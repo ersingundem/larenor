@@ -19,8 +19,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 3 | 2 | 0 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 3 | 2 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 0 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 1 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 1 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -31,8 +31,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | F42 | Mahremiyet korumalı olay paylaşımı | Çalışılıyor | — |
 | F45 | Havlama ve gürültü olayları | Çalışılıyor | — |
-| F50 | Oda konforu ve havalandırma planı | Çalışılıyor | — |
 | F49 | Bahçe sulama ve su bütçesi | Çalışılıyor | — |
+| F55 | Zigbee/Thread ağ ve güncelleme merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -40,18 +40,17 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
-| 2 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 3 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
-| 4 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 5 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
-| 6 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 7 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G08, G09, G10, G11 |
-| 8 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 9 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 10 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 11 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 12 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
+| 2 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
+| 3 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 4 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 5 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
+| 6 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G08, G09, G10, G11 |
+| 7 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 8 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 9 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 10 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 11 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -166,6 +165,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F41 | Kamera kayıtlarında doğal dille arama | Uygulama tamamlandı · test bekliyor | — |
 | F44 | Kameradan görsel sensörler | Uygulama tamamlandı · test bekliyor | — |
+| F50 | Oda konforu ve havalandırma planı | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
 | F47 | Güneş ve ev bataryası öncelikleri | Uygulama tamamlandı · test bekliyor | — |

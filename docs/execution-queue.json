@@ -4805,7 +4805,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4829,7 +4829,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Oda konforu ve havalandırma planında ayrı sensör/iklim kaynakları, pencere ve eksik veri sınırları ile güvenli manuel müdahale akışı geliştiriliyor."
+      "reason": "Oda konforu ve havalandırma planı gerçek HVAC/pencere worker komutları, tam geri okuma doğrulaması ve kalıcı sonuç durumlarıyla uygulandı; 10 sunucu ve 19 Flutter testi ile focused analyze geçti, tam CI bekliyor."
     },
     {
       "id": "F48",
@@ -4967,7 +4967,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4993,7 +4993,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Zigbee/Thread ağ ve güncelleme merkezinde gerçek coordinator/border-router kaynakları, cihaz sağlığı, kontrollü güncelleme ve güvenli geri dönüş akışı geliştiriliyor."
     },
     {
       "id": "F56",
