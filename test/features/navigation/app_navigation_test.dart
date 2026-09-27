@@ -63,12 +63,21 @@ class _Entities extends Entities {
   };
 }
 
-Future<ProviderContainer> openApp(WidgetTester tester, {String? pin}) async {
+Future<ProviderContainer> openApp(
+  WidgetTester tester, {
+  String? pin,
+  Future<HaConnectionConfig?> Function()? connectionBuild,
+}) async {
   SharedPreferences.setMockInitialValues({'enabled_services_migrated': true});
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
   final container = ProviderContainer(
     overrides: [
-      connectionConfigProvider.overrideWith(_Connection.new),
+      if (connectionBuild == null)
+        connectionConfigProvider.overrideWith(_Connection.new)
+      else
+        connectionConfigProvider.overrideWithBuild(
+          (ref, notifier) => connectionBuild(),
+        ),
       // Navigation fixtures do not emulate Android's updater channel.
       clientUpdateApiProvider.overrideWithValue(
         AndroidClientUpdateApi(isAndroid: false),
@@ -102,6 +111,42 @@ Future<ProviderContainer> openApp(WidgetTester tester, {String? pin}) async {
 }
 
 void main() {
+  testWidgets('credential storage failure can be retried explicitly', (
+    tester,
+  ) async {
+    var reads = 0;
+    await openApp(
+      tester,
+      connectionBuild: () async {
+        reads++;
+        if (reads == 1) throw StateError('fixture storage failure');
+        return const HaConnectionConfig(
+          baseUrl: 'https://ha.example.test',
+          token: 'fixture-only',
+        );
+      },
+    );
+
+    expect(
+      find.text('Secure storage is unavailable. Settings remain locked.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('app-shell-storage-retry')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('app-shell-storage-retry')));
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+    expect(
+      find.text('Secure storage is unavailable. Settings remain locked.'),
+      findsNothing,
+    );
+    expect(find.byType(AppNavigationBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'room selection and scroll survive tab round trip and window resize',
     (tester) async {

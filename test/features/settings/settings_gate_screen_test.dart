@@ -25,6 +25,23 @@ class PendingStore extends PinLockStore {
   Future<PinAttemptResult> verify(String candidate) => completion.future;
 }
 
+class RecoveringReadStore extends PinLockStore {
+  RecoveringReadStore({this.failNext = true});
+
+  int reads = 0;
+  bool failNext;
+
+  @override
+  Future<String?> read() async {
+    reads++;
+    if (failNext) {
+      failNext = false;
+      throw StateError('fixture storage failure');
+    }
+    return '1234';
+  }
+}
+
 Future<void> showGate(
   WidgetTester tester, {
   PinLockStore? store,
@@ -94,6 +111,63 @@ class PendingSaveStore extends PinLockStore {
 }
 
 void main() {
+  testWidgets('PIN storage failure can be retried explicitly', (tester) async {
+    final store = RecoveringReadStore();
+    await showGate(tester, store: store);
+
+    expect(
+      find.text('Secure storage is unavailable. Settings remain locked.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-pin-storage-retry')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-pin-storage-retry')));
+    await tester.pumpAndSettle();
+
+    expect(store.reads, 2);
+    expect(
+      find.text('Secure storage is unavailable. Settings remain locked.'),
+      findsNothing,
+    );
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retry after a PIN storage failure remains locked', (
+    tester,
+  ) async {
+    final store = RecoveringReadStore(failNext: false);
+    await showGate(tester, store: store);
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-pin-field')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-pin-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsSplitScreen), findsOneWidget);
+
+    store.failNext = true;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsGateScreen)),
+      listen: false,
+    );
+    container.invalidate(pinLockProvider);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-pin-storage-retry')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-pin-storage-retry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(find.byType(SettingsSplitScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('launcher kiosk destination remains behind the settings PIN', (
     tester,
   ) async {

@@ -41,9 +41,21 @@ class AppShell extends ConsumerWidget {
       return const ConnectScreen(initialUrl: '');
     }
     if (connection.hasError) {
+      final l10n = AppLocalizations.of(context);
       return CupertinoPageScaffold(
         child: Center(
-          child: Text(AppLocalizations.of(context).settingsGateStorageError),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l10n.settingsGateStorageError, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              CupertinoButton.filled(
+                key: const ValueKey('app-shell-storage-retry'),
+                onPressed: () => ref.invalidate(connectionConfigProvider),
+                child: Text(l10n.commonRetry),
+              ),
+            ],
+          ),
         ),
       );
     }

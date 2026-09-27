@@ -193,11 +193,31 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       loading: () => const AppPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) => AppPageScaffold(
-        child: Center(
-          child: Text(AppLocalizations.of(context).settingsGateStorageError),
-        ),
-      ),
+      error: (error, _) {
+        final l10n = AppLocalizations.of(context);
+        return AppPageScaffold(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.settingsGateStorageError,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                CupertinoButton.filled(
+                  key: const ValueKey('settings-pin-storage-retry'),
+                  onPressed: () {
+                    _lockSettings();
+                    ref.invalidate(pinLockProvider);
+                  },
+                  child: Text(l10n.commonRetry),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
       data: (pin) {
         final unlocked = pin == null || _unlocked;
         final resourceGeneration = _generation;
