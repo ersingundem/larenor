@@ -20,6 +20,7 @@ final class FloorPlanStrings {
     required this.zoomIn,
     required this.zoomOut,
     required this.accessibleRooms,
+    this.floors = 'Floors',
   });
   factory FloorPlanStrings.fromLocalizations(AppLocalizations value) =>
       FloorPlanStrings(
@@ -33,9 +34,10 @@ final class FloorPlanStrings {
         zoomIn: value.floorPlanZoomIn,
         zoomOut: value.floorPlanZoomOut,
         accessibleRooms: value.floorPlanAccessibleRooms,
+        floors: value.floorPlanFloors,
       );
   final String title, loading, empty, offline, stale, invalid;
-  final String refresh, zoomIn, zoomOut, accessibleRooms;
+  final String refresh, zoomIn, zoomOut, accessibleRooms, floors;
 }
 
 final class FloorPlanScreen extends StatefulWidget {
@@ -54,6 +56,8 @@ final class FloorPlanScreen extends StatefulWidget {
 final class _FloorPlanScreenState extends State<FloorPlanScreen> {
   final TransformationController _transform = TransformationController();
   double _scale = 1;
+  String? _selectedFloorId;
+  String? _selectedAnchorId;
 
   @override
   void initState() {
@@ -75,6 +79,21 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
       _scale = next;
       _transform.value = Matrix4.diagonal3Values(next, next, 1);
     });
+  }
+
+  void _selectFloor(String floorId) {
+    if (_selectedFloorId == floorId) return;
+    setState(() {
+      _selectedFloorId = floorId;
+      _selectedAnchorId = null;
+      _scale = 1;
+      _transform.value = Matrix4.identity();
+    });
+  }
+
+  void _selectAnchor(String anchorId) {
+    if (_selectedAnchorId == anchorId) return;
+    setState(() => _selectedAnchorId = anchorId);
   }
 
   String _failure(FloorPlanFailure value) => switch (value) {
@@ -192,6 +211,70 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
   }
 
   Widget _content(FloorPlanSnapshot snapshot, bool wide) {
+    final floors = snapshot.floors.toList(growable: false)
+      ..sort((left, right) {
+        final byOrder = left.order.compareTo(right.order);
+        if (byOrder != 0) return byOrder;
+        final byLabel = left.label.compareTo(right.label);
+        return byLabel != 0 ? byLabel : left.id.compareTo(right.id);
+      });
+    final selectedFloorId = floors.any((floor) => floor.id == _selectedFloorId)
+        ? _selectedFloorId!
+        : floors.first.id;
+    _selectedFloorId = selectedFloorId;
+    final rooms = snapshot.rooms
+        .where((room) => room.floorId == selectedFloorId)
+        .toList(growable: false);
+    final roomIds = rooms.map((room) => room.id).toSet();
+    final anchors = snapshot.anchors
+        .where((anchor) => roomIds.contains(anchor.roomId))
+        .toList(growable: false);
+    final vectors = snapshot.vectors
+        .where((vector) => vector.floorId == selectedFloorId)
+        .toList(growable: false);
+    if (!anchors.any((anchor) => anchor.id == _selectedAnchorId)) {
+      _selectedAnchorId = null;
+    }
+    final floorSelector = Semantics(
+      container: true,
+      label: widget.strings.floors,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ExcludeSemantics(
+            child: Text(
+              widget.strings.floors,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final floor in floors)
+                Semantics(
+                  selected: floor.id == selectedFloorId,
+                  label: floor.label,
+                  child: SizedBox(
+                    height: 48,
+                    child: CupertinoButton(
+                      key: ValueKey('floor-plan-floor-${floor.id}'),
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      color: floor.id == selectedFloorId
+                          ? CupertinoColors.activeBlue
+                          : CupertinoColors.secondarySystemGroupedBackground,
+                      onPressed: () => _selectFloor(floor.id),
+                      child: ExcludeSemantics(child: Text(floor.label)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
     final canvas = Container(
       key: const ValueKey('floor-plan-canvas'),
       constraints: const BoxConstraints(minHeight: 360),
@@ -207,9 +290,27 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
         constrained: true,
         child: SizedBox(
           height: 420,
-          child: CustomPaint(
-            painter: _FloorPlanPainter(snapshot),
-            child: const SizedBox.expand(),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Stack(
+              fit: StackFit.expand,
+              children: [
+                CustomPaint(
+                  painter: _FloorPlanPainter(
+                    snapshot: snapshot,
+                    floorId: selectedFloorId,
+                    rooms: rooms,
+                    vectors: vectors,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+                for (final anchor in anchors)
+                  _anchorTarget(
+                    anchor,
+                    constraints.biggest,
+                    selected: anchor.id == _selectedAnchorId,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -225,7 +326,7 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
-          for (final room in snapshot.rooms)
+          for (final room in rooms)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Semantics(
@@ -239,24 +340,124 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
                 ),
               ),
             ),
-          for (final anchor in snapshot.anchors)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text('${anchor.targetKind}: ${anchor.targetId}'),
+          for (final anchor in anchors)
+            Semantics(
+              selected: anchor.id == _selectedAnchorId,
+              label: '${anchor.targetKind}: ${anchor.targetId}',
+              child: SizedBox(
+                height: 48,
+                child: CupertinoButton(
+                  key: ValueKey('floor-plan-anchor-list-${anchor.id}'),
+                  minimumSize: const Size(48, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  alignment: AlignmentDirectional.centerStart,
+                  onPressed: () => _selectAnchor(anchor.id),
+                  child: ExcludeSemantics(
+                    child: Text('${anchor.targetKind}: ${anchor.targetId}'),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
     );
     if (!wide) {
-      return Column(children: [canvas, const SizedBox(height: 20), list]);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          floorSelector,
+          const SizedBox(height: 16),
+          canvas,
+          const SizedBox(height: 20),
+          list,
+        ],
+      );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(flex: 3, child: canvas),
-        const SizedBox(width: 24),
-        Expanded(flex: 2, child: list),
+        floorSelector,
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: canvas),
+            const SizedBox(width: 24),
+            Expanded(flex: 2, child: list),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _anchorTarget(
+    FloorPlanAnchor anchor,
+    Size canvasSize, {
+    required bool selected,
+  }) {
+    const targetSize = 64.0;
+    const radius = 8.0;
+    final x = anchor.x * canvasSize.width;
+    final y = anchor.y * canvasSize.height;
+    final left = (x - targetSize / 2)
+        .clamp(0.0, (canvasSize.width - targetSize).clamp(0.0, double.infinity))
+        .toDouble();
+    final top = (y - targetSize / 2)
+        .clamp(
+          0.0,
+          (canvasSize.height - targetSize).clamp(0.0, double.infinity),
+        )
+        .toDouble();
+    final dotLeft = (x - left - radius)
+        .clamp(0.0, targetSize - radius * 2)
+        .toDouble();
+    final dotTop = (y - top - radius)
+        .clamp(0.0, targetSize - radius * 2)
+        .toDouble();
+    return Positioned(
+      left: left,
+      top: top,
+      width: targetSize,
+      height: targetSize,
+      child: Semantics(
+        selected: selected,
+        label: '${anchor.targetKind}: ${anchor.targetId}',
+        child: CupertinoButton(
+          key: ValueKey('floor-plan-anchor-${anchor.id}'),
+          minimumSize: const Size(targetSize, targetSize),
+          padding: EdgeInsets.zero,
+          onPressed: () => _selectAnchor(anchor.id),
+          child: ExcludeSemantics(
+            child: SizedBox(
+              width: targetSize,
+              height: targetSize,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: dotLeft,
+                    top: dotTop,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? CupertinoColors.systemOrange
+                            : const Color(0xFF0A84FF),
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? Border.all(color: CupertinoColors.white, width: 2)
+                            : null,
+                      ),
+                      child: const SizedBox(
+                        width: radius * 2,
+                        height: radius * 2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -267,8 +468,16 @@ final class _ZoomIntent extends Intent {
 }
 
 final class _FloorPlanPainter extends CustomPainter {
-  const _FloorPlanPainter(this.snapshot);
+  const _FloorPlanPainter({
+    required this.snapshot,
+    required this.floorId,
+    required this.rooms,
+    required this.vectors,
+  });
   final FloorPlanSnapshot snapshot;
+  final String floorId;
+  final List<FloorPlanRoom> rooms;
+  final List<FloorPlanVector> vectors;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -279,7 +488,7 @@ final class _FloorPlanPainter extends CustomPainter {
       ..color = CupertinoColors.systemGrey
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
-    for (final room in snapshot.rooms) {
+    for (final room in rooms) {
       final path = Path()
         ..moveTo(
           room.polygon.first.x * size.width,
@@ -290,7 +499,7 @@ final class _FloorPlanPainter extends CustomPainter {
       }
       canvas.drawPath(path..close(), roomPaint);
     }
-    for (final vector in snapshot.vectors) {
+    for (final vector in vectors) {
       final path = Path()
         ..moveTo(
           vector.points.first.x * size.width,
@@ -301,18 +510,11 @@ final class _FloorPlanPainter extends CustomPainter {
       }
       canvas.drawPath(path, wallPaint);
     }
-    final anchorPaint = Paint()..color = const Color(0xFF0A84FF);
-    for (final anchor in snapshot.anchors) {
-      canvas.drawCircle(
-        Offset(anchor.x * size.width, anchor.y * size.height),
-        8,
-        anchorPaint,
-      );
-    }
   }
 
   @override
   bool shouldRepaint(covariant _FloorPlanPainter oldDelegate) =>
       oldDelegate.snapshot.revision != snapshot.revision ||
-      oldDelegate.snapshot.context != snapshot.context;
+      oldDelegate.snapshot.context != snapshot.context ||
+      oldDelegate.floorId != floorId;
 }

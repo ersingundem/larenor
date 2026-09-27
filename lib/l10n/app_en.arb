@@ -3908,6 +3908,7 @@
   "floorPlanZoomIn": "Zoom in",
   "floorPlanZoomOut": "Zoom out",
   "floorPlanAccessibleRooms": "Rooms and devices",
+  "floorPlanFloors": "Floors",
   "floorPlanRequired": "Connect to the verified Larenor Core for this home to view the floor plan.",
   "sharedExpensesTitle": "Shared expenses",
   "sharedExpensesEntrySubtitle": "Household ledger with verified splits and receipts",

@@ -3555,6 +3555,7 @@
   "floorPlanZoomIn": "Yakınlaştır",
   "floorPlanZoomOut": "Uzaklaştır",
   "floorPlanAccessibleRooms": "Odalar ve cihazlar",
+  "floorPlanFloors": "Katlar",
   "floorPlanRequired": "Ev planını görmek için bu evin doğrulanmış Larenor Core bağlantısını kullanın.",
   "sharedExpensesTitle": "Ortak giderler",
   "sharedExpensesEntrySubtitle": "Doğrulanmış paylar ve makbuzlarla ev gider defteri",
