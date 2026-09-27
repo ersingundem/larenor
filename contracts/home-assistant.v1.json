@@ -472,8 +472,8 @@
     "status": 409,
     "response": {
       "error": {
-        "code": "ha_command_conflict",
-        "message": "This request conflicts with a saved Home Assistant command."
+        "code": "idempotency_conflict",
+        "message": "This request conflicts with an existing command."
       }
     }
   },
