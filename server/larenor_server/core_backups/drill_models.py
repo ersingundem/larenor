@@ -14,6 +14,15 @@ DrillResource = Literal[
     "familyBoard",
     "componentData",
 ]
+RecoveryDrillFailure = Literal[
+    "deadline_exceeded",
+    "authority_changed",
+    "backup_failed",
+    "restore_failed",
+    "health_check_failed",
+    "cancelled",
+    "worker_unavailable",
+]
 
 
 class CreateRecoveryDrillRequest(StrictModel):
@@ -35,15 +44,7 @@ class RecoveryDrillReceipt(StrictModel):
     completedAt: Annotated[int, Field(ge=0, le=253402300799)]
     durationMilliseconds: Annotated[int, Field(ge=0, le=3_600_000)]
     verifiedResources: list[DrillResource] = Field(max_length=5)
-    failureCode: Literal[
-        "deadline_exceeded",
-        "authority_changed",
-        "backup_failed",
-        "restore_failed",
-        "health_check_failed",
-        "cancelled",
-        "worker_unavailable",
-    ] | None = None
+    failureCode: RecoveryDrillFailure | None = None
 
     @model_validator(mode="after")
     def coherent_outcome(self):
@@ -62,6 +63,29 @@ class RecoveryDrillReceipt(StrictModel):
             raise ValueError("invalid_drill_outcome")
         if self.completedAt < self.startedAt:
             raise ValueError("invalid_drill_duration")
+        return self
+
+
+class RecoveryDrillExecution(StrictModel):
+    succeeded: bool
+    verifiedResources: list[DrillResource] = Field(max_length=5)
+    failureCode: RecoveryDrillFailure | None = None
+
+    @model_validator(mode="after")
+    def coherent_result(self):
+        expected = [
+            "coreDatabase",
+            "vaultKey",
+            "configuration",
+            "familyBoard",
+            "componentData",
+        ]
+        if self.verifiedResources != expected[: len(self.verifiedResources)]:
+            raise ValueError("invalid_verified_resources")
+        if self.succeeded != (
+            self.failureCode is None and self.verifiedResources == expected
+        ):
+            raise ValueError("invalid_drill_execution")
         return self
 
 

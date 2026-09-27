@@ -1,8 +1,12 @@
 import hashlib
 import json
+import os
 import re
 import sqlite3
+import stat
+import time
 import uuid
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 
@@ -11,6 +15,7 @@ from .drill_models import (
     CancelRecoveryDrillRequest,
     CreateRecoveryDrillRequest,
     RecoveryDrill,
+    RecoveryDrillExecution,
     RecoveryDrillReceipt,
 )
 
@@ -26,6 +31,18 @@ SCOPE = [
 _ID = re.compile(r"^[0-9a-f]{32}$")
 
 
+@dataclass(frozen=True)
+class RecoveryDrillAuthority:
+    actor_id: str
+    actor_revision: int
+    family_id: str
+
+
+class RecoveryDrillBackend:
+    def execute(self, authority, *, deadline, cancelled):
+        raise NotImplementedError
+
+
 def _request_hash(body):
     value = body.model_dump(mode="json")
     return hashlib.sha256(
@@ -34,8 +51,10 @@ def _request_hash(body):
 
 
 class RecoveryDrillManagement:
-    def __init__(self, db, auth, settings):
+    def __init__(self, db, auth, settings, backend=None, *, monotonic=time.monotonic):
         self.db, self.auth, self.settings = db, auth, settings
+        self.backend = backend
+        self._monotonic = monotonic
 
     def _assert_admin(self, connection, actor):
         self.auth.assert_current(connection, actor)
@@ -253,3 +272,204 @@ class RecoveryDrillManagement:
             return {
                 "drill": self._public(self._find(connection, identifier))
             }
+
+    def _dispatch_authorized(self, connection, row):
+        current = connection.execute(
+            "SELECT u.revision,u.role,u.disabled,u.must_change_password,"
+            "f.revoked_at,f.expires_at FROM users u JOIN session_families f "
+            "ON f.user_id=u.id WHERE u.id=? AND f.id=?",
+            (row["actor_id"], row["family_id"]),
+        ).fetchone()
+        return bool(
+            current
+            and current["revision"] == row["actor_revision"]
+            and current["role"] == "admin"
+            and not current["disabled"]
+            and not current["must_change_password"]
+            and current["revoked_at"] is None
+            and current["expires_at"] > self.settings.clock()
+        )
+
+    @staticmethod
+    def _terminal_receipt(row, *, outcome, now, failure, verified=()):
+        elapsed = max(0, now - row["updated_at"])
+        return RecoveryDrillReceipt(
+            contractVersion=1,
+            outcome=outcome,
+            effectPolicy="deny_all_production_effects",
+            startedAt=row["updated_at"],
+            completedAt=now,
+            durationMilliseconds=min(elapsed * 1000, 3_600_000),
+            verifiedResources=list(verified),
+            failureCode=failure,
+        )
+
+    @classmethod
+    def _finish(cls, connection, row, receipt):
+        connection.execute(
+            "UPDATE core_recovery_drills SET revision=revision+1,state=?,"
+            "cancel_requested=?,updated_at=?,receipt_json=? WHERE id=?",
+            (
+                receipt.outcome,
+                int(receipt.outcome == "cancelled"),
+                receipt.completedAt,
+                receipt.model_dump_json(),
+                row["id"],
+            ),
+        )
+        updated = cls._find(connection, row["id"])
+        return {"drill": cls._public(updated)}
+
+    def _cancelled(self, identifier):
+        with self.db.connection() as connection:
+            row = connection.execute(
+                "SELECT state,cancel_requested FROM core_recovery_drills WHERE id=?",
+                (identifier,),
+            ).fetchone()
+            return bool(
+                row is None
+                or row["cancel_requested"]
+                or row["state"] != "running"
+            )
+
+    def _dispatch_lock(self):
+        class Lease:
+            def __init__(self, owner):
+                self.owner, self.descriptor = owner, None
+
+            def __enter__(self):
+                try:
+                    self.descriptor = os.open(
+                        self.owner.settings.data_dir / ".recovery-drills.lock",
+                        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                        0o600,
+                    )
+                    info = os.fstat(self.descriptor)
+                    if (
+                        not stat.S_ISREG(info.st_mode)
+                        or info.st_uid != os.geteuid()
+                        or stat.S_IMODE(info.st_mode) != 0o600
+                        or info.st_nlink != 1
+                    ):
+                        raise OSError()
+                    import fcntl
+
+                    try:
+                        fcntl.flock(
+                            self.descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB
+                        )
+                    except BlockingIOError:
+                        return False
+                    return True
+                except OSError:
+                    raise ApiError(
+                        "recovery_drill_storage_unavailable", 503
+                    ) from None
+
+            def __exit__(self, *_args):
+                if self.descriptor is not None:
+                    os.close(self.descriptor)
+
+        return Lease(self)
+
+    def tick(self):
+        """Advance one read-only drill; an interrupted run is safe to repeat."""
+        with self._dispatch_lock() as acquired:
+            if not acquired:
+                return None
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    "SELECT * FROM core_recovery_drills "
+                    "WHERE state IN ('running','queued') "
+                    "ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END,"
+                    "sequence LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    return None
+                now = int(self.settings.clock())
+                if row["cancel_requested"]:
+                    receipt = self._terminal_receipt(
+                        row,
+                        outcome="cancelled",
+                        now=now,
+                        failure="cancelled",
+                    )
+                    return self._finish(connection, row, receipt)
+                if not self._dispatch_authorized(connection, row):
+                    receipt = self._terminal_receipt(
+                        row,
+                        outcome="failed",
+                        now=now,
+                        failure="authority_changed",
+                    )
+                    return self._finish(connection, row, receipt)
+                expires_at = row["created_at"] + row["deadline_seconds"]
+                if now >= expires_at:
+                    receipt = self._terminal_receipt(
+                        row,
+                        outcome="failed",
+                        now=now,
+                        failure="deadline_exceeded",
+                    )
+                    return self._finish(connection, row, receipt)
+                if self.backend is None:
+                    receipt = self._terminal_receipt(
+                        row,
+                        outcome="failed",
+                        now=now,
+                        failure="worker_unavailable",
+                    )
+                    return self._finish(connection, row, receipt)
+                if row["state"] == "queued":
+                    connection.execute(
+                        "UPDATE core_recovery_drills SET revision=revision+1,"
+                        "state='running',updated_at=? WHERE id=?",
+                        (now, row["id"]),
+                    )
+                    row = self._find(connection, row["id"])
+                authority = RecoveryDrillAuthority(
+                    actor_id=row["actor_id"],
+                    actor_revision=row["actor_revision"],
+                    family_id=row["family_id"],
+                )
+                identifier = row["id"]
+                remaining = max(0.0, expires_at - self.settings.clock())
+            try:
+                raw = self.backend.execute(
+                    authority,
+                    deadline=self._monotonic() + remaining,
+                    cancelled=lambda: self._cancelled(identifier),
+                )
+                result = RecoveryDrillExecution.model_validate(
+                    raw.model_dump(mode="python")
+                )
+            except BaseException as error:
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                result = RecoveryDrillExecution(
+                    succeeded=False,
+                    verifiedResources=[],
+                    failureCode="worker_unavailable",
+                )
+            with self.db.transaction() as connection:
+                current = self._find(connection, identifier)
+                if current["state"] != "running":
+                    return {"drill": self._public(current)}
+                now = int(self.settings.clock())
+                if current["cancel_requested"]:
+                    receipt = self._terminal_receipt(
+                        current,
+                        outcome="cancelled",
+                        now=now,
+                        failure="cancelled",
+                        verified=result.verifiedResources,
+                    )
+                else:
+                    receipt = self._terminal_receipt(
+                        current,
+                        outcome="succeeded" if result.succeeded else "failed",
+                        now=now,
+                        failure=result.failureCode,
+                        verified=result.verifiedResources,
+                    )
+                return self._finish(connection, current, receipt)
