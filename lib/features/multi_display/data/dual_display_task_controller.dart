@@ -122,12 +122,12 @@ final class DualDisplayTaskController extends ChangeNotifier
         topology: topology,
         secondaryDisplayId: display.displayId,
         selection: DisplayRouteSelection(
-          primaryRouteId: 'dashboard.home',
+          primaryRouteId: 'settings.external-display',
           secondaryRouteId: routeId,
           secondarySensitivity: RouteSensitivity.public,
           focusOwner: DisplayOwner.primary,
           playerOwner: routeId == 'media.now-playing'
-              ? DisplayOwner.secondary
+              ? DisplayOwner.primary
               : DisplayOwner.none,
         ),
       );
