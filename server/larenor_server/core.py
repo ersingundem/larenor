@@ -246,6 +246,7 @@ class CoreServices:
         energy_priority_provider=None,
         energy_priority_inverter_worker=None,
         energy_priority_inverter_capability=None,
+        room_comfort_worker=None,
         ev_charge_provider=None,
         ev_charge_charger=None,
         camera_profile_provider=None,
@@ -271,6 +272,7 @@ class CoreServices:
         self._energy_priority_provider = energy_priority_provider
         self._energy_priority_inverter_worker = energy_priority_inverter_worker
         self._energy_priority_inverter_capability = energy_priority_inverter_capability
+        self._room_comfort_worker = room_comfort_worker
         self._ev_charge_provider = ev_charge_provider
         self._ev_charge_charger = ev_charge_charger
         self._camera_profile_provider = camera_profile_provider
@@ -699,7 +701,13 @@ class CoreServices:
                 )
             )
             self.room_comfort = RoomComfortService(
-                self.db, self.auth, settings, key, self.context)
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                worker=self._room_comfort_worker,
+            )
             self.room_comfort.validate_storage()
             self.irrigation = (
                 None

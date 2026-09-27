@@ -15,6 +15,8 @@ from .models import (
     ComfortPolicy,
     ComfortPreview,
     ComfortReceipt,
+    ComfortWorkerCommand,
+    WorkerComfortReadback,
 )
 from .planner import ComfortPlanner
 
@@ -29,9 +31,10 @@ def _canonical(value) -> str:
 class RoomComfortService:
     """Persistent, authenticated plan review; device dispatch stays external."""
 
-    def __init__(self, db, auth, settings, key, context):
+    def __init__(self, db, auth, settings, key, context, worker=None):
         self.db, self.auth, self.settings, self._key = db, auth, settings, key
         self.scope = HomeScope.model_validate(context.model_dump())
+        self.worker = worker
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
@@ -304,16 +307,64 @@ class RoomComfortService:
                 if now > row["expires_at"]:
                     raise ApiError("preview_expired", 409)
                 results = []
-                for (room_id, kind), _desired, _before in self._commands(plan, readbacks):
+                for (room_id, kind), (device, desired), before in self._commands(plan, readbacks):
                     command_id = hashlib.sha256((row["request_id"] + room_id + kind + plan.planId).encode()).hexdigest()[:32]
+                    command = ComfortWorkerCommand(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        requestId=row["request_id"],
+                        planId=plan.planId,
+                        policyRevision=plan.policyRevision,
+                        actorAccountId=actor.id,
+                        roomId=room_id,
+                        targetKind=kind,
+                        device=device,
+                        expectedStateRevision=before.stateRevision,
+                        desiredState=desired,
+                    )
+                    if self.worker is None:
+                        result = None
+                    else:
+                        try:
+                            result = WorkerComfortReadback.model_validate(
+                                self.worker(command)
+                            )
+                        except Exception:  # noqa: BLE001 -- worker failure is redacted
+                            result = None
+                    if result is None:
+                        results.append(ComfortCommandResult(
+                            schemaVersion=1, commandId=command_id, roomId=room_id,
+                            targetKind=kind, status="unknown", code="worker_ack_unknown",
+                            readback=None,
+                        ))
+                        continue
+                    exact = (
+                        result.commandId == command_id
+                        and result.roomId == room_id
+                        and result.device == device
+                        and result.stateRevision > before.stateRevision
+                        and result.state == desired
+                        and result.observedAtMs >= before.observedAtMs
+                        and result.observedAtMs <= int(now * 1000)
+                    )
                     results.append(ComfortCommandResult(
-                        schemaVersion=1, commandId=command_id, roomId=room_id,
-                        targetKind=kind, status="unknown", code="worker_ack_unknown",
-                        readback=None,
+                        schemaVersion=1,
+                        commandId=command_id,
+                        roomId=room_id,
+                        targetKind=kind,
+                        status="applied" if exact else "failed",
+                        code="applied" if exact else "readback_mismatch",
+                        readback=result,
                     ))
+                states = {item.status for item in results}
+                receipt_status = (
+                    "applied"
+                    if states == {"applied"}
+                    else ("partial" if len(states) > 1 else next(iter(states)))
+                )
                 receipt = ComfortReceipt(
                     schemaVersion=1, requestId=row["request_id"], planId=plan.planId,
-                    status="unknown", results=results, completedAtMs=int(now * 1000),
+                    status=receipt_status, results=results, completedAtMs=int(now * 1000),
                 )
                 receipt_json = receipt.model_dump_json()
                 values = [row["id"], row["request_id"], row["plan_id"], row["actor_id"],

@@ -129,6 +129,9 @@ void main() {
       final receipt = await api.confirm(preview);
 
       expect(receipt.status, 'unknown');
+      expect(receipt.appliedCount, 0);
+      expect(receipt.failedCount, 0);
+      expect(receipt.unknownCount, 1);
       expect(requests, hasLength(3));
       expect(
         requests.first.url.path,

@@ -35,6 +35,9 @@ final class RoomComfortStrings {
     required this.confirm,
     required this.cancel,
     required this.recorded,
+    required this.applied,
+    required this.partial,
+    required this.failed,
     required this.reasons,
   });
 
@@ -43,6 +46,7 @@ final class RoomComfortStrings {
   final String hvacOff, windowOpen, windowClosed;
   final String advisoryOccupied, advisoryUnoccupied, advisoryStale;
   final String review, confirmTitle, confirmBody, confirm, cancel, recorded;
+  final String applied, partial, failed;
   final Map<ComfortReason, String> reasons;
 
   static const en = RoomComfortStrings(
@@ -71,6 +75,9 @@ final class RoomComfortStrings {
     confirm: 'Confirm plan',
     cancel: 'Not now',
     recorded: 'Plan request recorded. Device delivery is not verified.',
+    applied: 'Plan applied and exact device readback verified.',
+    partial: 'Some device changes were verified; review the remaining results.',
+    failed: 'Device readback did not match the requested comfort plan.',
     reasons: {
       ComfortReason.airRefresh: 'Air refresh recommended',
       ComfortReason.temperatureLow: 'Temperature below target',
@@ -111,6 +118,9 @@ final class RoomComfortStrings {
     confirm: 'Planı onayla',
     cancel: 'Şimdi değil',
     recorded: 'Plan isteği kaydedildi. Cihaza iletim doğrulanmadı.',
+    applied: 'Plan uygulandı ve tam cihaz geri okuması doğrulandı.',
+    partial: 'Bazı cihaz değişiklikleri doğrulandı; kalan sonuçları inceleyin.',
+    failed: 'Cihaz geri okuması istenen konfor planıyla eşleşmedi.',
     reasons: {
       ComfortReason.airRefresh: 'Hava yenileme öneriliyor',
       ComfortReason.temperatureLow: 'Sıcaklık hedefin altında',
@@ -273,7 +283,10 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
             liveRegion: true,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text(widget.strings.recorded, style: AppText.headline),
+              child: Text(
+                _receiptText(controller.receipt!),
+                style: AppText.headline,
+              ),
             ),
           ),
         Align(
@@ -337,6 +350,13 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
     RoomComfortFailure.unavailable => widget.strings.unavailable,
     RoomComfortFailure.staleAuthority => widget.strings.stale,
     RoomComfortFailure.invalidScope => widget.strings.invalidScope,
+  };
+
+  String _receiptText(RoomComfortReceipt receipt) => switch (receipt.status) {
+    'applied' => widget.strings.applied,
+    'partial' => widget.strings.partial,
+    'failed' => widget.strings.failed,
+    _ => widget.strings.recorded,
   };
 }
 

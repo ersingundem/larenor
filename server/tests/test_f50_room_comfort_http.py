@@ -148,6 +148,57 @@ def test_authenticated_plan_preview_confirm_is_persistent_and_no_replay(server):
         assert restarted.post(confirm_path, headers=headers, json=confirm_body).json() == receipt.json()
 
 
+def test_exact_worker_readback_marks_the_persistent_receipt_applied(server):
+    app, client, _settings, clock = server
+    pair = ready(server)
+    headers = auth(pair)
+    context = app.state.core.context
+    root = f"/api/v1/room-comfort/{context.coreId}/{context.homeId}"
+
+    def worker(command):
+        return {
+            "schemaVersion": 1,
+            "commandId": command.commandId,
+            "roomId": command.roomId,
+            "device": command.device.model_dump(mode="json"),
+            "stateRevision": command.expectedStateRevision + 1,
+            "state": command.desiredState,
+            "observedAtMs": int(clock.now * 1000),
+        }
+
+    app.state.core.room_comfort.worker = worker
+    plan = client.put(
+        root + "/plan",
+        headers=headers,
+        json=_publish_body(app, int(clock.now * 1000)),
+    ).json()["plan"]
+    preview = client.post(
+        root + "/previews",
+        headers=headers,
+        json={
+            "schemaVersion": 1,
+            "requestId": "a" * 32,
+            "expectedPlanId": plan["planId"],
+            "expectedHomeRevision": plan["homeRevision"],
+            "expectedPolicyRevision": plan["policyRevision"],
+        },
+    ).json()["preview"]
+    receipt = client.post(
+        root + f"/previews/{preview['previewId']}/confirm",
+        headers=headers,
+        json={
+            "schemaVersion": 1,
+            "expectedPlanId": plan["planId"],
+            "expectedPolicyRevision": plan["policyRevision"],
+            "confirmToken": preview["confirmToken"],
+        },
+    ).json()["receipt"]
+
+    assert receipt["status"] == "applied"
+    assert receipt["results"][0]["code"] == "applied"
+    assert receipt["results"][0]["readback"]["state"] == "heat"
+
+
 def test_duplicate_device_readback_is_rejected_before_plan_is_published(server):
     app, client, _settings, clock = server
     pair = ready(server)

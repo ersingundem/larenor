@@ -144,11 +144,21 @@ final class RoomComfortApi implements RoomComfortGateway {
           !_validResults(results)) {
         throw const LarenorServerException('invalid_response');
       }
+      final appliedCount = results
+          .where((raw) => serverObject(raw)['status'] == 'applied')
+          .length;
+      final failedCount = results
+          .where((raw) => serverObject(raw)['status'] == 'failed')
+          .length;
+      final unknownCount = results.length - appliedCount - failedCount;
       return RoomComfortReceipt(
         requestId: requestId,
         planId: preview.planId,
         status: status as String,
         commandCount: results.length,
+        appliedCount: appliedCount,
+        failedCount: failedCount,
+        unknownCount: unknownCount,
       );
     },
   );

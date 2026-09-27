@@ -191,9 +191,12 @@ final class RoomComfortReceipt {
     required this.planId,
     required this.status,
     required this.commandCount,
+    this.appliedCount = 0,
+    this.failedCount = 0,
+    this.unknownCount = 0,
   });
   final String requestId, planId, status;
-  final int commandCount;
+  final int commandCount, appliedCount, failedCount, unknownCount;
 }
 
 Map<String, Object?> _object(Object? raw) {
