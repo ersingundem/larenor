@@ -4097,7 +4097,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Canlı TV ve kayıt merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4122,7 +4122,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Uygulama tamamlandı: yetkili tuner/IPTV capability ve taze EPG sözleşmesi, session-family yetkisi, stabil provider revizyonu, idempotent recorder receipt/readback, kota ve tuner çakışması, kesilme/partial/restart/cancel akışları ile sağlayıcı saat dilimindeki Flutter rehber-kayıt merkezi f19e3a15bed54ac6da13afcd6bc5d8c641ae0d62 ile gönderildi. Hedefli Flutter analyze temiz, Python compile/import ve provider-backed configure→schedule→replay→conflict→readback→restart→cancel smoke geçti; kalıcı test dosyaları, fiziksel sağlayıcı kabulü ve tam commit CI final kapılarda bekleniyor."
     },
     {
       "id": "F27",
@@ -4192,7 +4192,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Parti DJ'i ve ortak şarkı oylaması",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4216,7 +4216,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "F23 özellik dilimi gönderildikten sonra başlatıldı; Music Assistant kuyruğuna bağlı revision-safe oda, kullanıcı başına öneri/oy sınırı, skip quorum, heartbeat/ayrılma ve explicit host onayı geliştiriliyor."
     },
     {
       "id": "F30",
