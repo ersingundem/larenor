@@ -26,6 +26,7 @@ import '../../../playback_quality/data/core_playback_quality_request_adapter.dar
 import '../../../playback_quality/domain/core_playback_quality_advice.dart';
 import '../../../playback_quality/providers/playback_quality_providers.dart';
 import '../../../../server/media_segments/data/server_media_segment_controller.dart';
+import '../../../../server/ai_resources/data/ai_media_activity_lease.dart';
 import '../../../../server/media_segments/domain/server_media_segment_models.dart';
 import '../../../../server/watch_parties/data/server_watch_party_controller.dart';
 import '../../../../server/watch_parties/domain/server_watch_party_models.dart';
@@ -99,6 +100,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   late final ServerMediaSegmentController _mediaSegments;
   late final ServerWatchPartyController _watchParty;
   late final ServerOfflineMediaController _offlineMedia;
+  late final AiMediaActivityLease _aiMediaActivity;
 
   JellyfinClient? _client;
   LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
@@ -222,6 +224,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _ignoreFailure(_player.stop);
       _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
       _loading = false;
+      _aiMediaActivity.setActive(false);
     }
   }
 
@@ -276,6 +279,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _offlineMedia = ServerOfflineMediaController(
       ref.read(serverAccountControllerProvider),
     )..addListener(_offlineMediaChanged);
+    _aiMediaActivity = AiMediaActivityLease(
+      ref.read(serverAccountControllerProvider),
+    );
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
@@ -301,6 +307,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
           _loading = false;
         });
+        _aiMediaActivity.setActive(false);
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -337,6 +344,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    _aiMediaActivity.setActive(
+      _foreground && _playing && !_loading && _error == null,
+    );
     if (!_foreground) {
       _expireInteraction();
       _hideControlsTimer?.cancel();
@@ -366,6 +376,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
         _loading = false;
       });
+      _aiMediaActivity.setActive(false);
       return;
     }
     _client = client;
@@ -382,6 +393,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       await _openSource(startPosition: widget.item.resumePosition);
       if (mounted && generation == _generation) {
         setState(() => _loading = false);
+        _aiMediaActivity.setActive(_foreground && _playing && _error == null);
       }
     } catch (_) {
       if (mounted && generation == _generation) {
@@ -389,6 +401,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           _error = AppLocalizations.of(context).mediaReadFailedTitle;
           _loading = false;
         });
+        _aiMediaActivity.setActive(false);
       }
     }
   }
@@ -525,6 +538,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       });
       _playingSub?.cancel();
       _playingSub = _player.stream.playing.listen((playing) {
+        _aiMediaActivity.setActive(
+          _foreground && playing && !_loading && _error == null,
+        );
         if (mounted) setState(() => _playing = playing);
       });
       _tracksSub = _player.stream.tracks.listen((tracks) {
@@ -1556,6 +1572,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _watchParty.dispose();
     _offlineMedia.removeListener(_offlineMediaChanged);
     _offlineMedia.dispose();
+    _aiMediaActivity.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();

@@ -17,6 +17,7 @@ import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
+import '../ai_resources/presentation/server_ai_resource_screen.dart';
 import '../component_updates/presentation/server_component_updates_screen.dart';
 import '../core_backups/presentation/server_core_backups_screen.dart';
 import '../data/server_account_controller.dart';
@@ -795,6 +796,36 @@ class _ServerConnectionScreenState
                                             CupertinoPageRoute(
                                               builder: (_) =>
                                                   ServerTabletFleetScreen(
+                                                    gateCurrent:
+                                                        widget
+                                                            .adminGateCurrent ??
+                                                        () => true,
+                                                  ),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-ai-resources',
+                                  ),
+                                  leading: const Icon(CupertinoIcons.sparkles),
+                                  title: Text(l10n.serverAiResourcesTitle),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  ServerAiResourceScreen(
                                                     gateCurrent:
                                                         widget
                                                             .adminGateCurrent ??
