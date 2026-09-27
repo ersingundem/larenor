@@ -2875,6 +2875,15 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — F01 uygulandı, F11 başladı:** Sürümlü izinli eylem kataloğu yalnız
+  tam ifadeleri şema doğrulamalı otomasyon taslağına çeviriyor; hedef, adımlar,
+  yan etkiler ve süre görünür. Ham döküm saklanmıyor, prompt enjeksiyonu
+  reddediliyor ve açık onay atomik biçimde yalnız etkisiz kural kaydı
+  oluşturuyor; cihaz komut yolu kapalı (`2d57cf02`, `aab8009d`). F01 son
+  test/inceleme/exact-head CI tablosuna taşındı; bağımlılıkları hazır F11
+  sınırlı mini eklenti çalışma alanı aktif geliştirmeye alındı. Kabul sayaçları
+  kanıtlar gelene kadar **37/125** ve **3/63** olarak korunuyor.
+
 - **27 Eylül — F03 uygulandı, F01 başladı:** F02 deneme haftasının sürümlü
   tarihsel olayları önerilen kural sürümüyle deterministik yeniden oynatılıyor;
   eski/yeni karar farkı ve girdi parmak izi gösteriliyor. Eksik geçmiş
